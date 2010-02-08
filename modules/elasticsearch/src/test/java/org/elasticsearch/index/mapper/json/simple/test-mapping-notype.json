@@ -1,0 +1,52 @@
+{
+    dateFormats : ["yyyy-MM-dd", "dd-MM-yyyy"],
+    dynamic : false,
+    enabled : true,
+    idField : {name : "_id", indexName : "_id"},
+    sourceField : {name : "_source", compressionThreshold : 0},
+    typeField : {name : "_type"},
+    boostField : {name : "_boost", nullValue : 2.0},
+    properties : {
+        name : {
+            type : "object",
+            dynamic : false,
+            properties : {
+                first : {type : "string", store : "yes"},
+                last : {type : "string", index : "not_analyzed"}
+            }
+        },
+        address : {
+            type : "object",
+            properties : {
+                first : {
+                    properties : {
+                        location : {type : "string", store : "yes", indexName : "firstLocation"}
+                    }
+                },
+                last : {
+                    properties : {
+                        location : {type : "string"}
+                    }
+                }
+            }
+        },
+        age : {type : "integer", nullValue : 0},
+        birthdate : {type : "date", format : "yyyy-MM-dd"},
+        nerd : {type : "boolean"},
+        dogs : {type : "string", indexName : "dog"},
+        complex : {
+            type : "object",
+            properties : {
+                value1 : {type : "string"},
+                value2 : {type : "string"}
+            }
+        },
+        complex2 : {
+            type : "object",
+            properties : {
+                value1 : {type : "string"},
+                value2 : {type : "string"}
+            }
+        }
+    }
+}

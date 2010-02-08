@@ -1,0 +1,7 @@
+{
+    queryString : {
+        defaultField : "content",
+        phraseSlop : 1,
+        query: "test"
+    }
+}

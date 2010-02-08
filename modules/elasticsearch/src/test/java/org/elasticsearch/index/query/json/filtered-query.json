@@ -1,0 +1,10 @@
+{
+    filteredQuery : {
+        query : {
+            term : { "name.first" : "shay" }
+        },
+        filter : {
+            term : { "name.last" : "banon"}
+        }
+    }
+}

@@ -1,0 +1,58 @@
+<!--
+  ~ Licensed to Elastic Search and Shay Banon under one
+  ~ or more contributor license agreements.  See the NOTICE file
+  ~ distributed with this work for additional information
+  ~ regarding copyright ownership. Elastic Search licenses this
+  ~ file to you under the Apache License, Version 2.0 (the
+  ~ "License"); you may not use this file except in compliance
+  ~ with the License.  You may obtain a copy of the License at
+  ~
+  ~    http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing,
+  ~ software distributed under the License is distributed on an
+  ~ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+  ~ KIND, either express or implied.  See the License for the
+  ~ specific language governing permissions and limitations
+  ~ under the License.
+  -->
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+    <title>GNU Trove API Documentation</title>
+</head>
+
+<body>
+<p>GNU Trove: Decorators for java.util.{Map,Set} compatability</p>
+
+<p>The classes in this package serve to wrap the Trove primitive
+    collections so that they can be used in operations that require a
+    <tt>java.util.Map</tt> or <tt>java.util.Set</tt>.</p>
+
+<p>This is form of adaptation is <b>extremely</b> inefficient and
+    so should only be undertaken as a last resort or when you don't
+    care about performance (in which case Trove is probably not
+    appropriate anyway).</p>
+
+<p>The general pattern here is that you "wrap" a Trove collection
+    with the appropriate decorator object to obtain a java.util.Map or
+    Set. The implementations do not retain references to the Objects
+    they accept/return (all calls are delegated to the underlying
+    trove collection), so you should not rely on object identity
+    within those collections.</p>
+
+<p>You may extend the decorator classes to use canonical values if
+    your dataset permits. For some applications, this will help
+    reduce the cost of (un)wrapping primitive values. Note, however,
+    that such datasets are probably small/restricted enough that you
+    should again ask yourself whether Trove is appropriate in the
+    first place. Caveat programmer.</p.
+
+<hr>
+<!-- Created: Mon Sep 23 22:55:19 PDT 2002 -->
+<!-- hhmts start -->
+Last modified: Mon Sep 23 22:55:32 PDT 2002
+<!-- hhmts end -->
+</body>
+</html>

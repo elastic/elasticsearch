@@ -1,0 +1,12 @@
+cluster:
+  routing:
+    schedule: 100ms
+index:
+  numberOfShards: 5
+  numberOfReplicas: 1
+
+# use large interval node sampler
+client:
+  transport:
+    nodesSamplerInterval: 30s
+

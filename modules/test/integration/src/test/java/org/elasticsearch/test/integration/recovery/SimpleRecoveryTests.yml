@@ -1,0 +1,10 @@
+cluster:
+  routing:
+    schedule: 200ms
+index:
+  numberOfShards: 5
+  numberOfReplicas: 1
+  shard:
+    recovery:
+      fileChunkSize: 3b
+      

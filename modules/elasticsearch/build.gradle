@@ -1,0 +1,67 @@
+import java.text.SimpleDateFormat
+
+dependsOn(':test-testng')
+
+usePlugin 'java'
+
+archivesBaseName = "$project.archivesBaseName"
+
+processResources.doLast {
+    Properties versionProps = new Properties();
+    versionProps.setProperty("number", rootProject.version)
+    versionProps.setProperty("date", buildTimeStr)
+    versionProps.setProperty("devBuild", rootProject.devBuild.toString())
+
+    File versionFile = new File(sourceSets.main.classesDir, "/org/elasticsearch/version.properties")
+    versionFile.parentFile.mkdirs()
+    versionFile.withOutputStream {
+        versionProps.store(it, '')
+    }
+}
+
+
+manifest.mainAttributes("Implementation-Title": "ElasticSearch", "Implementation-Version": rootProject.version, "Implementation-Date": buildTimeStr)
+
+// no need to use the resource dir
+sourceSets.main.resources.srcDirs 'src/main/java', rootProject.file('config')
+sourceSets.test.resources.srcDir 'src/test/java'
+
+dependencies {
+    compile('jline:jline:0.9.94') { transitive = false }
+
+    compile 'org.slf4j:slf4j-api:1.5.8'
+    compile('org.slf4j:slf4j-log4j12:1.5.8') { transitive = false }
+    compile('log4j:log4j:1.2.15') { transitive = false }
+
+    compile 'joda-time:joda-time:1.6'
+    compile 'com.google.collections:google-collections:1.0'
+
+    compile 'org.yaml:snakeyaml:1.5'
+
+    compile 'org.codehaus.jackson:jackson-core-asl:1.4.2'
+    compile 'org.codehaus.jackson:jackson-mapper-asl:1.4.2'
+
+    compile 'aopalliance:aopalliance:1.0'
+    compile 'com.google.inject:guice:2.0'
+    compile 'com.google.inject.extensions:guice-assisted-inject:2.0'
+    compile 'com.google.inject.extensions:guice-multibindings:2.0'
+
+    compile 'org.apache.lucene:lucene-core:3.0.0'
+    compile 'org.apache.lucene:lucene-analyzers:3.0.0'
+    compile 'org.apache.lucene:lucene-queries:3.0.0'
+
+    compile('jgroups:jgroups:2.8.0.GA') { transitive = false }
+    compile('org.jboss.netty:netty:3.1.5.GA') { transitive = false }
+
+    testCompile project(':test-testng')
+    testCompile('org.testng:testng:5.10:jdk15') { transitive = false }
+    testCompile 'org.hamcrest:hamcrest-all:1.1'
+}
+
+test {
+    useTestNG()
+    jmvArgs = ["-ea", "-Xmx1024m"]
+    options.suiteName = project.name
+    options.listeners = ["org.elasticsearch.util.testng.Listeners"]
+    options.systemProperties = ["es.test.log.conf": System.getProperty("es.test.log.conf", "log4j-gradle.properties")]
+}

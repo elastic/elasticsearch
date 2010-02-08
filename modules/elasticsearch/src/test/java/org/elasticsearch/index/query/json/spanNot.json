@@ -1,0 +1,10 @@
+{
+    spanNot : {
+        include : {
+            spanTerm : { age : 34 }
+        },
+        exclude : {
+            spanTerm : { age : 35 }
+        }
+    }
+}

@@ -1,0 +1,14 @@
+include 'test-testng'
+
+include 'elasticsearch'
+
+include 'test-integration'
+
+include 'benchmark-micro'
+
+rootProject.name = 'elasticsearch-root'
+rootProject.children.each {project ->
+    String fileBaseName = project.name.replaceAll("\\p{Upper}") { "-${it.toLowerCase()}" }
+    fileBaseName = fileBaseName.replace('-', '/');
+    project.projectDir = new File(settingsDir, "modules/$fileBaseName")
+}

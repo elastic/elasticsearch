@@ -1,0 +1,653 @@
+{
+    quotes : [
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Introduction",
+            text : ["This planet has - or rather had - a problem, which was this: most of the people living on it were unhappy for pretty much all of the time. Many solutions were suggested for this problem, but most of these were largely concerned with the movement of small green pieces of paper, which was odd because on the whole it wasn't the small green pieces of paper that were unhappy."]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Introduction",
+            text : ["Many were increasingly of the opinion that they'd all made a big mistake in coming down from the trees in the first place. And some said that even the trees had been a bad move, and that no one should ever have left the oceans."]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Introduction",
+            text : ["In many of the more relaxed civilizations on the Outer Eastern Rim of the Galaxy, the Hitch-Hiker's Guide has already supplanted the great Encyclopaedia Galactica as the standard repository of all knowledge and wisdom, for though it has many omissions and contains much that is apocryphal, or at least wildly inaccurate, it scores over the older, more pedestrian work in two important respects.",
+                "First, it is slightly cheaper; and secondly it has the words DON'T PANIC inscribed in large friendly letters on its cover."
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 1",
+            text : [
+                "\"Some factual information for you. Have you any idea how much damage that bulldozer would suffer if I just let it roll straight over you?\"",
+                "\"How much?\" said Arthur.",
+                "\"None at all,\" said Mr Prosser."
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 1",
+            text : [
+                "\"The mere thought,\" growled Mr. Prosser, \"hadn't even begun to speculate,\" he continued, settling himself back, \"about the merest possibility of crossing my mind.\""
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 2",
+            text : [
+                "[The Guide] says that the best drink in existence is the Pan Galactic Gargle Blaster. It says that the effect of a Pan Galactic Gargle Blaster is like having your brains smashed out by a slice of lemon wrapped round a large gold brick."
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 2",
+            text : [
+                "\"Time is an illusion. Lunchtime doubly so.\"",
+                "\"Very deep,\" said Arthur, \"you should send that in to the Reader's Digest. They've got a page for people like you.\""
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 2",
+            text : [
+                "\"This must be Thursday,\" said Arthur to himself, sinking low over his beer, \"I never could get the hang of Thursdays.\""
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 3",
+            text : [
+                "The ships hung in the sky in much the same way that bricks don't."
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 5",
+            text : [
+                "One of the things Ford Prefect had always found hardest to understand about humans was their habit of continually stating and repeating the very very obvious, as in It's a nice day, or You're very tall, or Oh dear you seem to have fallen down a thirty-foot well, are you alright? At first Ford had formed a theory to account for this strange behaviour. If human beings don't keep exercising their lips, he thought, their mouths probably seize up. After a few months' consideration and observation he abandoned this theory in favour of a new one. If they don't keep on exercising their lips, he thought, their brains start working. After a while he abandoned this one as well as being obstructively cynical."
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 7",
+            text : [
+                "\"You know,\" said Arthur, \"it's at times like this, when I'm trapped in a Vogon airlock with a man from Betelgeuse, and about to die of asphyxiation in deep space that I really wish I'd listened to what my mother told me when I was young.\"",
+                "\"Why, what did she tell you?\"",
+                "\"I don't know, I didn't listen.\""
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 8",
+            text : [
+                "\"Space,\" it says, \"is big. Really big. You just won't believe how vastly hugely mindbogglingly big it is. I mean you may think it's a long way down the road to the chemist, but that's just peanuts to space, LISTEN!\" and so on..."
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 9",
+            text : [
+                "Arthur looked up. \"Ford!\" he said, \"there's an infinite number of monkeys outside who want to talk to us about this script for Hamlet they've worked out.\""
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 9",
+            text : [
+                "\"Ford,\" he said, \"you're turning into a penguin. Stop it\""
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 9",
+            text : [
+                "\"But that's not the point!\" raged Ford \"The point is that I am now a perfectly safe penguin, and my colleague here is rapidly running out of limbs!\""
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 11",
+            text : [
+                "\"Five to one against and falling...\" she said, \"four to one against and falling...three to one...two...one...probability factor of one to one...we have normality, I repeat we have normality.\" She turned her microphone off – then turned it back on, with a slight smile and continued: \"Anything you still can’t cope with is therefore your own problem.\""
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 11",
+            text : [
+                "\"I think you ought to know I'm feeling very depressed,\" Marvin said."
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 11",
+            text : [
+                "He reached out and pressed an invitingly large red button on a nearby panel. The panel lit up with the words Please do not press this button again."
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 11",
+            text : [
+                "\"All the doors in this spaceship have a cheerful and sunny disposition. It is their pleasure to open for you, and their satisfaction to close again with the knowledge of a job well done.\""
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 11",
+            text : [
+                "\"Come on,\" he droned, \"I've been ordered to take you down to the bridge. Here I am, brain the size of a planet and they ask me to take you down to the bridge. Call that job satisfaction? 'Cos I don't.\""
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 11",
+            text : [
+                "\"Sorry, did I say something wrong?\" said Marvin, dragging himself on regardless. \"Pardon me for breathing, which I never do anyway so I don't know why I bother to say it, oh God I'm so depressed. Here's another one of those self-satisfied doors. Life! Don't talk to me about life.\""
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 12",
+            text : [
+                "If there's anything bigger than my ego around, I want it caught and shot now."
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 13",
+            text : [
+                "Marvin trudged on down the corridor, still moaning.",
+                "\"...and then of course I've got this terrible pain in all the diodes down my left hand side...\"",
+                "\"No?\" said Arthur grimly as he walked along beside him. \"Really?\"",
+                "\"Oh yes,\" said Marvin, \"I mean I've asked for them to be replaced but no one ever listens.\"",
+                "\"I can imagine.\""
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 16",
+            text : [
+                "Isn’t it enough to see that a garden is beautiful without having to believe that there are fairies at the bottom of it too?"
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 17",
+            text : [
+                "He had found a Nutri-Matic machine which had provided him with a plastic cup filled with a liquid that was almost, but not quite, entirely unlike tea."
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 18",
+            text : [
+                "Curiously enough, the only thing that went through the mind of the bowl of petunias as it fell was Oh no, not again. Many people have speculated that if we knew exactly why the bowl of petunias had thought that we would know a lot more about the nature of the Universe than we do now."
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 20",
+            text : [
+                "\"Life,\" said Marvin dolefully, \"loathe it or ignore it, you can't like it.\""
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 23",
+            text : [
+                "For instance, on the planet Earth, man had always assumed that he was more intelligent than dolphins because he had achieved so much - the wheel, New York, wars and so on - whilst all the dolphins had ever done was muck about in the water having a good time. But conversely, the dolphins had always believed that they were far more intelligent than man - for precisely the same reasons.",
+                "The last ever dolphin message was misinterpreted as a surprisingly sophisticated attempt to do a double-backwards-somersault through a hoop whilst whistling the 'Star Spangled Banner', but in fact the message was this: So long and thanks for all the fish."
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 24",
+            text : [
+                "Looking up into the night sky is looking into infinity - distance is incomprehensible and therefore meaningless."
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 27",
+            text : [
+                "\"Forty-two,\" said Deep Thought, with infinite majesty and calm.",
+                "\"The Answer to the Great Question, of Life, the Universe and Everything\""
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 30",
+            text : [
+                "\"The chances of finding out what's really going on in the universe are so remote, the only thing to do is hang the sense of it and keep yourself occupied. Look at me, I design fjords. I'd far rather be happy than right any day.\"",
+                "\"And are you?\"",
+                "\"No, that's where it all falls apart I'm afraid.\"",
+                "\"Pity, it sounded like quite a nice lifestyle otherwise.\""
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 34",
+            text : [
+                "\"What's up?\"",
+                "\"I don't know,\" said Marvin, \"I've never been there.\""
+            ]
+        },
+        {
+            book : "The Hitchhiker's Guide to the Galaxy",
+            chapter: "Chapter 35",
+            text : [
+                "It said: \"The History of every major Galactic Civilization tends to pass through three distinct and recognizable phases, those of Survival, Inquiry and Sophistication, otherwise known as the How, Why and Where phases.",
+                "\"For instance, the first phase is characterized by the question How can we eat? the second by the question Why do we eat? and the third by the question Where shall we have lunch?\""
+            ]
+        },
+        {
+            book : "The Restaurant at the End of the Universe",
+            chapter: "Preface",
+            text : [
+                "There is a theory which states that if ever anyone discovers exactly what the Universe is for and why it is here, it will instantly disappear and be replaced by something even more bizarre and inexplicable.",
+                "There is another theory which states that this has already happened."
+            ]
+        },
+        {
+            book : "The Restaurant at the End of the Universe",
+            chapter: "Chapter 1",
+            text : [
+                "The story so far:",
+                "In the beginning the Universe was created.",
+                "This has made a lot of people very angry and has been widely regarded as a bad move."
+            ]
+        },
+        {
+            book : "The Restaurant at the End of the Universe",
+            chapter: "Chapter 2",
+            text : [
+                "\"Share and Enjoy\" is the company motto of the hugely successful Sirius Cybernetics Corporation Complaints division, which now covers the major land masses of three medium sized planets and is the only part of the Corporation to have shown a consistent profit in recent years."
+            ]
+        },
+        {
+            book : "The Restaurant at the End of the Universe",
+            chapter: "Chapter 2",
+            text : [
+                "The protruding upper halves of the letters now appear, in the local language, to read \"Go stick your head in a pig\", and are no longer illuminated, except at times of special celebration."
+            ]
+        },
+        {
+            book : "The Restaurant at the End of the Universe",
+            chapter: "Chapter 3",
+            text : [
+                "Quite how Zaphod Beeblebrox arrived at the idea of holding a seance at this point is something he was never quite clear on.",
+                "Obviously the subject of death was in the air, but more as something to be avoided than harped upon.",
+                "Possibly the horror that Zaphod experienced at the prospect of being reunited with his deceased relatives led on to the thought that they might just feel the same way about him and, what's more, be able to do something about helping to postpone this reunion."
+            ]
+        },
+        {
+            book : "The Restaurant at the End of the Universe",
+            chapter: "Chapter 3",
+            text : [
+                "\"Concentrate,\" hissed Zaphod, \"on his name.\"",
+                "\"What is it?\" asked Arthur.",
+                "\"Zaphod Beeblebrox the Fourth.\"",
+                "\"What?\"",
+                "\"Zaphod Beeblebrox the Fourth. Concentrate!\"",
+                "\"The Fourth?\"",
+                "\"Yeah. Listen, I'm Zaphod Beeblebrox, my father was Zaphod Beeblebrox the Second, my grandfather Zaphod Beeblebrox the Third...\"",
+                "\"What?\"",
+                "\"There was an accident with a contraceptive and a time machine. Now concentrate!\""
+            ]
+        },
+        {
+            book : "The Restaurant at the End of the Universe",
+            chapter: "Chapter 6",
+            text : [
+                "The Guide is definitive. Reality is frequently inaccurate."
+            ]
+        },
+        {
+            book : "The Restaurant at the End of the Universe",
+            chapter: "Chapter 6",
+            text : [
+                "\"Listen, three eyes,\" he said, \"don't you try to outweird me, I get stranger things than you free with my breakfast cereal.\""
+            ]
+        },
+        {
+            book : "The Restaurant at the End of the Universe",
+            chapter: "Chapter 17",
+            text : [
+                "I am the main Dish of the Day. May I interest you in parts of my body?"
+            ]
+        },
+        {
+            book : "The Restaurant at the End of the Universe",
+            chapter: "Chapter 17",
+            text : [
+                "Shee, you guys are so unhip it's a wonder your bums don't fall off."
+            ]
+        },
+        {
+            book : "The Restaurant at the End of the Universe",
+            chapter: "Chapter 18",
+            text : [
+                "\"The first ten million years were the worst,\" said Marvin, \"and the second ten million years, they were the worst too. The third ten million years I didn't enjoy at all. After that I went into a bit of a decline.\""
+            ]
+        },
+        {
+            book : "The Restaurant at the End of the Universe",
+            chapter: "Chapter 18",
+            text : [
+                "\"Er...\" he said, \"hello. Er, look, I'm sorry I'm a bit late. I've had the most ghastly time, all sorts of things cropping up at the last moment.\"",
+                "He seemed nervous of the expectant awed hush. He cleared his throat.",
+                "\"Er, how are we for time?\" he said, \"have I just got a min—\"",
+                "And so the Universe ended."
+            ]
+        },
+        {
+            book : "The Restaurant at the End of the Universe",
+            chapter: "Chapter 19",
+            text : [
+                "It is known that there are an infinite number of worlds, simply because there is an infinite amount of space for them to be in. However, not every one of them is inhabited. Therefore, there must be a finite number of inhabited worlds. Any finite number divided by infinity is as near to nothing as makes no odds, so the average population of all the planets in the Universe can be said to be zero. From this it follows that the population of the whole Universe is also zero, and that any people you may meet from time to time are merely the products of a deranged imagination."
+            ]
+        },
+        {
+            book : "The Restaurant at the End of the Universe",
+            chapter: "Chapter 20",
+            text : [
+                "The ship was rocking and swaying sickeningly as Ford and Zaphod tried to wrest control from the autopilot. The engines howled and whined like tired children in a supermarket."
+            ]
+        },
+        {
+            book : "The Restaurant at the End of the Universe",
+            chapter: "Chapter 22",
+            text : [
+                "The trouble with most forms of transport, he thought, is basically one of them not being worth all the bother. On Earth – when there had been an Earth, before it was demolished to make way for a new hyperspace bypass – the problem had been with cars. The disadvantages involved in pulling lots of black sticky slime from out of the ground where it had been safely hidden out of harm's way, turning it into tar to cover the land with, smoke to fill the air with and pouring the rest into the sea, all seemed to outweigh the advantages of being able to get more quickly from one place to another – particularly when the place you arrived at had probably become, as a result of this, very similar to the place you had left, i.e. covered with tar, full of smoke and short of fish."
+            ]
+        },
+        {
+            book : "The Restaurant at the End of the Universe",
+            chapter: "Chapter 23",
+            text : [
+                "The designer of the gun had clearly not been instructed to beat about the bush. \"Make it evil,\" he'd been told. \"Make it totally clear that this gun has a right end and a wrong end. Make it totally clear to anyone standing at the wrong end that things are going badly for them. If that means sticking all sort of spikes and prongs and blackened bits all over it then so be it. This is not a gun for hanging over the fireplace or sticking in the umbrella stand, it is a gun for going out and making people miserable with.\""
+            ]
+        },
+        {
+            book : "The Restaurant at the End of the Universe",
+            chapter: "Chapter 28",
+            text : [
+                "The major problem — one of the major problems, for there are several — one of the many major problems with governing people is that of whom you get to do it; or rather of who manages to get people to let them do it to them.",
+                "To summarize: it is a well known fact that those people who most want to rule people are, ipso facto, those least suited to do it. To summarize the summary: anyone who is capable of getting themselves made President should on no account be allowed to do the job. To summarize the summary of the summary: people are a problem."
+            ]
+        },
+        {
+            book : "The Restaurant at the End of the Universe",
+            chapter: "Chapter 29",
+            text : [
+                "\"How can I tell,\" said the man, \"that the past isn't a fiction designed to account for the discrepancy between my immediate physical sensations and my state of mind?\""
+            ]
+        },
+        {
+            book : "The Restaurant at the End of the Universe",
+            chapter: "Chapter 32",
+            text : [
+                "\"Well, you’re obviously being totally naive of course\", said the girl, \"When you’ve been in marketing as long as I have, you'll know that before any new product can be developed it has to be properly researched. We’ve got to find out what people want from fire, how they relate to it, what sort of image it has for them.\"",
+                "The crowd were tense. They were expecting something wonderful from Ford.",
+                "\"Stick it up your nose,\" he said.",
+                "\"Which is precisely the sort of thing we need to know,\" insisted the girl, \"Do people want fire that can be fitted nasally?\""
+            ]
+        },
+        {
+            book : "The Restaurant at the End of the Universe",
+            chapter: "Chapter 32",
+            text : [
+                "\"And the wheel,\" said the Captain, \"What about this wheel thingy? It sounds a terribly interesting project.\"",
+                "\"Ah,\" said the marketing girl, \"Well, we're having a little difficulty there.\"",
+                "\"Difficulty?\" exclaimed Ford. \"Difficulty? What do you mean, difficulty? It's the single simplest machine in the entire Universe!\"",
+                "The marketing girl soured him with a look.",
+                "\"Alright, Mr. Wiseguy,\" she said, \"if you're so clever, you tell us what colour it should be.\""
+            ]
+        },
+        {
+            book : "Life, the Universe and Everything",
+            chapter: "Chapter 1",
+            text : [
+                "The regular early morning yell of horror was the sound of Arthur Dent waking up and suddenly remembering where he was."
+            ]
+        },
+        {
+            book : "Life, the Universe and Everything",
+            chapter: "Chapter 1",
+            text : [
+                "In the end, it was the Sunday afternoons he couldn't cope with, and that terrible listlessness that starts to set in about 2:55, when you know you’ve taken all the baths that you can usefully take that day, that however hard you stare at any given paragraph in the newspaper you will never actually read it, or use the revolutionary new pruning technique it describes, and that as you stare at the clock the hands will move relentlessly on to four o’clock, and you will enter the long dark teatime of the soul."
+            ]
+        },
+        {
+            book : "Life, the Universe and Everything",
+            chapter: "Chapter 2",
+            text : [
+                "\"Africa was very interesting,\" said Ford, \"I behaved very oddly there.\" [...] \"I took up being cruel to animals,\" he said airily. \"But only,\" he added, \"as a hobby.\"",
+                "\"Oh yes,\" said Arthur, warily.",
+                "\"Yes,\" Ford assured him. \"I won't disturb you with the details because they would—\"",
+                "\"What?\"",
+                "\"Disturb you. But you may be interested to know that I am singlehandedly responsible for the evolved shape of the animal you came to know in later centuries as a giraffe.\""
+            ]
+        },
+        {
+            book : "Life, the Universe and Everything",
+            chapter: "Chapter 2",
+            text : [
+                "He gazed keenly into the distance and looked as if he would quite like the wind to blow his hair back dramatically at that point, but the wind was busy fooling around with some leaves a little way off."
+            ]
+        },
+        {
+            book : "Life, the Universe and Everything",
+            chapter: "Chapter 2",
+            text : [
+                "\"I have detected,\" he said, \"disturbances in the wash.\" [...]",
+                "\"The wash?\" said Arthur.",
+                "\"The space-time wash,\" said Ford. [...]",
+                "Arthur nodded, and then cleared his throat. \"Are we talking about,\" he asked cautiously, \"some sort of Vogon laundromat, or what are we talking about?\"",
+                "\"Eddies,\" said Ford, \"in the space-time continuum.\"",
+                "\"Ah,\" nodded Arthur, \"is he? Is he?\" He pushed his hands into the pocket of his dressing gown and looked knowledgeably into the distance.",
+                "\"What?\" said Ford.",
+                "\"Er, who,\" said Arthur, \"is Eddy, then, exactly, then?\""
+            ]
+        },
+        {
+            book : "Life, the Universe and Everything",
+            chapter: "Chapter 2",
+            text : [
+                "\"There!\" said Ford, shooting out his arm. \"There, behind that sofa!\"",
+                "Arthur looked. Much to his surprise, there was a velvet paisley-covered Chesterfield sofa in the field in front of them. He boggled intelligently at it. Shrewd questions sprang into his mind.",
+                "\"Why,\" he said, \"is there a sofa in that field?\"",
+                "\"I told you!\" shouted Ford, leaping to his feet. \"Eddies in the space-time continuum!\"",
+                "\"And this is his sofa, is it?\" asked Arthur, struggling to his feet and, he hoped, though not very optimistically, to his senses."
+            ]
+        },
+        {
+            book : "Life, the Universe and Everything",
+            chapter: "Chapter 6",
+            text : [
+                "\"My doctor says that I have a malformed public-duty gland and a natural deficiency in moral fibre,\" Ford muttered to himself, \"and that I am therefore excused from saving Universes.\""
+            ]
+        },
+        {
+            book : "Life, the Universe and Everything",
+            chapter: "Chapter 9",
+            text : [
+                "There is a moment in every dawn when light floats, there is the possibility of magic. Creation holds its breath.",
+                "The moment passed as it regularly did on Squornshellous Zeta, without incident."
+            ]
+        },
+        {
+            book : "Life, the Universe and Everything",
+            chapter: "Chapter 9",
+            text : [
+                "Very few things actually get manufactured these days, because in an infinitely large Universe such as, for instance, the one in which we live, most things one could possibly imagine, and a lot of things one would rather not, grow somewhere."
+            ]
+        },
+        {
+            book : "Life, the Universe and Everything",
+            chapter: "Chapter 9",
+            text : [
+                "\"My capacity for happiness,\" he added, \"you could fit into a matchbox without taking out the matches first.\" —Marvin"
+            ]
+        },
+        {
+            book : "Life, the Universe and Everything",
+            chapter: "Chapter 9",
+            text : [
+                "\"You may not instantly see why I bring the subject up, but that is because my mind works so phenomenally fast, and I am at a rough estimate thirty billion times more intelligent than you. Let me give you an example. Think of a number, any number.\"",
+                "\"Er, five,\" said the mattress.",
+                "\"Wrong,\" said Marvin. \"You see?\"",
+                "The mattress was much impressed by this and realized that it was in the presence of a not unremarkable mind."
+            ]
+        },
+        {
+            book : "Life, the Universe and Everything",
+            chapter: "Chapter 9",
+            text : [
+                "\"I would like to say that it is a very great pleasure, honour and privilege for me to open this bridge, but I can't because my lying circuits are all out of commission.\" —Marvin"
+            ]
+        },
+        {
+            book : "Life, the Universe and Everything",
+            chapter: "Chapter 11",
+            text : [
+                "[...] the renewed shock had nearly made him spill his drink. He drained it quickly before anything serious happened to it. He then had another quick one to follow the first one down and check that it was all right.",
+                "\"Freedom,\" he said aloud.",
+                "Trillian came on to the bridge at that point and said several enthusiastic things on the subject of freedom.",
+                "\"I can't cope with it,\" Zaphod said darkly, and sent a third drink down to see why the second hadn't yet reported on the condition of the first. He looked uncertainly at both of her and preferred the one on the right.",
+                "He poured a drink down his other throat with the plan that it would head the previous one off at the pass, join forces with it, and together they would get the second to pull itself together. Then all three would go off in search of the first, give it a good talking to and maybe a bit of a sing as well.",
+                "He felt uncertain as to whether the fourth drink had understood all that, so he sent down a fifth to explain the plan more fully and a sixth for moral support."
+            ]
+        },
+        {
+            book : "Life, the Universe and Everything",
+            chapter: "Chapter 11",
+            text : [
+                "There is an art, it says, or rather, a knack to flying. The knack lies in learning how to throw yourself at the ground and miss. [...] Clearly, it is this second part, the missing, which presents the difficulties."
+            ]
+        },
+        {
+            book : "Life, the Universe and Everything",
+            chapter: "Chapter 11",
+            text : [
+                "He sat up sharply and started to pull clothes on. He decided that there must be someone in the Universe feeling more wretched, miserable and forsaken than himself, and he determined to set out and find him.",
+                "Halfway to the bridge it occurred to him that it might be Marvin, and he returned to bed."
+            ]
+        },
+        {
+            book : "Life, the Universe and Everything",
+            chapter: "Chapter 18",
+            text : [
+                "They obstinately persisted in their absence."
+            ]
+        },
+        {
+            book : "Life, the Universe and Everything",
+            chapter: "Chapter 24",
+            text : [
+                "It is a mistake to think you can solve any major problems just with potatoes."
+            ]
+        },
+        {
+            book : "Life, the Universe and Everything",
+            chapter: "Chapter 31",
+            text : [
+                "\"That young girl,\" Marvin added unexpectedly, \"is one of the least benightedly unintelligent organic life forms it has been my profound lack of pleasure not to be able to avoid meeting.\""
+            ]
+        },
+        {
+            book : "Life, the Universe and Everything",
+            chapter: "Chapter 33",
+            text : [
+                "He hoped and prayed that there wasn't an afterlife. Then he realized there was a contradiction involved here and merely hoped that there wasn't an afterlife."
+            ]
+        },
+        {
+            book : "So Long And Thanks for All the Fish",
+            chapter: "Prologue",
+            text : [
+                "Many were increasingly of the opinion that they'd all made a big mistake in coming down from the trees in the first place. And some said that even the trees had been a bad move, and that no one should ever have left the oceans.",
+                "And then, one Thursday, nearly two thousand years after one man had been nailed to a tree for saying how great it would be to be nice to people for a change, a girl sitting on her own in a small café in Rickmansworth suddenly realized what it was that had been going wrong all this time, and she finally knew how the world could be made a good and happy place. This time it was right, it would work, and no one would have to get nailed to anything.",
+                "Sadly, however, before she could get to a phone to tell anyone about it, the Earth was unexpectedly demolished to make way for a new hyperspace bypass, and so the idea was lost, seemingly for ever.",
+                "This is her story."
+            ]
+        },
+        {
+            book : "So Long And Thanks for All the Fish",
+            chapter: "Chapter 21",
+            text : [
+                "The problem is, or rather one of the problems, for there are many, a sizeable proportion of which are continually clogging up the civil, commercial, and criminal courts in all areas of the Galaxy, and especially, where possible, the more corrupt ones, this.",
+                "The previous sentence makes sense. That is not the problem.",
+                "This is:",
+                "Change.",
+                "Read it through again and you'll get it."
+            ]
+        },
+        {
+            book : "So Long And Thanks for All the Fish",
+            chapter: "Chapter 23",
+            text : [
+                "Ford: \"Life,\" he said, \"is like a grapefruit.\"",
+                "Creature:\"Er, how so?\"",
+                "Ford: \"Well, it's sort of orangey-yellow and dimpled on the outside, wet and squidgy in the middle. It's got pips inside, too. Oh, and some people have half a one for breakfast.\""
+            ]
+        },
+        {
+            book : "So Long And Thanks for All the Fish",
+            chapter: "Chapter 25",
+            text : [
+                "\"This Arthur Dent,\" comes the cry from the furthest reaches of the galaxy, and has even now been found inscribed on a mysterious deep space probe thought to originate from an alien galaxy at a distance too hideous to contemplate, \"what is he, man or mouse? Is he interested in nothing more than tea and the wider issues of life? Has he no spirit? has he no passion? Does he not, to put it in a nutshell, fuck?\"",
+                "Those who wish to know should read on. Others may wish to skip on to the last chapter which is a good bit and has Marvin in it."
+            ]
+        },
+        {
+            book : "So Long And Thanks for All the Fish",
+            chapter: "Chapter 31",
+            text : [
+                "The sign said:",
+                "Hold stick near centre of its length. Moisten pointed end in mouth. Insert in tooth space, blunt end next to gum. Use gentle in-out motion.",
+                "It seemed to me,\" said Wonko the Sane, \"that any civilization that had so far lost its head as to need to include a set of detailed instructions for use in a packet of toothpicks, was no longer a civilization in which I could live and stay sane.\""
+            ]
+        },
+        {
+            book : "So Long And Thanks for All the Fish",
+            chapter: "Chapter 35",
+            text : [
+                "The Hitchhiker's Guide to the Galaxy [...] says of the Sirius Cybernetics Corporation products that \"it is very easy to be blinded to the essential uselessness of them by the sense of achievement you get from getting them to work at all.\""
+            ]
+        },
+        {
+            book : "So Long And Thanks for All the Fish",
+            chapter: "Chapter 40",
+            text : [
+                "\"So much time,\" it groaned, \"oh so much time. And pain as well, so much of that, and so much time to suffer it in too. One or the other on its own I could probably manage. It's the two together that really get me down.\""
+            ]
+        },
+        {
+            book : "So Long And Thanks for All the Fish",
+            chapter: "Chapter 40",
+            text : [
+                "\"Ha!\" snapped Marvin. \"Ha!\" he repeated. \"What do you know of always? You say 'always' to me, who, because of the silly little errands your organic lifeforms keep on sending me through time on, am now thirty-seven times older than the Universe itself? Pick your words with a little more care,\" he coughed, \"and tact.\""
+            ]
+        },
+        {
+            book : "So Long And Thanks for All the Fish",
+            chapter: "Chapter 40",
+            text : [
+                "\"We apologise for the inconvenience.\" God's Final Message to His Creation, written in letters of fire on the side of the Quentulus Quazgar Mountains.",
+                "\"I think,\" Marvin murmured at last, from deep within his corroding rattling thorax, \"I feel good about it.\"",
+                "The lights went out in his eyes for absolutely the very last time ever."
+            ]
+        },
+        {
+            book : "So Long And Thanks for All the Fish",
+            chapter: "Epilogue",
+            text : [
+                "There was a point to this story, but it has temporarily escaped the chronicler's mind."
+            ]
+        }
+    ]
+}

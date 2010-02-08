@@ -1,0 +1,9 @@
+cluster:
+  routing:
+    schedule: 200ms
+index:
+  numberOfShards: 3
+  numberOfReplicas: 0
+  routing :
+    # Use simple hashing since we want even distribution and our ids are simple incremented number based
+    hash.type : simple

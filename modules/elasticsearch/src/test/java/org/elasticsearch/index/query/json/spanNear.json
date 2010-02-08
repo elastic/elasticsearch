@@ -1,0 +1,18 @@
+{
+    spanNear : {
+        clauses : [
+            {
+                spanTerm : { age : 34 }
+            },
+            {
+                spanTerm : { age : 35 }
+            },
+            {
+                spanTerm : { age : 36 }
+            }
+        ],
+        slop : 12,
+        inOrder : false,
+        collectPayloads : false
+    }
+}

@@ -1,0 +1,15 @@
+{
+    spanOr : {
+        clauses : [
+            {
+                spanTerm : { age : 34 }
+            },
+            {
+                spanTerm : { age : 35 }
+            },
+            {
+                spanTerm : { age : 36 }
+            }
+        ]
+    }
+}

@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="testng">
+    <CLASSES>
+      <root url="jar://$GRADLE_REPOSITORY$/org.testng/testng/jars/testng-5.10-jdk15.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

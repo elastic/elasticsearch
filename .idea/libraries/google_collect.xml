@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="google-collect">
+    <CLASSES>
+      <root url="jar://$GRADLE_REPOSITORY$/com.google.collections/google-collections/jars/google-collections-1.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

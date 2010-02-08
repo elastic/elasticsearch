@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="snakeyaml">
+    <CLASSES>
+      <root url="jar://$GRADLE_REPOSITORY$/org.yaml/snakeyaml/jars/snakeyaml-1.5.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

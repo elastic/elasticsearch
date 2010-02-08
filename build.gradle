@@ -1,0 +1,112 @@
+import java.text.SimpleDateFormat
+
+defaultTasks "clean", "devRelease"
+
+usePlugin BasePlugin
+
+archivesBaseName = 'elasticsearch'
+
+buildTime = new Date()
+SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
+buildTimeStr = sdf.format(buildTime)
+
+versionNumber = '0.4.0'
+devBuild = true
+
+explodedDistDir = new File(distsDir, 'exploded')
+explodedDistLibDir = new File(explodedDistDir, 'lib')
+explodedDistBinDir = new File(explodedDistDir, 'bin')
+explodedDistConfigDir = new File(explodedDistDir, 'config')
+
+
+gradle.taskGraph.whenReady {graph ->
+    if (graph.hasTask(':release')) {
+        devBuild = false
+    }
+}
+
+allprojects {
+    group = 'org.elasticsearch'
+    version = versionNumber
+
+    plugins.withType(JavaPlugin).whenPluginAdded {
+        sourceCompatibility = 1.6
+        targetCompatibility = 1.6
+    }
+
+    repositories {
+        mavenCentral()
+        mavenRepo urls: 'http://repository.jboss.com/maven2/'
+        mavenRepo urls: 'http://snakeyamlrepo.appspot.com/repository' // for snakeyaml
+    }
+}
+
+configurations {
+    dists
+    distLib {
+        visible = false
+    }
+}
+
+dependencies {
+    distLib project(':elasticsearch')
+}
+
+task explodedDist(dependsOn: [configurations.distLib], description: 'Builds a minimal distribution image') << {
+    [explodedDistDir, explodedDistLibDir, explodedDistBinDir, explodedDistConfigDir]*.mkdirs()
+    // remove old elasticsearch files
+    ant.delete { fileset(dir: explodedDistLibDir, includes: "$archivesBaseName-*.jar") }
+
+    copy {
+        from configurations.distLib
+        into explodedDistLibDir
+    }
+
+    copy { from('bin'); into explodedDistBinDir }
+    copy { from('config'); into explodedDistConfigDir }
+
+    copy {
+        from('.')
+        into explodedDistDir
+        include 'LICENSE.txt'
+        include 'NOTICE.txt'
+        include 'README.textile'
+    }
+
+    ant.chmod(dir: "$explodedDistDir/bin", perm: "ugo+rx", includes: "**/*")
+}
+
+task zip(type: Zip) {
+    dependsOn explodedDist
+//    classifier = 'all'
+}
+
+zip.doFirst {task ->
+    zipRootFolder = "$archivesBaseName-${-> version}"
+    task.configure {
+        zipFileSet(dir: explodedDistDir, prefix: zipRootFolder) {
+            exclude 'bin/*'
+        }
+        zipFileSet(dir: explodedDistDir, prefix: zipRootFolder, fileMode: '775') {
+            include 'bin/*'
+            exclude 'bin/*.*'
+        }
+        zipFileSet(dir: explodedDistDir, prefix: zipRootFolder) {
+            include 'bin/*.*'
+        }
+    }
+}
+
+task devRelease(dependsOn: [zip]) {
+
+}
+
+task release(dependsOn: [zip]) {
+
+}
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '0.8'
+    jarPath = 'gradle'
+}

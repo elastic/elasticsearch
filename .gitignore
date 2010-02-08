@@ -1,0 +1,11 @@
+.gradle/
+elasticsearch.iws
+.idea/workspace.xml
+work/
+.DS_Store
+build/
+test-output/
+modules/elasticsearch/build/
+modules/test/integration/build/
+modules/test/testng/build/
+modules/benchmark/micro/build/

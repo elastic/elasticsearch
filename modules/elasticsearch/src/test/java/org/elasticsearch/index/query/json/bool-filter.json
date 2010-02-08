@@ -1,0 +1,23 @@
+{
+    filteredQuery : {
+        query : {
+            term : { "name.first" : "shay" }
+        },
+        filter : {
+            bool : {
+                must : {
+                    term : { "name.first" : "shay1" }
+                },
+                mustNot: {
+                    term : { "name.first" : "shay2" }
+                },
+                should: {
+                    term : { "name.first" : "shay3" }
+                },
+                must : {
+                    term : { "name.first" : "shay4" }
+                }
+            }
+        }
+    }
+}

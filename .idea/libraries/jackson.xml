@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="jackson">
+    <CLASSES>
+      <root url="jar://$GRADLE_REPOSITORY$/org.codehaus.jackson/jackson-core-asl/jars/jackson-core-asl-1.4.2.jar!/" />
+      <root url="jar://$GRADLE_REPOSITORY$/org.codehaus.jackson/jackson-mapper-asl/jars/jackson-mapper-asl-1.4.2.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

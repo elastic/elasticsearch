@@ -1,0 +1,10 @@
+{
+    filteredQuery : {
+        query : {
+            term : { "name.first" : "shay" }
+        },
+        filter : {
+            prefix : { "name.first" : "sh" }
+        }
+    }
+}

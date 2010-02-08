@@ -1,0 +1,3 @@
+{
+    matchAll : { boost : 1.2 }
+}

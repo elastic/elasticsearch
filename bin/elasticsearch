@@ -1,0 +1,168 @@
+#!/bin/sh
+
+# OPTIONS:
+#   -f: start in the foreground
+#   -p <filename>: log the pid to a file (useful to kill it later)
+
+# CONTROLLING STARTUP:
+#
+# This script relies on few environment variables to determine startup
+# behavior, those variables are:
+#
+#   CLASSPATH   -- A Java classpath containing everything necessary to run.
+#   JAVA_OPS    -- Additional arguments to the JVM for heap size, etc
+#   ES_JAVA_OPS -- External Java Opts on top of the defaults set
+#
+# As a convenience, a fragment of shell is sourced in order to set one or
+# more of these variables. This so-called `include' can be placed in a
+# number of locations and will be searched for in order. The lowest
+# priority search path is the same directory as the startup script, and
+# since this is the location of the sample in the project tree, it should
+# almost work Out Of The Box.
+#
+# Any serious use-case though will likely require customization of the
+# include. For production installations, it is recommended that you copy
+# the sample to one of /usr/share/elasticsearch/elasticsearch.in.sh,
+# /usr/local/share/elasticsearch/elasticsearch.in.sh, or
+# /opt/elasticsearch/elasticsearch.in.sh and make your modifications there.
+#
+# Another option is to specify the full path to the include file in the
+# environment. For example:
+#
+#   $ ES_INCLUDE=/path/to/in.sh elasticsearch -p /var/run/es.pid
+#
+# Note: This is particularly handy for running multiple instances on a
+# single installation, or for quick tests.
+#
+# If you would rather configure startup entirely from the environment, you
+# can disable the include by exporting an empty ES_INCLUDE, or by
+# ensuring that no include files exist in the aforementioned search list.
+# Be aware that you will be entirely responsible for populating the needed
+# environment variables.
+
+
+SCRIPT="$0"
+
+# SCRIPT may be an arbitrarily deep series of symlinks. Loop until we have the concrete path.
+while [ -h "$SCRIPT" ] ; do
+  ls=`ls -ld "$SCRIPT"`
+  # Drop everything prior to ->
+  link=`expr "$ls" : '.*-> \(.*\)$'`
+  if expr "$link" : '/.*' > /dev/null; then
+    SCRIPT="$link"
+  else
+    SCRIPT=`dirname "$SCRIPT"`/"$link"
+  fi
+done
+
+# determine elasticsearch home
+ES_HOME=`dirname "$SCRIPT"`/..
+
+# make ELASTICSEARCH_HOME absolute
+ES_HOME=`cd $ES_HOME; pwd`
+
+
+if [ -x $JAVA_HOME/bin/java ]; then
+    JAVA=$JAVA_HOME/bin/java
+else
+    JAVA=`which java`
+fi
+
+# If an include wasn't specified in the environment, then search for one...
+if [ "x$ES_INCLUDE" = "x" ]; then
+    # Locations (in order) to use when searching for an include file.
+    for include in /usr/share/elasticsearch/elasticsearch.in.sh \
+                   /usr/local/share/elasticsearch/elasticsearch.in.sh \
+                   /opt/elasticsearch/elasticsearch.in.sh \
+                   ~/.elasticsearch.in.sh \
+                   `dirname $0`/elasticsearch.in.sh; do
+        if [ -r $include ]; then
+            . $include
+            break
+        fi
+    done
+# ...otherwise, source the specified include.
+elif [ -r $ES_INCLUDE ]; then
+    . $ES_INCLUDE
+fi
+
+if [ -z $CLASSPATH ]; then
+    echo "You must set the CLASSPATH var" >&2
+    exit 1
+fi
+
+# Special-case path variables.
+case "`uname`" in
+    CYGWIN*)
+        CLASSPATH=`cygpath -p -w "$CLASSPATH"`
+    ;;
+esac
+
+launch_service()
+{
+    pidpath=$1
+    foreground=$2
+    props=$3
+    es_parms="-Delasticsearch -Des.path.home=$ES_HOME"
+
+    if [ "x$pidpath" != "x" ]; then
+        es_parms="$es_parms -Des-pidfile=$pidpath"
+    fi
+
+    # The es-daemon option will tell Bootstrap to close stdout/stderr,
+    # but it's up to us not to background.
+    if [ "x$foreground" != "x" ]; then
+        es_parms="$es_parms -Des-foreground=yes"
+        $JAVA $JAVA_OPTS $ES_JAVA_OPTS $es_parms -cp $CLASSPATH $props \
+                org.elasticsearch.bootstrap.Bootstrap
+    else
+        # Startup Bootstrap, background it, and write the pid.
+        exec $JAVA $JAVA_OPTS $ES_JAVA_OPTS $es_parms -cp $CLASSPATH $props \
+                    org.elasticsearch.bootstrap.Bootstrap <&- &
+        [ ! -z $pidpath ] && printf "%d" $! > $pidpath
+    fi
+
+    return $?
+}
+
+# Parse any command line options.
+args=`getopt fhp:bD:X: "$@"`
+eval set -- "$args"
+
+while true; do
+    case "$1" in
+        -p)
+            pidfile="$2"
+            shift 2
+        ;;
+        -f)
+            foreground="yes"
+            shift
+        ;;
+        -h)
+            echo "Usage: $0 [-d] [-h] [-p pidfile]"
+            exit 0
+        ;;
+        -D)
+            properties="$properties -D$2"
+            shift 2
+        ;;
+        -X)
+            properties="$properties -X$2"
+            shift 2
+        ;;
+        --)
+            shift
+            break
+        ;;
+        *)
+            echo "Error parsing arguments!" >&2
+            exit 1
+        ;;
+    esac
+done
+
+# Start up the service
+launch_service "$pidfile" "$foreground" "$properties"
+
+exit $?

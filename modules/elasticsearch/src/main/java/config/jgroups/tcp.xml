@@ -1,0 +1,68 @@
+<!-- Changes from default jgroups tcp.xml: -->
+<!-- 1. Changed print_local_addr from true to false -->
+<!-- 2. Disabled STREAMING_STATE_TRANSFER, we don't use it -->
+
+<!--
+    TCP based stack, with flow control and message bundling. This is usually used when IP
+    multicasting cannot be used in a network, e.g. because it is disabled (routers discard multicast).
+    Note that TCP.bind_addr and TCPPING.initial_hosts should be set, possibly via system properties, e.g.
+    -Djgroups.bind_addr=192.168.5.2 and -Djgroups.tcpping.initial_hosts=192.168.5.2[7800]
+-->
+<config xmlns="urn:org:jgroups"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="urn:org:jgroups http://www.jgroups.org/schema/JGroups-2.8.xsd">
+    <TCP bind_port="7800"
+         loopback="true"
+         recv_buf_size="${tcp.recv_buf_size:20000000}"
+         send_buf_size="${tcp.send_buf_size:640000}"
+         discard_incompatible_packets="true"
+         max_bundle_size="64000"
+         max_bundle_timeout="30"
+         enable_bundling="true"
+         use_send_queues="true"
+         sock_conn_timeout="300"
+         skip_suspected_members="true"
+         num_timer_threads="4"
+
+         thread_pool.enabled="true"
+         thread_pool.min_threads="1"
+         thread_pool.max_threads="10"
+         thread_pool.keep_alive_time="5000"
+         thread_pool.queue_enabled="false"
+         thread_pool.queue_max_size="100"
+         thread_pool.rejection_policy="discard"
+
+         oob_thread_pool.enabled="true"
+         oob_thread_pool.min_threads="1"
+         oob_thread_pool.max_threads="8"
+         oob_thread_pool.keep_alive_time="5000"
+         oob_thread_pool.queue_enabled="false"
+         oob_thread_pool.queue_max_size="100"
+         oob_thread_pool.rejection_policy="discard"/>
+
+    <TCPPING timeout="3000"
+             initial_hosts="${jgroups.tcpping.initial_hosts:localhost[7800],localhost[7801]}"
+             port_range="1"
+             num_initial_members="3"/>
+    <MERGE2 min_interval="10000"
+            max_interval="30000"/>
+    <FD_SOCK/>
+    <FD timeout="3000" max_tries="3"/>
+    <VERIFY_SUSPECT timeout="1500"/>
+    <BARRIER/>
+    <pbcast.NAKACK
+            use_mcast_xmit="false" gc_lag="0"
+            retransmit_timeout="300,600,1200,2400,4800"
+            discard_delivered_msgs="true"/>
+    <UNICAST timeout="300,600,1200"/>
+    <pbcast.STABLE stability_delay="1000" desired_avg_gossip="50000"
+                   max_bytes="400000"/>
+    <pbcast.GMS print_local_addr="false" join_timeout="3000"
+
+                view_bundling="true"/>
+    <FC max_credits="2000000"
+        min_threshold="0.10"/>
+    <FRAG2 frag_size="60000"/>
+    <!--<pbcast.STREAMING_STATE_TRANSFER/>-->
+    <!-- <pbcast.STATE_TRANSFER/> -->
+</config>

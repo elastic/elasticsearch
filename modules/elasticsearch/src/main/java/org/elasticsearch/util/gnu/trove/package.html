@@ -1,0 +1,160 @@
+<!--
+  ~ Licensed to Elastic Search and Shay Banon under one
+  ~ or more contributor license agreements.  See the NOTICE file
+  ~ distributed with this work for additional information
+  ~ regarding copyright ownership. Elastic Search licenses this
+  ~ file to you under the Apache License, Version 2.0 (the
+  ~ "License"); you may not use this file except in compliance
+  ~ with the License.  You may obtain a copy of the License at
+  ~
+  ~    http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing,
+  ~ software distributed under the License is distributed on an
+  ~ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+  ~ KIND, either express or implied.  See the License for the
+  ~ specific language governing permissions and limitations
+  ~ under the License.
+  -->
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+    <title>GNU Trove API Documentation</title>
+</head>
+
+<body>
+<p><b>Taken AS IS to use in Elastic Search under Trove License, version 2.1.0</b></p>
+
+<p>GNU Trove: High performance collections for Java.</p>
+
+<h2>Objectives</h2>
+
+<p>The GNU Trove library has two objectives:
+<ol>
+
+    <li>Provide &quot;free&quot; (as in &quot;free speech&quot;
+        <i>and</i> &quot;free beer&quot;), fast, lightweight
+        implementations of the <tt>java.util</tt> Collections API.
+        These implementations are designed to be pluggable
+        replacements for their JDK equivalents.
+    </li>
+
+    <li>Whenever possible, provide the same collections support
+        for <strong>primitive</strong> types. This gap in the JDK is
+        often addressed by using the &quot;wrapper&quot; classes
+        (<tt>java.lang.Integer</tt>, <tt>java.lang.Float</tt>, etc.)
+        with Object-based collections. For most applications,
+        however, collections which store primitives directly will
+        require less space and yield significant performance gains.
+</ol>
+</p>
+
+<h2>Hashtable techniques</h2>
+
+<p>The Trove maps/sets use open addressing instead of the chaining
+    approach taken by the JDK hashtables. This eliminates the need
+    to create Map.Entry wrappper objects for every item in a
+    table and so reduces the <tt>O</tt> (big-oh) in the performance of
+    the hashtable algorithm. The size of the tables used in Trove's maps/sets is
+    always a prime number, improving the probability of an optimal distribution
+    of entries across the table, and so reducing the the likelihood
+    of performance-degrading collisions. Trove sets are not
+    backed by maps, and so using a THashSet does not result in
+    the allocation of an unused "values" array.
+</p>
+
+<h2>Hashing strategies</h2>
+
+<p>Trove's maps/sets support the use of custom <tt>hashing
+    strategies</tt>, allowing you to tune collections based on
+    characteristics of the input data. This feature also allows you
+    to define hash functions when it is not feasible to override
+    Object.hashCode(). For example, the java.lang.String class is
+    final, and its implementation of hashCode() takes <tt>O(n)</tt>
+    time to complete. In some applications, however, it may be
+    possible for a custom hashing function to save time by skipping
+    portions of the string that are invariant.</p>
+
+<p>Using java.util.HashMap, it is not possible to use Java
+    language arrays as keys. For example, this code:
+    <pre>
+    char[] foo, bar;
+    foo = new char[] {'a','b','c'};
+    bar = new char[] {'a','b','c'};
+    System.out.println(foo.hashCode() == bar.hashCode() ? "equal" : "not equal");
+    System.out.println(foo.equals(bar) ? "equal" : "not equal");
+    </pre>
+
+produces this output:
+
+    <pre>
+    not equal
+    not equal
+    </pre>
+
+And so an entry stored in a java.util.HashMap with foo as a
+key could not be retrieved with bar, since there is no way
+to override hashCode() or equals() on language array objects.
+</p>
+
+<p>In a gnu.trove.THashMap, however, you can implement a TObjectHashingStrategy
+    to enable hashing on arrays:
+
+    <pre>
+    class CharArrayStrategy implements TObjectHashingStrategy {
+        public int computeHashCode(Object o) {
+            char[] c = (char[])o;
+            // use the shift-add-xor class of string hashing functions
+            // cf. Ramakrishna and Zobel, "Performance in Practice of String Hashing Functions"
+            int h = 31; // seed chosen at random
+            for (int i = 0; i < c.length; i++) { // could skip invariants
+                h = h ^ ((h << 5) + (h >> 2) + c[i]); // L=5, R=2 works well for ASCII input
+            }
+            return h;
+        }
+
+        public boolean equals(Object o1, Object o2) {
+            char[] c1 = (char[])o1;
+            char[] c2 = (char[])o2;
+            if (c1.length != c2.length) { // could drop this check for fixed-length keys
+                return false;
+            }
+            for (int i = 0, len = c1.length; i < len; i++) { // could skip invariants
+                if (c1[i] != c2[i]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+    </pre>
+</p>
+
+<h2>Iterators in primitive collections</h2>
+
+<p>As of release 0.1.7, Trove's primitive mappings include access through Iterators
+    as well as procedures and functions. The API documentation on those classes
+    contains several examples showing how these can be used effectively and
+    explaining why their semantics differ from those of <tt>java.util.Iterator.</tt></p>
+
+<h2>Miscellaneous</h2>
+
+<p>N.B. using <tt>Map.entrySet</tt> on a Trove Map is supported, but
+    not encouraged. The reason is that this API requires the creation of
+    the Map.Entry Objects that all other parts of Trove manage to avoid.
+    An alternative is to implement the appropriate <tt>Procedure</tt>
+    interface and use it to invoke the Map's <tt>forEachEntry</tt>
+    API. <tt>Map.keySet</tt> and <tt>Map.values</tt> are not
+    similarly encumbered; nevertheless, the <tt>forEachKey</tt>,
+    <tt>forEachValue</tt>, and <tt>transformValues</tt> APIs will yield
+    slightly better performance at the cost of compatibility with the
+    interface of <tt>java.util.Map</tt>.</p>
+
+<hr>
+<!-- Created: Sat Nov 10 09:52:57 PST 2001 -->
+<!-- hhmts start -->
+Last modified: Mon Sep 23 18:22:39 PDT 2002
+<!-- hhmts end -->
+</body>
+</html>

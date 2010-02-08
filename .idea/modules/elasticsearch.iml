@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="JAVA_MODULE" version="4">
+  <component name="NewModuleRootManager" inherit-compiler-output="false">
+    <output url="file://$MODULE_DIR$/../../modules/elasticsearch/build/classes/main" />
+    <output-test url="file://$MODULE_DIR$/../../modules/elasticsearch/build/classes/test" />
+    <exclude-output />
+    <content url="file://$MODULE_DIR$/../../modules/elasticsearch">
+      <sourceFolder url="file://$MODULE_DIR$/../../modules/elasticsearch/src/main/java" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/../../modules/elasticsearch/src/test/java" isTestSource="true" />
+      <excludeFolder url="file://$MODULE_DIR$/../../modules/elasticsearch/build" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="library" exported="" scope="RUNTIME" name="config" level="project" />
+    <orderEntry type="library" exported="" name="logging" level="project" />
+    <orderEntry type="library" exported="" name="lucene" level="project" />
+    <orderEntry type="library" exported="" name="google-collect" level="project" />
+    <orderEntry type="library" exported="" name="joda-time" level="project" />
+    <orderEntry type="library" exported="" name="jackson" level="project" />
+    <orderEntry type="library" exported="" name="snakeyaml" level="project" />
+    <orderEntry type="library" exported="" name="guice" level="project" />
+    <orderEntry type="library" exported="" name="jline" level="project" />
+    <orderEntry type="library" exported="" name="jgroups" level="project" />
+    <orderEntry type="library" exported="" name="netty" level="project" />
+    <orderEntry type="library" scope="TEST" name="testng" level="project" />
+    <orderEntry type="library" scope="TEST" name="hamcrest" level="project" />
+    <orderEntry type="module" module-name="test-testng" scope="TEST" />
+  </component>
+</module>
+

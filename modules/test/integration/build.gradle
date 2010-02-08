@@ -1,0 +1,31 @@
+dependsOn(':elasticsearch')
+
+usePlugin 'java'
+
+archivesBaseName = "$rootProject.archivesBaseName-$project.archivesBaseName"
+
+configurations.compile.transitive = true
+configurations.testCompile.transitive = true
+
+// no need to use the resource dir
+sourceSets.main.resources.srcDir 'src/main/java'
+sourceSets.test.resources.srcDir 'src/test/java'
+
+dependencies {
+    compile project(':elasticsearch')
+
+    testCompile project(':test-testng')
+    testCompile('org.testng:testng:5.10:jdk15') { transitive = false }
+    testCompile 'org.hamcrest:hamcrest-all:1.1'
+}
+
+test {
+    useTestNG()
+    jmvArgs = ["-ea", "-Xmx1024m"]
+    options.suiteName = project.name
+    options.listeners = ["org.elasticsearch.util.testng.Listeners"]
+    options.systemProperties = [
+            "es.test.log.conf": System.getProperty("es.test.log.conf", "log4j-gradle.properties"),
+            "java.net.preferIPv4Stack": "true"
+    ]
+}

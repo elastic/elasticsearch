@@ -1,0 +1,28 @@
+{
+    bool : {
+        must : {
+            queryString : {
+                defaultField : "content",
+                query : "test1"
+            }
+        },
+        mustNot: {
+            queryString : {
+                defaultField : "content",
+                query : "test2"
+            }
+        },
+        should: {
+            queryString : {
+                defaultField : "content",
+                query : "test3"
+            }
+        },
+        must : {
+            queryString : {
+                defaultField : "content",
+                query : "test4"
+            }
+        }
+    }
+}

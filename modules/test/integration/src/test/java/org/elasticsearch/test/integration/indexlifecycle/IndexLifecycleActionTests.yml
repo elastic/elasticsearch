@@ -1,0 +1,6 @@
+cluster:
+  routing:
+    schedule: 200ms
+index:
+  numberOfShards: 11
+  numberOfReplicas: 1

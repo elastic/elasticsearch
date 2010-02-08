@@ -1,0 +1,19 @@
+rootLogger: INFO, console, file
+logger:
+  jgroups: WARN
+
+appender:
+  console:
+    type: console
+    layout:
+      type: consolePattern
+      conversionPattern: "[%d{ABSOLUTE}][%-5p][%-25c] %m%n"
+
+  file:
+    type: dailyRollingFile
+    file: ${path.logs}/${cluster.name}.log
+    datePattern: "'.'yyyy-MM-dd"
+    layout:
+      type: pattern
+      conversionPattern: "[%d{ABSOLUTE}][%-5p][%-25c] %m%n"
+      

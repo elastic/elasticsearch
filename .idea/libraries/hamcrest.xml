@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="hamcrest">
+    <CLASSES>
+      <root url="jar://$GRADLE_REPOSITORY$/org.hamcrest/hamcrest-all/jars/hamcrest-all-1.1.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

@@ -1,0 +1,7 @@
+{
+    constantScore : {
+        filter : {
+            term : { "name.last" : "banon"}
+        }
+    }
+}

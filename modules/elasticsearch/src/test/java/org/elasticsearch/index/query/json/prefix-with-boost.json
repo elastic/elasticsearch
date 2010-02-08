@@ -1,0 +1,3 @@
+{
+    prefix : { "name.first" :  { prefix : "sh", boost : 2.0 } }
+}

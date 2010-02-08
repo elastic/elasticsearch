@@ -1,0 +1,8 @@
+cluster:
+  routing:
+    schedule: 200ms
+gateway:
+  type: fs
+index:
+  numberOfShards: 1
+  numberOfReplicas: 1

@@ -74,6 +74,7 @@ public class JsonQueryParserRegistry {
         Map<String, JsonFilterParser> filterParsersMap = newHashMap();
         // add defaults
         add(filterParsersMap, new TermJsonFilterParser(index, indexSettings));
+        add(filterParsersMap, new TermsJsonFilterParser(index, indexSettings));
         add(filterParsersMap, new RangeJsonFilterParser(index, indexSettings));
         add(filterParsersMap, new PrefixJsonFilterParser(index, indexSettings));
         add(filterParsersMap, new QueryJsonFilterParser(index, indexSettings));

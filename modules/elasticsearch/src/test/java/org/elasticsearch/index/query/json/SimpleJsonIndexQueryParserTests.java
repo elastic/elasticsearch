@@ -35,6 +35,7 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.index.query.json.JsonFilterBuilders.*;
 import static org.elasticsearch.index.query.json.JsonQueryBuilders.*;
@@ -374,6 +375,36 @@ public class SimpleJsonIndexQueryParserTests {
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
         assertThat(((TermFilter) filteredQuery.getFilter()).getTerm(), equalTo(new Term("name.last", "banon")));
+    }
+
+    @Test public void testTermsFilterQueryBuilder() throws Exception {
+        IndexQueryParser queryParser = newQueryParser();
+        Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), termsFilter("name.last", "banon", "kimchy")).build());
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+        assertThat(filteredQuery.getFilter(), instanceOf(TermsFilter.class));
+        TermsFilter termsFilter = (TermsFilter) filteredQuery.getFilter();
+        Field field = TermsFilter.class.getDeclaredField("terms");
+        field.setAccessible(true);
+        Set<Term> terms = (Set<Term>) field.get(termsFilter);
+        assertThat(terms.size(), equalTo(2));
+        assertThat(terms.iterator().next().text(), equalTo("banon"));
+    }
+
+
+    @Test public void testTermsFilterQuery() throws Exception {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/json/terms-filter.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+        assertThat(filteredQuery.getFilter(), instanceOf(TermsFilter.class));
+        TermsFilter termsFilter = (TermsFilter) filteredQuery.getFilter();
+        Field field = TermsFilter.class.getDeclaredField("terms");
+        field.setAccessible(true);
+        Set<Term> terms = (Set<Term>) field.get(termsFilter);
+        assertThat(terms.size(), equalTo(2));
+        assertThat(terms.iterator().next().text(), equalTo("banon"));
     }
 
     @Test public void testConstantScoreQueryBuilder() throws IOException {

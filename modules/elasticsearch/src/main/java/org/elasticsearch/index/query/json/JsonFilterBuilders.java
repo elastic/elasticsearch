@@ -44,6 +44,26 @@ public abstract class JsonFilterBuilders {
         return new TermJsonFilterBuilder(name, value);
     }
 
+    public static TermsJsonFilterBuilder termsFilter(String name, String... values) {
+        return new TermsJsonFilterBuilder(name, values);
+    }
+
+    public static TermsJsonFilterBuilder termsFilter(String name, int... values) {
+        return new TermsJsonFilterBuilder(name, values);
+    }
+
+    public static TermsJsonFilterBuilder termsFilter(String name, long... values) {
+        return new TermsJsonFilterBuilder(name, values);
+    }
+
+    public static TermsJsonFilterBuilder termsFilter(String name, float... values) {
+        return new TermsJsonFilterBuilder(name, values);
+    }
+
+    public static TermsJsonFilterBuilder termsFilter(String name, double... values) {
+        return new TermsJsonFilterBuilder(name, values);
+    }
+
     public static PrefixJsonFilterBuilder prefixFilter(String name, String value) {
         return new PrefixJsonFilterBuilder(name, value);
     }

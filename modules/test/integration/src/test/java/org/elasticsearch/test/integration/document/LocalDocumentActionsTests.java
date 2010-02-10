@@ -17,27 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery;
-
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.util.component.LifecycleComponent;
+package org.elasticsearch.test.integration.document;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public interface Discovery extends LifecycleComponent<Discovery> {
-
-    void addListener(InitialStateDiscoveryListener listener);
-
-    void removeListener(InitialStateDiscoveryListener listener);
-
-    String nodeDescription();
-
-    boolean firstMaster();
-
-    /**
-     * Publish all the changes to the cluster from the master (can be called just by the master). The publish
-     * process should not publish this state to the master as well! (the master is sending it...).
-     */
-    void publish(ClusterState clusterState);
+public class LocalDocumentActionsTests extends DocumentActionsTests {
 }

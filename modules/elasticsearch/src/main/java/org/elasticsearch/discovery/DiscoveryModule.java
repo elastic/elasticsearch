@@ -21,6 +21,7 @@ package org.elasticsearch.discovery;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Module;
+import org.elasticsearch.discovery.local.LocalDiscoveryModule;
 import org.elasticsearch.util.Classes;
 import org.elasticsearch.util.settings.Settings;
 
@@ -40,11 +41,15 @@ public class DiscoveryModule extends AbstractModule {
     @Override
     protected void configure() {
         Class<? extends Module> defaultDiscoveryModule = null;
-        try {
-            Classes.getDefaultClassLoader().loadClass("org.elasticsearch.discovery.jgroups.JgroupsDiscovery");
-            defaultDiscoveryModule = (Class<? extends Module>) Classes.getDefaultClassLoader().loadClass("org.elasticsearch.discovery.jgroups.JgroupsDiscoveryModule");
-        } catch (ClassNotFoundException e) {
-            // TODO default to the local one
+        if (settings.getAsBoolean("node.local", false)) {
+            defaultDiscoveryModule = LocalDiscoveryModule.class;
+        } else {
+            try {
+                Classes.getDefaultClassLoader().loadClass("org.elasticsearch.discovery.jgroups.JgroupsDiscovery");
+                defaultDiscoveryModule = (Class<? extends Module>) Classes.getDefaultClassLoader().loadClass("org.elasticsearch.discovery.jgroups.JgroupsDiscoveryModule");
+            } catch (ClassNotFoundException e) {
+                defaultDiscoveryModule = LocalDiscoveryModule.class;
+            }
         }
 
         Class<? extends Module> moduleClass = settings.getAsClass("discovery.type", defaultDiscoveryModule, "org.elasticsearch.discovery.", "DiscoveryModule");

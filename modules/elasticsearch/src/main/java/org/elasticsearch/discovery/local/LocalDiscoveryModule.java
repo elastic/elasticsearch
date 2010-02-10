@@ -17,27 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery;
+package org.elasticsearch.discovery.local;
 
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.util.component.LifecycleComponent;
+import com.google.inject.AbstractModule;
+import org.elasticsearch.discovery.Discovery;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public interface Discovery extends LifecycleComponent<Discovery> {
+public class LocalDiscoveryModule extends AbstractModule {
 
-    void addListener(InitialStateDiscoveryListener listener);
-
-    void removeListener(InitialStateDiscoveryListener listener);
-
-    String nodeDescription();
-
-    boolean firstMaster();
-
-    /**
-     * Publish all the changes to the cluster from the master (can be called just by the master). The publish
-     * process should not publish this state to the master as well! (the master is sending it...).
-     */
-    void publish(ClusterState clusterState);
+    @Override protected void configure() {
+        bind(Discovery.class).to(LocalDiscovery.class).asEagerSingleton();
+    }
 }

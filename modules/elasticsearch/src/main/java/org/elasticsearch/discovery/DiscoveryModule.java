@@ -40,7 +40,7 @@ public class DiscoveryModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        Class<? extends Module> defaultDiscoveryModule = null;
+        Class<? extends Module> defaultDiscoveryModule;
         if (settings.getAsBoolean("node.local", false)) {
             defaultDiscoveryModule = LocalDiscoveryModule.class;
         } else {

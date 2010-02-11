@@ -49,6 +49,7 @@ public abstract class TransportAddressSerializers {
         try {
             addAddressType(DummyTransportAddress.INSTANCE);
             addAddressType(new InetSocketTransportAddress());
+            addAddressType(new LocalTransportAddress());
         } catch (Exception e) {
             logger.warn("Failed to add InetSocketTransportAddress", e);
         }

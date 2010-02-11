@@ -34,6 +34,7 @@ import org.elasticsearch.util.settings.Settings;
 
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -42,7 +43,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static com.google.common.collect.Sets.*;
 import static org.elasticsearch.cluster.ClusterState.*;
-import static org.elasticsearch.util.concurrent.ConcurrentMaps.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -67,7 +67,8 @@ public class LocalDiscovery extends AbstractComponent implements Discovery {
 
     private final CopyOnWriteArrayList<InitialStateDiscoveryListener> initialStateListeners = new CopyOnWriteArrayList<InitialStateDiscoveryListener>();
 
-    private static final ConcurrentMap<ClusterName, ClusterGroup> clusterGroups = newConcurrentMap();
+    // use CHM here and not ConcurrentMaps#new since we want to be able to agentify this using TC later on...
+    private static final ConcurrentMap<ClusterName, ClusterGroup> clusterGroups = new ConcurrentHashMap<ClusterName, ClusterGroup>();
 
     private static final AtomicLong nodeIdGenerator = new AtomicLong();
 

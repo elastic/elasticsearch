@@ -90,13 +90,13 @@ public class NettyTransportChannel implements TransportChannel {
         os.flush();
         buffer.markWriterIndex();
         try {
-            RemoteTransportException tx = new RemoteTransportException(transport.settings().get("name"), transport.wrapAddress(channel.getLocalAddress()), action, error);
+            RemoteTransportException tx = new RemoteTransportException(transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()), action, error);
             ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(os);
             too.writeObject(tx);
             too.close();
         } catch (NotSerializableException e) {
             buffer.resetWriterIndex();
-            RemoteTransportException tx = new RemoteTransportException(transport.settings().get("name"), transport.wrapAddress(channel.getLocalAddress()), action, new NotSerializableTransportException(error));
+            RemoteTransportException tx = new RemoteTransportException(transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()), action, new NotSerializableTransportException(error));
             ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(os);
             too.writeObject(tx);
             too.close();

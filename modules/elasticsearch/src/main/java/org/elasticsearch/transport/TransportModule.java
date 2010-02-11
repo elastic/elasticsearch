@@ -21,6 +21,7 @@ package org.elasticsearch.transport;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Module;
+import org.elasticsearch.transport.local.LocalTransportModule;
 import org.elasticsearch.util.Classes;
 import org.elasticsearch.util.settings.Settings;
 
@@ -42,12 +43,16 @@ public class TransportModule extends AbstractModule {
         bind(TransportService.class).asEagerSingleton();
         bind(TransportServiceManagement.class).asEagerSingleton();
 
-        Class<? extends Module> defaultTransportModule = null;
-        try {
-            Classes.getDefaultClassLoader().loadClass("org.elasticsearch.transport.netty.NettyTransport");
-            defaultTransportModule = (Class<? extends Module>) Classes.getDefaultClassLoader().loadClass("org.elasticsearch.transport.netty.NettyTransportModule");
-        } catch (ClassNotFoundException e) {
-            // TODO default to the local one
+        Class<? extends Module> defaultTransportModule;
+        if (settings.getAsBoolean("node.local", false)) {
+            defaultTransportModule = LocalTransportModule.class;
+        } else {
+            try {
+                Classes.getDefaultClassLoader().loadClass("org.elasticsearch.transport.netty.NettyTransport");
+                defaultTransportModule = (Class<? extends Module>) Classes.getDefaultClassLoader().loadClass("org.elasticsearch.transport.netty.NettyTransportModule");
+            } catch (ClassNotFoundException e) {
+                defaultTransportModule = LocalTransportModule.class;
+            }
         }
 
         Class<? extends Module> moduleClass = settings.getAsClass("transport.type", defaultTransportModule, "org.elasticsearch.transport.", "TransportModule");

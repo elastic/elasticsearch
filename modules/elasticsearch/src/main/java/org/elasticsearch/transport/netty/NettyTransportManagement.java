@@ -29,7 +29,7 @@ import org.elasticsearch.jmx.ManagedAttribute;
 @MBean(objectName = "service=transport,transportType=netty", description = "Netty Transport")
 public class NettyTransportManagement {
 
-    private NettyTransport transport;
+    private final NettyTransport transport;
 
     @Inject public NettyTransportManagement(NettyTransport transport) {
         this.transport = transport;

@@ -20,6 +20,7 @@
 package org.elasticsearch.client.transport.support;
 
 import com.google.inject.Inject;
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
@@ -39,6 +40,7 @@ import org.elasticsearch.client.transport.action.admin.cluster.ping.broadcast.Cl
 import org.elasticsearch.client.transport.action.admin.cluster.ping.replication.ClientTransportReplicationPingAction;
 import org.elasticsearch.client.transport.action.admin.cluster.ping.single.ClientTransportSinglePingAction;
 import org.elasticsearch.client.transport.action.admin.cluster.state.ClientTransportClusterStateAction;
+import org.elasticsearch.cluster.node.Node;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.settings.Settings;
 
@@ -72,63 +74,128 @@ public class InternalTransportClusterAdminClient extends AbstractComponent imple
         this.broadcastPingAction = broadcastPingAction;
     }
 
-    @Override public ActionFuture<ClusterStateResponse> state(ClusterStateRequest request) {
-        return clusterStateAction.submit(nodesService.randomNode(), request);
+    @Override public ActionFuture<ClusterStateResponse> state(final ClusterStateRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<ClusterStateResponse>>() {
+            @Override public ActionFuture<ClusterStateResponse> doWithNode(Node node) throws ElasticSearchException {
+                return clusterStateAction.submit(node, request);
+            }
+        });
     }
 
-    @Override public ActionFuture<ClusterStateResponse> state(ClusterStateRequest request, ActionListener<ClusterStateResponse> listener) {
-        return clusterStateAction.submit(nodesService.randomNode(), request, listener);
+    @Override public ActionFuture<ClusterStateResponse> state(final ClusterStateRequest request, final ActionListener<ClusterStateResponse> listener) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<ClusterStateResponse>>() {
+            @Override public ActionFuture<ClusterStateResponse> doWithNode(Node node) throws ElasticSearchException {
+                return clusterStateAction.submit(node, request, listener);
+            }
+        });
     }
 
-    @Override public void execState(ClusterStateRequest request, ActionListener<ClusterStateResponse> listener) {
-        clusterStateAction.execute(nodesService.randomNode(), request, listener);
+    @Override public void execState(final ClusterStateRequest request, final ActionListener<ClusterStateResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
+            @Override public Void doWithNode(Node node) throws ElasticSearchException {
+                clusterStateAction.execute(node, request, listener);
+                return null;
+            }
+        });
     }
 
-    @Override public ActionFuture<SinglePingResponse> ping(SinglePingRequest request) {
-        return singlePingAction.submit(nodesService.randomNode(), request);
+    @Override public ActionFuture<SinglePingResponse> ping(final SinglePingRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<SinglePingResponse>>() {
+            @Override public ActionFuture<SinglePingResponse> doWithNode(Node node) throws ElasticSearchException {
+                return singlePingAction.submit(node, request);
+            }
+        });
     }
 
-    @Override public ActionFuture<SinglePingResponse> ping(SinglePingRequest request, ActionListener<SinglePingResponse> listener) {
-        return singlePingAction.submit(nodesService.randomNode(), request, listener);
+    @Override public ActionFuture<SinglePingResponse> ping(final SinglePingRequest request, final ActionListener<SinglePingResponse> listener) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<SinglePingResponse>>() {
+            @Override public ActionFuture<SinglePingResponse> doWithNode(Node node) throws ElasticSearchException {
+                return singlePingAction.submit(node, request, listener);
+            }
+        });
     }
 
-    @Override public void execPing(SinglePingRequest request, ActionListener<SinglePingResponse> listener) {
-        singlePingAction.execute(nodesService.randomNode(), request, listener);
+    @Override public void execPing(final SinglePingRequest request, final ActionListener<SinglePingResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
+            @Override public Void doWithNode(Node node) throws ElasticSearchException {
+                singlePingAction.execute(node, request, listener);
+                return null;
+            }
+        });
     }
 
-    @Override public ActionFuture<BroadcastPingResponse> ping(BroadcastPingRequest request) {
-        return broadcastPingAction.submit(nodesService.randomNode(), request);
+    @Override public ActionFuture<BroadcastPingResponse> ping(final BroadcastPingRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<BroadcastPingResponse>>() {
+            @Override public ActionFuture<BroadcastPingResponse> doWithNode(Node node) throws ElasticSearchException {
+                return broadcastPingAction.submit(node, request);
+            }
+        });
     }
 
-    @Override public ActionFuture<BroadcastPingResponse> ping(BroadcastPingRequest request, ActionListener<BroadcastPingResponse> listener) {
-        return broadcastPingAction.submit(nodesService.randomNode(), request, listener);
+    @Override public ActionFuture<BroadcastPingResponse> ping(final BroadcastPingRequest request, final ActionListener<BroadcastPingResponse> listener) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<BroadcastPingResponse>>() {
+            @Override public ActionFuture<BroadcastPingResponse> doWithNode(Node node) throws ElasticSearchException {
+                return broadcastPingAction.submit(node, request, listener);
+            }
+        });
     }
 
-    @Override public void execPing(BroadcastPingRequest request, ActionListener<BroadcastPingResponse> listener) {
-        broadcastPingAction.execute(nodesService.randomNode(), request, listener);
+    @Override public void execPing(final BroadcastPingRequest request, final ActionListener<BroadcastPingResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
+            @Override public Void doWithNode(Node node) throws ElasticSearchException {
+                broadcastPingAction.execute(node, request, listener);
+                return null;
+            }
+        });
     }
 
-    @Override public ActionFuture<ReplicationPingResponse> ping(ReplicationPingRequest request) {
-        return replicationPingAction.submit(nodesService.randomNode(), request);
+    @Override public ActionFuture<ReplicationPingResponse> ping(final ReplicationPingRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<ReplicationPingResponse>>() {
+            @Override public ActionFuture<ReplicationPingResponse> doWithNode(Node node) throws ElasticSearchException {
+                return replicationPingAction.submit(node, request);
+            }
+        });
     }
 
-    @Override public ActionFuture<ReplicationPingResponse> ping(ReplicationPingRequest request, ActionListener<ReplicationPingResponse> listener) {
-        return replicationPingAction.submit(nodesService.randomNode(), request, listener);
+    @Override public ActionFuture<ReplicationPingResponse> ping(final ReplicationPingRequest request, final ActionListener<ReplicationPingResponse> listener) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<ReplicationPingResponse>>() {
+            @Override public ActionFuture<ReplicationPingResponse> doWithNode(Node node) throws ElasticSearchException {
+                return replicationPingAction.submit(node, request, listener);
+            }
+        });
     }
 
-    @Override public void execPing(ReplicationPingRequest request, ActionListener<ReplicationPingResponse> listener) {
-        replicationPingAction.execute(nodesService.randomNode(), request, listener);
+    @Override public void execPing(final ReplicationPingRequest request, final ActionListener<ReplicationPingResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
+            @Override public Void doWithNode(Node node) throws ElasticSearchException {
+                replicationPingAction.execute(node, request, listener);
+                return null;
+            }
+        });
     }
 
-    @Override public ActionFuture<NodesInfoResponse> nodesInfo(NodesInfoRequest request) {
-        return nodesInfoAction.submit(nodesService.randomNode(), request);
+    @Override public ActionFuture<NodesInfoResponse> nodesInfo(final NodesInfoRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<NodesInfoResponse>>() {
+            @Override public ActionFuture<NodesInfoResponse> doWithNode(Node node) throws ElasticSearchException {
+                return nodesInfoAction.submit(node, request);
+            }
+        });
     }
 
-    @Override public ActionFuture<NodesInfoResponse> nodesInfo(NodesInfoRequest request, ActionListener<NodesInfoResponse> listener) {
-        return nodesInfoAction.submit(nodesService.randomNode(), request, listener);
+    @Override public ActionFuture<NodesInfoResponse> nodesInfo(final NodesInfoRequest request, final ActionListener<NodesInfoResponse> listener) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<NodesInfoResponse>>() {
+            @Override public ActionFuture<NodesInfoResponse> doWithNode(Node node) throws ElasticSearchException {
+                return nodesInfoAction.submit(node, request, listener);
+            }
+        });
     }
 
-    @Override public void execNodesInfo(NodesInfoRequest request, ActionListener<NodesInfoResponse> listener) {
-        nodesInfoAction.execute(nodesService.randomNode(), request, listener);
+    @Override public void execNodesInfo(final NodesInfoRequest request, final ActionListener<NodesInfoResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
+            @Override public Void doWithNode(Node node) throws ElasticSearchException {
+                nodesInfoAction.execute(node, request, listener);
+                return null;
+            }
+        });
     }
 }

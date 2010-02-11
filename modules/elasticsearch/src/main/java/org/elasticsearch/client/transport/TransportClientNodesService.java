@@ -21,6 +21,7 @@ package org.elasticsearch.client.transport;
 
 import com.google.common.collect.ImmutableList;
 import com.google.inject.Inject;
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Requests;
@@ -31,6 +32,7 @@ import org.elasticsearch.cluster.node.Node;
 import org.elasticsearch.cluster.node.Nodes;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.TimeValue;
@@ -118,12 +120,21 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
         return this;
     }
 
-    public Node randomNode() {
+    public <T> T execute(NodeCallback<T> callback) throws ElasticSearchException {
         ImmutableList<Node> nodes = this.nodes;
         if (nodes.isEmpty()) {
             throw new NoNodeAvailableException();
         }
-        return nodes.get(Math.abs(randomNodeGenerator.incrementAndGet()) % nodes.size());
+        int index = randomNodeGenerator.incrementAndGet();
+        for (int i = 0; i < nodes.size(); i++) {
+            Node node = nodes.get((index + i) % nodes.size());
+            try {
+                return callback.doWithNode(node);
+            } catch (ConnectTransportException e) {
+                // retry in this case
+            }
+        }
+        throw new NoNodeAvailableException();
     }
 
     public void close() {
@@ -204,5 +215,10 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
 
             transportService.nodesRemoved(tempNodes);
         }
+    }
+
+    public static interface NodeCallback<T> {
+
+        T doWithNode(Node node) throws ElasticSearchException;
     }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.client.transport.support;
 
 import com.google.inject.Inject;
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.count.CountRequest;
@@ -45,6 +46,7 @@ import org.elasticsearch.client.transport.action.get.ClientTransportGetAction;
 import org.elasticsearch.client.transport.action.index.ClientTransportIndexAction;
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchAction;
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchScrollAction;
+import org.elasticsearch.cluster.node.Node;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.settings.Settings;
 
@@ -96,87 +98,178 @@ public class InternalTransportClient extends AbstractComponent implements Client
         return adminClient;
     }
 
-    @Override public ActionFuture<IndexResponse> index(IndexRequest request) {
-        return indexAction.submit(nodesService.randomNode(), request);
+    @Override public ActionFuture<IndexResponse> index(final IndexRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<IndexResponse>>() {
+            @Override public ActionFuture<IndexResponse> doWithNode(Node node) throws ElasticSearchException {
+                return indexAction.submit(node, request);
+            }
+        });
     }
 
-    @Override public ActionFuture<IndexResponse> index(IndexRequest request, ActionListener<IndexResponse> listener) {
-        return indexAction.submit(nodesService.randomNode(), request, listener);
+    @Override public ActionFuture<IndexResponse> index(final IndexRequest request, final ActionListener<IndexResponse> listener) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<IndexResponse>>() {
+            @Override public ActionFuture<IndexResponse> doWithNode(Node node) throws ElasticSearchException {
+                return indexAction.submit(node, request, listener);
+            }
+        });
     }
 
-    @Override public void execIndex(IndexRequest request, ActionListener<IndexResponse> listener) {
-        indexAction.execute(nodesService.randomNode(), request, listener);
+    @Override public void execIndex(final IndexRequest request, final ActionListener<IndexResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
+            @Override public Void doWithNode(Node node) throws ElasticSearchException {
+                indexAction.execute(node, request, listener);
+                return null;
+            }
+        });
     }
 
-    @Override public ActionFuture<DeleteResponse> delete(DeleteRequest request) {
-        return deleteAction.submit(nodesService.randomNode(), request);
+    @Override public ActionFuture<DeleteResponse> delete(final DeleteRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<DeleteResponse>>() {
+            @Override public ActionFuture<DeleteResponse> doWithNode(Node node) throws ElasticSearchException {
+                return deleteAction.submit(node, request);
+            }
+        });
     }
 
-    @Override public ActionFuture<DeleteResponse> delete(DeleteRequest request, ActionListener<DeleteResponse> listener) {
-        return deleteAction.submit(nodesService.randomNode(), request, listener);
+    @Override public ActionFuture<DeleteResponse> delete(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<DeleteResponse>>() {
+            @Override public ActionFuture<DeleteResponse> doWithNode(Node node) throws ElasticSearchException {
+                return deleteAction.submit(node, request, listener);
+            }
+        });
     }
 
-    @Override public void execDelete(DeleteRequest request, ActionListener<DeleteResponse> listener) {
-        deleteAction.execute(nodesService.randomNode(), request, listener);
+    @Override public void execDelete(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
+            @Override public Void doWithNode(Node node) throws ElasticSearchException {
+                deleteAction.execute(node, request, listener);
+                return null;
+            }
+        });
     }
 
-    @Override public ActionFuture<DeleteByQueryResponse> deleteByQuery(DeleteByQueryRequest request) {
-        return deleteByQueryAction.submit(nodesService.randomNode(), request);
+    @Override public ActionFuture<DeleteByQueryResponse> deleteByQuery(final DeleteByQueryRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<DeleteByQueryResponse>>() {
+            @Override public ActionFuture<DeleteByQueryResponse> doWithNode(Node node) throws ElasticSearchException {
+                return deleteByQueryAction.submit(node, request);
+            }
+        });
     }
 
-    @Override public ActionFuture<DeleteByQueryResponse> deleteByQuery(DeleteByQueryRequest request, ActionListener<DeleteByQueryResponse> listener) {
-        return deleteByQueryAction.submit(nodesService.randomNode(), request, listener);
+    @Override public ActionFuture<DeleteByQueryResponse> deleteByQuery(final DeleteByQueryRequest request, final ActionListener<DeleteByQueryResponse> listener) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<DeleteByQueryResponse>>() {
+            @Override public ActionFuture<DeleteByQueryResponse> doWithNode(Node node) throws ElasticSearchException {
+                return deleteByQueryAction.submit(node, request, listener);
+            }
+        });
     }
 
-    @Override public void execDeleteByQuery(DeleteByQueryRequest request, ActionListener<DeleteByQueryResponse> listener) {
-        deleteByQueryAction.execute(nodesService.randomNode(), request, listener);
+    @Override public void execDeleteByQuery(final DeleteByQueryRequest request, final ActionListener<DeleteByQueryResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
+            @Override public Void doWithNode(Node node) throws ElasticSearchException {
+                deleteByQueryAction.execute(node, request, listener);
+                return null;
+            }
+        });
     }
 
-    @Override public ActionFuture<GetResponse> get(GetRequest request) {
-        return getAction.submit(nodesService.randomNode(), request);
+    @Override public ActionFuture<GetResponse> get(final GetRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<GetResponse>>() {
+            @Override public ActionFuture<GetResponse> doWithNode(Node node) throws ElasticSearchException {
+                return getAction.submit(node, request);
+            }
+        });
     }
 
-    @Override public ActionFuture<GetResponse> get(GetRequest request, ActionListener<GetResponse> listener) {
-        return getAction.submit(nodesService.randomNode(), request, listener);
+    @Override public ActionFuture<GetResponse> get(final GetRequest request, final ActionListener<GetResponse> listener) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<GetResponse>>() {
+            @Override public ActionFuture<GetResponse> doWithNode(Node node) throws ElasticSearchException {
+                return getAction.submit(node, request, listener);
+            }
+        });
     }
 
-    @Override public void execGet(GetRequest request, ActionListener<GetResponse> listener) {
-        getAction.execute(nodesService.randomNode(), request, listener);
+    @Override public void execGet(final GetRequest request, final ActionListener<GetResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
+            @Override public Object doWithNode(Node node) throws ElasticSearchException {
+                getAction.execute(node, request, listener);
+                return null;
+            }
+        });
     }
 
-    @Override public ActionFuture<CountResponse> count(CountRequest request) {
-        return countAction.submit(nodesService.randomNode(), request);
+    @Override public ActionFuture<CountResponse> count(final CountRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<CountResponse>>() {
+            @Override public ActionFuture<CountResponse> doWithNode(Node node) throws ElasticSearchException {
+                return countAction.submit(node, request);
+            }
+        });
     }
 
-    @Override public ActionFuture<CountResponse> count(CountRequest request, ActionListener<CountResponse> listener) {
-        return countAction.submit(nodesService.randomNode(), request, listener);
+    @Override public ActionFuture<CountResponse> count(final CountRequest request, final ActionListener<CountResponse> listener) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<CountResponse>>() {
+            @Override public ActionFuture<CountResponse> doWithNode(Node node) throws ElasticSearchException {
+                return countAction.submit(node, request, listener);
+            }
+        });
     }
 
-    @Override public void execCount(CountRequest request, ActionListener<CountResponse> listener) {
-        countAction.execute(nodesService.randomNode(), request, listener);
+    @Override public void execCount(final CountRequest request, final ActionListener<CountResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
+            @Override public Void doWithNode(Node node) throws ElasticSearchException {
+                countAction.execute(node, request, listener);
+                return null;
+            }
+        });
     }
 
-    @Override public ActionFuture<SearchResponse> search(SearchRequest request) {
-        return searchAction.submit(nodesService.randomNode(), request);
+    @Override public ActionFuture<SearchResponse> search(final SearchRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<SearchResponse>>() {
+            @Override public ActionFuture<SearchResponse> doWithNode(Node node) throws ElasticSearchException {
+                return searchAction.submit(node, request);
+            }
+        });
     }
 
-    @Override public ActionFuture<SearchResponse> search(SearchRequest request, ActionListener<SearchResponse> listener) {
-        return searchAction.submit(nodesService.randomNode(), request, listener);
+    @Override public ActionFuture<SearchResponse> search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<SearchResponse>>() {
+            @Override public ActionFuture<SearchResponse> doWithNode(Node node) throws ElasticSearchException {
+                return searchAction.submit(node, request, listener);
+            }
+        });
     }
 
-    @Override public void execSearch(SearchRequest request, ActionListener<SearchResponse> listener) {
-        searchAction.execute(nodesService.randomNode(), request, listener);
+    @Override public void execSearch(final SearchRequest request, final ActionListener<SearchResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
+            @Override public Object doWithNode(Node node) throws ElasticSearchException {
+                searchAction.execute(node, request, listener);
+                return null;
+            }
+        });
     }
 
-    @Override public ActionFuture<SearchResponse> searchScroll(SearchScrollRequest request) {
-        return searchScrollAction.submit(nodesService.randomNode(), request);
+    @Override public ActionFuture<SearchResponse> searchScroll(final SearchScrollRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<SearchResponse>>() {
+            @Override public ActionFuture<SearchResponse> doWithNode(Node node) throws ElasticSearchException {
+                return searchScrollAction.submit(node, request);
+            }
+        });
     }
 
-    @Override public ActionFuture<SearchResponse> searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
-        return searchScrollAction.submit(nodesService.randomNode(), request, listener);
+    @Override public ActionFuture<SearchResponse> searchScroll(final SearchScrollRequest request, final ActionListener<SearchResponse> listener) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<SearchResponse>>() {
+            @Override public ActionFuture<SearchResponse> doWithNode(Node node) throws ElasticSearchException {
+                return searchScrollAction.submit(node, request, listener);
+            }
+        });
     }
 
-    @Override public void execSearchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
-        searchScrollAction.execute(nodesService.randomNode(), request, listener);
+    @Override public void execSearchScroll(final SearchScrollRequest request, final ActionListener<SearchResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
+            @Override public Object doWithNode(Node node) throws ElasticSearchException {
+                searchScrollAction.execute(node, request, listener);
+                return null;
+            }
+        });
     }
 }

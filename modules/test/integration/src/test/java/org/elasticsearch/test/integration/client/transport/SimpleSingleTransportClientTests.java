@@ -29,10 +29,10 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.server.internal.InternalServer;
 import org.elasticsearch.test.integration.AbstractServersTests;
-import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.transport.TransportAddress;
@@ -163,7 +163,7 @@ public class SimpleSingleTransportClientTests extends AbstractServersTests {
         try {
             client.index(Requests.indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
             assert false : "should fail...";
-        } catch (ConnectTransportException e) {
+        } catch (NoNodeAvailableException e) {
             // all is well
         }
     }

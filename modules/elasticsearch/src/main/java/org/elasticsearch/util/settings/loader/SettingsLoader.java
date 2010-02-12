@@ -30,5 +30,8 @@ import java.util.Map;
  */
 public interface SettingsLoader {
 
+    /**
+     * Loads (parses) the settings from a source string.
+     */
     Map<String, String> load(String source) throws IOException;
 }

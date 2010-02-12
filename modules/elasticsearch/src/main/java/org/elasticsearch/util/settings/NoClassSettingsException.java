@@ -20,6 +20,9 @@
 package org.elasticsearch.util.settings;
 
 /**
+ * A specific type of {@link SettingsException} indicating failure to load a class
+ * based on a settings value.
+ *
  * @author kimchy (Shay Banon)
  */
 public class NoClassSettingsException extends SettingsException {

@@ -17,24 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.util.settings;
-
-import com.google.inject.AbstractModule;
-
 /**
- * A module that binds the provided settings to the {@link Settings} interface.
- *
- * @author kimchy (Shay Banon)
+ * Settings based utility.
  */
-public class SettingsModule extends AbstractModule {
-
-    private final Settings settings;
-
-    public SettingsModule(Settings settings) {
-        this.settings = settings;
-    }
-
-    @Override protected void configure() {
-        bind(Settings.class).toInstance(settings);
-    }
-}
+package org.elasticsearch.util.settings;

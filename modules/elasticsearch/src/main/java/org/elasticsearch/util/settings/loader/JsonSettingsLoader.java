@@ -33,7 +33,8 @@ import static com.google.common.collect.Lists.*;
 import static com.google.common.collect.Maps.*;
 
 /**
- * Loads settings from json source. Basically, flats them into a Map.
+ * Settings loader that loads (parses) the settings in a json format by flattening them
+ * into a map.
  *
  * @author kimchy (Shay Banon)
  */

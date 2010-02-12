@@ -168,7 +168,7 @@ public class ImmutableSettings implements Settings {
     }
 
     @SuppressWarnings({"unchecked"})
-    @Override public <T> Class<? extends T> getAsClass(String setting, Class<? extends T> defaultClazz) throws SettingsException {
+    @Override public <T> Class<? extends T> getAsClass(String setting, Class<? extends T> defaultClazz) throws NoClassSettingsException {
         String sValue = get(setting);
         if (sValue == null) {
             return defaultClazz;
@@ -176,11 +176,11 @@ public class ImmutableSettings implements Settings {
         try {
             return (Class<? extends T>) getClassLoader().loadClass(sValue);
         } catch (ClassNotFoundException e) {
-            throw new SettingsException("Failed to load class setting [" + setting + "] with value [" + sValue + "]", e);
+            throw new NoClassSettingsException("Failed to load class setting [" + setting + "] with value [" + sValue + "]", e);
         }
     }
 
-    @Override public <T> Class<? extends T> getAsClass(String setting, Class<? extends T> defaultClazz, String prefixPackage, String suffixClassName) throws SettingsException {
+    @Override public <T> Class<? extends T> getAsClass(String setting, Class<? extends T> defaultClazz, String prefixPackage, String suffixClassName) throws NoClassSettingsException {
         String sValue = get(setting);
         if (sValue == null) {
             return defaultClazz;

@@ -22,6 +22,8 @@ package org.elasticsearch.util.settings;
 import org.elasticsearch.ElasticSearchException;
 
 /**
+ * A generic failure to handle settings.
+ *
  * @author kimchy (Shay Banon)
  */
 public class SettingsException extends ElasticSearchException {

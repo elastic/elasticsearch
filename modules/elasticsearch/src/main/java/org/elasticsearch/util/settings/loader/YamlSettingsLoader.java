@@ -29,6 +29,9 @@ import static com.google.common.collect.Lists.*;
 import static com.google.common.collect.Maps.*;
 
 /**
+ * Settings loader that loads (parses) the settings in a yaml format by flattening them
+ * into a map.
+ *
  * @author kimchy (Shay Banon)
  */
 public class YamlSettingsLoader implements SettingsLoader {

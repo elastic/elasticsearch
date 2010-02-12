@@ -43,7 +43,11 @@ public class JsonSettingsLoader implements SettingsLoader {
 
     @Override public Map<String, String> load(String source) throws IOException {
         JsonParser jp = jsonFactory.createJsonParser(new FastStringReader(source));
-        return load(jp);
+        try {
+            return load(jp);
+        } finally {
+            jp.close();
+        }
     }
 
     public Map<String, String> load(JsonParser jp) throws IOException {

@@ -252,8 +252,9 @@ public class JsonDocumentMapper implements DocumentMapper {
         }
         type = this.type;
 
+        JsonParser jp = null;
         try {
-            JsonParser jp = jsonFactory.createJsonParser(new FastStringReader(source));
+            jp = jsonFactory.createJsonParser(new FastStringReader(source));
             jsonContext.reset(jp, new Document(), type, source);
 
             // will result in JsonToken.START_OBJECT
@@ -301,6 +302,14 @@ public class JsonDocumentMapper implements DocumentMapper {
             }
         } catch (IOException e) {
             throw new MapperParsingException("Failed to parse", e);
+        } finally {
+            if (jp != null) {
+                try {
+                    jp.close();
+                } catch (IOException e) {
+                    // ignore
+                }
+            }
         }
         return new ParsedDocument(jsonContext.uid(), jsonContext.id(), jsonContext.type(), jsonContext.doc(), source);
     }

@@ -123,12 +123,22 @@ public class JsonIndexQueryParser extends AbstractIndexComponent implements Inde
     }
 
     @Override public Query parse(String source) throws QueryParsingException {
+        JsonParser jp = null;
         try {
-            return parse(cache.get(), source, jsonFactory.createJsonParser(new FastStringReader(source)));
+            jp = jsonFactory.createJsonParser(new FastStringReader(source));
+            return parse(cache.get(), source, jp);
         } catch (QueryParsingException e) {
             throw e;
         } catch (Exception e) {
             throw new QueryParsingException(index, "Failed to parse [" + source + "]", e);
+        } finally {
+            if (jp != null) {
+                try {
+                    jp.close();
+                } catch (IOException e) {
+                    // ignore
+                }
+            }
         }
     }
 

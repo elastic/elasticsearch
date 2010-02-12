@@ -360,7 +360,11 @@ public class JsonBuilder {
         return result;
     }
 
-    public void close() throws IOException {
-        generator.close();
+    public void close() {
+        try {
+            generator.close();
+        } catch (IOException e) {
+            // ignore
+        }
     }
 }

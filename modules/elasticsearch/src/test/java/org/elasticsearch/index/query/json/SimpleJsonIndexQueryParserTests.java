@@ -314,7 +314,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testBoolQueryBuilder() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(boolQuery().must(termQuery("content", "test1")).mustNot(termQuery("content", "test2")).should(termQuery("content", "test3")).must(termQuery("content", "test4")).build());
+        Query parsedQuery = queryParser.parse(boolQuery().must(termQuery("content", "test1")).must(termQuery("content", "test4")).mustNot(termQuery("content", "test2")).should(termQuery("content", "test3")).build());
         assertThat(parsedQuery, instanceOf(BooleanQuery.class));
         BooleanQuery booleanQuery = (BooleanQuery) parsedQuery;
         BooleanClause[] clauses = booleanQuery.getClauses();
@@ -324,14 +324,14 @@ public class SimpleJsonIndexQueryParserTests {
         assertThat(((TermQuery) clauses[0].getQuery()).getTerm(), equalTo(new Term("content", "test1")));
         assertThat(clauses[0].getOccur(), equalTo(BooleanClause.Occur.MUST));
 
-        assertThat(((TermQuery) clauses[1].getQuery()).getTerm(), equalTo(new Term("content", "test2")));
-        assertThat(clauses[1].getOccur(), equalTo(BooleanClause.Occur.MUST_NOT));
+        assertThat(((TermQuery) clauses[1].getQuery()).getTerm(), equalTo(new Term("content", "test4")));
+        assertThat(clauses[1].getOccur(), equalTo(BooleanClause.Occur.MUST));
 
-        assertThat(((TermQuery) clauses[2].getQuery()).getTerm(), equalTo(new Term("content", "test3")));
-        assertThat(clauses[2].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+        assertThat(((TermQuery) clauses[2].getQuery()).getTerm(), equalTo(new Term("content", "test2")));
+        assertThat(clauses[2].getOccur(), equalTo(BooleanClause.Occur.MUST_NOT));
 
-        assertThat(((TermQuery) clauses[3].getQuery()).getTerm(), equalTo(new Term("content", "test4")));
-        assertThat(clauses[3].getOccur(), equalTo(BooleanClause.Occur.MUST));
+        assertThat(((TermQuery) clauses[3].getQuery()).getTerm(), equalTo(new Term("content", "test3")));
+        assertThat(clauses[3].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
     }
 
 
@@ -348,14 +348,14 @@ public class SimpleJsonIndexQueryParserTests {
         assertThat(((TermQuery) clauses[0].getQuery()).getTerm(), equalTo(new Term("content", "test1")));
         assertThat(clauses[0].getOccur(), equalTo(BooleanClause.Occur.MUST));
 
-        assertThat(((TermQuery) clauses[1].getQuery()).getTerm(), equalTo(new Term("content", "test2")));
-        assertThat(clauses[1].getOccur(), equalTo(BooleanClause.Occur.MUST_NOT));
+        assertThat(((TermQuery) clauses[1].getQuery()).getTerm(), equalTo(new Term("content", "test4")));
+        assertThat(clauses[1].getOccur(), equalTo(BooleanClause.Occur.MUST));
 
-        assertThat(((TermQuery) clauses[2].getQuery()).getTerm(), equalTo(new Term("content", "test3")));
-        assertThat(clauses[2].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+        assertThat(((TermQuery) clauses[2].getQuery()).getTerm(), equalTo(new Term("content", "test2")));
+        assertThat(clauses[2].getOccur(), equalTo(BooleanClause.Occur.MUST_NOT));
 
-        assertThat(((TermQuery) clauses[3].getQuery()).getTerm(), equalTo(new Term("content", "test4")));
-        assertThat(clauses[3].getOccur(), equalTo(BooleanClause.Occur.MUST));
+        assertThat(((TermQuery) clauses[3].getQuery()).getTerm(), equalTo(new Term("content", "test3")));
+        assertThat(clauses[3].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
     }
 
     @Test public void testFilteredQueryBuilder() throws IOException {

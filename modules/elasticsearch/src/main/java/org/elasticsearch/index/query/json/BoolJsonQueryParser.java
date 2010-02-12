@@ -71,6 +71,20 @@ public class BoolJsonQueryParser extends AbstractIndexComponent implements JsonQ
                 } else if ("should".equals(currentFieldName)) {
                     clauses.add(new BooleanClause(parseContext.parseInnerQuery(), BooleanClause.Occur.SHOULD));
                 }
+            } else if (token == JsonToken.START_ARRAY) {
+                if ("must".equals(currentFieldName)) {
+                    while ((token = jp.nextToken()) != JsonToken.END_ARRAY) {
+                        clauses.add(new BooleanClause(parseContext.parseInnerQuery(), BooleanClause.Occur.MUST));
+                    }
+                } else if ("mustNot".equals(currentFieldName)) {
+                    while ((token = jp.nextToken()) != JsonToken.END_ARRAY) {
+                        clauses.add(new BooleanClause(parseContext.parseInnerQuery(), BooleanClause.Occur.MUST_NOT));
+                    }
+                } else if ("should".equals(currentFieldName)) {
+                    while ((token = jp.nextToken()) != JsonToken.END_ARRAY) {
+                        clauses.add(new BooleanClause(parseContext.parseInnerQuery(), BooleanClause.Occur.SHOULD));
+                    }
+                }
             } else if (token == JsonToken.VALUE_TRUE || token == JsonToken.VALUE_FALSE) {
                 if ("disableCoord".equals(currentFieldName)) {
                     disableCoord = token == JsonToken.VALUE_TRUE;

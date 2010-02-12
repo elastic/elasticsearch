@@ -1,11 +1,19 @@
 {
     bool : {
-        must : {
-            queryString : {
-                defaultField : "content",
-                query : "test1"
+        must : [
+            {
+                queryString : {
+                    defaultField : "content",
+                    query : "test1"
+                }
+            },
+            {
+                queryString : {
+                    defaultField : "content",
+                    query : "test4"
+                }
             }
-        },
+        ],
         mustNot: {
             queryString : {
                 defaultField : "content",
@@ -16,12 +24,6 @@
             queryString : {
                 defaultField : "content",
                 query : "test3"
-            }
-        },
-        must : {
-            queryString : {
-                defaultField : "content",
-                query : "test4"
             }
         }
     }

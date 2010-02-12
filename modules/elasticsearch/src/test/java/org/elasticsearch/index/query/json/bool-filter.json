@@ -5,17 +5,19 @@
         },
         filter : {
             bool : {
-                must : {
-                    term : { "name.first" : "shay1" }
-                },
+                must : [
+                    {
+                        term : { "name.first" : "shay1" }
+                    },
+                    {
+                        term : { "name.first" : "shay4" }
+                    }
+                ],
                 mustNot: {
                     term : { "name.first" : "shay2" }
                 },
                 should: {
                     term : { "name.first" : "shay3" }
-                },
-                must : {
-                    term : { "name.first" : "shay4" }
                 }
             }
         }

@@ -31,7 +31,7 @@ public abstract class BaseJsonQueryBuilder implements JsonQueryBuilder {
 
     @Override public String build() throws QueryBuilderException {
         try {
-            JsonBuilder builder = JsonBuilder.cached();
+            JsonBuilder builder = JsonBuilder.jsonBuilder();
             toJson(builder);
             return builder.string();
         } catch (Exception e) {

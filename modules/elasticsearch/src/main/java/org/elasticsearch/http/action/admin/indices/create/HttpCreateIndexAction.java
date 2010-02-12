@@ -85,7 +85,7 @@ public class HttpCreateIndexAction extends BaseHttpServerHandler {
                 try {
                     Throwable t = unwrapCause(e);
                     if (t instanceof IndexAlreadyExistsException || t instanceof InvalidIndexNameException) {
-                        channel.sendResponse(new JsonHttpResponse(request, BAD_REQUEST, JsonBuilder.cached().startObject().field("error", t.getMessage()).endObject()));
+                        channel.sendResponse(new JsonHttpResponse(request, BAD_REQUEST, JsonBuilder.jsonBuilder().startObject().field("error", t.getMessage()).endObject()));
                     } else {
                         channel.sendResponse(new JsonThrowableHttpResponse(request, e));
                     }

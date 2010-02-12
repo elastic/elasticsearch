@@ -63,7 +63,7 @@ public class HttpDeleteByQueryAction extends BaseHttpServerHandler {
             deleteByQueryRequest.timeout(TimeValue.parseTimeValue(request.param("timeout"), ShardDeleteByQueryRequest.DEFAULT_TIMEOUT));
         } catch (Exception e) {
             try {
-                channel.sendResponse(new JsonHttpResponse(request, PRECONDITION_FAILED, JsonBuilder.cached().startObject().field("error", e.getMessage()).endObject()));
+                channel.sendResponse(new JsonHttpResponse(request, PRECONDITION_FAILED, JsonBuilder.jsonBuilder().startObject().field("error", e.getMessage()).endObject()));
             } catch (IOException e1) {
                 logger.error("Failed to send failure response", e1);
             }

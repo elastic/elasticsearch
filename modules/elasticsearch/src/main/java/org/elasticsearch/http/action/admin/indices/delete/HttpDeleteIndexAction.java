@@ -36,7 +36,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.http.HttpResponse.Status.*;
 import static org.elasticsearch.util.TimeValue.*;
-import static org.elasticsearch.util.json.JsonBuilder.Cached.*;
+import static org.elasticsearch.util.json.JsonBuilder.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -54,7 +54,7 @@ public class HttpDeleteIndexAction extends BaseHttpServerHandler {
         client.admin().indices().execDelete(deleteIndexRequest, new ActionListener<DeleteIndexResponse>() {
             @Override public void onResponse(DeleteIndexResponse result) {
                 try {
-                    channel.sendResponse(new JsonHttpResponse(request, OK, cached().startObject().field("ok", true).endObject()));
+                    channel.sendResponse(new JsonHttpResponse(request, OK, jsonBuilder().startObject().field("ok", true).endObject()));
                 } catch (IOException e) {
                     onFailure(e);
                 }

@@ -124,7 +124,7 @@ public class SearchSourceBuilder {
 
     public String build() {
         try {
-            JsonBuilder builder = JsonBuilder.cached();
+            JsonBuilder builder = JsonBuilder.jsonBuilder();
             builder.startObject();
 
             if (from != -1) {

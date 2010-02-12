@@ -24,14 +24,21 @@ import org.codehaus.jackson.JsonFactory;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.util.concurrent.NotThreadSafe;
 import org.elasticsearch.util.io.FastCharArrayWriter;
+import org.joda.time.DateTimeZone;
+import org.joda.time.ReadableInstant;
+import org.joda.time.format.DateTimeFormatter;
+import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
+import java.util.Date;
 
 /**
  * @author kimchy (Shay Banon)
  */
 @NotThreadSafe
 public class JsonBuilder {
+
+    private final static DateTimeFormatter defaultDatePrinter = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
 
     /**
      * A thread local based cache of {@link JsonBuilder}.
@@ -57,19 +64,14 @@ public class JsonBuilder {
         /**
          * Returns the cached thread local generator, with its internal {@link StringBuilder} cleared.
          */
-        public static JsonBuilder cached() throws IOException {
+        static JsonBuilder cached() throws IOException {
             Cached cached = cache.get();
             cached.generator.reset();
             return cached.generator;
         }
-
-        public static JsonBuilder cachedNoReset() {
-            Cached cached = cache.get();
-            return cached.generator;
-        }
     }
 
-    public static JsonBuilder cached() throws IOException {
+    public static JsonBuilder jsonBuilder() throws IOException {
         return Cached.cached();
     }
 
@@ -226,6 +228,26 @@ public class JsonBuilder {
         return this;
     }
 
+    public JsonBuilder field(String name, ReadableInstant date) throws IOException {
+        generator.writeFieldName(name);
+        return date(date);
+    }
+
+    public JsonBuilder field(String name, ReadableInstant date, DateTimeFormatter formatter) throws IOException {
+        generator.writeFieldName(name);
+        return date(date, formatter);
+    }
+
+    public JsonBuilder field(String name, Date date) throws IOException {
+        generator.writeFieldName(name);
+        return date(date);
+    }
+
+    public JsonBuilder field(String name, Date date, DateTimeFormatter formatter) throws IOException {
+        generator.writeFieldName(name);
+        return date(date, formatter);
+    }
+
     public JsonBuilder nullField(String name) throws IOException {
         generator.writeNullField(name);
         return this;
@@ -283,6 +305,24 @@ public class JsonBuilder {
 
     public JsonBuilder bool(boolean value) throws IOException {
         generator.writeBoolean(value);
+        return this;
+    }
+
+    public JsonBuilder date(ReadableInstant date) throws IOException {
+        return date(date, defaultDatePrinter);
+    }
+
+    public JsonBuilder date(ReadableInstant date, DateTimeFormatter dateTimeFormatter) throws IOException {
+        string(dateTimeFormatter.print(date));
+        return this;
+    }
+
+    public JsonBuilder date(Date date) throws IOException {
+        return date(date, defaultDatePrinter);
+    }
+
+    public JsonBuilder date(Date date, DateTimeFormatter dateTimeFormatter) throws IOException {
+        string(dateTimeFormatter.print(date.getTime()));
         return this;
     }
 

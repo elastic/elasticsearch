@@ -69,7 +69,7 @@ public class HttpCreateMappingAction extends BaseHttpServerHandler {
                 try {
                     Throwable t = unwrapCause(e);
                     if (t instanceof IndexMissingException || t instanceof InvalidTypeNameException) {
-                        channel.sendResponse(new JsonHttpResponse(request, BAD_REQUEST, JsonBuilder.cached().startObject().field("error", t.getMessage()).endObject()));
+                        channel.sendResponse(new JsonHttpResponse(request, BAD_REQUEST, JsonBuilder.jsonBuilder().startObject().field("error", t.getMessage()).endObject()));
                     } else {
                         channel.sendResponse(new JsonThrowableHttpResponse(request, e));
                     }

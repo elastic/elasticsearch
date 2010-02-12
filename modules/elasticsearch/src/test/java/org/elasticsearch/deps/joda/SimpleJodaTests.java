@@ -24,6 +24,8 @@ import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 import org.testng.annotations.Test;
 
+import java.util.Date;
+
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -53,5 +55,12 @@ public class SimpleJodaTests {
         assertThat(millis, equalTo(0l));
         millis = formatter.parseMillis("1970-01-01");
         assertThat(millis, equalTo(0l));
+    }
+
+    @Test public void testWriteAndParse() {
+        DateTimeFormatter dateTimeWriter = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
+        DateTimeFormatter formatter = ISODateTimeFormat.dateOptionalTimeParser().withZone(DateTimeZone.UTC);
+        Date date = new Date();
+        assertThat(formatter.parseMillis(dateTimeWriter.print(date.getTime())), equalTo(date.getTime()));
     }
 }

@@ -30,7 +30,7 @@ import java.io.IOException;
 public class HttpJsonBuilder {
 
     public static JsonBuilder cached(HttpRequest request) throws IOException {
-        JsonBuilder builder = JsonBuilder.cached();
+        JsonBuilder builder = JsonBuilder.jsonBuilder();
         String prettyPrint = request.param("pretty");
         if (prettyPrint != null && "true".equals(prettyPrint)) {
             builder.prettyPrint();

@@ -56,7 +56,7 @@ public class HttpIndexAction extends BaseHttpServerHandler {
                 indexRequest.opType(IndexRequest.OpType.CREATE);
             } else {
                 try {
-                    channel.sendResponse(new JsonHttpResponse(request, BAD_REQUEST, JsonBuilder.cached().startObject().field("error", "opType [" + sOpType + "] not allowed, either [index] or [create] are allowed").endObject()));
+                    channel.sendResponse(new JsonHttpResponse(request, BAD_REQUEST, JsonBuilder.jsonBuilder().startObject().field("error", "opType [" + sOpType + "] not allowed, either [index] or [create] are allowed").endObject()));
                 } catch (IOException e1) {
                     logger.warn("Failed to send response", e1);
                     return;

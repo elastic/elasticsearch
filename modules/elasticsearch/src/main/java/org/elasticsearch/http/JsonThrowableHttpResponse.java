@@ -26,7 +26,7 @@ import org.elasticsearch.util.json.JsonBuilder;
 import java.io.IOException;
 import java.io.PrintWriter;
 
-import static org.elasticsearch.util.json.JsonBuilder.Cached.*;
+import static org.elasticsearch.util.json.JsonBuilder.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -59,7 +59,7 @@ public class JsonThrowableHttpResponse extends JsonHttpResponse {
         Holder holder = cache.get();
         holder.writer.reset();
         t.printStackTrace(holder.printWriter);
-        JsonBuilder builder = cached().prettyPrint()
+        JsonBuilder builder = jsonBuilder().prettyPrint()
                 .startObject().field("error", ExceptionsHelper.detailedMessage(t, false, 0));
         builder.startObject("debug");
         boolean first = true;

@@ -50,7 +50,7 @@ dependencies {
     compile 'org.apache.lucene:lucene-analyzers:3.0.0'
     compile 'org.apache.lucene:lucene-queries:3.0.0'
 
-    compile('jgroups:jgroups:2.8.0.GA') { transitive = false }
+    compile('jgroups:jgroups:2.9.0.GA') { transitive = false }
     compile('org.jboss.netty:netty:3.1.5.GA') { transitive = false }
 
     testCompile project(':test-testng')

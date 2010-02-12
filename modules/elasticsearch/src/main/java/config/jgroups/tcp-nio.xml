@@ -7,6 +7,8 @@
     multicasting cannot be used in a network, e.g. because it is disabled (routers discard multicast).
     Note that TCP.bind_addr and TCPPING.initial_hosts should be set, possibly via system properties, e.g.
     -Djgroups.bind_addr=192.168.5.2 and -Djgroups.tcpping.initial_hosts=192.168.5.2[7800]".
+    author: Bela Ban
+    version: $Id: tcp-nio.xml,v 1.19 2009/12/11 10:45:19 belaban Exp $
 -->
 <config xmlns="urn:org:jgroups"
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -22,7 +24,6 @@
             enable_bundling="true"
             use_send_queues="true"
             sock_conn_timeout="300"
-            skip_suspected_members="true"
 
             thread_pool.enabled="true"
             thread_pool.min_threads="1"

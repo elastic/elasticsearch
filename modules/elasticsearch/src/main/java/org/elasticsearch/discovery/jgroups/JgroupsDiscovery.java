@@ -29,7 +29,6 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryException;
 import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.component.Lifecycle;
@@ -66,8 +65,6 @@ public class JgroupsDiscovery extends AbstractComponent implements Discovery, Re
 
     private final ClusterName clusterName;
 
-    private final ThreadPool threadPool;
-
     private final TransportService transportService;
 
     private final ClusterService clusterService;
@@ -85,10 +82,9 @@ public class JgroupsDiscovery extends AbstractComponent implements Discovery, Re
     private final CopyOnWriteArrayList<InitialStateDiscoveryListener> initialStateListeners = new CopyOnWriteArrayList<InitialStateDiscoveryListener>();
 
     @Inject public JgroupsDiscovery(Settings settings, Environment environment, ClusterName clusterName,
-                                    ThreadPool threadPool, TransportService transportService, ClusterService clusterService) {
+                                    TransportService transportService, ClusterService clusterService) {
         super(settings);
         this.clusterName = clusterName;
-        this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterService = clusterService;
 

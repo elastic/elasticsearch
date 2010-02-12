@@ -1,11 +1,9 @@
 <component name="libraryTable">
   <library name="jgroups">
     <CLASSES>
-      <root url="jar://$GRADLE_REPOSITORY$/jgroups/jgroups/jars/jgroups-2.8.0.GA.jar!/" />
+      <root url="jar://$GRADLE_REPOSITORY$/jgroups/jgroups/jars/jgroups-2.9.0.GA.jar!/" />
     </CLASSES>
     <JAVADOC />
-    <SOURCES>
-      <root url="file://$PROJECT_DIR$/../../../opt/jgroups/2.8.0.GA.src/src" />
-    </SOURCES>
+    <SOURCES />
   </library>
 </component>

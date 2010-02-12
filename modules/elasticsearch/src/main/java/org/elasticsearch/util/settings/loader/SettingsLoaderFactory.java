@@ -20,6 +20,9 @@
 package org.elasticsearch.util.settings.loader;
 
 /**
+ * A settings loader factory automatically trying to identify what type of
+ * {@link SettingsLoader} to use.
+ *
  * @author kimchy (Shay Banon)
  */
 public final class SettingsLoaderFactory {
@@ -28,6 +31,9 @@ public final class SettingsLoaderFactory {
 
     }
 
+    /**
+     * Returns a {@link SettingsLoader} based on the resource name.
+     */
     public static SettingsLoader loaderFromResource(String resourceName) {
         if (resourceName.endsWith(".json")) {
             return new JsonSettingsLoader();
@@ -41,6 +47,9 @@ public final class SettingsLoaderFactory {
         }
     }
 
+    /**
+     * Returns a {@link SettingsLoader} based on the actual settings source.
+     */
     public static SettingsLoader loaderFromSource(String source) {
         if (source.indexOf('{') != -1 && source.indexOf('}') != -1) {
             return new JsonSettingsLoader();

@@ -34,6 +34,8 @@ import java.util.concurrent.TimeUnit;
 import static com.google.common.collect.Lists.*;
 
 /**
+ * An immutable implementation of {@link Settings}.
+ *
  * @author kimchy (Shay Banon)
  */
 @ThreadSafe
@@ -273,10 +275,18 @@ public class ImmutableSettings implements Settings {
         }
     }
 
+    /**
+     * Returns a builder to be used in order to build settings.
+     */
     public static Builder settingsBuilder() {
         return new Builder();
     }
 
+    /**
+     * A builder allowing to put different settings and then {@link #build()} an immutable
+     * settings implementation. Use {@link ImmutableSettings#settingsBuilder()} in order to
+     * construct it.
+     */
     public static class Builder implements Settings.Builder {
 
         public static final Settings EMPTY_SETTINGS = new Builder().build();
@@ -287,39 +297,84 @@ public class ImmutableSettings implements Settings {
 
         private Settings globalSettings;
 
-        public Builder() {
+        private Builder() {
 
         }
 
+        /**
+         * Returns a setting value based on the setting key.
+         */
         public String get(String key) {
             return map.get(key);
         }
 
+        /**
+         * Sets a setting with the provided setting key and value.
+         *
+         * @param key   The setting key
+         * @param value The setting value
+         * @return The builder
+         */
         public Builder put(String key, String value) {
             map.put(key, value);
             return this;
         }
 
+        /**
+         * Sets a setting with the provided setting key and class as value.
+         *
+         * @param key   The setting key
+         * @param clazz The setting class value
+         * @return The builder
+         */
         public Builder putClass(String key, Class clazz) {
             map.put(key, clazz.getName());
             return this;
         }
 
+        /**
+         * Sets the setting with the provided setting key and the boolean value.
+         *
+         * @param setting The setting key
+         * @param value   The boolean value
+         * @return The builder
+         */
         public Builder putBoolean(String setting, boolean value) {
             put(setting, String.valueOf(value));
             return this;
         }
 
+        /**
+         * Sets the setting with the provided setting key and the int value.
+         *
+         * @param setting The setting key
+         * @param value   The int value
+         * @return The builder
+         */
         public Builder putInt(String setting, int value) {
             put(setting, String.valueOf(value));
             return this;
         }
 
+        /**
+         * Sets the setting with the provided setting key and the long value.
+         *
+         * @param setting The setting key
+         * @param value   The long value
+         * @return The builder
+         */
         public Builder putLong(String setting, long value) {
             put(setting, String.valueOf(value));
             return this;
         }
 
+        /**
+         * Sets the setting with the provided setting key and the float value.
+         *
+         * @param setting The setting key
+         * @param value   The float value
+         * @return The builder
+         */
         public Builder putFloat(String setting, float value) {
             put(setting, String.valueOf(value));
             return this;
@@ -330,16 +385,33 @@ public class ImmutableSettings implements Settings {
             return this;
         }
 
+        /**
+         * Sets the setting with the provided setting key and the time value.
+         *
+         * @param setting The setting key
+         * @param value   The time value
+         * @return The builder
+         */
         public Builder putTime(String setting, long value, TimeUnit timeUnit) {
             putLong(setting, timeUnit.toMillis(value));
             return this;
         }
 
+        /**
+         * Sets the setting with the provided setting key and the size value.
+         *
+         * @param setting The setting key
+         * @param value   The size value
+         * @return The builder
+         */
         public Builder putSize(String setting, long value, SizeUnit sizeUnit) {
             putLong(setting, sizeUnit.toBytes(value));
             return this;
         }
 
+        /**
+         * Sets the setting group.
+         */
         public Builder putGroup(String settingPrefix, String groupName, String[] settings, String[] values) throws SettingsException {
             if (settings.length != values.length) {
                 throw new SettingsException("The settings length must match the value length");
@@ -353,16 +425,25 @@ public class ImmutableSettings implements Settings {
             return this;
         }
 
+        /**
+         * Sets all the provided settings.
+         */
         public Builder putAll(Settings settings) {
             map.putAll(settings.getAsMap());
             return this;
         }
 
+        /**
+         * Sets all the provided settings.
+         */
         public Builder putAll(Map<String, String> settings) {
             map.putAll(settings);
             return this;
         }
 
+        /**
+         * Sets all the provided settings.
+         */
         public Builder putAll(Properties properties) {
             for (Map.Entry entry : properties.entrySet()) {
                 map.put((String) entry.getKey(), (String) entry.getValue());
@@ -371,7 +452,8 @@ public class ImmutableSettings implements Settings {
         }
 
         /**
-         * Loads settings from the actual string content that represents them.
+         * Loads settings from the actual string content that represents them using the
+         * {@link SettingsLoaderFactory#loaderFromSource(String)}.
          */
         public Builder loadFromSource(String source) {
             SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromSource(source);
@@ -384,6 +466,10 @@ public class ImmutableSettings implements Settings {
             return this;
         }
 
+        /**
+         * Loads settings from a url that represents them using the
+         * {@link SettingsLoaderFactory#loaderFromSource(String)}.
+         */
         public Builder loadFromUrl(URL url) throws SettingsException {
             try {
                 return loadFromStream(url.toExternalForm(), url.openStream());
@@ -392,6 +478,10 @@ public class ImmutableSettings implements Settings {
             }
         }
 
+        /**
+         * Loads settings from a stream that represents them using the
+         * {@link SettingsLoaderFactory#loaderFromSource(String)}.
+         */
         public Builder loadFromStream(String resourceName, InputStream is) throws SettingsException {
             SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromResource(resourceName);
             try {
@@ -404,8 +494,8 @@ public class ImmutableSettings implements Settings {
         }
 
         /**
-         * Loads the resource name from the classpath, returning <code>true</code> if it
-         * was loaded.
+         * Loads settings from classpath that represents them using the
+         * {@link SettingsLoaderFactory#loaderFromSource(String)}.
          */
         public Builder loadFromClasspath(String resourceName) throws SettingsException {
             ClassLoader classLoader = this.classLoader;
@@ -420,16 +510,29 @@ public class ImmutableSettings implements Settings {
             return loadFromStream(resourceName, is);
         }
 
+        /**
+         * Sets the class loader associated with the settings built.
+         */
         public Builder classLoader(ClassLoader classLoader) {
             this.classLoader = classLoader;
             return this;
         }
 
+        /**
+         * Sets the global settings associated with the settings built.
+         */
         public Builder globalSettings(Settings globalSettings) {
             this.globalSettings = globalSettings;
             return this;
         }
 
+        /**
+         * Puts all the properties with keys starting with the provided <tt>prefix</tt>.
+         *
+         * @param prefix     The prefix to filter proeprty key by
+         * @param properties The properties to put
+         * @return The builder
+         */
         public Builder putProperties(String prefix, Properties properties) {
             for (Object key1 : properties.keySet()) {
                 String key = (String) key1;
@@ -441,6 +544,14 @@ public class ImmutableSettings implements Settings {
             return this;
         }
 
+        /**
+         * Runs across all the settings set on this builder and replaces <tt>${...}</tt> elements in the
+         * each setting value according to the following logic:
+         *
+         * <p>First, tries to resolve it against a System property ({@link System#getProperty(String)}), next,
+         * tries and resolve it against an environment variable ({@link System#getenv(String)}), and last, tries
+         * and replace it with another setting already set on this builder.
+         */
         public Builder replacePropertyPlaceholders() {
             PropertyPlaceholder propertyPlaceholder = new PropertyPlaceholder("${", "}", false);
             PropertyPlaceholder.PlaceholderResolver placeholderResolver = new PropertyPlaceholder.PlaceholderResolver() {
@@ -462,6 +573,10 @@ public class ImmutableSettings implements Settings {
             return this;
         }
 
+        /**
+         * Builds a {@link Settings} (underlying uses {@link ImmutableSettings}) based on everything
+         * set on this builder.
+         */
         public Settings build() {
             return new ImmutableSettings(
                     Collections.unmodifiableMap(map),

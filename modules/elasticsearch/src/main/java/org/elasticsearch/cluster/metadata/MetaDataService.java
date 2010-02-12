@@ -50,6 +50,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.cluster.metadata.MetaData.*;
+import static org.elasticsearch.util.settings.ImmutableSettings.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -114,7 +115,7 @@ public class MetaDataService extends AbstractComponent {
                 for (IndexRoutingTable indexRoutingTable : currentState.routingTable().indicesRouting().values()) {
                     routingTableBuilder.add(indexRoutingTable);
                 }
-                ImmutableSettings.Builder indexSettingsBuilder = new ImmutableSettings.Builder().putAll(indexSettings);
+                ImmutableSettings.Builder indexSettingsBuilder = settingsBuilder().putAll(indexSettings);
                 if (indexSettings.get(SETTING_NUMBER_OF_SHARDS) == null) {
                     indexSettingsBuilder.putInt(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
                 }

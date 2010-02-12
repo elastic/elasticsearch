@@ -28,6 +28,9 @@ import java.util.Map;
 /**
  * Immutable settings allowing to control the configuration.
  *
+ * <p>Using {@link ImmutableSettings#settingsBuilder()} in order to create a builder
+ * which in turn can create an immutable implementation of settings.
+ *
  * @author kimchy (Shay Banon)
  * @see ImmutableSettings
  */

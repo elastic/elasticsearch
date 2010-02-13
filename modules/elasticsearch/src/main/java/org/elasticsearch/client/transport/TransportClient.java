@@ -62,6 +62,12 @@ import java.util.ArrayList;
 import static org.elasticsearch.util.settings.ImmutableSettings.*;
 
 /**
+ * The transport client allows to create a client that is not part of the cluster, but simply connects to one
+ * or more nodes directly by adding their respective addresses using {@link #addTransportAddress(org.elasticsearch.util.transport.TransportAddress)}.
+ *
+ * <p>The transport client important modules used is the {@link org.elasticsearch.transport.TransportModule} which is
+ * started in client mode (only connects, no bind).
+ *
  * @author kimchy (Shay Banon)
  */
 public class TransportClient implements Client {
@@ -78,14 +84,31 @@ public class TransportClient implements Client {
     private final InternalTransportClient internalClient;
 
 
+    /**
+     * Constructs a new transport client with settings loaded either from the classpath or the file system (the
+     * <tt>elasticsearch.(yml|json)</tt> files optionally prefixed with <tt>config/</tt>).
+     */
     public TransportClient() throws ElasticSearchException {
         this(ImmutableSettings.Builder.EMPTY_SETTINGS, true);
     }
 
+    /**
+     * Constructs a new transport client with explicit settings and settings loaded either from the classpath or the file
+     * system (the <tt>elasticsearch.(yml|json)</tt> files optionally prefixed with <tt>config/</tt>).
+     */
     public TransportClient(Settings settings) {
         this(settings, true);
     }
 
+    /**
+     * Constructs a new transport client with the provided settings and the ability to control if settings will
+     * be loaded from the classpath / file system (the <tt>elasticsearch.(yml|json)</tt> files optionally prefixed with
+     * <tt>config/</tt>).
+     *
+     * @param pSettings          The explicit settings.
+     * @param loadConfigSettings <tt>true</tt> if settings should be loaded from the classpath/file system.
+     * @throws ElasticSearchException
+     */
     public TransportClient(Settings pSettings, boolean loadConfigSettings) throws ElasticSearchException {
         Tuple<Settings, Environment> tuple = InternalSettingsPerparer.prepareSettings(pSettings, loadConfigSettings);
         this.settings = settingsBuilder().putAll(tuple.v1())

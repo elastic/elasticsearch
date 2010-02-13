@@ -23,17 +23,38 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.util.settings.Settings;
 
 /**
+ * A server represent a node within a cluster (<tt>cluster.name</tt>). The {@link #client()} can be used
+ * in order to use a {@link Client} to perform actions/operations against the cluster.
+ *
+ * <p>In order to create a server, the {@link ServerBuilder} can be used. When done with it, make sure to
+ * call {@link #close()} on it.
+ *
  * @author kimchy (Shay Banon)
  */
 public interface Server {
 
+    /**
+     * The settings that were used to create the server.
+     */
     Settings settings();
 
+    /**
+     * A client that can be used to execute actions (operations) against the cluster.
+     */
     Client client();
 
+    /**
+     * Start the server. If the server is already started, this method is noop.
+     */
     Server start();
 
+    /**
+     * Stops the server. If the server is already started, this method is noop.
+     */
     Server stop();
 
+    /**
+     * Closes the server (and {@link #stop}s if its running).
+     */
     void close();
 }

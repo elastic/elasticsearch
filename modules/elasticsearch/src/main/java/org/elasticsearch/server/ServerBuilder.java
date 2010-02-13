@@ -24,6 +24,35 @@ import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
 
 /**
+ * A server builder is used to construct a {@link Server} instance.
+ *
+ * <p>Settings will be loaded relative to the ES home (with or without <tt>config/</tt> prefix) and if not found,
+ * within the classpath (with or without <tt>config/<tt> prefix). The settings file loaded can either be named
+ * <tt>elasticsearch.yml</tt> or <tt>elasticsearch.json</tt>). Loading settings can be disabled by calling
+ * {@link #loadConfigSettings(boolean)} with <tt>false<tt>.
+ *
+ * <p>Explicit settings can be passed by using the {@link #settings(Settings)} method.
+ *
+ * <p>In any case, settings will be resolved from system properties as well that are either prefixed with <tt>es.</tt>
+ * or <tt>elasticsearch.</tt>.
+ *
+ * <p>An example for creating a simple server with optional settings loaded from the classpath:
+ *
+ * <pre>
+ * Server server = ServerBuilder.serverBuilder().server();
+ * </pre>
+ *
+ * <p>An example for creating a server with explicit settings (in this case, a node in the cluster that does not hold
+ * data):
+ *
+ * <pre>
+ * Server server = ServerBuilder.serverBuilder()
+ *                      .settings(ImmutableSettings.settingsBuilder().putBoolean("node.data", false)
+ *                      .server();
+ * </pre>
+ *
+ * <p>When done with the server, make sure you call {@link Server#close()} on it.
+ *
  * @author kimchy (Shay Banon)
  */
 public class ServerBuilder {
@@ -32,19 +61,32 @@ public class ServerBuilder {
 
     private boolean loadConfigSettings = true;
 
+    /**
+     * A convenient factory method to create a {@link ServerBuilder}.
+     */
     public static ServerBuilder serverBuilder() {
         return new ServerBuilder();
     }
 
+    /**
+     * Explicit server settings to set.
+     */
     public ServerBuilder settings(Settings.Builder settings) {
         return settings(settings.build());
     }
 
+    /**
+     * Explicit server settings to set.
+     */
     public ServerBuilder settings(Settings settings) {
         this.settings = settings;
         return this;
     }
 
+    /**
+     * Should the server builder automatically try and load config settings from the file system / classpath. Defaults
+     * to <tt>true</tt>.
+     */
     public ServerBuilder loadConfigSettings(boolean loadConfigSettings) {
         this.loadConfigSettings = loadConfigSettings;
         return this;

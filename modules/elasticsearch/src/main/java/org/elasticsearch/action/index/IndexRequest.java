@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.util.Required;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -122,7 +123,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         return id;
     }
 
-    @Required public IndexRequest id(String id) {
+    public IndexRequest id(String id) {
         this.id = id;
         return this;
     }
@@ -131,7 +132,15 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         return source;
     }
 
-    public IndexRequest source(String source) {
+    @Required public IndexRequest source(JsonBuilder jsonBuilder) {
+        try {
+            return source(jsonBuilder.string());
+        } catch (IOException e) {
+            throw new ElasticSearchIllegalArgumentException("Failed to build json for index request", e);
+        }
+    }
+
+    @Required public IndexRequest source(String source) {
         this.source = source;
         return this;
     }

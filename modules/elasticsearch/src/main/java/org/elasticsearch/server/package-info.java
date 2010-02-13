@@ -17,18 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.transport;
-
-import org.elasticsearch.ElasticSearchException;
-
 /**
- * An exception indicating no node is available to perform the operation.
- *
- * @author kimchy (Shay Banon)
+ * Allow to build a {@link Server} using {@link ServerBuilder} which is a node within the cluster.
  */
-public class NoNodeAvailableException extends ElasticSearchException {
-
-    public NoNodeAvailableException() {
-        super("No node available");
-    }
-}
+package org.elasticsearch.server;

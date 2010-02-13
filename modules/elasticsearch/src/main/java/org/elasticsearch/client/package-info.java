@@ -17,18 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.transport;
-
-import org.elasticsearch.ElasticSearchException;
-
 /**
- * An exception indicating no node is available to perform the operation.
- *
- * @author kimchy (Shay Banon)
+ * The client module allowing to easily perform actions/operations.
  */
-public class NoNodeAvailableException extends ElasticSearchException {
-
-    public NoNodeAvailableException() {
-        super("No node available");
-    }
-}
+package org.elasticsearch.client;

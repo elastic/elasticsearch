@@ -20,12 +20,14 @@
 package org.elasticsearch;
 
 /**
- * @author kimchy (Shay Banon) (Shay Banon)
+ * A base class for all elasticsearch exceptions.
+ *
+ * @author kimchy (Shay Banon)
  */
 public class ElasticSearchException extends RuntimeException {
 
     /**
-     * Construct a <code>NestedRuntimeException</code> with the specified detail message.
+     * Construct a <code>ElasticSearchException</code> with the specified detail message.
      *
      * @param msg the detail message
      */
@@ -34,7 +36,7 @@ public class ElasticSearchException extends RuntimeException {
     }
 
     /**
-     * Construct a <code>NestedRuntimeException</code> with the specified detail message
+     * Construct a <code>ElasticSearchException</code> with the specified detail message
      * and nested exception.
      *
      * @param msg   the detail message
@@ -44,6 +46,12 @@ public class ElasticSearchException extends RuntimeException {
         super(msg, cause);
     }
 
+    /**
+     * Unwraps the actual cause from the exception for cases when the exception is a
+     * {@link ElasticSearchWrapperException}.
+     *
+     * @see org.elasticsearch.ExceptionsHelper#unwrapCause(Throwable)
+     */
     public Throwable unwrapCause() {
         return ExceptionsHelper.unwrapCause(this);
     }
@@ -68,9 +76,6 @@ public class ElasticSearchException extends RuntimeException {
 
     /**
      * Retrieve the innermost cause of this exception, if any.
-     *
-     * @return the innermost exception, or <code>null</code> if none
-     * @since 2.0
      */
     public Throwable getRootCause() {
         Throwable rootCause = null;
@@ -89,7 +94,6 @@ public class ElasticSearchException extends RuntimeException {
      * to the present exception if there is no root cause.
      *
      * @return the most specific cause (never <code>null</code>)
-     * @since 2.0.3
      */
     public Throwable getMostSpecificCause() {
         Throwable rootCause = getRootCause();

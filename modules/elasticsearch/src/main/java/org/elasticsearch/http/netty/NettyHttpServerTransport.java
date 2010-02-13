@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.http.*;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
+import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.component.AbstractComponent;
@@ -36,6 +37,7 @@ import org.elasticsearch.util.transport.PortsRange;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.channel.*;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
+import org.jboss.netty.handler.codec.http.HttpChunkAggregator;
 import org.jboss.netty.handler.codec.http.HttpRequestDecoder;
 import org.jboss.netty.handler.codec.http.HttpResponseEncoder;
 import org.jboss.netty.handler.timeout.ReadTimeoutException;
@@ -73,6 +75,8 @@ public class NettyHttpServerTransport extends AbstractComponent implements HttpS
 
     private final ThreadPool threadPool;
 
+    private final SizeValue maxContentLength;
+
     private final int workerCount;
 
     private final String port;
@@ -108,6 +112,7 @@ public class NettyHttpServerTransport extends AbstractComponent implements HttpS
     @Inject public NettyHttpServerTransport(Settings settings, ThreadPool threadPool) {
         super(settings);
         this.threadPool = threadPool;
+        SizeValue maxContentLength = componentSettings.getAsSize("maxContentLength", new SizeValue(100, SizeUnit.MB));
         this.workerCount = componentSettings.getAsInt("workerCount", Runtime.getRuntime().availableProcessors());
         this.port = componentSettings.get("port", "9200-9300");
         this.bindHost = componentSettings.get("bindHost");
@@ -123,6 +128,13 @@ public class NettyHttpServerTransport extends AbstractComponent implements HttpS
         if ((httpKeepAliveTickDuration.millis() * 10) > httpKeepAlive.millis()) {
             logger.warn("Suspicious keep alive settings, httpKeepAlive set to [{}], while httpKeepAliveTickDuration is set to [{}]", httpKeepAlive, httpKeepAliveTickDuration);
         }
+
+        // validate max content length
+        if (maxContentLength.bytes() > Integer.MAX_VALUE) {
+            logger.warn("maxContentLength[" + maxContentLength + "] set to high value, resetting it to [100mb]");
+            maxContentLength = new SizeValue(100, SizeUnit.MB);
+        }
+        this.maxContentLength = maxContentLength;
     }
 
     @Override public Lifecycle.State lifecycleState() {
@@ -154,6 +166,7 @@ public class NettyHttpServerTransport extends AbstractComponent implements HttpS
                 pipeline.addLast("openChannels", serverOpenChannels);
                 pipeline.addLast("keepAliveTimeout", new ReadTimeoutHandler(keepAliveTimer, httpKeepAlive.millis(), TimeUnit.MILLISECONDS));
                 pipeline.addLast("decoder", new HttpRequestDecoder());
+                pipeline.addLast("aggregator", new HttpChunkAggregator((int) maxContentLength.bytes()));
                 pipeline.addLast("encoder", new HttpResponseEncoder());
                 pipeline.addLast("handler", requestHandler);
                 return pipeline;

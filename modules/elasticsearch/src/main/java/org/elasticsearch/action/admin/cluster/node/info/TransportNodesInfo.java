@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.TransportActions;
@@ -28,6 +29,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.util.MapBuilder;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.ArrayList;
@@ -39,9 +41,19 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class TransportNodesInfo extends TransportNodesOperationAction<NodesInfoRequest, NodesInfoResponse, TransportNodesInfo.NodeInfoRequest, NodeInfo> {
 
+    private volatile ImmutableMap<String, String> nodeAttributes = ImmutableMap.of();
+
     @Inject public TransportNodesInfo(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                       ClusterService clusterService, TransportService transportService) {
         super(settings, clusterName, threadPool, clusterService, transportService);
+    }
+
+    public synchronized void putNodeAttribute(String key, String value) {
+        nodeAttributes = new MapBuilder<String, String>().putAll(nodeAttributes).put(key, value).immutableMap();
+    }
+
+    public synchronized void removeNodeAttribute(String key) {
+        nodeAttributes = new MapBuilder<String, String>().putAll(nodeAttributes).remove(key).immutableMap();
     }
 
     @Override protected String transportAction() {
@@ -80,7 +92,7 @@ public class TransportNodesInfo extends TransportNodesOperationAction<NodesInfoR
     }
 
     @Override protected NodeInfo nodeOperation(NodeInfoRequest nodeInfoRequest) throws ElasticSearchException {
-        return new NodeInfo(clusterService.state().nodes().localNode());
+        return new NodeInfo(clusterService.state().nodes().localNode(), nodeAttributes, settings);
     }
 
     @Override protected boolean accumulateExceptions() {

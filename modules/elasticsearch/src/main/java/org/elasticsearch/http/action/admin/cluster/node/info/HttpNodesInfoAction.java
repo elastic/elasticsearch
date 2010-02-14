@@ -32,6 +32,7 @@ import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * @author kimchy (Shay Banon)
@@ -47,6 +48,7 @@ public class HttpNodesInfoAction extends BaseHttpServerHandler {
 
     @Override public void handleRequest(final HttpRequest request, final HttpChannel channel) {
         String[] nodesIds = HttpActions.splitNodes(request.param("nodeId"));
+        final boolean includeSettings = HttpActions.paramAsBoolean("settings", false);
         NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(nodesIds);
         nodesInfoRequest.listenerThreaded(false);
         client.admin().cluster().execNodesInfo(nodesInfoRequest, new ActionListener<NodesInfoResponse>() {
@@ -55,6 +57,8 @@ public class HttpNodesInfoAction extends BaseHttpServerHandler {
                     JsonBuilder builder = HttpJsonBuilder.cached(request);
                     builder.startObject();
                     builder.field("clusterName", result.clusterName().value());
+
+                    builder.startObject("nodes");
                     for (NodeInfo nodeInfo : result) {
                         builder.startObject(nodeInfo.node().id());
 
@@ -62,8 +66,22 @@ public class HttpNodesInfoAction extends BaseHttpServerHandler {
                         builder.field("transportAddress", nodeInfo.node().address().toString());
                         builder.field("dataNode", nodeInfo.node().dataNode());
 
+                        for (Map.Entry<String, String> nodeAttribute : nodeInfo.attributes().entrySet()) {
+                            builder.field(nodeAttribute.getKey(), nodeAttribute.getValue());
+                        }
+
+                        if (includeSettings) {
+                            builder.startObject("settings");
+                            for (Map.Entry<String, String> entry : nodeInfo.settings().getAsMap().entrySet()) {
+                                builder.field(entry.getKey(), entry.getValue());
+                            }
+                            builder.endObject();
+                        }
+
                         builder.endObject();
                     }
+                    builder.endObject();
+
                     builder.endObject();
                     channel.sendResponse(new JsonHttpResponse(request, HttpResponse.Status.OK, builder));
                 } catch (Exception e) {

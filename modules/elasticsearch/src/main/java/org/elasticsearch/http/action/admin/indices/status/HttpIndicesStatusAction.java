@@ -75,7 +75,7 @@ public class HttpIndicesStatusAction extends BaseHttpServerHandler {
 
                         builder.startObject("settings");
                         for (Map.Entry<String, String> entry : indexStatus.settings().getAsMap().entrySet()) {
-                            builder.startObject("setting").field("name", entry.getKey()).field("value", entry.getValue()).endObject();
+                            builder.field(entry.getKey(), entry.getValue());
                         }
                         builder.endObject();
 

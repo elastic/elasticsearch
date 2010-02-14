@@ -21,6 +21,7 @@ package org.elasticsearch.http;
 
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.component.Lifecycle;
@@ -42,15 +43,19 @@ public class HttpServer extends AbstractComponent implements LifecycleComponent<
 
     private final ThreadPool threadPool;
 
+    private final TransportNodesInfo nodesInfo;
+
     private final PathTrie<HttpServerHandler> getHandlers;
     private final PathTrie<HttpServerHandler> postHandlers;
     private final PathTrie<HttpServerHandler> putHandlers;
     private final PathTrie<HttpServerHandler> deleteHandlers;
 
-    @Inject public HttpServer(Settings settings, HttpServerTransport transport, ThreadPool threadPool) {
+    @Inject public HttpServer(Settings settings, HttpServerTransport transport, ThreadPool threadPool,
+                              TransportNodesInfo nodesInfo) {
         super(settings);
         this.transport = transport;
         this.threadPool = threadPool;
+        this.nodesInfo = nodesInfo;
 
         getHandlers = new PathTrie<HttpServerHandler>();
         postHandlers = new PathTrie<HttpServerHandler>();
@@ -88,6 +93,7 @@ public class HttpServer extends AbstractComponent implements LifecycleComponent<
         if (logger.isInfoEnabled()) {
             logger.info("{}", transport.boundAddress());
         }
+        nodesInfo.putNodeAttribute("httpAddress", transport.boundAddress().publishAddress().toString());
         return this;
     }
 
@@ -95,6 +101,7 @@ public class HttpServer extends AbstractComponent implements LifecycleComponent<
         if (!lifecycle.moveToStopped()) {
             return this;
         }
+        nodesInfo.removeNodeAttribute("httpAddress");
         transport.stop();
         return this;
     }

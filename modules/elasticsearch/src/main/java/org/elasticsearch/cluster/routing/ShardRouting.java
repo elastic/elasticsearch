@@ -64,6 +64,11 @@ public interface ShardRouting extends Streamable, Serializable {
     String shortSummary();
 
     /**
+     * A shard iterator with just this shard in it.
+     */
+    ShardsIterator shardsIt();
+
+    /**
      * Does not write index name and shard id
      */
     void writeToThin(DataOutput out) throws IOException;

@@ -22,10 +22,11 @@ package org.elasticsearch.action.admin.indices.status;
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.TransportActions;
-import org.elasticsearch.action.support.shards.ShardOperationRequest;
-import org.elasticsearch.action.support.shards.TransportShardsOperationActions;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
+import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.InternalIndexShard;
@@ -43,10 +44,10 @@ import static com.google.common.collect.Lists.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class TransportIndicesStatusAction extends TransportShardsOperationActions<IndicesStatusRequest, IndicesStatusResponse, TransportIndicesStatusAction.IndexShardStatusRequest, ShardStatus> {
+public class TransportIndicesStatusAction extends TransportBroadcastOperationAction<IndicesStatusRequest, IndicesStatusResponse, TransportIndicesStatusAction.IndexShardStatusRequest, ShardStatus> {
 
-    @Inject public TransportIndicesStatusAction(Settings settings, ClusterService clusterService, TransportService transportService, IndicesService indicesService, ThreadPool threadPool) {
-        super(settings, clusterService, transportService, indicesService, threadPool);
+    @Inject public TransportIndicesStatusAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
+        super(settings, threadPool, clusterService, transportService, indicesService);
     }
 
     @Override protected String transportAction() {
@@ -61,6 +62,22 @@ public class TransportIndicesStatusAction extends TransportShardsOperationAction
         return new IndicesStatusRequest();
     }
 
+    @Override protected IndicesStatusResponse newResponse(IndicesStatusRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
+        int successfulShards = 0;
+        int failedShards = 0;
+        final List<ShardStatus> shards = newArrayList();
+        for (int i = 0; i < shardsResponses.length(); i++) {
+            Object resp = shardsResponses.get(i);
+            if (resp instanceof ShardStatus) {
+                shards.add((ShardStatus) resp);
+                successfulShards++;
+            } else {
+                failedShards++;
+            }
+        }
+        return new IndicesStatusResponse(shards.toArray(new ShardStatus[shards.size()]), clusterState, successfulShards, failedShards);
+    }
+
     @Override protected IndexShardStatusRequest newShardRequest() {
         return new IndexShardStatusRequest();
     }
@@ -71,21 +88,6 @@ public class TransportIndicesStatusAction extends TransportShardsOperationAction
 
     @Override protected ShardStatus newShardResponse() {
         return new ShardStatus();
-    }
-
-    @Override protected boolean accumulateExceptions() {
-        return false;
-    }
-
-    @Override protected IndicesStatusResponse newResponse(IndicesStatusRequest request, ClusterState clusterState, AtomicReferenceArray<Object> shardsResponses) {
-        final List<ShardStatus> shards = newArrayList();
-        for (int i = 0; i < shardsResponses.length(); i++) {
-            Object resp = shardsResponses.get(i);
-            if (resp instanceof ShardStatus) {
-                shards.add((ShardStatus) resp);
-            }
-        }
-        return new IndicesStatusResponse(shards.toArray(new ShardStatus[shards.size()]), clusterState);
     }
 
     @Override protected ShardStatus shardOperation(IndexShardStatusRequest request) throws ElasticSearchException {
@@ -112,7 +114,18 @@ public class TransportIndicesStatusAction extends TransportShardsOperationAction
         return shardStatus;
     }
 
-    public static class IndexShardStatusRequest extends ShardOperationRequest {
+    @Override protected boolean accumulateExceptions() {
+        return false;
+    }
+
+    /**
+     * Status goes across *all* shards.
+     */
+    @Override protected GroupShardsIterator shards(IndicesStatusRequest request, ClusterState clusterState) {
+        return clusterState.routingTable().allShardsGrouped(request.indices());
+    }
+
+    public static class IndexShardStatusRequest extends BroadcastShardOperationRequest {
 
         IndexShardStatusRequest() {
         }

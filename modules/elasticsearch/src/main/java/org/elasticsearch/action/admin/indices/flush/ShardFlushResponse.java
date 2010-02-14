@@ -19,8 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -29,15 +28,21 @@ import java.io.IOException;
 /**
  * @author kimchy (Shay Banon)
  */
-public class ShardFlushResponse implements ActionResponse, Streamable {
+public class ShardFlushResponse extends BroadcastShardOperationResponse {
 
     ShardFlushResponse() {
 
     }
 
+    public ShardFlushResponse(String index, int shardId) {
+        super(index, shardId);
+    }
+
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+        super.readFrom(in);
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
+        super.writeTo(out);
     }
 }

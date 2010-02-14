@@ -19,47 +19,30 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public class FlushResponse implements ActionResponse, Streamable {
-
-    private Map<String, IndexFlushResponse> indices = new HashMap<String, IndexFlushResponse>();
+public class FlushResponse extends BroadcastOperationResponse {
 
     FlushResponse() {
 
     }
 
-    public Map<String, IndexFlushResponse> indices() {
-        return indices;
-    }
-
-    public IndexFlushResponse index(String index) {
-        return indices.get(index);
+    FlushResponse(int successfulShards, int failedShards) {
+        super(successfulShards, failedShards);
     }
 
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
-        int size = in.readInt();
-        for (int i = 0; i < size; i++) {
-            IndexFlushResponse indexFlushResponse = new IndexFlushResponse();
-            indexFlushResponse.readFrom(in);
-            indices.put(indexFlushResponse.index(), indexFlushResponse);
-        }
+        super.readFrom(in);
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
-        out.writeInt(indices.size());
-        for (IndexFlushResponse indexFlushResponse : indices.values()) {
-            indexFlushResponse.writeTo(out);
-        }
+        super.writeTo(out);
     }
 }

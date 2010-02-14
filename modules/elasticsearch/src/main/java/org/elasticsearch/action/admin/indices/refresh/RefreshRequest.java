@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
-import org.elasticsearch.action.support.replication.IndicesReplicationOperationRequest;
-import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  * @author kimchy (Shay Banon)
  */
-public class RefreshRequest extends IndicesReplicationOperationRequest {
+public class RefreshRequest extends BroadcastOperationRequest {
 
     private boolean waitForOperations = true;
 
@@ -38,12 +38,9 @@ public class RefreshRequest extends IndicesReplicationOperationRequest {
     }
 
     public RefreshRequest(String... indices) {
-        this.indices = indices;
-    }
-
-    public RefreshRequest timeout(TimeValue timeout) {
-        this.timeout = timeout;
-        return this;
+        super(indices, null);
+        // we want to do the refresh in parallel on local shards...
+        operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
     }
 
     RefreshRequest() {
@@ -52,6 +49,11 @@ public class RefreshRequest extends IndicesReplicationOperationRequest {
 
     @Override public RefreshRequest listenerThreaded(boolean threadedListener) {
         super.listenerThreaded(threadedListener);
+        return this;
+    }
+
+    @Override public RefreshRequest operationThreading(BroadcastOperationThreading operationThreading) {
+        super.operationThreading(operationThreading);
         return this;
     }
 

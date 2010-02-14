@@ -24,6 +24,8 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -32,6 +34,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.concurrent.atomic.AtomicReferenceArray;
+
+import static org.elasticsearch.action.Actions.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -66,7 +70,11 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
         return new ShardCountResponse();
     }
 
-    @Override protected CountResponse newResponse(CountRequest request, AtomicReferenceArray shardsResponses) {
+    @Override protected GroupShardsIterator shards(CountRequest request, ClusterState clusterState) {
+        return indicesService.searchShards(clusterState, processIndices(clusterState, request.indices()), request.queryHint());
+    }
+
+    @Override protected CountResponse newResponse(CountRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
         long count = 0;

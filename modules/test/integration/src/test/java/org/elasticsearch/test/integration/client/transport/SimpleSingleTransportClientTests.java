@@ -34,13 +34,13 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.server.internal.InternalServer;
 import org.elasticsearch.test.integration.AbstractServersTests;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.transport.TransportAddress;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.index.query.json.JsonQueryBuilders.*;
+import static org.elasticsearch.util.settings.ImmutableSettings.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -61,7 +61,7 @@ public class SimpleSingleTransportClientTests extends AbstractServersTests {
     @Test public void testOnlyWithTransportAddress() throws Exception {
         startServer("server1");
         TransportAddress server1Address = ((InternalServer) server("server1")).injector().getInstance(TransportService.class).boundAddress().publishAddress();
-        client = new TransportClient(ImmutableSettings.settingsBuilder().putBoolean("discovery.enabled", false).build());
+        client = new TransportClient(settingsBuilder().putBoolean("discovery.enabled", false).build());
         client.addTransportAddress(server1Address);
         testSimpleActions(client);
     }
@@ -70,21 +70,28 @@ public class SimpleSingleTransportClientTests extends AbstractServersTests {
 
     public void testWithDiscovery() throws Exception {
         startServer("server1");
-        client = new TransportClient(ImmutableSettings.settingsBuilder().putBoolean("discovery.enabled", true).build());
+        client = new TransportClient(settingsBuilder().putBoolean("discovery.enabled", true).build());
         // wait a bit so nodes will be discovered
         Thread.sleep(1000);
         testSimpleActions(client);
     }
 
-    private void testSimpleActions(Client client) {
+    private void testSimpleActions(Client client) throws Exception {
+        logger.info("Creating index test");
+        client.admin().indices().create(createIndexRequest("test")).actionGet();
+        Thread.sleep(500);
+
         IndexResponse indexResponse = client.index(Requests.indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
         assertThat(indexResponse.id(), equalTo("1"));
         assertThat(indexResponse.type(), equalTo("type1"));
-        RefreshResponse refreshResult = client.admin().indices().refresh(refreshRequest("test")).actionGet();
-        assertThat(refreshResult.index("test").successfulShards(), equalTo(5));
-        assertThat(refreshResult.index("test").failedShards(), equalTo(0));
+
+        RefreshResponse refreshResponse = client.admin().indices().refresh(refreshRequest("test")).actionGet();
+        assertThat(refreshResponse.successfulShards(), equalTo(5));
+        assertThat(refreshResponse.failedShards(), equalTo(5)); // 5 are not active, since we started just one server
 
         IndicesStatusResponse indicesStatusResponse = client.admin().indices().status(indicesStatus()).actionGet();
+        assertThat(indicesStatusResponse.successfulShards(), equalTo(5));
+        assertThat(indicesStatusResponse.failedShards(), equalTo(5)); // 5 are not active, since we started just one server
         assertThat(indicesStatusResponse.indices().size(), equalTo(1));
         assertThat(indicesStatusResponse.index("test").shards().size(), equalTo(5)); // 5 index shards (1 with 1 backup)
         assertThat(indicesStatusResponse.index("test").docs().numDocs(), equalTo(1));
@@ -117,8 +124,8 @@ public class SimpleSingleTransportClientTests extends AbstractServersTests {
         client.index(Requests.indexRequest("test").type("type1").id("2").source(source("2", "test"))).actionGet();
 
         FlushResponse flushResult = client.admin().indices().flush(flushRequest("test")).actionGet();
-        assertThat(flushResult.index("test").successfulShards(), equalTo(5));
-        assertThat(flushResult.index("test").failedShards(), equalTo(0));
+        assertThat(flushResult.successfulShards(), equalTo(5));
+        assertThat(flushResult.failedShards(), equalTo(5)); // we only start one server
         client.admin().indices().refresh(refreshRequest("test")).actionGet();
 
         for (int i = 0; i < 5; i++) {

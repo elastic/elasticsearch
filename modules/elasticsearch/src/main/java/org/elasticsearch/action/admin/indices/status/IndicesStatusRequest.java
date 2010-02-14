@@ -19,21 +19,21 @@
 
 package org.elasticsearch.action.admin.indices.status;
 
-import org.elasticsearch.action.support.shards.ShardsOperationRequest;
-import org.elasticsearch.action.support.shards.ShardsOperationThreading;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.util.Strings;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public class IndicesStatusRequest extends ShardsOperationRequest {
+public class IndicesStatusRequest extends BroadcastOperationRequest {
 
     public IndicesStatusRequest() {
         this(Strings.EMPTY_ARRAY);
     }
 
     public IndicesStatusRequest(String... indices) {
-        super(indices);
+        super(indices, null);
     }
 
     @Override public IndicesStatusRequest listenerThreaded(boolean listenerThreaded) {
@@ -41,8 +41,7 @@ public class IndicesStatusRequest extends ShardsOperationRequest {
         return this;
     }
 
-    @Override public IndicesStatusRequest operationThreading(ShardsOperationThreading operationThreading) {
-        super.operationThreading(operationThreading);
-        return this;
+    @Override public BroadcastOperationRequest operationThreading(BroadcastOperationThreading operationThreading) {
+        return super.operationThreading(operationThreading);
     }
 }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.status;
 
-import org.elasticsearch.action.support.shards.ShardOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.util.SizeValue;
@@ -28,12 +28,13 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
+import static org.elasticsearch.cluster.routing.ImmutableShardRouting.*;
 import static org.elasticsearch.util.SizeValue.*;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public class ShardStatus extends ShardOperationResponse {
+public class ShardStatus extends BroadcastShardOperationResponse {
 
     public static class Docs {
         public static final Docs UNKNOWN = new Docs();
@@ -55,6 +56,8 @@ public class ShardStatus extends ShardOperationResponse {
         }
     }
 
+    private ShardRouting shardRouting;
+
     IndexShardState state;
 
     SizeValue storeSize = SizeValue.UNKNOWN;
@@ -71,7 +74,12 @@ public class ShardStatus extends ShardOperationResponse {
     }
 
     ShardStatus(ShardRouting shardRouting) {
-        super(shardRouting);
+        super(shardRouting.index(), shardRouting.id());
+        this.shardRouting = shardRouting;
+    }
+
+    public ShardRouting shardRouting() {
+        return this.shardRouting;
     }
 
     public IndexShardState state() {
@@ -106,6 +114,7 @@ public class ShardStatus extends ShardOperationResponse {
 
     @Override public void writeTo(DataOutput out) throws IOException {
         super.writeTo(out);
+        shardRouting.writeTo(out);
         out.writeByte(state.id());
         storeSize.writeTo(out);
         estimatedFlushableMemorySize.writeTo(out);
@@ -118,6 +127,7 @@ public class ShardStatus extends ShardOperationResponse {
 
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
         super.readFrom(in);
+        shardRouting = readShardRoutingEntry(in);
         state = IndexShardState.fromId(in.readByte());
         storeSize = readSizeValue(in);
         estimatedFlushableMemorySize = readSizeValue(in);

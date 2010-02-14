@@ -51,6 +51,7 @@ public class DocumentActionsTests extends AbstractServersTests {
 
         logger.info("Creating index test");
         client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
+        Thread.sleep(200);
 
         logger.info("Indexing [type1/1]");
         IndexResponse indexResponse = client("server1").index(indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
@@ -58,8 +59,8 @@ public class DocumentActionsTests extends AbstractServersTests {
         assertThat(indexResponse.type(), equalTo("type1"));
         logger.info("Refreshing");
         RefreshResponse refreshResult = client("server1").admin().indices().refresh(refreshRequest("test")).actionGet();
-        assertThat(refreshResult.index("test").successfulShards(), equalTo(5));
-        assertThat(refreshResult.index("test").failedShards(), equalTo(0));
+        assertThat(refreshResult.successfulShards(), equalTo(10));
+        assertThat(refreshResult.failedShards(), equalTo(0));
 
         GetResponse getResult;
 
@@ -97,8 +98,8 @@ public class DocumentActionsTests extends AbstractServersTests {
 
         logger.info("Flushing");
         FlushResponse flushResult = client("server1").admin().indices().flush(flushRequest("test")).actionGet();
-        assertThat(flushResult.index("test").successfulShards(), equalTo(5));
-        assertThat(flushResult.index("test").failedShards(), equalTo(0));
+        assertThat(flushResult.successfulShards(), equalTo(10));
+        assertThat(flushResult.failedShards(), equalTo(0));
         logger.info("Refreshing");
         client("server1").admin().indices().refresh(refreshRequest("test")).actionGet();
 

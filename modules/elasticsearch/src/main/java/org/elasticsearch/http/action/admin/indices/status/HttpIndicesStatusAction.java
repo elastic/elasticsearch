@@ -22,6 +22,7 @@ package org.elasticsearch.http.action.admin.indices.status;
 import com.google.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.status.*;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.http.*;
 import org.elasticsearch.http.action.support.HttpJsonBuilder;
@@ -47,13 +48,26 @@ public class HttpIndicesStatusAction extends BaseHttpServerHandler {
 
     @Override public void handleRequest(final HttpRequest request, final HttpChannel channel) {
         IndicesStatusRequest indicesStatusRequest = new IndicesStatusRequest(splitIndices(request.param("index")));
+        // we just send back a response, no need to fork a listener
         indicesStatusRequest.listenerThreaded(false);
+        BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operationThreading"), BroadcastOperationThreading.SINGLE_THREAD);
+        if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
+            // since we don't spawn, don't allow no_threads, but change it to a single thread
+            operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
+        }
+        indicesStatusRequest.operationThreading(operationThreading);
         client.admin().indices().execStatus(indicesStatusRequest, new ActionListener<IndicesStatusResponse>() {
             @Override public void onResponse(IndicesStatusResponse response) {
                 try {
                     JsonBuilder builder = HttpJsonBuilder.cached(request);
                     builder.startObject();
                     builder.field("ok", true);
+
+                    builder.startObject("_shards");
+                    builder.field("total", response.totalShards());
+                    builder.field("successful", response.successfulShards());
+                    builder.field("failed", response.failedShards());
+                    builder.endObject();
 
                     builder.startObject("indices");
                     for (IndexStatus indexStatus : response.indices().values()) {

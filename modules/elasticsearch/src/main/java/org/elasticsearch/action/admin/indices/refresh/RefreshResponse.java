@@ -19,47 +19,30 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public class RefreshResponse implements ActionResponse, Streamable {
-
-    private Map<String, IndexRefreshResponse> indices = new HashMap<String, IndexRefreshResponse>();
+public class RefreshResponse extends BroadcastOperationResponse {
 
     RefreshResponse() {
 
     }
 
-    public Map<String, IndexRefreshResponse> indices() {
-        return indices;
-    }
-
-    public IndexRefreshResponse index(String index) {
-        return indices.get(index);
+    RefreshResponse(int successfulShards, int failedShards) {
+        super(successfulShards, failedShards);
     }
 
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
-        int size = in.readInt();
-        for (int i = 0; i < size; i++) {
-            IndexRefreshResponse response = new IndexRefreshResponse();
-            response.readFrom(in);
-            indices.put(response.index(), response);
-        }
+        super.readFrom(in);
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
-        out.writeInt(indices.size());
-        for (IndexRefreshResponse indexRefreshResponse : indices.values()) {
-            indexRefreshResponse.writeTo(out);
-        }
+        super.writeTo(out);
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.util.io.Streamable;
 
@@ -122,6 +123,10 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         }
         shardIdentifier = new ShardId(index, shardId);
         return shardIdentifier;
+    }
+
+    @Override public ShardsIterator shardsIt() {
+        return new PlainShardsIterator(shardId(), ImmutableList.of((ShardRouting) this));
     }
 
     public static ImmutableShardRouting readShardRoutingEntry(DataInput in) throws IOException, ClassNotFoundException {

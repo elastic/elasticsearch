@@ -24,6 +24,8 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -31,6 +33,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.concurrent.atomic.AtomicReferenceArray;
+
+import static org.elasticsearch.action.Actions.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -53,7 +57,11 @@ public class TransportBroadcastPingAction extends TransportBroadcastOperationAct
         return new BroadcastPingRequest();
     }
 
-    @Override protected BroadcastPingResponse newResponse(BroadcastPingRequest broadcastPingRequest, AtomicReferenceArray shardsResponses) {
+    @Override protected GroupShardsIterator shards(BroadcastPingRequest request, ClusterState clusterState) {
+        return indicesService.searchShards(clusterState, processIndices(clusterState, request.indices()), request.queryHint());
+    }
+
+    @Override protected BroadcastPingResponse newResponse(BroadcastPingRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
         for (int i = 0; i < shardsResponses.length(); i++) {

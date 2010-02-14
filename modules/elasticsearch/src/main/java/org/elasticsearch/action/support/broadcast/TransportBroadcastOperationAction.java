@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.broadcast;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ShardNotActiveException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -38,8 +39,6 @@ import org.elasticsearch.util.settings.Settings;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
-
-import static org.elasticsearch.action.Actions.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -76,7 +75,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
     protected abstract Request newRequest();
 
-    protected abstract Response newResponse(Request request, AtomicReferenceArray shardsResponses);
+    protected abstract Response newResponse(Request request, AtomicReferenceArray shardsResponses, ClusterState clusterState);
 
     protected abstract ShardRequest newShardRequest();
 
@@ -88,11 +87,15 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
     protected abstract boolean accumulateExceptions();
 
+    protected abstract GroupShardsIterator shards(Request request, ClusterState clusterState);
+
     private class AsyncBroadcastAction {
 
         private final Request request;
 
         private final ActionListener<Response> listener;
+
+        private final ClusterState clusterState;
 
         private final Nodes nodes;
 
@@ -110,9 +113,9 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             this.request = request;
             this.listener = listener;
 
-            ClusterState clusterState = clusterService.state();
+            clusterState = clusterService.state();
             nodes = clusterState.nodes();
-            shardsIts = indicesService.searchShards(clusterState, processIndices(clusterState, request.indices()), request.queryHint());
+            shardsIts = shards(request, clusterState);
             expectedOps = shardsIts.size();
 
 
@@ -133,7 +136,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                     }
                 } else {
                     // as if we have a "problem", so we iterate to the next one and maintain counts
-                    onOperation(shard, shardIt, null, false);
+                    onOperation(shard, shardIt, new ShardNotActiveException(shard.shardId()), false);
                 }
             }
             // we have local operations, perform them now
@@ -169,7 +172,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             final ShardRouting shard = shardIt.next();
             if (!shard.active()) {
                 // as if we have a "problem", so we iterate to the next one and maintain counts
-                onOperation(shard, shardIt, null, false);
+                onOperation(shard, shardIt, new ShardNotActiveException(shard.shardId()), false);
             } else {
                 final ShardRequest shardRequest = newShardRequest(shard, request);
                 if (shard.currentNodeId().equals(nodes.localNodeId())) {
@@ -214,14 +217,14 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             }
         }
 
-        private void onOperation(ShardRouting shard, ShardResponse response, boolean alreadyThreaded) {
+        @SuppressWarnings({"unchecked"}) private void onOperation(ShardRouting shard, ShardResponse response, boolean alreadyThreaded) {
             shardsResponses.set(indexCounter.getAndIncrement(), response);
             if (expectedOps == counterOps.incrementAndGet()) {
                 finishHim(alreadyThreaded);
             }
         }
 
-        private void onOperation(ShardRouting shard, final Iterator<ShardRouting> shardIt, Exception e, boolean alreadyThreaded) {
+        @SuppressWarnings({"unchecked"}) private void onOperation(ShardRouting shard, final Iterator<ShardRouting> shardIt, Exception e, boolean alreadyThreaded) {
             if (logger.isDebugEnabled()) {
                 if (e != null) {
                     logger.debug(shard.shortSummary() + ": Failed to execute [" + request + "]", e);
@@ -251,11 +254,11 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             if (request.listenerThreaded() && !alreadyThreaded) {
                 threadPool.execute(new Runnable() {
                     @Override public void run() {
-                        listener.onResponse(newResponse(request, shardsResponses));
+                        listener.onResponse(newResponse(request, shardsResponses, clusterState));
                     }
                 });
             } else {
-                listener.onResponse(newResponse(request, shardsResponses));
+                listener.onResponse(newResponse(request, shardsResponses, clusterState));
             }
         }
     }

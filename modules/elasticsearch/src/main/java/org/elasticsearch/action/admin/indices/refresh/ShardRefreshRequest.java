@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
-import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -28,27 +28,16 @@ import java.io.IOException;
 /**
  * @author kimchy (Shay Banon)
  */
-public class ShardRefreshRequest extends ShardReplicationOperationRequest {
+public class ShardRefreshRequest extends BroadcastShardOperationRequest {
 
-    private int shardId;
     private boolean waitForOperations = true;
-
-    public ShardRefreshRequest(IndexRefreshRequest request, int shardId) {
-        this(request.index(), shardId);
-        timeout = request.timeout();
-        waitForOperations = request.waitForOperations();
-    }
-
-    public ShardRefreshRequest(String index, int shardId) {
-        this.index = index;
-        this.shardId = shardId;
-    }
 
     ShardRefreshRequest() {
     }
 
-    public int shardId() {
-        return this.shardId;
+    public ShardRefreshRequest(String index, int shardId, RefreshRequest request) {
+        super(index, shardId);
+        waitForOperations = request.waitForOperations();
     }
 
     public boolean waitForOperations() {
@@ -62,13 +51,11 @@ public class ShardRefreshRequest extends ShardReplicationOperationRequest {
 
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
         super.readFrom(in);
-        shardId = in.readInt();
         waitForOperations = in.readBoolean();
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
         super.writeTo(out);
-        out.writeInt(shardId);
         out.writeBoolean(waitForOperations);
     }
 }

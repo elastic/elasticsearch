@@ -64,10 +64,31 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
         return shards.get(shardId);
     }
 
+    /**
+     * A group shards iterator where each group ({@link ShardsIterator}
+     * is an iterator across shard replication group.
+     */
     public GroupShardsIterator groupByShardsIt() {
         IdentityHashSet<ShardsIterator> set = new IdentityHashSet<ShardsIterator>();
         for (IndexShardRoutingTable indexShard : this) {
             set.add(indexShard.shardsIt());
+        }
+        return new GroupShardsIterator(set);
+    }
+
+    /**
+     * A groups shards iterator where each groups is a single {@link ShardRouting} and a group
+     * is created for each shard routing.
+     *
+     * <p>This basically means that components that use the {@link GroupShardsIterator} will itearte
+     * over *all* the shards (all the replicas) within the index.
+     */
+    public GroupShardsIterator groupByAllIt() {
+        IdentityHashSet<ShardsIterator> set = new IdentityHashSet<ShardsIterator>();
+        for (IndexShardRoutingTable indexShard : this) {
+            for (ShardRouting shardRouting : indexShard) {
+                set.add(shardRouting.shardsIt());
+            }
         }
         return new GroupShardsIterator(set);
     }

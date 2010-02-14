@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.status;
 
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.action.support.shards.ShardsOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.util.settings.Settings;
 
@@ -38,7 +38,9 @@ import static org.elasticsearch.util.settings.ImmutableSettings.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class IndicesStatusResponse extends ShardsOperationResponse<ShardStatus> {
+public class IndicesStatusResponse extends BroadcastOperationResponse {
+
+    protected ShardStatus[] shards;
 
     private Map<String, Settings> indicesSettings = ImmutableMap.of();
 
@@ -47,14 +49,19 @@ public class IndicesStatusResponse extends ShardsOperationResponse<ShardStatus> 
     IndicesStatusResponse() {
     }
 
-    IndicesStatusResponse(ShardStatus[] shards, ClusterState clusterState) {
-        super(shards);
+    IndicesStatusResponse(ShardStatus[] shards, ClusterState clusterState, int successfulShards, int failedShards) {
+        super(successfulShards, failedShards);
+        this.shards = shards;
         indicesSettings = newHashMap();
         for (ShardStatus shard : shards) {
             if (!indicesSettings.containsKey(shard.shardRouting().index())) {
                 indicesSettings.put(shard.shardRouting().index(), clusterState.metaData().index(shard.shardRouting().index()).settings());
             }
         }
+    }
+
+    public ShardStatus[] shards() {
+        return this.shards;
     }
 
     public IndexStatus index(String index) {

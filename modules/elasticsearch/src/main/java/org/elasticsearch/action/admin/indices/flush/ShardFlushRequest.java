@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
-import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -28,34 +28,20 @@ import java.io.IOException;
 /**
  * @author kimchy (Shay Banon)
  */
-public class ShardFlushRequest extends ShardReplicationOperationRequest {
-
-    private int shardId;
-
-    public ShardFlushRequest(IndexFlushRequest indexFlushRequest, int shardId) {
-        this(indexFlushRequest.index(), shardId);
-        timeout = indexFlushRequest.timeout();
-    }
-
-    public ShardFlushRequest(String index, int shardId) {
-        this.index = index;
-        this.shardId = shardId;
-    }
+public class ShardFlushRequest extends BroadcastShardOperationRequest {
 
     ShardFlushRequest() {
     }
 
-    public int shardId() {
-        return this.shardId;
+    public ShardFlushRequest(String index, int shardId) {
+        super(index, shardId);
     }
 
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
         super.readFrom(in);
-        shardId = in.readInt();
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
         super.writeTo(out);
-        out.writeInt(shardId);
     }
 }

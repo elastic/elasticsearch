@@ -19,20 +19,26 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
-import org.elasticsearch.action.support.replication.IndicesReplicationOperationRequest;
-import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public class FlushRequest extends IndicesReplicationOperationRequest {
+public class FlushRequest extends BroadcastOperationRequest {
+
+    FlushRequest() {
+
+    }
 
     public FlushRequest(String index) {
         this(new String[]{index});
     }
 
     public FlushRequest(String... indices) {
-        this.indices = indices;
+        super(indices, null);
+        // we want to do the refresh in parallel on local shards...
+        operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
     }
 
     @Override public FlushRequest listenerThreaded(boolean threadedListener) {
@@ -40,12 +46,8 @@ public class FlushRequest extends IndicesReplicationOperationRequest {
         return this;
     }
 
-    public FlushRequest timeout(TimeValue timeout) {
-        this.timeout = timeout;
+    @Override public FlushRequest operationThreading(BroadcastOperationThreading operationThreading) {
+        super.operationThreading(operationThreading);
         return this;
-    }
-
-    FlushRequest() {
-
     }
 }

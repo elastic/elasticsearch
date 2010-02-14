@@ -30,15 +30,11 @@ import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
-import org.elasticsearch.action.admin.indices.flush.TransportIndexFlushAction;
-import org.elasticsearch.action.admin.indices.flush.TransportShardFlushAction;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.TransportGatewaySnapshotAction;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.TransportIndexGatewaySnapshotAction;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.TransportShardGatewaySnapshotAction;
 import org.elasticsearch.action.admin.indices.mapping.create.TransportCreateMappingAction;
-import org.elasticsearch.action.admin.indices.refresh.TransportIndexRefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
-import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.admin.indices.status.TransportIndicesStatusAction;
 import org.elasticsearch.action.count.TransportCountAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
@@ -76,18 +72,11 @@ public class TransportActionModule extends AbstractModule {
         bind(TransportIndexGatewaySnapshotAction.class).asEagerSingleton();
         bind(TransportGatewaySnapshotAction.class).asEagerSingleton();
 
-        bind(TransportShardRefreshAction.class).asEagerSingleton();
-        bind(TransportIndexRefreshAction.class).asEagerSingleton();
         bind(TransportRefreshAction.class).asEagerSingleton();
-
-        bind(TransportShardFlushAction.class).asEagerSingleton();
-        bind(TransportIndexFlushAction.class).asEagerSingleton();
         bind(TransportFlushAction.class).asEagerSingleton();
 
         bind(TransportIndexAction.class).asEagerSingleton();
-
         bind(TransportGetAction.class).asEagerSingleton();
-
         bind(TransportDeleteAction.class).asEagerSingleton();
 
         bind(TransportShardDeleteByQueryAction.class).asEagerSingleton();

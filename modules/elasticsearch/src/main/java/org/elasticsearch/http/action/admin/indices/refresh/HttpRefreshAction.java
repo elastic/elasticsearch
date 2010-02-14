@@ -21,20 +21,18 @@ package org.elasticsearch.http.action.admin.indices.refresh;
 
 import com.google.inject.Inject;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.refresh.IndexRefreshResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.http.*;
 import org.elasticsearch.http.action.support.HttpActions;
 import org.elasticsearch.http.action.support.HttpJsonBuilder;
-import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.support.replication.ShardReplicationOperationRequest.*;
 import static org.elasticsearch.http.HttpResponse.Status.*;
 
 /**
@@ -50,24 +48,27 @@ public class HttpRefreshAction extends BaseHttpServerHandler {
 
     @Override public void handleRequest(final HttpRequest request, final HttpChannel channel) {
         RefreshRequest refreshRequest = new RefreshRequest(HttpActions.splitIndices(request.param("index")));
-        refreshRequest.timeout(TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_TIMEOUT));
+        // we just send back a response, no need to fork a listener
         refreshRequest.listenerThreaded(false);
+        BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operationThreading"), BroadcastOperationThreading.SINGLE_THREAD);
+        if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
+            // since we don't spawn, don't allow no_threads, but change it to a single thread
+            operationThreading = BroadcastOperationThreading.THREAD_PER_SHARD;
+        }
+        refreshRequest.operationThreading(operationThreading);
         client.admin().indices().execRefresh(refreshRequest, new ActionListener<RefreshResponse>() {
-            @Override public void onResponse(RefreshResponse result) {
+            @Override public void onResponse(RefreshResponse response) {
                 try {
                     JsonBuilder builder = HttpJsonBuilder.cached(request);
                     builder.startObject();
                     builder.field("ok", true);
-                    builder.startObject("indices");
-                    for (IndexRefreshResponse indexResponse : result.indices().values()) {
-                        builder.startObject(indexResponse.index())
-                                .field("ok", true)
-                                .field("totalShards", indexResponse.totalShards())
-                                .field("successfulShards", indexResponse.successfulShards())
-                                .field("failedShards", indexResponse.failedShards())
-                                .endObject();
-                    }
+
+                    builder.startObject("_shards");
+                    builder.field("total", response.totalShards());
+                    builder.field("successful", response.successfulShards());
+                    builder.field("failed", response.failedShards());
                     builder.endObject();
+
                     builder.endObject();
                     channel.sendResponse(new JsonHttpResponse(request, OK, builder));
                 } catch (Exception e) {

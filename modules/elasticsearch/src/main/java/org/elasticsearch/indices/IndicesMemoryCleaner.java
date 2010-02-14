@@ -21,6 +21,7 @@ package org.elasticsearch.indices;
 
 import com.google.inject.Inject;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
@@ -63,7 +64,7 @@ public class IndicesMemoryCleaner extends AbstractComponent {
                 if (translog.size() > translogNumberOfOperationsThreshold) {
                     cleanedShards++;
                     cleaned = indexShard.estimateFlushableMemorySize().bytes();
-                    indexShard.flush();
+                    indexShard.flush(new Engine.Flush());
                 }
             }
         }
@@ -103,7 +104,7 @@ public class IndicesMemoryCleaner extends AbstractComponent {
                 break;
             }
             try {
-                tuple.v2().flush();
+                tuple.v2().flush(new Engine.Flush());
             } catch (FlushNotAllowedEngineException e) {
                 // ignore this one, its temporal
             } catch (IllegalIndexShardStateException e) {

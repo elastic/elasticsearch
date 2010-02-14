@@ -330,20 +330,28 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
     }
 
-    public void refresh(boolean waitForOperations) throws ElasticSearchException {
+    public void refresh(Engine.Refresh refresh) throws ElasticSearchException {
         writeAllowed();
         if (logger.isTraceEnabled()) {
-            logger.trace("Refresh, waitForOperations[{}]", waitForOperations);
+            logger.trace("Refresh with {}", refresh);
         }
-        engine.refresh(waitForOperations);
+        engine.refresh(refresh);
     }
 
-    public void flush() throws ElasticSearchException {
+    public void flush(Engine.Flush flush) throws ElasticSearchException {
         writeAllowed();
         if (logger.isTraceEnabled()) {
             logger.trace("Flush");
         }
-        engine.flush();
+        engine.flush(flush);
+    }
+
+    @Override public void optimize(Engine.Optimize optimize) throws ElasticSearchException {
+        writeAllowed();
+        if (logger.isTraceEnabled()) {
+            logger.trace("Optimize with {}", optimize);
+        }
+        engine.optimize(optimize);
     }
 
     public void snapshot(Engine.SnapshotHandler snapshotHandler) throws EngineException {
@@ -491,7 +499,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private class EngineRefresher implements Runnable {
         @Override public void run() {
             try {
-                engine.refresh(false);
+                engine.refresh(new Engine.Refresh(false));
             } catch (Exception e) {
                 logger.warn("Failed to perform scheduled engine refresh", e);
             }

@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequest;
 import org.elasticsearch.action.admin.indices.mapping.create.CreateMappingRequest;
+import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.count.CountRequest;
@@ -193,6 +194,17 @@ public class Requests {
      */
     public static FlushRequest flushRequest(String... indices) {
         return new FlushRequest(indices);
+    }
+
+    /**
+     * Creates an optimize request.
+     *
+     * @param indices The indices to optimize. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @return The optimize request
+     * @see org.elasticsearch.client.IndicesAdminClient#optimize(org.elasticsearch.action.admin.indices.flush.FlushRequest)
+     */
+    public static OptimizeRequest optimizeRequest(String... indices) {
+        return new OptimizeRequest(indices);
     }
 
     /**

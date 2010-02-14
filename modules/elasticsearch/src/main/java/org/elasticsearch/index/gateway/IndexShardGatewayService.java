@@ -126,7 +126,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent {
                 logger.debug(sb.toString());
             }
             // refresh the shard
-            indexShard.refresh(false);
+            indexShard.refresh(new Engine.Refresh(false));
             scheduleSnapshotIfNeeded();
         } else {
             throw new IgnoreGatewayRecoveryException(shardId, "Already recovered");

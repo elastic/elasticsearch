@@ -118,7 +118,7 @@ public abstract class AbstractSimpleEngineTests {
         searchResult.release();
 
         // refresh and it should be there
-        engine.refresh(true);
+        engine.refresh(new Engine.Refresh(true));
 
         // now its there...
         searchResult = engine.searcher();
@@ -137,7 +137,7 @@ public abstract class AbstractSimpleEngineTests {
         searchResult.release();
 
         // refresh and it should be updated
-        engine.refresh(true);
+        engine.refresh(new Engine.Refresh(true));
 
         searchResult = engine.searcher();
         assertThat(searchResult, engineSearcherTotalHits(1));
@@ -156,7 +156,7 @@ public abstract class AbstractSimpleEngineTests {
         searchResult.release();
 
         // refresh and it should be deleted
-        engine.refresh(true);
+        engine.refresh(new Engine.Refresh(true));
 
         searchResult = engine.searcher();
         assertThat(searchResult, engineSearcherTotalHits(0));
@@ -175,7 +175,7 @@ public abstract class AbstractSimpleEngineTests {
         searchResult.release();
 
         // refresh and it should be there
-        engine.refresh(true);
+        engine.refresh(new Engine.Refresh(true));
 
         // now its there...
         searchResult = engine.searcher();
@@ -185,7 +185,7 @@ public abstract class AbstractSimpleEngineTests {
         searchResult.release();
 
         // now flush
-        engine.flush();
+        engine.flush(new Engine.Flush());
 
         // make sure we can still work with the engine
         // now do an update
@@ -199,7 +199,7 @@ public abstract class AbstractSimpleEngineTests {
         searchResult.release();
 
         // refresh and it should be updated
-        engine.refresh(true);
+        engine.refresh(new Engine.Refresh(true));
 
         searchResult = engine.searcher();
         assertThat(searchResult, engineSearcherTotalHits(1));
@@ -237,7 +237,7 @@ public abstract class AbstractSimpleEngineTests {
         searchResult.release();
 
         // refresh and it should be there
-        engine.refresh(true);
+        engine.refresh(new Engine.Refresh(true));
 
         // now its there...
         searchResult = engine.searcher();
@@ -247,7 +247,7 @@ public abstract class AbstractSimpleEngineTests {
 
         // delete, refresh and do a new search, it should not be there
         engine.delete(new Engine.Delete(newUid("1")));
-        engine.refresh(true);
+        engine.refresh(new Engine.Refresh(true));
         Engine.Searcher updateSearchResult = engine.searcher();
         assertThat(updateSearchResult, engineSearcherTotalHits(0));
         updateSearchResult.release();
@@ -273,9 +273,9 @@ public abstract class AbstractSimpleEngineTests {
 
                 Future<Object> future = executorService.submit(new Callable<Object>() {
                     @Override public Object call() throws Exception {
-                        engine.flush();
+                        engine.flush(new Engine.Flush());
                         engine.create(new Engine.Create(doc().add(field("_uid", "2")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "2", "{2}"));
-                        engine.flush();
+                        engine.flush(new Engine.Flush());
                         engine.create(new Engine.Create(doc().add(field("_uid", "3")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "3", "{3}"));
                         return null;
                     }
@@ -308,12 +308,12 @@ public abstract class AbstractSimpleEngineTests {
 
     @Test public void testSimpleRecover() throws Exception {
         engine.create(new Engine.Create(doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "1", "{1}"));
-        engine.flush();
+        engine.flush(new Engine.Flush());
 
         engine.recover(new Engine.RecoveryHandler() {
             @Override public void phase1(SnapshotIndexCommit snapshot) throws EngineException {
                 try {
-                    engine.flush();
+                    engine.flush(new Engine.Flush());
                     assertThat("flush is not allowed in phase 3", false, equalTo(true));
                 } catch (FlushNotAllowedEngineException e) {
                     // all is well
@@ -323,7 +323,7 @@ public abstract class AbstractSimpleEngineTests {
             @Override public void phase2(Translog.Snapshot snapshot) throws EngineException {
                 assertThat(snapshot, translogSize(0));
                 try {
-                    engine.flush();
+                    engine.flush(new Engine.Flush());
                     assertThat("flush is not allowed in phase 3", false, equalTo(true));
                 } catch (FlushNotAllowedEngineException e) {
                     // all is well
@@ -334,7 +334,7 @@ public abstract class AbstractSimpleEngineTests {
                 assertThat(snapshot, translogSize(0));
                 try {
                     // we can do this here since we are on the same thread
-                    engine.flush();
+                    engine.flush(new Engine.Flush());
                     assertThat("flush is not allowed in phase 3", false, equalTo(true));
                 } catch (FlushNotAllowedEngineException e) {
                     // all is well
@@ -342,13 +342,13 @@ public abstract class AbstractSimpleEngineTests {
             }
         });
 
-        engine.flush();
+        engine.flush(new Engine.Flush());
         engine.close();
     }
 
     @Test public void testRecoverWithOperationsBetweenPhase1AndPhase2() throws Exception {
         engine.create(new Engine.Create(doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "1", "{1}"));
-        engine.flush();
+        engine.flush(new Engine.Flush());
         engine.create(new Engine.Create(doc().add(field("_uid", "2")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "2", "{2}"));
 
         engine.recover(new Engine.RecoveryHandler() {
@@ -366,13 +366,13 @@ public abstract class AbstractSimpleEngineTests {
             }
         });
 
-        engine.flush();
+        engine.flush(new Engine.Flush());
         engine.close();
     }
 
     @Test public void testRecoverWithOperationsBetweenPhase1AndPhase2AndPhase3() throws Exception {
         engine.create(new Engine.Create(doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "1", "{1}"));
-        engine.flush();
+        engine.flush(new Engine.Flush());
         engine.create(new Engine.Create(doc().add(field("_uid", "2")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "2", "{2}"));
 
         engine.recover(new Engine.RecoveryHandler() {
@@ -395,7 +395,7 @@ public abstract class AbstractSimpleEngineTests {
             }
         });
 
-        engine.flush();
+        engine.flush(new Engine.Flush());
         engine.close();
     }
 

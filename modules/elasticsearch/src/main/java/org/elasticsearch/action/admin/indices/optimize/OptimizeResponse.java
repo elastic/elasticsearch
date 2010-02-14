@@ -17,33 +17,32 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.flush;
+package org.elasticsearch.action.admin.indices.optimize;
 
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
+
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public class FlushRequest extends BroadcastOperationRequest {
+public class OptimizeResponse extends BroadcastOperationResponse {
 
-    FlushRequest() {
+    OptimizeResponse() {
 
     }
 
-    public FlushRequest(String... indices) {
-        super(indices, null);
-        // we want to do the refresh in parallel on local shards...
-        operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
+    OptimizeResponse(int successfulShards, int failedShards) {
+        super(successfulShards, failedShards);
     }
 
-    @Override public FlushRequest listenerThreaded(boolean threadedListener) {
-        super.listenerThreaded(threadedListener);
-        return this;
+    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+        super.readFrom(in);
     }
 
-    @Override public FlushRequest operationThreading(BroadcastOperationThreading operationThreading) {
-        super.operationThreading(operationThreading);
-        return this;
+    @Override public void writeTo(DataOutput out) throws IOException {
+        super.writeTo(out);
     }
 }

@@ -91,4 +91,18 @@ public class HttpActions {
         }
         return Float.parseFloat(floatValue);
     }
+
+    public static int paramAsInt(String intValue, int defaultValue) {
+        if (intValue == null) {
+            return defaultValue;
+        }
+        return Integer.parseInt(intValue);
+    }
+
+    public static boolean paramAsBoolean(String booleanValue, boolean defaultValue) {
+        if (booleanValue == null) {
+            return defaultValue;
+        }
+        return Boolean.parseBoolean(booleanValue);
+    }
 }

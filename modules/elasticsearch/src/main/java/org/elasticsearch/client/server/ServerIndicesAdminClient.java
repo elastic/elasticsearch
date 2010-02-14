@@ -37,6 +37,9 @@ import org.elasticsearch.action.admin.indices.gateway.snapshot.TransportGatewayS
 import org.elasticsearch.action.admin.indices.mapping.create.CreateMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.create.CreateMappingResponse;
 import org.elasticsearch.action.admin.indices.mapping.create.TransportCreateMappingAction;
+import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
+import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
+import org.elasticsearch.action.admin.indices.optimize.TransportOptimizeAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
@@ -62,13 +65,15 @@ public class ServerIndicesAdminClient extends AbstractComponent implements Indic
 
     private final TransportFlushAction flushAction;
 
+    private final TransportOptimizeAction optimizeAction;
+
     private final TransportCreateMappingAction createMappingAction;
 
     private final TransportGatewaySnapshotAction gatewaySnapshotAction;
 
     @Inject public ServerIndicesAdminClient(Settings settings, TransportIndicesStatusAction indicesStatusAction,
                                             TransportCreateIndexAction createIndexAction, TransportDeleteIndexAction deleteIndexAction,
-                                            TransportRefreshAction refreshAction, TransportFlushAction flushAction,
+                                            TransportRefreshAction refreshAction, TransportFlushAction flushAction, TransportOptimizeAction optimizeAction,
                                             TransportCreateMappingAction createMappingAction, TransportGatewaySnapshotAction gatewaySnapshotAction) {
         super(settings);
         this.indicesStatusAction = indicesStatusAction;
@@ -76,6 +81,7 @@ public class ServerIndicesAdminClient extends AbstractComponent implements Indic
         this.deleteIndexAction = deleteIndexAction;
         this.refreshAction = refreshAction;
         this.flushAction = flushAction;
+        this.optimizeAction = optimizeAction;
         this.createMappingAction = createMappingAction;
         this.gatewaySnapshotAction = gatewaySnapshotAction;
     }
@@ -138,6 +144,18 @@ public class ServerIndicesAdminClient extends AbstractComponent implements Indic
 
     @Override public void execFlush(FlushRequest request, ActionListener<FlushResponse> listener) {
         flushAction.execute(request, listener);
+    }
+
+    @Override public ActionFuture<OptimizeResponse> optimize(OptimizeRequest request) {
+        return optimizeAction.submit(request);
+    }
+
+    @Override public ActionFuture<OptimizeResponse> optimize(OptimizeRequest request, ActionListener<OptimizeResponse> listener) {
+        return optimizeAction.submit(request, listener);
+    }
+
+    @Override public void execOptimize(OptimizeRequest request, ActionListener<OptimizeResponse> listener) {
+        optimizeAction.execute(request, listener);
     }
 
     @Override public ActionFuture<CreateMappingResponse> createMapping(CreateMappingRequest request) {

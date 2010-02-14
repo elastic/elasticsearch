@@ -30,6 +30,7 @@ import org.elasticsearch.http.action.admin.indices.delete.HttpDeleteIndexAction;
 import org.elasticsearch.http.action.admin.indices.flush.HttpFlushAction;
 import org.elasticsearch.http.action.admin.indices.gateway.snapshot.HttpGatewaySnapshotAction;
 import org.elasticsearch.http.action.admin.indices.mapping.create.HttpCreateMappingAction;
+import org.elasticsearch.http.action.admin.indices.optimize.HttpOptimizeAction;
 import org.elasticsearch.http.action.admin.indices.refresh.HttpRefreshAction;
 import org.elasticsearch.http.action.admin.indices.status.HttpIndicesStatusAction;
 import org.elasticsearch.http.action.count.HttpCountAction;
@@ -64,8 +65,8 @@ public class HttpActionModule extends AbstractModule {
         bind(HttpGatewaySnapshotAction.class).asEagerSingleton();
 
         bind(HttpRefreshAction.class).asEagerSingleton();
-
         bind(HttpFlushAction.class).asEagerSingleton();
+        bind(HttpOptimizeAction.class).asEagerSingleton();
 
         bind(HttpIndexAction.class).asEagerSingleton();
 

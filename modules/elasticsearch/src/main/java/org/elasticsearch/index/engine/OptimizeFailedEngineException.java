@@ -17,31 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.ping.replication;
+package org.elasticsearch.index.engine;
 
-import org.elasticsearch.action.support.replication.IndicesReplicationOperationRequest;
-import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public class ReplicationPingRequest extends IndicesReplicationOperationRequest {
+public class OptimizeFailedEngineException extends EngineException {
 
-    public ReplicationPingRequest(String... indices) {
-        this.indices = indices;
-    }
-
-    ReplicationPingRequest() {
-
-    }
-
-    @Override public ReplicationPingRequest listenerThreaded(boolean threadedListener) {
-        super.listenerThreaded(threadedListener);
-        return this;
-    }
-
-    public ReplicationPingRequest timeout(TimeValue timeout) {
-        this.timeout = timeout;
-        return this;
+    public OptimizeFailedEngineException(ShardId shardId, Throwable t) {
+        super(shardId, "Optimize failed", t);
     }
 }

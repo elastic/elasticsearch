@@ -33,6 +33,8 @@ import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRe
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotResponse;
 import org.elasticsearch.action.admin.indices.mapping.create.CreateMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.create.CreateMappingResponse;
+import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
+import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
@@ -44,6 +46,7 @@ import org.elasticsearch.client.transport.action.admin.indices.delete.ClientTran
 import org.elasticsearch.client.transport.action.admin.indices.flush.ClientTransportFlushAction;
 import org.elasticsearch.client.transport.action.admin.indices.gateway.snapshot.ClientTransportGatewaySnapshotAction;
 import org.elasticsearch.client.transport.action.admin.indices.mapping.create.ClientTransportCreateMappingAction;
+import org.elasticsearch.client.transport.action.admin.indices.optimize.ClientTransportOptimizeAction;
 import org.elasticsearch.client.transport.action.admin.indices.refresh.ClientTransportRefreshAction;
 import org.elasticsearch.client.transport.action.admin.indices.status.ClientTransportIndicesStatusAction;
 import org.elasticsearch.cluster.node.Node;
@@ -67,6 +70,8 @@ public class InternalTransportIndicesAdminClient extends AbstractComponent imple
 
     private final ClientTransportFlushAction flushAction;
 
+    private final ClientTransportOptimizeAction optimizeAction;
+
     private final ClientTransportCreateMappingAction createMappingAction;
 
     private final ClientTransportGatewaySnapshotAction gatewaySnapshotAction;
@@ -74,7 +79,7 @@ public class InternalTransportIndicesAdminClient extends AbstractComponent imple
     @Inject public InternalTransportIndicesAdminClient(Settings settings, TransportClientNodesService nodesService,
                                                        ClientTransportIndicesStatusAction indicesStatusAction,
                                                        ClientTransportCreateIndexAction createIndexAction, ClientTransportDeleteIndexAction deleteIndexAction,
-                                                       ClientTransportRefreshAction refreshAction, ClientTransportFlushAction flushAction,
+                                                       ClientTransportRefreshAction refreshAction, ClientTransportFlushAction flushAction, ClientTransportOptimizeAction optimizeAction,
                                                        ClientTransportCreateMappingAction createMappingAction, ClientTransportGatewaySnapshotAction gatewaySnapshotAction) {
         super(settings);
         this.nodesService = nodesService;
@@ -83,6 +88,7 @@ public class InternalTransportIndicesAdminClient extends AbstractComponent imple
         this.deleteIndexAction = deleteIndexAction;
         this.refreshAction = refreshAction;
         this.flushAction = flushAction;
+        this.optimizeAction = optimizeAction;
         this.createMappingAction = createMappingAction;
         this.gatewaySnapshotAction = gatewaySnapshotAction;
     }
@@ -207,6 +213,31 @@ public class InternalTransportIndicesAdminClient extends AbstractComponent imple
         nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
             @Override public Object doWithNode(Node node) throws ElasticSearchException {
                 flushAction.execute(node, request, listener);
+                return null;
+            }
+        });
+    }
+
+    @Override public ActionFuture<OptimizeResponse> optimize(final OptimizeRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<OptimizeResponse>>() {
+            @Override public ActionFuture<OptimizeResponse> doWithNode(Node node) throws ElasticSearchException {
+                return optimizeAction.submit(node, request);
+            }
+        });
+    }
+
+    @Override public ActionFuture<OptimizeResponse> optimize(final OptimizeRequest request, final ActionListener<OptimizeResponse> listener) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<OptimizeResponse>>() {
+            @Override public ActionFuture<OptimizeResponse> doWithNode(Node node) throws ElasticSearchException {
+                return optimizeAction.submit(node, request, listener);
+            }
+        });
+    }
+
+    @Override public void execOptimize(final OptimizeRequest request, final ActionListener<OptimizeResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<Void>>() {
+            @Override public ActionFuture<Void> doWithNode(Node node) throws ElasticSearchException {
+                optimizeAction.execute(node, request, listener);
                 return null;
             }
         });

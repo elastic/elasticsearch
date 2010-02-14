@@ -154,7 +154,7 @@ public class SimpleEngineBenchmark {
                     .add(field("content", contentItem)).build();
             engine.index(new Engine.Index(new Term("_id", sId), doc, Lucene.STANDARD_ANALYZER, "type", sId, "{ ... }"));
         }
-        engine.refresh(true);
+        engine.refresh(new Engine.Refresh(true));
         stopWatch.stop();
         System.out.println("Warmup of [" + contentItems.length + "] content items, took " + stopWatch.totalTime());
 
@@ -192,7 +192,7 @@ public class SimpleEngineBenchmark {
 
         scheduledExecutorService.shutdown();
 
-        engine.refresh(true);
+        engine.refresh(new Engine.Refresh(true));
         stopWatch = new StopWatch();
         stopWatch.start();
         Engine.Searcher searcher = engine.searcher();
@@ -212,7 +212,7 @@ public class SimpleEngineBenchmark {
 
         @Override public void run() {
             stopWatch.start("" + ++id);
-            engine.flush();
+            engine.flush(new Engine.Flush());
             stopWatch.stop();
         }
     }
@@ -224,7 +224,7 @@ public class SimpleEngineBenchmark {
         @Override public synchronized void run() {
             stopWatch.start("" + ++id);
             int lastId = idGenerator.get();
-            engine.refresh(true);
+            engine.refresh(new Engine.Refresh(true));
             lastRefreshedId = lastId;
             stopWatch.stop();
         }

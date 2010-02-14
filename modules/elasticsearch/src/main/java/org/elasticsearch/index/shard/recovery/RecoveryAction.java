@@ -367,7 +367,7 @@ public class RecoveryAction extends AbstractIndexShardComponent {
             }
             indexShard.performRecovery(snapshot.snapshot, snapshot.phase3);
             if (snapshot.phase3) {
-                indexShard.refresh(true);
+                indexShard.refresh(new Engine.Refresh(true));
                 // probably need to do more here...
             }
             channel.sendResponse(VoidStreamable.INSTANCE);

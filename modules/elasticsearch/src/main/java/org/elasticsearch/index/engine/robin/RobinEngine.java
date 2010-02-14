@@ -22,6 +22,7 @@ package org.elasticsearch.index.engine.robin;
 import com.google.inject.Inject;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LogMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -70,6 +71,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
     private final ReadWriteLock rwl = new ReentrantReadWriteLock();
 
     private final AtomicBoolean refreshMutex = new AtomicBoolean();
+
+    private final AtomicBoolean optimizeMutex = new AtomicBoolean();
 
     private final Store store;
 
@@ -247,27 +250,28 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         }
     }
 
-    @Override public void refresh(boolean waitForOperations) throws EngineException {
+    @Override public void refresh(Refresh refresh) throws EngineException {
         // this engine always acts as if waitForOperations=true
         if (refreshMutex.compareAndSet(false, true)) {
-            if (dirty) {
-                dirty = false;
-                try {
+            try {
+                if (dirty) {
+                    dirty = false;
                     AcquirableResource<ReaderSearcherHolder> current = nrtResource;
                     IndexReader newReader = current.resource().reader().reopen(true);
                     if (newReader != current.resource().reader()) {
                         nrtResource = newAcquirableResource(new ReaderSearcherHolder(newReader));
                         current.markForClose();
                     }
-                } catch (IOException e) {
-                    throw new RefreshFailedEngineException(shardId, e);
                 }
+            } catch (IOException e) {
+                throw new RefreshFailedEngineException(shardId, e);
+            } finally {
+                refreshMutex.set(false);
             }
-            refreshMutex.set(false);
         }
     }
 
-    @Override public void flush() throws EngineException {
+    @Override public void flush(Flush flush) throws EngineException {
         // check outside the lock as well so we can check without blocking on the write lock
         if (disableFlushCounter > 0) {
             throw new FlushNotAllowedEngineException(shardId, "Recovery is in progress, flush is not allowed");
@@ -285,6 +289,30 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             }
         } finally {
             rwl.writeLock().unlock();
+        }
+    }
+
+    @Override public void optimize(Optimize optimize) throws EngineException {
+        if (optimizeMutex.compareAndSet(false, true)) {
+            rwl.readLock().lock();
+            try {
+                int maxNumberOfSegments = optimize.maxNumSegments();
+                if (maxNumberOfSegments == -1) {
+                    // not set, optimize down to half the configured number of segments
+                    if (indexWriter.getMergePolicy() instanceof LogMergePolicy) {
+                        maxNumberOfSegments = ((LogMergePolicy) indexWriter.getMergePolicy()).getMergeFactor() / 2;
+                        if (maxNumberOfSegments < 0) {
+                            maxNumberOfSegments = 1;
+                        }
+                    }
+                }
+                indexWriter.optimize(maxNumberOfSegments, optimize.waitForMerge());
+            } catch (Exception e) {
+                throw new OptimizeFailedEngineException(shardId, e);
+            } finally {
+                rwl.readLock().unlock();
+                optimizeMutex.set(false);
+            }
         }
     }
 

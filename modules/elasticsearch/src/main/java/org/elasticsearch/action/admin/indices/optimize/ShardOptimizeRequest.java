@@ -17,10 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.ping.broadcast;
+package org.elasticsearch.action.admin.indices.optimize;
 
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -29,35 +28,38 @@ import java.io.IOException;
 /**
  * @author kimchy (Shay Banon)
  */
-public class BroadcastPingRequest extends BroadcastOperationRequest {
+public class ShardOptimizeRequest extends BroadcastShardOperationRequest {
 
-    BroadcastPingRequest() {
+    private boolean waitForMerge = true;
+
+    private int maxNumSegments = -1;
+
+    ShardOptimizeRequest() {
     }
 
-    public BroadcastPingRequest(String... indices) {
-        super(indices, null);
+    public ShardOptimizeRequest(String index, int shardId, OptimizeRequest request) {
+        super(index, shardId);
+        waitForMerge = request.waitForMerge();
+        maxNumSegments = request.maxNumSegments();
     }
 
-    @Override public BroadcastPingRequest operationThreading(BroadcastOperationThreading operationThreading) {
-        super.operationThreading(operationThreading);
-        return this;
+    boolean waitForMerge() {
+        return waitForMerge;
     }
 
-    @Override public BroadcastPingRequest listenerThreaded(boolean threadedListener) {
-        super.listenerThreaded(threadedListener);
-        return this;
-    }
-
-    public BroadcastPingRequest queryHint(String queryHint) {
-        this.queryHint = queryHint;
-        return this;
+    int maxNumSegments() {
+        return maxNumSegments;
     }
 
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
         super.readFrom(in);
+        waitForMerge = in.readBoolean();
+        maxNumSegments = in.readInt();
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
         super.writeTo(out);
+        out.writeBoolean(waitForMerge);
+        out.writeInt(maxNumSegments);
     }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.document;
 
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -58,9 +59,14 @@ public class DocumentActionsTests extends AbstractServersTests {
         assertThat(indexResponse.id(), equalTo("1"));
         assertThat(indexResponse.type(), equalTo("type1"));
         logger.info("Refreshing");
-        RefreshResponse refreshResult = client("server1").admin().indices().refresh(refreshRequest("test")).actionGet();
-        assertThat(refreshResult.successfulShards(), equalTo(10));
-        assertThat(refreshResult.failedShards(), equalTo(0));
+        RefreshResponse refreshResponse = client("server1").admin().indices().refresh(refreshRequest("test")).actionGet();
+        assertThat(refreshResponse.successfulShards(), equalTo(10));
+        assertThat(refreshResponse.failedShards(), equalTo(0));
+
+        logger.info("Optimizing");
+        OptimizeResponse optimizeResponse = client("server1").admin().indices().optimize(optimizeRequest("test")).actionGet();
+        assertThat(optimizeResponse.successfulShards(), equalTo(10));
+        assertThat(optimizeResponse.failedShards(), equalTo(0));
 
         GetResponse getResult;
 

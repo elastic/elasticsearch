@@ -27,10 +27,6 @@ import org.elasticsearch.util.TimeValue;
  */
 public class GatewaySnapshotRequest extends IndicesReplicationOperationRequest {
 
-    public GatewaySnapshotRequest(String index) {
-        this(new String[]{index});
-    }
-
     public GatewaySnapshotRequest(String... indices) {
         this.indices = indices;
     }

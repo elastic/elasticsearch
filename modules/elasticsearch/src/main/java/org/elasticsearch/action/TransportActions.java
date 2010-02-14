@@ -45,6 +45,7 @@ public class TransportActions {
             public static final String DELETE = "indices/deleteIndex";
             public static final String FLUSH = "indices/flush";
             public static final String REFRESH = "indices/refresh";
+            public static final String OPTIMIZE = "indices/optimize";
             public static final String STATUS = "indices/status";
 
             public static class Gateway {

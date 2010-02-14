@@ -33,10 +33,6 @@ public class RefreshRequest extends BroadcastOperationRequest {
 
     private boolean waitForOperations = true;
 
-    public RefreshRequest(String index) {
-        this(new String[]{index});
-    }
-
     public RefreshRequest(String... indices) {
         super(indices, null);
         // we want to do the refresh in parallel on local shards...

@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.client.transport;
 
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.count.CountResponse;
@@ -85,9 +86,15 @@ public class SimpleSingleTransportClientTests extends AbstractServersTests {
         assertThat(indexResponse.id(), equalTo("1"));
         assertThat(indexResponse.type(), equalTo("type1"));
 
+        logger.info("Refreshing");
         RefreshResponse refreshResponse = client.admin().indices().refresh(refreshRequest("test")).actionGet();
         assertThat(refreshResponse.successfulShards(), equalTo(5));
         assertThat(refreshResponse.failedShards(), equalTo(5)); // 5 are not active, since we started just one server
+
+        logger.info("Optimizing");
+        OptimizeResponse optimizeResponse = client.admin().indices().optimize(optimizeRequest("test")).actionGet();
+        assertThat(optimizeResponse.successfulShards(), equalTo(5));
+        assertThat(optimizeResponse.failedShards(), equalTo(5)); // 5 are not active, since we started just one server
 
         IndicesStatusResponse indicesStatusResponse = client.admin().indices().status(indicesStatus()).actionGet();
         assertThat(indicesStatusResponse.successfulShards(), equalTo(5));

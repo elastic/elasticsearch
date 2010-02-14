@@ -84,7 +84,7 @@ public class SimpleIndexShardTests {
     @Test public void testSimpleIndexGetDelete() {
         String source1 = "{ type1 : { _id : \"1\", name : \"test\", age : 35 } }";
         indexShard.index("type1", "1", source1);
-        indexShard.refresh(true);
+        indexShard.refresh(new Engine.Refresh(true));
 
         String sourceFetched = indexShard.get("type1", "1");
 
@@ -95,16 +95,16 @@ public class SimpleIndexShardTests {
         assertThat(indexShard.count(0, "{ queryString : { query : \"age:35\" } }", null), equalTo(1l));
 
         indexShard.delete("type1", "1");
-        indexShard.refresh(true);
+        indexShard.refresh(new Engine.Refresh(true));
 
         assertThat(indexShard.get("type1", "1"), nullValue());
 
         indexShard.index("type1", "1", source1);
-        indexShard.refresh(true);
+        indexShard.refresh(new Engine.Refresh(true));
         sourceFetched = indexShard.get("type1", "1");
         assertThat(sourceFetched, equalTo(source1));
         indexShard.deleteByQuery("{ term : { name : \"test\" } }", null);
-        indexShard.refresh(true);
+        indexShard.refresh(new Engine.Refresh(true));
         assertThat(indexShard.get("type1", "1"), nullValue());
 
         indexShard.close();

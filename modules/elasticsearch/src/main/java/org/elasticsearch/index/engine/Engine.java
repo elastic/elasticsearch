@@ -65,12 +65,14 @@ public interface Engine extends IndexShardComponent {
      * changes. Pass <tt>true</tt> if the refresh operation should include
      * all the operations performed up to this call.
      */
-    void refresh(boolean waitForOperations) throws EngineException;
+    void refresh(Refresh refresh) throws EngineException;
 
     /**
      * Flushes the state of the engine, clearing memory.
      */
-    void flush() throws EngineException, FlushNotAllowedEngineException;
+    void flush(Flush flush) throws EngineException, FlushNotAllowedEngineException;
+
+    void optimize(Optimize optimize) throws EngineException;
 
     void snapshot(SnapshotHandler snapshotHandler) throws EngineException;
 
@@ -116,6 +118,52 @@ public interface Engine extends IndexShardComponent {
         IndexReader reader();
 
         IndexSearcher searcher();
+    }
+
+    static class Refresh {
+
+        private final boolean waitForOperations;
+
+        public Refresh(boolean waitForOperations) {
+            this.waitForOperations = waitForOperations;
+        }
+
+        public boolean waitForOperations() {
+            return waitForOperations;
+        }
+
+        @Override public String toString() {
+            return "waitForOperations[" + waitForOperations + "]";
+        }
+    }
+
+    static class Flush {
+
+        @Override public String toString() {
+            return "";
+        }
+    }
+
+    static class Optimize {
+        private final boolean waitForMerge;
+        private final int maxNumSegments;
+
+        public Optimize(boolean waitForMerge, int maxNumSegments) {
+            this.waitForMerge = waitForMerge;
+            this.maxNumSegments = maxNumSegments;
+        }
+
+        public boolean waitForMerge() {
+            return waitForMerge;
+        }
+
+        public int maxNumSegments() {
+            return maxNumSegments;
+        }
+
+        @Override public String toString() {
+            return "waitForMerge[" + waitForMerge + "], maxNumSegments[" + maxNumSegments + "]";
+        }
     }
 
     static class Create {

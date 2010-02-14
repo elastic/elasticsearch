@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.refresh;
+package org.elasticsearch.action.admin.indices.optimize;
 
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
@@ -39,55 +39,55 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  * @author kimchy (Shay Banon)
  */
-public class TransportRefreshAction extends TransportBroadcastOperationAction<RefreshRequest, RefreshResponse, ShardRefreshRequest, ShardRefreshResponse> {
+public class TransportOptimizeAction extends TransportBroadcastOperationAction<OptimizeRequest, OptimizeResponse, ShardOptimizeRequest, ShardOptimizeResponse> {
 
-    @Inject public TransportRefreshAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                          TransportService transportService, IndicesService indicesService) {
+    @Inject public TransportOptimizeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                           TransportService transportService, IndicesService indicesService) {
         super(settings, threadPool, clusterService, transportService, indicesService);
     }
 
     @Override protected String transportAction() {
-        return TransportActions.Admin.Indices.REFRESH;
+        return TransportActions.Admin.Indices.OPTIMIZE;
     }
 
     @Override protected String transportShardAction() {
-        return "indices/refresh/shard";
+        return "indices/optimize/shard";
     }
 
-    @Override protected RefreshRequest newRequest() {
-        return new RefreshRequest();
+    @Override protected OptimizeRequest newRequest() {
+        return new OptimizeRequest();
     }
 
-    @Override protected RefreshResponse newResponse(RefreshRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
+    @Override protected OptimizeResponse newResponse(OptimizeRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
         for (int i = 0; i < shardsResponses.length(); i++) {
-            ShardRefreshResponse shardCountResponse = (ShardRefreshResponse) shardsResponses.get(i);
+            ShardOptimizeResponse shardCountResponse = (ShardOptimizeResponse) shardsResponses.get(i);
             if (shardCountResponse == null) {
                 failedShards++;
             } else {
                 successfulShards++;
             }
         }
-        return new RefreshResponse(successfulShards, failedShards);
+        return new OptimizeResponse(successfulShards, failedShards);
     }
 
-    @Override protected ShardRefreshRequest newShardRequest() {
-        return new ShardRefreshRequest();
+    @Override protected ShardOptimizeRequest newShardRequest() {
+        return new ShardOptimizeRequest();
     }
 
-    @Override protected ShardRefreshRequest newShardRequest(ShardRouting shard, RefreshRequest request) {
-        return new ShardRefreshRequest(shard.index(), shard.id(), request);
+    @Override protected ShardOptimizeRequest newShardRequest(ShardRouting shard, OptimizeRequest request) {
+        return new ShardOptimizeRequest(shard.index(), shard.id(), request);
     }
 
-    @Override protected ShardRefreshResponse newShardResponse() {
-        return new ShardRefreshResponse();
+    @Override protected ShardOptimizeResponse newShardResponse() {
+        return new ShardOptimizeResponse();
     }
 
-    @Override protected ShardRefreshResponse shardOperation(ShardRefreshRequest request) throws ElasticSearchException {
+    @Override protected ShardOptimizeResponse shardOperation(ShardOptimizeRequest request) throws ElasticSearchException {
         IndexShard indexShard = indicesService.indexServiceSafe(request.index()).shardSafe(request.shardId());
-        indexShard.refresh(new Engine.Refresh(request.waitForOperations()));
-        return new ShardRefreshResponse(request.index(), request.shardId());
+        indexShard.optimize(new Engine.Optimize(request.waitForMerge(), request.maxNumSegments()));
+        return new ShardOptimizeResponse(request.index(), request.shardId());
     }
 
     @Override protected boolean accumulateExceptions() {
@@ -97,7 +97,7 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
     /**
      * The refresh request works against *all* shards.
      */
-    @Override protected GroupShardsIterator shards(RefreshRequest request, ClusterState clusterState) {
+    @Override protected GroupShardsIterator shards(OptimizeRequest request, ClusterState clusterState) {
         return clusterState.routingTable().allShardsGrouped(request.indices());
     }
 }

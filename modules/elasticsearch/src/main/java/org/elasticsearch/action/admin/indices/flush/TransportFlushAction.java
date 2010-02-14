@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -84,7 +85,7 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
 
     @Override protected ShardFlushResponse shardOperation(ShardFlushRequest request) throws ElasticSearchException {
         IndexShard indexShard = indicesService.indexServiceSafe(request.index()).shardSafe(request.shardId());
-        indexShard.flush();
+        indexShard.flush(new Engine.Flush());
         return new ShardFlushResponse(request.index(), request.shardId());
     }
 

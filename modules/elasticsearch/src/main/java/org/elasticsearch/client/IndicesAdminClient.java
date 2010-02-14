@@ -31,6 +31,8 @@ import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRe
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotResponse;
 import org.elasticsearch.action.admin.indices.mapping.create.CreateMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.create.CreateMappingResponse;
+import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
+import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
@@ -183,6 +185,34 @@ public interface IndicesAdminClient {
      * @see org.elasticsearch.client.Requests#flushRequest(String...)
      */
     void execFlush(FlushRequest request, ActionListener<FlushResponse> listener);
+
+    /**
+     * Explicitly optimize one or more indices into a the number of segments.
+     *
+     * @param request The optimize request
+     * @return A result future
+     * @see org.elasticsearch.client.Requests#optimizeRequest(String...)
+     */
+    ActionFuture<OptimizeResponse> optimize(OptimizeRequest request);
+
+    /**
+     * Explicitly optimize one or more indices into a the number of segments.
+     *
+     * @param request  The optimize request
+     * @param listener A listener to be notified with a result
+     * @return A result future
+     * @see org.elasticsearch.client.Requests#optimizeRequest(String...)
+     */
+    ActionFuture<OptimizeResponse> optimize(OptimizeRequest request, ActionListener<OptimizeResponse> listener);
+
+    /**
+     * Explicitly optimize one or more indices into a the number of segments.
+     *
+     * @param request  The optimize request
+     * @param listener A listener to be notified with a result
+     * @see org.elasticsearch.client.Requests#optimizeRequest(String...)
+     */
+    void execOptimize(OptimizeRequest request, ActionListener<OptimizeResponse> listener);
 
     /**
      * Add mapping definition for a type into one or more indices.

@@ -255,6 +255,17 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         return indexName(smartName);
     }
 
+    /**
+     * Returns smart field mappers based on a smart name. A smart name is one that can optioannly be prefixed
+     * with a type (and then a '.'). If it is, then the {@link MapperService.SmartNameFieldMappers}
+     * will have the doc mapper set.
+     *
+     * <p>It also (without the optional type prefix) try and find the {@link FieldMappers} for the specific
+     * name. It will first try to find it based on the full name (with the dots if its a compound name). If
+     * it is not found, will try and find it based on the indexName (which can be controlled in the mapping).
+     *
+     * <p>If nothing is found, returns null.
+     */
     public SmartNameFieldMappers smartName(String smartName) {
         int dotIndex = smartName.indexOf('.');
         if (dotIndex != -1) {
@@ -336,7 +347,12 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                     return possibleDocMapper.mappers().searchAnalyzer().tokenStream(fieldName, reader);
                 }
             }
-            FieldMappers mappers = indexNameFieldMappers.get(fieldName);
+            FieldMappers mappers = fullNameFieldMappers.get(fieldName);
+            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
+                return mappers.mapper().searchAnalyzer().tokenStream(fieldName, reader);
+            }
+
+            mappers = indexNameFieldMappers.get(fieldName);
             if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
                 return mappers.mapper().searchAnalyzer().tokenStream(fieldName, reader);
             }
@@ -352,7 +368,12 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                     return possibleDocMapper.mappers().searchAnalyzer().reusableTokenStream(fieldName, reader);
                 }
             }
-            FieldMappers mappers = indexNameFieldMappers.get(fieldName);
+            FieldMappers mappers = fullNameFieldMappers.get(fieldName);
+            if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
+                return mappers.mapper().searchAnalyzer().reusableTokenStream(fieldName, reader);
+            }
+
+            mappers = indexNameFieldMappers.get(fieldName);
             if (mappers != null && mappers.mapper() != null && mappers.mapper().searchAnalyzer() != null) {
                 return mappers.mapper().searchAnalyzer().reusableTokenStream(fieldName, reader);
             }

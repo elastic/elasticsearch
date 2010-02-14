@@ -8,8 +8,8 @@ ElasticSearch is a distributed RESTful search engine built for the cloud. Featur
 
 * Distributed and Highly Available Search Engine.
 ** Each index is fully sharded with a configurable number of shards.
-** Each shard can have one or more backups.
-** Read / Search operations performed on either primary or backup shards.
+** Each shard can have one or more replicas.
+** Read / Search operations performed on either one of the replica shard.
 * Multi Tenant with Multi Types.
 ** Support for more than one index.
 ** Support for more than one type per index.
@@ -115,7 +115,7 @@ curl -XPUT http://localhost:9200/kimchy/tweet/2 -d \
 
 The above index information into the @kimchy@ index, with two types, @info@ and @tweet@. Each user will get his own special index.
 
-Complete control on the index level is allowed. As an example, in the above case, we would want to change from the default 5 shards with 1 backup per index, to only 1 shard with 1 backup per index (== per twitter user). Here is how this can be done (the configuration can be in yaml as well):
+Complete control on the index level is allowed. As an example, in the above case, we would want to change from the default 5 shards with 1 replica per index, to only 1 shard with 1 replica per index (== per twitter user). Here is how this can be done (the configuration can be in yaml as well):
 
 <pre>
 curl -XPUT http://localhost:9200/another_user/ -d \
@@ -143,7 +143,7 @@ h3. Distributed, Highly Available, and Write Behind
 
 Lets face it, things will fail....
 
-ElasticSearch is a highly available and distributed search engine. Each index is broken down into shards, and each shard can have one or more backups. By default, an index is created with 5 shards and 1 backup per shard (5/1). There are many topologies that can be used, including 1/10 (improve search performance), or 20/1 (improve indexing performance, with search executed in a map reduce fashion across shards).
+ElasticSearch is a highly available and distributed search engine. Each index is broken down into shards, and each shard can have one or more replica. By default, an index is created with 5 shards and 1 replica per shard (5/1). There are many topologies that can be used, including 1/10 (improve search performance), or 20/1 (improve indexing performance, with search executed in a map reduce fashion across shards).
 
 In order to play with Elastic Search distributed nature, simply bring more nodes up and shut down nodes. The system will continue to serve requests (make sure you use the correct http port) with the latest data indexed.
 
@@ -155,7 +155,7 @@ gateway:
 </pre>
 
 Alternatively, elastic search can be started with the following command line: 
-@elasticsearch -f -Des.index.gateway.type=fs@.
+@elasticsearch -f -Des.gateway.type=fs@.
 
 The above configuration will persist the indices create on ElasticSearch to a file system (path can be configured) in an asynchronous, reliable fashion. Other gateways implementations can be easily implemented and more will be provided out of the box in later versions (did someone say AmazonS3/Hadoop/Cassandra?).
 

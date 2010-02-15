@@ -120,6 +120,7 @@ public class InternalSearchHit implements SearchHit {
             builder.raw(source());
         }
         if (fields() != null) {
+            builder.startObject("fields");
             for (SearchHitField field : fields().values()) {
                 if (field.values().isEmpty()) {
                     continue;
@@ -135,6 +136,7 @@ public class InternalSearchHit implements SearchHit {
                     builder.endArray();
                 }
             }
+            builder.endObject();
         }
         if (explanation() != null) {
             builder.field("_explanation");

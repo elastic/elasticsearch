@@ -62,13 +62,7 @@ public class SearchPhaseController {
         int numDocs = 0;
         for (DfsSearchResult result : results) {
             for (int i = 0; i < result.freqs().length; i++) {
-                int freq = dfMap.get(result.terms()[i]);
-                if (freq == -1) {
-                    freq = result.freqs()[i];
-                } else {
-                    freq += result.freqs()[i];
-                }
-                dfMap.put(result.terms()[i], freq);
+                dfMap.adjustOrPutValue(result.terms()[i], result.freqs()[i], result.freqs()[i]);
             }
             numDocs += result.numDocs();
         }

@@ -22,10 +22,16 @@ package org.elasticsearch.action.admin.indices.flush;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+
 /**
  * @author kimchy (Shay Banon)
  */
 public class FlushRequest extends BroadcastOperationRequest {
+
+    private boolean refresh = false;
 
     FlushRequest() {
 
@@ -37,6 +43,15 @@ public class FlushRequest extends BroadcastOperationRequest {
         operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
     }
 
+    public boolean refresh() {
+        return this.refresh;
+    }
+
+    public FlushRequest refresh(boolean refresh) {
+        this.refresh = refresh;
+        return this;
+    }
+
     @Override public FlushRequest listenerThreaded(boolean threadedListener) {
         super.listenerThreaded(threadedListener);
         return this;
@@ -45,5 +60,15 @@ public class FlushRequest extends BroadcastOperationRequest {
     @Override public FlushRequest operationThreading(BroadcastOperationThreading operationThreading) {
         super.operationThreading(operationThreading);
         return this;
+    }
+
+    @Override public void writeTo(DataOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeBoolean(refresh);
+    }
+
+    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+        super.readFrom(in);
+        refresh = in.readBoolean();
     }
 }

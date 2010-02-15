@@ -76,7 +76,7 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
     }
 
     @Override protected ShardFlushRequest newShardRequest(ShardRouting shard, FlushRequest request) {
-        return new ShardFlushRequest(shard.index(), shard.id());
+        return new ShardFlushRequest(shard.index(), shard.id(), request);
     }
 
     @Override protected ShardFlushResponse newShardResponse() {
@@ -85,7 +85,7 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
 
     @Override protected ShardFlushResponse shardOperation(ShardFlushRequest request) throws ElasticSearchException {
         IndexShard indexShard = indicesService.indexServiceSafe(request.index()).shardSafe(request.shardId());
-        indexShard.flush(new Engine.Flush());
+        indexShard.flush(new Engine.Flush().refresh(request.refresh()));
         return new ShardFlushResponse(request.index(), request.shardId());
     }
 

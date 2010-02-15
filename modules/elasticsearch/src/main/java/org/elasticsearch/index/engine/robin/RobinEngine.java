@@ -290,6 +290,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         } finally {
             rwl.writeLock().unlock();
         }
+        if (flush.refresh()) {
+            refresh(new Refresh(false));
+        }
     }
 
     @Override public void optimize(Optimize optimize) throws EngineException {

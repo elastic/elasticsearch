@@ -56,6 +56,7 @@ public class HttpFlushAction extends BaseHttpServerHandler {
             operationThreading = BroadcastOperationThreading.THREAD_PER_SHARD;
         }
         flushRequest.operationThreading(operationThreading);
+        flushRequest.refresh(HttpActions.paramAsBoolean("refresh", false));
         client.admin().indices().execFlush(flushRequest, new ActionListener<FlushResponse>() {
             @Override public void onResponse(FlushResponse response) {
                 try {

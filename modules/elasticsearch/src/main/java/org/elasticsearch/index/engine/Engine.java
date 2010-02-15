@@ -139,8 +139,25 @@ public interface Engine extends IndexShardComponent {
 
     static class Flush {
 
+        private boolean refresh = false;
+
+        /**
+         * Should a refresh be performed after flushing. Defaults to <tt>false</tt>.
+         */
+        public boolean refresh() {
+            return this.refresh;
+        }
+
+        /**
+         * Should a refresh be performed after flushing. Defaults to <tt>false</tt>.
+         */
+        public Flush refresh(boolean refresh) {
+            this.refresh = refresh;
+            return this;
+        }
+
         @Override public String toString() {
-            return "";
+            return "refresh[" + refresh + "]";
         }
     }
 

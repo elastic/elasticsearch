@@ -30,18 +30,27 @@ import java.io.IOException;
  */
 public class ShardFlushRequest extends BroadcastShardOperationRequest {
 
+    private boolean refresh;
+
     ShardFlushRequest() {
     }
 
-    public ShardFlushRequest(String index, int shardId) {
+    public ShardFlushRequest(String index, int shardId, FlushRequest request) {
         super(index, shardId);
+        this.refresh = request.refresh();
+    }
+
+    public boolean refresh() {
+        return this.refresh;
     }
 
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
         super.readFrom(in);
+        refresh = in.readBoolean();
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
         super.writeTo(out);
+        out.writeBoolean(refresh);
     }
 }

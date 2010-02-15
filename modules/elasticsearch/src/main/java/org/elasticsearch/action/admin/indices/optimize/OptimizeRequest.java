@@ -44,6 +44,12 @@ public class OptimizeRequest extends BroadcastOperationRequest {
 
     private int maxNumSegments = -1;
 
+    private boolean onlyExpungeDeletes = false;
+
+    private boolean flush = false;
+
+    private boolean refresh = false;
+
     /**
      * Constructs an optimization request over one or more indices.
      *
@@ -101,15 +107,68 @@ public class OptimizeRequest extends BroadcastOperationRequest {
         return this;
     }
 
+    /**
+     * Should the optimization only expunge deletes from the index, without full optimization.
+     * Defaults to full optimization (<tt>false</tt>).
+     */
+    public boolean onlyExpungeDeletes() {
+        return onlyExpungeDeletes;
+    }
+
+    /**
+     * Should the optimization only expunge deletes from the index, without full optimization.
+     * Defaults to full optimization (<tt>false</tt>).
+     */
+    public OptimizeRequest onlyExpungeDeletes(boolean onlyExpungeDeletes) {
+        this.onlyExpungeDeletes = onlyExpungeDeletes;
+        return this;
+    }
+
+    /**
+     * Should flush be performed after the optimization. Defaults to <tt>false</tt>.
+     */
+    public boolean flush() {
+        return flush;
+    }
+
+    /**
+     * Should flush be performed after the optimization. Defaults to <tt>false</tt>.
+     */
+    public OptimizeRequest flush(boolean flush) {
+        this.flush = flush;
+        return this;
+    }
+
+    /**
+     * Should refresh be performed after the optimization. Defaults to <tt>false</tt>.
+     */
+    public boolean refresh() {
+        return refresh;
+    }
+
+    /**
+     * Should refresh be performed after the optimization. Defaults to <tt>false</tt>.
+     */
+    public OptimizeRequest refresh(boolean refresh) {
+        this.refresh = refresh;
+        return this;
+    }
+
     public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
         super.readFrom(in);
         waitForMerge = in.readBoolean();
         maxNumSegments = in.readInt();
+        onlyExpungeDeletes = in.readBoolean();
+        flush = in.readBoolean();
+        refresh = in.readBoolean();
     }
 
     public void writeTo(DataOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(waitForMerge);
         out.writeInt(maxNumSegments);
+        out.writeBoolean(onlyExpungeDeletes);
+        out.writeBoolean(flush);
+        out.writeBoolean(refresh);
     }
 }

@@ -51,6 +51,9 @@ public class HttpOptimizeAction extends BaseHttpServerHandler {
         try {
             optimizeRequest.waitForMerge(HttpActions.paramAsBoolean(request.param("waitForMerge"), true));
             optimizeRequest.maxNumSegments(HttpActions.paramAsInt(request.param("maxNumSegments"), -1));
+            optimizeRequest.onlyExpungeDeletes(HttpActions.paramAsBoolean(request.param("onlyExpungeDeletes"), false));
+            optimizeRequest.flush(HttpActions.paramAsBoolean(request.param("flush"), false));
+            optimizeRequest.refresh(HttpActions.paramAsBoolean(request.param("refresh"), false));
 
             // we just send back a response, no need to fork a listener
             optimizeRequest.listenerThreaded(false);

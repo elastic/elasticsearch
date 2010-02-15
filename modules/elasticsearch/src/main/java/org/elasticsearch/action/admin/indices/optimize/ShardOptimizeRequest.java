@@ -34,6 +34,12 @@ public class ShardOptimizeRequest extends BroadcastShardOperationRequest {
 
     private int maxNumSegments = -1;
 
+    private boolean onlyExpungeDeletes = false;
+
+    private boolean flush = false;
+
+    private boolean refresh = false;
+
     ShardOptimizeRequest() {
     }
 
@@ -41,6 +47,9 @@ public class ShardOptimizeRequest extends BroadcastShardOperationRequest {
         super(index, shardId);
         waitForMerge = request.waitForMerge();
         maxNumSegments = request.maxNumSegments();
+        onlyExpungeDeletes = request.onlyExpungeDeletes();
+        flush = request.flush();
+        refresh = request.refresh();
     }
 
     boolean waitForMerge() {
@@ -51,15 +60,33 @@ public class ShardOptimizeRequest extends BroadcastShardOperationRequest {
         return maxNumSegments;
     }
 
+    public boolean onlyExpungeDeletes() {
+        return onlyExpungeDeletes;
+    }
+
+    public boolean flush() {
+        return flush;
+    }
+
+    public boolean refresh() {
+        return refresh;
+    }
+
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
         super.readFrom(in);
         waitForMerge = in.readBoolean();
         maxNumSegments = in.readInt();
+        onlyExpungeDeletes = in.readBoolean();
+        flush = in.readBoolean();
+        refresh = in.readBoolean();
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(waitForMerge);
         out.writeInt(maxNumSegments);
+        out.writeBoolean(onlyExpungeDeletes);
+        out.writeBoolean(flush);
+        out.writeBoolean(refresh);
     }
 }

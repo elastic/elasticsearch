@@ -162,24 +162,62 @@ public interface Engine extends IndexShardComponent {
     }
 
     static class Optimize {
-        private final boolean waitForMerge;
-        private final int maxNumSegments;
+        private boolean waitForMerge = true;
+        private int maxNumSegments = -1;
+        private boolean onlyExpungeDeletes = false;
+        private boolean flush = false;
+        private boolean refresh = false;
 
-        public Optimize(boolean waitForMerge, int maxNumSegments) {
-            this.waitForMerge = waitForMerge;
-            this.maxNumSegments = maxNumSegments;
+        public Optimize() {
         }
 
         public boolean waitForMerge() {
             return waitForMerge;
         }
 
+        public Optimize waitForMerge(boolean waitForMerge) {
+            this.waitForMerge = waitForMerge;
+            return this;
+        }
+
         public int maxNumSegments() {
             return maxNumSegments;
         }
 
+        public Optimize maxNumSegments(int maxNumSegments) {
+            this.maxNumSegments = maxNumSegments;
+            return this;
+        }
+
+        public boolean onlyExpungeDeletes() {
+            return onlyExpungeDeletes;
+        }
+
+        public Optimize onlyExpungeDeletes(boolean onlyExpungeDeletes) {
+            this.onlyExpungeDeletes = onlyExpungeDeletes;
+            return this;
+        }
+
+        public boolean flush() {
+            return flush;
+        }
+
+        public Optimize flush(boolean flush) {
+            this.flush = flush;
+            return this;
+        }
+
+        public boolean refresh() {
+            return refresh;
+        }
+
+        public Optimize refresh(boolean refresh) {
+            this.refresh = refresh;
+            return this;
+        }
+
         @Override public String toString() {
-            return "waitForMerge[" + waitForMerge + "], maxNumSegments[" + maxNumSegments + "]";
+            return "waitForMerge[" + waitForMerge + "], maxNumSegments[" + maxNumSegments + "], onlyExpungeDeletes[" + onlyExpungeDeletes + "], flush[" + flush + "], refresh[" + refresh + "]";
         }
     }
 

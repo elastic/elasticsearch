@@ -309,13 +309,23 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
                         }
                     }
                 }
-                indexWriter.optimize(maxNumberOfSegments, optimize.waitForMerge());
+                if (optimize.onlyExpungeDeletes()) {
+                    indexWriter.expungeDeletes(optimize.waitForMerge());
+                } else {
+                    indexWriter.optimize(maxNumberOfSegments, optimize.waitForMerge());
+                }
             } catch (Exception e) {
                 throw new OptimizeFailedEngineException(shardId, e);
             } finally {
                 rwl.readLock().unlock();
                 optimizeMutex.set(false);
             }
+        }
+        if (optimize.flush()) {
+            flush(new Flush());
+        }
+        if (optimize.refresh()) {
+            refresh(new Refresh(false));
         }
     }
 

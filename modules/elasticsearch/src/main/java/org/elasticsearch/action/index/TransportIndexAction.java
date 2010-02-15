@@ -53,7 +53,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                                         TransportCreateIndexAction createIndexAction) {
         super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
         this.createIndexAction = createIndexAction;
-        this.autoCreateIndex = componentSettings.getAsBoolean("autoCreateIndex", true);
+        this.autoCreateIndex = settings.getAsBoolean("action.autoCreateIndex", true);
         this.allowIdGeneration = componentSettings.getAsBoolean("allowIdGeneration", true);
     }
 

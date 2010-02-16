@@ -44,6 +44,8 @@ public class HttpCountAction extends BaseHttpServerHandler {
 
     @Inject public HttpCountAction(Settings settings, HttpServer httpService, Client client) {
         super(settings, client);
+        httpService.registerHandler(HttpRequest.Method.POST, "/_count", this);
+        httpService.registerHandler(HttpRequest.Method.GET, "/_count", this);
         httpService.registerHandler(HttpRequest.Method.POST, "/{index}/_count", this);
         httpService.registerHandler(HttpRequest.Method.GET, "/{index}/_count", this);
         httpService.registerHandler(HttpRequest.Method.POST, "/{index}/{type}/_count", this);

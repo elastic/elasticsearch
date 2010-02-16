@@ -84,25 +84,4 @@ public class HttpActions {
         }
         return nodesIdsPattern.split(nodes);
     }
-
-    public static float paramAsFloat(String floatValue, float defaultValue) {
-        if (floatValue == null) {
-            return defaultValue;
-        }
-        return Float.parseFloat(floatValue);
-    }
-
-    public static int paramAsInt(String intValue, int defaultValue) {
-        if (intValue == null) {
-            return defaultValue;
-        }
-        return Integer.parseInt(intValue);
-    }
-
-    public static boolean paramAsBoolean(String booleanValue, boolean defaultValue) {
-        if (booleanValue == null) {
-            return defaultValue;
-        }
-        return Boolean.parseBoolean(booleanValue);
-    }
 }

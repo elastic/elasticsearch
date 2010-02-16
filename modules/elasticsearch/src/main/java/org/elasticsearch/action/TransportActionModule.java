@@ -47,6 +47,7 @@ import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.search.type.*;
+import org.elasticsearch.action.terms.TransportTermsAction;
 
 /**
  * @author kimchy (Shay Banon)
@@ -80,12 +81,13 @@ public class TransportActionModule extends AbstractModule {
         bind(TransportIndexAction.class).asEagerSingleton();
         bind(TransportGetAction.class).asEagerSingleton();
         bind(TransportDeleteAction.class).asEagerSingleton();
+        bind(TransportCountAction.class).asEagerSingleton();
+        bind(TransportTermsAction.class).asEagerSingleton();
 
         bind(TransportShardDeleteByQueryAction.class).asEagerSingleton();
         bind(TransportIndexDeleteByQueryAction.class).asEagerSingleton();
         bind(TransportDeleteByQueryAction.class).asEagerSingleton();
 
-        bind(TransportCountAction.class).asEagerSingleton();
 
         bind(TransportSearchCache.class).asEagerSingleton();
         bind(TransportSearchDfsQueryThenFetchAction.class).asEagerSingleton();

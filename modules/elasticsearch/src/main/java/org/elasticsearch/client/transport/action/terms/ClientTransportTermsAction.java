@@ -17,45 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.elasticsearch.client.transport.action.terms;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import com.google.inject.Inject;
+import org.elasticsearch.action.TransportActions;
+import org.elasticsearch.action.terms.TermsRequest;
+import org.elasticsearch.action.terms.TermsResponse;
+import org.elasticsearch.client.transport.action.support.BaseClientTransportAction;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public interface HttpRequest {
-    enum Method {
-        GET, POST, PUT, DELETE
+public class ClientTransportTermsAction extends BaseClientTransportAction<TermsRequest, TermsResponse> {
+
+    @Inject public ClientTransportTermsAction(Settings settings, TransportService transportService) {
+        super(settings, transportService, TermsResponse.class);
     }
 
-    Method method();
-
-    String uri();
-
-    boolean hasContent();
-
-    String contentAsString();
-
-    Set<String> headerNames();
-
-    String header(String name);
-
-    List<String> headers(String name);
-
-    String cookie();
-
-    String param(String key);
-
-    float paramAsFloat(String key, float defaultValue);
-
-    int paramAsInt(String key, int defaultValue);
-
-    boolean paramAsBoolean(String key, boolean defaultValue);
-
-    List<String> params(String key);
-
-    Map<String, List<String>> params();
+    @Override protected String action() {
+        return TransportActions.TERMS;
+    }
 }

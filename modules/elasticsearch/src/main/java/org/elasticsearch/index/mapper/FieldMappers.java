@@ -60,6 +60,10 @@ public class FieldMappers implements Iterable<FieldMapper> {
         return fieldMappers.get(0);
     }
 
+    public boolean isEmpty() {
+        return fieldMappers.isEmpty();
+    }
+
     public ImmutableList<FieldMapper> mappers() {
         return this.fieldMappers;
     }

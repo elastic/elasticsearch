@@ -19,9 +19,11 @@
       <w>flushable</w>
       <w>formatter</w>
       <w>formatters</w>
+      <w>freqs</w>
       <w>indices</w>
       <w>inet</w>
       <w>infos</w>
+      <w>iter</w>
       <w>jgroups</w>
       <w>joda</w>
       <w>jsonp</w>

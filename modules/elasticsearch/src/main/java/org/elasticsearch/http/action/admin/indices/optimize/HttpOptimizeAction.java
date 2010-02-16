@@ -49,11 +49,11 @@ public class HttpOptimizeAction extends BaseHttpServerHandler {
     @Override public void handleRequest(final HttpRequest request, final HttpChannel channel) {
         OptimizeRequest optimizeRequest = new OptimizeRequest(HttpActions.splitIndices(request.param("index")));
         try {
-            optimizeRequest.waitForMerge(HttpActions.paramAsBoolean(request.param("waitForMerge"), true));
-            optimizeRequest.maxNumSegments(HttpActions.paramAsInt(request.param("maxNumSegments"), -1));
-            optimizeRequest.onlyExpungeDeletes(HttpActions.paramAsBoolean(request.param("onlyExpungeDeletes"), false));
-            optimizeRequest.flush(HttpActions.paramAsBoolean(request.param("flush"), false));
-            optimizeRequest.refresh(HttpActions.paramAsBoolean(request.param("refresh"), false));
+            optimizeRequest.waitForMerge(request.paramAsBoolean("waitForMerge", optimizeRequest.waitForMerge()));
+            optimizeRequest.maxNumSegments(request.paramAsInt("maxNumSegments", optimizeRequest.maxNumSegments()));
+            optimizeRequest.onlyExpungeDeletes(request.paramAsBoolean("onlyExpungeDeletes", optimizeRequest.onlyExpungeDeletes()));
+            optimizeRequest.flush(request.paramAsBoolean("flush", optimizeRequest.flush()));
+            optimizeRequest.refresh(request.paramAsBoolean("refresh", optimizeRequest.refresh()));
 
             // we just send back a response, no need to fork a listener
             optimizeRequest.listenerThreaded(false);

@@ -17,45 +17,43 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.elasticsearch.util;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.TreeSet;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public interface HttpRequest {
-    enum Method {
-        GET, POST, PUT, DELETE
+public class BoundedTreeSet<E> extends TreeSet<E> {
+
+    private final int size;
+
+    public BoundedTreeSet(int size) {
+        this.size = size;
     }
 
-    Method method();
+    public BoundedTreeSet(Comparator<? super E> comparator, int size) {
+        super(comparator);
+        this.size = size;
+    }
 
-    String uri();
+    @Override public boolean add(E e) {
+        boolean result = super.add(e);
+        rebound();
+        return result;
+    }
 
-    boolean hasContent();
+    @Override public boolean addAll(Collection<? extends E> c) {
+        boolean result = super.addAll(c);
+        rebound();
+        return result;
+    }
 
-    String contentAsString();
-
-    Set<String> headerNames();
-
-    String header(String name);
-
-    List<String> headers(String name);
-
-    String cookie();
-
-    String param(String key);
-
-    float paramAsFloat(String key, float defaultValue);
-
-    int paramAsInt(String key, int defaultValue);
-
-    boolean paramAsBoolean(String key, boolean defaultValue);
-
-    List<String> params(String key);
-
-    Map<String, List<String>> params();
+    private void rebound() {
+        while (size() > size) {
+            remove(last());
+        }
+    }
 }

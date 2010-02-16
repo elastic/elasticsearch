@@ -101,7 +101,7 @@ public class SimpleSingleTransportClientTests extends AbstractServersTests {
         assertThat(indicesStatusResponse.failedShards(), equalTo(5)); // 5 are not active, since we started just one server
         assertThat(indicesStatusResponse.indices().size(), equalTo(1));
         assertThat(indicesStatusResponse.index("test").shards().size(), equalTo(5)); // 5 index shards (1 with 1 backup)
-        assertThat(indicesStatusResponse.index("test").docs().numDocs(), equalTo(1));
+        assertThat(indicesStatusResponse.index("test").docs().numDocs(), equalTo(1l));
 
         GetResponse getResult;
 

@@ -84,6 +84,7 @@ public class HttpIndicesStatusAction extends BaseHttpServerHandler {
                         builder.field("estimatedFlushableMemorySize", indexStatus.estimatedFlushableMemorySize().toString());
                         builder.field("estimatedFlushableMemorySizeInBytes", indexStatus.estimatedFlushableMemorySize().bytes());
                         builder.field("translogOperations", indexStatus.translogOperations());
+
                         builder.startObject("docs");
                         builder.field("numDocs", indexStatus.docs().numDocs());
                         builder.field("maxDoc", indexStatus.docs().maxDoc());

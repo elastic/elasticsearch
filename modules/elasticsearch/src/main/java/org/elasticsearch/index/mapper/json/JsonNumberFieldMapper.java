@@ -87,7 +87,7 @@ public abstract class JsonNumberFieldMapper<T extends Number> extends JsonFieldM
     }
 
     /**
-     * Override the defualt behavior (to return the string, and reutrn the actual Number instance).
+     * Override the default behavior (to return the string, and return the actual Number instance).
      */
     @Override public Object valueForSearch(Fieldable field) {
         return value(field);

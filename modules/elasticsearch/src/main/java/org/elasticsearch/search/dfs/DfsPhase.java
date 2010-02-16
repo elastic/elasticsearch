@@ -47,7 +47,7 @@ public class DfsPhase implements SearchPhase {
             int[] freqs = context.searcher().docFreqs(terms);
 
             context.dfsResult().termsAndFreqs(terms, freqs);
-            context.dfsResult().numDocs(context.searcher().getIndexReader().numDocs());
+            context.dfsResult().maxDoc(context.searcher().getIndexReader().maxDoc());
         } catch (Exception e) {
             throw new DfsPhaseExecutionException(context);
         }

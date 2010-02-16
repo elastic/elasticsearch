@@ -39,6 +39,8 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.terms.TermsRequest;
+import org.elasticsearch.action.terms.TermsResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.action.ClientTransportActionModule;
@@ -282,5 +284,17 @@ public class TransportClient implements Client {
 
     @Override public void execSearchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         internalClient.execSearchScroll(request, listener);
+    }
+
+    @Override public ActionFuture<TermsResponse> terms(TermsRequest request) {
+        return internalClient.terms(request);
+    }
+
+    @Override public ActionFuture<TermsResponse> terms(TermsRequest request, ActionListener<TermsResponse> listener) {
+        return internalClient.terms(request, listener);
+    }
+
+    @Override public void execTerms(TermsRequest request, ActionListener<TermsResponse> listener) {
+        internalClient.terms(request, listener);
     }
 }

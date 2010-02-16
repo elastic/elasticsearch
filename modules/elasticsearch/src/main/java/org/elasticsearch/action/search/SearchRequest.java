@@ -290,9 +290,9 @@ public class SearchRequest implements ActionRequest {
         } else {
             out.writeInt(queryBoost.size());
             for (TObjectFloatIterator<String> it = queryBoost.iterator(); it.hasNext();) {
+                it.advance();
                 out.writeUTF(it.key());
                 out.writeFloat(it.value());
-                it.advance();
             }
         }
         out.writeInt(types.length);

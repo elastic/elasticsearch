@@ -27,7 +27,6 @@ import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -92,9 +91,8 @@ public class TermJsonQueryParser extends AbstractIndexComponent implements JsonQ
         Query query = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
-            FieldMapper fieldMapper = smartNameFieldMappers.fieldMappers().mapper();
-            if (fieldMapper != null) {
-                query = fieldMapper.fieldQuery(value);
+            if (smartNameFieldMappers.hasMapper()) {
+                query = smartNameFieldMappers.mapper().fieldQuery(value);
             }
         }
         if (query == null) {

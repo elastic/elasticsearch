@@ -33,9 +33,16 @@ public class CachedDfSource extends Searcher {
 
     private final AggregatedDfs dfs;
 
+    private final int maxDoc;
+
     public CachedDfSource(AggregatedDfs dfs, Similarity similarity) throws IOException {
         this.dfs = dfs;
         setSimilarity(similarity);
+        if (dfs.maxDoc() > Integer.MAX_VALUE) {
+            maxDoc = Integer.MAX_VALUE;
+        } else {
+            maxDoc = (int) dfs.maxDoc();
+        }
     }
 
     public int docFreq(Term term) {
@@ -55,7 +62,7 @@ public class CachedDfSource extends Searcher {
     }
 
     public int maxDoc() {
-        return dfs.numDocs();
+        return this.maxDoc;
     }
 
     public Query rewrite(Query query) {

@@ -37,19 +37,19 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
     public static class Docs {
         public static final Docs UNKNOWN = new Docs();
 
-        int numDocs = -1;
-        int maxDoc = -1;
-        int deletedDocs = -1;
+        long numDocs = -1;
+        long maxDoc = -1;
+        long deletedDocs = -1;
 
-        public int numDocs() {
+        public long numDocs() {
             return numDocs;
         }
 
-        public int maxDoc() {
+        public long maxDoc() {
             return maxDoc;
         }
 
-        public int deletedDocs() {
+        public long deletedDocs() {
             return deletedDocs;
         }
     }
@@ -83,6 +83,10 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
         return this.index;
     }
 
+    /**
+     * A shard id to index shard status map (note, index shard status is the replication shard group that maps
+     * to the shard id).
+     */
     public Map<Integer, IndexShardStatus> shards() {
         return this.indexShards;
     }

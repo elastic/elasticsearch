@@ -27,7 +27,6 @@ import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -91,10 +90,9 @@ public class SpanTermJsonQueryParser extends AbstractIndexComponent implements J
 
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
-            FieldMapper fieldMapper = smartNameFieldMappers.fieldMappers().mapper();
-            if (fieldMapper != null) {
-                fieldName = fieldMapper.indexName();
-                value = fieldMapper.indexedValue(value);
+            if (smartNameFieldMappers.hasMapper()) {
+                fieldName = smartNameFieldMappers.mapper().indexName();
+                value = smartNameFieldMappers.mapper().indexedValue(value);
             }
         }
 

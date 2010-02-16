@@ -51,7 +51,6 @@ public class HttpSearchAction extends BaseHttpServerHandler {
 
     public final static Pattern fieldsPattern;
 
-
     static {
         fieldsPattern = Pattern.compile(",");
     }

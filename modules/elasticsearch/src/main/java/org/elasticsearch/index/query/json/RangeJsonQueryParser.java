@@ -26,7 +26,6 @@ import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -97,9 +96,8 @@ public class RangeJsonQueryParser extends AbstractIndexComponent implements Json
         Query query = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
-            FieldMapper fieldMapper = smartNameFieldMappers.fieldMappers().mapper();
-            if (fieldMapper != null) {
-                query = fieldMapper.rangeQuery(from, to, includeLower, includeUpper);
+            if (smartNameFieldMappers.hasMapper()) {
+                query = smartNameFieldMappers.mapper().rangeQuery(from, to, includeLower, includeUpper);
             }
         }
         if (query == null) {

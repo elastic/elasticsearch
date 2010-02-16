@@ -66,7 +66,7 @@ public class HttpCountAction extends BaseHttpServerHandler {
             countRequest.querySource(HttpActions.parseQuerySource(request));
             countRequest.queryParserName(request.param("queryParserName"));
             countRequest.queryHint(request.param("queryHint"));
-            countRequest.minScore(paramAsFloat(request.param("minScore"), DEFAULT_MIN_SCORE));
+            countRequest.minScore(request.paramAsFloat("minScore", DEFAULT_MIN_SCORE));
             String typesParam = request.param("type");
             if (typesParam != null) {
                 countRequest.types(splitTypes(typesParam));

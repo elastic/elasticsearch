@@ -35,23 +35,23 @@ public class AggregatedDfs implements Streamable {
 
     private ExtTObjectIntHasMap<Term> dfMap;
 
-    private int numDocs;
+    private long maxDoc;
 
     private AggregatedDfs() {
 
     }
 
-    public AggregatedDfs(ExtTObjectIntHasMap<Term> dfMap, int numDocs) {
+    public AggregatedDfs(ExtTObjectIntHasMap<Term> dfMap, long maxDoc) {
         this.dfMap = dfMap.defaultReturnValue(-1);
-        this.numDocs = numDocs;
+        this.maxDoc = maxDoc;
     }
 
     public ExtTObjectIntHasMap<Term> dfMap() {
         return dfMap;
     }
 
-    public int numDocs() {
-        return numDocs;
+    public long maxDoc() {
+        return maxDoc;
     }
 
     public static AggregatedDfs readAggregatedDfs(DataInput in) throws IOException, ClassNotFoundException {
@@ -66,7 +66,7 @@ public class AggregatedDfs implements Streamable {
         for (int i = 0; i < size; i++) {
             dfMap.put(new Term(in.readUTF(), in.readUTF()), in.readInt());
         }
-        numDocs = in.readInt();
+        maxDoc = in.readLong();
     }
 
     @Override public void writeTo(final DataOutput out) throws IOException {
@@ -75,7 +75,7 @@ public class AggregatedDfs implements Streamable {
         if (!dfMap.forEachEntry(writeToProcedure)) {
             throw writeToProcedure.exception;
         }
-        out.writeInt(numDocs);
+        out.writeLong(maxDoc);
     }
 
     private static class WriteToProcedure implements TObjectIntProcedure<Term> {

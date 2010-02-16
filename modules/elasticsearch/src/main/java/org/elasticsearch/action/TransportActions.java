@@ -38,6 +38,8 @@ public class TransportActions {
 
     public static final String SEARCH_SCROLL = "indices/searchScroll";
 
+    public static final String TERMS = "indices/terms";
+
     public static class Admin {
 
         public static class Indices {

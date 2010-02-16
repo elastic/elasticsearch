@@ -40,6 +40,7 @@ import org.elasticsearch.http.action.get.HttpGetAction;
 import org.elasticsearch.http.action.index.HttpIndexAction;
 import org.elasticsearch.http.action.main.HttpMainAction;
 import org.elasticsearch.http.action.search.HttpSearchAction;
+import org.elasticsearch.http.action.terms.HttpTermsAction;
 
 /**
  * @author kimchy (Shay Banon)
@@ -77,6 +78,7 @@ public class HttpActionModule extends AbstractModule {
         bind(HttpDeleteByQueryAction.class).asEagerSingleton();
 
         bind(HttpCountAction.class).asEagerSingleton();
+        bind(HttpTermsAction.class).asEagerSingleton();
 
         bind(HttpSearchAction.class).asEagerSingleton();
     }

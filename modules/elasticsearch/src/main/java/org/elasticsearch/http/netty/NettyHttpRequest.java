@@ -20,6 +20,7 @@
 package org.elasticsearch.http.netty;
 
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.http.HttpRequest;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
@@ -96,6 +97,42 @@ public class NettyHttpRequest implements HttpRequest {
 
     @Override public String cookie() {
         return request.getHeader(HttpHeaders.Names.COOKIE);
+    }
+
+    @Override public float paramAsFloat(String key, float defaultValue) {
+        String sValue = param(key);
+        if (sValue == null) {
+            return defaultValue;
+        }
+        try {
+            return Float.parseFloat(sValue);
+        } catch (NumberFormatException e) {
+            throw new ElasticSearchIllegalArgumentException("Failed to parse float parameter [" + key + "] with value [" + sValue + "]", e);
+        }
+    }
+
+    @Override public int paramAsInt(String key, int defaultValue) {
+        String sValue = param(key);
+        if (sValue == null) {
+            return defaultValue;
+        }
+        try {
+            return Integer.parseInt(sValue);
+        } catch (NumberFormatException e) {
+            throw new ElasticSearchIllegalArgumentException("Failed to parse int parameter [" + key + "] with value [" + sValue + "]", e);
+        }
+    }
+
+    @Override public boolean paramAsBoolean(String key, boolean defaultValue) {
+        String sValue = param(key);
+        if (sValue == null) {
+            return defaultValue;
+        }
+        try {
+            return Boolean.valueOf(sValue);
+        } catch (NumberFormatException e) {
+            throw new ElasticSearchIllegalArgumentException("Failed to parse boolean parameter [" + key + "] with value [" + sValue + "]", e);
+        }
     }
 
     @Override public String param(String key) {

@@ -48,7 +48,7 @@ public class HttpNodesInfoAction extends BaseHttpServerHandler {
 
     @Override public void handleRequest(final HttpRequest request, final HttpChannel channel) {
         String[] nodesIds = HttpActions.splitNodes(request.param("nodeId"));
-        final boolean includeSettings = HttpActions.paramAsBoolean("settings", false);
+        final boolean includeSettings = request.paramAsBoolean("settings", false);
         NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(nodesIds);
         nodesInfoRequest.listenerThreaded(false);
         client.admin().cluster().execNodesInfo(nodesInfoRequest, new ActionListener<NodesInfoResponse>() {

@@ -38,6 +38,9 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.terms.TermsRequest;
+import org.elasticsearch.action.terms.TermsResponse;
+import org.elasticsearch.action.terms.TransportTermsAction;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.util.component.AbstractComponent;
@@ -64,10 +67,13 @@ public class ServerClient extends AbstractComponent implements Client {
 
     private final TransportSearchScrollAction searchScrollAction;
 
+    private final TransportTermsAction termsAction;
+
     @Inject public ServerClient(Settings settings, ServerAdminClient admin,
                                 TransportIndexAction indexAction, TransportDeleteAction deleteAction,
                                 TransportDeleteByQueryAction deleteByQueryAction, TransportGetAction getAction, TransportCountAction countAction,
-                                TransportSearchAction searchAction, TransportSearchScrollAction searchScrollAction) {
+                                TransportSearchAction searchAction, TransportSearchScrollAction searchScrollAction,
+                                TransportTermsAction termsAction) {
         super(settings);
         this.admin = admin;
         this.indexAction = indexAction;
@@ -77,6 +83,7 @@ public class ServerClient extends AbstractComponent implements Client {
         this.countAction = countAction;
         this.searchAction = searchAction;
         this.searchScrollAction = searchScrollAction;
+        this.termsAction = termsAction;
     }
 
     @Override public void close() {
@@ -169,5 +176,17 @@ public class ServerClient extends AbstractComponent implements Client {
 
     @Override public void execSearchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         searchScrollAction.execute(request, listener);
+    }
+
+    @Override public ActionFuture<TermsResponse> terms(TermsRequest request) {
+        return termsAction.submit(request);
+    }
+
+    @Override public ActionFuture<TermsResponse> terms(TermsRequest request, ActionListener<TermsResponse> listener) {
+        return termsAction.submit(request, listener);
+    }
+
+    @Override public void execTerms(TermsRequest request, ActionListener<TermsResponse> listener) {
+        termsAction.execute(request, listener);
     }
 }

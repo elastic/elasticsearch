@@ -59,14 +59,14 @@ public class SearchPhaseController {
 
     public AggregatedDfs aggregateDfs(Iterable<DfsSearchResult> results) {
         ExtTObjectIntHasMap<Term> dfMap = new ExtTObjectIntHasMap<Term>().defaultReturnValue(-1);
-        int numDocs = 0;
+        long aggMaxDoc = 0;
         for (DfsSearchResult result : results) {
             for (int i = 0; i < result.freqs().length; i++) {
                 dfMap.adjustOrPutValue(result.terms()[i], result.freqs()[i], result.freqs()[i]);
             }
-            numDocs += result.numDocs();
+            aggMaxDoc += result.maxDoc();
         }
-        return new AggregatedDfs(dfMap, numDocs);
+        return new AggregatedDfs(dfMap, aggMaxDoc);
     }
 
     public ShardDoc[] sortDocs(Collection<? extends QuerySearchResultProvider> results) {

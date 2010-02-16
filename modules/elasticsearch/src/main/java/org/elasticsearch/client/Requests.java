@@ -39,6 +39,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.terms.TermsRequest;
 
 /**
  * A handy one stop shop for creating requests (make sure to import static this class).
@@ -105,6 +106,10 @@ public class Requests {
      */
     public static CountRequest countRequest(String... indices) {
         return new CountRequest(indices);
+    }
+
+    public static TermsRequest termsRequest(String... indices) {
+        return new TermsRequest(indices);
     }
 
     /**
@@ -201,7 +206,7 @@ public class Requests {
      *
      * @param indices The indices to optimize. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
      * @return The optimize request
-     * @see org.elasticsearch.client.IndicesAdminClient#optimize(org.elasticsearch.action.admin.indices.flush.FlushRequest)
+     * @see org.elasticsearch.client.IndicesAdminClient#optimize(org.elasticsearch.action.admin.indices.optimize.OptimizeRequest)
      */
     public static OptimizeRequest optimizeRequest(String... indices) {
         return new OptimizeRequest(indices);

@@ -46,7 +46,7 @@ public class DfsSearchResult implements Streamable {
 
     private int[] freqs;
 
-    private int numDocs;
+    private int maxDoc;
 
     public DfsSearchResult() {
 
@@ -65,13 +65,13 @@ public class DfsSearchResult implements Streamable {
         return shardTarget;
     }
 
-    public DfsSearchResult numDocs(int numDocs) {
-        this.numDocs = numDocs;
+    public DfsSearchResult maxDoc(int maxDoc) {
+        this.maxDoc = maxDoc;
         return this;
     }
 
-    public int numDocs() {
-        return numDocs;
+    public int maxDoc() {
+        return maxDoc;
     }
 
     public DfsSearchResult termsAndFreqs(Term[] terms, int[] freqs) {
@@ -115,7 +115,7 @@ public class DfsSearchResult implements Streamable {
                 freqs[i] = in.readInt();
             }
         }
-        numDocs = in.readInt();
+        maxDoc = in.readInt();
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
@@ -130,6 +130,6 @@ public class DfsSearchResult implements Streamable {
         for (int freq : freqs) {
             out.writeInt(freq);
         }
-        out.writeInt(numDocs);
+        out.writeInt(maxDoc);
     }
 }

@@ -254,11 +254,19 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             if (request.listenerThreaded() && !alreadyThreaded) {
                 threadPool.execute(new Runnable() {
                     @Override public void run() {
-                        listener.onResponse(newResponse(request, shardsResponses, clusterState));
+                        try {
+                            listener.onResponse(newResponse(request, shardsResponses, clusterState));
+                        } catch (Exception e) {
+                            listener.onFailure(e);
+                        }
                     }
                 });
             } else {
-                listener.onResponse(newResponse(request, shardsResponses, clusterState));
+                try {
+                    listener.onResponse(newResponse(request, shardsResponses, clusterState));
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
             }
         }
     }

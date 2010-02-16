@@ -314,6 +314,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
                 } else {
                     indexWriter.optimize(maxNumberOfSegments, optimize.waitForMerge());
                 }
+                // once we did the optimization, we are "dirty" since we removed deletes potentially which
+                // affects TermEnum
+                dirty = true;
             } catch (Exception e) {
                 throw new OptimizeFailedEngineException(shardId, e);
             } finally {

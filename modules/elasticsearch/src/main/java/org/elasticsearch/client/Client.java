@@ -34,6 +34,8 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.terms.TermsRequest;
+import org.elasticsearch.action.terms.TermsResponse;
 
 /**
  * A client provides a one stop interface for performing actions/operations against the cluster.
@@ -263,4 +265,10 @@ public interface Client {
      * @see Requests#searchScrollRequest(String)
      */
     void execSearchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener);
+
+    ActionFuture<TermsResponse> terms(TermsRequest request);
+
+    ActionFuture<TermsResponse> terms(TermsRequest request, ActionListener<TermsResponse> listener);
+
+    void execTerms(TermsRequest request, ActionListener<TermsResponse> listener);
 }

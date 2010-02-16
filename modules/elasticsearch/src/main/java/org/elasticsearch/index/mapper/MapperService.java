@@ -229,6 +229,18 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     }
 
     /**
+     * Same as {@link #smartNameFieldMappers(String)} but returns the first field mapper for it. Returns
+     * <tt>null</tt> if there is none.
+     */
+    public FieldMapper smartNameFieldMapper(String smartName) {
+        FieldMappers fieldMappers = smartNameFieldMappers(smartName);
+        if (fieldMappers != null) {
+            return fieldMappers.mapper();
+        }
+        return null;
+    }
+
+    /**
      * Same as {@link #smartName(String)}, except it returns just the field mappers.
      */
     public FieldMappers smartNameFieldMappers(String smartName) {
@@ -317,14 +329,39 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             this.docMapper = docMapper;
         }
 
+        /**
+         * Has at least one mapper for the field.
+         */
+        public boolean hasMapper() {
+            return !fieldMappers.isEmpty();
+        }
+
+        /**
+         * The first mapper for the smart named field.
+         */
+        public FieldMapper mapper() {
+            return fieldMappers.mapper();
+        }
+
+        /**
+         * All the field mappers for the smart name field.
+         */
         public FieldMappers fieldMappers() {
             return fieldMappers;
         }
 
+        /**
+         * If the smart name was a typed field, with a type that we resolved, will return
+         * <tt>true</tt>.
+         */
         public boolean hasDocMapper() {
             return docMapper != null;
         }
 
+        /**
+         * If the smart name was a typed field, with a type that we resolved, will return
+         * the document mapper for it.
+         */
         public DocumentMapper docMapper() {
             return docMapper;
         }

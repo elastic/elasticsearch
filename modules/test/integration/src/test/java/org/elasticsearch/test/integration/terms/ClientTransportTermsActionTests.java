@@ -17,45 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.elasticsearch.test.integration.terms;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.server.internal.InternalServer;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.util.transport.TransportAddress;
+import org.testng.annotations.Test;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public interface HttpRequest {
-    enum Method {
-        GET, POST, PUT, DELETE
+@Test
+public class ClientTransportTermsActionTests extends TermsActionTests {
+
+    @Override protected Client getClient() {
+        TransportAddress server1Address = ((InternalServer) server("server1")).injector().getInstance(TransportService.class).boundAddress().publishAddress();
+        TransportClient client = new TransportClient();
+        client.addTransportAddress(server1Address);
+        return client;
     }
-
-    Method method();
-
-    String uri();
-
-    boolean hasContent();
-
-    String contentAsString();
-
-    Set<String> headerNames();
-
-    String header(String name);
-
-    List<String> headers(String name);
-
-    String cookie();
-
-    String param(String key);
-
-    float paramAsFloat(String key, float defaultValue);
-
-    int paramAsInt(String key, int defaultValue);
-
-    boolean paramAsBoolean(String key, boolean defaultValue);
-
-    List<String> params(String key);
-
-    Map<String, List<String>> params();
 }

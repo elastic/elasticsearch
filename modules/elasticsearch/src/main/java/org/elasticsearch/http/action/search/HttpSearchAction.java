@@ -58,6 +58,8 @@ public class HttpSearchAction extends BaseHttpServerHandler {
 
     @Inject public HttpSearchAction(Settings settings, HttpServer httpService, Client client) {
         super(settings, client);
+        httpService.registerHandler(HttpRequest.Method.GET, "/_search", this);
+        httpService.registerHandler(HttpRequest.Method.POST, "/_search", this);
         httpService.registerHandler(HttpRequest.Method.GET, "/{index}/_search", this);
         httpService.registerHandler(HttpRequest.Method.POST, "/{index}/_search", this);
         httpService.registerHandler(HttpRequest.Method.GET, "/{index}/{type}/_search", this);

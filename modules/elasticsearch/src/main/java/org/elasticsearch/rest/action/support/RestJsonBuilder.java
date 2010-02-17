@@ -17,13 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.elasticsearch.rest.action.support;
 
-import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.util.json.JsonBuilder;
+
+import java.io.IOException;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public interface HttpChannel extends RestChannel {
+public class RestJsonBuilder {
 
+    public static JsonBuilder cached(RestRequest request) throws IOException {
+        JsonBuilder builder = JsonBuilder.jsonBuilder();
+        String prettyPrint = request.param("pretty");
+        if (prettyPrint != null && "true".equals(prettyPrint)) {
+            builder.prettyPrint();
+        }
+        return builder;
+    }
 }

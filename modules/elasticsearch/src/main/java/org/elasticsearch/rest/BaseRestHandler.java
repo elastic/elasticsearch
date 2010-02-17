@@ -17,13 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.elasticsearch.rest;
 
-import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.util.component.AbstractComponent;
+import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public interface HttpChannel extends RestChannel {
+public abstract class BaseRestHandler extends AbstractComponent implements RestHandler {
 
+    protected final Client client;
+
+    protected BaseRestHandler(Settings settings, Client client) {
+        super(settings);
+        this.client = client;
+    }
 }

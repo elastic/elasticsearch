@@ -17,13 +17,32 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.elasticsearch.rest;
 
-import org.elasticsearch.rest.RestChannel;
+import org.apache.lucene.util.UnicodeUtil;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public interface HttpChannel extends RestChannel {
+public class StringRestResponse extends Utf8RestResponse {
 
+    private static ThreadLocal<UnicodeUtil.UTF8Result> cache = new ThreadLocal<UnicodeUtil.UTF8Result>() {
+        @Override protected UnicodeUtil.UTF8Result initialValue() {
+            return new UnicodeUtil.UTF8Result();
+        }
+    };
+
+    public StringRestResponse(Status status) {
+        super(status);
+    }
+
+    public StringRestResponse(Status status, String content) {
+        super(status, convert(content));
+    }
+
+    private static UnicodeUtil.UTF8Result convert(String content) {
+        UnicodeUtil.UTF8Result result = cache.get();
+        UnicodeUtil.UTF16toUTF8(content, 0, content.length(), result);
+        return result;
+    }
 }

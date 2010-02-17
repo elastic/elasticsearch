@@ -17,13 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
-
-import org.elasticsearch.rest.RestChannel;
+package org.elasticsearch.rest;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public interface HttpChannel extends RestChannel {
+public abstract class AbstractRestResponse implements RestResponse {
 
+    @Override public byte[] prefixContent() {
+        return null;
+    }
+
+    @Override public int prefixContentLength() {
+        return -1;
+    }
+
+    @Override public byte[] suffixContent() {
+        return null;
+    }
+
+    @Override public int suffixContentLength() {
+        return -1;
+    }
 }

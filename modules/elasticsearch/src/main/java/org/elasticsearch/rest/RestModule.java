@@ -17,13 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.elasticsearch.rest;
 
-import org.elasticsearch.rest.RestChannel;
+import com.google.inject.AbstractModule;
+import org.elasticsearch.rest.action.RestActionModule;
+import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public interface HttpChannel extends RestChannel {
+public class RestModule extends AbstractModule {
 
+    private final Settings settings;
+
+    public RestModule(Settings settings) {
+        this.settings = settings;
+    }
+
+    @Override protected void configure() {
+        bind(RestController.class).asEagerSingleton();
+        new RestActionModule().configure(binder());
+    }
 }

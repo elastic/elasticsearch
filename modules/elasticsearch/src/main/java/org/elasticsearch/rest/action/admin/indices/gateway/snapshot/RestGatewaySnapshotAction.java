@@ -1,0 +1,88 @@
+/*
+ * Licensed to Elastic Search and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Elastic Search licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.rest.action.admin.indices.gateway.snapshot;
+
+import com.google.inject.Inject;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequest;
+import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotResponse;
+import org.elasticsearch.action.admin.indices.gateway.snapshot.IndexGatewaySnapshotResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestActions;
+import org.elasticsearch.rest.action.support.RestJsonBuilder;
+import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.settings.Settings;
+
+import java.io.IOException;
+
+import static org.elasticsearch.action.support.replication.ShardReplicationOperationRequest.*;
+import static org.elasticsearch.rest.RestRequest.Method.*;
+import static org.elasticsearch.rest.RestResponse.Status.*;
+
+/**
+ * @author kimchy (Shay Banon)
+ */
+public class RestGatewaySnapshotAction extends BaseRestHandler {
+
+    @Inject public RestGatewaySnapshotAction(Settings settings, Client client, RestController controller) {
+        super(settings, client);
+        controller.registerHandler(POST, "/_gateway/snapshot", this);
+        controller.registerHandler(POST, "/{index}/_gateway/snapshot", this);
+    }
+
+    @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
+        GatewaySnapshotRequest gatewaySnapshotRequest = new GatewaySnapshotRequest(RestActions.splitIndices(request.param("index")));
+        gatewaySnapshotRequest.timeout(TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_TIMEOUT));
+        gatewaySnapshotRequest.listenerThreaded(false);
+        client.admin().indices().execGatewaySnapshot(gatewaySnapshotRequest, new ActionListener<GatewaySnapshotResponse>() {
+            @Override public void onResponse(GatewaySnapshotResponse result) {
+                try {
+                    JsonBuilder builder = RestJsonBuilder.cached(request);
+                    builder.startObject();
+                    builder.field("ok", true);
+                    builder.startObject("indices");
+                    for (IndexGatewaySnapshotResponse indexResponse : result.indices().values()) {
+                        builder.startObject(indexResponse.index())
+                                .field("ok", true)
+                                .field("totalShards", indexResponse.totalShards())
+                                .field("successfulShards", indexResponse.successfulShards())
+                                .field("failedShards", indexResponse.failedShards())
+                                .endObject();
+                    }
+                    builder.endObject();
+                    builder.endObject();
+                    channel.sendResponse(new JsonRestResponse(request, OK, builder));
+                } catch (Exception e) {
+                    onFailure(e);
+                }
+            }
+
+            @Override public void onFailure(Throwable e) {
+                try {
+                    channel.sendResponse(new JsonThrowableRestResponse(request, e));
+                } catch (IOException e1) {
+                    logger.error("Failed to send failure response", e1);
+                }
+            }
+        });
+    }
+}

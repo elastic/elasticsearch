@@ -21,6 +21,7 @@ package org.elasticsearch.http.netty;
 
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpResponse;
+import org.elasticsearch.rest.RestResponse;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
@@ -42,7 +43,7 @@ public class NettyHttpChannel implements HttpChannel {
         this.request = request;
     }
 
-    @Override public void sendResponse(HttpResponse response) {
+    @Override public void sendResponse(RestResponse response) {
 
         // Decide whether to close the connection or not.
         boolean http10 = request.getProtocolVersion().equals(HttpVersion.HTTP_1_0);

@@ -19,43 +19,11 @@
 
 package org.elasticsearch.http;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import org.elasticsearch.rest.RestRequest;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public interface HttpRequest {
-    enum Method {
-        GET, POST, PUT, DELETE
-    }
+public interface HttpRequest extends RestRequest {
 
-    Method method();
-
-    String uri();
-
-    boolean hasContent();
-
-    String contentAsString();
-
-    Set<String> headerNames();
-
-    String header(String name);
-
-    List<String> headers(String name);
-
-    String cookie();
-
-    String param(String key);
-
-    float paramAsFloat(String key, float defaultValue);
-
-    int paramAsInt(String key, int defaultValue);
-
-    boolean paramAsBoolean(String key, boolean defaultValue);
-
-    List<String> params(String key);
-
-    Map<String, List<String>> params();
 }

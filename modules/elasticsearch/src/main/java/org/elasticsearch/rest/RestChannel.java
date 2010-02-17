@@ -17,13 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
-
-import org.elasticsearch.rest.RestChannel;
+package org.elasticsearch.rest;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public interface HttpChannel extends RestChannel {
+public interface RestChannel {
 
+    void sendResponse(RestResponse response);
 }

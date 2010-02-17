@@ -46,6 +46,8 @@ import org.elasticsearch.jmx.JmxModule;
 import org.elasticsearch.jmx.JmxService;
 import org.elasticsearch.monitor.MonitorModule;
 import org.elasticsearch.monitor.MonitorService;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.server.Server;
@@ -103,6 +105,7 @@ public final class InternalServer implements Server {
         modules.add(new ThreadPoolModule(settings));
         modules.add(new DiscoveryModule(settings));
         modules.add(new ClusterModule(settings));
+        modules.add(new RestModule(settings));
         modules.add(new TransportModule(settings));
         if (settings.getAsBoolean("http.enabled", true)) {
             modules.add(new HttpServerModule(settings));
@@ -138,12 +141,13 @@ public final class InternalServer implements Server {
         Logger logger = Loggers.getLogger(Server.class, settings.get("name"));
         logger.info("{{}}: Starting ...", Version.full());
 
-        injector().getInstance(IndicesService.class).start();
-        injector().getInstance(GatewayService.class).start();
+        injector.getInstance(IndicesService.class).start();
+        injector.getInstance(GatewayService.class).start();
         injector.getInstance(ClusterService.class).start();
         injector.getInstance(RoutingService.class).start();
         injector.getInstance(SearchService.class).start();
-        injector().getInstance(MonitorService.class).start();
+        injector.getInstance(MonitorService.class).start();
+        injector.getInstance(RestController.class).start();
         injector.getInstance(TransportService.class).start();
         DiscoveryService discoService = injector.getInstance(DiscoveryService.class).start();
         if (settings.getAsBoolean("http.enabled", true)) {
@@ -173,6 +177,7 @@ public final class InternalServer implements Server {
         injector.getInstance(GatewayService.class).stop();
         injector.getInstance(SearchService.class).stop();
         injector.getInstance(IndicesService.class).stop();
+        injector.getInstance(RestController.class).stop();
         injector.getInstance(TransportService.class).stop();
         injector.getInstance(JmxService.class).close();
 
@@ -213,6 +218,7 @@ public final class InternalServer implements Server {
         injector.getInstance(GatewayService.class).close();
         injector.getInstance(SearchService.class).close();
         injector.getInstance(IndicesService.class).close();
+        injector.getInstance(RestController.class).close();
         injector.getInstance(TransportService.class).close();
 
         injector.getInstance(ThreadPool.class).shutdown();

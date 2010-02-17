@@ -22,15 +22,16 @@ package org.elasticsearch.http;
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfo;
+import org.elasticsearch.rest.JsonThrowableRestResponse;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.component.Lifecycle;
 import org.elasticsearch.util.component.LifecycleComponent;
+import org.elasticsearch.util.path.PathTrie;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
-
-import static org.elasticsearch.http.HttpResponse.Status.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -43,6 +44,8 @@ public class HttpServer extends AbstractComponent implements LifecycleComponent<
 
     private final ThreadPool threadPool;
 
+    private final RestController restController;
+
     private final TransportNodesInfo nodesInfo;
 
     private final PathTrie<HttpServerHandler> getHandlers;
@@ -51,10 +54,11 @@ public class HttpServer extends AbstractComponent implements LifecycleComponent<
     private final PathTrie<HttpServerHandler> deleteHandlers;
 
     @Inject public HttpServer(Settings settings, HttpServerTransport transport, ThreadPool threadPool,
-                              TransportNodesInfo nodesInfo) {
+                              RestController restController, TransportNodesInfo nodesInfo) {
         super(settings);
         this.transport = transport;
         this.threadPool = threadPool;
+        this.restController = restController;
         this.nodesInfo = nodesInfo;
 
         getHandlers = new PathTrie<HttpServerHandler>();
@@ -118,7 +122,9 @@ public class HttpServer extends AbstractComponent implements LifecycleComponent<
 
     private void internalDispatchRequest(final HttpRequest request, final HttpChannel channel) {
         final HttpServerHandler httpHandler = getHandler(request);
-        if (httpHandler != null) {
+        if (httpHandler == null) {
+            restController.dispatchRequest(request, channel);
+        } else {
             if (httpHandler.spawn()) {
                 threadPool.execute(new Runnable() {
                     @Override public void run() {
@@ -126,7 +132,7 @@ public class HttpServer extends AbstractComponent implements LifecycleComponent<
                             httpHandler.handleRequest(request, channel);
                         } catch (Exception e) {
                             try {
-                                channel.sendResponse(new JsonThrowableHttpResponse(request, e));
+                                channel.sendResponse(new JsonThrowableRestResponse(request, e));
                             } catch (IOException e1) {
                                 logger.error("Failed to send failure response for uri [" + request.uri() + "]", e1);
                             }
@@ -138,14 +144,12 @@ public class HttpServer extends AbstractComponent implements LifecycleComponent<
                     httpHandler.handleRequest(request, channel);
                 } catch (Exception e) {
                     try {
-                        channel.sendResponse(new JsonThrowableHttpResponse(request, e));
+                        channel.sendResponse(new JsonThrowableRestResponse(request, e));
                     } catch (IOException e1) {
                         logger.error("Failed to send failure response for uri [" + request.uri() + "]", e1);
                     }
                 }
             }
-        } else {
-            channel.sendResponse(new StringHttpResponse(BAD_REQUEST, "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]"));
         }
     }
 

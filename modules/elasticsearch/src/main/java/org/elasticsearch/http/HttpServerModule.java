@@ -21,7 +21,6 @@ package org.elasticsearch.http;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Module;
-import org.elasticsearch.http.action.HttpActionModule;
 import org.elasticsearch.util.Classes;
 import org.elasticsearch.util.settings.Settings;
 
@@ -55,7 +54,5 @@ public class HttpServerModule extends AbstractModule {
 
         Class<? extends Module> moduleClass = settings.getAsClass("http.type", defaultHttpServerTransportModule, "org.elasticsearch.http.", "HttpServerTransportModule");
         createModule(moduleClass, settings).configure(binder());
-
-        new HttpActionModule().configure(binder());
     }
 }

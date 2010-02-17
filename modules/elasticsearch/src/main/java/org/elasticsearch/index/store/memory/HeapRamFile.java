@@ -17,24 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store.bytebuffer;
-
-import java.nio.ByteBuffer;
+package org.elasticsearch.index.store.memory;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public class ByteBufferFile {
+public class HeapRamFile {
 
-    private final ByteBufferDirectory dir;
+    private final HeapDirectory dir;
 
     private volatile long lastModified = System.currentTimeMillis();
 
     private volatile long length;
 
-    private volatile ByteBuffer[] buffers;
+    private volatile byte[][] buffers;
 
-    public ByteBufferFile(ByteBufferDirectory dir) {
+    public HeapRamFile(HeapDirectory dir) {
         this.dir = dir;
     }
 
@@ -54,7 +52,7 @@ public class ByteBufferFile {
         this.length = length;
     }
 
-    ByteBuffer buffer(int i) {
+    byte[] buffer(int i) {
         return this.buffers[i];
     }
 
@@ -62,13 +60,13 @@ public class ByteBufferFile {
         return this.buffers.length;
     }
 
-    void buffers(ByteBuffer[] buffers) {
+    void buffers(byte[][] buffers) {
         this.buffers = buffers;
     }
 
     void clean() {
         if (buffers != null) {
-            for (ByteBuffer buffer : buffers) {
+            for (byte[] buffer : buffers) {
                 dir.releaseBuffer(buffer);
             }
             buffers = null;

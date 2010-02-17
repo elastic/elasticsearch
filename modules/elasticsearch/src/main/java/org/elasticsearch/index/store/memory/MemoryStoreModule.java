@@ -20,14 +20,29 @@
 package org.elasticsearch.index.store.memory;
 
 import com.google.inject.AbstractModule;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)
  */
 public class MemoryStoreModule extends AbstractModule {
 
+    private final Settings settings;
+
+    public MemoryStoreModule(Settings settings) {
+        this.settings = settings;
+    }
+
     @Override protected void configure() {
-        bind(Store.class).to(MemoryStore.class).asEagerSingleton();
+        String location = settings.get("index.store.memory.location", "direct");
+        if ("direct".equalsIgnoreCase(location)) {
+            bind(Store.class).to(ByteBufferStore.class).asEagerSingleton();
+        } else if ("heap".equalsIgnoreCase(location)) {
+            bind(Store.class).to(HeapStore.class).asEagerSingleton();
+        } else {
+            throw new ElasticSearchIllegalArgumentException("Memory location [" + location + "] is invalid, can be one of [direct,heap]");
+        }
     }
 }

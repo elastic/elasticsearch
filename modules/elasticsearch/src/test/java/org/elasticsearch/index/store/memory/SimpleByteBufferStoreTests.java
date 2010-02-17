@@ -33,54 +33,54 @@ import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy
  */
-public class SimpleMemoryStoreTests {
+public class SimpleByteBufferStoreTests {
 
     @Test public void test1BufferNoCache() throws Exception {
-        MemoryDirectory dir = new MemoryDirectory(new SizeValue(1, SizeUnit.BYTES), new SizeValue(0, SizeUnit.BYTES), false);
+        ByteBufferDirectory dir = new ByteBufferDirectory(new SizeValue(1, SizeUnit.BYTES), new SizeValue(0, SizeUnit.BYTES), true, false);
         insertData(dir);
         verifyData(dir);
         dir.close();
     }
 
     @Test public void test1Buffer() throws Exception {
-        MemoryDirectory dir = new MemoryDirectory(new SizeValue(1, SizeUnit.BYTES), new SizeValue(10, SizeUnit.BYTES), false);
+        ByteBufferDirectory dir = new ByteBufferDirectory(new SizeValue(1, SizeUnit.BYTES), new SizeValue(10, SizeUnit.BYTES), true, false);
         insertData(dir);
         verifyData(dir);
         dir.close();
     }
 
     @Test public void test3Buffer() throws Exception {
-        MemoryDirectory dir = new MemoryDirectory(new SizeValue(3, SizeUnit.BYTES), new SizeValue(10, SizeUnit.BYTES), false);
+        ByteBufferDirectory dir = new ByteBufferDirectory(new SizeValue(3, SizeUnit.BYTES), new SizeValue(10, SizeUnit.BYTES), true, false);
         insertData(dir);
         verifyData(dir);
         dir.close();
     }
 
     @Test public void test10Buffer() throws Exception {
-        MemoryDirectory dir = new MemoryDirectory(new SizeValue(10, SizeUnit.BYTES), new SizeValue(20, SizeUnit.BYTES), false);
+        ByteBufferDirectory dir = new ByteBufferDirectory(new SizeValue(10, SizeUnit.BYTES), new SizeValue(20, SizeUnit.BYTES), true, false);
         insertData(dir);
         verifyData(dir);
         dir.close();
     }
 
     @Test public void test15Buffer() throws Exception {
-        MemoryDirectory dir = new MemoryDirectory(new SizeValue(15, SizeUnit.BYTES), new SizeValue(30, SizeUnit.BYTES), false);
+        ByteBufferDirectory dir = new ByteBufferDirectory(new SizeValue(15, SizeUnit.BYTES), new SizeValue(30, SizeUnit.BYTES), true, false);
         insertData(dir);
         verifyData(dir);
         dir.close();
     }
 
     @Test public void test40Buffer() throws Exception {
-        MemoryDirectory dir = new MemoryDirectory(new SizeValue(40, SizeUnit.BYTES), new SizeValue(80, SizeUnit.BYTES), false);
+        ByteBufferDirectory dir = new ByteBufferDirectory(new SizeValue(40, SizeUnit.BYTES), new SizeValue(80, SizeUnit.BYTES), true, false);
         insertData(dir);
         verifyData(dir);
         dir.close();
     }
 
-    @Test public void testSimpeLocking() throws Exception {
-        MemoryDirectory dir = new MemoryDirectory(new SizeValue(40, SizeUnit.BYTES), new SizeValue(80, SizeUnit.BYTES), false);
+    @Test public void testSimpleLocking() throws Exception {
+        ByteBufferDirectory dir = new ByteBufferDirectory(new SizeValue(40, SizeUnit.BYTES), new SizeValue(80, SizeUnit.BYTES), true, false);
 
         Lock lock = dir.makeLock("testlock");
 
@@ -98,7 +98,7 @@ public class SimpleMemoryStoreTests {
         dir.close();
     }
 
-    private void insertData(MemoryDirectory dir) throws IOException {
+    private void insertData(ByteBufferDirectory dir) throws IOException {
         byte[] test = new byte[]{1, 2, 3, 4, 5, 6, 7, 8};
         IndexOutput indexOutput = dir.createOutput("value1");
         indexOutput.writeBytes(new byte[]{2, 4, 6, 7, 8}, 5);
@@ -119,7 +119,7 @@ public class SimpleMemoryStoreTests {
         indexOutput.close();
     }
 
-    private void verifyData(MemoryDirectory dir) throws IOException {
+    private void verifyData(ByteBufferDirectory dir) throws IOException {
         byte[] test = new byte[]{1, 2, 3, 4, 5, 6, 7, 8};
         assertThat(dir.fileExists("value1"), equalTo(true));
         assertThat(dir.fileLength("value1"), equalTo(38l));

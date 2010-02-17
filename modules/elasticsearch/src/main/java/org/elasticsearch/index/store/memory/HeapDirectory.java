@@ -37,9 +37,9 @@ import static org.elasticsearch.util.concurrent.ConcurrentMaps.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class MemoryDirectory extends Directory {
+public class HeapDirectory extends Directory {
 
-    private final Map<String, MemoryFile> files = newConcurrentMap();
+    private final Map<String, HeapRamFile> files = newConcurrentMap();
 
     private final Queue<byte[]> cache;
 
@@ -51,11 +51,11 @@ public class MemoryDirectory extends Directory {
 
     private final boolean disableCache;
 
-    public MemoryDirectory() {
+    public HeapDirectory() {
         this(new SizeValue(1, SizeUnit.KB), new SizeValue(20, SizeUnit.MB), false);
     }
 
-    public MemoryDirectory(SizeValue bufferSize, SizeValue cacheSize, boolean warmCache) {
+    public HeapDirectory(SizeValue bufferSize, SizeValue cacheSize, boolean warmCache) {
         disableCache = cacheSize.bytes() == 0;
         if (!disableCache && cacheSize.bytes() < bufferSize.bytes()) {
             throw new IllegalArgumentException("Cache size [" + cacheSize + "] is smaller than buffer size [" + bufferSize + "]");
@@ -94,14 +94,14 @@ public class MemoryDirectory extends Directory {
     }
 
     @Override public long fileModified(String name) throws IOException {
-        MemoryFile file = files.get(name);
+        HeapRamFile file = files.get(name);
         if (file == null)
             throw new FileNotFoundException(name);
         return file.lastModified();
     }
 
     @Override public void touchFile(String name) throws IOException {
-        MemoryFile file = files.get(name);
+        HeapRamFile file = files.get(name);
         if (file == null)
             throw new FileNotFoundException(name);
 
@@ -122,33 +122,33 @@ public class MemoryDirectory extends Directory {
     }
 
     @Override public void deleteFile(String name) throws IOException {
-        MemoryFile file = files.remove(name);
+        HeapRamFile file = files.remove(name);
         if (file == null)
             throw new FileNotFoundException(name);
         file.clean();
     }
 
     @Override public long fileLength(String name) throws IOException {
-        MemoryFile file = files.get(name);
+        HeapRamFile file = files.get(name);
         if (file == null)
             throw new FileNotFoundException(name);
         return file.length();
     }
 
     @Override public IndexOutput createOutput(String name) throws IOException {
-        MemoryFile file = new MemoryFile(this);
-        MemoryFile existing = files.put(name, file);
+        HeapRamFile file = new HeapRamFile(this);
+        HeapRamFile existing = files.put(name, file);
         if (existing != null) {
             existing.clean();
         }
-        return new MemoryIndexOutput(this, file);
+        return new HeapIndexOutput(this, file);
     }
 
     @Override public IndexInput openInput(String name) throws IOException {
-        MemoryFile file = files.get(name);
+        HeapRamFile file = files.get(name);
         if (file == null)
             throw new FileNotFoundException(name);
-        return new MemoryIndexInput(this, file);
+        return new HeapIndexInput(this, file);
     }
 
     @Override public void close() throws IOException {

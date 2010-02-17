@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store.bytebuffer;
+package org.elasticsearch.index.store.memory;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
@@ -197,14 +197,14 @@ public class ByteBufferDirectory extends Directory {
         return byteBuffer;
     }
 
-    ByteBuffer createBuffer() {
+    private ByteBuffer createBuffer() {
         if (isDirect()) {
             return ByteBuffer.allocateDirect(bufferSizeInBytes());
         }
         return ByteBuffer.allocate(bufferSizeInBytes());
     }
 
-    void closeBuffer(ByteBuffer byteBuffer) {
+    private void closeBuffer(ByteBuffer byteBuffer) {
         if (isDirect()) {
             ((DirectBuffer) byteBuffer).cleaner().clean();
         }

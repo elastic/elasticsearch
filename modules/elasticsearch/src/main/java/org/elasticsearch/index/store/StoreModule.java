@@ -21,7 +21,6 @@ package org.elasticsearch.index.store;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Module;
-import org.elasticsearch.index.store.bytebuffer.ByteBufferStoreModule;
 import org.elasticsearch.index.store.fs.MmapFsStoreModule;
 import org.elasticsearch.index.store.fs.NioFsStoreModule;
 import org.elasticsearch.index.store.fs.SimpleFsStoreModule;
@@ -52,8 +51,6 @@ public class StoreModule extends AbstractModule {
             storeModule = RamStoreModule.class;
         } else if ("memory".equalsIgnoreCase(storeType)) {
             storeModule = MemoryStoreModule.class;
-        } else if ("bytebuffer".equalsIgnoreCase(storeType)) {
-            storeModule = ByteBufferStoreModule.class;
         } else if ("fs".equalsIgnoreCase(storeType)) {
             // nothing to set here ... (we default to fs)
         } else if ("simplefs".equalsIgnoreCase(storeType)) {

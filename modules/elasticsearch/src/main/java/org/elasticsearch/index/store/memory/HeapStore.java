@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store.bytebuffer;
+package org.elasticsearch.index.store.memory;
 
 import com.google.inject.Inject;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -30,31 +30,29 @@ import org.elasticsearch.util.settings.Settings;
 /**
  * @author kimchy (Shay Banon)
  */
-public class ByteBufferStore extends AbstractStore<ByteBufferDirectory> {
+public class HeapStore extends AbstractStore<HeapDirectory> {
 
     private final SizeValue bufferSize;
 
     private final SizeValue cacheSize;
 
-    private final boolean direct;
-
     private final boolean warmCache;
 
-    private final ByteBufferDirectory directory;
+    private HeapDirectory directory;
 
-    @Inject public ByteBufferStore(ShardId shardId, @IndexSettings Settings indexSettings) {
+    @Inject public HeapStore(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
 
         this.bufferSize = componentSettings.getAsSize("bufferSize", new SizeValue(1, SizeUnit.KB));
         this.cacheSize = componentSettings.getAsSize("cacheSize", new SizeValue(20, SizeUnit.MB));
-        this.direct = componentSettings.getAsBoolean("direct", true);
         this.warmCache = componentSettings.getAsBoolean("warmCache", true);
-        this.directory = new ByteBufferDirectory(bufferSize, cacheSize, direct, warmCache);
-        logger.debug("Using [ByteBuffer] Store with bufferSize[{}], cacheSize[{}], direct[{}], warmCache[{}]",
-                new Object[]{directory.bufferSize(), directory.cacheSize(), directory.isDirect(), warmCache});
+
+        this.directory = new HeapDirectory(bufferSize, cacheSize, warmCache);
+        logger.debug("Using [Memory] Store with bufferSize[{}], cacheSize[{}], warmCache[{}]",
+                new Object[]{directory.bufferSize(), directory.cacheSize(), warmCache});
     }
 
-    @Override public ByteBufferDirectory directory() {
+    @Override public HeapDirectory directory() {
         return directory;
     }
 

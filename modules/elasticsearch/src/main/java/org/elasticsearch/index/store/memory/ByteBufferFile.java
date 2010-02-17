@@ -19,20 +19,22 @@
 
 package org.elasticsearch.index.store.memory;
 
+import java.nio.ByteBuffer;
+
 /**
  * @author kimchy (Shay Banon)
  */
-public class MemoryFile {
+public class ByteBufferFile {
 
-    private final MemoryDirectory dir;
+    private final ByteBufferDirectory dir;
 
     private volatile long lastModified = System.currentTimeMillis();
 
     private volatile long length;
 
-    private volatile byte[][] buffers;
+    private volatile ByteBuffer[] buffers;
 
-    public MemoryFile(MemoryDirectory dir) {
+    public ByteBufferFile(ByteBufferDirectory dir) {
         this.dir = dir;
     }
 
@@ -52,7 +54,7 @@ public class MemoryFile {
         this.length = length;
     }
 
-    byte[] buffer(int i) {
+    ByteBuffer buffer(int i) {
         return this.buffers[i];
     }
 
@@ -60,13 +62,13 @@ public class MemoryFile {
         return this.buffers.length;
     }
 
-    void buffers(byte[][] buffers) {
+    void buffers(ByteBuffer[] buffers) {
         this.buffers = buffers;
     }
 
     void clean() {
         if (buffers != null) {
-            for (byte[] buffer : buffers) {
+            for (ByteBuffer buffer : buffers) {
                 dir.releaseBuffer(buffer);
             }
             buffers = null;

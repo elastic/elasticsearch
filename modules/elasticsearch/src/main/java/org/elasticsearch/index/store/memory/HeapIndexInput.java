@@ -26,10 +26,10 @@ import java.io.IOException;
 /**
  * @author kimchy (Shay Banon)
  */
-public class MemoryIndexInput extends IndexInput {
+public class HeapIndexInput extends IndexInput {
 
     private final int bufferSize;
-    private final MemoryFile file;
+    private final HeapRamFile file;
 
     private long length;
 
@@ -40,7 +40,7 @@ public class MemoryIndexInput extends IndexInput {
     private long bufferStart;
     private int bufferLength;
 
-    public MemoryIndexInput(MemoryDirectory dir, MemoryFile file) throws IOException {
+    public HeapIndexInput(HeapDirectory dir, HeapRamFile file) throws IOException {
         this.bufferSize = dir.bufferSizeInBytes();
         this.file = file;
 

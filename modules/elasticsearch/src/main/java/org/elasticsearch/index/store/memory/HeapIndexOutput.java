@@ -27,10 +27,10 @@ import java.util.ArrayList;
 /**
  * @author kimchy (Shay Banon)
  */
-public class MemoryIndexOutput extends IndexOutput {
+public class HeapIndexOutput extends IndexOutput {
 
-    private final MemoryDirectory dir;
-    private final MemoryFile file;
+    private final HeapDirectory dir;
+    private final HeapRamFile file;
 
     private ArrayList<byte[]> buffers = new ArrayList<byte[]>();
 
@@ -41,7 +41,7 @@ public class MemoryIndexOutput extends IndexOutput {
     private long bufferStart;
     private int bufferLength;
 
-    public MemoryIndexOutput(MemoryDirectory dir, MemoryFile file) {
+    public HeapIndexOutput(HeapDirectory dir, HeapRamFile file) {
         this.dir = dir;
         this.file = file;
 

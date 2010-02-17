@@ -30,29 +30,31 @@ import org.elasticsearch.util.settings.Settings;
 /**
  * @author kimchy (Shay Banon)
  */
-public class MemoryStore extends AbstractStore<MemoryDirectory> {
+public class ByteBufferStore extends AbstractStore<ByteBufferDirectory> {
 
     private final SizeValue bufferSize;
 
     private final SizeValue cacheSize;
 
+    private final boolean direct;
+
     private final boolean warmCache;
 
-    private MemoryDirectory directory;
+    private final ByteBufferDirectory directory;
 
-    @Inject public MemoryStore(ShardId shardId, @IndexSettings Settings indexSettings) {
+    @Inject public ByteBufferStore(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
 
         this.bufferSize = componentSettings.getAsSize("bufferSize", new SizeValue(1, SizeUnit.KB));
         this.cacheSize = componentSettings.getAsSize("cacheSize", new SizeValue(20, SizeUnit.MB));
+        this.direct = componentSettings.getAsBoolean("direct", true);
         this.warmCache = componentSettings.getAsBoolean("warmCache", true);
-
-        this.directory = new MemoryDirectory(bufferSize, cacheSize, warmCache);
-        logger.debug("Using [Memory] Store with bufferSize[{}], cacheSize[{}], warmCache[{}]",
-                new Object[]{directory.bufferSize(), directory.cacheSize(), warmCache});
+        this.directory = new ByteBufferDirectory(bufferSize, cacheSize, direct, warmCache);
+        logger.debug("Using [ByteBuffer] Store with bufferSize[{}], cacheSize[{}], direct[{}], warmCache[{}]",
+                new Object[]{directory.bufferSize(), directory.cacheSize(), directory.isDirect(), warmCache});
     }
 
-    @Override public MemoryDirectory directory() {
+    @Override public ByteBufferDirectory directory() {
         return directory;
     }
 

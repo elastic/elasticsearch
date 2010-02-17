@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store.bytebuffer;
+package org.elasticsearch.index.store.memory;
 
 import org.apache.lucene.store.IndexOutput;
 

@@ -36,7 +36,7 @@ import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.memory.MemoryStore;
+import org.elasticsearch.index.store.memory.ByteBufferStore;
 import org.elasticsearch.index.translog.memory.MemoryTranslog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.dynamic.DynamicThreadPool;
@@ -277,7 +277,8 @@ public class SimpleEngineBenchmark {
         Settings settings = EMPTY_SETTINGS;
 
 //        Store store = new RamStore(shardId, settings);
-        Store store = new MemoryStore(shardId, settings);
+        Store store = new ByteBufferStore(shardId, settings);
+//        Store store = new HeapStore(shardId, settings);
 //        Store store = new NioFsStore(shardId, settings);
 
         store.deleteContent();

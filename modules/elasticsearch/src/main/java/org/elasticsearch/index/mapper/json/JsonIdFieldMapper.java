@@ -45,8 +45,8 @@ public class JsonIdFieldMapper extends JsonFieldMapper<String> implements IdFiel
 
     public static class Builder extends JsonFieldMapper.Builder<Builder, JsonIdFieldMapper> {
 
-        public Builder(String name) {
-            super(name);
+        public Builder() {
+            super(Defaults.NAME);
             indexName = Defaults.INDEX_NAME;
             store = Defaults.STORE;
             index = Defaults.INDEX;

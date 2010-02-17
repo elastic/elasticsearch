@@ -51,7 +51,7 @@ public interface JsonMapper {
 
         protected T builder;
 
-        public Builder(String name) {
+        protected Builder(String name) {
             this.name = name;
         }
 

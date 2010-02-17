@@ -32,20 +32,20 @@ public final class JsonMapperBuilders {
         return new JsonDocumentMapper.Builder(objectBuilder);
     }
 
-    public static JsonSourceFieldMapper.Builder source(String name) {
-        return new JsonSourceFieldMapper.Builder(name);
+    public static JsonSourceFieldMapper.Builder source() {
+        return new JsonSourceFieldMapper.Builder();
     }
 
-    public static JsonIdFieldMapper.Builder id(String name) {
-        return new JsonIdFieldMapper.Builder(name);
+    public static JsonIdFieldMapper.Builder id() {
+        return new JsonIdFieldMapper.Builder();
     }
 
-    public static JsonUidFieldMapper.Builder uid(String name) {
-        return new JsonUidFieldMapper.Builder(name);
+    public static JsonUidFieldMapper.Builder uid() {
+        return new JsonUidFieldMapper.Builder();
     }
 
-    public static JsonTypeFieldMapper.Builder type(String name) {
-        return new JsonTypeFieldMapper.Builder(name);
+    public static JsonTypeFieldMapper.Builder type() {
+        return new JsonTypeFieldMapper.Builder();
     }
 
     public static JsonBoostFieldMapper.Builder boost(String name) {

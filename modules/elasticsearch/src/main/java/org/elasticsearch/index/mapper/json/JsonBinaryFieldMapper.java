@@ -37,6 +37,10 @@ public class JsonBinaryFieldMapper extends JsonFieldMapper<byte[]> {
             builder = this;
         }
 
+        @Override public Builder indexName(String indexName) {
+            return super.indexName(indexName);
+        }
+
         @Override public JsonBinaryFieldMapper build(BuilderContext context) {
             return new JsonBinaryFieldMapper(name, buildIndexName(context), buildFullName(context));
         }

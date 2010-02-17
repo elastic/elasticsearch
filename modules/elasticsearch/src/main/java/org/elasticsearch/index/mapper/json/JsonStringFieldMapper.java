@@ -36,7 +36,7 @@ public class JsonStringFieldMapper extends JsonFieldMapper<String> {
         public static final String NULL_VALUE = null;
     }
 
-    public static class Builder extends JsonFieldMapper.Builder<Builder, JsonStringFieldMapper> {
+    public static class Builder extends JsonFieldMapper.OpenBuilder<Builder, JsonStringFieldMapper> {
 
         protected String nullValue = Defaults.NULL_VALUE;
 

@@ -52,14 +52,15 @@ public class JsonSourceFieldMapper extends JsonFieldMapper<String> implements So
 
         private int compressionThreshold = Defaults.NO_COMPRESSION;
 
-        public Builder(String name) {
-            super(name);
+        public Builder() {
+            super(Defaults.NAME);
         }
 
-        public Builder enabled(boolean enabled) {
-            this.enabled = enabled;
-            return this;
-        }
+        // source is always enabled for now
+//        public Builder enabled(boolean enabled) {
+//            this.enabled = enabled;
+//            return this;
+//        }
 
         public Builder compressor(Compressor compressor) {
             this.compressor = compressor;

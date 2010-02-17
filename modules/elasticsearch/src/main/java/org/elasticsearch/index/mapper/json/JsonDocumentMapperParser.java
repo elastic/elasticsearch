@@ -129,17 +129,17 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
     }
 
     private JsonUidFieldMapper.Builder parseUidField(ObjectNode uidNode) {
-        String name = uidNode.get("name") == null ? JsonUidFieldMapper.Defaults.NAME : uidNode.get("name").getTextValue();
-        JsonUidFieldMapper.Builder builder = uid(name);
-        for (Iterator<Map.Entry<String, JsonNode>> fieldsIt = uidNode.getFields(); fieldsIt.hasNext();) {
-            Map.Entry<String, JsonNode> entry = fieldsIt.next();
-            String fieldName = entry.getKey();
-            JsonNode fieldNode = entry.getValue();
-
-            if ("indexName".equals(fieldName)) {
-                builder.indexName(fieldNode.getTextValue());
-            }
-        }
+//        String name = uidNode.get("name") == null ? JsonUidFieldMapper.Defaults.NAME : uidNode.get("name").getTextValue();
+        JsonUidFieldMapper.Builder builder = uid();
+//        for (Iterator<Map.Entry<String, JsonNode>> fieldsIt = uidNode.getFields(); fieldsIt.hasNext();) {
+//            Map.Entry<String, JsonNode> entry = fieldsIt.next();
+//            String fieldName = entry.getKey();
+//            JsonNode fieldNode = entry.getValue();
+//
+//            if ("indexName".equals(fieldName)) {
+//                builder.indexName(fieldNode.getTextValue());
+//            }
+//        }
         return builder;
     }
 
@@ -159,23 +159,23 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
     }
 
     private JsonTypeFieldMapper.Builder parseTypeField(ObjectNode typeNode) {
-        String name = typeNode.get("name") == null ? JsonTypeFieldMapper.Defaults.NAME : typeNode.get("name").getTextValue();
-        JsonTypeFieldMapper.Builder builder = type(name);
-        parseJsonField(builder, name, typeNode);
+//        String name = typeNode.get("name") == null ? JsonTypeFieldMapper.Defaults.NAME : typeNode.get("name").getTextValue();
+        JsonTypeFieldMapper.Builder builder = type();
+        parseJsonField(builder, builder.name, typeNode);
         return builder;
     }
 
 
     private JsonIdFieldMapper.Builder parseIdField(ObjectNode idNode) {
-        String name = idNode.get("name") == null ? JsonIdFieldMapper.Defaults.NAME : idNode.get("name").getTextValue();
-        JsonIdFieldMapper.Builder builder = id(name);
-        parseJsonField(builder, name, idNode);
+//        String name = idNode.get("name") == null ? JsonIdFieldMapper.Defaults.NAME : idNode.get("name").getTextValue();
+        JsonIdFieldMapper.Builder builder = id();
+        parseJsonField(builder, builder.name, idNode);
         return builder;
     }
 
     private JsonSourceFieldMapper.Builder parseSourceField(ObjectNode sourceNode) {
-        String name = sourceNode.get("name") == null ? JsonSourceFieldMapper.Defaults.NAME : sourceNode.get("name").getTextValue();
-        JsonSourceFieldMapper.Builder builder = source(name);
+//        String name = sourceNode.get("name") == null ? JsonSourceFieldMapper.Defaults.NAME : sourceNode.get("name").getTextValue();
+        JsonSourceFieldMapper.Builder builder = source();
         for (Iterator<Map.Entry<String, JsonNode>> fieldsIt = sourceNode.getFields(); fieldsIt.hasNext();) {
             Map.Entry<String, JsonNode> entry = fieldsIt.next();
             String fieldName = entry.getKey();

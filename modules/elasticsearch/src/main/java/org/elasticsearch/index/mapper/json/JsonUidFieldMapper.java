@@ -45,14 +45,9 @@ public class JsonUidFieldMapper extends JsonFieldMapper<Uid> implements UidField
 
         protected String indexName;
 
-        public Builder(String name) {
-            super(name);
+        public Builder() {
+            super(Defaults.NAME);
             this.indexName = name;
-        }
-
-        public Builder indexName(String indexName) {
-            this.indexName = indexName;
-            return this;
         }
 
         @Override public JsonUidFieldMapper build(BuilderContext context) {

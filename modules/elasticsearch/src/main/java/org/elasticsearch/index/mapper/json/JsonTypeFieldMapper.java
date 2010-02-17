@@ -44,8 +44,8 @@ public class JsonTypeFieldMapper extends JsonFieldMapper<String> implements Type
 
     public static class Builder extends JsonFieldMapper.Builder<Builder, JsonTypeFieldMapper> {
 
-        public Builder(String name) {
-            super(name);
+        public Builder() {
+            super(Defaults.NAME);
             indexName = Defaults.INDEX_NAME;
             index = Defaults.INDEX;
             store = Defaults.STORE;

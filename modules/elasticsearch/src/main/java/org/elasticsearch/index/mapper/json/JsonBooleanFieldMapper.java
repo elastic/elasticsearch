@@ -52,6 +52,30 @@ public class JsonBooleanFieldMapper extends JsonFieldMapper<Boolean> {
             return this;
         }
 
+        @Override public Builder index(Field.Index index) {
+            return super.index(index);
+        }
+
+        @Override public Builder store(Field.Store store) {
+            return super.store(store);
+        }
+
+        @Override public Builder termVector(Field.TermVector termVector) {
+            return super.termVector(termVector);
+        }
+
+        @Override public Builder boost(float boost) {
+            return super.boost(boost);
+        }
+
+        @Override public Builder indexName(String indexName) {
+            return super.indexName(indexName);
+        }
+
+        @Override public Builder omitTermFreqAndPositions(boolean omitTermFreqAndPositions) {
+            return super.omitTermFreqAndPositions(omitTermFreqAndPositions);
+        }
+
         @Override public JsonBooleanFieldMapper build(BuilderContext context) {
             return new JsonBooleanFieldMapper(name, buildIndexName(context), buildFullName(context), index, store,
                     termVector, boost, omitNorms, omitTermFreqAndPositions, nullValue);

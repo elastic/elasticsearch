@@ -44,6 +44,49 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
         public static final boolean OMIT_TERM_FREQ_AND_POSITIONS = false;
     }
 
+    public abstract static class OpenBuilder<T extends Builder, Y extends JsonFieldMapper> extends JsonFieldMapper.Builder<T, Y> {
+
+        protected OpenBuilder(String name) {
+            super(name);
+        }
+
+        @Override public T index(Field.Index index) {
+            return super.index(index);
+        }
+
+        @Override public T store(Field.Store store) {
+            return super.store(store);
+        }
+
+        @Override public T termVector(Field.TermVector termVector) {
+            return super.termVector(termVector);
+        }
+
+        @Override public T boost(float boost) {
+            return super.boost(boost);
+        }
+
+        @Override public T omitNorms(boolean omitNorms) {
+            return super.omitNorms(omitNorms);
+        }
+
+        @Override public T omitTermFreqAndPositions(boolean omitTermFreqAndPositions) {
+            return super.omitTermFreqAndPositions(omitTermFreqAndPositions);
+        }
+
+        @Override public T indexName(String indexName) {
+            return super.indexName(indexName);
+        }
+
+        @Override public T indexAnalyzer(Analyzer indexAnalyzer) {
+            return super.indexAnalyzer(indexAnalyzer);
+        }
+
+        @Override public T searchAnalyzer(Analyzer searchAnalyzer) {
+            return super.searchAnalyzer(searchAnalyzer);
+        }
+    }
+
     public abstract static class Builder<T extends Builder, Y extends JsonFieldMapper> extends JsonMapper.Builder<T, Y> {
 
         protected Field.Index index = Defaults.INDEX;
@@ -64,47 +107,47 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
 
         protected Analyzer searchAnalyzer;
 
-        public Builder(String name) {
+        protected Builder(String name) {
             super(name);
             indexName = name;
         }
 
-        public T index(Field.Index index) {
+        protected T index(Field.Index index) {
             this.index = index;
             return builder;
         }
 
-        public T store(Field.Store store) {
+        protected T store(Field.Store store) {
             this.store = store;
             return builder;
         }
 
-        public T termVector(Field.TermVector termVector) {
+        protected T termVector(Field.TermVector termVector) {
             this.termVector = termVector;
             return builder;
         }
 
-        public T boost(float boost) {
+        protected T boost(float boost) {
             this.boost = boost;
             return builder;
         }
 
-        public T omitNorms(boolean omitNorms) {
+        protected T omitNorms(boolean omitNorms) {
             this.omitNorms = omitNorms;
             return builder;
         }
 
-        public T omitTermFreqAndPositions(boolean omitTermFreqAndPositions) {
+        protected T omitTermFreqAndPositions(boolean omitTermFreqAndPositions) {
             this.omitTermFreqAndPositions = omitTermFreqAndPositions;
             return builder;
         }
 
-        public T indexName(String indexName) {
+        protected T indexName(String indexName) {
             this.indexName = indexName;
             return builder;
         }
 
-        public T indexAnalyzer(Analyzer indexAnalyzer) {
+        protected T indexAnalyzer(Analyzer indexAnalyzer) {
             this.indexAnalyzer = indexAnalyzer;
             if (this.searchAnalyzer == null) {
                 this.searchAnalyzer = indexAnalyzer;
@@ -112,7 +155,7 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
             return builder;
         }
 
-        public T searchAnalyzer(Analyzer searchAnalyzer) {
+        protected T searchAnalyzer(Analyzer searchAnalyzer) {
             this.searchAnalyzer = searchAnalyzer;
             return builder;
         }

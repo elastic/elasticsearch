@@ -54,6 +54,18 @@ public abstract class JsonNumberFieldMapper<T extends Number> extends JsonFieldM
             this.omitTermFreqAndPositions = Defaults.OMIT_TERM_FREQ_AND_POSITIONS;
         }
 
+        @Override public T store(Field.Store store) {
+            return super.store(store);
+        }
+
+        @Override protected T boost(float boost) {
+            return super.boost(boost);
+        }
+
+        @Override protected T indexName(String indexName) {
+            return super.indexName(indexName);
+        }
+
         public T precisionStep(int precisionStep) {
             this.precisionStep = precisionStep;
             return builder;

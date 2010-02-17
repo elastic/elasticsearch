@@ -45,7 +45,7 @@ public class SimpleFsStore extends AbstractFsStore<SimpleFSDirectory> {
         super(shardId, indexSettings);
         // by default, we don't need to sync to disk, since we use the gateway
         this.syncToDisk = componentSettings.getAsBoolean("syncToDisk", false);
-        this.directory = new CustomSimpleFSDirectory(createStoreFilePath(environment.workWithClusterFile(), localNodeId, shardId), syncToDisk);
+        this.directory = new CustomSimpleFSDirectory(createStoreFilePath(environment.workWithClusterFile(), localNodeId, shardId, MAIN_INDEX_SUFFIX), syncToDisk);
         logger.debug("Using [SimpleFs] Store with path [{}], syncToDisk [{}]", directory.getFile(), syncToDisk);
     }
 

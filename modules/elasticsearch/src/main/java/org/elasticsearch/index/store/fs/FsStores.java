@@ -20,6 +20,7 @@
 package org.elasticsearch.index.store.fs;
 
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.util.Nullable;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,11 +32,16 @@ public class FsStores {
 
     public static final String DEFAULT_INDICES_LOCATION = "indices";
 
-    public static synchronized File createStoreFilePath(File basePath, String localNodeId, ShardId shardId) throws IOException {
+    public static final String MAIN_INDEX_SUFFIX = "index";
+
+    public static synchronized File createStoreFilePath(File basePath, String localNodeId, ShardId shardId, @Nullable String suffix) throws IOException {
         // TODO we need to clean the nodeId from invalid folder characters
         File f = new File(new File(basePath, DEFAULT_INDICES_LOCATION), localNodeId);
         f = new File(f, shardId.index().name());
         f = new File(f, Integer.toString(shardId.id()));
+        if (suffix != null) {
+            f = new File(f, suffix);
+        }
 
         if (f.exists() && f.isDirectory()) {
             return f;

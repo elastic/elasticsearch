@@ -50,10 +50,13 @@ import static org.elasticsearch.rest.RestResponse.Status.*;
  */
 public class RestSearchAction extends BaseRestHandler {
 
-    public final static Pattern fieldsPattern;
+    private final static Pattern fieldsPattern;
+
+    private final static Pattern indicesBoostPattern;
 
     static {
         fieldsPattern = Pattern.compile(",");
+        indicesBoostPattern = Pattern.compile(",");
     }
 
     @Inject public RestSearchAction(Settings settings, Client client, RestController controller) {
@@ -139,8 +142,23 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.size(Integer.parseInt(size));
         }
 
-        // TODO query boost per index
-//        searchRequest.queryBoost();
+        String sIndicesBoost = request.param("indicesBoost");
+        if (sIndicesBoost != null) {
+            String[] indicesBoost = indicesBoostPattern.split(sIndicesBoost);
+            for (String indexBoost : indicesBoost) {
+                int divisor = indexBoost.indexOf(',');
+                if (divisor == -1) {
+                    throw new ElasticSearchIllegalArgumentException("Illegal index boost [" + indexBoost + "], no ','");
+                }
+                String indexName = indexBoost.substring(0, divisor);
+                String sBoost = indexBoost.substring(divisor + 1);
+                try {
+                    searchRequest.indexBoost(indexName, Float.parseFloat(sBoost));
+                } catch (NumberFormatException e) {
+                    throw new ElasticSearchIllegalArgumentException("Illegal index boost [" + indexBoost + "], boost not a float number");
+                }
+            }
+        }
 
         String scroll = request.param("scroll");
         if (scroll != null) {

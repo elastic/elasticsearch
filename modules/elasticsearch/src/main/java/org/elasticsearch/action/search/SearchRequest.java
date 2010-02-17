@@ -60,7 +60,7 @@ public class SearchRequest implements ActionRequest {
 
     private String[] types = Strings.EMPTY_ARRAY;
 
-    private TObjectFloatHashMap<String> queryBoost = EMPTY;
+    private TObjectFloatHashMap<String> indexBoost = EMPTY;
 
     private TimeValue timeout;
 
@@ -191,15 +191,15 @@ public class SearchRequest implements ActionRequest {
      * Allows to set a dynamic query boost on an index level query. Very handy when, for example, each user has
      * his own index, and friends matter more than friends of friends.
      */
-    public TObjectFloatHashMap<String> queryBoost() {
-        return queryBoost;
+    public TObjectFloatHashMap<String> indexBoost() {
+        return indexBoost;
     }
 
-    public SearchRequest queryBoost(String index, float queryBoost) {
-        if (this.queryBoost == EMPTY) {
-            this.queryBoost = new TObjectFloatHashMap<String>();
+    public SearchRequest indexBoost(String index, float indexBoost) {
+        if (this.indexBoost == EMPTY) {
+            this.indexBoost = new TObjectFloatHashMap<String>();
         }
-        this.queryBoost.put(index, queryBoost);
+        this.indexBoost.put(index, indexBoost);
         return this;
     }
 
@@ -237,11 +237,11 @@ public class SearchRequest implements ActionRequest {
 
         int size = in.readInt();
         if (size == 0) {
-            queryBoost = EMPTY;
+            indexBoost = EMPTY;
         } else {
-            queryBoost = new TObjectFloatHashMap<String>(size);
+            indexBoost = new TObjectFloatHashMap<String>(size);
             for (int i = 0; i < size; i++) {
-                queryBoost.put(in.readUTF(), in.readFloat());
+                indexBoost.put(in.readUTF(), in.readFloat());
             }
         }
 
@@ -285,11 +285,11 @@ public class SearchRequest implements ActionRequest {
             timeout.writeTo(out);
         }
         out.writeUTF(source);
-        if (queryBoost == null) {
+        if (indexBoost == null) {
             out.writeInt(0);
         } else {
-            out.writeInt(queryBoost.size());
-            for (TObjectFloatIterator<String> it = queryBoost.iterator(); it.hasNext();) {
+            out.writeInt(indexBoost.size());
+            for (TObjectFloatIterator<String> it = indexBoost.iterator(); it.hasNext();) {
                 it.advance();
                 out.writeUTF(it.key());
                 out.writeFloat(it.value());

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.util.json.ToJson;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -26,7 +28,7 @@ import java.util.Set;
 /**
  * @author kimchy (Shay Banon)
  */
-public interface RestRequest {
+public interface RestRequest extends ToJson.Params {
 
     enum Method {
         GET, POST, PUT, DELETE

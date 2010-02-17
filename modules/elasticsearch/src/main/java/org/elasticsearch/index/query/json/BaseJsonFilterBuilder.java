@@ -28,11 +28,11 @@ import java.io.IOException;
  */
 public abstract class BaseJsonFilterBuilder implements JsonFilterBuilder {
 
-    @Override public void toJson(JsonBuilder builder) throws IOException {
+    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject();
-        doJson(builder);
+        doJson(builder, params);
         builder.endObject();
     }
 
-    protected abstract void doJson(JsonBuilder builder) throws IOException;
+    protected abstract void doJson(JsonBuilder builder, Params params) throws IOException;
 }

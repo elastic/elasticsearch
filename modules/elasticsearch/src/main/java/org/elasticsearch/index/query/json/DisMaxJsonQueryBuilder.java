@@ -52,7 +52,7 @@ public class DisMaxJsonQueryBuilder extends BaseJsonQueryBuilder {
         return this;
     }
 
-    @Override protected void doJson(JsonBuilder builder) throws IOException {
+    @Override protected void doJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject("disMax");
         if (tieBreakerMultiplier != -1) {
             builder.field("tieBreakerMultiplier", tieBreakerMultiplier);
@@ -62,7 +62,7 @@ public class DisMaxJsonQueryBuilder extends BaseJsonQueryBuilder {
         }
         builder.startArray("queries");
         for (JsonQueryBuilder queryBuilder : queries) {
-            queryBuilder.toJson(builder);
+            queryBuilder.toJson(builder, params);
         }
         builder.endArray();
         builder.endObject();

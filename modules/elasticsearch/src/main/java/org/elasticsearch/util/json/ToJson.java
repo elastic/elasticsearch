@@ -20,11 +20,35 @@
 package org.elasticsearch.util.json;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * @author kimchy (Shay Banon)
  */
 public interface ToJson {
 
-    void toJson(JsonBuilder builder) throws IOException;
+    public static interface Params {
+        String param(String key);
+    }
+
+    public static final Params EMPTY_PARAMS = new Params() {
+        @Override public String param(String key) {
+            return null;
+        }
+    };
+
+    public static class MapParams implements Params {
+
+        private final Map<String, String> params;
+
+        public MapParams(Map<String, String> params) {
+            this.params = params;
+        }
+
+        @Override public String param(String key) {
+            return params.get(key);
+        }
+    }
+
+    void toJson(JsonBuilder builder, Params params) throws IOException;
 }

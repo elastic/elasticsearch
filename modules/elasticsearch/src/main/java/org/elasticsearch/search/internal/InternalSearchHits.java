@@ -63,13 +63,13 @@ public class InternalSearchHits implements SearchHits {
         return hits;
     }
 
-    @Override public void toJson(JsonBuilder builder) throws IOException {
+    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject("hits");
         builder.field("total", totalHits);
         builder.field("hits");
         builder.startArray();
         for (SearchHit hit : hits) {
-            hit.toJson(builder);
+            hit.toJson(builder, params);
         }
         builder.endArray();
         builder.endObject();

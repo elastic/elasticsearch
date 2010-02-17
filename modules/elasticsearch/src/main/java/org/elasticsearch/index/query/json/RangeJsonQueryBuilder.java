@@ -109,7 +109,7 @@ public class RangeJsonQueryBuilder extends BaseJsonQueryBuilder {
         return this;
     }
 
-    @Override protected void doJson(JsonBuilder builder) throws IOException {
+    @Override protected void doJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject(RangeJsonQueryParser.NAME);
         builder.startObject(name);
         builder.field("from", from);

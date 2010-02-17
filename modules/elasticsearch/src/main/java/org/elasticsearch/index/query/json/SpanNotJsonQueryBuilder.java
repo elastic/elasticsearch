@@ -50,7 +50,7 @@ public class SpanNotJsonQueryBuilder extends BaseJsonQueryBuilder implements Jso
         return this;
     }
 
-    @Override protected void doJson(JsonBuilder builder) throws IOException {
+    @Override protected void doJson(JsonBuilder builder, Params params) throws IOException {
         if (include == null) {
             throw new QueryBuilderException("Must specify include when using spanNot query");
         }
@@ -59,9 +59,9 @@ public class SpanNotJsonQueryBuilder extends BaseJsonQueryBuilder implements Jso
         }
         builder.startObject(SpanNotJsonQueryParser.NAME);
         builder.field("include");
-        include.toJson(builder);
+        include.toJson(builder, params);
         builder.field("exclude");
-        exclude.toJson(builder);
+        exclude.toJson(builder, params);
         if (boost == -1) {
             builder.field("boost", boost);
         }

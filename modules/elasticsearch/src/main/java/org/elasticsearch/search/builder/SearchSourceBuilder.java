@@ -21,6 +21,7 @@ package org.elasticsearch.search.builder;
 
 import org.elasticsearch.index.query.json.JsonQueryBuilder;
 import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.json.ToJson;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -138,7 +139,7 @@ public class SearchSourceBuilder {
             }
 
             builder.field("query");
-            queryBuilder.toJson(builder);
+            queryBuilder.toJson(builder, ToJson.EMPTY_PARAMS);
 
             if (explain != null) {
                 builder.field("explain", explain);
@@ -174,7 +175,7 @@ public class SearchSourceBuilder {
             }
 
             if (facetsBuilder != null) {
-                facetsBuilder.json(builder);
+                facetsBuilder.toJson(builder, ToJson.EMPTY_PARAMS);
             }
 
             builder.endObject();

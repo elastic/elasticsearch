@@ -32,18 +32,18 @@ public abstract class BaseJsonQueryBuilder implements JsonQueryBuilder {
     @Override public String build() throws QueryBuilderException {
         try {
             JsonBuilder builder = JsonBuilder.jsonBuilder();
-            toJson(builder);
+            toJson(builder, EMPTY_PARAMS);
             return builder.string();
         } catch (Exception e) {
             throw new QueryBuilderException("Failed to build query", e);
         }
     }
 
-    @Override public void toJson(JsonBuilder builder) throws IOException {
+    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject();
-        doJson(builder);
+        doJson(builder, params);
         builder.endObject();
     }
 
-    protected abstract void doJson(JsonBuilder builder) throws IOException;
+    protected abstract void doJson(JsonBuilder builder, Params params) throws IOException;
 }

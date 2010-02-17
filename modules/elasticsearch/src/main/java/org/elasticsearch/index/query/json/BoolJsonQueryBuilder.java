@@ -68,18 +68,18 @@ public class BoolJsonQueryBuilder extends BaseJsonQueryBuilder {
         return this;
     }
 
-    @Override protected void doJson(JsonBuilder builder) throws IOException {
+    @Override protected void doJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject("bool");
         for (Clause clause : clauses) {
             if (clause.occur == BooleanClause.Occur.MUST) {
                 builder.field("must");
-                clause.queryBuilder.toJson(builder);
+                clause.queryBuilder.toJson(builder, params);
             } else if (clause.occur == BooleanClause.Occur.MUST_NOT) {
                 builder.field("mustNot");
-                clause.queryBuilder.toJson(builder);
+                clause.queryBuilder.toJson(builder, params);
             } else if (clause.occur == BooleanClause.Occur.SHOULD) {
                 builder.field("should");
-                clause.queryBuilder.toJson(builder);
+                clause.queryBuilder.toJson(builder, params);
             }
         }
         if (boost != -1) {

@@ -73,7 +73,7 @@ public class TermsJsonFilterBuilder extends BaseJsonFilterBuilder {
         this.values = values;
     }
 
-    @Override public void doJson(JsonBuilder builder) throws IOException {
+    @Override public void doJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject(TermsJsonFilterParser.NAME);
         builder.startArray(name);
         for (Object value : values) {

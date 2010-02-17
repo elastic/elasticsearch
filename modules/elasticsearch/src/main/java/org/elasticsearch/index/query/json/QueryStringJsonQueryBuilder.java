@@ -109,7 +109,7 @@ public class QueryStringJsonQueryBuilder extends BaseJsonQueryBuilder {
         return this;
     }
 
-    @Override protected void doJson(JsonBuilder builder) throws IOException {
+    @Override protected void doJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject(QueryStringJsonQueryParser.NAME);
         builder.field("query", queryString);
         if (defaultField != null) {

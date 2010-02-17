@@ -85,7 +85,7 @@ public class SearchResponse implements ActionResponse, ToJson {
         return response;
     }
 
-    @Override public void toJson(JsonBuilder builder) throws IOException {
+    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
         if (scrollId != null) {
             builder.field("_scrollId", scrollId);
         }
@@ -94,7 +94,7 @@ public class SearchResponse implements ActionResponse, ToJson {
         builder.field("successful", successfulShards());
         builder.field("failed", failedShards());
         builder.endObject();
-        internalResponse.toJson(builder);
+        internalResponse.toJson(builder, params);
     }
 
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {

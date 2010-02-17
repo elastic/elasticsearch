@@ -59,7 +59,7 @@ public class CountFacet implements Facet {
         count += increment;
     }
 
-    @Override public void toJson(JsonBuilder builder) throws IOException {
+    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
         builder.field(name, count);
     }
 

@@ -108,7 +108,7 @@ public class InternalSearchHit implements SearchHit {
         return null;
     }
 
-    @Override public void toJson(JsonBuilder builder) throws IOException {
+    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("_index", shard.index());
 //        builder.field("_shard", shard.shardId());

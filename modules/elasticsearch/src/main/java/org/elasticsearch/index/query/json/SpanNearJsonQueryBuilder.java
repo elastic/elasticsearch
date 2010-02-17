@@ -65,7 +65,7 @@ public class SpanNearJsonQueryBuilder extends BaseJsonQueryBuilder implements Js
         return this;
     }
 
-    @Override protected void doJson(JsonBuilder builder) throws IOException {
+    @Override protected void doJson(JsonBuilder builder, Params params) throws IOException {
         if (clauses.isEmpty()) {
             throw new QueryBuilderException("Must have at least one clause when building a spanNear query");
         }
@@ -75,7 +75,7 @@ public class SpanNearJsonQueryBuilder extends BaseJsonQueryBuilder implements Js
         builder.startObject(SpanNearJsonQueryParser.NAME);
         builder.startArray("clauses");
         for (JsonSpanQueryBuilder clause : clauses) {
-            clause.toJson(builder);
+            clause.toJson(builder, params);
         }
         builder.endArray();
         builder.field("slop", slop);

@@ -44,12 +44,12 @@ public class FilteredQueryJsonQueryBuilder extends BaseJsonQueryBuilder {
         return this;
     }
 
-    @Override protected void doJson(JsonBuilder builder) throws IOException {
+    @Override protected void doJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject(FilteredQueryJsonQueryParser.NAME);
         builder.field("query");
-        queryBuilder.toJson(builder);
+        queryBuilder.toJson(builder, params);
         builder.field("filter");
-        filterBuilder.toJson(builder);
+        filterBuilder.toJson(builder, params);
         if (boost != -1) {
             builder.field("boost", boost);
         }

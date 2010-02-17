@@ -44,10 +44,10 @@ public class SpanFirstJsonQueryBuilder extends BaseJsonQueryBuilder implements J
         return this;
     }
 
-    @Override protected void doJson(JsonBuilder builder) throws IOException {
+    @Override protected void doJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject(SpanFirstJsonQueryParser.NAME);
         builder.field("match");
-        matchBuilder.toJson(builder);
+        matchBuilder.toJson(builder, params);
         builder.field("end", end);
         if (boost != -1) {
             builder.field("boost", boost);

@@ -44,14 +44,14 @@ public class SpanOrJsonQueryBuilder extends BaseJsonQueryBuilder implements Json
         return this;
     }
 
-    @Override protected void doJson(JsonBuilder builder) throws IOException {
+    @Override protected void doJson(JsonBuilder builder, Params params) throws IOException {
         if (clauses.isEmpty()) {
             throw new QueryBuilderException("Must have at least one clause when building a spanOr query");
         }
         builder.startObject(SpanOrJsonQueryParser.NAME);
         builder.startArray("clauses");
         for (JsonSpanQueryBuilder clause : clauses) {
-            clause.toJson(builder);
+            clause.toJson(builder, params);
         }
         builder.endArray();
         if (boost != -1) {

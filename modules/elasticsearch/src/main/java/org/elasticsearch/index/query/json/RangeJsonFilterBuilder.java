@@ -102,7 +102,7 @@ public class RangeJsonFilterBuilder extends BaseJsonFilterBuilder {
         return this;
     }
 
-    @Override protected void doJson(JsonBuilder builder) throws IOException {
+    @Override protected void doJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject(RangeJsonFilterParser.NAME);
         builder.startObject(name);
         builder.field("from", from);

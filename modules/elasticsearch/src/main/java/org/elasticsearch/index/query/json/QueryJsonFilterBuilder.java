@@ -34,8 +34,8 @@ public class QueryJsonFilterBuilder extends BaseJsonFilterBuilder {
         this.queryBuilder = queryBuilder;
     }
 
-    @Override protected void doJson(JsonBuilder builder) throws IOException {
+    @Override protected void doJson(JsonBuilder builder, Params params) throws IOException {
         builder.field(QueryJsonFilterParser.NAME);
-        queryBuilder.toJson(builder);
+        queryBuilder.toJson(builder, params);
     }
 }

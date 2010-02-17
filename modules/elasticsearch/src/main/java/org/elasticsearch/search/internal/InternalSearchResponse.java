@@ -63,10 +63,10 @@ public class InternalSearchResponse implements Streamable, ToJson {
         return response;
     }
 
-    @Override public void toJson(JsonBuilder builder) throws IOException {
-        hits.toJson(builder);
+    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
+        hits.toJson(builder, params);
         if (facets != null) {
-            facets.toJson(builder);
+            facets.toJson(builder, params);
         }
     }
 

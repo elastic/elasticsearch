@@ -69,10 +69,10 @@ public class Facets implements Streamable, ToJson {
         return null;
     }
 
-    @Override public void toJson(JsonBuilder builder) throws IOException {
+    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject("facets");
         for (Facet facet : facets) {
-            facet.toJson(builder);
+            facet.toJson(builder, params);
         }
         builder.endObject();
     }

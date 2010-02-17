@@ -21,6 +21,7 @@ package org.elasticsearch.search.builder;
 
 import org.elasticsearch.index.query.json.JsonQueryBuilder;
 import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.json.ToJson;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,7 +31,7 @@ import static com.google.common.collect.Lists.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class SearchSourceFacetsBuilder {
+public class SearchSourceFacetsBuilder implements ToJson {
 
     private String queryExecution;
 
@@ -49,7 +50,7 @@ public class SearchSourceFacetsBuilder {
         return this;
     }
 
-    void json(JsonBuilder builder) throws IOException {
+    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
         if (queryExecution == null && queryFacets == null) {
             return;
         }
@@ -64,7 +65,7 @@ public class SearchSourceFacetsBuilder {
             for (FacetQuery facetQuery : queryFacets) {
                 builder.startObject(facetQuery.name());
                 builder.field("query");
-                facetQuery.queryBuilder().toJson(builder);
+                facetQuery.queryBuilder().toJson(builder, params);
                 builder.endObject();
             }
         }

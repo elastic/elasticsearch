@@ -44,7 +44,7 @@ public class WildcardJsonQueryBuilder extends BaseJsonQueryBuilder {
         return this;
     }
 
-    @Override public void doJson(JsonBuilder builder) throws IOException {
+    @Override public void doJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject(WildcardJsonQueryParser.NAME);
         if (boost == -1) {
             builder.field(name, value);

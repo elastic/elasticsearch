@@ -41,10 +41,10 @@ public class ConstantScoreQueryJsonQueryBuilder extends BaseJsonQueryBuilder {
         return this;
     }
 
-    @Override protected void doJson(JsonBuilder builder) throws IOException {
+    @Override protected void doJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject(ConstantScoreQueryJsonQueryParser.NAME);
         builder.field("filter");
-        filterBuilder.toJson(builder);
+        filterBuilder.toJson(builder, params);
         if (boost != -1) {
             builder.field("boost", boost);
         }

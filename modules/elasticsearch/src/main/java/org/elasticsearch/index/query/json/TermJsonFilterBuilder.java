@@ -57,7 +57,7 @@ public class TermJsonFilterBuilder extends BaseJsonFilterBuilder {
         this.value = value;
     }
 
-    @Override public void doJson(JsonBuilder builder) throws IOException {
+    @Override public void doJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject(TermJsonFilterParser.NAME);
         builder.field(name, value);
         builder.endObject();

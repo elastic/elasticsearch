@@ -90,7 +90,7 @@ public class RestSearchAction extends BaseRestHandler {
                 try {
                     JsonBuilder builder = RestJsonBuilder.cached(request);
                     builder.startObject();
-                    result.toJson(builder);
+                    result.toJson(builder, request);
                     builder.endObject();
                     channel.sendResponse(new JsonRestResponse(request, OK, builder));
                 } catch (Exception e) {

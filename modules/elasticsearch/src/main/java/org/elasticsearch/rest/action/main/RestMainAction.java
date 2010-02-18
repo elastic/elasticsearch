@@ -74,6 +74,7 @@ public class RestMainAction extends BaseRestHandler {
             }
             builder.startObject("version").field("number", Version.number()).field("date", Version.date()).field("devBuild", Version.devBuild()).endObject();
             builder.field("version", Version.number());
+            builder.field("tagline", "You Know, for Search");
             builder.field("cover", "DON'T PANIC");
             if (rootNode != null) {
                 builder.startObject("quote");

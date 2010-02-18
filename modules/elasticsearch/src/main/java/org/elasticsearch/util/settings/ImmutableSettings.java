@@ -155,7 +155,7 @@ public class ImmutableSettings implements Settings {
             return defaultValue;
         }
         try {
-            return Boolean.valueOf(sValue);
+            return sValue.equals("true") || sValue.equals("1");
         } catch (NumberFormatException e) {
             throw new SettingsException("Failed to parse boolean setting [" + setting + "] with value [" + sValue + "]", e);
         }

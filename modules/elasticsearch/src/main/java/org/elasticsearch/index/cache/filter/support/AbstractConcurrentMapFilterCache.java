@@ -80,7 +80,7 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         }
     }
 
-    protected abstract ConcurrentMap buildMap();
+    protected abstract ConcurrentMap<Filter, DocIdSet> buildMap();
 
     private class SoftFilterCacheFilterWrapper extends Filter {
 

@@ -21,6 +21,8 @@ package org.elasticsearch.index.cache.filter.soft;
 
 import com.google.common.collect.MapMaker;
 import com.google.inject.Inject;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.Filter;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.support.AbstractConcurrentMapFilterCache;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -38,7 +40,7 @@ public class SoftFilterCache extends AbstractConcurrentMapFilterCache {
         super(index, indexSettings, threadPool);
     }
 
-    @Override protected ConcurrentMap buildMap() {
+    @Override protected ConcurrentMap<Filter, DocIdSet> buildMap() {
         return new MapMaker().softValues().makeMap();
     }
 }

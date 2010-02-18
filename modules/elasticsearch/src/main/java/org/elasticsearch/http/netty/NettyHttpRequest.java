@@ -128,11 +128,7 @@ public class NettyHttpRequest implements HttpRequest {
         if (sValue == null) {
             return defaultValue;
         }
-        try {
-            return Boolean.valueOf(sValue);
-        } catch (NumberFormatException e) {
-            throw new ElasticSearchIllegalArgumentException("Failed to parse boolean parameter [" + key + "] with value [" + sValue + "]", e);
-        }
+        return sValue.equals("true") || sValue.equals("1");
     }
 
     @Override public String param(String key) {

@@ -96,7 +96,7 @@ public class SizeValue implements Serializable, Streamable {
         return Strings.format1Decimals(value, suffix);
     }
 
-    public static SizeValue parse(String sValue, SizeValue defaultValue) throws ElasticSearchParseException {
+    public static SizeValue parseSizeValue(String sValue, SizeValue defaultValue) throws ElasticSearchParseException {
         if (sValue == null) {
             return defaultValue;
         }

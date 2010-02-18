@@ -37,6 +37,7 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.lease.Releasable;
+import org.elasticsearch.util.timer.Timeout;
 
 import java.io.IOException;
 
@@ -91,6 +92,12 @@ public class SearchContext implements Releasable {
 
     private boolean queryRewritten;
 
+    private volatile TimeValue keepAlive;
+
+    private volatile long lastAccessTime;
+
+    private volatile Timeout keepAliveTimeout;
+
     public SearchContext(long id, SearchShardTarget shardTarget, TimeValue timeout, float queryBoost, String source,
                          String[] types, Engine.Searcher engineSearcher, IndexService indexService) {
         this.id = id;
@@ -114,6 +121,9 @@ public class SearchContext implements Releasable {
             // ignore this exception
         }
         engineSearcher.release();
+        if (!keepAliveTimeout.isCancelled()) {
+            keepAliveTimeout.cancel();
+        }
         return true;
     }
 
@@ -273,6 +283,26 @@ public class SearchContext implements Releasable {
     public SearchContext docIdsToLoad(int[] docIdsToLoad) {
         this.docIdsToLoad = docIdsToLoad;
         return this;
+    }
+
+    public void accessed(long accessTime) {
+        this.lastAccessTime = accessTime;
+    }
+
+    public long lastAccessTime() {
+        return this.lastAccessTime;
+    }
+
+    public TimeValue keepAlive() {
+        return this.keepAlive;
+    }
+
+    public void keepAlive(TimeValue keepAlive) {
+        this.keepAlive = keepAlive;
+    }
+
+    public void keepAliveTimeout(Timeout keepAliveTimeout) {
+        this.keepAliveTimeout = keepAliveTimeout;
     }
 
     public DfsSearchResult dfsResult() {

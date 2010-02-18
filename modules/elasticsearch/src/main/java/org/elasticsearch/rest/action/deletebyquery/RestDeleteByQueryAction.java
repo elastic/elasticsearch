@@ -29,7 +29,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestJsonBuilder;
-import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
 
@@ -61,7 +60,7 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
             if (typesParam != null) {
                 deleteByQueryRequest.types(RestActions.splitTypes(typesParam));
             }
-            deleteByQueryRequest.timeout(TimeValue.parseTimeValue(request.param("timeout"), ShardDeleteByQueryRequest.DEFAULT_TIMEOUT));
+            deleteByQueryRequest.timeout(request.paramAsTime("timeout", ShardDeleteByQueryRequest.DEFAULT_TIMEOUT));
         } catch (Exception e) {
             try {
                 channel.sendResponse(new JsonRestResponse(request, PRECONDITION_FAILED, JsonBuilder.jsonBuilder().startObject().field("error", e.getMessage()).endObject()));

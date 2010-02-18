@@ -20,6 +20,8 @@
 package org.elasticsearch.test.integration.search;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -35,6 +37,7 @@ import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.server.internal.InternalServer;
 import org.elasticsearch.test.integration.AbstractServersTests;
+import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.trove.ExtTIntArrayList;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -168,6 +171,27 @@ public class SingleInstanceEmbeddedSearchTests extends AbstractServersTests {
         assertThat(queryResult.facets().countFacet("age2").count(), equalTo(4l));
         assertThat(queryResult.facets().countFacet("age1").count(), equalTo(1l));
     }
+
+    @Test public void testQueryFetchKeepAliveTimeout() throws Exception {
+        QuerySearchResult queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(termQuery("name", "test1"))).scroll(new Scroll(TimeValue.timeValueMillis(10))));
+        assertThat(queryResult.topDocs().totalHits, equalTo(1));
+
+        ShardDoc[] sortedShardList = searchPhaseController.sortDocs(newArrayList(queryResult));
+        Map<SearchShardTarget, ExtTIntArrayList> docIdsToLoad = searchPhaseController.docIdsToLoad(sortedShardList);
+        assertThat(docIdsToLoad.size(), equalTo(1));
+        assertThat(docIdsToLoad.values().iterator().next().size(), equalTo(1));
+
+        // sleep more than the 100ms the timeout wheel it set to
+        Thread.sleep(300);
+
+        try {
+            searchService.executeFetchPhase(new FetchSearchRequest(queryResult.id(), docIdsToLoad.values().iterator().next()));
+            assert true : "context should be missing since it timed out";
+        } catch (SearchContextMissingException e) {
+            // all is well
+        }
+    }
+
 
     private InternalSearchRequest searchRequest(SearchSourceBuilder builder) {
         return new InternalSearchRequest("test", 0, builder.build());

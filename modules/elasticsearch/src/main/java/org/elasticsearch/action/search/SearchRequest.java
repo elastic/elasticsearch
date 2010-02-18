@@ -183,8 +183,9 @@ public class SearchRequest implements ActionRequest {
         return timeout;
     }
 
-    public void timeout(TimeValue timeout) {
+    public SearchRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
+        return this;
     }
 
     /**

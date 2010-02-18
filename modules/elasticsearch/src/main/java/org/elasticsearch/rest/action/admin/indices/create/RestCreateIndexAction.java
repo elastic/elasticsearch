@@ -29,7 +29,6 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestJsonBuilder;
 import org.elasticsearch.util.Strings;
-import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
@@ -67,7 +66,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
             }
         }
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"), indexSettings);
-        createIndexRequest.timeout(TimeValue.parseTimeValue(request.param("timeout"), timeValueSeconds(10)));
+        createIndexRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
         client.admin().indices().execCreate(createIndexRequest, new ActionListener<CreateIndexResponse>() {
             @Override public void onResponse(CreateIndexResponse result) {
                 try {

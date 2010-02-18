@@ -50,7 +50,10 @@ import org.elasticsearch.cluster.node.Node;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.server.internal.InternalSettingsPerparer;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
+import org.elasticsearch.timer.TimerModule;
+import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.Tuple;
@@ -123,6 +126,7 @@ public class TransportClient implements Client {
         modules.add(new EnvironmentModule(environment));
         modules.add(new SettingsModule(settings));
         modules.add(new ClusterNameModule(settings));
+        modules.add(new TimerModule());
         modules.add(new ThreadPoolModule(settings));
         modules.add(new TransportModule(settings));
         modules.add(new ClientTransportActionModule());
@@ -196,6 +200,9 @@ public class TransportClient implements Client {
         }
         injector.getInstance(TransportClientNodesService.class).close();
         injector.getInstance(TransportService.class).close();
+
+        injector.getInstance(TimerService.class).close();
+        injector.getInstance(ThreadPool.class).shutdown();
     }
 
     @Override public AdminClient admin() {

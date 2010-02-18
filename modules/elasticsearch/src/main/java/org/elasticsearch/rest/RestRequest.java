@@ -19,6 +19,8 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.util.SizeValue;
+import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.json.ToJson;
 
 import java.util.List;
@@ -57,6 +59,10 @@ public interface RestRequest extends ToJson.Params {
     int paramAsInt(String key, int defaultValue);
 
     boolean paramAsBoolean(String key, boolean defaultValue);
+
+    TimeValue paramAsTime(String key, TimeValue defaultValue);
+
+    SizeValue paramAsSize(String key, SizeValue defaultValue);
 
     List<String> params(String key);
 

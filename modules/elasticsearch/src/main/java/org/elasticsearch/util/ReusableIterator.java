@@ -17,23 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.search;
+package org.elasticsearch.util;
 
-import org.elasticsearch.ElasticSearchException;
+import java.util.Iterator;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public class SearchContextMissingException extends ElasticSearchException {
-
-    private final long id;
-
-    public SearchContextMissingException(long id) {
-        super("No search context found for id [" + id + "], timed out");
-        this.id = id;
-    }
-
-    public long id() {
-        return this.id;
-    }
+public interface ReusableIterator<E> extends Iterator<E> {
+    void rewind();
 }

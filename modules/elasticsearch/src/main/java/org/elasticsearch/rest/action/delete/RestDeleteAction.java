@@ -26,7 +26,6 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestJsonBuilder;
-import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
 
@@ -47,7 +46,7 @@ public class RestDeleteAction extends BaseRestHandler {
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
         DeleteRequest deleteRequest = new DeleteRequest(request.param("index"), request.param("type"), request.param("id"));
-        deleteRequest.timeout(TimeValue.parseTimeValue(request.param("timeout"), DeleteRequest.DEFAULT_TIMEOUT));
+        deleteRequest.timeout(request.paramAsTime("timeout", DeleteRequest.DEFAULT_TIMEOUT));
         // we just send a response, no need to fork
         deleteRequest.listenerThreaded(false);
         // we don't spawn, then fork if local

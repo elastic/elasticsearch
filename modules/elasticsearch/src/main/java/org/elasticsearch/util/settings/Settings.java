@@ -162,7 +162,7 @@ public interface Settings {
      * @param defaultValue The value to return if no value is associated with the setting
      * @return The (size) value, or the default value if no value exists.
      * @throws SettingsException Failure to parse the setting
-     * @see SizeValue#parse(String, SizeValue)
+     * @see SizeValue#parseSizeValue(String, SizeValue)
      */
     SizeValue getAsSize(String setting, SizeValue defaultValue) throws SettingsException;
 

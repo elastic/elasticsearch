@@ -17,23 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.search;
+package org.elasticsearch.timer;
 
-import org.elasticsearch.ElasticSearchException;
+import com.google.inject.AbstractModule;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public class SearchContextMissingException extends ElasticSearchException {
+public class TimerModule extends AbstractModule {
 
-    private final long id;
-
-    public SearchContextMissingException(long id) {
-        super("No search context found for id [" + id + "], timed out");
-        this.id = id;
-    }
-
-    public long id() {
-        return this.id;
+    @Override protected void configure() {
+        bind(TimerService.class).asEagerSingleton();
     }
 }

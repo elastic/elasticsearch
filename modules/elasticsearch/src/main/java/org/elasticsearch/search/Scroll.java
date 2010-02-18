@@ -33,18 +33,18 @@ import static org.elasticsearch.util.TimeValue.*;
  */
 public class Scroll implements Streamable {
 
-    private TimeValue timeout;
+    private TimeValue keepAlive;
 
     private Scroll() {
 
     }
 
-    public Scroll(TimeValue timeout) {
-        this.timeout = timeout;
+    public Scroll(TimeValue keepAlive) {
+        this.keepAlive = keepAlive;
     }
 
-    public TimeValue timeout() {
-        return timeout;
+    public TimeValue keepAlive() {
+        return keepAlive;
     }
 
     public static Scroll readScroll(DataInput in) throws IOException, ClassNotFoundException {
@@ -54,10 +54,17 @@ public class Scroll implements Streamable {
     }
 
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
-        timeout = readTimeValue(in);
+        if (in.readBoolean()) {
+            keepAlive = readTimeValue(in);
+        }
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
-        timeout.writeTo(out);
+        if (keepAlive == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            keepAlive.writeTo(out);
+        }
     }
 }

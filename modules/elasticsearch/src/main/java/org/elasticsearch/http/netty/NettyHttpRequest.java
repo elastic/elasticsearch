@@ -22,6 +22,8 @@ package org.elasticsearch.http.netty;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.util.SizeValue;
+import org.elasticsearch.util.TimeValue;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
 import org.jboss.netty.handler.codec.http.HttpMethod;
@@ -30,6 +32,9 @@ import org.jboss.netty.handler.codec.http.QueryStringDecoder;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.util.SizeValue.*;
+import static org.elasticsearch.util.TimeValue.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -129,6 +134,14 @@ public class NettyHttpRequest implements HttpRequest {
             return defaultValue;
         }
         return sValue.equals("true") || sValue.equals("1");
+    }
+
+    @Override public TimeValue paramAsTime(String key, TimeValue defaultValue) {
+        return parseTimeValue(param(key), defaultValue);
+    }
+
+    @Override public SizeValue paramAsSize(String key, SizeValue defaultValue) {
+        return parseSizeValue(param(key), defaultValue);
     }
 
     @Override public String param(String key) {

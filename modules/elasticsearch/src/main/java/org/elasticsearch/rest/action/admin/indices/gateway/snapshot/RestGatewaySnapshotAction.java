@@ -28,7 +28,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestJsonBuilder;
-import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
 
@@ -51,7 +50,7 @@ public class RestGatewaySnapshotAction extends BaseRestHandler {
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
         GatewaySnapshotRequest gatewaySnapshotRequest = new GatewaySnapshotRequest(RestActions.splitIndices(request.param("index")));
-        gatewaySnapshotRequest.timeout(TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_TIMEOUT));
+        gatewaySnapshotRequest.timeout(request.paramAsTime("timeout", DEFAULT_TIMEOUT));
         gatewaySnapshotRequest.listenerThreaded(false);
         client.admin().indices().execGatewaySnapshot(gatewaySnapshotRequest, new ActionListener<GatewaySnapshotResponse>() {
             @Override public void onResponse(GatewaySnapshotResponse result) {

@@ -29,7 +29,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestJsonBuilder;
-import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
 
@@ -50,7 +49,7 @@ public class RestReplicationPingAction extends BaseRestHandler {
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
         ReplicationPingRequest replicationPingRequest = new ReplicationPingRequest(RestActions.splitIndices(request.param("index")));
-        replicationPingRequest.timeout(TimeValue.parseTimeValue(request.param("timeout"), ShardReplicationPingRequest.DEFAULT_TIMEOUT));
+        replicationPingRequest.timeout(request.paramAsTime("timeout", ShardReplicationPingRequest.DEFAULT_TIMEOUT));
         replicationPingRequest.listenerThreaded(false);
         client.admin().cluster().execPing(replicationPingRequest, new ActionListener<ReplicationPingResponse>() {
             @Override public void onResponse(ReplicationPingResponse result) {

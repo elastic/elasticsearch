@@ -28,7 +28,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestJsonBuilder;
-import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
 
@@ -50,7 +49,7 @@ public class RestDeleteIndexAction extends BaseRestHandler {
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(request.param("index"));
-        deleteIndexRequest.timeout(TimeValue.parseTimeValue(request.param("timeout"), timeValueSeconds(10)));
+        deleteIndexRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
         client.admin().indices().execDelete(deleteIndexRequest, new ActionListener<DeleteIndexResponse>() {
             @Override public void onResponse(DeleteIndexResponse result) {
                 try {

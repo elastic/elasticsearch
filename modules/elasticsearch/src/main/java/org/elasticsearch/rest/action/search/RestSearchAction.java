@@ -34,7 +34,6 @@ import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestJsonBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
 
@@ -44,6 +43,7 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
+import static org.elasticsearch.util.TimeValue.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -162,12 +162,12 @@ public class RestSearchAction extends BaseRestHandler {
 
         String scroll = request.param("scroll");
         if (scroll != null) {
-            searchRequest.scroll(new Scroll(TimeValue.parseTimeValue(scroll, null)));
+            searchRequest.scroll(new Scroll(parseTimeValue(scroll, null)));
         }
 
         String timeout = request.param("timeout");
         if (timeout != null) {
-            searchRequest.timeout(TimeValue.parseTimeValue(timeout, null));
+            searchRequest.timeout(parseTimeValue(timeout, null));
         }
 
         String typesParam = request.param("type");

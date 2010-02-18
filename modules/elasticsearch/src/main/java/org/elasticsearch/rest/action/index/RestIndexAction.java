@@ -26,7 +26,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestJsonBuilder;
-import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
 
@@ -48,7 +47,7 @@ public class RestIndexAction extends BaseRestHandler {
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
         IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"), request.contentAsString());
-        indexRequest.timeout(TimeValue.parseTimeValue(request.param("timeout"), IndexRequest.DEFAULT_TIMEOUT));
+        indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
         String sOpType = request.param("opType");
         if (sOpType != null) {
             if ("index".equals(sOpType)) {

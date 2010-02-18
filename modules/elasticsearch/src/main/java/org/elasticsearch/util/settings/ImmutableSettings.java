@@ -32,6 +32,8 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import static com.google.common.collect.Lists.*;
+import static org.elasticsearch.util.SizeValue.*;
+import static org.elasticsearch.util.TimeValue.*;
 
 /**
  * An immutable implementation of {@link Settings}.
@@ -162,11 +164,11 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override public TimeValue getAsTime(String setting, TimeValue defaultValue) {
-        return TimeValue.parseTimeValue(get(setting), defaultValue);
+        return parseTimeValue(get(setting), defaultValue);
     }
 
     @Override public SizeValue getAsSize(String setting, SizeValue defaultValue) throws SettingsException {
-        return SizeValue.parse(get(setting), defaultValue);
+        return parseSizeValue(get(setting), defaultValue);
     }
 
     @SuppressWarnings({"unchecked"})

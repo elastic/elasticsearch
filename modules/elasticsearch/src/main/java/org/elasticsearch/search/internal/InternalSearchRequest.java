@@ -119,8 +119,9 @@ public class InternalSearchRequest implements Streamable {
         return timeout;
     }
 
-    public void timeout(TimeValue timeout) {
+    public InternalSearchRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
+        return this;
     }
 
     /**

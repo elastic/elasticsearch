@@ -17,23 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.search;
-
-import org.elasticsearch.ElasticSearchException;
+package org.elasticsearch.util.timer;
 
 /**
+ * A task which is executed after the delay specified with
+ * {@link Timer#newTimeout(TimerTask, long, java.util.concurrent.TimeUnit)}.
+ *
  * @author kimchy (Shay Banon)
  */
-public class SearchContextMissingException extends ElasticSearchException {
+public interface TimerTask {
 
-    private final long id;
-
-    public SearchContextMissingException(long id) {
-        super("No search context found for id [" + id + "], timed out");
-        this.id = id;
-    }
-
-    public long id() {
-        return this.id;
-    }
+    /**
+     * Executed after the delay specified with
+     * {@link Timer#newTimeout(TimerTask, long, java.util.concurrent.TimeUnit)}.
+     *
+     * @param timeout a handle which is associated with this task
+     */
+    void run(Timeout timeout) throws Exception;
 }

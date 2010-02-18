@@ -28,7 +28,6 @@ import org.elasticsearch.index.mapper.InvalidTypeNameException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestJsonBuilder;
-import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
 
@@ -56,7 +55,7 @@ public class RestCreateMappingAction extends BaseRestHandler {
         CreateMappingRequest createMappingRequest = createMappingRequest(splitIndices(request.param("index")));
         createMappingRequest.type(request.param("type"));
         createMappingRequest.mappingSource(request.contentAsString());
-        createMappingRequest.timeout(TimeValue.parseTimeValue(request.param("timeout"), timeValueSeconds(10)));
+        createMappingRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
         client.admin().indices().execCreateMapping(createMappingRequest, new ActionListener<CreateMappingResponse>() {
             @Override public void onResponse(CreateMappingResponse result) {
                 try {

@@ -53,6 +53,8 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.server.Server;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
+import org.elasticsearch.timer.TimerModule;
+import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.Tuple;
@@ -103,6 +105,7 @@ public final class InternalServer implements Server {
         modules.add(new ClusterNameModule(settings));
         modules.add(new SettingsModule(settings));
         modules.add(new ThreadPoolModule(settings));
+        modules.add(new TimerModule());
         modules.add(new DiscoveryModule(settings));
         modules.add(new ClusterModule(settings));
         modules.add(new RestModule(settings));
@@ -221,6 +224,7 @@ public final class InternalServer implements Server {
         injector.getInstance(RestController.class).close();
         injector.getInstance(TransportService.class).close();
 
+        injector.getInstance(TimerService.class).close();
         injector.getInstance(ThreadPool.class).shutdown();
         try {
             injector.getInstance(ThreadPool.class).awaitTermination(10, TimeUnit.SECONDS);

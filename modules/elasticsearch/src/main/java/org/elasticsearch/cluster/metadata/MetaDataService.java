@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.google.common.collect.Sets;
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterService;
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.index.NodeIndexCreatedAction;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
+import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.strategy.ShardsRoutingStrategy;
@@ -44,6 +46,7 @@ import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.Arrays;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -67,14 +70,18 @@ public class MetaDataService extends AbstractComponent {
 
     private final NodeIndexDeletedAction nodeIndexDeletedAction;
 
+    private final NodeMappingCreatedAction nodeMappingCreatedAction;
+
     @Inject public MetaDataService(Settings settings, ClusterService clusterService, IndicesService indicesService, ShardsRoutingStrategy shardsRoutingStrategy,
-                                   NodeIndexCreatedAction nodeIndexCreatedAction, NodeIndexDeletedAction nodeIndexDeletedAction) {
+                                   NodeIndexCreatedAction nodeIndexCreatedAction, NodeIndexDeletedAction nodeIndexDeletedAction,
+                                   NodeMappingCreatedAction nodeMappingCreatedAction) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.shardsRoutingStrategy = shardsRoutingStrategy;
         this.nodeIndexCreatedAction = nodeIndexCreatedAction;
         this.nodeIndexDeletedAction = nodeIndexDeletedAction;
+        this.nodeMappingCreatedAction = nodeMappingCreatedAction;
     }
 
     public synchronized boolean createIndex(final String index, final Settings indexSettings, TimeValue timeout) throws IndexAlreadyExistsException {
@@ -193,7 +200,7 @@ public class MetaDataService extends AbstractComponent {
         }
     }
 
-    public void addMapping(final String[] indices, String mappingType, final String mappingSource) throws ElasticSearchException {
+    public boolean addMapping(final String[] indices, String mappingType, final String mappingSource, TimeValue timeout) throws ElasticSearchException {
         ClusterState clusterState = clusterService.state();
         for (String index : indices) {
             IndexRoutingTable indexTable = clusterState.routingTable().indicesRouting().get(index);
@@ -224,6 +231,18 @@ public class MetaDataService extends AbstractComponent {
 
         logger.info("Indices [" + Arrays.toString(indices) + "]: Creating mapping [" + mappingType + "] with source [" + mappingSource + "]");
 
+        final CountDownLatch latch = new CountDownLatch(clusterService.state().nodes().size() * indices.length);
+        final Set<String> indicesSet = Sets.newHashSet(indices);
+        final String fMappingType = mappingType;
+        NodeMappingCreatedAction.Listener listener = new NodeMappingCreatedAction.Listener() {
+            @Override public void onNodeMappingCreated(NodeMappingCreatedAction.NodeMappingCreatedResponse response) {
+                if (indicesSet.contains(response.index()) && response.type().equals(fMappingType)) {
+                    latch.countDown();
+                }
+            }
+        };
+        nodeMappingCreatedAction.add(listener);
+
         final String mappingTypeP = mappingType;
         clusterService.submitStateUpdateTask("create-mapping [" + mappingTypeP + "]", new ClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
@@ -238,6 +257,14 @@ public class MetaDataService extends AbstractComponent {
                 return newClusterStateBuilder().state(currentState).metaData(builder).build();
             }
         });
+
+        try {
+            return latch.await(timeout.millis(), TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            return false;
+        } finally {
+            nodeMappingCreatedAction.remove(listener);
+        }
     }
 
 }

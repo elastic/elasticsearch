@@ -103,7 +103,7 @@ public class TransportCreateMappingAction extends BaseAction<CreateMappingReques
             threadPool.execute(new Runnable() {
                 @Override public void run() {
                     try {
-                        metaDataService.addMapping(indices, request.mappingType(), request.mappingSource());
+                        metaDataService.addMapping(indices, request.type(), request.mappingSource(), request.timeout());
                         listener.onResponse(new CreateMappingResponse());
                     } catch (Exception e) {
                         listener.onFailure(e);
@@ -135,7 +135,7 @@ public class TransportCreateMappingAction extends BaseAction<CreateMappingReques
             String[] indices = Actions.processIndices(clusterService.state(), request.indices());
             if (clusterService.state().nodes().localNodeMaster()) {
                 // handle the actual creation of a new index
-                metaDataService.addMapping(indices, request.mappingType(), request.mappingSource());
+                metaDataService.addMapping(indices, request.type(), request.mappingSource(), request.timeout());
                 channel.sendResponse(VoidStreamable.INSTANCE);
             } else {
                 transportService.sendRequest(clusterService.state().nodes().masterNode(), TransportActions.Admin.Indices.Mapping.CREATE, request, new VoidTransportResponseHandler() {

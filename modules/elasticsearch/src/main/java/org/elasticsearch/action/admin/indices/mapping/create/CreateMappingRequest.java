@@ -22,13 +22,16 @@ package org.elasticsearch.action.admin.indices.mapping.create;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.util.Required;
+import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.io.Streamable;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.Actions.*;
+import static org.elasticsearch.util.TimeValue.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -40,6 +43,8 @@ public class CreateMappingRequest implements ActionRequest, Streamable {
     private String mappingType;
 
     private String mappingSource;
+
+    private TimeValue timeout = new TimeValue(10, TimeUnit.SECONDS);
 
     CreateMappingRequest() {
     }
@@ -79,7 +84,7 @@ public class CreateMappingRequest implements ActionRequest, Streamable {
         return indices;
     }
 
-    String mappingType() {
+    String type() {
         return mappingType;
     }
 
@@ -87,7 +92,7 @@ public class CreateMappingRequest implements ActionRequest, Streamable {
      * The type of the mappings. Not required since it can be defined explicitly within the mapping source.
      * If it is not defined within the mapping source, then it is required.
      */
-    public CreateMappingRequest mappingType(String mappingType) {
+    public CreateMappingRequest type(String mappingType) {
         this.mappingType = mappingType;
         return this;
     }
@@ -101,6 +106,15 @@ public class CreateMappingRequest implements ActionRequest, Streamable {
         return this;
     }
 
+    TimeValue timeout() {
+        return timeout;
+    }
+
+    public CreateMappingRequest timeout(TimeValue timeout) {
+        this.timeout = timeout;
+        return this;
+    }
+
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
         indices = new String[in.readInt()];
         for (int i = 0; i < indices.length; i++) {
@@ -110,6 +124,7 @@ public class CreateMappingRequest implements ActionRequest, Streamable {
             mappingType = in.readUTF();
         }
         mappingSource = in.readUTF();
+        timeout = readTimeValue(in);
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
@@ -128,5 +143,6 @@ public class CreateMappingRequest implements ActionRequest, Streamable {
             out.writeUTF(mappingType);
         }
         out.writeUTF(mappingSource);
+        timeout.writeTo(out);
     }
 }

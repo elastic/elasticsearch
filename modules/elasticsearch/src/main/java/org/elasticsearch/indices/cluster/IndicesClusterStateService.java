@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.action.index.NodeIndexCreatedAction;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
+import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -78,9 +79,12 @@ public class IndicesClusterStateService extends AbstractComponent implements Clu
 
     private final NodeIndexDeletedAction nodeIndexDeletedAction;
 
+    private final NodeMappingCreatedAction nodeMappingCreatedAction;
+
     @Inject public IndicesClusterStateService(Settings settings, IndicesService indicesService, ClusterService clusterService,
                                               ThreadPool threadPool, ShardStateAction shardStateAction,
-                                              NodeIndexCreatedAction nodeIndexCreatedAction, NodeIndexDeletedAction nodeIndexDeletedAction) {
+                                              NodeIndexCreatedAction nodeIndexCreatedAction, NodeIndexDeletedAction nodeIndexDeletedAction,
+                                              NodeMappingCreatedAction nodeMappingCreatedAction) {
         super(settings);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
@@ -88,6 +92,7 @@ public class IndicesClusterStateService extends AbstractComponent implements Clu
         this.shardStateAction = shardStateAction;
         this.nodeIndexCreatedAction = nodeIndexCreatedAction;
         this.nodeIndexDeletedAction = nodeIndexDeletedAction;
+        this.nodeMappingCreatedAction = nodeMappingCreatedAction;
     }
 
     @Override public Lifecycle.State lifecycleState() {
@@ -167,6 +172,7 @@ public class IndicesClusterStateService extends AbstractComponent implements Clu
                             logger.debug("Index [" + index + "] Adding mapping [" + mappingType + "], source [" + mappingSource + "]");
                         }
                         mapperService.add(mappingType, mappingSource);
+                        nodeMappingCreatedAction.nodeMappingCreated(new NodeMappingCreatedAction.NodeMappingCreatedResponse(index, mappingType, event.state().nodes().localNodeId()));
                     } else {
                         DocumentMapper existingMapper = mapperService.documentMapper(mappingType);
                         if (!mappingSource.equals(existingMapper.mappingSource())) {
@@ -175,6 +181,7 @@ public class IndicesClusterStateService extends AbstractComponent implements Clu
                                 logger.debug("Index [" + index + "] Updating mapping [" + mappingType + "], source [" + mappingSource + "]");
                             }
                             mapperService.add(mappingType, mappingSource);
+                            nodeMappingCreatedAction.nodeMappingCreated(new NodeMappingCreatedAction.NodeMappingCreatedResponse(index, mappingType, event.state().nodes().localNodeId()));
                         }
                     }
                 } catch (Exception e) {

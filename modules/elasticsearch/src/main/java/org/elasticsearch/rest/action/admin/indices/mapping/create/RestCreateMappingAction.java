@@ -27,16 +27,19 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.index.mapper.InvalidTypeNameException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestJsonBuilder;
+import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 
 import static org.elasticsearch.ExceptionsHelper.*;
+import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
+import static org.elasticsearch.rest.action.support.RestActions.*;
+import static org.elasticsearch.util.TimeValue.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -50,10 +53,11 @@ public class RestCreateMappingAction extends BaseRestHandler {
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
-        String[] indices = RestActions.splitIndices(request.param("index"));
-        String mappingType = request.param("type");
-        String mappingSource = request.contentAsString();
-        client.admin().indices().execCreateMapping(new CreateMappingRequest(indices, mappingType, mappingSource), new ActionListener<CreateMappingResponse>() {
+        CreateMappingRequest createMappingRequest = createMappingRequest(splitIndices(request.param("index")));
+        createMappingRequest.type(request.param("type"));
+        createMappingRequest.mappingSource(request.contentAsString());
+        createMappingRequest.timeout(TimeValue.parseTimeValue(request.param("timeout"), timeValueSeconds(10)));
+        client.admin().indices().execCreateMapping(createMappingRequest, new ActionListener<CreateMappingResponse>() {
             @Override public void onResponse(CreateMappingResponse result) {
                 try {
                     JsonBuilder builder = RestJsonBuilder.cached(request);

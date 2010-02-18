@@ -2,7 +2,7 @@ node:
   local: true
 cluster:
   routing:
-    schedule: 200ms
+    schedule: 100ms
 index:
   numberOfShards: 5
   numberOfReplicas: 1

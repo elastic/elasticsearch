@@ -1,6 +1,6 @@
 cluster:
   routing:
-    schedule: 200ms
+    schedule: 100ms
 index:
   numberOfShards: 11
   numberOfReplicas: 1

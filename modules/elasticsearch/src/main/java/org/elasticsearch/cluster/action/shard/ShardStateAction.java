@@ -25,10 +25,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.node.Nodes;
-import org.elasticsearch.cluster.routing.ImmutableShardRouting;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.strategy.ShardsRoutingStrategy;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
@@ -103,6 +100,13 @@ public class ShardStateAction extends AbstractComponent {
         logger.warn("Received shard failed for {}", shardRouting);
         clusterService.submitStateUpdateTask("shard-failed (" + shardRouting + ")", new ClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
+                RoutingTable routingTable = currentState.routingTable();
+                IndexRoutingTable indexRoutingTable = routingTable.index(shardRouting.index());
+                // if there is no routing table, the index has been deleted while it was being allocated
+                // which is fine, we should just ignore this
+                if (indexRoutingTable == null) {
+                    return currentState;
+                }
                 if (logger.isDebugEnabled()) {
                     logger.debug("Applying failed shard {}", shardRouting);
                 }
@@ -123,10 +127,16 @@ public class ShardStateAction extends AbstractComponent {
         clusterService.submitStateUpdateTask("shard-started (" + shardRouting + ")", new ClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
                 RoutingTable routingTable = currentState.routingTable();
+                IndexRoutingTable indexRoutingTable = routingTable.index(shardRouting.index());
+                // if there is no routing table, the index has been deleted while it was being allocated
+                // which is fine, we should just ignore this
+                if (indexRoutingTable == null) {
+                    return currentState;
+                }
                 // find the one that maps to us, if its already started, no need to do anything...
                 // the shard might already be started since the nodes that is starting the shards might get cluster events
                 // with the shard still initializing, and it will try and start it again (until the verification comes)
-                IndexShardRoutingTable indexShardRoutingTable = routingTable.index(shardRouting.index()).shard(shardRouting.id());
+                IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardRouting.id());
                 for (ShardRouting entry : indexShardRoutingTable) {
                     if (shardRouting.currentNodeId().equals(entry.currentNodeId())) {
                         // we found the same shard that exists on the same node id

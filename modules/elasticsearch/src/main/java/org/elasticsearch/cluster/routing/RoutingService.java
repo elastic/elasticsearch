@@ -104,13 +104,16 @@ public class RoutingService extends AbstractComponent implements ClusterStateLis
             if (scheduledRoutingTableFuture == null) {
                 scheduledRoutingTableFuture = threadPool.scheduleWithFixedDelay(new RoutingTableUpdater(), schedule);
             }
-            if (event.nodesRemoved()) {
+            if (event.nodesRemoved() || event.routingTableChanged()) {
                 // if nodes were removed, we don't want to wait for the scheduled task
                 // since we want to get primary election as fast as possible
+
+                // also, if the routing table changed, it means that we have new indices, or shard have started
+                // or failed, we want to apply this as fast as possible
                 routingTableDirty = true;
                 threadPool.execute(new RoutingTableUpdater());
             } else {
-                if (event.routingTableChanged() || event.nodesAdded()) {
+                if (event.nodesAdded()) {
                     routingTableDirty = true;
                 }
             }
@@ -134,13 +137,13 @@ public class RoutingService extends AbstractComponent implements ClusterStateLis
                 if (lifecycle.stopped()) {
                     return;
                 }
-                routingTableDirty = false;
                 clusterService.submitStateUpdateTask(CLUSTER_UPDATE_TASK_SOURCE, new ClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
                         RoutingTable newRoutingTable = shardsRoutingStrategy.reroute(currentState);
                         return newClusterStateBuilder().state(currentState).routingTable(newRoutingTable).build();
                     }
                 });
+                routingTableDirty = false;
             } catch (Exception e) {
                 logger.warn("Failed to reroute routing table", e);
             }

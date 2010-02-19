@@ -124,6 +124,18 @@ public class JsonBooleanFieldMapper extends JsonFieldMapper<Boolean> {
             if (nullValue != null) {
                 value = nullValue ? "T" : "F";
             }
+        } else if (token == JsonToken.VALUE_NUMBER_INT) {
+            if (jsonContext.jp().getIntValue() == 0) {
+                value = "F";
+            } else {
+                value = "T";
+            }
+        } else if (token == JsonToken.VALUE_STRING) {
+            if (jsonContext.jp().getText().equals("false")) {
+                value = "F";
+            } else {
+                value = "T";
+            }
         } else {
             return null;
         }

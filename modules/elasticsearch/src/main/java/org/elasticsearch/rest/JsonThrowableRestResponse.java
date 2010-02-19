@@ -52,29 +52,31 @@ public class JsonThrowableRestResponse extends JsonRestResponse {
     }
 
     public JsonThrowableRestResponse(RestRequest request, Status status, Throwable t) throws IOException {
-        super(request, status, convert(t));
+        super(request, status, convert(request, t));
     }
 
-    private static JsonBuilder convert(Throwable t) throws IOException {
+    private static JsonBuilder convert(RestRequest request, Throwable t) throws IOException {
         Holder holder = cache.get();
         holder.writer.reset();
         t.printStackTrace(holder.printWriter);
         JsonBuilder builder = jsonBuilder().prettyPrint()
                 .startObject().field("error", ExceptionsHelper.detailedMessage(t, false, 0));
-        builder.startObject("debug");
-        boolean first = true;
-        while (t != null) {
-            if (!first) {
-                builder.startObject("cause");
+        if (request.paramAsBoolean("errorTrace", false)) {
+            builder.startObject("errorTrace");
+            boolean first = true;
+            while (t != null) {
+                if (!first) {
+                    builder.startObject("cause");
+                }
+                buildThrowable(t, builder);
+                if (!first) {
+                    builder.endObject();
+                }
+                t = t.getCause();
+                first = false;
             }
-            buildThrowable(t, builder);
-            if (!first) {
-                builder.endObject();
-            }
-            t = t.getCause();
-            first = false;
+            builder.endObject();
         }
-        builder.endObject();
         builder.endObject();
         return builder;
     }

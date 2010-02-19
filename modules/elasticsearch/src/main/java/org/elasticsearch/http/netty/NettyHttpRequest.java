@@ -133,7 +133,7 @@ public class NettyHttpRequest implements HttpRequest {
         if (sValue == null) {
             return defaultValue;
         }
-        return sValue.equals("true") || sValue.equals("1");
+        return sValue.equals("true") || sValue.equals("1") || sValue.equals("on");
     }
 
     @Override public TimeValue paramAsTime(String key, TimeValue defaultValue) {

@@ -33,7 +33,8 @@ public interface JsonFilterParser extends IndexComponent {
     String name();
 
     /**
-     * Parses the into a query from the current json parser location.
+     * Parses the into a filter from the current json parser location. Will be at "START_OBJECT" location,
+     * and should end when the token is at the matching "END_OBJECT".
      */
     Filter parse(JsonQueryParseContext parseContext) throws IOException, QueryParsingException;
 }

@@ -53,12 +53,13 @@ public class RangeJsonFilterParser extends AbstractIndexComponent implements Jso
     @Override public Filter parse(JsonQueryParseContext parseContext) throws IOException, QueryParsingException {
         JsonParser jp = parseContext.jp();
 
-        JsonToken token = jp.getCurrentToken();
-        if (token == JsonToken.START_OBJECT) {
-            token = jp.nextToken();
-        }
+        JsonToken token = jp.nextToken();
         assert token == JsonToken.FIELD_NAME;
         String fieldName = jp.getCurrentName();
+
+        // now, we move after the field name, which starts the object
+        token = jp.nextToken();
+        assert token == JsonToken.START_OBJECT;
 
         String from = null;
         String to = null;
@@ -89,6 +90,10 @@ public class RangeJsonFilterParser extends AbstractIndexComponent implements Jso
                 }
             }
         }
+
+        // move to the next end object, to close the field name
+        token = jp.nextToken();
+        assert token == JsonToken.END_OBJECT;
 
         Filter filter = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);

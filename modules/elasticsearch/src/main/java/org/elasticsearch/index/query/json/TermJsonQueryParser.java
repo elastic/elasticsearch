@@ -54,13 +54,9 @@ public class TermJsonQueryParser extends AbstractIndexComponent implements JsonQ
     @Override public Query parse(JsonQueryParseContext parseContext) throws IOException, QueryParsingException {
         JsonParser jp = parseContext.jp();
 
-        JsonToken token = jp.getCurrentToken();
-        if (token == JsonToken.START_OBJECT) {
-            token = jp.nextToken();
-        }
+        JsonToken token = jp.nextToken();
         assert token == JsonToken.FIELD_NAME;
         String fieldName = jp.getCurrentName();
-
 
         String value = null;
         float boost = 1.0f;
@@ -78,6 +74,7 @@ public class TermJsonQueryParser extends AbstractIndexComponent implements JsonQ
                     }
                 }
             }
+            jp.nextToken();
         } else {
             value = jp.getText();
             // move to the next token

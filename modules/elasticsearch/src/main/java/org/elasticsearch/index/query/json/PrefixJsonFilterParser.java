@@ -54,10 +54,7 @@ public class PrefixJsonFilterParser extends AbstractIndexComponent implements Js
     @Override public Filter parse(JsonQueryParseContext parseContext) throws IOException, QueryParsingException {
         JsonParser jp = parseContext.jp();
 
-        JsonToken token = jp.getCurrentToken();
-        if (token == JsonToken.START_OBJECT) {
-            token = jp.nextToken();
-        }
+        JsonToken token = jp.nextToken();
         assert token == JsonToken.FIELD_NAME;
         String fieldName = jp.getCurrentName();
         jp.nextToken();

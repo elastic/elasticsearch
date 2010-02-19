@@ -47,6 +47,7 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy
  */
+@Test
 public class SimpleJsonIndexQueryParserTests {
 
     private final Index index = new Index("test");
@@ -374,6 +375,45 @@ public class SimpleJsonIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
+        assertThat(((TermFilter) filteredQuery.getFilter()).getTerm(), equalTo(new Term("name.last", "banon")));
+    }
+
+    @Test public void testFilteredQuery2() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/json/filtered-query2.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+        assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
+        assertThat(((TermFilter) filteredQuery.getFilter()).getTerm(), equalTo(new Term("name.last", "banon")));
+    }
+
+    @Test public void testFilteredQuery3() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/json/filtered-query3.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+        assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
+
+        Filter filter = filteredQuery.getFilter();
+        assertThat(filter, instanceOf(NumericRangeFilter.class));
+        NumericRangeFilter rangeFilter = (NumericRangeFilter) filter;
+        assertThat(rangeFilter.getField(), equalTo("age"));
+        assertThat(rangeFilter.getMin().intValue(), equalTo(23));
+        assertThat(rangeFilter.getMax().intValue(), equalTo(54));
+    }
+
+    @Test public void testFilteredQuery4() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/json/filtered-query4.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+        WildcardQuery wildcardQuery = (WildcardQuery) filteredQuery.getQuery();
+        assertThat(wildcardQuery.getTerm(), equalTo(new Term("name.first", "sh*")));
+        assertThat((double) wildcardQuery.getBoost(), closeTo(1.1, 0.001));
+
         assertThat(((TermFilter) filteredQuery.getFilter()).getTerm(), equalTo(new Term("name.last", "banon")));
     }
 

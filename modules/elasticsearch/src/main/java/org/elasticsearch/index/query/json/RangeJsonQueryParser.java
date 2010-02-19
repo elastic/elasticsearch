@@ -53,10 +53,7 @@ public class RangeJsonQueryParser extends AbstractIndexComponent implements Json
     @Override public Query parse(JsonQueryParseContext parseContext) throws IOException, QueryParsingException {
         JsonParser jp = parseContext.jp();
 
-        JsonToken token = jp.getCurrentToken();
-        if (token == JsonToken.START_OBJECT) {
-            token = jp.nextToken();
-        }
+        JsonToken token = jp.nextToken();
         assert token == JsonToken.FIELD_NAME;
         String fieldName = jp.getCurrentName();
 
@@ -92,6 +89,10 @@ public class RangeJsonQueryParser extends AbstractIndexComponent implements Json
                 }
             }
         }
+
+        // move to the next end object, to close the field name
+        token = jp.nextToken();
+        assert token == JsonToken.END_OBJECT;
 
         Query query = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);

@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchOperationThreading;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.Node;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -61,9 +62,9 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
 
     private class AsyncAction extends BaseAsyncAction<QuerySearchResult> {
 
-        private final Map<SearchShardTarget, QuerySearchResultProvider> queryResults = transportSearchCache.obtainQueryResults();
+        private final Map<SearchShardTarget, QuerySearchResultProvider> queryResults = searchCache.obtainQueryResults();
 
-        private final Map<SearchShardTarget, FetchSearchResult> fetchResults = transportSearchCache.obtainFetchResults();
+        private final Map<SearchShardTarget, FetchSearchResult> fetchResults = searchCache.obtainFetchResults();
 
 
         private AsyncAction(SearchRequest request, ActionListener<SearchResponse> listener) {
@@ -146,6 +147,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
                     if (logger.isDebugEnabled()) {
                         logger.debug("Failed to execute fetch phase", t);
                     }
+                    AsyncAction.this.shardFailures.add(new ShardSearchFailure(t));
                     successulOps.decrementAndGet();
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
@@ -160,9 +162,9 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
             if (request.scroll() != null) {
                 scrollId = TransportSearchHelper.buildScrollId(request.searchType(), fetchResults.values());
             }
-            transportSearchCache.releaseQueryResults(queryResults);
-            transportSearchCache.releaseFetchResults(fetchResults);
-            listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get()));
+            searchCache.releaseQueryResults(queryResults);
+            searchCache.releaseFetchResults(fetchResults);
+            listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildShardFailures()));
         }
     }
 }

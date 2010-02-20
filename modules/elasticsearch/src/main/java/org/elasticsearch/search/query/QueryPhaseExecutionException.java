@@ -19,15 +19,15 @@
 
 package org.elasticsearch.search.query;
 
-import org.elasticsearch.search.SearchException;
+import org.elasticsearch.search.SearchContextException;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public class QueryPhaseExecutionException extends SearchException {
+public class QueryPhaseExecutionException extends SearchContextException {
 
-    public QueryPhaseExecutionException(SearchContext context, Throwable cause) {
-        super("Failed to execute query [" + context.query() + "], sort [" + context.sort() + "], from [" + context.from() + "], size [" + context.size() + "]", cause);
+    public QueryPhaseExecutionException(SearchContext context, String msg, Throwable cause) {
+        super(context, "Query Failed [" + msg + "]", cause);
     }
 }

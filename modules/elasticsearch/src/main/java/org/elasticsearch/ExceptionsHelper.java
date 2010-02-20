@@ -32,6 +32,10 @@ public final class ExceptionsHelper {
         return result;
     }
 
+    public static String detailedMessage(Throwable t) {
+        return detailedMessage(t, false, 0);
+    }
+
     public static String detailedMessage(Throwable t, boolean newLines, int initialCounter) {
         int counter = initialCounter + 1;
         if (t.getCause() != null) {

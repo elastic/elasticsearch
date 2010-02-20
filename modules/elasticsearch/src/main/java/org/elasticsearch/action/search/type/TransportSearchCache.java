@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search.type;
 
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -36,6 +37,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  */
 public class TransportSearchCache {
 
+    private final Queue<Collection<ShardSearchFailure>> cacheShardFailures = new ConcurrentLinkedQueue<Collection<ShardSearchFailure>>();
+
     private final Queue<Collection<DfsSearchResult>> cacheDfsResults = new ConcurrentLinkedQueue<Collection<DfsSearchResult>>();
 
     private final Queue<Map<SearchShardTarget, QuerySearchResultProvider>> cacheQueryResults = new ConcurrentLinkedQueue<Map<SearchShardTarget, QuerySearchResultProvider>>();
@@ -43,6 +46,21 @@ public class TransportSearchCache {
     private final Queue<Map<SearchShardTarget, FetchSearchResult>> cacheFetchResults = new ConcurrentLinkedQueue<Map<SearchShardTarget, FetchSearchResult>>();
 
     private final Queue<Map<SearchShardTarget, QueryFetchSearchResult>> cacheQueryFetchResults = new ConcurrentLinkedQueue<Map<SearchShardTarget, QueryFetchSearchResult>>();
+
+
+    public Collection<ShardSearchFailure> obtainShardFailures() {
+        Collection<ShardSearchFailure> shardFailures;
+        while ((shardFailures = cacheShardFailures.poll()) == null) {
+            cacheShardFailures.offer(new ConcurrentLinkedQueue<ShardSearchFailure>());
+        }
+        shardFailures.clear();
+        return shardFailures;
+    }
+
+    public void releaseShardFailures(Collection<ShardSearchFailure> shardFailures) {
+        shardFailures.clear();
+        cacheShardFailures.offer(shardFailures);
+    }
 
     public Collection<DfsSearchResult> obtainDfsResults() {
         Collection<DfsSearchResult> dfsSearchResults;

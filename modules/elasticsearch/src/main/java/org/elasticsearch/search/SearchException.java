@@ -26,11 +26,19 @@ import org.elasticsearch.ElasticSearchException;
  */
 public class SearchException extends ElasticSearchException {
 
-    public SearchException(String msg) {
+    private final SearchShardTarget shardTarget;
+
+    public SearchException(SearchShardTarget shardTarget, String msg) {
         super(msg);
+        this.shardTarget = shardTarget;
     }
 
-    public SearchException(String msg, Throwable cause) {
+    public SearchException(SearchShardTarget shardTarget, String msg, Throwable cause) {
         super(msg, cause);
+        this.shardTarget = shardTarget;
+    }
+
+    public SearchShardTarget shard() {
+        return this.shardTarget;
     }
 }

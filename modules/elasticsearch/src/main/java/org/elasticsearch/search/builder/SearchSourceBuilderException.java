@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.builder;
 
-import org.elasticsearch.search.SearchException;
+import org.elasticsearch.ElasticSearchException;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public class SearchSourceBuilderException extends SearchException {
+public class SearchSourceBuilderException extends ElasticSearchException {
 
     public SearchSourceBuilderException(String msg) {
         super(msg);

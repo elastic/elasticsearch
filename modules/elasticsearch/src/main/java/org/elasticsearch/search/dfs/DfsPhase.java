@@ -49,7 +49,7 @@ public class DfsPhase implements SearchPhase {
             context.dfsResult().termsAndFreqs(terms, freqs);
             context.dfsResult().maxDoc(context.searcher().getIndexReader().maxDoc());
         } catch (Exception e) {
-            throw new DfsPhaseExecutionException(context);
+            throw new DfsPhaseExecutionException(context, "", e);
         }
     }
 }

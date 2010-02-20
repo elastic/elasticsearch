@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchOperationThreading;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.Node;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -63,9 +64,9 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
 
     private class AsyncAction extends BaseAsyncAction<DfsSearchResult> {
 
-        private final Collection<DfsSearchResult> dfsResults = transportSearchCache.obtainDfsResults();
+        private final Collection<DfsSearchResult> dfsResults = searchCache.obtainDfsResults();
 
-        private final Map<SearchShardTarget, QueryFetchSearchResult> queryFetchResults = transportSearchCache.obtainQueryFetchResults();
+        private final Map<SearchShardTarget, QueryFetchSearchResult> queryFetchResults = searchCache.obtainQueryFetchResults();
 
 
         private AsyncAction(SearchRequest request, ActionListener<SearchResponse> listener) {
@@ -105,7 +106,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
                                     executeSecondPhase(counter, node, querySearchRequest);
                                 }
                             }
-                            transportSearchCache.releaseDfsResults(dfsResults);
+                            searchCache.releaseDfsResults(dfsResults);
                         }
                     });
                 } else {
@@ -125,7 +126,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
                             }
                         }
                     }
-                    transportSearchCache.releaseDfsResults(dfsResults);
+                    searchCache.releaseDfsResults(dfsResults);
                 }
             }
         }
@@ -143,6 +144,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
                     if (logger.isDebugEnabled()) {
                         logger.debug("Failed to execute query phase", t);
                     }
+                    AsyncAction.this.shardFailures.add(new ShardSearchFailure(t));
                     successulOps.decrementAndGet();
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
@@ -159,15 +161,15 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
                 scrollIdX = buildScrollId(request.searchType(), queryFetchResults.values());
             }
             final String scrollId = scrollIdX;
-            transportSearchCache.releaseQueryFetchResults(queryFetchResults);
+            searchCache.releaseQueryFetchResults(queryFetchResults);
             if (request.listenerThreaded()) {
                 threadPool.execute(new Runnable() {
                     @Override public void run() {
-                        listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get()));
+                        listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildShardFailures()));
                     }
                 });
             } else {
-                listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get()));
+                listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildShardFailures()));
             }
         }
     }

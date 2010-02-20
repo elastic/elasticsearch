@@ -48,6 +48,8 @@ public class SearchContext implements Releasable {
 
     private final long id;
 
+    private final SearchShardTarget shardTarget;
+
     private final String source;
 
     private final Engine.Searcher engineSearcher;
@@ -101,6 +103,7 @@ public class SearchContext implements Releasable {
     public SearchContext(long id, SearchShardTarget shardTarget, TimeValue timeout, float queryBoost, String source,
                          String[] types, Engine.Searcher engineSearcher, IndexService indexService) {
         this.id = id;
+        this.shardTarget = shardTarget;
         this.timeout = timeout;
         this.queryBoost = queryBoost;
         this.source = source;
@@ -129,6 +132,10 @@ public class SearchContext implements Releasable {
 
     public long id() {
         return this.id;
+    }
+
+    public SearchShardTarget shardTarget() {
+        return this.shardTarget;
     }
 
     public String source() {

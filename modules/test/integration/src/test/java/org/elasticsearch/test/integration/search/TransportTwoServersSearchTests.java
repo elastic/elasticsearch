@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.search;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.search.Scroll;
@@ -232,6 +233,17 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
     @Test public void testSimpleFacetsTwice() throws Exception {
         testSimpleFacets();
         testSimpleFacets();
+    }
+
+    @Test public void testFailedSearch() throws Exception {
+        logger.info("Start Testing failed search");
+        SearchResponse searchResponse = client.search(searchRequest("test").source("{ xxx }")).actionGet();
+        assertThat(searchResponse.successfulShards(), equalTo(0));
+        logger.info("Failures:");
+        for (ShardSearchFailure searchFailure : searchResponse.shardFailures()) {
+            logger.info("Reason : " + searchFailure.reason() + ", shard " + searchFailure.shard());
+        }
+        logger.info("Done Testing failed search");
     }
 
 

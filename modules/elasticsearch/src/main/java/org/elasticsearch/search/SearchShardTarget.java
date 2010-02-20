@@ -24,13 +24,14 @@ import org.elasticsearch.util.io.Streamable;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.io.Serializable;
 
 /**
  * The target that the search request was executed on.
  *
  * @author kimchy (Shay Banon)
  */
-public class SearchShardTarget implements Streamable {
+public class SearchShardTarget implements Streamable, Serializable {
 
     private String nodeId;
 

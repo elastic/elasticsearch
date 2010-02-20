@@ -19,13 +19,13 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.util.io.FastCharArrayWriter;
 import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
 import java.io.PrintWriter;
 
+import static org.elasticsearch.ExceptionsHelper.*;
 import static org.elasticsearch.util.json.JsonBuilder.*;
 
 /**
@@ -60,7 +60,7 @@ public class JsonThrowableRestResponse extends JsonRestResponse {
         holder.writer.reset();
         t.printStackTrace(holder.printWriter);
         JsonBuilder builder = jsonBuilder().prettyPrint()
-                .startObject().field("error", ExceptionsHelper.detailedMessage(t, false, 0));
+                .startObject().field("error", detailedMessage(t));
         if (request.paramAsBoolean("errorTrace", false)) {
             builder.startObject("errorTrace");
             boolean first = true;

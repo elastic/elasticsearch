@@ -99,7 +99,7 @@ public class SortParseElement implements SearchParseElement {
                         if ("type".equals(innerJsonName)) {
                             type = sortFieldTypesMapper.get(jp.getText());
                             if (type == -1) {
-                                throw new SearchParseException("No sort type for [" + jp.getText() + "] with field [" + fieldName + "]");
+                                throw new SearchParseException(context, "No sort type for [" + jp.getText() + "] with field [" + fieldName + "]");
                             }
                         }
                     }
@@ -126,7 +126,7 @@ public class SortParseElement implements SearchParseElement {
             FieldMappers fieldMappers = context.mapperService().smartNameFieldMappers(fieldName);
             if (fieldMappers == null || fieldMappers.mappers().isEmpty()) {
                 if (type == -1) {
-                    throw new SearchParseException("No built in mapping found for [" + fieldName + "], and no explicit type defined");
+                    throw new SearchParseException(context, "No built in mapping found for [" + fieldName + "], and no explicit type defined");
                 }
             } else {
                 fieldName = fieldMappers.mappers().get(0).indexName();

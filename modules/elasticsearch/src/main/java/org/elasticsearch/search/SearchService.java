@@ -42,6 +42,7 @@ import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryPhase;
+import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.timer.TimerService;
@@ -172,7 +173,7 @@ public class SearchService extends AbstractComponent implements LifecycleCompone
         try {
             context.searcher().dfSource(new CachedDfSource(request.dfs(), context.similarityService().defaultSearchSimilarity()));
         } catch (IOException e) {
-            throw new SearchException("Failed to set aggregated df", e);
+            throw new QueryPhaseExecutionException(context, "Failed to set aggregated df", e);
         }
         queryPhase.execute(context);
         return context.queryResult();
@@ -194,7 +195,7 @@ public class SearchService extends AbstractComponent implements LifecycleCompone
         try {
             context.searcher().dfSource(new CachedDfSource(request.dfs(), context.similarityService().defaultSearchSimilarity()));
         } catch (IOException e) {
-            throw new SearchException("Failed to set aggregated df", e);
+            throw new QueryPhaseExecutionException(context, "Failed to set aggregated df", e);
         }
         queryPhase.execute(context);
         shortcutDocIdsToLoad(context);
@@ -297,7 +298,7 @@ public class SearchService extends AbstractComponent implements LifecycleCompone
                     jp.nextToken();
                     SearchParseElement element = elementParsers.get(fieldName);
                     if (element == null) {
-                        throw new SearchParseException("No parser for element [" + fieldName + "]");
+                        throw new SearchParseException(context, "No parser for element [" + fieldName + "]");
                     }
                     element.parse(jp, context);
                 } else if (token == null) {
@@ -305,7 +306,7 @@ public class SearchService extends AbstractComponent implements LifecycleCompone
                 }
             }
         } catch (Exception e) {
-            throw new SearchParseException("Failed to parse [" + context.source() + "]", e);
+            throw new SearchParseException(context, "Failed to parse [" + context.source() + "]", e);
         }
     }
 

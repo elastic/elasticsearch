@@ -19,19 +19,19 @@
 
 package org.elasticsearch.search.fetch;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.search.SearchContextException;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public class FetchPhaseExecutionException extends ElasticSearchException {
+public class FetchPhaseExecutionException extends SearchContextException {
 
     public FetchPhaseExecutionException(SearchContext context, String msg) {
-        this(context, msg, null);
+        super(context, "Fetch Failed [" + msg + "]");
     }
 
     public FetchPhaseExecutionException(SearchContext context, String msg, Throwable t) {
-        super("Failed to fetch query [" + context.query() + "], sort [" + context.sort() + "], from [" + context.from() + "], size [" + context.size() + "], reason [" + msg + "]", t);
+        super(context, "Fetch Failed [" + msg + "]", t);
     }
 }

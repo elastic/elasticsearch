@@ -19,16 +19,18 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.search.internal.SearchContext;
+
 /**
  * @author kimchy (Shay Banon)
  */
-public class SearchParseException extends SearchException {
+public class SearchParseException extends SearchContextException {
 
-    public SearchParseException(String msg) {
-        super(msg);
+    public SearchParseException(SearchContext context, String msg) {
+        super(context, "Parse Failure [" + msg + "]");
     }
 
-    public SearchParseException(String msg, Throwable cause) {
-        super(msg, cause);
+    public SearchParseException(SearchContext context, String msg, Throwable cause) {
+        super(context, "Parse Failure [" + msg + "]", cause);
     }
 }

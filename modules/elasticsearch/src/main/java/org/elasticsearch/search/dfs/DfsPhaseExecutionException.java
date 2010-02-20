@@ -19,15 +19,15 @@
 
 package org.elasticsearch.search.dfs;
 
-import org.elasticsearch.search.SearchException;
+import org.elasticsearch.search.SearchContextException;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public class DfsPhaseExecutionException extends SearchException {
+public class DfsPhaseExecutionException extends SearchContextException {
 
-    public DfsPhaseExecutionException(SearchContext context) {
-        super("Failed to execute dfs [" + context.query() + "]");
+    public DfsPhaseExecutionException(SearchContext context, String msg, Throwable t) {
+        super(context, "Dfs Failed [" + msg + "]", t);
     }
 }

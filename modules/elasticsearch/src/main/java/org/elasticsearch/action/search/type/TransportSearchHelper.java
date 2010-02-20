@@ -23,12 +23,14 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.search.fetch.FetchSearchResultProvider;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.util.Tuple;
 
+import java.util.Collection;
 import java.util.regex.Pattern;
 
 /**
@@ -41,6 +43,20 @@ public abstract class TransportSearchHelper {
 
     static {
         scrollIdPattern = Pattern.compile(";");
+    }
+
+    /**
+     * Builds the shard failures, and releases the cache (meaning this should only be called once!).
+     */
+    public static ShardSearchFailure[] buildShardFailures(Collection<ShardSearchFailure> shardFailures, TransportSearchCache searchCache) {
+        ShardSearchFailure[] ret;
+        if (shardFailures.isEmpty()) {
+            ret = ShardSearchFailure.EMPTY_ARRAY;
+        } else {
+            ret = shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
+        }
+        searchCache.releaseShardFailures(shardFailures);
+        return ret;
     }
 
     public static InternalSearchRequest internalSearchRequest(ShardRouting shardRouting, SearchRequest request) {

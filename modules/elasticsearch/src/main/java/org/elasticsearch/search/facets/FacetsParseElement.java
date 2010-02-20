@@ -61,7 +61,7 @@ public class FacetsParseElement implements SearchParseElement {
                     } else if ("idset".equals(text)) {
                         queryExecutionType = SearchContextFacets.QueryExecutionType.IDSET;
                     } else {
-                        throw new SearchParseException("Unsupported query type [" + text + "]");
+                        throw new SearchParseException(context, "Unsupported query type [" + text + "]");
                     }
                 } else {
 
@@ -79,7 +79,7 @@ public class FacetsParseElement implements SearchParseElement {
                         }
                         queryFacets.add(new SearchContextFacets.QueryFacet(topLevelFieldName, facetQuery));
                     } else {
-                        throw new SearchParseException("Unsupported facet type [" + facetType + "] for facet name [" + topLevelFieldName + "]");
+                        throw new SearchParseException(context, "Unsupported facet type [" + facetType + "] for facet name [" + topLevelFieldName + "]");
                     }
                     jp.nextToken();
                 }

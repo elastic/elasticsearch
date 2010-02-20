@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchOperationThreading;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -40,6 +41,7 @@ import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.settings.Settings;
 
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -61,14 +63,14 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
 
     protected final SearchPhaseController searchPhaseController;
 
-    protected final TransportSearchCache transportSearchCache;
+    protected final TransportSearchCache searchCache;
 
     public TransportSearchTypeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, IndicesService indicesService,
-                                     TransportSearchCache transportSearchCache, SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
+                                     TransportSearchCache searchCache, SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.transportSearchCache = transportSearchCache;
+        this.searchCache = searchCache;
         this.indicesService = indicesService;
         this.searchService = searchService;
         this.searchPhaseController = searchPhaseController;
@@ -91,6 +93,8 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
         protected final AtomicInteger successulOps = new AtomicInteger();
 
         protected final AtomicInteger totalOps = new AtomicInteger();
+
+        protected final Collection<ShardSearchFailure> shardFailures = searchCache.obtainShardFailures();
 
         protected volatile ShardDoc[] sortedShardList;
 
@@ -162,9 +166,6 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
         }
 
         private void performFirstPhase(final Iterator<ShardRouting> shardIt) {
-            if (!shardIt.hasNext()) {
-                return;
-            }
             final ShardRouting shard = shardIt.next();
             if (!shard.active()) {
                 // as if we have a "problem", so we iterate to the next one and maintain counts
@@ -204,10 +205,24 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                 }
             }
             if (totalOps.incrementAndGet() == expectedTotalOps) {
+                // no more shards, add a failure
+                shardFailures.add(new ShardSearchFailure(t));
                 moveToSecondPhase();
             } else {
-                performFirstPhase(shardIt);
+                if (shardIt.hasNext()) {
+                    performFirstPhase(shardIt);
+                } else {
+                    // no more shards, add a failure
+                    shardFailures.add(new ShardSearchFailure(t));
+                }
             }
+        }
+
+        /**
+         * Builds the shard failures, and releases the cache (meaning this should only be called once!).
+         */
+        protected ShardSearchFailure[] buildShardFailures() {
+            return TransportSearchHelper.buildShardFailures(shardFailures, searchCache);
         }
 
         protected abstract void sendExecuteFirstPhase(Node node, InternalSearchRequest request, SearchServiceListener<FirstResult> listener);

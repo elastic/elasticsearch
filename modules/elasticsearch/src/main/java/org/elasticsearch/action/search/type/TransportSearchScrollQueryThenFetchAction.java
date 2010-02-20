@@ -23,6 +23,7 @@ import com.google.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.Node;
 import org.elasticsearch.cluster.node.Nodes;
@@ -41,8 +42,11 @@ import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.trove.ExtTIntArrayList;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.elasticsearch.action.search.type.TransportSearchHelper.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -55,14 +59,14 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
 
     private final SearchPhaseController searchPhaseController;
 
-    private final TransportSearchCache transportSearchCache;
+    private final TransportSearchCache searchCache;
 
     @Inject public TransportSearchScrollQueryThenFetchAction(Settings settings, ClusterService clusterService,
-                                                             TransportSearchCache transportSearchCache,
+                                                             TransportSearchCache searchCache,
                                                              SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
         super(settings);
         this.clusterService = clusterService;
-        this.transportSearchCache = transportSearchCache;
+        this.searchCache = searchCache;
         this.searchService = searchService;
         this.searchPhaseController = searchPhaseController;
     }
@@ -81,9 +85,11 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
 
         private final Nodes nodes;
 
-        private final Map<SearchShardTarget, QuerySearchResultProvider> queryResults = transportSearchCache.obtainQueryResults();
+        protected final Collection<ShardSearchFailure> shardFailures = searchCache.obtainShardFailures();
 
-        private final Map<SearchShardTarget, FetchSearchResult> fetchResults = transportSearchCache.obtainFetchResults();
+        private final Map<SearchShardTarget, QuerySearchResultProvider> queryResults = searchCache.obtainQueryResults();
+
+        private final Map<SearchShardTarget, FetchSearchResult> fetchResults = searchCache.obtainFetchResults();
 
         private volatile ShardDoc[] sortedShardList;
 
@@ -122,6 +128,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
                             if (logger.isDebugEnabled()) {
                                 logger.debug("Failed to execute query phase", t);
                             }
+                            shardFailures.add(new ShardSearchFailure(t));
                             successfulOps.decrementAndGet();
                             if (counter.decrementAndGet() == 0) {
                                 executeFetchPhase();
@@ -174,9 +181,9 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
             if (request.scroll() != null) {
                 scrollId = TransportSearchHelper.buildScrollId(this.scrollId.type(), fetchResults.values());
             }
-            transportSearchCache.releaseQueryResults(queryResults);
-            transportSearchCache.releaseFetchResults(fetchResults);
-            listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.values().length, successfulOps.get()));
+            searchCache.releaseQueryResults(queryResults);
+            searchCache.releaseFetchResults(fetchResults);
+            listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.values().length, successfulOps.get(), buildShardFailures(shardFailures, searchCache)));
         }
 
     }

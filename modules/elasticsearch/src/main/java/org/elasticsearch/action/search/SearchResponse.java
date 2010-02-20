@@ -30,6 +30,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
+import static org.elasticsearch.action.search.ShardSearchFailure.*;
 import static org.elasticsearch.search.internal.InternalSearchResponse.*;
 
 /**
@@ -45,14 +46,17 @@ public class SearchResponse implements ActionResponse, ToJson {
 
     private int successfulShards;
 
+    private ShardSearchFailure[] shardFailures;
+
     public SearchResponse() {
     }
 
-    public SearchResponse(InternalSearchResponse internalResponse, String scrollId, int totalShards, int successfulShards) {
+    public SearchResponse(InternalSearchResponse internalResponse, String scrollId, int totalShards, int successfulShards, ShardSearchFailure[] shardFailures) {
         this.internalResponse = internalResponse;
         this.scrollId = scrollId;
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
+        this.shardFailures = shardFailures;
     }
 
     public SearchHits hits() {
@@ -75,6 +79,10 @@ public class SearchResponse implements ActionResponse, ToJson {
         return totalShards - successfulShards;
     }
 
+    public ShardSearchFailure[] shardFailures() {
+        return this.shardFailures;
+    }
+
     public String scrollId() {
         return scrollId;
     }
@@ -93,6 +101,21 @@ public class SearchResponse implements ActionResponse, ToJson {
         builder.field("total", totalShards());
         builder.field("successful", successfulShards());
         builder.field("failed", failedShards());
+
+        if (shardFailures.length > 0) {
+            builder.startArray("failures");
+            for (ShardSearchFailure shardFailure : shardFailures) {
+                builder.startObject();
+                if (shardFailure.shard() != null) {
+                    builder.field("index", shardFailure.shard().index());
+                    builder.field("shardId", shardFailure.shard().shardId());
+                }
+                builder.field("reason", shardFailure.reason());
+                builder.endObject();
+            }
+            builder.endArray();
+        }
+
         builder.endObject();
         internalResponse.toJson(builder, params);
     }
@@ -101,6 +124,15 @@ public class SearchResponse implements ActionResponse, ToJson {
         internalResponse = readInternalSearchResponse(in);
         totalShards = in.readInt();
         successfulShards = in.readInt();
+        int size = in.readInt();
+        if (size == 0) {
+            shardFailures = ShardSearchFailure.EMPTY_ARRAY;
+        } else {
+            shardFailures = new ShardSearchFailure[size];
+            for (int i = 0; i < shardFailures.length; i++) {
+                shardFailures[i] = readShardSearchFailure(in);
+            }
+        }
         if (in.readBoolean()) {
             scrollId = in.readUTF();
         }
@@ -110,6 +142,12 @@ public class SearchResponse implements ActionResponse, ToJson {
         internalResponse.writeTo(out);
         out.writeInt(totalShards);
         out.writeInt(successfulShards);
+
+        out.writeInt(shardFailures.length);
+        for (ShardSearchFailure shardSearchFailure : shardFailures) {
+            shardSearchFailure.writeTo(out);
+        }
+
         if (scrollId == null) {
             out.writeBoolean(false);
         } else {

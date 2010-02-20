@@ -57,7 +57,7 @@ public class TransportSearchQueryAndFetchAction extends TransportSearchTypeActio
 
     private class AsyncAction extends BaseAsyncAction<QueryFetchSearchResult> {
 
-        private final Map<SearchShardTarget, QueryFetchSearchResult> queryFetchResults = transportSearchCache.obtainQueryFetchResults();
+        private final Map<SearchShardTarget, QueryFetchSearchResult> queryFetchResults = searchCache.obtainQueryFetchResults();
 
 
         private AsyncAction(SearchRequest request, ActionListener<SearchResponse> listener) {
@@ -80,15 +80,15 @@ public class TransportSearchQueryAndFetchAction extends TransportSearchTypeActio
                 scrollIdX = buildScrollId(request.searchType(), queryFetchResults.values());
             }
             final String scrollId = scrollIdX;
-            transportSearchCache.releaseQueryFetchResults(queryFetchResults);
+            searchCache.releaseQueryFetchResults(queryFetchResults);
             if (request.listenerThreaded()) {
                 threadPool.execute(new Runnable() {
                     @Override public void run() {
-                        listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get()));
+                        listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildShardFailures()));
                     }
                 });
             } else {
-                listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get()));
+                listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildShardFailures()));
             }
         }
     }

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.index.query.json.JsonQueryBuilder;
+import org.elasticsearch.search.SearchException;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.json.ToJson;
 
@@ -123,7 +124,7 @@ public class SearchSourceBuilder {
         return this;
     }
 
-    public String build() {
+    public String build() throws SearchException {
         try {
             JsonBuilder builder = JsonBuilder.jsonBuilder();
             builder.startObject();

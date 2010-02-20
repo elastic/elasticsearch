@@ -119,7 +119,7 @@ public class InternalSearchHit implements SearchHit {
             builder.raw(", \"_source\" : ");
             builder.raw(source());
         }
-        if (fields() != null) {
+        if (fields() != null && !fields().isEmpty()) {
             builder.startObject("fields");
             for (SearchHitField field : fields().values()) {
                 if (field.values().isEmpty()) {

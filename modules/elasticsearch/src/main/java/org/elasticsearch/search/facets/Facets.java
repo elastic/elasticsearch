@@ -101,7 +101,7 @@ public class Facets implements Streamable, ToJson {
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
-        out.write(facets.size());
+        out.writeInt(facets.size());
         for (Facet facet : facets) {
             out.write(facet.type().id());
             facet.writeTo(out);

@@ -43,20 +43,28 @@ import static org.hamcrest.Matchers.*;
  */
 public class TransportTwoServersSearchTests extends AbstractServersTests {
 
+    private Client client;
+
     @BeforeClass public void createServers() throws Exception {
         startServer("server1");
         startServer("server2");
+        client = getClient();
 
-        client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
+        client.admin().indices().create(createIndexRequest("test")).actionGet();
 
         for (int i = 0; i < 100; i++) {
             index(client("server1"), Integer.toString(i), "test", i);
         }
-        client("server1").admin().indices().refresh(refreshRequest("test")).actionGet();
+        client.admin().indices().refresh(refreshRequest("test")).actionGet();
     }
 
     @AfterClass public void closeServers() {
+        client.close();
         closeAllServers();
+    }
+
+    protected Client getClient() {
+        return client("server1");
     }
 
     @Test public void testDfsQueryThenFetch() throws Exception {
@@ -64,7 +72,7 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
                 .query(termQuery("multi", "test"))
                 .from(0).size(60).explain(true);
 
-        SearchResponse searchResponse = client("server1").search(searchRequest("test").source(source).searchType(DFS_QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(DFS_QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
 
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
         assertThat(searchResponse.hits().hits().length, equalTo(60));
@@ -74,7 +82,7 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
             assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
         }
 
-        searchResponse = client("server1").searchScroll(searchScrollRequest(searchResponse.scrollId())).actionGet();
+        searchResponse = client.searchScroll(searchScrollRequest(searchResponse.scrollId())).actionGet();
 
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
         assertThat(searchResponse.hits().hits().length, equalTo(40));
@@ -91,7 +99,7 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
                 .query(termQuery("multi", "test"))
                 .from(0).size(60).explain(true).sort("age", false);
 
-        SearchResponse searchResponse = client("server1").search(searchRequest("test").source(source).searchType(DFS_QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(DFS_QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
         assertThat(searchResponse.hits().hits().length, equalTo(60));
         for (int i = 0; i < 60; i++) {
@@ -100,7 +108,7 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
             assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(i)));
         }
 
-        searchResponse = client("server1").searchScroll(searchScrollRequest(searchResponse.scrollId())).actionGet();
+        searchResponse = client.searchScroll(searchScrollRequest(searchResponse.scrollId())).actionGet();
 
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
         assertThat(searchResponse.hits().hits().length, equalTo(40));
@@ -115,7 +123,7 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
                 .query(termQuery("multi", "test"))
                 .from(0).size(60).explain(true);
 
-        SearchResponse searchResponse = client("server1").search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
         assertThat(searchResponse.hits().hits().length, equalTo(60));
         for (int i = 0; i < 60; i++) {
@@ -124,7 +132,7 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
             assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
         }
 
-        searchResponse = client("server1").searchScroll(searchScrollRequest(searchResponse.scrollId())).actionGet();
+        searchResponse = client.searchScroll(searchScrollRequest(searchResponse.scrollId())).actionGet();
 
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
         assertThat(searchResponse.hits().hits().length, equalTo(40));
@@ -139,7 +147,7 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
                 .query(termQuery("multi", "test"))
                 .from(0).size(60).explain(true).sort("age", false);
 
-        SearchResponse searchResponse = client("server1").search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
         assertThat(searchResponse.hits().hits().length, equalTo(60));
         for (int i = 0; i < 60; i++) {
@@ -148,7 +156,7 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
             assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(i)));
         }
 
-        searchResponse = client("server1").searchScroll(searchScrollRequest(searchResponse.scrollId())).actionGet();
+        searchResponse = client.searchScroll(searchScrollRequest(searchResponse.scrollId())).actionGet();
 
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
         assertThat(searchResponse.hits().hits().length, equalTo(40));
@@ -163,7 +171,7 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true);
 
-        SearchResponse searchResponse = client("server1").search(searchRequest("test").source(source).searchType(QUERY_AND_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_AND_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
         assertThat(searchResponse.hits().hits().length, equalTo(60)); // 20 per shard
         for (int i = 0; i < 60; i++) {
@@ -188,7 +196,7 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true);
 
-        SearchResponse searchResponse = client("server1").search(searchRequest("test").source(source).searchType(DFS_QUERY_AND_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(DFS_QUERY_AND_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
         assertThat(searchResponse.hits().hits().length, equalTo(60)); // 20 per shard
         for (int i = 0; i < 60; i++) {
@@ -206,6 +214,24 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
 //            SearchHit hit = searchResponse.hits().hits()[i];
 //            assertEquals("id[" + hit.id() + "]", Integer.toString(100 - 60 - 1 - i), hit.id());
 //        }
+    }
+
+    @Test public void testSimpleFacets() throws Exception {
+        SearchSourceBuilder sourceBuilder = searchSource()
+                .query(termQuery("multi", "test"))
+                .from(0).size(20).explain(true)
+                .facets(facets().facet("all", termQuery("multi", "test")).facet("test1", termQuery("name", "test1")));
+
+        SearchResponse searchResponse = client.search(searchRequest("test").source(sourceBuilder)).actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(100l));
+
+        assertThat(searchResponse.facets().countFacet("test1").count(), equalTo(1l));
+        assertThat(searchResponse.facets().countFacet("all").count(), equalTo(100l));
+    }
+
+    @Test public void testSimpleFacetsTwice() throws Exception {
+        testSimpleFacets();
+        testSimpleFacets();
     }
 
 

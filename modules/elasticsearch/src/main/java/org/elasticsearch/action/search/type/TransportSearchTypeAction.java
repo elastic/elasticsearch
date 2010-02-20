@@ -173,7 +173,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                 Node node = nodes.get(shard.currentNodeId());
                 sendExecuteFirstPhase(node, internalSearchRequest(shard, request), new SearchServiceListener<FirstResult>() {
                     @Override public void onResult(FirstResult result) {
-                        onFirstPhaseResult(shard, result);
+                        onFirstPhaseResult(shard, result, shardIt);
                     }
 
                     @Override public void onFailure(Throwable t) {
@@ -183,8 +183,14 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             }
         }
 
-        private void onFirstPhaseResult(ShardRouting shard, FirstResult result) {
+        private void onFirstPhaseResult(ShardRouting shard, FirstResult result, Iterator<ShardRouting> shardIt) {
             processFirstPhaseResult(shard, result);
+            // increment all the "future" shards to update the total ops since we some may work and some may not...
+            // and when that happens, we break on total ops, so we must maintain them
+            while (shardIt.hasNext()) {
+                totalOps.incrementAndGet();
+                shardIt.next();
+            }
             if (successulOps.incrementAndGet() == expectedSuccessfulOps ||
                     totalOps.incrementAndGet() == expectedTotalOps) {
                 moveToSecondPhase();

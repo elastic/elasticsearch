@@ -89,6 +89,10 @@ public class BoolJsonQueryParser extends AbstractIndexComponent implements JsonQ
                 if ("disableCoord".equals(currentFieldName)) {
                     disableCoord = token == JsonToken.VALUE_TRUE;
                 }
+            } else if (token == JsonToken.VALUE_NUMBER_INT) {
+                if ("disableCoord".equals(currentFieldName)) {
+                    disableCoord = jp.getIntValue() != 0;
+                }
             } else {
                 if ("boost".equals(currentFieldName)) {
                     boost = jp.getFloatValue();

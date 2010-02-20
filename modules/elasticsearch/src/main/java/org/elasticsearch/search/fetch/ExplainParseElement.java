@@ -30,6 +30,10 @@ import org.elasticsearch.search.internal.SearchContext;
 public class ExplainParseElement implements SearchParseElement {
 
     @Override public void parse(JsonParser jp, SearchContext context) throws Exception {
-        context.explain(jp.getCurrentToken() == JsonToken.VALUE_TRUE);
+        if (jp.getCurrentToken() == JsonToken.VALUE_NUMBER_INT) {
+            context.explain(jp.getIntValue() != 0);
+        } else {
+            context.explain(jp.getCurrentToken() == JsonToken.VALUE_TRUE);
+        }
     }
 }

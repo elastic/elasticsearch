@@ -68,6 +68,10 @@ public class SortParseElement implements SearchParseElement {
                 while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
                     if (token == JsonToken.FIELD_NAME) {
                         innerJsonName = jp.getCurrentName();
+                    } else if (token == JsonToken.VALUE_NUMBER_INT) {
+                        if ("reverse".equals(innerJsonName)) {
+                            reverse = jp.getIntValue() != 0;
+                        }
                     } else if (token == JsonToken.VALUE_TRUE) {
                         if ("reverse".equals(innerJsonName)) {
                             reverse = true;

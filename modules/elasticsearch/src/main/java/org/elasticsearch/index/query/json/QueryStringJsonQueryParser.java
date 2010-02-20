@@ -117,6 +117,12 @@ public class QueryStringJsonQueryParser extends AbstractIndexComponent implement
                     fuzzyMinSim = jp.getFloatValue();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = jp.getFloatValue();
+                } else if ("allowLeadingWildcard".equals(currentFieldName)) {
+                    allowLeadingWildcard = jp.getIntValue() != 0;
+                } else if ("lowercaseExpandedTerms".equals(currentFieldName)) {
+                    lowercaseExpandedTerms = jp.getIntValue() != 0;
+                } else if ("enablePositionIncrements".equals(currentFieldName)) {
+                    enablePositionIncrements = jp.getIntValue() != 0;
                 }
             }
         }

@@ -82,11 +82,17 @@ public class SpanNearJsonQueryParser extends AbstractIndexComponent implements J
                 } else if ("collectPayloads".equals(currentFieldName)) {
                     collectPayloads = token == JsonToken.VALUE_TRUE;
                 }
+            } else if (token == JsonToken.VALUE_NUMBER_INT) {
+                if ("inOrder".equals(currentFieldName)) {
+                    inOrder = jp.getIntValue() != 0;
+                } else if ("collectPayloads".equals(currentFieldName)) {
+                    collectPayloads = jp.getIntValue() != 0;
+                } else if ("slop".equals(currentFieldName)) {
+                    slop = jp.getIntValue();
+                }
             } else {
                 if ("boost".equals(currentFieldName)) {
                     boost = jp.getFloatValue();
-                } else if ("slop".equals(currentFieldName)) {
-                    slop = jp.getIntValue();
                 }
             }
         }

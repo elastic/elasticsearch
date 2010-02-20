@@ -27,7 +27,7 @@ import org.elasticsearch.search.internal.SearchContext;
  */
 public class QueryPhaseExecutionException extends SearchException {
 
-    public QueryPhaseExecutionException(SearchContext context) {
-        super("Failed to execute query [" + context.query() + "], sort [" + context.sort() + "], from [" + context.from() + "], size [" + context.size() + "]");
+    public QueryPhaseExecutionException(SearchContext context, Throwable cause) {
+        super("Failed to execute query [" + context.query() + "], sort [" + context.sort() + "], from [" + context.from() + "], size [" + context.size() + "]", cause);
     }
 }

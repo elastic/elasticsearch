@@ -31,6 +31,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.util.gnu.trove.TObjectIntHashMap;
 import org.elasticsearch.util.trove.ExtTObjectIntHasMap;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -57,8 +58,26 @@ public class SortParseElement implements SearchParseElement {
     }
 
     @Override public void parse(JsonParser jp, SearchContext context) throws Exception {
-        JsonToken token;
+        JsonToken token = jp.getCurrentToken();
         List<SortField> sortFields = Lists.newArrayListWithCapacity(2);
+        if (token == JsonToken.START_ARRAY) {
+            while ((token = jp.nextToken()) != JsonToken.END_ARRAY) {
+                if (token == JsonToken.START_OBJECT) {
+                    addCompoundSortField(jp, context, sortFields);
+                } else if (token == JsonToken.VALUE_STRING) {
+                    addSortField(context, sortFields, jp.getText(), false, -1);
+                }
+            }
+        } else {
+            addCompoundSortField(jp, context, sortFields);
+        }
+        if (!sortFields.isEmpty()) {
+            context.sort(new Sort(sortFields.toArray(new SortField[sortFields.size()])));
+        }
+    }
+
+    private void addCompoundSortField(JsonParser jp, SearchContext context, List<SortField> sortFields) throws IOException {
+        JsonToken token;
         while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
             if (token == JsonToken.FIELD_NAME) {
                 String fieldName = jp.getCurrentName();
@@ -85,36 +104,37 @@ public class SortParseElement implements SearchParseElement {
                         }
                     }
                 }
-                if ("score".equals(fieldName)) {
-                    if (reverse) {
-                        sortFields.add(SORT_SCORE_REVERSE);
-                    } else {
-                        sortFields.add(SORT_SCORE);
-                    }
-                } else if ("doc".equals(fieldName)) {
-                    if (reverse) {
-                        sortFields.add(SORT_DOC_REVERSE);
-                    } else {
-                        sortFields.add(SORT_DOC);
-                    }
-                } else {
-                    FieldMappers fieldMappers = context.mapperService().smartNameFieldMappers(fieldName);
-                    if (fieldMappers == null || fieldMappers.mappers().isEmpty()) {
-                        if (type == -1) {
-                            throw new SearchParseException("No built in mapping found for [" + fieldName + "], and no explicit type defined");
-                        }
-                    } else {
-                        fieldName = fieldMappers.mappers().get(0).indexName();
-                        if (type == -1) {
-                            type = fieldMappers.mappers().get(0).sortType();
-                        }
-                    }
-                    sortFields.add(new SortField(fieldName, type, reverse));
-                }
+                addSortField(context, sortFields, fieldName, reverse, type);
             }
         }
-        if (!sortFields.isEmpty()) {
-            context.sort(new Sort(sortFields.toArray(new SortField[sortFields.size()])));
+    }
+
+    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse, int type) {
+        if ("score".equals(fieldName)) {
+            if (reverse) {
+                sortFields.add(SORT_SCORE_REVERSE);
+            } else {
+                sortFields.add(SORT_SCORE);
+            }
+        } else if ("doc".equals(fieldName)) {
+            if (reverse) {
+                sortFields.add(SORT_DOC_REVERSE);
+            } else {
+                sortFields.add(SORT_DOC);
+            }
+        } else {
+            FieldMappers fieldMappers = context.mapperService().smartNameFieldMappers(fieldName);
+            if (fieldMappers == null || fieldMappers.mappers().isEmpty()) {
+                if (type == -1) {
+                    throw new SearchParseException("No built in mapping found for [" + fieldName + "], and no explicit type defined");
+                }
+            } else {
+                fieldName = fieldMappers.mappers().get(0).indexName();
+                if (type == -1) {
+                    type = fieldMappers.mappers().get(0).sortType();
+                }
+            }
+            sortFields.add(new SortField(fieldName, type, reverse));
         }
     }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.util.concurrent.ThreadSafe;
 
 /**
@@ -27,6 +28,8 @@ import org.elasticsearch.util.concurrent.ThreadSafe;
  */
 @ThreadSafe
 public interface UidFieldMapper extends FieldMapper<Uid> {
+
+    public static final String NAME = StringHelper.intern("_uid");
 
     String name();
 

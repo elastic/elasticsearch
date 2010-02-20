@@ -34,8 +34,8 @@ import java.io.IOException;
 public class JsonTypeFieldMapper extends JsonFieldMapper<String> implements TypeFieldMapper {
 
     public static class Defaults extends JsonFieldMapper.Defaults {
-        public static final String NAME = "_type";
-        public static final String INDEX_NAME = "_type";
+        public static final String NAME = TypeFieldMapper.NAME;
+        public static final String INDEX_NAME = TypeFieldMapper.NAME;
         public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
         public static final Field.Store STORE = Field.Store.NO;
         public static final boolean OMIT_NORMS = true;

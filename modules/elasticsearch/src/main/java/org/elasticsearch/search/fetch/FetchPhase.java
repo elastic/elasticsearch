@@ -21,6 +21,7 @@ package org.elasticsearch.search.fetch;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.FieldSelector;
 import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.search.SearchHit;
@@ -47,7 +48,7 @@ public class FetchPhase implements SearchPhase {
     }
 
     public void execute(SearchContext context) {
-        FieldMappersFieldSelector fieldSelector = buildFieldSelectors(context);
+        FieldSelector fieldSelector = buildFieldSelectors(context);
 
         SearchHit[] hits = new SearchHit[context.docIdsToLoad().length];
         int index = 0;
@@ -137,7 +138,7 @@ public class FetchPhase implements SearchPhase {
         return uid;
     }
 
-    private Document loadDocument(SearchContext context, FieldMappersFieldSelector fieldSelector, int docId) {
+    private Document loadDocument(SearchContext context, FieldSelector fieldSelector, int docId) {
         Document doc;
         try {
             doc = context.searcher().doc(docId, fieldSelector);
@@ -147,20 +148,19 @@ public class FetchPhase implements SearchPhase {
         return doc;
     }
 
-    private FieldMappersFieldSelector buildFieldSelectors(SearchContext context) {
-        FieldMappersFieldSelector fieldSelector = new FieldMappersFieldSelector();
-        if (context.fieldNames() != null) {
-            for (String fieldName : context.fieldNames()) {
-                FieldMappers x = context.mapperService().smartNameFieldMappers(fieldName);
-                if (x == null) {
-                    throw new FetchPhaseExecutionException(context, "No mapping for field [" + fieldName + "]");
-                }
-                fieldSelector.add(x);
-            }
-        } else {
-            fieldSelector.add(context.mapperService().sourceFieldMappers());
+    private FieldSelector buildFieldSelectors(SearchContext context) {
+        if (context.fieldNames() == null || context.fieldNames().length == 0) {
+            return new UidAndSourceFieldSelector();
         }
-        // add the uids by default, so we can return the id/type
+
+        FieldMappersFieldSelector fieldSelector = new FieldMappersFieldSelector();
+        for (String fieldName : context.fieldNames()) {
+            FieldMappers x = context.mapperService().smartNameFieldMappers(fieldName);
+            if (x == null) {
+                throw new FetchPhaseExecutionException(context, "No mapping for field [" + fieldName + "]");
+            }
+            fieldSelector.add(x);
+        }
         fieldSelector.add(context.mapperService().uidFieldMappers());
         return fieldSelector;
     }

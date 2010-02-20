@@ -34,7 +34,7 @@ import java.io.IOException;
 public class JsonSourceFieldMapper extends JsonFieldMapper<String> implements SourceFieldMapper {
 
     public static class Defaults extends JsonFieldMapper.Defaults {
-        public static final String NAME = "_source";
+        public static final String NAME = SourceFieldMapper.NAME;
         public static final boolean ENABLED = true;
         public static final Field.Index INDEX = Field.Index.NO;
         public static final Field.Store STORE = Field.Store.YES;

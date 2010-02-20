@@ -21,7 +21,10 @@ package org.elasticsearch.index.shard;
 
 import com.google.inject.Inject;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.FieldSelector;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermEnum;
 import org.apache.lucene.search.*;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -31,10 +34,7 @@ import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.ScheduledRefreshableEngine;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperNotFoundException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.IndexQueryParser;
 import org.elasticsearch.index.query.IndexQueryParserMissingException;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -53,7 +53,10 @@ import org.elasticsearch.util.lucene.search.TermFilter;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.ScheduledFuture;
+
+import static com.google.common.collect.Lists.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -76,6 +79,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private final Translog translog;
 
+
+    // the number of docs to sniff for mapping information in each type
+    private final int mappingSnifferDocs;
+
+
     private final Object mutex = new Object();
 
     private volatile IndexShardState state;
@@ -95,6 +103,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         this.queryParserService = queryParserService;
         this.filterCache = filterCache;
         state = IndexShardState.CREATED;
+
+        this.mappingSnifferDocs = componentSettings.getAsInt("mappingSnifferDocs", 100);
     }
 
     public Store store() {
@@ -390,6 +400,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         synchronized (mutex) {
             state = IndexShardState.STARTED;
         }
+        threadPool.execute(new ShardMappingSniffer());
         scheduleRefresherIfNeeded();
     }
 
@@ -406,6 +417,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             synchronized (mutex) {
                 state = IndexShardState.STARTED;
             }
+            threadPool.execute(new ShardMappingSniffer());
             scheduleRefresherIfNeeded();
         }
     }
@@ -502,6 +514,112 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 engine.refresh(new Engine.Refresh(false));
             } catch (Exception e) {
                 logger.warn("Failed to perform scheduled engine refresh", e);
+            }
+        }
+    }
+
+    /**
+     * The mapping sniffer reads docs from the index and introduces them into the mapping service. This is
+     * because of dynamic fields and we want to reintroduce them.
+     *
+     * <p>Note, this is done on the shard level, we might have other dynamic fields in other shards, but
+     * this will be taken care off in another component.
+     */
+    private class ShardMappingSniffer implements Runnable {
+        @Override public void run() {
+            engine.refresh(new Engine.Refresh(true));
+
+            TermEnum termEnum = null;
+            Engine.Searcher searcher = searcher();
+            try {
+                List<String> typeNames = newArrayList();
+                termEnum = searcher.reader().terms(new Term(TypeFieldMapper.NAME, ""));
+                while (true) {
+                    Term term = termEnum.term();
+                    if (term == null) {
+                        break;
+                    }
+                    if (!term.field().equals(TypeFieldMapper.NAME)) {
+                        break;
+                    }
+                    typeNames.add(term.text());
+                    termEnum.next();
+                }
+
+                logger.debug("Sniffing mapping for [{}]", typeNames);
+
+                for (final String type : typeNames) {
+                    threadPool.execute(new Runnable() {
+                        @Override public void run() {
+                            Engine.Searcher searcher = searcher();
+                            try {
+                                Query query = new ConstantScoreQuery(filterCache.cache(new TermFilter(new Term(TypeFieldMapper.NAME, type))));
+                                long typeCount = Lucene.count(searcher().searcher(), query, -1);
+
+                                int marker = (int) (typeCount / mappingSnifferDocs);
+                                if (marker == 0) {
+                                    marker = 1;
+                                }
+                                final int fMarker = marker;
+                                searcher.searcher().search(query, new Collector() {
+
+                                    private final FieldSelector fieldSelector = new UidAndSourceFieldSelector();
+                                    private int counter = 0;
+                                    private IndexReader reader;
+
+                                    @Override public void setScorer(Scorer scorer) throws IOException {
+                                    }
+
+                                    @Override public void collect(int doc) throws IOException {
+                                        if (state == IndexShardState.CLOSED) {
+                                            throw new IOException("CLOSED");
+                                        }
+                                        if (++counter == fMarker) {
+                                            counter = 0;
+
+                                            Document document = reader.document(doc, fieldSelector);
+                                            Uid uid = Uid.createUid(document.get(UidFieldMapper.NAME));
+                                            String source = document.get(SourceFieldMapper.NAME);
+
+                                            mapperService.type(uid.type()).parse(uid.type(), uid.id(), source);
+                                        }
+                                    }
+
+                                    @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+                                        this.reader = reader;
+                                    }
+
+                                    @Override public boolean acceptsDocsOutOfOrder() {
+                                        return true;
+                                    }
+                                });
+                            } catch (IOException e) {
+                                if (e.getMessage().equals("CLOSED")) {
+                                    // ignore, we got closed
+                                } else {
+                                    logger.warn("Failed to sniff mapping for type [" + type + "]", e);
+                                }
+                            } finally {
+                                searcher.release();
+                            }
+                        }
+                    });
+                }
+            } catch (IOException e) {
+                if (e.getMessage().equals("CLOSED")) {
+                    // ignore, we got closed
+                } else {
+                    logger.warn("Failed to sniff mapping", e);
+                }
+            } finally {
+                if (termEnum != null) {
+                    try {
+                        termEnum.close();
+                    } catch (IOException e) {
+                        // ignore
+                    }
+                }
+                searcher.release();
             }
         }
     }

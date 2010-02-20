@@ -24,6 +24,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapperListener;
 import org.elasticsearch.util.lucene.search.TermFilter;
@@ -194,9 +195,9 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
 
     protected JsonFieldMapper(String name, String indexName, String fullName, Field.Index index, Field.Store store, Field.TermVector termVector,
                               float boost, boolean omitNorms, boolean omitTermFreqAndPositions, Analyzer indexAnalyzer, Analyzer searchAnalyzer) {
-        this.name = name;
-        this.indexName = indexName;
-        this.fullName = fullName;
+        this.name = StringHelper.intern(name);
+        this.indexName = StringHelper.intern(indexName);
+        this.fullName = StringHelper.intern(fullName);
         this.index = index;
         this.store = store;
         this.termVector = termVector;

@@ -35,7 +35,7 @@ import java.io.IOException;
 public class JsonUidFieldMapper extends JsonFieldMapper<Uid> implements UidFieldMapper {
 
     public static class Defaults extends JsonFieldMapper.Defaults {
-        public static final String NAME = "_uid";
+        public static final String NAME = UidFieldMapper.NAME;
         public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
         public static final boolean OMIT_NORMS = true;
         public static final boolean OMIT_TERM_FREQ_AND_POSITIONS = true;

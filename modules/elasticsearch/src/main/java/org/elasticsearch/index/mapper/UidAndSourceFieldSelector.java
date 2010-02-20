@@ -19,30 +19,33 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldSelector;
-import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.util.concurrent.ThreadSafe;
+import org.apache.lucene.document.FieldSelectorResult;
 
 /**
- * A mapper that maps the actual source of a generated document.
+ * An optimized field selector that loads just the uid and the source.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-@ThreadSafe
-public interface SourceFieldMapper extends FieldMapper<String> {
+public class UidAndSourceFieldSelector implements FieldSelector {
 
-    public final String NAME = StringHelper.intern("_source");
+    private int match = 0;
 
-    /**
-     * Returns <tt>true</tt> if the source field mapper is enabled or not.
-     */
-    boolean enabled();
-
-    String value(Document document);
-
-    /**
-     * A field selector that loads just the source field.
-     */
-    FieldSelector fieldSelector();
+    @Override public FieldSelectorResult accept(String fieldName) {
+        if (UidFieldMapper.NAME.equals(fieldName)) {
+            if (++match == 2) {
+                match = 0;
+                return FieldSelectorResult.LOAD_AND_BREAK;
+            }
+            return FieldSelectorResult.LOAD;
+        }
+        if (SourceFieldMapper.NAME.equals(fieldName)) {
+            if (++match == 2) {
+                match = 0;
+                return FieldSelectorResult.LOAD_AND_BREAK;
+            }
+            return FieldSelectorResult.LOAD;
+        }
+        return FieldSelectorResult.NO_LOAD;
+    }
 }

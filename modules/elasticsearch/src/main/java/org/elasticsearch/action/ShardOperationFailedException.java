@@ -19,22 +19,27 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.ElasticSearchWrapperException;
-import org.elasticsearch.index.shard.IndexShardException;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.util.io.Streamable;
 
 /**
  * An exception indicating that a failure occurred performing an operation on the shard.
  *
  * @author kimchy (Shay Banon)
  */
-public class ShardOperationFailedException extends IndexShardException implements ElasticSearchWrapperException {
+public interface ShardOperationFailedException extends Streamable {
 
-    public ShardOperationFailedException(ShardId shardId, Throwable cause) {
-        super(shardId, "", cause);
-    }
+    /**
+     * The index the operation failed on. Might return <tt>null</tt> if it can't be derived.
+     */
+    String index();
 
-    public ShardOperationFailedException(ShardId shardId, String msg, Throwable cause) {
-        super(shardId, msg, cause);
-    }
+    /**
+     * The index the operation failed on. Might return <tt>-1</tt> if it can't be derived.
+     */
+    int shardId();
+
+    /**
+     * The reason of the failure.
+     */
+    String reason();
 }

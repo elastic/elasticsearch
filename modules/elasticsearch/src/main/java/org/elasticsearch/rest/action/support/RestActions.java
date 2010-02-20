@@ -20,11 +20,15 @@
 package org.elasticsearch.rest.action.support;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.index.query.json.JsonQueryBuilders;
 import org.elasticsearch.index.query.json.QueryStringJsonQueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.util.Strings;
+import org.elasticsearch.util.json.JsonBuilder;
 
+import java.io.IOException;
 import java.util.regex.Pattern;
 
 /**
@@ -41,6 +45,29 @@ public class RestActions {
         indicesPattern = Pattern.compile(",");
         typesPattern = Pattern.compile(",");
         nodesIdsPattern = Pattern.compile(",");
+    }
+
+    public static void buildBroadcastShardsHeader(JsonBuilder builder, BroadcastOperationResponse response) throws IOException {
+        builder.startObject("_shards");
+        builder.field("total", response.totalShards());
+        builder.field("successful", response.successfulShards());
+        builder.field("failed", response.failedShards());
+        if (!response.shardFailures().isEmpty()) {
+            builder.startArray("failures");
+            for (ShardOperationFailedException shardFailure : response.shardFailures()) {
+                builder.startObject();
+                if (shardFailure.index() != null) {
+                    builder.field("index", shardFailure.index());
+                }
+                if (shardFailure.shardId() != -1) {
+                    builder.field("shardId", shardFailure.shardId());
+                }
+                builder.field("reason", shardFailure.reason());
+                builder.endObject();
+            }
+            builder.endArray();
+        }
+        builder.endObject();
     }
 
     public static String parseQuerySource(RestRequest request) {

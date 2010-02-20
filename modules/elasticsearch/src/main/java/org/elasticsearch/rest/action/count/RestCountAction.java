@@ -89,11 +89,7 @@ public class RestCountAction extends BaseRestHandler {
                     builder.startObject();
                     builder.field("count", response.count());
 
-                    builder.startObject("_shards");
-                    builder.field("total", response.totalShards());
-                    builder.field("successful", response.successfulShards());
-                    builder.field("failed", response.failedShards());
-                    builder.endObject();
+                    buildBroadcastShardsHeader(builder, response);
 
                     builder.endObject();
                     channel.sendResponse(new JsonRestResponse(request, OK, builder));

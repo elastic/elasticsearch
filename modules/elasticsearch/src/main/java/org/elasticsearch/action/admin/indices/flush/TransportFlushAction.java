@@ -21,7 +21,10 @@ package org.elasticsearch.action.admin.indices.flush;
 
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.TransportActions;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,7 +37,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.settings.Settings;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+
+import static com.google.common.collect.Lists.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -60,15 +66,22 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
     @Override protected FlushResponse newResponse(FlushRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
+        List<ShardOperationFailedException> shardFailures = null;
         for (int i = 0; i < shardsResponses.length(); i++) {
-            ShardFlushResponse shardCountResponse = (ShardFlushResponse) shardsResponses.get(i);
-            if (shardCountResponse == null) {
+            Object shardResponse = shardsResponses.get(i);
+            if (shardResponse == null) {
                 failedShards++;
+            } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
+                failedShards++;
+                if (shardFailures == null) {
+                    shardFailures = newArrayList();
+                }
+                shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
             } else {
                 successfulShards++;
             }
         }
-        return new FlushResponse(successfulShards, failedShards);
+        return new FlushResponse(successfulShards, failedShards, shardFailures);
     }
 
     @Override protected ShardFlushRequest newShardRequest() {
@@ -89,41 +102,10 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
         return new ShardFlushResponse(request.index(), request.shardId());
     }
 
-    @Override protected boolean accumulateExceptions() {
-        return false;
-    }
-
     /**
      * The refresh request works against *all* shards.
      */
     @Override protected GroupShardsIterator shards(FlushRequest request, ClusterState clusterState) {
         return clusterState.routingTable().allShardsGrouped(request.indices());
     }
-
-    //    @Override protected FlushRequest newRequestInstance() {
-//        return new FlushRequest();
-//    }
-//
-//    @Override protected FlushResponse newResponseInstance(FlushRequest request, AtomicReferenceArray indexResponses) {
-//        FlushResponse response = new FlushResponse();
-//        for (int i = 0; i < indexResponses.length(); i++) {
-//            IndexFlushResponse indexFlushResponse = (IndexFlushResponse) indexResponses.get(i);
-//            if (indexFlushResponse != null) {
-//                response.indices().put(indexFlushResponse.index(), indexFlushResponse);
-//            }
-//        }
-//        return response;
-//    }
-//
-//    @Override protected boolean accumulateExceptions() {
-//        return false;
-//    }
-//
-//    @Override protected String transportAction() {
-//        return TransportActions.Admin.Indices.FLUSH;
-//    }
-//
-//    @Override protected IndexFlushRequest newIndexRequestInstance(FlushRequest request, String index) {
-//        return new IndexFlushRequest(request, index);
-//    }
 }

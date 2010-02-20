@@ -17,34 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.refresh;
+package org.elasticsearch.action.support.broadcast;
 
-import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
-
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-import java.util.List;
+import org.elasticsearch.ElasticSearchWrapperException;
+import org.elasticsearch.index.shard.IndexShardException;
+import org.elasticsearch.index.shard.ShardId;
 
 /**
+ * An exception indicating that a failure occurred performing an operation on the shard.
+ *
  * @author kimchy (Shay Banon)
  */
-public class RefreshResponse extends BroadcastOperationResponse {
+public class BroadcastShardOperationFailedException extends IndexShardException implements ElasticSearchWrapperException {
 
-    RefreshResponse() {
-
+    public BroadcastShardOperationFailedException(ShardId shardId, String msg) {
+        super(shardId, msg, null);
     }
 
-    RefreshResponse(int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
-        super(successfulShards, failedShards, shardFailures);
+    public BroadcastShardOperationFailedException(ShardId shardId, Throwable cause) {
+        super(shardId, "", cause);
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
-        super.readFrom(in);
-    }
-
-    @Override public void writeTo(DataOutput out) throws IOException {
-        super.writeTo(out);
+    public BroadcastShardOperationFailedException(ShardId shardId, String msg, Throwable cause) {
+        super(shardId, msg, cause);
     }
 }

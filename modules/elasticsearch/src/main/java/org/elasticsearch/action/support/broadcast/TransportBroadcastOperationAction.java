@@ -21,8 +21,6 @@ package org.elasticsearch.action.support.broadcast;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ShardNotActiveException;
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -85,9 +83,11 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
     protected abstract ShardResponse shardOperation(ShardRequest request) throws ElasticSearchException;
 
-    protected abstract boolean accumulateExceptions();
-
     protected abstract GroupShardsIterator shards(Request request, ClusterState clusterState);
+
+    private boolean accumulateExceptions() {
+        return true;
+    }
 
     private class AsyncBroadcastAction {
 
@@ -140,7 +140,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                     }
                 } else {
                     // as if we have a "problem", so we iterate to the next one and maintain counts
-                    onOperation(shard, shardIt, new ShardNotActiveException(shard.shardId()), false);
+                    onOperation(shard, shardIt, new BroadcastShardOperationFailedException(shard.shardId(), "Not active"), false);
                 }
             }
             // we have local operations, perform them now
@@ -176,7 +176,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             final ShardRouting shard = shardIt.next();
             if (!shard.active()) {
                 // as if we have a "problem", so we iterate to the next one and maintain counts
-                onOperation(shard, shardIt, new ShardNotActiveException(shard.shardId()), false);
+                onOperation(shard, shardIt, new BroadcastShardOperationFailedException(shard.shardId(), "Not Active"), false);
             } else {
                 final ShardRequest shardRequest = newShardRequest(shard, request);
                 if (shard.currentNodeId().equals(nodes.localNodeId())) {
@@ -238,7 +238,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                 // no more shards in this partition
                 int index = indexCounter.getAndIncrement();
                 if (accumulateExceptions()) {
-                    shardsResponses.set(index, new ShardOperationFailedException(shard.shardId(), e));
+                    shardsResponses.set(index, new BroadcastShardOperationFailedException(shard.shardId(), e));
                 }
                 if (expectedOps == counterOps.incrementAndGet()) {
                     finishHim(alreadyThreaded);

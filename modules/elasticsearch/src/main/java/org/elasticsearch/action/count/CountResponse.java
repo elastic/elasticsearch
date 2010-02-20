@@ -19,11 +19,13 @@
 
 package org.elasticsearch.action.count;
 
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.List;
 
 /**
  * @author kimchy (Shay Banon)
@@ -36,8 +38,8 @@ public class CountResponse extends BroadcastOperationResponse {
 
     }
 
-    public CountResponse(long count, int successfulShards, int failedShards) {
-        super(successfulShards, failedShards);
+    public CountResponse(long count, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+        super(successfulShards, failedShards, shardFailures);
         this.count = count;
     }
 

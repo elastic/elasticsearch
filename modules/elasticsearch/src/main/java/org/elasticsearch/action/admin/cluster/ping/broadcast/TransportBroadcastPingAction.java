@@ -21,7 +21,10 @@ package org.elasticsearch.action.admin.cluster.ping.broadcast;
 
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.TransportActions;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -32,8 +35,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.settings.Settings;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
+import static com.google.common.collect.Lists.*;
 import static org.elasticsearch.action.Actions.*;
 
 /**
@@ -64,18 +69,22 @@ public class TransportBroadcastPingAction extends TransportBroadcastOperationAct
     @Override protected BroadcastPingResponse newResponse(BroadcastPingRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
+        List<ShardOperationFailedException> shardFailures = null;
         for (int i = 0; i < shardsResponses.length(); i++) {
-            if (shardsResponses.get(i) == null) {
+            Object shardResponse = shardsResponses.get(i);
+            if (shardResponse == null) {
                 failedShards++;
+            } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
+                failedShards++;
+                if (shardFailures == null) {
+                    shardFailures = newArrayList();
+                }
+                shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
             } else {
                 successfulShards++;
             }
         }
-        return new BroadcastPingResponse(successfulShards, failedShards);
-    }
-
-    @Override protected boolean accumulateExceptions() {
-        return false;
+        return new BroadcastPingResponse(successfulShards, failedShards, shardFailures);
     }
 
     @Override protected BroadcastShardPingRequest newShardRequest() {

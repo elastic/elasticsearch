@@ -21,7 +21,10 @@ package org.elasticsearch.action.count;
 
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.TransportActions;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -33,8 +36,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.settings.Settings;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
+import static com.google.common.collect.Lists.*;
 import static org.elasticsearch.action.Actions.*;
 
 /**
@@ -78,20 +83,23 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
         int successfulShards = 0;
         int failedShards = 0;
         long count = 0;
+        List<ShardOperationFailedException> shardFailures = null;
         for (int i = 0; i < shardsResponses.length(); i++) {
-            ShardCountResponse shardCountResponse = (ShardCountResponse) shardsResponses.get(i);
-            if (shardCountResponse == null) {
+            Object shardResponse = shardsResponses.get(i);
+            if (shardResponse == null) {
                 failedShards++;
+            } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
+                failedShards++;
+                if (shardFailures == null) {
+                    shardFailures = newArrayList();
+                }
+                shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
             } else {
-                count += shardCountResponse.count();
+                count += ((ShardCountResponse) shardResponse).count();
                 successfulShards++;
             }
         }
-        return new CountResponse(count, successfulShards, failedShards);
-    }
-
-    @Override protected boolean accumulateExceptions() {
-        return false;
+        return new CountResponse(count, successfulShards, failedShards, shardFailures);
     }
 
     @Override protected ShardCountResponse shardOperation(ShardCountRequest request) throws ElasticSearchException {

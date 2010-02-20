@@ -20,10 +20,10 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.util.Nullable;
-import org.elasticsearch.util.io.Streamable;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -36,7 +36,7 @@ import static org.elasticsearch.search.SearchShardTarget.*;
  *
  * @author kimchy (shay.banon)
  */
-public class ShardSearchFailure implements Streamable {
+public class ShardSearchFailure implements ShardOperationFailedException {
 
     public static final ShardSearchFailure[] EMPTY_ARRAY = new ShardSearchFailure[0];
 
@@ -63,6 +63,20 @@ public class ShardSearchFailure implements Streamable {
 
     @Nullable public SearchShardTarget shard() {
         return this.shardTarget;
+    }
+
+    @Override public String index() {
+        if (shardTarget != null) {
+            return shardTarget.index();
+        }
+        return null;
+    }
+
+    @Override public int shardId() {
+        if (shardTarget != null) {
+            return shardTarget.shardId();
+        }
+        return -1;
     }
 
     public String reason() {

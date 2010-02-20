@@ -33,7 +33,11 @@ public class IndexException extends ElasticSearchException {
     }
 
     public IndexException(Index index, String msg, Throwable cause) {
-        super("Index[" + index.name() + "] " + msg, cause);
+        this(index, true, msg, cause);
+    }
+
+    protected IndexException(Index index, boolean withSpace, String msg, Throwable cause) {
+        super("[" + index.name() + "]" + (withSpace ? " " : "") + msg, cause);
         this.index = index;
     }
 

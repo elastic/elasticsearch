@@ -25,7 +25,10 @@ import org.apache.lucene.index.TermDocs;
 import org.apache.lucene.index.TermEnum;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.TransportActions;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,13 +47,11 @@ import org.elasticsearch.util.gnu.trove.TObjectIntIterator;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.NavigableSet;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.regex.Pattern;
 
+import static com.google.common.collect.Lists.*;
 import static org.elasticsearch.action.Actions.*;
 
 /**
@@ -68,16 +69,24 @@ public class TransportTermsAction extends TransportBroadcastOperationAction<Term
         long numDocs = 0;
         long maxDoc = 0;
         long numDeletedDocs = 0;
+        List<ShardOperationFailedException> shardFailures = null;
         ShardTermsResponse aggregator = null;
         for (int i = 0; i < shardsResponses.length(); i++) {
-            ShardTermsResponse shardResponse = (ShardTermsResponse) shardsResponses.get(i);
+            Object shardResponse = shardsResponses.get(i);
             if (shardResponse == null) {
                 failedShards++;
+            } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
+                failedShards++;
+                if (shardFailures == null) {
+                    shardFailures = newArrayList();
+                }
+                shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
             } else {
+                ShardTermsResponse shardTermsResponse = (ShardTermsResponse) shardResponse;
                 if (aggregator == null) {
-                    aggregator = shardResponse;
+                    aggregator = shardTermsResponse;
                 } else {
-                    for (Map.Entry<String, TObjectIntHashMap<String>> entry : shardResponse.fieldsTermsFreqs().entrySet()) {
+                    for (Map.Entry<String, TObjectIntHashMap<String>> entry : shardTermsResponse.fieldsTermsFreqs().entrySet()) {
                         String fieldName = entry.getKey();
                         TObjectIntHashMap<String> termsFreqs = aggregator.fieldsTermsFreqs().get(fieldName);
                         if (termsFreqs == null) {
@@ -90,9 +99,9 @@ public class TransportTermsAction extends TransportBroadcastOperationAction<Term
                         }
                     }
                 }
-                numDocs += shardResponse.numDocs();
-                maxDoc += shardResponse.maxDoc();
-                numDeletedDocs += shardResponse.numDeletedDocs();
+                numDocs += shardTermsResponse.numDocs();
+                maxDoc += shardTermsResponse.maxDoc();
+                numDeletedDocs += shardTermsResponse.numDeletedDocs();
                 successfulShards++;
             }
         }
@@ -122,7 +131,7 @@ public class TransportTermsAction extends TransportBroadcastOperationAction<Term
             TermFreq[] freqs = entry.getValue().toArray(new TermFreq[entry.getValue().size()]);
             resultFreqs[index++] = new FieldTermsFreq(entry.getKey(), freqs);
         }
-        return new TermsResponse(successfulShards, failedShards, resultFreqs, numDocs, maxDoc, numDeletedDocs);
+        return new TermsResponse(successfulShards, failedShards, shardFailures, resultFreqs, numDocs, maxDoc, numDeletedDocs);
     }
 
     @Override protected ShardTermsResponse shardOperation(ShardTermsRequest request) throws ElasticSearchException {
@@ -320,10 +329,6 @@ public class TransportTermsAction extends TransportBroadcastOperationAction<Term
 
     @Override protected ShardTermsResponse newShardResponse() {
         return new ShardTermsResponse();
-    }
-
-    @Override protected boolean accumulateExceptions() {
-        return false;
     }
 
     @Override protected GroupShardsIterator shards(TermsRequest request, ClusterState clusterState) {

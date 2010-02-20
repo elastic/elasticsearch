@@ -34,6 +34,7 @@ import org.elasticsearch.util.settings.Settings;
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestResponse.Status.*;
+import static org.elasticsearch.rest.action.support.RestActions.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -56,16 +57,14 @@ public class RestBroadcastPingAction extends BaseRestHandler {
         }
         broadcastPingRequest.operationThreading(operationThreading);
         client.admin().cluster().execPing(broadcastPingRequest, new ActionListener<BroadcastPingResponse>() {
-            @Override public void onResponse(BroadcastPingResponse result) {
+            @Override public void onResponse(BroadcastPingResponse response) {
                 try {
-                    JsonBuilder generator = RestJsonBuilder.cached(request);
-                    generator.startObject()
-                            .field("ok", true)
-                            .field("totalShards", result.totalShards())
-                            .field("successfulShards", result.successfulShards())
-                            .field("failedShards", result.failedShards())
-                            .endObject();
-                    channel.sendResponse(new JsonRestResponse(request, OK, generator));
+                    JsonBuilder builder = RestJsonBuilder.cached(request);
+                    builder.startObject();
+                    builder.field("ok", true);
+                    buildBroadcastShardsHeader(builder, response);
+                    builder.endObject();
+                    channel.sendResponse(new JsonRestResponse(request, OK, builder));
                 } catch (Exception e) {
                     onFailure(e);
                 }

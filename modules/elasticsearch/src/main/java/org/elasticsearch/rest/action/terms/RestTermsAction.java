@@ -113,11 +113,7 @@ public class RestTermsAction extends BaseRestHandler {
                     JsonBuilder builder = RestJsonBuilder.cached(request);
                     builder.startObject();
 
-                    builder.startObject("_shards");
-                    builder.field("total", response.totalShards());
-                    builder.field("successful", response.successfulShards());
-                    builder.field("failed", response.failedShards());
-                    builder.endObject();
+                    buildBroadcastShardsHeader(builder, response);
 
                     builder.startObject("docs");
                     builder.field("numDocs", response.numDocs());

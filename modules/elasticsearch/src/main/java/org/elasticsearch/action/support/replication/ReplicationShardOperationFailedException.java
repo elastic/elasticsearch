@@ -17,16 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.action;
+package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.ElasticSearchWrapperException;
+import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
 
 /**
+ * An exception indicating that a failure occurred performing an operation on the shard.
+ *
  * @author kimchy (Shay Banon)
  */
-public class ShardNotActiveException extends ShardOperationFailedException {
+public class ReplicationShardOperationFailedException extends IndexShardException implements ElasticSearchWrapperException {
 
-    public ShardNotActiveException(ShardId shardId) {
-        super(shardId, "not active", null);
+    public ReplicationShardOperationFailedException(ShardId shardId, String msg) {
+        super(shardId, msg, null);
+    }
+
+    public ReplicationShardOperationFailedException(ShardId shardId, Throwable cause) {
+        super(shardId, "", cause);
+    }
+
+    public ReplicationShardOperationFailedException(ShardId shardId, String msg, Throwable cause) {
+        super(shardId, msg, cause);
     }
 }

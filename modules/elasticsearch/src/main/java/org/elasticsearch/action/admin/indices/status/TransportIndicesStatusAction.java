@@ -21,7 +21,10 @@ package org.elasticsearch.action.admin.indices.status;
 
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.TransportActions;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -65,17 +68,24 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
     @Override protected IndicesStatusResponse newResponse(IndicesStatusRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
+        List<ShardOperationFailedException> shardFailures = null;
         final List<ShardStatus> shards = newArrayList();
         for (int i = 0; i < shardsResponses.length(); i++) {
-            Object resp = shardsResponses.get(i);
-            if (resp instanceof ShardStatus) {
-                shards.add((ShardStatus) resp);
-                successfulShards++;
-            } else {
+            Object shardResponse = shardsResponses.get(i);
+            if (shardResponse == null) {
                 failedShards++;
+            } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
+                failedShards++;
+                if (shardFailures == null) {
+                    shardFailures = newArrayList();
+                }
+                shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
+            } else {
+                shards.add((ShardStatus) shardResponse);
+                successfulShards++;
             }
         }
-        return new IndicesStatusResponse(shards.toArray(new ShardStatus[shards.size()]), clusterState, successfulShards, failedShards);
+        return new IndicesStatusResponse(shards.toArray(new ShardStatus[shards.size()]), clusterState, successfulShards, failedShards, shardFailures);
     }
 
     @Override protected IndexShardStatusRequest newShardRequest() {
@@ -112,10 +122,6 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
             searcher.release();
         }
         return shardStatus;
-    }
-
-    @Override protected boolean accumulateExceptions() {
-        return false;
     }
 
     /**

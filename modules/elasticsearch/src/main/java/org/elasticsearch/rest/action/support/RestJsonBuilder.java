@@ -31,8 +31,7 @@ public class RestJsonBuilder {
 
     public static JsonBuilder cached(RestRequest request) throws IOException {
         JsonBuilder builder = JsonBuilder.jsonBuilder();
-        String prettyPrint = request.param("pretty");
-        if (prettyPrint != null && "true".equals(prettyPrint)) {
+        if (request.paramAsBoolean("pretty", false)) {
             builder.prettyPrint();
         }
         return builder;

@@ -33,7 +33,7 @@ public class IndexShardException extends IndexException {
     }
 
     public IndexShardException(ShardId shardId, String msg, Throwable cause) {
-        super(shardId.index(), "Shard[" + shardId.id() + "] " + msg, cause);
+        super(shardId.index(), false, "[" + shardId.id() + "] " + msg, cause);
         this.shardId = shardId;
     }
 

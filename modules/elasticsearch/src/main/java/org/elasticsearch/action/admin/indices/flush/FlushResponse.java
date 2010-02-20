@@ -19,11 +19,13 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.List;
 
 /**
  * @author kimchy (Shay Banon)
@@ -34,8 +36,8 @@ public class FlushResponse extends BroadcastOperationResponse {
 
     }
 
-    FlushResponse(int successfulShards, int failedShards) {
-        super(successfulShards, failedShards);
+    FlushResponse(int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+        super(successfulShards, failedShards, shardFailures);
     }
 
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {

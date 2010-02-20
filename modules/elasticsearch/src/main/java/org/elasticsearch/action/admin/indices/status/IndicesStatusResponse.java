@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.status;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.util.settings.Settings;
@@ -49,8 +50,8 @@ public class IndicesStatusResponse extends BroadcastOperationResponse {
     IndicesStatusResponse() {
     }
 
-    IndicesStatusResponse(ShardStatus[] shards, ClusterState clusterState, int successfulShards, int failedShards) {
-        super(successfulShards, failedShards);
+    IndicesStatusResponse(ShardStatus[] shards, ClusterState clusterState, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+        super(successfulShards, failedShards, shardFailures);
         this.shards = shards;
         indicesSettings = newHashMap();
         for (ShardStatus shard : shards) {

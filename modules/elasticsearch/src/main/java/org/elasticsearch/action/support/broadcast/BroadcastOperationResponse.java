@@ -19,11 +19,16 @@
 
 package org.elasticsearch.action.support.broadcast;
 
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author kimchy (Shay Banon)
@@ -34,12 +39,18 @@ public abstract class BroadcastOperationResponse implements ActionResponse {
 
     private int failedShards;
 
+    private List<ShardOperationFailedException> shardFailures = ImmutableList.of();
+
     protected BroadcastOperationResponse() {
     }
 
-    protected BroadcastOperationResponse(int successfulShards, int failedShards) {
+    protected BroadcastOperationResponse(int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
         this.successfulShards = successfulShards;
         this.failedShards = failedShards;
+        this.shardFailures = shardFailures;
+        if (shardFailures == null) {
+            this.shardFailures = ImmutableList.of();
+        }
     }
 
     public int totalShards() {
@@ -54,13 +65,28 @@ public abstract class BroadcastOperationResponse implements ActionResponse {
         return failedShards;
     }
 
+    public List<? extends ShardOperationFailedException> shardFailures() {
+        return shardFailures;
+    }
+
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
         successfulShards = in.readInt();
         failedShards = in.readInt();
+        int size = in.readInt();
+        if (size > 0) {
+            shardFailures = new ArrayList<ShardOperationFailedException>(size);
+            for (int i = 0; i < size; i++) {
+                shardFailures.add(DefaultShardOperationFailedException.readShardOperationFailed(in));
+            }
+        }
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
         out.writeInt(successfulShards);
         out.writeInt(failedShards);
+        out.writeInt(shardFailures.size());
+        for (ShardOperationFailedException exp : shardFailures) {
+            exp.writeTo(out);
+        }
     }
 }

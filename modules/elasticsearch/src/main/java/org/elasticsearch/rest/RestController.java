@@ -30,6 +30,8 @@ import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 
+import static org.elasticsearch.rest.RestResponse.Status.*;
+
 /**
  * @author kimchy (Shay Banon)
  */
@@ -94,6 +96,10 @@ public class RestController extends AbstractComponent implements LifecycleCompon
 
     public void dispatchRequest(final RestRequest request, final RestChannel channel) {
         final RestHandler handler = getHandler(request);
+        if (handler == null) {
+            channel.sendResponse(new StringRestResponse(BAD_REQUEST, "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]"));
+            return;
+        }
         try {
             handler.handleRequest(request, channel);
         } catch (Exception e) {

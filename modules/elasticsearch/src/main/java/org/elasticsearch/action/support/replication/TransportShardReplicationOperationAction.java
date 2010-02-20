@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.PrimaryNotStartedActionException;
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
@@ -217,7 +216,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             try {
                 shards = shards(request);
             } catch (Exception e) {
-                listener.onFailure(new ShardOperationFailedException(shards.shardId(), e));
+                listener.onFailure(new ReplicationShardOperationFailedException(shards.shardId(), e));
                 return true;
             }
 
@@ -320,7 +319,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 // still in recovery, retry (we know that its not UNASSIGNED OR INITIALIZING since we are checking it in the calling method)
                 retryPrimary(fromDiscoveryListener, shard);
             } catch (Exception e) {
-                listener.onFailure(new ShardOperationFailedException(shards.shardId(), e));
+                listener.onFailure(new ReplicationShardOperationFailedException(shards.shardId(), e));
             }
         }
 

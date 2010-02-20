@@ -21,7 +21,10 @@ package org.elasticsearch.action.admin.indices.refresh;
 
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.TransportActions;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,7 +37,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.settings.Settings;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+
+import static com.google.common.collect.Lists.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -61,15 +67,22 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
     @Override protected RefreshResponse newResponse(RefreshRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
+        List<ShardOperationFailedException> shardFailures = null;
         for (int i = 0; i < shardsResponses.length(); i++) {
-            ShardRefreshResponse shardCountResponse = (ShardRefreshResponse) shardsResponses.get(i);
-            if (shardCountResponse == null) {
+            Object shardResponse = shardsResponses.get(i);
+            if (shardResponse == null) {
                 failedShards++;
+            } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
+                failedShards++;
+                if (shardFailures == null) {
+                    shardFailures = newArrayList();
+                }
+                shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
             } else {
                 successfulShards++;
             }
         }
-        return new RefreshResponse(successfulShards, failedShards);
+        return new RefreshResponse(successfulShards, failedShards, shardFailures);
     }
 
     @Override protected ShardRefreshRequest newShardRequest() {
@@ -88,10 +101,6 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
         IndexShard indexShard = indicesService.indexServiceSafe(request.index()).shardSafe(request.shardId());
         indexShard.refresh(new Engine.Refresh(request.waitForOperations()));
         return new ShardRefreshResponse(request.index(), request.shardId());
-    }
-
-    @Override protected boolean accumulateExceptions() {
-        return false;
     }
 
     /**

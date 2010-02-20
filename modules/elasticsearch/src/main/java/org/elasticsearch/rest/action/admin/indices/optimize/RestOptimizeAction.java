@@ -35,6 +35,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
+import static org.elasticsearch.rest.action.support.RestActions.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -79,11 +80,7 @@ public class RestOptimizeAction extends BaseRestHandler {
                     builder.startObject();
                     builder.field("ok", true);
 
-                    builder.startObject("_shards");
-                    builder.field("total", response.totalShards());
-                    builder.field("successful", response.successfulShards());
-                    builder.field("failed", response.failedShards());
-                    builder.endObject();
+                    buildBroadcastShardsHeader(builder, response);
 
                     builder.endObject();
                     channel.sendResponse(new JsonRestResponse(request, OK, builder));

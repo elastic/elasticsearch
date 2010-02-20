@@ -64,11 +64,7 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                     builder.startObject();
                     builder.field("ok", true);
 
-                    builder.startObject("_shards");
-                    builder.field("total", response.totalShards());
-                    builder.field("successful", response.successfulShards());
-                    builder.field("failed", response.failedShards());
-                    builder.endObject();
+                    buildBroadcastShardsHeader(builder, response);
 
                     builder.startObject("indices");
                     for (IndexStatus indexStatus : response.indices().values()) {

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.terms;
 
 import com.google.common.collect.Iterators;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 
 import java.io.DataInput;
@@ -27,6 +28,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.terms.FieldTermsFreq.*;
@@ -52,9 +54,9 @@ public class TermsResponse extends BroadcastOperationResponse implements Iterabl
     TermsResponse() {
     }
 
-    TermsResponse(int successfulShards, int failedShards, FieldTermsFreq[] fieldsTermsFreq,
+    TermsResponse(int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, FieldTermsFreq[] fieldsTermsFreq,
                   long numDocs, long maxDoc, long numDeletedDocs) {
-        super(successfulShards, failedShards);
+        super(successfulShards, failedShards, shardFailures);
         this.fieldsTermsFreq = fieldsTermsFreq;
         this.numDocs = numDocs;
         this.maxDoc = maxDoc;

@@ -339,12 +339,17 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
         }
     }
 
-    public String toJson() throws IOException {
-        JsonBuilder builder = jsonBuilder().prettyPrint();
-        builder.startObject();
-        toJson(builder, ToJson.EMPTY_PARAMS);
-        builder.endObject();
-        return builder.string();
+
+    @Override public String buildSource() throws FailedToGenerateSourceMapperException {
+        try {
+            JsonBuilder builder = jsonBuilder().prettyPrint();
+            builder.startObject();
+            toJson(builder, ToJson.EMPTY_PARAMS);
+            builder.endObject();
+            return builder.string();
+        } catch (Exception e) {
+            throw new FailedToGenerateSourceMapperException(e.getMessage(), e);
+        }
     }
 
     @Override public void toJson(JsonBuilder builder, Params params) throws IOException {

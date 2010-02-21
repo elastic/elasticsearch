@@ -74,8 +74,8 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
 
     @Override protected PutMappingResponse masterOperation(PutMappingRequest request) throws ElasticSearchException {
         final String[] indices = processIndices(clusterService.state(), request.indices());
-        metaDataService.addMapping(indices, request.type(), request.mappingSource(), request.timeout());
-        return new PutMappingResponse();
+        MetaDataService.PutMappingResult result = metaDataService.putMapping(indices, request.type(), request.mappingSource(), request.timeout());
+        return new PutMappingResponse(result.acknowledged(), result.parsedSource());
     }
 
     @Override protected void doExecute(final PutMappingRequest request, final ActionListener<PutMappingResponse> listener) {

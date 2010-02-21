@@ -37,6 +37,11 @@ public interface DocumentMapper {
      */
     String mappingSource();
 
+    /**
+     * Generates the source of the mapper based on the current mappings.
+     */
+    String buildSource() throws FailedToGenerateSourceMapperException;
+
     UidFieldMapper uidMapper();
 
     IdFieldMapper idMapper();

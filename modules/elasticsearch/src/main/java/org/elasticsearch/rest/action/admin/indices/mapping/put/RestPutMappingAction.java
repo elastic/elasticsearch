@@ -57,12 +57,15 @@ public class RestPutMappingAction extends BaseRestHandler {
         putMappingRequest.mappingSource(request.contentAsString());
         putMappingRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
         client.admin().indices().execPutMapping(putMappingRequest, new ActionListener<PutMappingResponse>() {
-            @Override public void onResponse(PutMappingResponse result) {
+            @Override public void onResponse(PutMappingResponse response) {
                 try {
                     JsonBuilder builder = RestJsonBuilder.cached(request);
                     builder.startObject()
                             .field("ok", true)
-                            .endObject();
+                            .field("acknowledged", response.acknowledged());
+                    builder.raw(", \"parsedSource\" : ");
+                    builder.raw(response.parsedSource());
+                    builder.endObject();
                     channel.sendResponse(new JsonRestResponse(request, OK, builder));
                 } catch (IOException e) {
                     onFailure(e);

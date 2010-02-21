@@ -200,7 +200,7 @@ public class MetaDataService extends AbstractComponent {
         }
     }
 
-    public boolean addMapping(final String[] indices, String mappingType, final String mappingSource, TimeValue timeout) throws ElasticSearchException {
+    public PutMappingResult putMapping(final String[] indices, String mappingType, final String mappingSource, TimeValue timeout) throws ElasticSearchException {
         ClusterState clusterState = clusterService.state();
         for (String index : indices) {
             IndexRoutingTable indexTable = clusterState.routingTable().indicesRouting().get(index);
@@ -220,6 +220,8 @@ public class MetaDataService extends AbstractComponent {
             }
         }
 
+        String parsedSource = documentMapper.buildSource();
+
         if (mappingType == null) {
             mappingType = documentMapper.type();
         } else if (!mappingType.equals(documentMapper.type())) {
@@ -229,7 +231,7 @@ public class MetaDataService extends AbstractComponent {
             throw new InvalidTypeNameException("Document mapping type name can't start with '_'");
         }
 
-        logger.info("Indices [" + Arrays.toString(indices) + "]: Creating mapping [" + mappingType + "] with source [" + mappingSource + "]");
+        logger.info("Indices [" + Arrays.toString(indices) + "]: Put mapping [" + mappingType + "] with source [" + mappingSource + "]");
 
         final CountDownLatch latch = new CountDownLatch(clusterService.state().nodes().size() * indices.length);
         final Set<String> indicesSet = Sets.newHashSet(indices);
@@ -258,13 +260,35 @@ public class MetaDataService extends AbstractComponent {
             }
         });
 
+        boolean acknowledged;
         try {
-            return latch.await(timeout.millis(), TimeUnit.MILLISECONDS);
+            acknowledged = latch.await(timeout.millis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
-            return false;
+            acknowledged = false;
         } finally {
             nodeMappingCreatedAction.remove(listener);
         }
+
+        return new PutMappingResult(acknowledged, parsedSource);
     }
 
+    public static class PutMappingResult {
+
+        private final boolean acknowledged;
+
+        private final String parsedSource;
+
+        public PutMappingResult(boolean acknowledged, String parsedSource) {
+            this.acknowledged = acknowledged;
+            this.parsedSource = parsedSource;
+        }
+
+        public boolean acknowledged() {
+            return acknowledged;
+        }
+
+        public String parsedSource() {
+            return parsedSource;
+        }
+    }
 }

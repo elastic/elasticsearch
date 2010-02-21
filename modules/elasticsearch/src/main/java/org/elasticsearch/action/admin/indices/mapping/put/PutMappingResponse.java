@@ -31,9 +31,34 @@ import java.io.IOException;
  */
 public class PutMappingResponse implements ActionResponse, Streamable {
 
+    private boolean acknowledged;
+
+    private String parsedSource;
+
+    PutMappingResponse() {
+
+    }
+
+    public PutMappingResponse(boolean acknowledged, String parsedSource) {
+        this.acknowledged = acknowledged;
+        this.parsedSource = parsedSource;
+    }
+
+    public boolean acknowledged() {
+        return acknowledged;
+    }
+
+    public String parsedSource() {
+        return parsedSource;
+    }
+
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+        acknowledged = in.readBoolean();
+        parsedSource = in.readUTF();
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
+        out.writeBoolean(acknowledged);
+        out.writeUTF(parsedSource);
     }
 }

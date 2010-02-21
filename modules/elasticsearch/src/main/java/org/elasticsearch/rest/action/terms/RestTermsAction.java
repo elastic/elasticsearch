@@ -107,7 +107,7 @@ public class RestTermsAction extends BaseRestHandler {
             return;
         }
 
-        final boolean termsAsArray = request.paramAsBoolean("termsAsArray", false);
+        final boolean termsAsArray = request.paramAsBoolean("termsAsArray", true);
         client.execTerms(termsRequest, new ActionListener<TermsResponse>() {
             @Override public void onResponse(TermsResponse response) {
                 try {

@@ -107,6 +107,7 @@ public class RestTermsAction extends BaseRestHandler {
             return;
         }
 
+        final boolean termsAsArray = request.paramAsBoolean("termsAsArray", false);
         client.execTerms(termsRequest, new ActionListener<TermsResponse>() {
             @Override public void onResponse(TermsResponse response) {
                 try {
@@ -125,13 +126,24 @@ public class RestTermsAction extends BaseRestHandler {
                     for (FieldTermsFreq fieldTermsFreq : response.fields()) {
                         builder.startObject(fieldTermsFreq.fieldName());
 
-                        builder.startObject("terms");
-                        for (TermFreq termFreq : fieldTermsFreq.termsFreqs()) {
-                            builder.startObject(termFreq.term());
-                            builder.field("docFreq", termFreq.docFreq());
+                        if (!termsAsArray) {
+                            builder.startObject("terms");
+                            for (TermFreq termFreq : fieldTermsFreq.termsFreqs()) {
+                                builder.startObject(termFreq.term());
+                                builder.field("docFreq", termFreq.docFreq());
+                                builder.endObject();
+                            }
                             builder.endObject();
+                        } else {
+                            builder.startArray("terms");
+                            for (TermFreq termFreq : fieldTermsFreq.termsFreqs()) {
+                                builder.startObject();
+                                builder.field("term", termFreq.term());
+                                builder.field("docFreq", termFreq.docFreq());
+                                builder.endObject();
+                            }
+                            builder.endArray();
                         }
-                        builder.endObject();
 
                         builder.endObject();
                     }

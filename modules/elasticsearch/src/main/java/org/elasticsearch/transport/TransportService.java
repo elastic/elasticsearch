@@ -30,7 +30,6 @@ import org.elasticsearch.util.io.Streamable;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.transport.BoundTransportAddress;
 
-import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -38,7 +37,7 @@ import static org.elasticsearch.util.concurrent.ConcurrentMaps.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TransportService extends AbstractComponent implements LifecycleComponent<TransportService> {
 
@@ -51,6 +50,8 @@ public class TransportService extends AbstractComponent implements LifecycleComp
     private final NonBlockingHashMapLong<TransportResponseHandler> clientHandlers = new NonBlockingHashMapLong<TransportResponseHandler>();
 
     final AtomicLong requestIds = new AtomicLong();
+
+    private boolean throwConnectException = false;
 
     public TransportService(Transport transport) {
         this(EMPTY_SETTINGS, transport);
@@ -124,6 +125,17 @@ public class TransportService extends AbstractComponent implements LifecycleComp
         }
     }
 
+    /**
+     * Set to <tt>true</tt> to indicate that a {@link ConnectTransportException} should be thrown when
+     * sending a message (otherwise, it will be passed to the response handler). Defaults to <tt>false</tt>.
+     *
+     * <p>This is useful when logic based on connect failure is needed without having to wrap the handler,
+     * for example, in case of retries across several nodes.
+     */
+    public void throwConnectException(boolean throwConnectException) {
+        this.throwConnectException = throwConnectException;
+    }
+
     public <T extends Streamable> TransportFuture<T> submitRequest(Node node, String action, Streamable message,
                                                                    TransportResponseHandler<T> handler) throws TransportException {
         PlainTransportFuture<T> futureHandler = new PlainTransportFuture<T>(handler);
@@ -133,12 +145,20 @@ public class TransportService extends AbstractComponent implements LifecycleComp
 
     public <T extends Streamable> void sendRequest(Node node, String action, Streamable message,
                                                    TransportResponseHandler<T> handler) throws TransportException {
+        final long requestId = newRequestId();
         try {
-            final long requestId = newRequestId();
             clientHandlers.put(requestId, handler);
             transport.sendRequest(node, requestId, action, message, handler);
-        } catch (IOException e) {
-            throw new TransportException("Can't serialize request", e);
+        } catch (Exception e) {
+            // usually happen either because we failed to connect to the node
+            // or because we failed serializing the message
+            clientHandlers.remove(requestId);
+            if (throwConnectException) {
+                if (e instanceof ConnectTransportException) {
+                    throw (ConnectTransportException) e;
+                }
+            }
+            handler.handleException(new SendRequestTransportException(node, action, e));
         }
     }
 

@@ -54,6 +54,10 @@ public class RemoteTransportException extends TransportException implements Elas
         return null;
     }
 
+    protected Throwable fillStack() {
+        return super.fillInStackTrace();
+    }
+
     private static String buildMessage(String name, TransportAddress address, String action) {
         StringBuilder sb = new StringBuilder();
         if (name != null) {

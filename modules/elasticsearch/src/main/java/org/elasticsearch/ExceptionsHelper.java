@@ -45,7 +45,9 @@ public final class ExceptionsHelper {
             StringBuilder sb = new StringBuilder();
             while (t != null) {
                 if (t.getMessage() != null) {
+                    sb.append(t.getClass().getSimpleName()).append("{");
                     sb.append(t.getMessage());
+                    sb.append("}");
                     if (!newLines) {
                         sb.append("; ");
                     }

@@ -87,6 +87,9 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
         this.nodesSamplerInterval = componentSettings.getAsTime("nodesSamplerInterval", timeValueSeconds(1));
 
         this.nodesSamplerFuture = threadPool.scheduleWithFixedDelay(nodesSampler, nodesSamplerInterval);
+
+        // we want the transport service to throw connect exceptions, so we can retry
+        transportService.throwConnectException(true);
     }
 
     public ImmutableList<TransportAddress> transportAddresses() {

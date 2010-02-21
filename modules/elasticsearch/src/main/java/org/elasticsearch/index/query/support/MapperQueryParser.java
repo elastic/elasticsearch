@@ -93,7 +93,7 @@ public class MapperQueryParser extends QueryParser {
             MapperService.SmartNameFieldMappers fieldMappers = mapperService.smartName(field);
             if (fieldMappers != null) {
                 if (fieldMappers.fieldMappers().mapper() != null) {
-                    indexedNameField = fieldMappers.fieldMappers().mapper().indexName();
+                    indexedNameField = fieldMappers.fieldMappers().mapper().names().indexName();
                 }
                 return wrapSmartNameQuery(super.getPrefixQuery(indexedNameField, termStr), fieldMappers, filterCache);
             }
@@ -107,7 +107,7 @@ public class MapperQueryParser extends QueryParser {
             MapperService.SmartNameFieldMappers fieldMappers = mapperService.smartName(field);
             if (fieldMappers != null) {
                 if (fieldMappers.fieldMappers().mapper() != null) {
-                    indexedNameField = fieldMappers.fieldMappers().mapper().indexName();
+                    indexedNameField = fieldMappers.fieldMappers().mapper().names().indexName();
                 }
                 return wrapSmartNameQuery(super.getFuzzyQuery(indexedNameField, termStr, minSimilarity), fieldMappers, filterCache);
             }
@@ -121,7 +121,7 @@ public class MapperQueryParser extends QueryParser {
             MapperService.SmartNameFieldMappers fieldMappers = mapperService.smartName(field);
             if (fieldMappers != null) {
                 if (fieldMappers.fieldMappers().mapper() != null) {
-                    indexedNameField = fieldMappers.fieldMappers().mapper().indexName();
+                    indexedNameField = fieldMappers.fieldMappers().mapper().names().indexName();
                 }
                 return wrapSmartNameQuery(super.getWildcardQuery(indexedNameField, termStr), fieldMappers, filterCache);
             }

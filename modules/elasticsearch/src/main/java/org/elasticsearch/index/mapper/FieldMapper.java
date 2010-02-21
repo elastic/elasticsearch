@@ -24,6 +24,8 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.util.concurrent.Immutable;
 import org.elasticsearch.util.concurrent.ThreadSafe;
 
 /**
@@ -32,23 +34,55 @@ import org.elasticsearch.util.concurrent.ThreadSafe;
 @ThreadSafe
 public interface FieldMapper<T> {
 
-    /**
-     * The name of the field (this is not what we store in the index).
-     */
-    String name();
+    @Immutable
+    public static class Names {
 
-    /**
-     * The indexed name of the field. This is the name under which we will
-     * store it in the index.
-     */
-    String indexName();
+        private final String name;
 
-    /**
-     * The full name of the field. If it is under a certain context (for example,
-     * in json it exists within an object with a given name), then the context
-     * will be included. Expected to end with the {@link #name()}.
-     */
-    String fullName();
+        private final String indexName;
+
+        private final String indexNameClean;
+
+        private final String fullName;
+
+        public Names(String name, String indexName, String indexNameClean, String fullName) {
+            this.name = StringHelper.intern(name);
+            this.indexName = StringHelper.intern(indexName);
+            this.indexNameClean = StringHelper.intern(indexNameClean);
+            this.fullName = StringHelper.intern(fullName);
+        }
+
+        /**
+         * The logical name of the field.
+         */
+        public String name() {
+            return name;
+        }
+
+        /**
+         * The indexed name of the field. This is the name under which we will
+         * store it in the index.
+         */
+        public String indexName() {
+            return indexName;
+        }
+
+        /**
+         * The cleaned index name, before any "path" modifications performed on it.
+         */
+        public String indexNameClean() {
+            return indexNameClean;
+        }
+
+        /**
+         * The full name, including dot path.
+         */
+        public String fullName() {
+            return fullName;
+        }
+    }
+
+    Names names();
 
     Field.Index index();
 

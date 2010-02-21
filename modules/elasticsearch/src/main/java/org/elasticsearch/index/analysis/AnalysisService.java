@@ -42,7 +42,7 @@ public class AnalysisService extends AbstractIndexComponent {
 
     private final ImmutableMap<String, AnalyzerProvider> analyzerProviders;
 
-    private final ImmutableMap<String, Analyzer> analyzers;
+    private final ImmutableMap<String, NamedAnalyzer> analyzers;
 
     private final ImmutableMap<String, TokenizerFactory> tokenizers;
 
@@ -103,9 +103,9 @@ public class AnalysisService extends AbstractIndexComponent {
 
         this.analyzerProviders = ImmutableMap.copyOf(analyzerProviders);
 
-        Map<String, Analyzer> analyzers = newHashMap();
+        Map<String, NamedAnalyzer> analyzers = newHashMap();
         for (AnalyzerProvider analyzerFactory : analyzerProviders.values()) {
-            analyzers.put(analyzerFactory.name(), analyzerFactory.get());
+            analyzers.put(analyzerFactory.name(), new NamedAnalyzer(analyzerFactory.name(), analyzerFactory.get()));
         }
         this.analyzers = ImmutableMap.copyOf(analyzers);
 
@@ -152,19 +152,19 @@ public class AnalysisService extends AbstractIndexComponent {
         }
     }
 
-    public Analyzer analyzer(String name) {
+    public NamedAnalyzer analyzer(String name) {
         return analyzers.get(name);
     }
 
-    public Analyzer defaultAnalyzer() {
+    public NamedAnalyzer defaultAnalyzer() {
         return analyzers.get("default");
     }
 
-    public Analyzer defaultIndexAnalyzer() {
+    public NamedAnalyzer defaultIndexAnalyzer() {
         return defaultAnalyzer();
     }
 
-    public Analyzer defaultSearchAnalyzer() {
+    public NamedAnalyzer defaultSearchAnalyzer() {
         return defaultAnalyzer();
     }
 

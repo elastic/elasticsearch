@@ -24,6 +24,7 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.NumericUtils;
 import org.codehaus.jackson.JsonToken;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericLongAnalyzer;
 import org.elasticsearch.util.Numbers;
 
@@ -33,6 +34,8 @@ import java.io.IOException;
  * @author kimchy (Shay Banon)
  */
 public class JsonLongFieldMapper extends JsonNumberFieldMapper<Long> {
+
+    public static final String JSON_TYPE = "long";
 
     public static class Defaults extends JsonNumberFieldMapper.Defaults {
         public static final Long NULL_VALUE = null;
@@ -53,18 +56,19 @@ public class JsonLongFieldMapper extends JsonNumberFieldMapper<Long> {
         }
 
         @Override public JsonLongFieldMapper build(BuilderContext context) {
-            return new JsonLongFieldMapper(name, buildIndexName(context), buildFullName(context),
+            return new JsonLongFieldMapper(buildNames(context),
                     precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
         }
     }
 
     private final Long nullValue;
 
-    protected JsonLongFieldMapper(String name, String indexName, String fullName, int precisionStep, Field.Index index, Field.Store store,
+    protected JsonLongFieldMapper(Names names, int precisionStep, Field.Index index, Field.Store store,
                                   float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
                                   Long nullValue) {
-        super(name, indexName, fullName, precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions,
-                new NumericLongAnalyzer(precisionStep), new NumericLongAnalyzer(Integer.MAX_VALUE));
+        super(names, precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions,
+                new NamedAnalyzer("_long/" + precisionStep, new NumericLongAnalyzer(precisionStep)),
+                new NamedAnalyzer("_long/max", new NumericLongAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;
     }
 
@@ -89,14 +93,14 @@ public class JsonLongFieldMapper extends JsonNumberFieldMapper<Long> {
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
-        return NumericRangeQuery.newLongRange(indexName, precisionStep,
+        return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Long.parseLong(lowerTerm),
                 upperTerm == null ? null : Long.parseLong(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
-        return NumericRangeFilter.newLongRange(indexName, precisionStep,
+        return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Long.parseLong(lowerTerm),
                 upperTerm == null ? null : Long.parseLong(upperTerm),
                 includeLower, includeUpper);
@@ -114,17 +118,21 @@ public class JsonLongFieldMapper extends JsonNumberFieldMapper<Long> {
         }
         Field field = null;
         if (stored()) {
-            field = new Field(indexName, Numbers.longToBytes(value), store);
+            field = new Field(names.indexName(), Numbers.longToBytes(value), store);
             if (indexed()) {
                 field.setTokenStream(popCachedStream(precisionStep).setLongValue(value));
             }
         } else if (indexed()) {
-            field = new Field(indexName, popCachedStream(precisionStep).setLongValue(value));
+            field = new Field(names.indexName(), popCachedStream(precisionStep).setLongValue(value));
         }
         return field;
     }
 
     @Override public int sortType() {
         return SortField.LONG;
+    }
+
+    @Override protected String jsonType() {
+        return JSON_TYPE;
     }
 }

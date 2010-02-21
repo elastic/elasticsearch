@@ -91,7 +91,7 @@ public class SpanTermJsonQueryParser extends AbstractIndexComponent implements J
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
-                fieldName = smartNameFieldMappers.mapper().indexName();
+                fieldName = smartNameFieldMappers.mapper().names().indexName();
                 value = smartNameFieldMappers.mapper().indexedValue(value);
             }
         }

@@ -33,6 +33,8 @@ import java.io.IOException;
  */
 public class JsonSourceFieldMapper extends JsonFieldMapper<String> implements SourceFieldMapper {
 
+    public static final String JSON_TYPE = "sourceField";
+
     public static class Defaults extends JsonFieldMapper.Defaults {
         public static final String NAME = SourceFieldMapper.NAME;
         public static final boolean ENABLED = true;
@@ -95,12 +97,12 @@ public class JsonSourceFieldMapper extends JsonFieldMapper<String> implements So
     }
 
     protected JsonSourceFieldMapper(String name, boolean enabled, int compressionThreshold, Compressor compressor) {
-        super(name, name, name, Defaults.INDEX, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.BOOST,
+        super(new Names(name, name, name, name), Defaults.INDEX, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.BOOST,
                 Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
         this.enabled = enabled;
         this.compressionThreshold = compressionThreshold;
         this.compressor = compressor;
-        this.fieldSelector = new SourceFieldSelector(indexName);
+        this.fieldSelector = new SourceFieldSelector(names.indexName());
     }
 
     public boolean enabled() {
@@ -117,10 +119,10 @@ public class JsonSourceFieldMapper extends JsonFieldMapper<String> implements So
         }
         Field sourceField;
         if (compressionThreshold == Defaults.NO_COMPRESSION || jsonContext.source().length() < compressionThreshold) {
-            sourceField = new Field(name, jsonContext.source(), store, index);
+            sourceField = new Field(names.indexName(), jsonContext.source(), store, index);
         } else {
             try {
-                sourceField = new Field(name, compressor.compressString(jsonContext.source()), store);
+                sourceField = new Field(names.indexName(), compressor.compressString(jsonContext.source()), store);
             } catch (IOException e) {
                 throw new MapperCompressionException("Failed to compress data", e);
             }
@@ -129,7 +131,7 @@ public class JsonSourceFieldMapper extends JsonFieldMapper<String> implements So
     }
 
     @Override public String value(Document document) {
-        Fieldable field = document.getFieldable(indexName);
+        Fieldable field = document.getFieldable(names.indexName());
         return field == null ? null : value(field);
     }
 
@@ -170,5 +172,9 @@ public class JsonSourceFieldMapper extends JsonFieldMapper<String> implements So
             }
             return FieldSelectorResult.NO_LOAD;
         }
+    }
+
+    @Override protected String jsonType() {
+        return JSON_TYPE;
     }
 }

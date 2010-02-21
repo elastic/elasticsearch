@@ -33,6 +33,8 @@ import java.io.IOException;
  */
 public class JsonTypeFieldMapper extends JsonFieldMapper<String> implements TypeFieldMapper {
 
+    public static final String JSON_TYPE = "typeField";
+
     public static class Defaults extends JsonFieldMapper.Defaults {
         public static final String NAME = TypeFieldMapper.NAME;
         public static final String INDEX_NAME = TypeFieldMapper.NAME;
@@ -69,12 +71,12 @@ public class JsonTypeFieldMapper extends JsonFieldMapper<String> implements Type
 
     public JsonTypeFieldMapper(String name, String indexName, Field.Store store, Field.TermVector termVector,
                                float boost, boolean omitNorms, boolean omitTermFreqAndPositions) {
-        super(name, indexName, name, Defaults.INDEX, store, termVector, boost, omitNorms, omitTermFreqAndPositions,
+        super(new Names(name, indexName, indexName, name), Defaults.INDEX, store, termVector, boost, omitNorms, omitTermFreqAndPositions,
                 Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
     }
 
     @Override public String value(Document document) {
-        Fieldable field = document.getFieldable(indexName);
+        Fieldable field = document.getFieldable(names.indexName());
         return field == null ? null : value(field);
     }
 
@@ -91,10 +93,14 @@ public class JsonTypeFieldMapper extends JsonFieldMapper<String> implements Type
     }
 
     @Override public Term term(String value) {
-        return new Term(indexName, value);
+        return new Term(names.indexName(), value);
     }
 
     @Override protected Field parseCreateField(JsonParseContext jsonContext) throws IOException {
-        return new Field(indexName, jsonContext.type(), store, index);
+        return new Field(names.indexName(), jsonContext.type(), store, index);
+    }
+
+    @Override protected String jsonType() {
+        return JSON_TYPE;
     }
 }

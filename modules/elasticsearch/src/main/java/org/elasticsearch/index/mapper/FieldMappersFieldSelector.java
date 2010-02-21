@@ -33,7 +33,7 @@ public class FieldMappersFieldSelector implements FieldSelector {
 
     public void add(FieldMappers fieldMappers) {
         for (FieldMapper fieldMapper : fieldMappers) {
-            names.add(fieldMapper.indexName());
+            names.add(fieldMapper.names().indexName());
         }
     }
 

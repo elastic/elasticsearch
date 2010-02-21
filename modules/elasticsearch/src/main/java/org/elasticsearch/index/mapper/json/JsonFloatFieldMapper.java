@@ -24,6 +24,7 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.NumericUtils;
 import org.codehaus.jackson.JsonToken;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericFloatAnalyzer;
 import org.elasticsearch.util.Numbers;
 
@@ -33,6 +34,8 @@ import java.io.IOException;
  * @author kimchy (Shay Banon)
  */
 public class JsonFloatFieldMapper extends JsonNumberFieldMapper<Float> {
+
+    public static final String JSON_TYPE = "float";
 
     public static class Defaults extends JsonNumberFieldMapper.Defaults {
         public static final Float NULL_VALUE = null;
@@ -53,7 +56,7 @@ public class JsonFloatFieldMapper extends JsonNumberFieldMapper<Float> {
         }
 
         @Override public JsonFloatFieldMapper build(BuilderContext context) {
-            return new JsonFloatFieldMapper(name, buildIndexName(context), buildFullName(context),
+            return new JsonFloatFieldMapper(buildNames(context),
                     precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
         }
     }
@@ -61,11 +64,12 @@ public class JsonFloatFieldMapper extends JsonNumberFieldMapper<Float> {
 
     private final Float nullValue;
 
-    protected JsonFloatFieldMapper(String name, String indexName, String fullName, int precisionStep, Field.Index index, Field.Store store,
+    protected JsonFloatFieldMapper(Names names, int precisionStep, Field.Index index, Field.Store store,
                                    float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
                                    Float nullValue) {
-        super(name, indexName, fullName, precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions,
-                new NumericFloatAnalyzer(precisionStep), new NumericFloatAnalyzer(Integer.MAX_VALUE));
+        super(names, precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions,
+                new NamedAnalyzer("_float/" + precisionStep, new NumericFloatAnalyzer(precisionStep)),
+                new NamedAnalyzer("_float/max", new NumericFloatAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;
     }
 
@@ -90,14 +94,14 @@ public class JsonFloatFieldMapper extends JsonNumberFieldMapper<Float> {
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
-        return NumericRangeQuery.newFloatRange(indexName, precisionStep,
+        return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Float.parseFloat(lowerTerm),
                 upperTerm == null ? null : Float.parseFloat(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
-        return NumericRangeFilter.newFloatRange(indexName, precisionStep,
+        return NumericRangeFilter.newFloatRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Float.parseFloat(lowerTerm),
                 upperTerm == null ? null : Float.parseFloat(upperTerm),
                 includeLower, includeUpper);
@@ -115,17 +119,21 @@ public class JsonFloatFieldMapper extends JsonNumberFieldMapper<Float> {
         }
         Field field = null;
         if (stored()) {
-            field = new Field(indexName, Numbers.floatToBytes(value), store);
+            field = new Field(names.indexName(), Numbers.floatToBytes(value), store);
             if (indexed()) {
                 field.setTokenStream(popCachedStream(precisionStep).setFloatValue(value));
             }
         } else if (indexed()) {
-            field = new Field(indexName, popCachedStream(precisionStep).setFloatValue(value));
+            field = new Field(names.indexName(), popCachedStream(precisionStep).setFloatValue(value));
         }
         return field;
     }
 
     @Override public int sortType() {
         return SortField.FLOAT;
+    }
+
+    @Override protected String jsonType() {
+        return JSON_TYPE;
     }
 }

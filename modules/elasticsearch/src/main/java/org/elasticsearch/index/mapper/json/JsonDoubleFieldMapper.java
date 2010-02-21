@@ -24,6 +24,7 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.NumericUtils;
 import org.codehaus.jackson.JsonToken;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericDoubleAnalyzer;
 import org.elasticsearch.util.Numbers;
 
@@ -33,6 +34,8 @@ import java.io.IOException;
  * @author kimchy (Shay Banon)
  */
 public class JsonDoubleFieldMapper extends JsonNumberFieldMapper<Double> {
+
+    public static final String JSON_TYPE = "double";
 
     public static class Defaults extends JsonNumberFieldMapper.Defaults {
         public static final Double NULL_VALUE = null;
@@ -53,19 +56,20 @@ public class JsonDoubleFieldMapper extends JsonNumberFieldMapper<Double> {
         }
 
         @Override public JsonDoubleFieldMapper build(BuilderContext context) {
-            return new JsonDoubleFieldMapper(name, buildIndexName(context), buildFullName(context),
+            return new JsonDoubleFieldMapper(buildNames(context),
                     precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
         }
     }
 
     private final Double nullValue;
 
-    protected JsonDoubleFieldMapper(String name, String indexName, String fullName, int precisionStep,
+    protected JsonDoubleFieldMapper(Names names, int precisionStep,
                                     Field.Index index, Field.Store store,
                                     float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
                                     Double nullValue) {
-        super(name, indexName, fullName, precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions,
-                new NumericDoubleAnalyzer(precisionStep), new NumericDoubleAnalyzer(Integer.MAX_VALUE));
+        super(names, precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions,
+                new NamedAnalyzer("_double/" + precisionStep, new NumericDoubleAnalyzer(precisionStep)),
+                new NamedAnalyzer("_double/max", new NumericDoubleAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;
     }
 
@@ -90,14 +94,14 @@ public class JsonDoubleFieldMapper extends JsonNumberFieldMapper<Double> {
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
-        return NumericRangeQuery.newDoubleRange(indexName, precisionStep,
+        return NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Double.parseDouble(lowerTerm),
                 upperTerm == null ? null : Double.parseDouble(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
-        return NumericRangeFilter.newDoubleRange(indexName, precisionStep,
+        return NumericRangeFilter.newDoubleRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Double.parseDouble(lowerTerm),
                 upperTerm == null ? null : Double.parseDouble(upperTerm),
                 includeLower, includeUpper);
@@ -115,17 +119,21 @@ public class JsonDoubleFieldMapper extends JsonNumberFieldMapper<Double> {
         }
         Field field = null;
         if (stored()) {
-            field = new Field(indexName, Numbers.doubleToBytes(value), store);
+            field = new Field(names.indexName(), Numbers.doubleToBytes(value), store);
             if (indexed()) {
                 field.setTokenStream(popCachedStream(precisionStep).setDoubleValue(value));
             }
         } else if (indexed()) {
-            field = new Field(indexName, popCachedStream(precisionStep).setDoubleValue(value));
+            field = new Field(names.indexName(), popCachedStream(precisionStep).setDoubleValue(value));
         }
         return field;
     }
 
     @Override public int sortType() {
         return SortField.DOUBLE;
+    }
+
+    @Override protected String jsonType() {
+        return JSON_TYPE;
     }
 }

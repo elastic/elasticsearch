@@ -29,7 +29,7 @@ import java.io.IOException;
  * @author kimchy (Shay Banon)
  */
 @ThreadSafe
-public interface JsonMapper {
+public interface JsonMapper /*extends ToJson*/ {
 
     @NotThreadSafe
     public static class BuilderContext {

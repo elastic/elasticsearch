@@ -71,7 +71,7 @@ public class FetchPhase implements SearchPhase {
                 if (fieldMappers != null) {
                     FieldMapper mapper = fieldMappers.mapper();
                     if (mapper != null) {
-                        name = mapper.name();
+                        name = mapper.names().name();
                         value = mapper.valueForSearch(field);
                     }
                 }
@@ -113,10 +113,10 @@ public class FetchPhase implements SearchPhase {
 
     private String extractSource(Document doc, DocumentMapper documentMapper) {
         String source = null;
-        Fieldable sourceField = doc.getFieldable(documentMapper.sourceMapper().indexName());
+        Fieldable sourceField = doc.getFieldable(documentMapper.sourceMapper().names().indexName());
         if (sourceField != null) {
             source = documentMapper.sourceMapper().valueAsString(sourceField);
-            doc.removeField(documentMapper.sourceMapper().indexName());
+            doc.removeField(documentMapper.sourceMapper().names().indexName());
         }
         return source;
     }
@@ -124,10 +124,10 @@ public class FetchPhase implements SearchPhase {
     private Uid extractUid(SearchContext context, Document doc) {
         Uid uid = null;
         for (FieldMapper fieldMapper : context.mapperService().uidFieldMappers()) {
-            String sUid = doc.get(fieldMapper.indexName());
+            String sUid = doc.get(fieldMapper.names().indexName());
             if (sUid != null) {
                 uid = Uid.createUid(sUid);
-                doc.removeField(fieldMapper.indexName());
+                doc.removeField(fieldMapper.names().indexName());
                 break;
             }
         }

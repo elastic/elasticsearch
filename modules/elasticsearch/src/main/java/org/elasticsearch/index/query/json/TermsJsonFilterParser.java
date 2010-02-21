@@ -64,7 +64,7 @@ public class TermsJsonFilterParser extends AbstractIndexComponent implements Jso
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
                 fieldMapper = smartNameFieldMappers.mapper();
-                fieldName = fieldMapper.indexName();
+                fieldName = fieldMapper.names().indexName();
             }
         }
 

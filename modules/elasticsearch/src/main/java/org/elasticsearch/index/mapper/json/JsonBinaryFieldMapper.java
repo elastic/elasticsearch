@@ -30,6 +30,8 @@ import java.io.IOException;
  */
 public class JsonBinaryFieldMapper extends JsonFieldMapper<byte[]> {
 
+    public static final String JSON_TYPE = "binary";
+
     public static class Builder extends JsonFieldMapper.Builder<Builder, JsonBinaryFieldMapper> {
 
         public Builder(String name) {
@@ -42,12 +44,12 @@ public class JsonBinaryFieldMapper extends JsonFieldMapper<byte[]> {
         }
 
         @Override public JsonBinaryFieldMapper build(BuilderContext context) {
-            return new JsonBinaryFieldMapper(name, buildIndexName(context), buildFullName(context));
+            return new JsonBinaryFieldMapper(buildNames(context));
         }
     }
 
-    protected JsonBinaryFieldMapper(String name, String indexName, String fullName) {
-        super(name, indexName, fullName, Field.Index.NO, Field.Store.YES, Field.TermVector.NO, 1.0f, true, true, null, null);
+    protected JsonBinaryFieldMapper(Names names) {
+        super(names, Field.Index.NO, Field.Store.YES, Field.TermVector.NO, 1.0f, true, true, null, null);
     }
 
     @Override public byte[] value(Fieldable field) {
@@ -72,6 +74,10 @@ public class JsonBinaryFieldMapper extends JsonFieldMapper<byte[]> {
         if (value == null) {
             return null;
         }
-        return new Field(indexName, value, Field.Store.YES);
+        return new Field(names.indexName(), value, Field.Store.YES);
+    }
+
+    @Override protected String jsonType() {
+        return JSON_TYPE;
     }
 }

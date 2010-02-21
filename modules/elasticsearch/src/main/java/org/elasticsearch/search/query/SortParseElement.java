@@ -129,7 +129,7 @@ public class SortParseElement implements SearchParseElement {
                     throw new SearchParseException(context, "No built in mapping found for [" + fieldName + "], and no explicit type defined");
                 }
             } else {
-                fieldName = fieldMappers.mappers().get(0).indexName();
+                fieldName = fieldMappers.mappers().get(0).names().indexName();
                 if (type == -1) {
                     type = fieldMappers.mappers().get(0).sortType();
                 }

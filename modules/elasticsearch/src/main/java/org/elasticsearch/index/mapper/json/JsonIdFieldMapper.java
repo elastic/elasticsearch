@@ -34,6 +34,8 @@ import java.io.IOException;
  */
 public class JsonIdFieldMapper extends JsonFieldMapper<String> implements IdFieldMapper {
 
+    public static final String JSON_TYPE = "idField";
+
     public static class Defaults extends JsonFieldMapper.Defaults {
         public static final String NAME = "_id";
         public static final String INDEX_NAME = "_id";
@@ -70,12 +72,12 @@ public class JsonIdFieldMapper extends JsonFieldMapper<String> implements IdFiel
 
     public JsonIdFieldMapper(String name, String indexName, Field.Store store, Field.TermVector termVector,
                              float boost, boolean omitNorms, boolean omitTermFreqAndPositions) {
-        super(name, indexName, name, Defaults.INDEX, store, termVector, boost, omitNorms, omitTermFreqAndPositions,
+        super(new Names(name, indexName, indexName, name), Defaults.INDEX, store, termVector, boost, omitNorms, omitTermFreqAndPositions,
                 Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
     }
 
     @Override public String value(Document document) {
-        Fieldable field = document.getFieldable(indexName);
+        Fieldable field = document.getFieldable(names.indexName());
         return field == null ? null : value(field);
     }
 
@@ -99,12 +101,12 @@ public class JsonIdFieldMapper extends JsonFieldMapper<String> implements IdFiel
             }
             jsonContext.id(id);
             jsonContext.parsedId(JsonParseContext.ParsedIdState.PARSED);
-            return new Field(indexName, jsonContext.id(), store, index);
+            return new Field(names.indexName(), jsonContext.id(), store, index);
         } else if (jsonContext.parsedIdState() == JsonParseContext.ParsedIdState.EXTERNAL) {
             if (jsonContext.id() == null) {
-                throw new MapperParsingException("No id mapping with [" + name() + "] found in the json, and not explicitly set");
+                throw new MapperParsingException("No id mapping with [" + names.name() + "] found in the json, and not explicitly set");
             }
-            return new Field(indexName, jsonContext.id(), store, index);
+            return new Field(names.indexName(), jsonContext.id(), store, index);
         } else {
             throw new MapperParsingException("Illegal parsed id state");
         }
@@ -112,5 +114,9 @@ public class JsonIdFieldMapper extends JsonFieldMapper<String> implements IdFiel
 
     @Override public void traverse(FieldMapperListener fieldMapperListener) {
         fieldMapperListener.fieldMapper(this);
+    }
+
+    @Override protected String jsonType() {
+        return JSON_TYPE;
     }
 }

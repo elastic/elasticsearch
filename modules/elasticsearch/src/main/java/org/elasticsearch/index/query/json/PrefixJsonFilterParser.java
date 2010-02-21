@@ -68,7 +68,7 @@ public class PrefixJsonFilterParser extends AbstractIndexComponent implements Js
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
-                fieldName = smartNameFieldMappers.mapper().indexName();
+                fieldName = smartNameFieldMappers.mapper().names().indexName();
                 value = smartNameFieldMappers.mapper().indexedValue(value);
             }
         }

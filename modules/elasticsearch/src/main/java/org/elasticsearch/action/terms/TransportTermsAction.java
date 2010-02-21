@@ -153,7 +153,7 @@ public class TransportTermsAction extends TransportBroadcastOperationAction<Term
                 FieldMapper fieldMapper = indexService.mapperService().smartNameFieldMapper(fieldName);
                 String indexFieldName = fieldName;
                 if (fieldMapper != null) {
-                    indexFieldName = fieldMapper.indexName();
+                    indexFieldName = fieldMapper.names().indexName();
                 }
                 indexFieldName = StringHelper.intern(indexFieldName);
 

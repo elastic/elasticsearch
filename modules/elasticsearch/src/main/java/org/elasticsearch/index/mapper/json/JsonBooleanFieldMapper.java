@@ -32,6 +32,8 @@ import java.io.IOException;
 // TODO this can be made better, maybe storing a byte for it?
 public class JsonBooleanFieldMapper extends JsonFieldMapper<Boolean> {
 
+    public static final String JSON_TYPE = "boolean";
+
     public static class Defaults extends JsonFieldMapper.Defaults {
         public static final boolean OMIT_NORMS = true;
         public static final Boolean NULL_VALUE = null;
@@ -77,17 +79,16 @@ public class JsonBooleanFieldMapper extends JsonFieldMapper<Boolean> {
         }
 
         @Override public JsonBooleanFieldMapper build(BuilderContext context) {
-            return new JsonBooleanFieldMapper(name, buildIndexName(context), buildFullName(context), index, store,
+            return new JsonBooleanFieldMapper(buildNames(context), index, store,
                     termVector, boost, omitNorms, omitTermFreqAndPositions, nullValue);
         }
     }
 
     private Boolean nullValue;
 
-    protected JsonBooleanFieldMapper(String name, String indexName, String fullName, Field.Index index, Field.Store store, Field.TermVector termVector,
+    protected JsonBooleanFieldMapper(Names names, Field.Index index, Field.Store store, Field.TermVector termVector,
                                      float boost, boolean omitNorms, boolean omitTermFreqAndPositions, Boolean nullValue) {
-        super(name, indexName, fullName, index, store, termVector, boost, omitNorms, omitTermFreqAndPositions,
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+        super(names, index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
         this.nullValue = nullValue;
     }
 
@@ -142,6 +143,10 @@ public class JsonBooleanFieldMapper extends JsonFieldMapper<Boolean> {
         if (value == null) {
             return null;
         }
-        return new Field(indexName, value, store, index, termVector);
+        return new Field(names.indexName(), value, store, index, termVector);
+    }
+
+    @Override protected String jsonType() {
+        return JSON_TYPE;
     }
 }

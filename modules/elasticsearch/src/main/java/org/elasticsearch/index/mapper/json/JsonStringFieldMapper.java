@@ -19,17 +19,19 @@
 
 package org.elasticsearch.index.mapper.json;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.codehaus.jackson.JsonToken;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class JsonStringFieldMapper extends JsonFieldMapper<String> {
+
+    public static final String JSON_TYPE = "string";
 
     public static class Defaults extends JsonFieldMapper.Defaults {
         // NOTE, when adding defaults here, make sure you add them in the builder
@@ -51,7 +53,7 @@ public class JsonStringFieldMapper extends JsonFieldMapper<String> {
         }
 
         @Override public JsonStringFieldMapper build(BuilderContext context) {
-            return new JsonStringFieldMapper(name, buildIndexName(context), buildFullName(context),
+            return new JsonStringFieldMapper(buildNames(context),
                     index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, nullValue,
                     indexAnalyzer, searchAnalyzer);
         }
@@ -59,10 +61,10 @@ public class JsonStringFieldMapper extends JsonFieldMapper<String> {
 
     private final String nullValue;
 
-    protected JsonStringFieldMapper(String name, String indexName, String fullName, Field.Index index, Field.Store store, Field.TermVector termVector,
+    protected JsonStringFieldMapper(Names names, Field.Index index, Field.Store store, Field.TermVector termVector,
                                     float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
-                                    String nullValue, Analyzer indexAnalyzer, Analyzer searchAnalyzer) {
-        super(name, indexName, fullName, index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, indexAnalyzer, searchAnalyzer);
+                                    String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
+        super(names, index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, indexAnalyzer, searchAnalyzer);
         this.nullValue = nullValue;
     }
 
@@ -88,6 +90,10 @@ public class JsonStringFieldMapper extends JsonFieldMapper<String> {
         if (value == null) {
             return null;
         }
-        return new Field(indexName, value, store, index, termVector);
+        return new Field(names.indexName(), value, store, index, termVector);
+    }
+
+    @Override protected String jsonType() {
+        return JSON_TYPE;
     }
 }

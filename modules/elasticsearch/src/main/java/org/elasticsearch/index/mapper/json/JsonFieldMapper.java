@@ -24,7 +24,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
-import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapperListener;
 import org.elasticsearch.util.lucene.search.TermFilter;
@@ -79,11 +79,11 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
             return super.indexName(indexName);
         }
 
-        @Override public T indexAnalyzer(Analyzer indexAnalyzer) {
+        @Override public T indexAnalyzer(NamedAnalyzer indexAnalyzer) {
             return super.indexAnalyzer(indexAnalyzer);
         }
 
-        @Override public T searchAnalyzer(Analyzer searchAnalyzer) {
+        @Override public T searchAnalyzer(NamedAnalyzer searchAnalyzer) {
             return super.searchAnalyzer(searchAnalyzer);
         }
     }
@@ -104,9 +104,9 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
 
         protected String indexName;
 
-        protected Analyzer indexAnalyzer;
+        protected NamedAnalyzer indexAnalyzer;
 
-        protected Analyzer searchAnalyzer;
+        protected NamedAnalyzer searchAnalyzer;
 
         protected Builder(String name) {
             super(name);
@@ -148,7 +148,7 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
             return builder;
         }
 
-        protected T indexAnalyzer(Analyzer indexAnalyzer) {
+        protected T indexAnalyzer(NamedAnalyzer indexAnalyzer) {
             this.indexAnalyzer = indexAnalyzer;
             if (this.searchAnalyzer == null) {
                 this.searchAnalyzer = indexAnalyzer;
@@ -156,9 +156,13 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
             return builder;
         }
 
-        protected T searchAnalyzer(Analyzer searchAnalyzer) {
+        protected T searchAnalyzer(NamedAnalyzer searchAnalyzer) {
             this.searchAnalyzer = searchAnalyzer;
             return builder;
+        }
+
+        protected Names buildNames(BuilderContext context) {
+            return new Names(name, buildIndexName(context), indexName == null ? name : indexName, buildFullName(context));
         }
 
         protected String buildIndexName(BuilderContext context) {
@@ -171,11 +175,7 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
         }
     }
 
-    protected final String name;
-
-    protected final String indexName;
-
-    protected final String fullName;
+    protected final Names names;
 
     protected final Field.Index index;
 
@@ -189,15 +189,13 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
 
     protected final boolean omitTermFreqAndPositions;
 
-    protected final Analyzer indexAnalyzer;
+    protected final NamedAnalyzer indexAnalyzer;
 
-    protected final Analyzer searchAnalyzer;
+    protected final NamedAnalyzer searchAnalyzer;
 
-    protected JsonFieldMapper(String name, String indexName, String fullName, Field.Index index, Field.Store store, Field.TermVector termVector,
-                              float boost, boolean omitNorms, boolean omitTermFreqAndPositions, Analyzer indexAnalyzer, Analyzer searchAnalyzer) {
-        this.name = StringHelper.intern(name);
-        this.indexName = StringHelper.intern(indexName);
-        this.fullName = StringHelper.intern(fullName);
+    protected JsonFieldMapper(Names names, Field.Index index, Field.Store store, Field.TermVector termVector,
+                              float boost, boolean omitNorms, boolean omitTermFreqAndPositions, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
+        this.names = names;
         this.index = index;
         this.store = store;
         this.termVector = termVector;
@@ -209,15 +207,11 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
     }
 
     @Override public String name() {
-        return this.name;
+        return names.name();
     }
 
-    @Override public String indexName() {
-        return this.indexName;
-    }
-
-    @Override public String fullName() {
-        return this.fullName;
+    @Override public Names names() {
+        return this.names;
     }
 
     @Override public Field.Index index() {
@@ -297,22 +291,22 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
     }
 
     @Override public Query fieldQuery(String value) {
-        return new TermQuery(new Term(indexName, indexedValue(value)));
+        return new TermQuery(new Term(names.indexName(), indexedValue(value)));
     }
 
     @Override public Filter fieldFilter(String value) {
-        return new TermFilter(new Term(indexName, indexedValue(value)));
+        return new TermFilter(new Term(names.indexName(), indexedValue(value)));
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
-        return new TermRangeQuery(indexName,
+        return new TermRangeQuery(names.indexName(),
                 lowerTerm == null ? null : indexedValue(lowerTerm),
                 upperTerm == null ? null : indexedValue(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
-        return new TermRangeFilter(indexName,
+        return new TermRangeFilter(names.indexName(),
                 lowerTerm == null ? null : indexedValue(lowerTerm),
                 upperTerm == null ? null : indexedValue(upperTerm),
                 includeLower, includeUpper);
@@ -321,4 +315,25 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
     @Override public int sortType() {
         return SortField.STRING;
     }
+
+//    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
+//        builder.startObject(names.name());
+//        builder.field("type", jsonType());
+//        builder.field("indexName", names.indexNameClean());
+//        builder.field("index", index.name().toLowerCase());
+//        builder.field("store", store.name().toLowerCase());
+//        builder.field("termVector", termVector.name().toLowerCase());
+//        builder.field("boost", boost);
+//        builder.field("omitNorms", omitNorms);
+//        builder.field("omitTermFreqAndPositions", omitTermFreqAndPositions);
+//        if (indexAnalyzer != null && !indexAnalyzer.name().startsWith("_")) {
+//            builder.field("indexAnalyzer", indexAnalyzer.name());
+//        }
+//        if (searchAnalyzer != null && !searchAnalyzer.name().startsWith("_")) {
+//            builder.field("searchAnalyzer", searchAnalyzer.name());
+//        }
+//        builder.endObject();
+//    }
+
+    protected abstract String jsonType();
 }

@@ -24,6 +24,7 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.NumericUtils;
 import org.codehaus.jackson.JsonToken;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericFloatAnalyzer;
 import org.elasticsearch.index.mapper.BoostFieldMapper;
 import org.elasticsearch.util.Numbers;
@@ -34,6 +35,8 @@ import java.io.IOException;
  * @author kimchy (Shay Banon)
  */
 public class JsonBoostFieldMapper extends JsonNumberFieldMapper<Float> implements BoostFieldMapper {
+
+    public static final String JSON_TYPE = "boostField";
 
     public static class Defaults extends JsonNumberFieldMapper.Defaults {
         public static final String NAME = "_boost";
@@ -79,8 +82,9 @@ public class JsonBoostFieldMapper extends JsonNumberFieldMapper<Float> implement
     protected JsonBoostFieldMapper(String name, String indexName, int precisionStep, Field.Index index, Field.Store store,
                                    float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
                                    Float nullValue) {
-        super(name, indexName, name, precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions,
-                new NumericFloatAnalyzer(precisionStep), new NumericFloatAnalyzer(Integer.MAX_VALUE));
+        super(new Names(name, indexName, indexName, name), precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions,
+                new NamedAnalyzer("_float/" + precisionStep, new NumericFloatAnalyzer(precisionStep)),
+                new NamedAnalyzer("_float/max", new NumericFloatAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;
     }
 
@@ -105,14 +109,14 @@ public class JsonBoostFieldMapper extends JsonNumberFieldMapper<Float> implement
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
-        return NumericRangeQuery.newFloatRange(indexName, precisionStep,
+        return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Float.parseFloat(lowerTerm),
                 upperTerm == null ? null : Float.parseFloat(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
-        return NumericRangeFilter.newFloatRange(indexName, precisionStep,
+        return NumericRangeFilter.newFloatRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Float.parseFloat(lowerTerm),
                 upperTerm == null ? null : Float.parseFloat(upperTerm),
                 includeLower, includeUpper);
@@ -135,12 +139,12 @@ public class JsonBoostFieldMapper extends JsonNumberFieldMapper<Float> implement
         jsonContext.doc().setBoost(value);
         Field field = null;
         if (stored()) {
-            field = new Field(indexName, Numbers.floatToBytes(value), store);
+            field = new Field(names.indexName(), Numbers.floatToBytes(value), store);
             if (indexed()) {
                 field.setTokenStream(popCachedStream(precisionStep).setFloatValue(value));
             }
         } else if (indexed()) {
-            field = new Field(indexName, popCachedStream(precisionStep).setFloatValue(value));
+            field = new Field(names.indexName(), popCachedStream(precisionStep).setFloatValue(value));
         }
         return field;
     }
@@ -160,5 +164,9 @@ public class JsonBoostFieldMapper extends JsonNumberFieldMapper<Float> implement
 
     @Override public int sortType() {
         return SortField.FLOAT;
+    }
+
+    @Override protected String jsonType() {
+        return JSON_TYPE;
     }
 }

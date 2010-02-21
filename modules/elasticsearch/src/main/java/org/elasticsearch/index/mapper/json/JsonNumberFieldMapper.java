@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.mapper.json;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.util.gnu.trove.TIntObjectHashMap;
 
 import java.io.IOException;
@@ -80,11 +80,11 @@ public abstract class JsonNumberFieldMapper<T extends Number> extends JsonFieldM
 
     protected final int precisionStep;
 
-    protected JsonNumberFieldMapper(String name, String indexName, String fullName, int precisionStep,
+    protected JsonNumberFieldMapper(Names names, int precisionStep,
                                     Field.Index index, Field.Store store,
                                     float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
-                                    Analyzer indexAnalyzer, Analyzer searchAnalyzer) {
-        super(name, indexName, fullName, index, store, Field.TermVector.NO, boost, omitNorms, omitTermFreqAndPositions, indexAnalyzer, searchAnalyzer);
+                                    NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
+        super(names, index, store, Field.TermVector.NO, boost, omitNorms, omitTermFreqAndPositions, indexAnalyzer, searchAnalyzer);
         if (precisionStep <= 0 || precisionStep >= maxPrecisionStep()) {
             this.precisionStep = Integer.MAX_VALUE;
         } else {

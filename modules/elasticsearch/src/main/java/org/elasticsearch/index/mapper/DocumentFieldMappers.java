@@ -55,35 +55,35 @@ public class DocumentFieldMappers implements Iterable<FieldMapper> {
         final Map<String, Analyzer> searchAnalyzers = newHashMap();
 
         for (FieldMapper fieldMapper : fieldMappers) {
-            FieldMappers mappers = tempNameFieldMappers.get(fieldMapper.name());
+            FieldMappers mappers = tempNameFieldMappers.get(fieldMapper.names().name());
             if (mappers == null) {
                 mappers = new FieldMappers(fieldMapper);
             } else {
                 mappers = mappers.concat(fieldMapper);
             }
-            tempNameFieldMappers.put(fieldMapper.name(), mappers);
+            tempNameFieldMappers.put(fieldMapper.names().name(), mappers);
 
-            mappers = tempIndexNameFieldMappers.get(fieldMapper.indexName());
+            mappers = tempIndexNameFieldMappers.get(fieldMapper.names().indexName());
             if (mappers == null) {
                 mappers = new FieldMappers(fieldMapper);
             } else {
                 mappers = mappers.concat(fieldMapper);
             }
-            tempIndexNameFieldMappers.put(fieldMapper.indexName(), mappers);
+            tempIndexNameFieldMappers.put(fieldMapper.names().indexName(), mappers);
 
-            mappers = tempFullNameFieldMappers.get(fieldMapper.fullName());
+            mappers = tempFullNameFieldMappers.get(fieldMapper.names().fullName());
             if (mappers == null) {
                 mappers = new FieldMappers(fieldMapper);
             } else {
                 mappers = mappers.concat(fieldMapper);
             }
-            tempFullNameFieldMappers.put(fieldMapper.fullName(), mappers);
+            tempFullNameFieldMappers.put(fieldMapper.names().fullName(), mappers);
 
             if (fieldMapper.indexAnalyzer() != null) {
-                indexAnalyzers.put(fieldMapper.indexName(), fieldMapper.indexAnalyzer());
+                indexAnalyzers.put(fieldMapper.names().indexName(), fieldMapper.indexAnalyzer());
             }
             if (fieldMapper.searchAnalyzer() != null) {
-                searchAnalyzers.put(fieldMapper.indexName(), fieldMapper.searchAnalyzer());
+                searchAnalyzers.put(fieldMapper.names().indexName(), fieldMapper.searchAnalyzer());
             }
         }
         this.fieldMappers = ImmutableList.copyOf(fieldMappers);

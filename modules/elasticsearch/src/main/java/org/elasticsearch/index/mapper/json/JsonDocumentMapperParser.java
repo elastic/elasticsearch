@@ -96,15 +96,15 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
             String fieldName = entry.getKey();
             JsonNode fieldNode = entry.getValue();
 
-            if ("sourceField".equals(fieldName)) {
+            if (JsonSourceFieldMapper.JSON_TYPE.equals(fieldName)) {
                 docBuilder.sourceField(parseSourceField((ObjectNode) fieldNode));
-            } else if ("idField".equals(fieldName)) {
+            } else if (JsonIdFieldMapper.JSON_TYPE.equals(fieldName)) {
                 docBuilder.idField(parseIdField((ObjectNode) fieldNode));
-            } else if ("typeField".equals(fieldName)) {
+            } else if (JsonTypeFieldMapper.JSON_TYPE.equals(fieldName)) {
                 docBuilder.typeField(parseTypeField((ObjectNode) fieldNode));
-            } else if ("uidField".equals(fieldName)) {
+            } else if (JsonUidFieldMapper.JSON_TYPE.equals(fieldName)) {
                 docBuilder.uidField(parseUidField((ObjectNode) fieldNode));
-            } else if ("boostField".equals(fieldName)) {
+            } else if (JsonBoostFieldMapper.JSON_TYPE.equals(fieldName)) {
                 docBuilder.boostField(parseBoostField((ObjectNode) fieldNode));
             } else if ("indexAnalyzer".equals(fieldName)) {
                 docBuilder.indexAnalyzer(analysisService.analyzer(fieldNode.getTextValue()));
@@ -266,23 +266,23 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
                     throw new MapperParsingException("No type specified for property [" + propName + "]");
                 }
             }
-            if (type.equals("string")) {
+            if (type.equals(JsonStringFieldMapper.JSON_TYPE)) {
                 objBuilder.add(parseString(propName, (ObjectNode) propNode));
-            } else if (type.equals("date")) {
+            } else if (type.equals(JsonDateFieldMapper.JSON_TYPE)) {
                 objBuilder.add(parseDate(propName, (ObjectNode) propNode));
-            } else if (type.equals("integer")) {
+            } else if (type.equals(JsonIntegerFieldMapper.JSON_TYPE)) {
                 objBuilder.add(parseInteger(propName, (ObjectNode) propNode));
-            } else if (type.equals("long")) {
+            } else if (type.equals(JsonLongFieldMapper.JSON_TYPE)) {
                 objBuilder.add(parseLong(propName, (ObjectNode) propNode));
-            } else if (type.equals("float")) {
+            } else if (type.equals(JsonFloatFieldMapper.JSON_TYPE)) {
                 objBuilder.add(parseFloat(propName, (ObjectNode) propNode));
-            } else if (type.equals("double")) {
+            } else if (type.equals(JsonDoubleFieldMapper.JSON_TYPE)) {
                 objBuilder.add(parseDouble(propName, (ObjectNode) propNode));
-            } else if (type.equals("boolean")) {
+            } else if (type.equals(JsonBooleanFieldMapper.JSON_TYPE)) {
                 objBuilder.add(parseBoolean(propName, (ObjectNode) propNode));
             } else if (type.equals("object")) {
                 objBuilder.add(parseObject(propName, (ObjectNode) propNode));
-            } else if (type.equals("binary")) {
+            } else if (type.equals(JsonBinaryFieldMapper.JSON_TYPE)) {
                 objBuilder.add(parseBinary(propName, (ObjectNode) propNode));
             }
         }

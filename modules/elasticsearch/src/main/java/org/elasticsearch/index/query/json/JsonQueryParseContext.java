@@ -144,7 +144,7 @@ public class JsonQueryParseContext {
             return name;
         }
         if (smartMapper.fieldMappers().mapper() != null) {
-            return smartMapper.fieldMappers().mapper().indexName();
+            return smartMapper.fieldMappers().mapper().names().indexName();
         }
         return name;
     }

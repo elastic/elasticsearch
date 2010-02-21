@@ -34,6 +34,8 @@ import java.io.IOException;
  */
 public class JsonUidFieldMapper extends JsonFieldMapper<Uid> implements UidFieldMapper {
 
+    public static final String JSON_TYPE = "uidField";
+
     public static class Defaults extends JsonFieldMapper.Defaults {
         public static final String NAME = UidFieldMapper.NAME;
         public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
@@ -64,12 +66,8 @@ public class JsonUidFieldMapper extends JsonFieldMapper<Uid> implements UidField
     }
 
     protected JsonUidFieldMapper(String name, String indexName) {
-        super(name, indexName, name, Defaults.INDEX, Field.Store.YES, Defaults.TERM_VECTOR, Defaults.BOOST,
+        super(new Names(name, indexName, indexName, name), Defaults.INDEX, Field.Store.YES, Defaults.TERM_VECTOR, Defaults.BOOST,
                 Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
-    }
-
-    @Override public String name() {
-        return this.name;
     }
 
     @Override protected Field parseCreateField(JsonParseContext jsonContext) throws IOException {
@@ -77,7 +75,7 @@ public class JsonUidFieldMapper extends JsonFieldMapper<Uid> implements UidField
             throw new MapperParsingException("No id found while parsing the json source");
         }
         jsonContext.uid(Uid.createUid(jsonContext.stringBuilder(), jsonContext.type(), jsonContext.id()));
-        return new Field(name, jsonContext.uid(), store, index);
+        return new Field(names.indexName(), jsonContext.uid(), store, index);
     }
 
     @Override public Uid value(Fieldable field) {
@@ -97,6 +95,10 @@ public class JsonUidFieldMapper extends JsonFieldMapper<Uid> implements UidField
     }
 
     @Override public Term term(String uid) {
-        return new Term(indexName, uid);
+        return new Term(names.indexName(), uid);
+    }
+
+    @Override protected String jsonType() {
+        return JSON_TYPE;
     }
 }

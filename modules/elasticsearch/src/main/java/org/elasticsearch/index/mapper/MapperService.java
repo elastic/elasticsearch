@@ -435,30 +435,30 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 }
 
 
-                FieldMappers mappers = nameFieldMappers.get(fieldMapper.name());
+                FieldMappers mappers = nameFieldMappers.get(fieldMapper.names().name());
                 if (mappers == null) {
                     mappers = new FieldMappers(fieldMapper);
                 } else {
                     mappers = mappers.concat(fieldMapper);
                 }
 
-                nameFieldMappers = newMapBuilder(nameFieldMappers).put(fieldMapper.name(), mappers).immutableMap();
+                nameFieldMappers = newMapBuilder(nameFieldMappers).put(fieldMapper.names().name(), mappers).immutableMap();
 
-                mappers = indexNameFieldMappers.get(fieldMapper.indexName());
+                mappers = indexNameFieldMappers.get(fieldMapper.names().indexName());
                 if (mappers == null) {
                     mappers = new FieldMappers(fieldMapper);
                 } else {
                     mappers = mappers.concat(fieldMapper);
                 }
-                indexNameFieldMappers = newMapBuilder(indexNameFieldMappers).put(fieldMapper.indexName(), mappers).immutableMap();
+                indexNameFieldMappers = newMapBuilder(indexNameFieldMappers).put(fieldMapper.names().indexName(), mappers).immutableMap();
 
-                mappers = fullNameFieldMappers.get(fieldMapper.indexName());
+                mappers = fullNameFieldMappers.get(fieldMapper.names().indexName());
                 if (mappers == null) {
                     mappers = new FieldMappers(fieldMapper);
                 } else {
                     mappers = mappers.concat(fieldMapper);
                 }
-                fullNameFieldMappers = newMapBuilder(fullNameFieldMappers).put(fieldMapper.fullName(), mappers).immutableMap();
+                fullNameFieldMappers = newMapBuilder(fullNameFieldMappers).put(fieldMapper.names().fullName(), mappers).immutableMap();
             }
         }
     }

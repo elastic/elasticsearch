@@ -31,8 +31,6 @@ public interface UidFieldMapper extends FieldMapper<Uid> {
 
     public static final String NAME = StringHelper.intern("_uid");
 
-    String name();
-
     Term term(String type, String id);
 
     Term term(String uid);

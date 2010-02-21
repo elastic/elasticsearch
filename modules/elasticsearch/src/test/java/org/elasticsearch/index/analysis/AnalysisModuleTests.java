@@ -56,7 +56,7 @@ public class AnalysisModuleTests {
 
         AnalysisService analysisService = injector.getInstance(AnalysisService.class);
 
-        Analyzer analyzer = analysisService.analyzer("custom1");
+        Analyzer analyzer = analysisService.analyzer("custom1").analyzer();
 
         assertThat(analyzer, instanceOf(CustomAnalyzer.class));
         CustomAnalyzer custom1 = (CustomAnalyzer) analyzer;

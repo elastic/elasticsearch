@@ -24,6 +24,7 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.NumericUtils;
 import org.codehaus.jackson.JsonToken;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
 import org.elasticsearch.util.Numbers;
 
@@ -33,6 +34,8 @@ import java.io.IOException;
  * @author kimchy (Shay Banon)
  */
 public class JsonIntegerFieldMapper extends JsonNumberFieldMapper<Integer> {
+
+    public static final String JSON_TYPE = "integer";
 
     public static class Defaults extends JsonNumberFieldMapper.Defaults {
         public static final Integer NULL_VALUE = null;
@@ -53,18 +56,19 @@ public class JsonIntegerFieldMapper extends JsonNumberFieldMapper<Integer> {
         }
 
         @Override public JsonIntegerFieldMapper build(BuilderContext context) {
-            return new JsonIntegerFieldMapper(name, buildIndexName(context), buildFullName(context),
+            return new JsonIntegerFieldMapper(buildNames(context),
                     precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
         }
     }
 
     private final Integer nullValue;
 
-    protected JsonIntegerFieldMapper(String name, String indexName, String fullName, int precisionStep, Field.Index index, Field.Store store,
+    protected JsonIntegerFieldMapper(Names names, int precisionStep, Field.Index index, Field.Store store,
                                      float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
                                      Integer nullValue) {
-        super(name, indexName, fullName, precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions,
-                new NumericIntegerAnalyzer(precisionStep), new NumericIntegerAnalyzer(Integer.MAX_VALUE));
+        super(names, precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions,
+                new NamedAnalyzer("_int/" + precisionStep, new NumericIntegerAnalyzer(precisionStep)),
+                new NamedAnalyzer("_int/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;
     }
 
@@ -89,14 +93,14 @@ public class JsonIntegerFieldMapper extends JsonNumberFieldMapper<Integer> {
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
-        return NumericRangeQuery.newIntRange(indexName, precisionStep,
+        return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Integer.parseInt(lowerTerm),
                 upperTerm == null ? null : Integer.parseInt(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
-        return NumericRangeFilter.newIntRange(indexName, precisionStep,
+        return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Integer.parseInt(lowerTerm),
                 upperTerm == null ? null : Integer.parseInt(upperTerm),
                 includeLower, includeUpper);
@@ -114,17 +118,21 @@ public class JsonIntegerFieldMapper extends JsonNumberFieldMapper<Integer> {
         }
         Field field = null;
         if (stored()) {
-            field = new Field(indexName, Numbers.intToBytes(value), store);
+            field = new Field(names.indexName(), Numbers.intToBytes(value), store);
             if (indexed()) {
                 field.setTokenStream(popCachedStream(precisionStep).setIntValue(value));
             }
         } else if (indexed()) {
-            field = new Field(indexName, popCachedStream(precisionStep).setIntValue(value));
+            field = new Field(names.indexName(), popCachedStream(precisionStep).setIntValue(value));
         }
         return field;
     }
 
     @Override public int sortType() {
         return SortField.INT;
+    }
+
+    @Override protected String jsonType() {
+        return JSON_TYPE;
     }
 }

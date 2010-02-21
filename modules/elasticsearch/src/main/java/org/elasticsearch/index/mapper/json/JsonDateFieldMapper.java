@@ -24,6 +24,7 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.NumericUtils;
 import org.codehaus.jackson.JsonToken;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericDateAnalyzer;
 import org.elasticsearch.util.Numbers;
 import org.joda.time.DateTimeZone;
@@ -36,6 +37,8 @@ import java.io.IOException;
  * @author kimchy (Shay Banon)
  */
 public class JsonDateFieldMapper extends JsonNumberFieldMapper<Long> {
+
+    public static final String JSON_TYPE = "date";
 
     public static class Defaults extends JsonNumberFieldMapper.Defaults {
         public static final DateTimeFormatter DATE_TIME_FORMATTER =
@@ -66,7 +69,7 @@ public class JsonDateFieldMapper extends JsonNumberFieldMapper<Long> {
         }
 
         @Override public JsonDateFieldMapper build(BuilderContext context) {
-            return new JsonDateFieldMapper(name, buildIndexName(context), buildFullName(context), dateTimeFormatter,
+            return new JsonDateFieldMapper(buildNames(context), dateTimeFormatter,
                     precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
         }
     }
@@ -76,12 +79,13 @@ public class JsonDateFieldMapper extends JsonNumberFieldMapper<Long> {
 
     private final String nullValue;
 
-    protected JsonDateFieldMapper(String name, String indexName, String fullName, DateTimeFormatter dateTimeFormatter, int precisionStep,
+    protected JsonDateFieldMapper(Names names, DateTimeFormatter dateTimeFormatter, int precisionStep,
                                   Field.Index index, Field.Store store,
                                   float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
                                   String nullValue) {
-        super(name, indexName, fullName, precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions,
-                new NumericDateAnalyzer(precisionStep, dateTimeFormatter), new NumericDateAnalyzer(Integer.MAX_VALUE, dateTimeFormatter));
+        super(names, precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions,
+                new NamedAnalyzer("_date/" + precisionStep, new NumericDateAnalyzer(precisionStep, dateTimeFormatter)),
+                new NamedAnalyzer("_date/max", new NumericDateAnalyzer(Integer.MAX_VALUE, dateTimeFormatter)));
         this.dateTimeFormatter = dateTimeFormatter;
         this.nullValue = nullValue;
     }
@@ -111,14 +115,14 @@ public class JsonDateFieldMapper extends JsonNumberFieldMapper<Long> {
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
-        return NumericRangeQuery.newLongRange(indexName, precisionStep,
+        return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : dateTimeFormatter.parseMillis(lowerTerm),
                 upperTerm == null ? null : dateTimeFormatter.parseMillis(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
-        return NumericRangeFilter.newLongRange(indexName, precisionStep,
+        return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : dateTimeFormatter.parseMillis(lowerTerm),
                 upperTerm == null ? null : dateTimeFormatter.parseMillis(upperTerm),
                 includeLower, includeUpper);
@@ -137,17 +141,21 @@ public class JsonDateFieldMapper extends JsonNumberFieldMapper<Long> {
         long value = dateTimeFormatter.parseMillis(dateAsString);
         Field field = null;
         if (stored()) {
-            field = new Field(indexName, Numbers.longToBytes(value), store);
+            field = new Field(names.indexName(), Numbers.longToBytes(value), store);
             if (indexed()) {
                 field.setTokenStream(popCachedStream(precisionStep).setLongValue(value));
             }
         } else if (indexed()) {
-            field = new Field(indexName, popCachedStream(precisionStep).setLongValue(value));
+            field = new Field(names.indexName(), popCachedStream(precisionStep).setLongValue(value));
         }
         return field;
     }
 
     @Override public int sortType() {
         return SortField.LONG;
+    }
+
+    @Override protected String jsonType() {
+        return JSON_TYPE;
     }
 }

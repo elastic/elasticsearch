@@ -27,6 +27,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermDocs;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.util.gnu.trove.TIntArrayList;
 
 import java.io.DataInput;
@@ -38,8 +39,8 @@ import java.io.IOException;
  */
 public class Lucene {
 
-    public static final StandardAnalyzer STANDARD_ANALYZER = new StandardAnalyzer(Version.LUCENE_CURRENT);
-    public static final KeywordAnalyzer KEYWORD_ANALYZER = new KeywordAnalyzer();
+    public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", new StandardAnalyzer(Version.LUCENE_CURRENT));
+    public static final NamedAnalyzer KEYWORD_ANALYZER = new NamedAnalyzer("_keyword", new KeywordAnalyzer());
 
     public static final int NO_DOC = -1;
 

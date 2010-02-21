@@ -49,8 +49,8 @@ public class SimpleJsonMapperTests {
         Document doc = docMapper.parse("person", "1", json).doc();
 
         assertThat((double) doc.getBoost(), closeTo(3.7, 0.01));
-        assertThat(doc.get(docMapper.mappers().name("first").mapper().indexName()), equalTo("shay"));
-        assertThat(docMapper.mappers().name("first").mapper().fullName(), equalTo("name.first"));
+        assertThat(doc.get(docMapper.mappers().name("first").mapper().names().indexName()), equalTo("shay"));
+        assertThat(docMapper.mappers().name("first").mapper().names().fullName(), equalTo("name.first"));
 //        System.out.println("Document: " + doc);
 //        System.out.println("Json: " + docMapper.sourceMapper().value(doc));
         doc = docMapper.parse(json).doc();
@@ -63,10 +63,10 @@ public class SimpleJsonMapperTests {
         JsonDocumentMapper docMapper = (JsonDocumentMapper) new JsonDocumentMapperParser(new AnalysisService(new Index("test"))).parse(mapping);
         String json = copyToStringFromClasspath("/org/elasticsearch/index/mapper/json/simple/test1.json");
         Document doc = docMapper.parse(json).doc();
-        assertThat(doc.get(docMapper.uidMapper().indexName()), equalTo(Uid.createUid("person", "1")));
+        assertThat(doc.get(docMapper.uidMapper().names().indexName()), equalTo(Uid.createUid("person", "1")));
         assertThat((double) doc.getBoost(), closeTo(3.7, 0.01));
-        assertThat(doc.get(docMapper.mappers().name("first").mapper().indexName()), equalTo("shay"));
-        assertThat(doc.getFields(docMapper.idMapper().indexName()).length, equalTo(1));
+        assertThat(doc.get(docMapper.mappers().name("first").mapper().names().indexName()), equalTo("shay"));
+        assertThat(doc.getFields(docMapper.idMapper().names().indexName()).length, equalTo(1));
 //        System.out.println("Document: " + doc);
 //        System.out.println("Json: " + docMapper.sourceMapper().value(doc));
     }
@@ -76,10 +76,10 @@ public class SimpleJsonMapperTests {
         JsonDocumentMapper docMapper = (JsonDocumentMapper) new JsonDocumentMapperParser(new AnalysisService(new Index("test"))).parse("person", mapping);
         String json = copyToStringFromClasspath("/org/elasticsearch/index/mapper/json/simple/test1.json");
         Document doc = docMapper.parse(json).doc();
-        assertThat(doc.get(docMapper.uidMapper().indexName()), equalTo(Uid.createUid("person", "1")));
+        assertThat(doc.get(docMapper.uidMapper().names().indexName()), equalTo(Uid.createUid("person", "1")));
         assertThat((double) doc.getBoost(), closeTo(3.7, 0.01));
-        assertThat(doc.get(docMapper.mappers().name("first").mapper().indexName()), equalTo("shay"));
-        assertThat(doc.getFields(docMapper.idMapper().indexName()).length, equalTo(1));
+        assertThat(doc.get(docMapper.mappers().name("first").mapper().names().indexName()), equalTo("shay"));
+        assertThat(doc.getFields(docMapper.idMapper().names().indexName()).length, equalTo(1));
 //        System.out.println("Document: " + doc);
 //        System.out.println("Json: " + docMapper.sourceMapper().value(doc));
     }
@@ -89,10 +89,10 @@ public class SimpleJsonMapperTests {
         JsonDocumentMapper docMapper = (JsonDocumentMapper) new JsonDocumentMapperParser(new AnalysisService(new Index("test"))).parse(mapping);
         String json = copyToStringFromClasspath("/org/elasticsearch/index/mapper/json/simple/test1-notype-noid.json");
         Document doc = docMapper.parse("person", "1", json).doc();
-        assertThat(doc.get(docMapper.uidMapper().indexName()), equalTo(Uid.createUid("person", "1")));
+        assertThat(doc.get(docMapper.uidMapper().names().indexName()), equalTo(Uid.createUid("person", "1")));
         assertThat((double) doc.getBoost(), closeTo(3.7, 0.01));
-        assertThat(doc.get(docMapper.mappers().name("first").mapper().indexName()), equalTo("shay"));
-        assertThat(doc.getFields(docMapper.idMapper().indexName()).length, equalTo(1));
+        assertThat(doc.get(docMapper.mappers().name("first").mapper().names().indexName()), equalTo("shay"));
+        assertThat(doc.getFields(docMapper.idMapper().names().indexName()).length, equalTo(1));
 //        System.out.println("Document: " + doc);
 //        System.out.println("Json: " + docMapper.sourceMapper().value(doc));
     }

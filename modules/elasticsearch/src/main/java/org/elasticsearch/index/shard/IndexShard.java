@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.concurrent.ThreadSafe;
@@ -44,9 +45,9 @@ public interface IndexShard extends IndexShardComponent {
      */
     SizeValue estimateFlushableMemorySize() throws ElasticSearchException;
 
-    void create(String type, String id, String source) throws ElasticSearchException;
+    ParsedDocument create(String type, String id, String source) throws ElasticSearchException;
 
-    void index(String type, String id, String source) throws ElasticSearchException;
+    ParsedDocument index(String type, String id, String source) throws ElasticSearchException;
 
     void delete(String type, String id);
 

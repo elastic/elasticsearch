@@ -26,7 +26,7 @@ public interface DocumentMapperParser {
 
     /**
      * Parses the source mapping definition into a document mapper with the specified
-     * type (overrding the one defined in the source mapping).
+     * type (overriding the one defined in the source mapping).
      */
     DocumentMapper parse(String type, String mappingSource) throws MapperParsingException;
 

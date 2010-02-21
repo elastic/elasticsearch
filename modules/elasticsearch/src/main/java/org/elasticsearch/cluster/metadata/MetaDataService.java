@@ -35,24 +35,28 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.InvalidTypeNameException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.Tuple;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
 
-import java.util.Arrays;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static com.google.common.collect.Maps.*;
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.cluster.metadata.MetaData.*;
+import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.*;
 
 /**
@@ -83,6 +87,8 @@ public class MetaDataService extends AbstractComponent {
         this.nodeIndexDeletedAction = nodeIndexDeletedAction;
         this.nodeMappingCreatedAction = nodeMappingCreatedAction;
     }
+
+    // TODO should find nicer solution than sync here, since we block for timeout (same for other ops)
 
     public synchronized boolean createIndex(final String index, final Settings indexSettings, TimeValue timeout) throws IndexAlreadyExistsException {
         if (clusterService.state().routingTable().hasIndex(index)) {
@@ -200,7 +206,33 @@ public class MetaDataService extends AbstractComponent {
         }
     }
 
-    public PutMappingResult putMapping(final String[] indices, String mappingType, final String mappingSource, TimeValue timeout) throws ElasticSearchException {
+    public synchronized void updateMapping(final String index, final String type, final String mappingSource) {
+        MapperService mapperService = indicesService.indexServiceSafe(index).mapperService();
+
+        DocumentMapper existingMapper = mapperService.documentMapper(type);
+        // parse the updated one
+        DocumentMapper updatedMapper = mapperService.parse(type, mappingSource);
+        if (existingMapper == null) {
+            existingMapper = updatedMapper;
+        } else {
+            // merge from the updated into the existing, ignore duplicates (we know we have them, we just want the new ones)
+            existingMapper.merge(updatedMapper, mergeFlags().simulate(false).ignoreDuplicates(true));
+        }
+        // build the updated mapping source
+        final String updatedMappingSource = existingMapper.buildSource();
+        logger.info("Index [" + index + "]: Update mapping [" + type + "] (dynamic) with source [" + updatedMappingSource + "]");
+        // publish the new mapping
+        clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "]", new ClusterStateUpdateTask() {
+            @Override public ClusterState execute(ClusterState currentState) {
+                MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
+                IndexMetaData indexMetaData = currentState.metaData().index(index);
+                builder.put(newIndexMetaDataBuilder(indexMetaData).putMapping(type, updatedMappingSource));
+                return newClusterStateBuilder().state(currentState).metaData(builder).build();
+            }
+        });
+    }
+
+    public synchronized PutMappingResult putMapping(final String[] indices, String mappingType, final String mappingSource, boolean ignoreDuplicates, TimeValue timeout) throws ElasticSearchException {
         ClusterState clusterState = clusterService.state();
         for (String index : indices) {
             IndexRoutingTable indexTable = clusterState.routingTable().indicesRouting().get(index);
@@ -209,29 +241,52 @@ public class MetaDataService extends AbstractComponent {
             }
         }
 
-        DocumentMapper documentMapper = null;
+        Map<String, DocumentMapper> newMappers = newHashMap();
+        Map<String, DocumentMapper> existingMappers = newHashMap();
         for (String index : indices) {
             IndexService indexService = indicesService.indexService(index);
             if (indexService != null) {
                 // try and parse it (no need to add it here) so we can bail early in case of parsing exception
-                documentMapper = indexService.mapperService().parse(mappingType, mappingSource);
+                DocumentMapper newMapper = indexService.mapperService().parse(mappingType, mappingSource);
+                newMappers.put(index, newMapper);
+                DocumentMapper existingMapper = indexService.mapperService().documentMapper(mappingType);
+                if (existingMapper != null) {
+                    // first simulate and throw an exception if something goes wrong
+                    existingMapper.merge(newMapper, mergeFlags().simulate(true).ignoreDuplicates(ignoreDuplicates));
+                    existingMappers.put(index, newMapper);
+                }
             } else {
                 throw new IndexMissingException(new Index(index));
             }
         }
 
-        String parsedSource = documentMapper.buildSource();
-
         if (mappingType == null) {
-            mappingType = documentMapper.type();
-        } else if (!mappingType.equals(documentMapper.type())) {
+            mappingType = newMappers.values().iterator().next().type();
+        } else if (!mappingType.equals(newMappers.values().iterator().next().type())) {
             throw new InvalidTypeNameException("Type name provided does not match type name within mapping definition");
         }
         if (mappingType.charAt(0) == '_') {
             throw new InvalidTypeNameException("Document mapping type name can't start with '_'");
         }
 
-        logger.info("Indices [" + Arrays.toString(indices) + "]: Put mapping [" + mappingType + "] with source [" + mappingSource + "]");
+        final Map<String, Tuple<String, String>> mappings = newHashMap();
+        for (Map.Entry<String, DocumentMapper> entry : newMappers.entrySet()) {
+            Tuple<String, String> mapping;
+            String index = entry.getKey();
+            // do the actual merge here on the master, and update the mapping source
+            DocumentMapper newMapper = entry.getValue();
+            if (existingMappers.containsKey(entry.getKey())) {
+                // we have an existing mapping, do the merge here (on the master), it will automatically update the mapping source
+                DocumentMapper existingMapper = existingMappers.get(entry.getKey());
+                existingMapper.merge(newMapper, mergeFlags().simulate(false).ignoreDuplicates(ignoreDuplicates));
+                // use the merged mapping source
+                mapping = new Tuple<String, String>(existingMapper.type(), existingMapper.buildSource());
+            } else {
+                mapping = new Tuple<String, String>(newMapper.type(), newMapper.buildSource());
+            }
+            mappings.put(index, mapping);
+            logger.info("Index [" + index + "]: Put mapping [" + mapping.v1() + "] with source [" + mapping.v2() + "]");
+        }
 
         final CountDownLatch latch = new CountDownLatch(clusterService.state().nodes().size() * indices.length);
         final Set<String> indicesSet = Sets.newHashSet(indices);
@@ -245,8 +300,7 @@ public class MetaDataService extends AbstractComponent {
         };
         nodeMappingCreatedAction.add(listener);
 
-        final String mappingTypeP = mappingType;
-        clusterService.submitStateUpdateTask("create-mapping [" + mappingTypeP + "]", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("put-mapping [" + mappingType + "]", new ClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
                 MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
                 for (String indexName : indices) {
@@ -254,7 +308,8 @@ public class MetaDataService extends AbstractComponent {
                     if (indexMetaData == null) {
                         throw new IndexMissingException(new Index(indexName));
                     }
-                    builder.put(newIndexMetaDataBuilder(indexMetaData).addMapping(mappingTypeP, mappingSource));
+                    Tuple<String, String> mapping = mappings.get(indexName);
+                    builder.put(newIndexMetaDataBuilder(indexMetaData).putMapping(mapping.v1(), mapping.v2()));
                 }
                 return newClusterStateBuilder().state(currentState).metaData(builder).build();
             }
@@ -269,26 +324,19 @@ public class MetaDataService extends AbstractComponent {
             nodeMappingCreatedAction.remove(listener);
         }
 
-        return new PutMappingResult(acknowledged, parsedSource);
+        return new PutMappingResult(acknowledged);
     }
 
     public static class PutMappingResult {
 
         private final boolean acknowledged;
 
-        private final String parsedSource;
-
-        public PutMappingResult(boolean acknowledged, String parsedSource) {
+        public PutMappingResult(boolean acknowledged) {
             this.acknowledged = acknowledged;
-            this.parsedSource = parsedSource;
         }
 
         public boolean acknowledged() {
             return acknowledged;
-        }
-
-        public String parsedSource() {
-            return parsedSource;
         }
     }
 }

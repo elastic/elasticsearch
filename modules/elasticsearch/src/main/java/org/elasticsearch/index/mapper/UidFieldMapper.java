@@ -27,7 +27,7 @@ import org.elasticsearch.util.concurrent.ThreadSafe;
  * @author kimchy (Shay Banon)
  */
 @ThreadSafe
-public interface UidFieldMapper extends FieldMapper<Uid> {
+public interface UidFieldMapper extends FieldMapper<Uid>, InternalMapper {
 
     public static final String NAME = StringHelper.intern("_uid");
 

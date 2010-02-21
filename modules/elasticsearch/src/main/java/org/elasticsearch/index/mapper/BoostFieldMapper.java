@@ -25,6 +25,6 @@ package org.elasticsearch.index.mapper;
  *
  * @author kimchy (Shay Banon)
  */
-public interface BoostFieldMapper extends FieldMapper<Float> {
+public interface BoostFieldMapper extends FieldMapper<Float>, InternalMapper {
 
 }

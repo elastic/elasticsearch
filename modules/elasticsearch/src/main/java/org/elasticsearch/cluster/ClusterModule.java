@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster;
 
 import com.google.inject.AbstractModule;
+import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.index.NodeIndexCreatedAction;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
@@ -55,5 +56,6 @@ public class ClusterModule extends AbstractModule {
         bind(NodeIndexCreatedAction.class).asEagerSingleton();
         bind(NodeIndexDeletedAction.class).asEagerSingleton();
         bind(NodeMappingCreatedAction.class).asEagerSingleton();
+        bind(MappingUpdatedAction.class).asEagerSingleton();
     }
 }

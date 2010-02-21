@@ -23,8 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMapperListener;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.util.concurrent.ThreadSafe;
 import org.elasticsearch.util.joda.FormatDateTimeFormatter;
 import org.elasticsearch.util.json.JsonBuilder;
@@ -253,6 +252,7 @@ public class JsonObjectMapper implements JsonMapper {
                             .dynamic(dynamic).pathType(pathType).dateTimeFormatter(dateTimeFormatters).build(builderContext);
                     putMapper(objectMapper);
                     objectMapper.parse(jsonContext);
+                    jsonContext.addedMapper();
                 }
             } else {
                 // not dynamic, read everything up to end object
@@ -333,6 +333,44 @@ public class JsonObjectMapper implements JsonMapper {
             jsonContext.docMapper().addFieldMapper((FieldMapper) mapper);
 
             mapper.parse(jsonContext);
+            jsonContext.addedMapper();
+        }
+    }
+
+    public void mergeMapping(JsonObjectMapper mergeWith, DocumentMapper.MergeFlags mergeFlags) throws MergeMappingException {
+        synchronized (mutex) {
+            for (JsonMapper mapper : mergeWith.mappers.values()) {
+                if (mapper instanceof JsonObjectMapper) {
+                    JsonObjectMapper mergeWithMapper = (JsonObjectMapper) mapper;
+                    JsonMapper mergeIntoMapper = mappers.get(mergeWithMapper.name());
+                    if (mergeIntoMapper != null) {
+                        if (!(mergeIntoMapper instanceof JsonObjectMapper)) {
+                            throw new MergeMappingException("Can't merge an object mapping [" + mergeWithMapper.name() + "] into a non object mapper");
+                        }
+                        ((JsonObjectMapper) mergeIntoMapper).mergeMapping(mergeWithMapper, mergeFlags);
+                    } else {
+                        if (!mergeFlags.simulate()) {
+                            putMapper(mergeWithMapper);
+                        }
+                    }
+                } else {
+                    // not an object mapper, bail if we have it, otherwise, add
+                    // we might get fancy later on and allow per field mapper merge
+                    if (mappers.containsKey(mapper.name())) {
+                        if (mappers.get(mapper.name()) instanceof InternalMapper) {
+                            // simple ignore internal mappings
+                        } else {
+                            if (!mergeFlags.ignoreDuplicates()) {
+                                throw new MergeMappingException("Mapper [" + mapper.name() + "] exists, can't merge");
+                            }
+                        }
+                    } else {
+                        if (!mergeFlags.simulate()) {
+                            putMapper(mapper);
+                        }
+                    }
+                }
+            }
         }
     }
 

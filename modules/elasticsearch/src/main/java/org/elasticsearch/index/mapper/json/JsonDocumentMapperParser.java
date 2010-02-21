@@ -124,7 +124,10 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
 
         docBuilder.mappingSource(source);
 
-        return docBuilder.build();
+        JsonDocumentMapper documentMapper = docBuilder.build();
+        // update the source with the generated one
+        documentMapper.mappingSource(documentMapper.buildSource());
+        return documentMapper;
     }
 
     private JsonUidFieldMapper.Builder parseUidField(ObjectNode uidNode) {

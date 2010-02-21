@@ -142,7 +142,7 @@ public class IndexMetaData {
             return this;
         }
 
-        public Builder addMapping(String mappingType, String mappingSource) {
+        public Builder putMapping(String mappingType, String mappingSource) {
             mappings.put(mappingType, mappingSource);
             return this;
         }
@@ -156,7 +156,7 @@ public class IndexMetaData {
             builder.settings(readSettingsFromStream(in, globalSettings));
             int mappingsSize = in.readInt();
             for (int i = 0; i < mappingsSize; i++) {
-                builder.addMapping(in.readUTF(), in.readUTF());
+                builder.putMapping(in.readUTF(), in.readUTF());
             }
             return builder.build();
         }

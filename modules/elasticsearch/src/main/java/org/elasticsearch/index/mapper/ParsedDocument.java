@@ -36,12 +36,15 @@ public class ParsedDocument {
 
     private final String source;
 
-    public ParsedDocument(String uid, String id, String type, Document document, String source) {
+    private boolean mappersAdded;
+
+    public ParsedDocument(String uid, String id, String type, Document document, String source, boolean mappersAdded) {
         this.uid = uid;
         this.id = id;
         this.type = type;
         this.document = document;
         this.source = source;
+        this.mappersAdded = mappersAdded;
     }
 
     public String uid() {
@@ -62,6 +65,13 @@ public class ParsedDocument {
 
     public String source() {
         return this.source;
+    }
+
+    /**
+     * Has the parsed document caused for new mappings to be added.
+     */
+    public boolean mappersAdded() {
+        return mappersAdded;
     }
 
     public String toString() {

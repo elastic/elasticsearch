@@ -45,6 +45,8 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
 
     private TimeValue timeout = new TimeValue(10, TimeUnit.SECONDS);
 
+    private boolean ignoreDuplicates = true;
+
     PutMappingRequest() {
     }
 
@@ -109,6 +111,15 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
         return this;
     }
 
+    public boolean ignoreDuplicates() {
+        return ignoreDuplicates;
+    }
+
+    public PutMappingRequest ignoreDuplicates(boolean ignoreDuplicates) {
+        this.ignoreDuplicates = ignoreDuplicates;
+        return this;
+    }
+
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
         super.readFrom(in);
         indices = new String[in.readInt()];
@@ -120,6 +131,7 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
         }
         mappingSource = in.readUTF();
         timeout = readTimeValue(in);
+        ignoreDuplicates = in.readBoolean();
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
@@ -140,5 +152,6 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
         }
         out.writeUTF(mappingSource);
         timeout.writeTo(out);
+        out.writeBoolean(ignoreDuplicates);
     }
 }

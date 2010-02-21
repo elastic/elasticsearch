@@ -24,7 +24,7 @@ import org.apache.lucene.document.Document;
 /**
  * @author kimchy (Shay Banon)
  */
-public interface IdFieldMapper extends FieldMapper<String> {
+public interface IdFieldMapper extends FieldMapper<String>, InternalMapper {
 
     String value(Document document);
 }

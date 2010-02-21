@@ -56,6 +56,7 @@ public class RestPutMappingAction extends BaseRestHandler {
         putMappingRequest.type(request.param("type"));
         putMappingRequest.mappingSource(request.contentAsString());
         putMappingRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
+        putMappingRequest.ignoreDuplicates(request.paramAsBoolean("ignoreDuplicates", putMappingRequest.ignoreDuplicates()));
         client.admin().indices().execPutMapping(putMappingRequest, new ActionListener<PutMappingResponse>() {
             @Override public void onResponse(PutMappingResponse response) {
                 try {
@@ -63,8 +64,6 @@ public class RestPutMappingAction extends BaseRestHandler {
                     builder.startObject()
                             .field("ok", true)
                             .field("acknowledged", response.acknowledged());
-                    builder.raw(", \"parsedSource\" : ");
-                    builder.raw(response.parsedSource());
                     builder.endObject();
                     channel.sendResponse(new JsonRestResponse(request, OK, builder));
                 } catch (IOException e) {

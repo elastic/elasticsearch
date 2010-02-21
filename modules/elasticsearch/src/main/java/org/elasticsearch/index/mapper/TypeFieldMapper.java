@@ -30,7 +30,7 @@ import org.elasticsearch.util.concurrent.ThreadSafe;
  * @author kimchy (Shay Banon)
  */
 @ThreadSafe
-public interface TypeFieldMapper extends FieldMapper<String> {
+public interface TypeFieldMapper extends FieldMapper<String>, InternalMapper {
 
     public static final String NAME = StringHelper.intern("_type");
 

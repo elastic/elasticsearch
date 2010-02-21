@@ -45,9 +45,11 @@ public class JsonParseContext {
 
     private String uid;
 
-    private StringBuilder stringBuiler = new StringBuilder();
+    private StringBuilder stringBuilder = new StringBuilder();
 
     private ParsedIdState parsedIdState;
+
+    private boolean mappersAdded = false;
 
     public JsonParseContext(JsonDocumentMapper docMapper, JsonPath path) {
         this.docMapper = docMapper;
@@ -61,6 +63,15 @@ public class JsonParseContext {
         this.source = source;
         this.path.reset();
         this.parsedIdState = ParsedIdState.NO;
+        this.mappersAdded = false;
+    }
+
+    public boolean mappersAdded() {
+        return this.mappersAdded;
+    }
+
+    public void addedMapper() {
+        this.mappersAdded = true;
     }
 
     public String type() {
@@ -122,8 +133,8 @@ public class JsonParseContext {
      * Its better to reuse the.
      */
     public StringBuilder stringBuilder() {
-        stringBuiler.setLength(0);
-        return this.stringBuiler;
+        stringBuilder.setLength(0);
+        return this.stringBuilder;
     }
 
     public static enum ParsedIdState {

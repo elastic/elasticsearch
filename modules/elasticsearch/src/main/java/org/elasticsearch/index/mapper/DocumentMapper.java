@@ -42,6 +42,11 @@ public interface DocumentMapper {
      */
     String buildSource() throws FailedToGenerateSourceMapperException;
 
+    /**
+     * Merges this document mapper with the provided document mapper.
+     */
+    void merge(DocumentMapper mergeWith, MergeFlags mergeFlags) throws MergeMappingException;
+
     UidFieldMapper uidMapper();
 
     IdFieldMapper idMapper();
@@ -79,5 +84,40 @@ public interface DocumentMapper {
      */
     ParsedDocument parse(String source) throws MapperParsingException;
 
+    /**
+     * Adds a field mapper listener.
+     */
     void addFieldMapperListener(FieldMapperListener fieldMapperListener, boolean includeExisting);
+
+    public static class MergeFlags {
+
+        public static MergeFlags mergeFlags() {
+            return new MergeFlags();
+        }
+
+        private boolean simulate = true;
+
+        private boolean ignoreDuplicates = false;
+
+        public MergeFlags() {
+        }
+
+        public boolean simulate() {
+            return simulate;
+        }
+
+        public MergeFlags simulate(boolean simulate) {
+            this.simulate = simulate;
+            return this;
+        }
+
+        public boolean ignoreDuplicates() {
+            return ignoreDuplicates;
+        }
+
+        public MergeFlags ignoreDuplicates(boolean ignoreDuplicates) {
+            this.ignoreDuplicates = ignoreDuplicates;
+            return this;
+        }
+    }
 }

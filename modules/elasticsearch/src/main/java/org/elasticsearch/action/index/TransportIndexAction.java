@@ -28,8 +28,11 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,11 +51,14 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
 
     private final TransportCreateIndexAction createIndexAction;
 
+    private final MappingUpdatedAction mappingUpdatedAction;
+
     @Inject public TransportIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                         IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
-                                        TransportCreateIndexAction createIndexAction) {
+                                        TransportCreateIndexAction createIndexAction, MappingUpdatedAction mappingUpdatedAction) {
         super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
         this.createIndexAction = createIndexAction;
+        this.mappingUpdatedAction = mappingUpdatedAction;
         this.autoCreateIndex = settings.getAsBoolean("action.autoCreateIndex", true);
         this.allowIdGeneration = componentSettings.getAsBoolean("allowIdGeneration", true);
     }
@@ -105,11 +111,15 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     }
 
     @Override protected IndexResponse shardOperationOnPrimary(ShardOperationRequest shardRequest) {
-        IndexRequest request = shardRequest.request;
+        final IndexRequest request = shardRequest.request;
+        ParsedDocument doc;
         if (request.opType() == IndexRequest.OpType.INDEX) {
-            indexShard(shardRequest).index(request.type(), request.id(), request.source());
+            doc = indexShard(shardRequest).index(request.type(), request.id(), request.source());
         } else {
-            indexShard(shardRequest).create(request.type(), request.id(), request.source());
+            doc = indexShard(shardRequest).create(request.type(), request.id(), request.source());
+        }
+        if (doc.mappersAdded()) {
+            updateMappingOnMaster(request);
         }
         return new IndexResponse(request.index(), request.type(), request.id());
     }
@@ -120,6 +130,24 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
             indexShard(shardRequest).index(request.type(), request.id(), request.source());
         } else {
             indexShard(shardRequest).create(request.type(), request.id(), request.source());
+        }
+    }
+
+    private void updateMappingOnMaster(final IndexRequest request) {
+        try {
+            MapperService mapperService = indicesService.indexServiceSafe(request.index()).mapperService();
+            final String updatedSource = mapperService.documentMapper(request.type()).buildSource();
+            mappingUpdatedAction.execute(new MappingUpdatedAction.MappingUpdatedRequest(request.index(), request.type(), updatedSource), new ActionListener<MappingUpdatedAction.MappingUpdatedResponse>() {
+                @Override public void onResponse(MappingUpdatedAction.MappingUpdatedResponse mappingUpdatedResponse) {
+                    // all is well
+                }
+
+                @Override public void onFailure(Throwable e) {
+                    logger.warn("Failed to update master on updated mapping for index [" + request.index() + "], type [" + request.type() + "] and source [" + updatedSource + "]", e);
+                }
+            });
+        } catch (Exception e) {
+            logger.warn("Failed to update master on updated mapping for index [" + request.index() + "], type [" + request.type() + "]", e);
         }
     }
 }

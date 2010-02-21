@@ -136,7 +136,7 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
 
     private final String type;
 
-    private final String mappingSource;
+    private volatile String mappingSource;
 
     private final JsonUidFieldMapper uidFieldMapper;
 
@@ -209,6 +209,10 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
 
     @Override public String mappingSource() {
         return this.mappingSource;
+    }
+
+    void mappingSource(String mappingSource) {
+        this.mappingSource = mappingSource;
     }
 
     @Override public UidFieldMapper uidMapper() {
@@ -314,7 +318,7 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
                 }
             }
         }
-        return new ParsedDocument(jsonContext.uid(), jsonContext.id(), jsonContext.type(), jsonContext.doc(), source);
+        return new ParsedDocument(jsonContext.uid(), jsonContext.id(), jsonContext.type(), jsonContext.doc(), source, jsonContext.mappersAdded());
     }
 
     void addFieldMapper(FieldMapper fieldMapper) {
@@ -339,6 +343,14 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
         }
     }
 
+    @Override public synchronized void merge(DocumentMapper mergeWith, MergeFlags mergeFlags) throws MergeMappingException {
+        JsonDocumentMapper jsonMergeWith = (JsonDocumentMapper) mergeWith;
+        rootObjectMapper.mergeMapping(jsonMergeWith.rootObjectMapper, mergeFlags);
+        if (!mergeFlags.simulate()) {
+            // update the source to the merged one
+            mappingSource = buildSource();
+        }
+    }
 
     @Override public String buildSource() throws FailedToGenerateSourceMapperException {
         try {
@@ -353,8 +365,6 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
     }
 
     @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
-        builder.startObject(type);
         rootObjectMapper.toJson(builder, params);
-        builder.endObject();
     }
 }

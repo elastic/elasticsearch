@@ -218,8 +218,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
 
     /**
      * Returns the {@link FieldMappers} of all the {@link FieldMapper}s that are
-     * registered under the give fullName ({@link FieldMapper#fullName()} across
-     * all the different {@link DocumentMapper} types.
+     * registered under the give fullName across all the different {@link DocumentMapper} types.
      *
      * @param fullName The full name
      * @return All teh {@link FieldMappers} across all the {@link DocumentMapper}s for the given fullName.

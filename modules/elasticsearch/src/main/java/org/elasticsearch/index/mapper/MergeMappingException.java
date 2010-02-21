@@ -19,30 +19,16 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.FieldSelector;
-import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.util.concurrent.ThreadSafe;
-
 /**
- * A mapper that maps the actual source of a generated document.
- *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-@ThreadSafe
-public interface SourceFieldMapper extends FieldMapper<String>, InternalMapper {
+public class MergeMappingException extends MapperException {
 
-    public final String NAME = StringHelper.intern("_source");
+    public MergeMappingException(String message) {
+        super(message);
+    }
 
-    /**
-     * Returns <tt>true</tt> if the source field mapper is enabled or not.
-     */
-    boolean enabled();
-
-    String value(Document document);
-
-    /**
-     * A field selector that loads just the source field.
-     */
-    FieldSelector fieldSelector();
+    public MergeMappingException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

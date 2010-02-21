@@ -21,6 +21,10 @@ package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.action.ActionRequest;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+
 /**
  * @author kimchy (Shay Banon)
  */
@@ -34,5 +38,11 @@ public abstract class MasterNodeOperationRequest implements ActionRequest {
     @Override public MasterNodeOperationRequest listenerThreaded(boolean listenerThreaded) {
         // really, does not mean anything in this case
         return this;
+    }
+
+    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    }
+
+    @Override public void writeTo(DataOutput out) throws IOException {
     }
 }

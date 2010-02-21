@@ -17,13 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.mapping.create;
+package org.elasticsearch.action.admin.indices.mapping.put;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.util.Required;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.io.Streamable;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -36,7 +35,7 @@ import static org.elasticsearch.util.TimeValue.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class CreateMappingRequest implements ActionRequest, Streamable {
+public class PutMappingRequest extends MasterNodeOperationRequest {
 
     private String[] indices;
 
@@ -46,18 +45,18 @@ public class CreateMappingRequest implements ActionRequest, Streamable {
 
     private TimeValue timeout = new TimeValue(10, TimeUnit.SECONDS);
 
-    CreateMappingRequest() {
+    PutMappingRequest() {
     }
 
-    public CreateMappingRequest(String... indices) {
+    public PutMappingRequest(String... indices) {
         this.indices = indices;
     }
 
-    public CreateMappingRequest(String index, String mappingType, String mappingSource) {
+    public PutMappingRequest(String index, String mappingType, String mappingSource) {
         this(new String[]{index}, mappingType, mappingSource);
     }
 
-    public CreateMappingRequest(String[] indices, String mappingType, String mappingSource) {
+    public PutMappingRequest(String[] indices, String mappingType, String mappingSource) {
         this.indices = indices;
         this.mappingType = mappingType;
         this.mappingSource = mappingSource;
@@ -71,12 +70,7 @@ public class CreateMappingRequest implements ActionRequest, Streamable {
         return validationException;
     }
 
-    @Override public boolean listenerThreaded() {
-        // we don't really care about this...
-        return true;
-    }
-
-    @Override public CreateMappingRequest listenerThreaded(boolean threadedListener) {
+    @Override public PutMappingRequest listenerThreaded(boolean threadedListener) {
         return this;
     }
 
@@ -92,7 +86,7 @@ public class CreateMappingRequest implements ActionRequest, Streamable {
      * The type of the mappings. Not required since it can be defined explicitly within the mapping source.
      * If it is not defined within the mapping source, then it is required.
      */
-    public CreateMappingRequest type(String mappingType) {
+    public PutMappingRequest type(String mappingType) {
         this.mappingType = mappingType;
         return this;
     }
@@ -101,7 +95,7 @@ public class CreateMappingRequest implements ActionRequest, Streamable {
         return mappingSource;
     }
 
-    @Required public CreateMappingRequest mappingSource(String mappingSource) {
+    @Required public PutMappingRequest mappingSource(String mappingSource) {
         this.mappingSource = mappingSource;
         return this;
     }
@@ -110,12 +104,13 @@ public class CreateMappingRequest implements ActionRequest, Streamable {
         return timeout;
     }
 
-    public CreateMappingRequest timeout(TimeValue timeout) {
+    public PutMappingRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
         return this;
     }
 
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+        super.readFrom(in);
         indices = new String[in.readInt()];
         for (int i = 0; i < indices.length; i++) {
             indices[i] = in.readUTF();
@@ -128,6 +123,7 @@ public class CreateMappingRequest implements ActionRequest, Streamable {
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
+        super.writeTo(out);
         if (indices == null) {
             out.writeInt(0);
         } else {

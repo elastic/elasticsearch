@@ -34,9 +34,9 @@ import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequest;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotResponse;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.TransportGatewaySnapshotAction;
-import org.elasticsearch.action.admin.indices.mapping.create.CreateMappingRequest;
-import org.elasticsearch.action.admin.indices.mapping.create.CreateMappingResponse;
-import org.elasticsearch.action.admin.indices.mapping.create.TransportCreateMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.optimize.TransportOptimizeAction;
@@ -67,14 +67,14 @@ public class ServerIndicesAdminClient extends AbstractComponent implements Indic
 
     private final TransportOptimizeAction optimizeAction;
 
-    private final TransportCreateMappingAction createMappingAction;
+    private final TransportPutMappingAction putMappingAction;
 
     private final TransportGatewaySnapshotAction gatewaySnapshotAction;
 
     @Inject public ServerIndicesAdminClient(Settings settings, TransportIndicesStatusAction indicesStatusAction,
                                             TransportCreateIndexAction createIndexAction, TransportDeleteIndexAction deleteIndexAction,
                                             TransportRefreshAction refreshAction, TransportFlushAction flushAction, TransportOptimizeAction optimizeAction,
-                                            TransportCreateMappingAction createMappingAction, TransportGatewaySnapshotAction gatewaySnapshotAction) {
+                                            TransportPutMappingAction putMappingAction, TransportGatewaySnapshotAction gatewaySnapshotAction) {
         super(settings);
         this.indicesStatusAction = indicesStatusAction;
         this.createIndexAction = createIndexAction;
@@ -82,7 +82,7 @@ public class ServerIndicesAdminClient extends AbstractComponent implements Indic
         this.refreshAction = refreshAction;
         this.flushAction = flushAction;
         this.optimizeAction = optimizeAction;
-        this.createMappingAction = createMappingAction;
+        this.putMappingAction = putMappingAction;
         this.gatewaySnapshotAction = gatewaySnapshotAction;
     }
 
@@ -158,16 +158,16 @@ public class ServerIndicesAdminClient extends AbstractComponent implements Indic
         optimizeAction.execute(request, listener);
     }
 
-    @Override public ActionFuture<CreateMappingResponse> createMapping(CreateMappingRequest request) {
-        return createMappingAction.submit(request);
+    @Override public ActionFuture<PutMappingResponse> putMapping(PutMappingRequest request) {
+        return putMappingAction.submit(request);
     }
 
-    @Override public ActionFuture<CreateMappingResponse> createMapping(CreateMappingRequest request, ActionListener<CreateMappingResponse> listener) {
-        return createMapping(request, listener);
+    @Override public ActionFuture<PutMappingResponse> putMapping(PutMappingRequest request, ActionListener<PutMappingResponse> listener) {
+        return putMapping(request, listener);
     }
 
-    @Override public void execCreateMapping(CreateMappingRequest request, ActionListener<CreateMappingResponse> listener) {
-        createMappingAction.execute(request, listener);
+    @Override public void execPutMapping(PutMappingRequest request, ActionListener<PutMappingResponse> listener) {
+        putMappingAction.execute(request, listener);
     }
 
     @Override public ActionFuture<GatewaySnapshotResponse> gatewaySnapshot(GatewaySnapshotRequest request) {

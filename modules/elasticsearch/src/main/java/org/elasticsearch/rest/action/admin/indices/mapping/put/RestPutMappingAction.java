@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.action.admin.indices.mapping.create;
+package org.elasticsearch.rest.action.admin.indices.mapping.put;
 
 import com.google.inject.Inject;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.mapping.create.CreateMappingRequest;
-import org.elasticsearch.action.admin.indices.mapping.create.CreateMappingResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.mapper.InvalidTypeNameException;
 import org.elasticsearch.indices.IndexMissingException;
@@ -41,23 +41,23 @@ import static org.elasticsearch.rest.action.support.RestActions.*;
 import static org.elasticsearch.util.TimeValue.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class RestCreateMappingAction extends BaseRestHandler {
+public class RestPutMappingAction extends BaseRestHandler {
 
-    @Inject public RestCreateMappingAction(Settings settings, Client client, RestController controller) {
+    @Inject public RestPutMappingAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(PUT, "/{index}/_mapping", this);
         controller.registerHandler(PUT, "/{index}/{type}/_mapping", this);
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
-        CreateMappingRequest createMappingRequest = createMappingRequest(splitIndices(request.param("index")));
-        createMappingRequest.type(request.param("type"));
-        createMappingRequest.mappingSource(request.contentAsString());
-        createMappingRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
-        client.admin().indices().execCreateMapping(createMappingRequest, new ActionListener<CreateMappingResponse>() {
-            @Override public void onResponse(CreateMappingResponse result) {
+        PutMappingRequest putMappingRequest = putMappingRequest(splitIndices(request.param("index")));
+        putMappingRequest.type(request.param("type"));
+        putMappingRequest.mappingSource(request.contentAsString());
+        putMappingRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
+        client.admin().indices().execPutMapping(putMappingRequest, new ActionListener<PutMappingResponse>() {
+            @Override public void onResponse(PutMappingResponse result) {
                 try {
                     JsonBuilder builder = RestJsonBuilder.cached(request);
                     builder.startObject()

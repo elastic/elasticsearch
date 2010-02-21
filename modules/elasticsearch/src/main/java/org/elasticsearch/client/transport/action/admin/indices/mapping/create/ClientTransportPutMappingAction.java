@@ -21,22 +21,22 @@ package org.elasticsearch.client.transport.action.admin.indices.mapping.create;
 
 import com.google.inject.Inject;
 import org.elasticsearch.action.TransportActions;
-import org.elasticsearch.action.admin.indices.mapping.create.CreateMappingRequest;
-import org.elasticsearch.action.admin.indices.mapping.create.CreateMappingResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.client.transport.action.support.BaseClientTransportAction;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.settings.Settings;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class ClientTransportCreateMappingAction extends BaseClientTransportAction<CreateMappingRequest, CreateMappingResponse> {
+public class ClientTransportPutMappingAction extends BaseClientTransportAction<PutMappingRequest, PutMappingResponse> {
 
-    @Inject public ClientTransportCreateMappingAction(Settings settings, TransportService transportService) {
-        super(settings, transportService, CreateMappingResponse.class);
+    @Inject public ClientTransportPutMappingAction(Settings settings, TransportService transportService) {
+        super(settings, transportService, PutMappingResponse.class);
     }
 
     @Override protected String action() {
-        return TransportActions.Admin.Indices.Mapping.CREATE;
+        return TransportActions.Admin.Indices.Mapping.PUT;
     }
 }

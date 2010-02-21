@@ -29,8 +29,8 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequest;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotResponse;
-import org.elasticsearch.action.admin.indices.mapping.create.CreateMappingRequest;
-import org.elasticsearch.action.admin.indices.mapping.create.CreateMappingResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -41,7 +41,7 @@ import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 /**
  * Administrative actions/operations against indices.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  * @see AdminClient#indices()
  */
 public interface IndicesAdminClient {
@@ -219,9 +219,9 @@ public interface IndicesAdminClient {
      *
      * @param request The create mapping request
      * @return A result future
-     * @see org.elasticsearch.client.Requests#createMappingRequest(String...)
+     * @see org.elasticsearch.client.Requests#putMappingRequest(String...)
      */
-    ActionFuture<CreateMappingResponse> createMapping(CreateMappingRequest request);
+    ActionFuture<PutMappingResponse> putMapping(PutMappingRequest request);
 
     /**
      * Add mapping definition for a type into one or more indices.
@@ -229,18 +229,18 @@ public interface IndicesAdminClient {
      * @param request  The create mapping request
      * @param listener A listener to be notified with a result
      * @return A result future
-     * @see org.elasticsearch.client.Requests#createMappingRequest(String...)
+     * @see org.elasticsearch.client.Requests#putMappingRequest(String...)
      */
-    ActionFuture<CreateMappingResponse> createMapping(CreateMappingRequest request, ActionListener<CreateMappingResponse> listener);
+    ActionFuture<PutMappingResponse> putMapping(PutMappingRequest request, ActionListener<PutMappingResponse> listener);
 
     /**
      * Add mapping definition for a type into one or more indices.
      *
      * @param request  The create mapping request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#createMappingRequest(String...)
+     * @see org.elasticsearch.client.Requests#putMappingRequest(String...)
      */
-    void execCreateMapping(CreateMappingRequest request, ActionListener<CreateMappingResponse> listener);
+    void execPutMapping(PutMappingRequest request, ActionListener<PutMappingResponse> listener);
 
     /**
      * Explicitly perform gateway snapshot for one or more indices.

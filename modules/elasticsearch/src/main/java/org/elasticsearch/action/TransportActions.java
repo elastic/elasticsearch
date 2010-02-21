@@ -20,7 +20,7 @@
 package org.elasticsearch.action;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TransportActions {
 
@@ -55,7 +55,7 @@ public class TransportActions {
             }
 
             public static class Mapping {
-                public static final String CREATE = "indices/createMapping";
+                public static final String PUT = "indices/mapping/put";
             }
         }
 

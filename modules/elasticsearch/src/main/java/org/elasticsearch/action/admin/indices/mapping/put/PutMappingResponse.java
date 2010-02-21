@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.mapping.create;
+package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.util.io.Streamable;
@@ -27,9 +27,9 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class CreateMappingResponse implements ActionResponse, Streamable {
+public class PutMappingResponse implements ActionResponse, Streamable {
 
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
     }

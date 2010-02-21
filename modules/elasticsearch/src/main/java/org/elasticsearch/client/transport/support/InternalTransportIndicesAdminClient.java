@@ -31,8 +31,8 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequest;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotResponse;
-import org.elasticsearch.action.admin.indices.mapping.create.CreateMappingRequest;
-import org.elasticsearch.action.admin.indices.mapping.create.CreateMappingResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -45,7 +45,7 @@ import org.elasticsearch.client.transport.action.admin.indices.create.ClientTran
 import org.elasticsearch.client.transport.action.admin.indices.delete.ClientTransportDeleteIndexAction;
 import org.elasticsearch.client.transport.action.admin.indices.flush.ClientTransportFlushAction;
 import org.elasticsearch.client.transport.action.admin.indices.gateway.snapshot.ClientTransportGatewaySnapshotAction;
-import org.elasticsearch.client.transport.action.admin.indices.mapping.create.ClientTransportCreateMappingAction;
+import org.elasticsearch.client.transport.action.admin.indices.mapping.create.ClientTransportPutMappingAction;
 import org.elasticsearch.client.transport.action.admin.indices.optimize.ClientTransportOptimizeAction;
 import org.elasticsearch.client.transport.action.admin.indices.refresh.ClientTransportRefreshAction;
 import org.elasticsearch.client.transport.action.admin.indices.status.ClientTransportIndicesStatusAction;
@@ -54,7 +54,7 @@ import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.settings.Settings;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class InternalTransportIndicesAdminClient extends AbstractComponent implements IndicesAdminClient {
 
@@ -72,7 +72,7 @@ public class InternalTransportIndicesAdminClient extends AbstractComponent imple
 
     private final ClientTransportOptimizeAction optimizeAction;
 
-    private final ClientTransportCreateMappingAction createMappingAction;
+    private final ClientTransportPutMappingAction putMappingAction;
 
     private final ClientTransportGatewaySnapshotAction gatewaySnapshotAction;
 
@@ -80,7 +80,7 @@ public class InternalTransportIndicesAdminClient extends AbstractComponent imple
                                                        ClientTransportIndicesStatusAction indicesStatusAction,
                                                        ClientTransportCreateIndexAction createIndexAction, ClientTransportDeleteIndexAction deleteIndexAction,
                                                        ClientTransportRefreshAction refreshAction, ClientTransportFlushAction flushAction, ClientTransportOptimizeAction optimizeAction,
-                                                       ClientTransportCreateMappingAction createMappingAction, ClientTransportGatewaySnapshotAction gatewaySnapshotAction) {
+                                                       ClientTransportPutMappingAction putMappingAction, ClientTransportGatewaySnapshotAction gatewaySnapshotAction) {
         super(settings);
         this.nodesService = nodesService;
         this.indicesStatusAction = indicesStatusAction;
@@ -89,7 +89,7 @@ public class InternalTransportIndicesAdminClient extends AbstractComponent imple
         this.refreshAction = refreshAction;
         this.flushAction = flushAction;
         this.optimizeAction = optimizeAction;
-        this.createMappingAction = createMappingAction;
+        this.putMappingAction = putMappingAction;
         this.gatewaySnapshotAction = gatewaySnapshotAction;
     }
 
@@ -243,26 +243,26 @@ public class InternalTransportIndicesAdminClient extends AbstractComponent imple
         });
     }
 
-    @Override public ActionFuture<CreateMappingResponse> createMapping(final CreateMappingRequest request) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<CreateMappingResponse>>() {
-            @Override public ActionFuture<CreateMappingResponse> doWithNode(Node node) throws ElasticSearchException {
-                return createMappingAction.submit(node, request);
+    @Override public ActionFuture<PutMappingResponse> putMapping(final PutMappingRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<PutMappingResponse>>() {
+            @Override public ActionFuture<PutMappingResponse> doWithNode(Node node) throws ElasticSearchException {
+                return putMappingAction.submit(node, request);
             }
         });
     }
 
-    @Override public ActionFuture<CreateMappingResponse> createMapping(final CreateMappingRequest request, final ActionListener<CreateMappingResponse> listener) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<CreateMappingResponse>>() {
-            @Override public ActionFuture<CreateMappingResponse> doWithNode(Node node) throws ElasticSearchException {
-                return createMappingAction.submit(node, request, listener);
+    @Override public ActionFuture<PutMappingResponse> putMapping(final PutMappingRequest request, final ActionListener<PutMappingResponse> listener) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<PutMappingResponse>>() {
+            @Override public ActionFuture<PutMappingResponse> doWithNode(Node node) throws ElasticSearchException {
+                return putMappingAction.submit(node, request, listener);
             }
         });
     }
 
-    @Override public void execCreateMapping(final CreateMappingRequest request, final ActionListener<CreateMappingResponse> listener) {
+    @Override public void execPutMapping(final PutMappingRequest request, final ActionListener<PutMappingResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
             @Override public Void doWithNode(Node node) throws ElasticSearchException {
-                createMappingAction.execute(node, request, listener);
+                putMappingAction.execute(node, request, listener);
                 return null;
             }
         });

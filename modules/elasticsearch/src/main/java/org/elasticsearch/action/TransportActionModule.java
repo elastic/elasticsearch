@@ -33,7 +33,7 @@ import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.TransportGatewaySnapshotAction;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.TransportIndexGatewaySnapshotAction;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.TransportShardGatewaySnapshotAction;
-import org.elasticsearch.action.admin.indices.mapping.create.TransportCreateMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.optimize.TransportOptimizeAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
 import org.elasticsearch.action.admin.indices.status.TransportIndicesStatusAction;
@@ -67,7 +67,7 @@ public class TransportActionModule extends AbstractModule {
 
         bind(TransportIndicesStatusAction.class).asEagerSingleton();
         bind(TransportCreateIndexAction.class).asEagerSingleton();
-        bind(TransportCreateMappingAction.class).asEagerSingleton();
+        bind(TransportPutMappingAction.class).asEagerSingleton();
         bind(TransportDeleteIndexAction.class).asEagerSingleton();
 
         bind(TransportShardGatewaySnapshotAction.class).asEagerSingleton();

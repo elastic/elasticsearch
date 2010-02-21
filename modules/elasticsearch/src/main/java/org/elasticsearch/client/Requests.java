@@ -28,7 +28,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequest;
-import org.elasticsearch.action.admin.indices.mapping.create.CreateMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
@@ -173,10 +173,10 @@ public class Requests {
      *
      * @param indices The indices the delete by query against. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
      * @return The create mapping request
-     * @see org.elasticsearch.client.IndicesAdminClient#createMapping(org.elasticsearch.action.admin.indices.mapping.create.CreateMappingRequest)
+     * @see org.elasticsearch.client.IndicesAdminClient#putMapping(org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest)
      */
-    public static CreateMappingRequest createMappingRequest(String... indices) {
-        return new CreateMappingRequest(indices);
+    public static PutMappingRequest putMappingRequest(String... indices) {
+        return new PutMappingRequest(indices);
     }
 
     /**

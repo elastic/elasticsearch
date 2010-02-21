@@ -26,6 +26,7 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.util.gnu.trove.TIntObjectHashMap;
+import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -107,6 +108,11 @@ public abstract class JsonNumberFieldMapper<T extends Number> extends JsonFieldM
 
     @Override public String valueAsString(Fieldable field) {
         return value(field).toString();
+    }
+
+    @Override protected void doJsonBody(JsonBuilder builder) throws IOException {
+        super.doJsonBody(builder);
+        builder.field("precisionStep", precisionStep);
     }
 
     @Override public abstract int sortType();

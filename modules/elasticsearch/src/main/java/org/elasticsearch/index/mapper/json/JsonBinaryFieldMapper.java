@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.json;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.codehaus.jackson.JsonToken;
+import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
 
@@ -79,5 +80,12 @@ public class JsonBinaryFieldMapper extends JsonFieldMapper<byte[]> {
 
     @Override protected String jsonType() {
         return JSON_TYPE;
+    }
+
+    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
+        builder.startObject(names.name());
+        builder.field("type", jsonType());
+        builder.field("indexName", names.indexNameClean());
+        builder.endObject();
     }
 }

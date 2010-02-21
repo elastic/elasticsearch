@@ -29,17 +29,20 @@ import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.Preconditions;
 import org.elasticsearch.util.io.FastStringReader;
 import org.elasticsearch.util.json.Jackson;
+import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.json.ToJson;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 import static com.google.common.collect.Lists.*;
+import static org.elasticsearch.util.json.JsonBuilder.*;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public class JsonDocumentMapper implements DocumentMapper {
+public class JsonDocumentMapper implements DocumentMapper, ToJson {
 
     public static class Builder {
 
@@ -334,5 +337,19 @@ public class JsonDocumentMapper implements DocumentMapper {
                 rootObjectMapper.traverse(fieldMapperListener);
             }
         }
+    }
+
+    public String toJson() throws IOException {
+        JsonBuilder builder = jsonBuilder().prettyPrint();
+        builder.startObject();
+        toJson(builder, ToJson.EMPTY_PARAMS);
+        builder.endObject();
+        return builder.string();
+    }
+
+    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
+        builder.startObject(type);
+        rootObjectMapper.toJson(builder, params);
+        builder.endObject();
     }
 }

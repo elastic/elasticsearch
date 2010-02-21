@@ -32,10 +32,9 @@ import org.elasticsearch.util.io.FastStringReader;
 import org.elasticsearch.util.io.compression.GZIPCompressor;
 import org.elasticsearch.util.io.compression.LzfCompressor;
 import org.elasticsearch.util.io.compression.ZipCompressor;
+import org.elasticsearch.util.joda.FormatDateTimeFormatter;
 import org.elasticsearch.util.joda.Joda;
 import org.elasticsearch.util.json.Jackson;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -212,7 +211,7 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
                     throw new MapperParsingException("Trying to parse an object but has a different type [" + type + "] for [" + name + "]");
                 }
             } else if (fieldName.equals("dateFormats")) {
-                List<DateTimeFormatter> dateTimeFormatters = newArrayList();
+                List<FormatDateTimeFormatter> dateTimeFormatters = newArrayList();
                 if (fieldNode.isArray()) {
                     for (JsonNode node1 : (ArrayNode) fieldNode) {
                         dateTimeFormatters.add(parseDateTimeFormatter(fieldName, node1));
@@ -239,7 +238,7 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
     }
 
     private JsonPath.Type parsePathType(String name, String path) throws MapperParsingException {
-        if ("justName".equals(path)) {
+        if ("justName".equals(path) || "just_name".equals(path)) {
             return JsonPath.Type.JUST_NAME;
         } else if ("full".equals(path)) {
             return JsonPath.Type.FULL;
@@ -261,7 +260,7 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
             } else {
                 // lets see if we can derive this...
                 if (propNode.isObject() && propNode.get("properties") != null) {
-                    type = "object";
+                    type = JsonObjectMapper.JSON_TYPE;
                 } else {
                     throw new MapperParsingException("No type specified for property [" + propName + "]");
                 }
@@ -280,7 +279,7 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
                 objBuilder.add(parseDouble(propName, (ObjectNode) propNode));
             } else if (type.equals(JsonBooleanFieldMapper.JSON_TYPE)) {
                 objBuilder.add(parseBoolean(propName, (ObjectNode) propNode));
-            } else if (type.equals("object")) {
+            } else if (type.equals(JsonObjectMapper.JSON_TYPE)) {
                 objBuilder.add(parseObject(propName, (ObjectNode) propNode));
             } else if (type.equals(JsonBinaryFieldMapper.JSON_TYPE)) {
                 objBuilder.add(parseBinary(propName, (ObjectNode) propNode));
@@ -437,9 +436,9 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
         }
     }
 
-    private DateTimeFormatter parseDateTimeFormatter(String fieldName, JsonNode node) {
+    private FormatDateTimeFormatter parseDateTimeFormatter(String fieldName, JsonNode node) {
         if (node.isTextual()) {
-            return Joda.forPattern(node.getTextValue()).withZone(DateTimeZone.UTC);
+            return Joda.forPattern(node.getTextValue());
         } else {
             // TODO support more complex configuration...
             throw new MapperParsingException("Wrong node to use to parse date formatters [" + fieldName + "]");

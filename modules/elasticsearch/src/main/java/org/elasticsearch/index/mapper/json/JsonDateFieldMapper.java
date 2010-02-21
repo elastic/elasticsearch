@@ -27,9 +27,9 @@ import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericDateAnalyzer;
 import org.elasticsearch.util.Numbers;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormatter;
-import org.joda.time.format.ISODateTimeFormat;
+import org.elasticsearch.util.joda.FormatDateTimeFormatter;
+import org.elasticsearch.util.joda.Joda;
+import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
 
@@ -41,8 +41,7 @@ public class JsonDateFieldMapper extends JsonNumberFieldMapper<Long> {
     public static final String JSON_TYPE = "date";
 
     public static class Defaults extends JsonNumberFieldMapper.Defaults {
-        public static final DateTimeFormatter DATE_TIME_FORMATTER =
-                ISODateTimeFormat.dateOptionalTimeParser().withZone(DateTimeZone.UTC);
+        public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime");
 
         public static final String NULL_VALUE = null;
     }
@@ -51,7 +50,7 @@ public class JsonDateFieldMapper extends JsonNumberFieldMapper<Long> {
 
         protected String nullValue = Defaults.NULL_VALUE;
 
-        protected DateTimeFormatter dateTimeFormatter = Defaults.DATE_TIME_FORMATTER;
+        protected FormatDateTimeFormatter dateTimeFormatter = Defaults.DATE_TIME_FORMATTER;
 
         public Builder(String name) {
             super(name);
@@ -63,7 +62,7 @@ public class JsonDateFieldMapper extends JsonNumberFieldMapper<Long> {
             return this;
         }
 
-        public Builder dateTimeFormatter(DateTimeFormatter dateTimeFormatter) {
+        public Builder dateTimeFormatter(FormatDateTimeFormatter dateTimeFormatter) {
             this.dateTimeFormatter = dateTimeFormatter;
             return this;
         }
@@ -75,17 +74,17 @@ public class JsonDateFieldMapper extends JsonNumberFieldMapper<Long> {
     }
 
 
-    private final DateTimeFormatter dateTimeFormatter;
+    private final FormatDateTimeFormatter dateTimeFormatter;
 
     private final String nullValue;
 
-    protected JsonDateFieldMapper(Names names, DateTimeFormatter dateTimeFormatter, int precisionStep,
+    protected JsonDateFieldMapper(Names names, FormatDateTimeFormatter dateTimeFormatter, int precisionStep,
                                   Field.Index index, Field.Store store,
                                   float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
                                   String nullValue) {
         super(names, precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions,
-                new NamedAnalyzer("_date/" + precisionStep, new NumericDateAnalyzer(precisionStep, dateTimeFormatter)),
-                new NamedAnalyzer("_date/max", new NumericDateAnalyzer(Integer.MAX_VALUE, dateTimeFormatter)));
+                new NamedAnalyzer("_date/" + precisionStep, new NumericDateAnalyzer(precisionStep, dateTimeFormatter.formatter())),
+                new NamedAnalyzer("_date/max", new NumericDateAnalyzer(Integer.MAX_VALUE, dateTimeFormatter.formatter())));
         this.dateTimeFormatter = dateTimeFormatter;
         this.nullValue = nullValue;
     }
@@ -103,11 +102,11 @@ public class JsonDateFieldMapper extends JsonNumberFieldMapper<Long> {
     }
 
     @Override public String valueAsString(Fieldable field) {
-        return dateTimeFormatter.print(value(field));
+        return dateTimeFormatter.formatter().print(value(field));
     }
 
     @Override public String indexedValue(String value) {
-        return NumericUtils.longToPrefixCoded(dateTimeFormatter.parseMillis(value));
+        return NumericUtils.longToPrefixCoded(dateTimeFormatter.formatter().parseMillis(value));
     }
 
     @Override public String indexedValue(Long value) {
@@ -116,15 +115,15 @@ public class JsonDateFieldMapper extends JsonNumberFieldMapper<Long> {
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : dateTimeFormatter.parseMillis(lowerTerm),
-                upperTerm == null ? null : dateTimeFormatter.parseMillis(upperTerm),
+                lowerTerm == null ? null : dateTimeFormatter.formatter().parseMillis(lowerTerm),
+                upperTerm == null ? null : dateTimeFormatter.formatter().parseMillis(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : dateTimeFormatter.parseMillis(lowerTerm),
-                upperTerm == null ? null : dateTimeFormatter.parseMillis(upperTerm),
+                lowerTerm == null ? null : dateTimeFormatter.formatter().parseMillis(lowerTerm),
+                upperTerm == null ? null : dateTimeFormatter.formatter().parseMillis(upperTerm),
                 includeLower, includeUpper);
     }
 
@@ -138,7 +137,7 @@ public class JsonDateFieldMapper extends JsonNumberFieldMapper<Long> {
         if (dateAsString == null) {
             return null;
         }
-        long value = dateTimeFormatter.parseMillis(dateAsString);
+        long value = dateTimeFormatter.formatter().parseMillis(dateAsString);
         Field field = null;
         if (stored()) {
             field = new Field(names.indexName(), Numbers.longToBytes(value), store);
@@ -157,5 +156,13 @@ public class JsonDateFieldMapper extends JsonNumberFieldMapper<Long> {
 
     @Override protected String jsonType() {
         return JSON_TYPE;
+    }
+
+    @Override protected void doJsonBody(JsonBuilder builder) throws IOException {
+        super.doJsonBody(builder);
+        builder.field("format", dateTimeFormatter.format());
+        if (nullValue != null) {
+            builder.field("nullValue", nullValue);
+        }
     }
 }

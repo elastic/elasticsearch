@@ -25,6 +25,7 @@ import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.index.mapper.FieldMapperListener;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.lucene.Lucene;
 
 import java.io.IOException;
@@ -118,5 +119,9 @@ public class JsonIdFieldMapper extends JsonFieldMapper<String> implements IdFiel
 
     @Override protected String jsonType() {
         return JSON_TYPE;
+    }
+
+    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
+        // for now, don't output it at all
     }
 }

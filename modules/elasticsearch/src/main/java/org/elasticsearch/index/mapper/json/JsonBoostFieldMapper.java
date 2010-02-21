@@ -28,6 +28,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericFloatAnalyzer;
 import org.elasticsearch.index.mapper.BoostFieldMapper;
 import org.elasticsearch.util.Numbers;
+import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
 
@@ -168,5 +169,9 @@ public class JsonBoostFieldMapper extends JsonNumberFieldMapper<Float> implement
 
     @Override protected String jsonType() {
         return JSON_TYPE;
+    }
+
+    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
+        // for now, don't output it at all
     }
 }

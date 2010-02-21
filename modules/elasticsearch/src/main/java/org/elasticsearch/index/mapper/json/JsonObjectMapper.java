@@ -26,7 +26,8 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapperListener;
 import org.elasticsearch.util.concurrent.ThreadSafe;
-import org.joda.time.format.DateTimeFormatter;
+import org.elasticsearch.util.joda.FormatDateTimeFormatter;
+import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -44,11 +45,13 @@ import static org.elasticsearch.util.MapBuilder.*;
 @ThreadSafe
 public class JsonObjectMapper implements JsonMapper {
 
+    public static final String JSON_TYPE = "object";
+
     public static class Defaults {
         public static final boolean ENABLED = true;
         public static final boolean DYNAMIC = true;
         public static final JsonPath.Type PATH_TYPE = JsonPath.Type.FULL;
-        public static final DateTimeFormatter[] DATE_TIME_FORMATTERS = new DateTimeFormatter[]{JsonDateFieldMapper.Defaults.DATE_TIME_FORMATTER};
+        public static final FormatDateTimeFormatter[] DATE_TIME_FORMATTERS = new FormatDateTimeFormatter[]{JsonDateFieldMapper.Defaults.DATE_TIME_FORMATTER};
     }
 
     public static class Builder extends JsonMapper.Builder<Builder, JsonObjectMapper> {
@@ -59,7 +62,7 @@ public class JsonObjectMapper implements JsonMapper {
 
         private JsonPath.Type pathType = Defaults.PATH_TYPE;
 
-        private List<DateTimeFormatter> dateTimeFormatters = newArrayList();
+        private List<FormatDateTimeFormatter> dateTimeFormatters = newArrayList();
 
         private final List<JsonMapper.Builder> mappersBuilders = newArrayList();
 
@@ -87,19 +90,19 @@ public class JsonObjectMapper implements JsonMapper {
             return this;
         }
 
-        public Builder dateTimeFormatter(Iterable<DateTimeFormatter> dateTimeFormatters) {
-            for (DateTimeFormatter dateTimeFormatter : dateTimeFormatters) {
+        public Builder dateTimeFormatter(Iterable<FormatDateTimeFormatter> dateTimeFormatters) {
+            for (FormatDateTimeFormatter dateTimeFormatter : dateTimeFormatters) {
                 this.dateTimeFormatters.add(dateTimeFormatter);
             }
             return this;
         }
 
-        public Builder dateTimeFormatter(DateTimeFormatter[] dateTimeFormatters) {
+        public Builder dateTimeFormatter(FormatDateTimeFormatter[] dateTimeFormatters) {
             this.dateTimeFormatters.addAll(newArrayList(dateTimeFormatters));
             return this;
         }
 
-        public Builder dateTimeFormatter(DateTimeFormatter dateTimeFormatter) {
+        public Builder dateTimeFormatter(FormatDateTimeFormatter dateTimeFormatter) {
             this.dateTimeFormatters.add(dateTimeFormatter);
             return this;
         }
@@ -126,7 +129,7 @@ public class JsonObjectMapper implements JsonMapper {
                 mappers.put(mapper.name(), mapper);
             }
             JsonObjectMapper objectMapper = new JsonObjectMapper(name, enabled, dynamic, pathType,
-                    dateTimeFormatters.toArray(new DateTimeFormatter[dateTimeFormatters.size()]),
+                    dateTimeFormatters.toArray(new FormatDateTimeFormatter[dateTimeFormatters.size()]),
                     mappers);
 
             context.path().pathType(origPathType);
@@ -144,7 +147,7 @@ public class JsonObjectMapper implements JsonMapper {
 
     private final JsonPath.Type pathType;
 
-    private final DateTimeFormatter[] dateTimeFormatters;
+    private final FormatDateTimeFormatter[] dateTimeFormatters;
 
     private volatile ImmutableMap<String, JsonMapper> mappers = ImmutableMap.of();
 
@@ -159,12 +162,12 @@ public class JsonObjectMapper implements JsonMapper {
     }
 
     protected JsonObjectMapper(String name, boolean enabled, boolean dynamic, JsonPath.Type pathType,
-                               DateTimeFormatter[] dateTimeFormatters) {
+                               FormatDateTimeFormatter[] dateTimeFormatters) {
         this(name, enabled, dynamic, pathType, dateTimeFormatters, null);
     }
 
     JsonObjectMapper(String name, boolean enabled, boolean dynamic, JsonPath.Type pathType,
-                     DateTimeFormatter[] dateTimeFormatters, Map<String, JsonMapper> mappers) {
+                     FormatDateTimeFormatter[] dateTimeFormatters, Map<String, JsonMapper> mappers) {
         this.name = name;
         this.enabled = enabled;
         this.dynamic = dynamic;
@@ -301,9 +304,9 @@ public class JsonObjectMapper implements JsonMapper {
             if (token == JsonToken.VALUE_STRING) {
                 // check if it fits one of the date formats
                 boolean isDate = false;
-                for (DateTimeFormatter dateTimeFormatter : dateTimeFormatters) {
+                for (FormatDateTimeFormatter dateTimeFormatter : dateTimeFormatters) {
                     try {
-                        dateTimeFormatter.parseMillis(jsonContext.jp().getText());
+                        dateTimeFormatter.formatter().parseMillis(jsonContext.jp().getText());
                         mapper = dateField(currentFieldName).dateTimeFormatter(dateTimeFormatter).build(builderContext);
                         isDate = true;
                         break;
@@ -331,5 +334,28 @@ public class JsonObjectMapper implements JsonMapper {
 
             mapper.parse(jsonContext);
         }
+    }
+
+    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
+        builder.startObject(name);
+        builder.field("type", JSON_TYPE);
+        builder.field("dynamic", dynamic);
+        builder.field("enabled", enabled);
+        builder.field("pathType", pathType.name().toLowerCase());
+        if (dateTimeFormatters.length > 0) {
+            builder.startArray("dateFormats");
+            for (FormatDateTimeFormatter dateTimeFormatter : dateTimeFormatters) {
+                builder.string(dateTimeFormatter.format());
+            }
+            builder.endArray();
+        }
+        if (!mappers.isEmpty()) {
+            builder.startObject("properties");
+            for (JsonMapper mapper : mappers.values()) {
+                mapper.toJson(builder, params);
+            }
+            builder.endObject();
+        }
+        builder.endObject();
     }
 }

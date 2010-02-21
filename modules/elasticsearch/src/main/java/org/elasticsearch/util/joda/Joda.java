@@ -19,6 +19,7 @@
 
 package org.elasticsearch.util.joda;
 
+import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
@@ -31,7 +32,7 @@ public class Joda {
     /**
      * Parses a joda based pattern, including some named ones (similar to the built in Joda ISO ones).
      */
-    public static DateTimeFormatter forPattern(String input) {
+    public static FormatDateTimeFormatter forPattern(String input) {
         DateTimeFormatter formatter;
         if ("basicDate".equals(input)) {
             formatter = ISODateTimeFormat.basicDate();
@@ -116,6 +117,7 @@ public class Joda {
         } else {
             formatter = DateTimeFormat.forPattern(input);
         }
-        return formatter;
+        formatter.withZone(DateTimeZone.UTC);
+        return new FormatDateTimeFormatter(input, formatter);
     }
 }

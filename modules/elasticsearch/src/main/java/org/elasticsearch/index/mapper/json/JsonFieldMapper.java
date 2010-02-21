@@ -27,6 +27,7 @@ import org.apache.lucene.search.*;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapperListener;
+import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.lucene.search.TermFilter;
 
 import java.io.IOException;
@@ -316,24 +317,28 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
         return SortField.STRING;
     }
 
-//    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
-//        builder.startObject(names.name());
-//        builder.field("type", jsonType());
-//        builder.field("indexName", names.indexNameClean());
-//        builder.field("index", index.name().toLowerCase());
-//        builder.field("store", store.name().toLowerCase());
-//        builder.field("termVector", termVector.name().toLowerCase());
-//        builder.field("boost", boost);
-//        builder.field("omitNorms", omitNorms);
-//        builder.field("omitTermFreqAndPositions", omitTermFreqAndPositions);
-//        if (indexAnalyzer != null && !indexAnalyzer.name().startsWith("_")) {
-//            builder.field("indexAnalyzer", indexAnalyzer.name());
-//        }
-//        if (searchAnalyzer != null && !searchAnalyzer.name().startsWith("_")) {
-//            builder.field("searchAnalyzer", searchAnalyzer.name());
-//        }
-//        builder.endObject();
-//    }
+    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
+        builder.startObject(names.name());
+        doJsonBody(builder);
+        builder.endObject();
+    }
+
+    protected void doJsonBody(JsonBuilder builder) throws IOException {
+        builder.field("type", jsonType());
+        builder.field("indexName", names.indexNameClean());
+        builder.field("index", index.name().toLowerCase());
+        builder.field("store", store.name().toLowerCase());
+        builder.field("termVector", termVector.name().toLowerCase());
+        builder.field("boost", boost);
+        builder.field("omitNorms", omitNorms);
+        builder.field("omitTermFreqAndPositions", omitTermFreqAndPositions);
+        if (indexAnalyzer != null && !indexAnalyzer.name().startsWith("_")) {
+            builder.field("indexAnalyzer", indexAnalyzer.name());
+        }
+        if (searchAnalyzer != null && !searchAnalyzer.name().startsWith("_")) {
+            builder.field("searchAnalyzer", searchAnalyzer.name());
+        }
+    }
 
     protected abstract String jsonType();
 }

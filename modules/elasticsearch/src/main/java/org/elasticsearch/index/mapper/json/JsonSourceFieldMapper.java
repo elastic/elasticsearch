@@ -24,6 +24,7 @@ import org.elasticsearch.index.mapper.MapperCompressionException;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.util.io.compression.Compressor;
 import org.elasticsearch.util.io.compression.ZipCompressor;
+import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.lucene.Lucene;
 
 import java.io.IOException;
@@ -176,5 +177,9 @@ public class JsonSourceFieldMapper extends JsonFieldMapper<String> implements So
 
     @Override protected String jsonType() {
         return JSON_TYPE;
+    }
+
+    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
+        // for now, don't output it at all
     }
 }

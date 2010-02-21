@@ -27,6 +27,7 @@ import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericFloatAnalyzer;
 import org.elasticsearch.util.Numbers;
+import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
 
@@ -135,5 +136,12 @@ public class JsonFloatFieldMapper extends JsonNumberFieldMapper<Float> {
 
     @Override protected String jsonType() {
         return JSON_TYPE;
+    }
+
+    @Override protected void doJsonBody(JsonBuilder builder) throws IOException {
+        super.doJsonBody(builder);
+        if (nullValue != null) {
+            builder.field("nullValue", nullValue);
+        }
     }
 }

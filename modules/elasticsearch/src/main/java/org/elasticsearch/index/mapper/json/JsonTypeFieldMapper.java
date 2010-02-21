@@ -24,6 +24,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.lucene.Lucene;
 
 import java.io.IOException;
@@ -102,5 +103,9 @@ public class JsonTypeFieldMapper extends JsonFieldMapper<String> implements Type
 
     @Override protected String jsonType() {
         return JSON_TYPE;
+    }
+
+    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
+        // for now, don't output it at all
     }
 }

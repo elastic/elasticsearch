@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.json;
 import org.elasticsearch.index.mapper.FieldMapperListener;
 import org.elasticsearch.util.concurrent.NotThreadSafe;
 import org.elasticsearch.util.concurrent.ThreadSafe;
+import org.elasticsearch.util.json.ToJson;
 
 import java.io.IOException;
 
@@ -29,7 +30,7 @@ import java.io.IOException;
  * @author kimchy (Shay Banon)
  */
 @ThreadSafe
-public interface JsonMapper /*extends ToJson*/ {
+public interface JsonMapper extends ToJson {
 
     @NotThreadSafe
     public static class BuilderContext {

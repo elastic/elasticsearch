@@ -23,6 +23,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
 
@@ -95,5 +96,12 @@ public class JsonStringFieldMapper extends JsonFieldMapper<String> {
 
     @Override protected String jsonType() {
         return JSON_TYPE;
+    }
+
+    @Override protected void doJsonBody(JsonBuilder builder) throws IOException {
+        super.doJsonBody(builder);
+        if (nullValue != null) {
+            builder.field("nullValue", nullValue);
+        }
     }
 }

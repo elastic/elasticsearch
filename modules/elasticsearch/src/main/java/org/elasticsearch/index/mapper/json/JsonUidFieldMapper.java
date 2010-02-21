@@ -25,6 +25,7 @@ import org.apache.lucene.index.Term;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.lucene.Lucene;
 
 import java.io.IOException;
@@ -100,5 +101,9 @@ public class JsonUidFieldMapper extends JsonFieldMapper<Uid> implements UidField
 
     @Override protected String jsonType() {
         return JSON_TYPE;
+    }
+
+    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
+        // for now, don't output it at all
     }
 }

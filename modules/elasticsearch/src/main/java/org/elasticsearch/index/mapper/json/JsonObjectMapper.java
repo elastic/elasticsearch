@@ -380,6 +380,7 @@ public class JsonObjectMapper implements JsonMapper {
         builder.field("dynamic", dynamic);
         builder.field("enabled", enabled);
         builder.field("pathType", pathType.name().toLowerCase());
+
         if (dateTimeFormatters.length > 0) {
             builder.startArray("dateFormats");
             for (FormatDateTimeFormatter dateTimeFormatter : dateTimeFormatters) {
@@ -387,10 +388,20 @@ public class JsonObjectMapper implements JsonMapper {
             }
             builder.endArray();
         }
+
+        // check internal mappers first (this is only relevant for root object)
+        for (JsonMapper mapper : mappers.values()) {
+            if (mapper instanceof InternalMapper) {
+                mapper.toJson(builder, params);
+            }
+        }
+
         if (!mappers.isEmpty()) {
             builder.startObject("properties");
             for (JsonMapper mapper : mappers.values()) {
-                mapper.toJson(builder, params);
+                if (!(mapper instanceof InternalMapper)) {
+                    mapper.toJson(builder, params);
+                }
             }
             builder.endObject();
         }

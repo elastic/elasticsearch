@@ -172,6 +172,11 @@ public class JsonBoostFieldMapper extends JsonNumberFieldMapper<Float> implement
     }
 
     @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
-        // for now, don't output it at all
+        builder.startObject(jsonType());
+        builder.field("name", name());
+        if (nullValue != null) {
+            builder.field("nullValue", nullValue);
+        }
+        builder.endObject();
     }
 }

@@ -62,7 +62,7 @@ public class SimpleJsonMapperTests {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/json/simple/test-mapping.json");
         JsonDocumentMapper docMapper = (JsonDocumentMapper) new JsonDocumentMapperParser(new AnalysisService(new Index("test"))).parse(mapping);
         String builtMapping = docMapper.buildSource();
-        System.out.println(builtMapping);
+//        System.out.println(builtMapping);
         // reparse it
         JsonDocumentMapper builtDocMapper = (JsonDocumentMapper) new JsonDocumentMapperParser(new AnalysisService(new Index("test"))).parse(builtMapping);
         String json = copyToStringFromClasspath("/org/elasticsearch/index/mapper/json/simple/test1.json");

@@ -325,7 +325,7 @@ public class TermsRequest extends BroadcastOperationRequest {
     }
 
     /**
-     * The type of sorting for term / doc freq. Can either sort on term (lex) or doc frequncy. Defaults to
+     * The type of sorting for term / doc freq. Can either sort on term (lex) or doc frequency. Defaults to
      * {@link TermsRequest.SortType#TERM}.
      */
     public SortType sortType() {
@@ -333,7 +333,7 @@ public class TermsRequest extends BroadcastOperationRequest {
     }
 
     /**
-     * The type of sorting for term / doc freq. Can either sort on term (lex) or doc frequncy. Defaults to
+     * The type of sorting for term / doc freq. Can either sort on term (lex) or doc frequency. Defaults to
      * {@link TermsRequest.SortType#TERM}.
      */
     public TermsRequest sortType(SortType sortType) {

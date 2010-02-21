@@ -19,11 +19,9 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.util.io.FastCharArrayWriter;
 import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
-import java.io.PrintWriter;
 
 import static org.elasticsearch.ExceptionsHelper.*;
 import static org.elasticsearch.util.json.JsonBuilder.*;
@@ -32,20 +30,6 @@ import static org.elasticsearch.util.json.JsonBuilder.*;
  * @author kimchy (Shay Banon)
  */
 public class JsonThrowableRestResponse extends JsonRestResponse {
-
-    private static class Holder {
-        FastCharArrayWriter writer;
-        PrintWriter printWriter;
-    }
-
-    private static ThreadLocal<Holder> cache = new ThreadLocal<Holder>() {
-        @Override protected Holder initialValue() {
-            Holder holder = new Holder();
-            holder.writer = new FastCharArrayWriter();
-            holder.printWriter = new PrintWriter(holder.writer);
-            return holder;
-        }
-    };
 
     public JsonThrowableRestResponse(RestRequest request, Throwable t) throws IOException {
         this(request, Status.INTERNAL_SERVER_ERROR, t);
@@ -56,12 +40,9 @@ public class JsonThrowableRestResponse extends JsonRestResponse {
     }
 
     private static JsonBuilder convert(RestRequest request, Throwable t) throws IOException {
-        Holder holder = cache.get();
-        holder.writer.reset();
-        t.printStackTrace(holder.printWriter);
         JsonBuilder builder = jsonBuilder().prettyPrint()
                 .startObject().field("error", detailedMessage(t));
-        if (request.paramAsBoolean("errorTrace", false)) {
+        if (t != null && request.paramAsBoolean("errorTrace", false)) {
             builder.startObject("errorTrace");
             boolean first = true;
             while (t != null) {

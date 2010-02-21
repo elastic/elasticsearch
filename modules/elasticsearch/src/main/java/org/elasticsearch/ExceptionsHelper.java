@@ -37,6 +37,9 @@ public final class ExceptionsHelper {
     }
 
     public static String detailedMessage(Throwable t, boolean newLines, int initialCounter) {
+        if (t == null) {
+            return "Unknown";
+        }
         int counter = initialCounter + 1;
         if (t.getCause() != null) {
             StringBuilder sb = new StringBuilder();

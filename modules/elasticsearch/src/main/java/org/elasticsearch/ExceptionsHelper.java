@@ -45,9 +45,9 @@ public final class ExceptionsHelper {
             StringBuilder sb = new StringBuilder();
             while (t != null) {
                 if (t.getMessage() != null) {
-                    sb.append(t.getClass().getSimpleName()).append("{");
+                    sb.append(t.getClass().getSimpleName()).append("[");
                     sb.append(t.getMessage());
-                    sb.append("}");
+                    sb.append("]");
                     if (!newLines) {
                         sb.append("; ");
                     }
@@ -67,7 +67,7 @@ public final class ExceptionsHelper {
             }
             return sb.toString();
         } else {
-            return t.getMessage();
+            return t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
         }
     }
 }

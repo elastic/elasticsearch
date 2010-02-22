@@ -19,6 +19,11 @@
 
 package org.elasticsearch.util.json;
 
+import org.codehaus.jackson.JsonEncoding;
+import org.codehaus.jackson.JsonGenerator;
+import org.codehaus.jackson.JsonNode;
+import org.elasticsearch.util.io.FastByteArrayInputStream;
+import org.elasticsearch.util.io.FastByteArrayOutputStream;
 import org.elasticsearch.util.io.FastCharArrayWriter;
 import org.testng.annotations.Test;
 
@@ -55,5 +60,25 @@ public class JsonBuilderTests {
         assertThat(builder.startObject().field("test", "value").endObject().string(), equalTo("{\"test\":\"value\"}"));
         builder.reset();
         assertThat(builder.startObject().field("test", "value").endObject().string(), equalTo("{\"test\":\"value\"}"));
+    }
+
+    @Test public void testWritingBinaryToStream() throws Exception {
+        FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
+
+        JsonGenerator gen = Jackson.defaultJsonFactory().createJsonGenerator(bos, JsonEncoding.UTF8);
+        gen.writeStartObject();
+        gen.writeStringField("name", "something");
+        gen.flush();
+        bos.write(", source : { test : \"value\" }".getBytes("UTF8"));
+        gen.writeStringField("name2", "something2");
+        gen.writeEndObject();
+        gen.close();
+
+        byte[] data = bos.copiedByteArray();
+        String sData = new String(data, "UTF8");
+        System.out.println("DATA: " + sData);
+
+        JsonNode node = Jackson.newObjectMapper().readValue(new FastByteArrayInputStream(data), JsonNode.class);
+        assertThat(node.get("source").get("test").getTextValue(), equalTo("value"));
     }
 }

@@ -38,7 +38,7 @@ public class ShardTermsRequest extends BroadcastShardOperationRequest {
 
     private boolean fromInclusive = true;
 
-    private boolean toInclusive = false;
+    private boolean toInclusive = true;
 
     private String prefix;
 

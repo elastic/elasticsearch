@@ -111,7 +111,7 @@ public class TermsRequest extends BroadcastOperationRequest {
 
     private String to;
 
-    private boolean toInclusive = false;
+    private boolean toInclusive = true;
 
     private String prefix;
 

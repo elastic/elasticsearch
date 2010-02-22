@@ -21,10 +21,7 @@ package org.elasticsearch.action.search.type;
 
 import com.google.inject.Inject;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchOperationThreading;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.*;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.Node;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -69,6 +66,10 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
 
         private AsyncAction(SearchRequest request, ActionListener<SearchResponse> listener) {
             super(request, listener);
+        }
+
+        @Override protected String firstPhaseName() {
+            return "query";
         }
 
         @Override protected void sendExecuteFirstPhase(Node node, InternalSearchRequest request, SearchServiceListener<QuerySearchResult> listener) {
@@ -157,6 +158,14 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
         }
 
         private void finishHim() {
+            try {
+                innerFinishHim();
+            } catch (Exception e) {
+                listener.onFailure(new ReduceSearchPhaseException("fetch", "", e));
+            }
+        }
+
+        private void innerFinishHim() {
             InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults, fetchResults);
             String scrollId = null;
             if (request.scroll() != null) {

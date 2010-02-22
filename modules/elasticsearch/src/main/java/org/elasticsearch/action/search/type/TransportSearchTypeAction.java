@@ -20,10 +20,7 @@
 package org.elasticsearch.action.search.type;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchOperationThreading;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -194,7 +191,11 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             }
             if (successulOps.incrementAndGet() == expectedSuccessfulOps ||
                     totalOps.incrementAndGet() == expectedTotalOps) {
-                moveToSecondPhase();
+                try {
+                    moveToSecondPhase();
+                } catch (Exception e) {
+                    listener.onFailure(new ReduceSearchPhaseException(firstPhaseName(), "", e));
+                }
             }
         }
 
@@ -207,7 +208,11 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             if (totalOps.incrementAndGet() == expectedTotalOps) {
                 // no more shards, add a failure
                 shardFailures.add(new ShardSearchFailure(t));
-                moveToSecondPhase();
+                try {
+                    moveToSecondPhase();
+                } catch (Exception e) {
+                    listener.onFailure(new ReduceSearchPhaseException(firstPhaseName(), "", e));
+                }
             } else {
                 if (shardIt.hasNext()) {
                     performFirstPhase(shardIt);
@@ -230,5 +235,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
         protected abstract void processFirstPhaseResult(ShardRouting shard, FirstResult result);
 
         protected abstract void moveToSecondPhase();
+
+        protected abstract String firstPhaseName();
     }
 }

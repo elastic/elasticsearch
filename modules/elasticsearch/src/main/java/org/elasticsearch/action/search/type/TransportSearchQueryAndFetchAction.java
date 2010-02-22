@@ -64,6 +64,10 @@ public class TransportSearchQueryAndFetchAction extends TransportSearchTypeActio
             super(request, listener);
         }
 
+        @Override protected String firstPhaseName() {
+            return "query_fetch";
+        }
+
         @Override protected void sendExecuteFirstPhase(Node node, InternalSearchRequest request, SearchServiceListener<QueryFetchSearchResult> listener) {
             searchService.sendExecuteFetch(node, request, listener);
         }

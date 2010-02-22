@@ -72,7 +72,7 @@ public class RestClusterStateAction extends BaseRestHandler {
 
                         builder.startObject("mappings");
                         for (Map.Entry<String, String> entry : indexMetaData.mappings().entrySet()) {
-                            builder.startObject("mapping").field("name", entry.getKey()).field("value", entry.getValue()).endObject();
+                            builder.startObject(entry.getKey()).field("source", entry.getValue()).endObject();
                         }
                         builder.endObject();
 

@@ -238,7 +238,10 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                 // no more shards in this partition
                 int index = indexCounter.getAndIncrement();
                 if (accumulateExceptions()) {
-                    shardsResponses.set(index, new BroadcastShardOperationFailedException(shard.shardId(), e));
+                    if (!(e instanceof BroadcastShardOperationFailedException)) {
+                        e = new BroadcastShardOperationFailedException(shard.shardId(), e);
+                    }
+                    shardsResponses.set(index, e);
                 }
                 if (expectedOps == counterOps.incrementAndGet()) {
                     finishHim(alreadyThreaded);

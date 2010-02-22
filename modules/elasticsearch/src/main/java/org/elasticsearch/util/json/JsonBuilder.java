@@ -21,6 +21,7 @@ package org.elasticsearch.util.json;
 
 import org.apache.lucene.util.UnicodeUtil;
 import org.codehaus.jackson.JsonFactory;
+import org.codehaus.jackson.JsonGenerator;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.util.concurrent.NotThreadSafe;
 import org.elasticsearch.util.io.FastCharArrayWriter;
@@ -92,6 +93,12 @@ public class JsonBuilder {
         this.writer = new FastCharArrayWriter();
         this.factory = factory;
         this.generator = factory.createJsonGenerator(writer);
+    }
+
+    public JsonBuilder(JsonGenerator generator) throws IOException {
+        this.writer = new FastCharArrayWriter();
+        this.generator = generator;
+        this.factory = null;
     }
 
     public JsonBuilder prettyPrint() {

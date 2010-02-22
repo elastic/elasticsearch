@@ -21,9 +21,13 @@ package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.UnmodifiableIterator;
+import org.codehaus.jackson.JsonParser;
+import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.util.MapBuilder;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.concurrent.Immutable;
+import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.json.ToJson;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.DataInput;
@@ -31,6 +35,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 import static org.elasticsearch.util.MapBuilder.*;
+import static org.elasticsearch.util.json.JsonBuilder.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -118,6 +123,50 @@ public class MetaData implements Iterable<IndexMetaData> {
 
         public MetaData build() {
             return new MetaData(indices.immutableMap(), maxNumberOfShardsPerNode);
+        }
+
+        public static String toJson(MetaData metaData) throws IOException {
+            JsonBuilder builder = jsonBuilder().prettyPrint();
+            builder.startObject();
+            toJson(metaData, builder, ToJson.EMPTY_PARAMS);
+            builder.endObject();
+            return builder.string();
+        }
+
+        public static void toJson(MetaData metaData, JsonBuilder builder, ToJson.Params params) throws IOException {
+            builder.startObject("meta-data");
+            builder.field("maxNumberOfShardsPerNode", metaData.maxNumberOfShardsPerNode());
+
+            builder.startObject("indices");
+            for (IndexMetaData indexMetaData : metaData) {
+                IndexMetaData.Builder.toJson(indexMetaData, builder, params);
+            }
+            builder.endObject();
+
+            builder.endObject();
+        }
+
+        public static MetaData fromJson(JsonParser jp, @Nullable Settings globalSettings) throws IOException {
+            Builder builder = new Builder();
+
+            String currentFieldName = null;
+            JsonToken token = jp.nextToken();
+            while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
+                if (token == JsonToken.FIELD_NAME) {
+                    currentFieldName = jp.getCurrentName();
+                } else if (token == JsonToken.START_OBJECT) {
+                    if ("indices".equals(currentFieldName)) {
+                        while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
+                            builder.put(IndexMetaData.Builder.fromJson(jp, globalSettings));
+                        }
+                    }
+                } else if (token == JsonToken.VALUE_NUMBER_INT) {
+                    if ("maxNumberOfShardsPerNode".equals(currentFieldName)) {
+                        builder.maxNumberOfShardsPerNode(jp.getIntValue());
+                    }
+                }
+            }
+            return builder.build();
         }
 
         public static MetaData readFrom(DataInput in, @Nullable Settings globalSettings) throws IOException, ClassNotFoundException {

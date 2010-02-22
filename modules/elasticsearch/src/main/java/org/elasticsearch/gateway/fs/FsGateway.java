@@ -21,6 +21,8 @@ package org.elasticsearch.gateway.fs;
 
 import com.google.inject.Inject;
 import com.google.inject.Module;
+import org.codehaus.jackson.JsonEncoding;
+import org.codehaus.jackson.JsonParser;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -30,11 +32,15 @@ import org.elasticsearch.gateway.GatewayException;
 import org.elasticsearch.index.gateway.fs.FsIndexGatewayModule;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.component.Lifecycle;
-import org.elasticsearch.util.io.FastDataOutputStream;
 import org.elasticsearch.util.io.FileSystemUtils;
+import org.elasticsearch.util.json.Jackson;
+import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.json.ToJson;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.*;
+
+import static org.elasticsearch.util.io.FileSystemUtils.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -150,13 +156,17 @@ public class FsGateway extends AbstractComponent implements Gateway {
             }
 
             FileOutputStream fileStream = new FileOutputStream(file);
-            FastDataOutputStream outStream = new FastDataOutputStream(fileStream);
 
-            MetaData.Builder.writeTo(metaData, outStream);
+            JsonBuilder builder = new JsonBuilder(Jackson.defaultJsonFactory().createJsonGenerator(fileStream, JsonEncoding.UTF8));
+            builder.prettyPrint();
+            builder.startObject();
+            MetaData.Builder.toJson(metaData, builder, ToJson.EMPTY_PARAMS);
+            builder.endObject();
+            builder.close();
 
-            outStream.close();
+            fileStream.close();
 
-            FileSystemUtils.syncFile(file);
+            syncFile(file);
 
             currentIndex++;
 
@@ -187,11 +197,12 @@ public class FsGateway extends AbstractComponent implements Gateway {
             }
 
             FileInputStream fileStream = new FileInputStream(file);
-            DataInputStream inStream = new DataInputStream(fileStream);
 
-            MetaData metaData = MetaData.Builder.readFrom(inStream, settings);
+            JsonParser jp = Jackson.defaultJsonFactory().createJsonParser(fileStream);
+            MetaData metaData = MetaData.Builder.fromJson(jp, settings);
+            jp.close();
 
-            inStream.close();
+            fileStream.close();
 
             return metaData;
 

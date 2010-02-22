@@ -20,9 +20,14 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.ImmutableMap;
+import org.codehaus.jackson.JsonParser;
+import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.util.MapBuilder;
+import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.Preconditions;
 import org.elasticsearch.util.concurrent.Immutable;
+import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.json.ToJson;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
 
@@ -52,8 +57,8 @@ public class IndexMetaData {
     private transient final int totalNumberOfShards;
 
     private IndexMetaData(String index, Settings settings, ImmutableMap<String, String> mappings) {
-        Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1) != -1, "must specify numberOfShards");
-        Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1) != -1, "must specify numberOfReplicas");
+        Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1) != -1, "must specify numberOfShards for index [" + index + "]");
+        Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1) != -1, "must specify numberOfReplicas for index [" + index + "]");
         this.index = index;
         this.settings = settings;
         this.mappings = mappings;
@@ -115,7 +120,7 @@ public class IndexMetaData {
         }
 
         public Builder numberOfShards(int numberOfShards) {
-            settings = ImmutableSettings.settingsBuilder().putAll(settings).putInt(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
+            settings = settingsBuilder().putAll(settings).putInt(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
             return this;
         }
 
@@ -124,12 +129,17 @@ public class IndexMetaData {
         }
 
         public Builder numberOfReplicas(int numberOfReplicas) {
-            settings = ImmutableSettings.settingsBuilder().putAll(settings).putInt(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
+            settings = settingsBuilder().putAll(settings).putInt(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
             return this;
         }
 
         public int numberOfReplicas() {
             return settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1);
+        }
+
+        public Builder settings(Settings.Builder settings) {
+            this.settings = settings.build();
+            return this;
         }
 
         public Builder settings(Settings settings) {
@@ -149,6 +159,68 @@ public class IndexMetaData {
 
         public IndexMetaData build() {
             return new IndexMetaData(index, settings, mappings.immutableMap());
+        }
+
+        public static void toJson(IndexMetaData indexMetaData, JsonBuilder builder, ToJson.Params params) throws IOException {
+            builder.startObject(indexMetaData.index());
+
+            builder.startObject("settings");
+            for (Map.Entry<String, String> entry : indexMetaData.settings().getAsMap().entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
+            }
+            builder.endObject();
+
+            builder.startObject("mappings");
+            for (Map.Entry<String, String> entry : indexMetaData.mappings().entrySet()) {
+                builder.startObject(entry.getKey());
+                builder.field("source", entry.getValue());
+                builder.endObject();
+            }
+            builder.endObject();
+
+            builder.endObject();
+        }
+
+        public static IndexMetaData fromJson(JsonParser jp, @Nullable Settings globalSettings) throws IOException {
+            Builder builder = new Builder(jp.getCurrentName());
+
+            String currentFieldName = null;
+            JsonToken token = jp.nextToken();
+            while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
+                if (token == JsonToken.FIELD_NAME) {
+                    currentFieldName = jp.getCurrentName();
+                } else if (token == JsonToken.START_OBJECT) {
+                    if ("settings".equals(currentFieldName)) {
+                        ImmutableSettings.Builder settingsBuilder = settingsBuilder().globalSettings(globalSettings);
+                        while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
+                            String key = jp.getCurrentName();
+                            token = jp.nextToken();
+                            String value = jp.getText();
+                            settingsBuilder.put(key, value);
+                        }
+                        builder.settings(settingsBuilder.build());
+                    } else if ("mappings".equals(currentFieldName)) {
+                        while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
+                            String mappingType = jp.getCurrentName();
+                            String mappingSource = null;
+                            while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
+                                if (token == JsonToken.FIELD_NAME) {
+                                    if ("source".equals(jp.getCurrentName())) {
+                                        jp.nextToken();
+                                        mappingSource = jp.getText();
+                                    }
+                                }
+                            }
+                            if (mappingSource == null) {
+                                // crap, no mapping source, warn?
+                            } else {
+                                builder.putMapping(mappingType, mappingSource);
+                            }
+                        }
+                    }
+                }
+            }
+            return builder.build();
         }
 
         public static IndexMetaData readFrom(DataInput in, Settings globalSettings) throws ClassNotFoundException, IOException {

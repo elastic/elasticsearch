@@ -37,9 +37,6 @@ import static org.elasticsearch.index.query.support.QueryParsers.*;
  * A query parser that uses the {@link MapperService} in order to build smarter
  * queries based on the mapping information.
  *
- * <p>Maps a logic name of a field {@link org.elasticsearch.index.mapper.FieldMapper#name()}
- * into its {@link org.elasticsearch.index.mapper.FieldMapper#indexName()}.
- *
  * <p>Also breaks fields with [type].[name] into a boolean query that must include the type
  * as well as the query on the name.
  *
@@ -61,7 +58,6 @@ public class MapperQueryParser extends QueryParser {
     }
 
     @Override protected Query getFieldQuery(String field, String queryText) throws ParseException {
-        String indexedNameField = field;
         if (mapperService != null) {
             MapperService.SmartNameFieldMappers fieldMappers = mapperService.smartName(field);
             if (fieldMappers != null) {
@@ -71,7 +67,7 @@ public class MapperQueryParser extends QueryParser {
                 }
             }
         }
-        return super.getFieldQuery(indexedNameField, queryText);
+        return super.getFieldQuery(field, queryText);
     }
 
     @Override protected Query getRangeQuery(String field, String part1, String part2, boolean inclusive) throws ParseException {

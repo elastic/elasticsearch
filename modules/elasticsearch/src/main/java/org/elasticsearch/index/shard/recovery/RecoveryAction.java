@@ -226,10 +226,11 @@ public class RecoveryAction extends AbstractIndexShardComponent {
                         for (final String name : snapshot.getFiles()) {
                             threadPool.execute(new Runnable() {
                                 @Override public void run() {
+                                    IndexInput indexInput = null;
                                     try {
                                         final int BUFFER_SIZE = (int) fileChunkSize.bytes();
                                         byte[] buf = new byte[BUFFER_SIZE];
-                                        IndexInput indexInput = store.directory().openInput(name);
+                                        indexInput = store.directory().openInput(name);
                                         long len = indexInput.length();
                                         long readCount = 0;
                                         while (readCount < len) {
@@ -243,6 +244,13 @@ public class RecoveryAction extends AbstractIndexShardComponent {
                                     } catch (Exception e) {
                                         lastException.set(e);
                                     } finally {
+                                        if (indexInput != null) {
+                                            try {
+                                                indexInput.close();
+                                            } catch (IOException e) {
+                                                // ignore
+                                            }
+                                        }
                                         latch.countDown();
                                     }
                                 }
@@ -424,11 +432,20 @@ public class RecoveryAction extends AbstractIndexShardComponent {
                 indexOutput = openIndexOutputs.get(request.name);
             }
             synchronized (indexOutput) {
-                indexOutput.writeBytes(request.content, request.content.length);
-                if (indexOutput.getFilePointer() == request.length) {
-                    // we are done
-                    indexOutput.close();
+                try {
+                    indexOutput.writeBytes(request.content, request.content.length);
+                    if (indexOutput.getFilePointer() == request.length) {
+                        // we are done
+                        indexOutput.close();
+                        openIndexOutputs.remove(request.name);
+                    }
+                } catch (IOException e) {
                     openIndexOutputs.remove(request.name);
+                    try {
+                        indexOutput.close();
+                    } catch (IOException e1) {
+                        // ignore
+                    }
                 }
             }
             channel.sendResponse(VoidStreamable.INSTANCE);

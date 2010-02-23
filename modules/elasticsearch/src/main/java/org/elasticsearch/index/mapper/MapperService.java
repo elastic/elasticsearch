@@ -122,7 +122,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
 
         if (dynamic) {
             try {
-                dynamicMappingSource = Streams.copyToString(new InputStreamReader(dynamicMappingUrl.openStream(), "UTF8"));
+                dynamicMappingSource = Streams.copyToString(new InputStreamReader(dynamicMappingUrl.openStream(), "UTF-8"));
             } catch (IOException e) {
                 throw new MapperException("Failed to load default mapping source from [" + dynamicMappingLocation + "]", e);
             }

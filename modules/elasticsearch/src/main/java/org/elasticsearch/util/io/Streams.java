@@ -253,7 +253,7 @@ public abstract class Streams {
         if (is == null) {
             throw new FileNotFoundException("Resource [" + path + "] not found in classpath with class loader [" + classLoader + "]");
         }
-        return copyToString(new InputStreamReader(is));
+        return copyToString(new InputStreamReader(is, "UTF-8"));
     }
 
     public static String copyToStringFromClasspath(String path) throws IOException {

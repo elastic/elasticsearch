@@ -487,7 +487,7 @@ public class ImmutableSettings implements Settings {
         public Builder loadFromStream(String resourceName, InputStream is) throws SettingsException {
             SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromResource(resourceName);
             try {
-                Map<String, String> loadedSettings = settingsLoader.load(Streams.copyToString(new InputStreamReader(is)));
+                Map<String, String> loadedSettings = settingsLoader.load(Streams.copyToString(new InputStreamReader(is, "UTF-8")));
                 putAll(loadedSettings);
             } catch (IOException e) {
                 throw new SettingsException("Failed to load settings from [" + resourceName + "]");

@@ -30,7 +30,7 @@ import org.elasticsearch.util.concurrent.ThreadSafe;
  * @author kimchy (Shay Banon)
  */
 @ThreadSafe
-public interface SourceFieldMapper extends FieldMapper<String>, InternalMapper {
+public interface SourceFieldMapper extends FieldMapper<byte[]>, InternalMapper {
 
     public final String NAME = StringHelper.intern("_source");
 
@@ -39,7 +39,7 @@ public interface SourceFieldMapper extends FieldMapper<String>, InternalMapper {
      */
     boolean enabled();
 
-    String value(Document document);
+    byte[] value(Document document);
 
     /**
      * A field selector that loads just the source field.

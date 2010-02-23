@@ -19,10 +19,16 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.util.io.FastCharArrayWriter;
+
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public interface QueryBuilder {
 
-    String build() throws QueryBuilderException;
+    String buildAsString() throws QueryBuilderException;
+
+    FastCharArrayWriter buildAsUnsafeChars() throws QueryBuilderException;
+
+    byte[] buildAsBytes() throws QueryBuilderException;
 }

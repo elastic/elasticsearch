@@ -36,7 +36,9 @@ public interface SearchHit extends Streamable, ToJson {
 
     String type();
 
-    String source();
+    byte[] source();
+
+    String sourceAsString();
 
     Explanation explanation();
 

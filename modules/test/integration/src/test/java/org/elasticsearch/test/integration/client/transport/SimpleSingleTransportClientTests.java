@@ -107,9 +107,9 @@ public class SimpleSingleTransportClientTests extends AbstractServersTests {
 
         for (int i = 0; i < 5; i++) {
             getResult = client.get(getRequest("test").type("type1").id("1").threadedOperation(false)).actionGet();
-            assertThat("cycle #" + i, getResult.source(), equalTo(source("1", "test")));
+            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test")));
             getResult = client.get(getRequest("test").type("type1").id("1").threadedOperation(true)).actionGet();
-            assertThat("cycle #" + i, getResult.source(), equalTo(source("1", "test")));
+            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test")));
         }
 
         for (int i = 0; i < 5; i++) {
@@ -137,9 +137,9 @@ public class SimpleSingleTransportClientTests extends AbstractServersTests {
 
         for (int i = 0; i < 5; i++) {
             getResult = client.get(getRequest("test").type("type1").id("1")).actionGet();
-            assertThat("cycle #" + i, getResult.source(), equalTo(source("1", "test")));
+            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test")));
             getResult = client.get(getRequest("test").type("type1").id("2")).actionGet();
-            assertThat("cycle #" + i, getResult.source(), equalTo(source("2", "test")));
+            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("2", "test")));
         }
 
         // check count
@@ -164,7 +164,7 @@ public class SimpleSingleTransportClientTests extends AbstractServersTests {
 
         for (int i = 0; i < 5; i++) {
             getResult = client.get(getRequest("test").type("type1").id("1")).actionGet();
-            assertThat("cycle #" + i, getResult.source(), equalTo(source("1", "test")));
+            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test")));
             getResult = client.get(getRequest("test").type("type1").id("2")).actionGet();
             assertThat("cycle #" + i, getResult.empty(), equalTo(false));
         }

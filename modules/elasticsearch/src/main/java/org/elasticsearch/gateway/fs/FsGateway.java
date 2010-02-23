@@ -33,6 +33,7 @@ import org.elasticsearch.index.gateway.fs.FsIndexGatewayModule;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.component.Lifecycle;
 import org.elasticsearch.util.io.FileSystemUtils;
+import org.elasticsearch.util.json.BinaryJsonBuilder;
 import org.elasticsearch.util.json.Jackson;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.json.ToJson;
@@ -157,7 +158,7 @@ public class FsGateway extends AbstractComponent implements Gateway {
 
             FileOutputStream fileStream = new FileOutputStream(file);
 
-            JsonBuilder builder = new JsonBuilder(Jackson.defaultJsonFactory().createJsonGenerator(fileStream, JsonEncoding.UTF8));
+            JsonBuilder builder = new BinaryJsonBuilder(Jackson.defaultJsonFactory().createJsonGenerator(fileStream, JsonEncoding.UTF8));
             builder.prettyPrint();
             builder.startObject();
             MetaData.Builder.toJson(metaData, builder, ToJson.EMPTY_PARAMS);

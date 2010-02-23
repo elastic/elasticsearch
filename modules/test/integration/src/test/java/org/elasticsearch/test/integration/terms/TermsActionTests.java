@@ -74,7 +74,7 @@ public class TermsActionTests extends AbstractServersTests {
         assertThat("no term freqs for the 'value' since nothing is indexed", termsResponse.field("value").iterator().hasNext(), equalTo(false));
 
         logger.info("Index [1]");
-        client.index(indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("value", "aaa").endObject())).actionGet();
+        client.index(indexRequest("test").type("type1").id("1").source(binaryJsonBuilder().startObject().field("value", "aaa").endObject())).actionGet();
         logger.info("Refresh");
         client.admin().indices().refresh(refreshRequest()).actionGet();
 
@@ -90,7 +90,7 @@ public class TermsActionTests extends AbstractServersTests {
         assertThat(termsResponse.field("value").docFreq("bbb"), equalTo(-1));
 
         logger.info("Index [2]");
-        client.index(indexRequest("test").type("type1").id("2").source(jsonBuilder().startObject().field("value", "bbb bbb").endObject())).actionGet();
+        client.index(indexRequest("test").type("type1").id("2").source(binaryJsonBuilder().startObject().field("value", "bbb bbb").endObject())).actionGet();
         logger.info("Refresh");
         client.admin().indices().refresh(refreshRequest()).actionGet();
 
@@ -106,7 +106,7 @@ public class TermsActionTests extends AbstractServersTests {
         assertThat(termsResponse.field("value").docFreq("bbb"), equalTo(1));
 
         logger.info("Delete 3");
-        client.index(indexRequest("test").type("type1").id("3").source(jsonBuilder().startObject().field("value", "bbb").endObject())).actionGet();
+        client.index(indexRequest("test").type("type1").id("3").source(binaryJsonBuilder().startObject().field("value", "bbb").endObject())).actionGet();
         logger.info("Refresh");
         client.admin().indices().refresh(refreshRequest()).actionGet();
 

@@ -59,7 +59,7 @@ public class RestBroadcastPingAction extends BaseRestHandler {
         client.admin().cluster().execPing(broadcastPingRequest, new ActionListener<BroadcastPingResponse>() {
             @Override public void onResponse(BroadcastPingResponse response) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.cached(request);
+                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
                     builder.startObject();
                     builder.field("ok", true);
                     buildBroadcastShardsHeader(builder, response);

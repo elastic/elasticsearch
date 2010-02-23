@@ -35,7 +35,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestResponse.Status.*;
 import static org.elasticsearch.util.TimeValue.*;
-import static org.elasticsearch.util.json.JsonBuilder.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -53,7 +52,8 @@ public class RestDeleteIndexAction extends BaseRestHandler {
         client.admin().indices().execDelete(deleteIndexRequest, new ActionListener<DeleteIndexResponse>() {
             @Override public void onResponse(DeleteIndexResponse result) {
                 try {
-                    channel.sendResponse(new JsonRestResponse(request, OK, jsonBuilder().startObject().field("ok", true).endObject()));
+                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                    channel.sendResponse(new JsonRestResponse(request, OK, builder.startObject().field("ok", true).endObject()));
                 } catch (IOException e) {
                     onFailure(e);
                 }
@@ -62,7 +62,7 @@ public class RestDeleteIndexAction extends BaseRestHandler {
             @Override public void onFailure(Throwable e) {
                 try {
                     if (ExceptionsHelper.unwrapCause(e) instanceof IndexMissingException) {
-                        JsonBuilder builder = RestJsonBuilder.cached(request);
+                        JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
                         builder.startObject()
                                 .field("ok", true)
                                 .endObject();

@@ -25,7 +25,6 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestJsonBuilder;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
 
@@ -33,6 +32,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
+import static org.elasticsearch.rest.action.support.RestJsonBuilder.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -56,7 +56,7 @@ public class RestGetAction extends BaseRestHandler {
                     if (result.empty()) {
                         channel.sendResponse(new JsonRestResponse(request, NOT_FOUND));
                     } else {
-                        JsonBuilder builder = RestJsonBuilder.cached(request);
+                        JsonBuilder builder = restJsonBuilder(request);
                         builder.startObject();
                         builder.field("_index", result.index());
                         builder.field("_type", result.type());

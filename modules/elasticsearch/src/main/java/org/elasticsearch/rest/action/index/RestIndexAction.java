@@ -46,7 +46,7 @@ public class RestIndexAction extends BaseRestHandler {
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
-        IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"), request.contentAsString());
+        IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"), request.contentAsBytes());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
         String sOpType = request.param("opType");
         if (sOpType != null) {
@@ -56,7 +56,8 @@ public class RestIndexAction extends BaseRestHandler {
                 indexRequest.opType(IndexRequest.OpType.CREATE);
             } else {
                 try {
-                    channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, JsonBuilder.jsonBuilder().startObject().field("error", "opType [" + sOpType + "] not allowed, either [index] or [create] are allowed").endObject()));
+                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                    channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, builder.startObject().field("error", "opType [" + sOpType + "] not allowed, either [index] or [create] are allowed").endObject()));
                 } catch (IOException e1) {
                     logger.warn("Failed to send response", e1);
                     return;
@@ -70,7 +71,7 @@ public class RestIndexAction extends BaseRestHandler {
         client.execIndex(indexRequest, new ActionListener<IndexResponse>() {
             @Override public void onResponse(IndexResponse result) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.cached(request);
+                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
                     builder.startObject()
                             .field("ok", true)
                             .field("_index", result.index())

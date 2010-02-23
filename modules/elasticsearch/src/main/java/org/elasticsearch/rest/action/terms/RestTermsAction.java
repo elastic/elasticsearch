@@ -100,7 +100,8 @@ public class RestTermsAction extends BaseRestHandler {
             termsRequest.sortType(TermsRequest.SortType.fromString(request.param("sort"), termsRequest.sortType()));
         } catch (Exception e) {
             try {
-                channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, JsonBuilder.jsonBuilder().startObject().field("error", e.getMessage()).endObject()));
+                JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, builder.startObject().field("error", e.getMessage()).endObject()));
             } catch (IOException e1) {
                 logger.error("Failed to send failure response", e1);
             }
@@ -111,7 +112,7 @@ public class RestTermsAction extends BaseRestHandler {
         client.execTerms(termsRequest, new ActionListener<TermsResponse>() {
             @Override public void onResponse(TermsResponse response) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.cached(request);
+                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
                     builder.startObject();
 
                     buildBroadcastShardsHeader(builder, response);

@@ -82,7 +82,8 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.operationThreading(operationThreading);
         } catch (Exception e) {
             try {
-                channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, JsonBuilder.jsonBuilder().startObject().field("error", e.getMessage()).endObject()));
+                JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, builder.startObject().field("error", e.getMessage()).endObject()));
             } catch (IOException e1) {
                 logger.error("Failed to send failure response", e1);
             }
@@ -91,7 +92,7 @@ public class RestSearchAction extends BaseRestHandler {
         client.execSearch(searchRequest, new ActionListener<SearchResponse>() {
             @Override public void onResponse(SearchResponse result) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.cached(request);
+                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
                     builder.startObject();
                     result.toJson(builder, request);
                     builder.endObject();

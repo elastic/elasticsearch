@@ -54,7 +54,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
         client.admin().cluster().execNodesInfo(nodesInfoRequest, new ActionListener<NodesInfoResponse>() {
             @Override public void onResponse(NodesInfoResponse result) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.cached(request);
+                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
                     builder.startObject();
                     builder.field("clusterName", result.clusterName().value());
 

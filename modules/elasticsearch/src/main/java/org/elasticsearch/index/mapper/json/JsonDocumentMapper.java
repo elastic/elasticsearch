@@ -27,9 +27,9 @@ import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.Preconditions;
-import org.elasticsearch.util.io.FastStringReader;
 import org.elasticsearch.util.json.Jackson;
 import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.json.StringJsonBuilder;
 import org.elasticsearch.util.json.ToJson;
 
 import java.io.IOException;
@@ -247,11 +247,11 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
         return this.fieldMappers;
     }
 
-    @Override public ParsedDocument parse(String source) {
+    @Override public ParsedDocument parse(byte[] source) {
         return parse(null, null, source);
     }
 
-    @Override public ParsedDocument parse(String type, String id, String source) {
+    @Override public ParsedDocument parse(String type, String id, byte[] source) {
         JsonParseContext jsonContext = cache.get();
 
         if (type != null && !type.equals(this.type)) {
@@ -261,7 +261,7 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
 
         JsonParser jp = null;
         try {
-            jp = jsonFactory.createJsonParser(new FastStringReader(source));
+            jp = jsonFactory.createJsonParser(source);
             jsonContext.reset(jp, new Document(), type, source);
 
             // will result in JsonToken.START_OBJECT
@@ -354,7 +354,7 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
 
     @Override public String buildSource() throws FailedToGenerateSourceMapperException {
         try {
-            JsonBuilder builder = jsonBuilder().prettyPrint();
+            StringJsonBuilder builder = stringJsonBuilder().prettyPrint();
             builder.startObject();
             toJson(builder, ToJson.EMPTY_PARAMS);
             builder.endObject();

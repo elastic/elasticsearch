@@ -71,7 +71,7 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
     }
 
     @Required public IndexDeleteByQueryRequest querySource(QueryBuilder queryBuilder) {
-        return querySource(queryBuilder.build());
+        return querySource(queryBuilder.buildAsString());
     }
 
     @Required public IndexDeleteByQueryRequest querySource(String querySource) {

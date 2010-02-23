@@ -70,7 +70,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
         client.admin().indices().execCreate(createIndexRequest, new ActionListener<CreateIndexResponse>() {
             @Override public void onResponse(CreateIndexResponse result) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.cached(request);
+                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
                     builder.startObject()
                             .field("ok", true)
                             .endObject();
@@ -84,7 +84,8 @@ public class RestCreateIndexAction extends BaseRestHandler {
                 try {
                     Throwable t = unwrapCause(e);
                     if (t instanceof IndexAlreadyExistsException || t instanceof InvalidIndexNameException) {
-                        channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, JsonBuilder.jsonBuilder().startObject().field("error", t.getMessage()).endObject()));
+                        JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                        channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, builder.startObject().field("error", t.getMessage()).endObject()));
                     } else {
                         channel.sendResponse(new JsonThrowableRestResponse(request, e));
                     }

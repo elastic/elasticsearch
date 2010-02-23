@@ -29,9 +29,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.util.io.FastStringReader;
-import org.elasticsearch.util.io.compression.GZIPCompressor;
-import org.elasticsearch.util.io.compression.LzfCompressor;
-import org.elasticsearch.util.io.compression.ZipCompressor;
 import org.elasticsearch.util.joda.FormatDateTimeFormatter;
 import org.elasticsearch.util.joda.Joda;
 import org.elasticsearch.util.json.Jackson;
@@ -182,20 +179,20 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
             Map.Entry<String, JsonNode> entry = fieldsIt.next();
             String fieldName = entry.getKey();
             JsonNode fieldNode = entry.getValue();
-            if (fieldName.equals("compressionThreshold")) {
-                builder.compressionThreshold(fieldNode.getNumberValue().intValue());
-            } else if (fieldName.equals("compressionType")) {
-                String compressionType = fieldNode.getTextValue();
-                if ("zip".equals(compressionType)) {
-                    builder.compressor(new ZipCompressor());
-                } else if ("gzip".equals(compressionType)) {
-                    builder.compressor(new GZIPCompressor());
-                } else if ("lzf".equals(compressionType)) {
-                    builder.compressor(new LzfCompressor());
-                } else {
-                    throw new MapperParsingException("No compressor registed under [" + compressionType + "]");
-                }
-            }
+//            if (fieldName.equals("compressionThreshold")) {
+//                builder.compressionThreshold(fieldNode.getNumberValue().intValue());
+//            } else if (fieldName.equals("compressionType")) {
+//                String compressionType = fieldNode.getTextValue();
+//                if ("zip".equals(compressionType)) {
+//                    builder.compressor(new ZipCompressor());
+//                } else if ("gzip".equals(compressionType)) {
+//                    builder.compressor(new GZIPCompressor());
+//                } else if ("lzf".equals(compressionType)) {
+//                    builder.compressor(new LzfCompressor());
+//                } else {
+//                    throw new MapperParsingException("No compressor registed under [" + compressionType + "]");
+//                }
+//            }
         }
         return builder;
     }

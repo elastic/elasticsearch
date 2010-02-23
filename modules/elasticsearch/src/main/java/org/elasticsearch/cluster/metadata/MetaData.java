@@ -27,6 +27,7 @@ import org.elasticsearch.util.MapBuilder;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.concurrent.Immutable;
 import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.json.StringJsonBuilder;
 import org.elasticsearch.util.json.ToJson;
 import org.elasticsearch.util.settings.Settings;
 
@@ -35,7 +36,6 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 import static org.elasticsearch.util.MapBuilder.*;
-import static org.elasticsearch.util.json.JsonBuilder.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -126,7 +126,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         }
 
         public static String toJson(MetaData metaData) throws IOException {
-            JsonBuilder builder = jsonBuilder().prettyPrint();
+            StringJsonBuilder builder = JsonBuilder.stringJsonBuilder().prettyPrint();
             builder.startObject();
             toJson(metaData, builder, ToJson.EMPTY_PARAMS);
             builder.endObject();

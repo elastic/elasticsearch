@@ -19,6 +19,8 @@
 
 package org.elasticsearch.rest;
 
+import java.io.IOException;
+
 /**
  * @author kimchy (Shay Banon)
  */
@@ -495,12 +497,12 @@ public interface RestResponse {
      * Returns the actual content. Note, use {@link #contentLength()} in order to know the
      * content length of the byte array.
      */
-    byte[] content();
+    byte[] content() throws IOException;
 
     /**
      * The content length.
      */
-    int contentLength();
+    int contentLength() throws IOException;
 
     byte[] prefixContent();
 

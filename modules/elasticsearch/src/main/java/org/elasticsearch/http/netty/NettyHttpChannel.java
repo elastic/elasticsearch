@@ -20,6 +20,7 @@
 package org.elasticsearch.http.netty;
 
 import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.http.HttpException;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.RestResponse;
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -29,6 +30,7 @@ import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelFutureListener;
 import org.jboss.netty.handler.codec.http.*;
 
+import java.io.IOException;
 import java.util.Set;
 
 /**
@@ -64,10 +66,14 @@ public class NettyHttpChannel implements HttpChannel {
         }
         // Convert the response content to a ChannelBuffer.
         ChannelBuffer buf;
-        if (response.contentThreadSafe()) {
-            buf = ChannelBuffers.wrappedBuffer(response.content(), 0, response.contentLength());
-        } else {
-            buf = ChannelBuffers.copiedBuffer(response.content(), 0, response.contentLength());
+        try {
+            if (response.contentThreadSafe()) {
+                buf = ChannelBuffers.wrappedBuffer(response.content(), 0, response.contentLength());
+            } else {
+                buf = ChannelBuffers.copiedBuffer(response.content(), 0, response.contentLength());
+            }
+        } catch (IOException e) {
+            throw new HttpException("Failed to convert response to bytes", e);
         }
         if (response.prefixContent() != null || response.suffixContent() != null) {
             ChannelBuffer prefixBuf = ChannelBuffers.EMPTY_BUFFER;

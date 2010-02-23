@@ -53,7 +53,7 @@ public class RestSinglePingAction extends BaseRestHandler {
         client.admin().cluster().execPing(singlePingRequest, new ActionListener<SinglePingResponse>() {
             @Override public void onResponse(SinglePingResponse result) {
                 try {
-                    JsonBuilder generator = RestJsonBuilder.cached(request);
+                    JsonBuilder generator = RestJsonBuilder.restJsonBuilder(request);
                     generator.startObject().field("ok", true).endObject();
                     channel.sendResponse(new JsonRestResponse(request, OK, generator));
                 } catch (Exception e) {

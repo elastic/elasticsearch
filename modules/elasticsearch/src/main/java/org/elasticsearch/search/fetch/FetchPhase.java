@@ -58,7 +58,7 @@ public class FetchPhase implements SearchPhase {
 
             DocumentMapper documentMapper = context.mapperService().type(uid.type());
 
-            String source = extractSource(doc, documentMapper);
+            byte[] source = extractSource(doc, documentMapper);
 
             InternalSearchHit searchHit = new InternalSearchHit(uid.id(), uid.type(), source, null);
             hits[index] = searchHit;
@@ -111,11 +111,11 @@ public class FetchPhase implements SearchPhase {
         }
     }
 
-    private String extractSource(Document doc, DocumentMapper documentMapper) {
-        String source = null;
+    private byte[] extractSource(Document doc, DocumentMapper documentMapper) {
+        byte[] source = null;
         Fieldable sourceField = doc.getFieldable(documentMapper.sourceMapper().names().indexName());
         if (sourceField != null) {
-            source = documentMapper.sourceMapper().valueAsString(sourceField);
+            source = documentMapper.sourceMapper().value(sourceField);
             doc.removeField(documentMapper.sourceMapper().names().indexName());
         }
         return source;

@@ -59,12 +59,12 @@ public abstract class AbstractSimpleTranslogTests {
         assertThat(snapshot, translogSize(0));
         snapshot.release();
 
-        translog.add(new Translog.Create("test", "1", "{1}"));
+        translog.add(new Translog.Create("test", "1", new byte[]{1}));
         snapshot = translog.snapshot();
         assertThat(snapshot, translogSize(1));
         snapshot.release();
 
-        translog.add(new Translog.Index("test", "2", "{2}"));
+        translog.add(new Translog.Index("test", "2", new byte[]{2}));
         snapshot = translog.snapshot();
         assertThat(snapshot, translogSize(2));
         snapshot.release();
@@ -82,9 +82,9 @@ public abstract class AbstractSimpleTranslogTests {
         snapshot = translog.snapshot();
         Iterator<Translog.Operation> it = snapshot.iterator();
         Translog.Create create = (Translog.Create) it.next();
-        assertThat(create.source(), equalTo("{1}"));
+        assertThat(create.source(), equalTo(new byte[]{1}));
         Translog.Index index = (Translog.Index) it.next();
-        assertThat(index.source(), equalTo("{2}"));
+        assertThat(index.source(), equalTo(new byte[]{2}));
         Translog.Delete delete = (Translog.Delete) it.next();
         assertThat(delete.uid(), equalTo(newUid("3")));
         Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) it.next();
@@ -105,18 +105,18 @@ public abstract class AbstractSimpleTranslogTests {
         assertThat(snapshot, translogSize(0));
         snapshot.release();
 
-        translog.add(new Translog.Create("test", "1", "{1}"));
+        translog.add(new Translog.Create("test", "1", new byte[]{1}));
         snapshot = translog.snapshot();
         assertThat(snapshot, translogSize(1));
         Translog.Create create = (Translog.Create) snapshot.iterator().next();
-        assertThat(create.source(), equalTo("{1}"));
+        assertThat(create.source(), equalTo(new byte[]{1}));
         snapshot.release();
 
-        translog.add(new Translog.Index("test", "2", "{2}"));
+        translog.add(new Translog.Index("test", "2", new byte[]{2}));
         snapshot = translog.snapshot(snapshot);
         assertThat(snapshot, translogSize(1));
         Translog.Index index = (Translog.Index) snapshot.iterator().next();
-        assertThat(index.source(), equalTo("{2}"));
+        assertThat(index.source(), equalTo(new byte[]{2}));
         snapshot.release();
     }
 
@@ -125,19 +125,19 @@ public abstract class AbstractSimpleTranslogTests {
         assertThat(snapshot, translogSize(0));
         snapshot.release();
 
-        translog.add(new Translog.Create("test", "1", "{1}"));
+        translog.add(new Translog.Create("test", "1", new byte[]{1}));
         Translog.Snapshot actualSnapshot = translog.snapshot();
 
-        translog.add(new Translog.Index("test", "2", "{2}"));
+        translog.add(new Translog.Index("test", "2", new byte[]{2}));
 
         translog.newTranslog();
 
-        translog.add(new Translog.Index("test", "3", "{3}"));
+        translog.add(new Translog.Index("test", "3", new byte[]{3}));
 
         snapshot = translog.snapshot(actualSnapshot);
         assertThat(snapshot, translogSize(1));
         Translog.Index index = (Translog.Index) snapshot.iterator().next();
-        assertThat(index.source(), equalTo("{3}"));
+        assertThat(index.source(), equalTo(new byte[]{3}));
 
         actualSnapshot.release();
         snapshot.release();

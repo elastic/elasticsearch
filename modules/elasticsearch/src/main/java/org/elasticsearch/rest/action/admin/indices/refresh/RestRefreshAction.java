@@ -61,7 +61,7 @@ public class RestRefreshAction extends BaseRestHandler {
         client.admin().indices().execRefresh(refreshRequest, new ActionListener<RefreshResponse>() {
             @Override public void onResponse(RefreshResponse response) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.cached(request);
+                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
                     builder.startObject();
                     builder.field("ok", true);
 

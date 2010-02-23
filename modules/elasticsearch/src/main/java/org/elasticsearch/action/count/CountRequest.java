@@ -78,7 +78,7 @@ public class CountRequest extends BroadcastOperationRequest {
     }
 
     @Required public CountRequest querySource(QueryBuilder queryBuilder) {
-        return querySource(queryBuilder.build());
+        return querySource(queryBuilder.buildAsString());
     }
 
     public CountRequest querySource(String querySource) {

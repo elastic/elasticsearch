@@ -21,13 +21,14 @@ package org.elasticsearch.search.builder;
 
 import org.elasticsearch.index.query.json.JsonQueryBuilder;
 import org.elasticsearch.search.SearchException;
-import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.json.StringJsonBuilder;
 import org.elasticsearch.util.json.ToJson;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static com.google.common.collect.Lists.*;
+import static org.elasticsearch.util.json.JsonBuilder.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -126,7 +127,7 @@ public class SearchSourceBuilder {
 
     public String build() throws SearchException {
         try {
-            JsonBuilder builder = JsonBuilder.jsonBuilder();
+            StringJsonBuilder builder = stringJsonBuilder();
             builder.startObject();
 
             if (from != -1) {

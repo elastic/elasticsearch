@@ -151,7 +151,7 @@ public interface Translog extends IndexShardComponent {
     static class Create implements Operation {
         private String id;
         private String type;
-        private String source;
+        private byte[] source;
 
         public Create() {
         }
@@ -160,7 +160,7 @@ public interface Translog extends IndexShardComponent {
             this(create.type(), create.id(), create.source());
         }
 
-        public Create(String type, String id, String source) {
+        public Create(String type, String id, byte[] source) {
             this.id = id;
             this.type = type;
             this.source = source;
@@ -171,14 +171,14 @@ public interface Translog extends IndexShardComponent {
         }
 
         @Override public long estimateSize() {
-            return ((id.length() + type.length() + source.length()) * 2) + 12;
+            return ((id.length() + type.length()) * 2) + source.length + 12;
         }
 
         public String id() {
             return this.id;
         }
 
-        public String source() {
+        public byte[] source() {
             return this.source;
         }
 
@@ -193,20 +193,22 @@ public interface Translog extends IndexShardComponent {
         @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
             id = in.readUTF();
             type = in.readUTF();
-            source = in.readUTF();
+            source = new byte[in.readInt()];
+            in.readFully(source);
         }
 
         @Override public void writeTo(DataOutput out) throws IOException {
             out.writeUTF(id);
             out.writeUTF(type);
-            out.writeUTF(source);
+            out.writeInt(source.length);
+            out.write(source);
         }
     }
 
     static class Index implements Operation {
         private String id;
         private String type;
-        private String source;
+        private byte[] source;
 
         public Index() {
         }
@@ -215,7 +217,7 @@ public interface Translog extends IndexShardComponent {
             this(index.type(), index.id(), index.source());
         }
 
-        public Index(String type, String id, String source) {
+        public Index(String type, String id, byte[] source) {
             this.type = type;
             this.id = id;
             this.source = source;
@@ -226,7 +228,7 @@ public interface Translog extends IndexShardComponent {
         }
 
         @Override public long estimateSize() {
-            return ((id.length() + type.length() + source.length()) * 2) + 12;
+            return ((id.length() + type.length()) * 2) + source.length + 12;
         }
 
         public String type() {
@@ -237,7 +239,7 @@ public interface Translog extends IndexShardComponent {
             return this.id;
         }
 
-        public String source() {
+        public byte[] source() {
             return this.source;
         }
 
@@ -248,13 +250,15 @@ public interface Translog extends IndexShardComponent {
         @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
             id = in.readUTF();
             type = in.readUTF();
-            source = in.readUTF();
+            source = new byte[in.readInt()];
+            in.readFully(source);
         }
 
         @Override public void writeTo(DataOutput out) throws IOException {
             out.writeUTF(id);
             out.writeUTF(type);
-            out.writeUTF(source);
+            out.writeInt(source.length);
+            out.write(source);
         }
     }
 

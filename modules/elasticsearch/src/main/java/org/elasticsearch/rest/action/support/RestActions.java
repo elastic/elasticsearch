@@ -91,7 +91,7 @@ public class RestActions {
                 throw new ElasticSearchIllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
             }
         }
-        return queryBuilder.build();
+        return queryBuilder.buildAsString();
     }
 
     public static String[] splitIndices(String indices) {

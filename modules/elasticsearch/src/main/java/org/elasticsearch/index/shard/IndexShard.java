@@ -45,9 +45,9 @@ public interface IndexShard extends IndexShardComponent {
      */
     SizeValue estimateFlushableMemorySize() throws ElasticSearchException;
 
-    ParsedDocument create(String type, String id, String source) throws ElasticSearchException;
+    ParsedDocument create(String type, String id, byte[] source) throws ElasticSearchException;
 
-    ParsedDocument index(String type, String id, String source) throws ElasticSearchException;
+    ParsedDocument index(String type, String id, byte[] source) throws ElasticSearchException;
 
     void delete(String type, String id);
 
@@ -55,7 +55,7 @@ public interface IndexShard extends IndexShardComponent {
 
     void deleteByQuery(String querySource, @Nullable String queryParserName, String... types) throws ElasticSearchException;
 
-    String get(String type, String id) throws ElasticSearchException;
+    byte[] get(String type, String id) throws ElasticSearchException;
 
     long count(float minScore, String querySource, @Nullable String queryParserName, String... types) throws ElasticSearchException;
 

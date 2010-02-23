@@ -37,6 +37,7 @@ import org.elasticsearch.index.store.ram.RamStore;
 import org.elasticsearch.index.translog.memory.MemoryTranslog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.dynamic.DynamicThreadPool;
+import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.settings.Settings;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -83,10 +84,10 @@ public class SimpleIndexShardTests {
 
     @Test public void testSimpleIndexGetDelete() {
         String source1 = "{ type1 : { _id : \"1\", name : \"test\", age : 35 } }";
-        indexShard.index("type1", "1", source1);
+        indexShard.index("type1", "1", Unicode.fromStringAsBytes(source1));
         indexShard.refresh(new Engine.Refresh(true));
 
-        String sourceFetched = indexShard.get("type1", "1");
+        String sourceFetched = Unicode.fromBytes(indexShard.get("type1", "1"));
 
         assertThat(sourceFetched, equalTo(source1));
 
@@ -99,9 +100,9 @@ public class SimpleIndexShardTests {
 
         assertThat(indexShard.get("type1", "1"), nullValue());
 
-        indexShard.index("type1", "1", source1);
+        indexShard.index("type1", "1", Unicode.fromStringAsBytes(source1));
         indexShard.refresh(new Engine.Refresh(true));
-        sourceFetched = indexShard.get("type1", "1");
+        sourceFetched = Unicode.fromBytes(indexShard.get("type1", "1"));
         assertThat(sourceFetched, equalTo(source1));
         indexShard.deleteByQuery("{ term : { name : \"test\" } }", null);
         indexShard.refresh(new Engine.Refresh(true));

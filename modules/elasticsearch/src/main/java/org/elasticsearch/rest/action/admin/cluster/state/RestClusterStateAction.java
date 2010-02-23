@@ -54,7 +54,7 @@ public class RestClusterStateAction extends BaseRestHandler {
             @Override public void onResponse(ClusterStateResponse response) {
                 try {
                     ClusterState state = response.state();
-                    JsonBuilder builder = RestJsonBuilder.cached(request);
+                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
                     builder.startObject();
 
                     // meta data

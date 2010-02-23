@@ -226,9 +226,9 @@ public interface Engine extends IndexShardComponent {
         private final Analyzer analyzer;
         private final String type;
         private final String id;
-        private final String source;
+        private final byte[] source;
 
-        public Create(Document document, Analyzer analyzer, String type, String id, String source) {
+        public Create(Document document, Analyzer analyzer, String type, String id, byte[] source) {
             this.document = document;
             this.analyzer = analyzer;
             this.type = type;
@@ -252,7 +252,7 @@ public interface Engine extends IndexShardComponent {
             return this.analyzer;
         }
 
-        public String source() {
+        public byte[] source() {
             return this.source;
         }
     }
@@ -263,9 +263,9 @@ public interface Engine extends IndexShardComponent {
         private final Analyzer analyzer;
         private final String type;
         private final String id;
-        private final String source;
+        private final byte[] source;
 
-        public Index(Term uid, Document document, Analyzer analyzer, String type, String id, String source) {
+        public Index(Term uid, Document document, Analyzer analyzer, String type, String id, byte[] source) {
             this.uid = uid;
             this.document = document;
             this.analyzer = analyzer;
@@ -294,7 +294,7 @@ public interface Engine extends IndexShardComponent {
             return this.type;
         }
 
-        public String source() {
+        public byte[] source() {
             return this.source;
         }
     }

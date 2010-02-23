@@ -63,7 +63,8 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
             deleteByQueryRequest.timeout(request.paramAsTime("timeout", ShardDeleteByQueryRequest.DEFAULT_TIMEOUT));
         } catch (Exception e) {
             try {
-                channel.sendResponse(new JsonRestResponse(request, PRECONDITION_FAILED, JsonBuilder.jsonBuilder().startObject().field("error", e.getMessage()).endObject()));
+                JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                channel.sendResponse(new JsonRestResponse(request, PRECONDITION_FAILED, builder.startObject().field("error", e.getMessage()).endObject()));
             } catch (IOException e1) {
                 logger.error("Failed to send failure response", e1);
             }
@@ -72,7 +73,7 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
         client.execDeleteByQuery(deleteByQueryRequest, new ActionListener<DeleteByQueryResponse>() {
             @Override public void onResponse(DeleteByQueryResponse result) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.cached(request);
+                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
                     builder.startObject().field("ok", true);
 
                     builder.startObject("_indices");

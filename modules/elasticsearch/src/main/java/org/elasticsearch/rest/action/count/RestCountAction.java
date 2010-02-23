@@ -37,7 +37,6 @@ import static org.elasticsearch.action.count.CountRequest.*;
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
 import static org.elasticsearch.rest.action.support.RestActions.*;
-import static org.elasticsearch.util.json.JsonBuilder.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -75,7 +74,8 @@ public class RestCountAction extends BaseRestHandler {
             }
         } catch (Exception e) {
             try {
-                channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, jsonBuilder().startObject().field("error", e.getMessage()).endObject()));
+                JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, builder.startObject().field("error", e.getMessage()).endObject()));
             } catch (IOException e1) {
                 logger.error("Failed to send failure response", e1);
             }
@@ -85,7 +85,7 @@ public class RestCountAction extends BaseRestHandler {
         client.execCount(countRequest, new ActionListener<CountResponse>() {
             @Override public void onResponse(CountResponse response) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.cached(request);
+                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
                     builder.startObject();
                     builder.field("count", response.count());
 

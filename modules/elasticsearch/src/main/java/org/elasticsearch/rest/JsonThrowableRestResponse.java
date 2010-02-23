@@ -40,7 +40,7 @@ public class JsonThrowableRestResponse extends JsonRestResponse {
     }
 
     private static JsonBuilder convert(RestRequest request, Throwable t) throws IOException {
-        JsonBuilder builder = jsonBuilder().prettyPrint()
+        JsonBuilder builder = binaryJsonBuilder().prettyPrint()
                 .startObject().field("error", detailedMessage(t));
         if (t != null && request.paramAsBoolean("errorTrace", false)) {
             builder.startObject("errorTrace");

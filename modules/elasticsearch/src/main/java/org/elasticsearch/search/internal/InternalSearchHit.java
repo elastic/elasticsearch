@@ -25,6 +25,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.util.Nullable;
+import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.DataInput;
@@ -45,7 +46,7 @@ public class InternalSearchHit implements SearchHit {
 
     private String type;
 
-    private String source;
+    private byte[] source;
 
     private Map<String, SearchHitField> fields;
 
@@ -57,7 +58,7 @@ public class InternalSearchHit implements SearchHit {
 
     }
 
-    public InternalSearchHit(String id, String type, String source, Map<String, SearchHitField> fields) {
+    public InternalSearchHit(String id, String type, byte[] source, Map<String, SearchHitField> fields) {
         this.id = id;
         this.type = type;
         this.source = source;
@@ -68,19 +69,26 @@ public class InternalSearchHit implements SearchHit {
         return shard.index();
     }
 
-    public String id() {
+    @Override public String id() {
         return id;
     }
 
-    public String type() {
+    @Override public String type() {
         return type;
     }
 
-    public String source() {
+    @Override public byte[] source() {
         return source;
     }
 
-    public Map<String, SearchHitField> fields() {
+    @Override public String sourceAsString() {
+        if (source == null) {
+            return null;
+        }
+        return Unicode.fromBytes(source);
+    }
+
+    @Override public Map<String, SearchHitField> fields() {
         return fields;
     }
 
@@ -88,7 +96,7 @@ public class InternalSearchHit implements SearchHit {
         this.fields = fields;
     }
 
-    public Explanation explanation() {
+    @Override public Explanation explanation() {
         return explanation;
     }
 
@@ -169,13 +177,15 @@ public class InternalSearchHit implements SearchHit {
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
         id = in.readUTF();
         type = in.readUTF();
-        if (in.readBoolean()) {
-            source = in.readUTF();
+        int size = in.readInt();
+        if (size > 0) {
+            source = new byte[size];
+            in.readFully(source);
         }
         if (in.readBoolean()) {
             explanation = readExplanation(in);
         }
-        int size = in.readInt();
+        size = in.readInt();
         if (size == 0) {
             fields = ImmutableMap.of();
         } else if (size == 1) {
@@ -220,10 +230,10 @@ public class InternalSearchHit implements SearchHit {
         out.writeUTF(id);
         out.writeUTF(type);
         if (source == null) {
-            out.writeBoolean(false);
+            out.writeInt(0);
         } else {
-            out.writeBoolean(true);
-            out.writeUTF(source);
+            out.writeInt(source.length);
+            out.write(source);
         }
         if (explanation == null) {
             out.writeBoolean(false);

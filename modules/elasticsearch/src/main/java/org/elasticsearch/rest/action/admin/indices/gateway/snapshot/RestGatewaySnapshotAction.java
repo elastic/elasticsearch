@@ -55,7 +55,7 @@ public class RestGatewaySnapshotAction extends BaseRestHandler {
         client.admin().indices().execGatewaySnapshot(gatewaySnapshotRequest, new ActionListener<GatewaySnapshotResponse>() {
             @Override public void onResponse(GatewaySnapshotResponse result) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.cached(request);
+                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
                     builder.startObject();
                     builder.field("ok", true);
                     builder.startObject("indices");

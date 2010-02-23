@@ -84,7 +84,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractServersTes
         assertThat(getResponse.empty(), equalTo(true));
         logger.info("Getting #2");
         getResponse = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
-        assertThat(getResponse.source(), equalTo(source("2", "test")));
+        assertThat(getResponse.sourceAsString(), equalTo(source("2", "test")));
 
         // Now flush and add some data (so we have index recovery as well)
         logger.info("Flushing, so we have actual content in the index files (#2 should be in the index)");
@@ -109,10 +109,10 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractServersTes
         assertThat(getResponse.empty(), equalTo(true));
         logger.info("Getting #2 (not from the translog, but from the index)");
         getResponse = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
-        assertThat(getResponse.source(), equalTo(source("2", "test")));
+        assertThat(getResponse.sourceAsString(), equalTo(source("2", "test")));
         logger.info("Getting #3 (from the translog)");
         getResponse = client("server1").get(getRequest("test").type("type1").id("3")).actionGet();
-        assertThat(getResponse.source(), equalTo(source("3", "test")));
+        assertThat(getResponse.sourceAsString(), equalTo(source("3", "test")));
 
         logger.info("Flushing, so we have actual content in the index files (#3 should be in the index now as well)");
         client("server1").admin().indices().flush(flushRequest("test")).actionGet();
@@ -134,10 +134,10 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractServersTes
         assertThat(getResponse.empty(), equalTo(true));
         logger.info("Getting #2 (not from the translog, but from the index)");
         getResponse = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
-        assertThat(getResponse.source(), equalTo(source("2", "test")));
+        assertThat(getResponse.sourceAsString(), equalTo(source("2", "test")));
         logger.info("Getting #3 (not from the translog, but from the index)");
         getResponse = client("server1").get(getRequest("test").type("type1").id("3")).actionGet();
-        assertThat(getResponse.source(), equalTo(source("3", "test")));
+        assertThat(getResponse.sourceAsString(), equalTo(source("3", "test")));
     }
 
     private String source(String id, String nameValue) {

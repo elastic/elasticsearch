@@ -60,7 +60,7 @@ public class RestPutMappingAction extends BaseRestHandler {
         client.admin().indices().execPutMapping(putMappingRequest, new ActionListener<PutMappingResponse>() {
             @Override public void onResponse(PutMappingResponse response) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.cached(request);
+                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
                     builder.startObject()
                             .field("ok", true)
                             .field("acknowledged", response.acknowledged());
@@ -73,9 +73,10 @@ public class RestPutMappingAction extends BaseRestHandler {
 
             @Override public void onFailure(Throwable e) {
                 try {
+                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
                     Throwable t = unwrapCause(e);
                     if (t instanceof IndexMissingException || t instanceof InvalidTypeNameException) {
-                        channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, JsonBuilder.jsonBuilder().startObject().field("error", t.getMessage()).endObject()));
+                        channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, builder.startObject().field("error", t.getMessage()).endObject()));
                     } else {
                         channel.sendResponse(new JsonThrowableRestResponse(request, e));
                     }

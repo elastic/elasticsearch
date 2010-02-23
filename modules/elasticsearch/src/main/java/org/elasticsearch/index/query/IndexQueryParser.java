@@ -30,6 +30,8 @@ public interface IndexQueryParser extends IndexComponent {
 
     String name();
 
+    Query parse(byte[] source) throws ElasticSearchException;
+
     Query parse(String source) throws ElasticSearchException;
 
     Query parse(QueryBuilder queryBuilder) throws ElasticSearchException;

@@ -65,6 +65,8 @@ public class SimpleEngineBenchmark {
 
     private String[] contentItems = new String[]{"test1", "test2", "test3"};
 
+    private static byte[] TRANSLOG_PAYLOAD = new byte[12];
+
     private volatile int lastRefreshedId = 0;
 
 
@@ -152,7 +154,7 @@ public class SimpleEngineBenchmark {
             String sId = Integer.toString(id);
             Document doc = doc().add(field("_id", sId))
                     .add(field("content", contentItem)).build();
-            engine.index(new Engine.Index(new Term("_id", sId), doc, Lucene.STANDARD_ANALYZER, "type", sId, "{ ... }"));
+            engine.index(new Engine.Index(new Term("_id", sId), doc, Lucene.STANDARD_ANALYZER, "type", sId, TRANSLOG_PAYLOAD));
         }
         engine.refresh(new Engine.Refresh(true));
         stopWatch.stop();
@@ -261,7 +263,7 @@ public class SimpleEngineBenchmark {
                     String sId = Integer.toString(id);
                     Document doc = doc().add(field("_id", sId))
                             .add(field("content", content(id))).build();
-                    engine.index(new Engine.Index(new Term("_id", sId), doc, Lucene.STANDARD_ANALYZER, "type", sId, "{ ... }"));
+                    engine.index(new Engine.Index(new Term("_id", sId), doc, Lucene.STANDARD_ANALYZER, "type", sId, TRANSLOG_PAYLOAD));
                 }
             } catch (Exception e) {
                 System.out.println("Writer thread failed");

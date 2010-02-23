@@ -20,6 +20,7 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.io.Streamable;
 
 import java.io.DataInput;
@@ -37,12 +38,12 @@ public class GetResponse implements ActionResponse, Streamable {
 
     private String id;
 
-    private String source;
+    private byte[] source;
 
     public GetResponse() {
     }
 
-    public GetResponse(String index, String type, String id, String source) {
+    public GetResponse(String index, String type, String id, byte[] source) {
         this.index = index;
         this.type = type;
         this.id = id;
@@ -65,16 +66,22 @@ public class GetResponse implements ActionResponse, Streamable {
         return id;
     }
 
-    public String source() {
+    public byte[] source() {
         return this.source;
+    }
+
+    public String sourceAsString() {
+        return Unicode.fromBytes(source);
     }
 
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
         index = in.readUTF();
         type = in.readUTF();
         id = in.readUTF();
-        if (in.readBoolean()) {
-            source = in.readUTF();
+        int size = in.readInt();
+        if (size > 0) {
+            source = new byte[size];
+            in.readFully(source);
         }
     }
 
@@ -83,10 +90,10 @@ public class GetResponse implements ActionResponse, Streamable {
         out.writeUTF(type);
         out.writeUTF(id);
         if (source == null) {
-            out.writeBoolean(false);
+            out.writeInt(0);
         } else {
-            out.writeBoolean(true);
-            out.writeUTF(source);
+            out.writeInt(source.length);
+            out.write(source);
         }
     }
 }

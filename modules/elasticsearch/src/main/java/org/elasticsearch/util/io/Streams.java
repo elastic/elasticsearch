@@ -263,4 +263,12 @@ public abstract class Streams {
         }
         return copyToString(new InputStreamReader(is));
     }
+
+    public static byte[] copyToBytesFromClasspath(String path) throws IOException {
+        InputStream is = Streams.class.getResourceAsStream(path);
+        if (is == null) {
+            throw new FileNotFoundException("Resource [" + path + "] not found in classpath");
+        }
+        return copyToByteArray(is);
+    }
 }

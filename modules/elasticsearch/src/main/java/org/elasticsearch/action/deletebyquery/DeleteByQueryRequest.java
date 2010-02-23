@@ -55,7 +55,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
     }
 
     @Required public DeleteByQueryRequest querySource(QueryBuilder queryBuilder) {
-        return querySource(queryBuilder.build());
+        return querySource(queryBuilder.buildAsString());
     }
 
     @Required public DeleteByQueryRequest querySource(String querySource) {

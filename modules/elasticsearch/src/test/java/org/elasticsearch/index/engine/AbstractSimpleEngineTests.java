@@ -102,6 +102,10 @@ public abstract class AbstractSimpleEngineTests {
 
     protected abstract Engine createEngine(Store store);
 
+    private static final byte[] B_1 = new byte[]{1};
+    private static final byte[] B_2 = new byte[]{2};
+    private static final byte[] B_3 = new byte[]{3};
+
     @Test public void testSimpleOperations() throws Exception {
         Engine.Searcher searchResult = engine.searcher();
 
@@ -109,7 +113,7 @@ public abstract class AbstractSimpleEngineTests {
         searchResult.release();
 
         // create a document
-        engine.create(new Engine.Create(doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "1", "{1}"));
+        engine.create(new Engine.Create(doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "1", B_1));
 
         // its not there...
         searchResult = engine.searcher();
@@ -127,7 +131,7 @@ public abstract class AbstractSimpleEngineTests {
         searchResult.release();
 
         // now do an update
-        engine.index(new Engine.Index(newUid("1"), doc().add(field("_uid", "1")).add(field("value", "test1")).build(), Lucene.STANDARD_ANALYZER, "test", "1", "{1}"));
+        engine.index(new Engine.Index(newUid("1"), doc().add(field("_uid", "1")).add(field("value", "test1")).build(), Lucene.STANDARD_ANALYZER, "test", "1", B_1));
 
         // its not updated yet...
         searchResult = engine.searcher();
@@ -165,7 +169,7 @@ public abstract class AbstractSimpleEngineTests {
         searchResult.release();
 
         // add it back
-        engine.create(new Engine.Create(doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "1", "{1}"));
+        engine.create(new Engine.Create(doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "1", B_1));
 
         // its not there...
         searchResult = engine.searcher();
@@ -189,7 +193,7 @@ public abstract class AbstractSimpleEngineTests {
 
         // make sure we can still work with the engine
         // now do an update
-        engine.index(new Engine.Index(newUid("1"), doc().add(field("_uid", "1")).add(field("value", "test1")).build(), Lucene.STANDARD_ANALYZER, "test", "1", "{1}"));
+        engine.index(new Engine.Index(newUid("1"), doc().add(field("_uid", "1")).add(field("value", "test1")).build(), Lucene.STANDARD_ANALYZER, "test", "1", B_1));
 
         // its not updated yet...
         searchResult = engine.searcher();
@@ -228,7 +232,7 @@ public abstract class AbstractSimpleEngineTests {
         searchResult.release();
 
         // create a document
-        engine.create(new Engine.Create(doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "1", "{1}"));
+        engine.create(new Engine.Create(doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "1", B_1));
 
         // its not there...
         searchResult = engine.searcher();
@@ -260,7 +264,7 @@ public abstract class AbstractSimpleEngineTests {
 
     @Test public void testSimpleSnapshot() throws Exception {
         // create a document
-        engine.create(new Engine.Create(doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "1", "{1}"));
+        engine.create(new Engine.Create(doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "1", B_1));
 
         final ExecutorService executorService = Executors.newCachedThreadPool();
 
@@ -269,14 +273,14 @@ public abstract class AbstractSimpleEngineTests {
                 assertThat(snapshotIndexCommit1, snapshotIndexCommitExists());
                 assertThat(translogSnapshot1, translogSize(1));
                 Translog.Create create1 = (Translog.Create) translogSnapshot1.iterator().next();
-                assertThat(create1.source(), equalTo("{1}"));
+                assertThat(create1.source(), equalTo(B_1));
 
                 Future<Object> future = executorService.submit(new Callable<Object>() {
                     @Override public Object call() throws Exception {
                         engine.flush(new Engine.Flush());
-                        engine.create(new Engine.Create(doc().add(field("_uid", "2")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "2", "{2}"));
+                        engine.create(new Engine.Create(doc().add(field("_uid", "2")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "2", B_2));
                         engine.flush(new Engine.Flush());
-                        engine.create(new Engine.Create(doc().add(field("_uid", "3")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "3", "{3}"));
+                        engine.create(new Engine.Create(doc().add(field("_uid", "3")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "3", B_3));
                         return null;
                     }
                 });
@@ -297,7 +301,7 @@ public abstract class AbstractSimpleEngineTests {
                         assertThat(snapshotIndexCommit2.getSegmentsFileName(), not(equalTo(snapshotIndexCommit1.getSegmentsFileName())));
                         assertThat(translogSnapshot2, translogSize(1));
                         Translog.Create create3 = (Translog.Create) translogSnapshot2.iterator().next();
-                        assertThat(create3.source(), equalTo("{3}"));
+                        assertThat(create3.source(), equalTo(B_3));
                     }
                 });
             }
@@ -307,7 +311,7 @@ public abstract class AbstractSimpleEngineTests {
     }
 
     @Test public void testSimpleRecover() throws Exception {
-        engine.create(new Engine.Create(doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "1", "{1}"));
+        engine.create(new Engine.Create(doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "1", B_1));
         engine.flush(new Engine.Flush());
 
         engine.recover(new Engine.RecoveryHandler() {
@@ -347,9 +351,9 @@ public abstract class AbstractSimpleEngineTests {
     }
 
     @Test public void testRecoverWithOperationsBetweenPhase1AndPhase2() throws Exception {
-        engine.create(new Engine.Create(doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "1", "{1}"));
+        engine.create(new Engine.Create(doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "1", B_1));
         engine.flush(new Engine.Flush());
-        engine.create(new Engine.Create(doc().add(field("_uid", "2")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "2", "{2}"));
+        engine.create(new Engine.Create(doc().add(field("_uid", "2")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "2", B_2));
 
         engine.recover(new Engine.RecoveryHandler() {
             @Override public void phase1(SnapshotIndexCommit snapshot) throws EngineException {
@@ -358,7 +362,7 @@ public abstract class AbstractSimpleEngineTests {
             @Override public void phase2(Translog.Snapshot snapshot) throws EngineException {
                 assertThat(snapshot, translogSize(1));
                 Translog.Create create = (Translog.Create) snapshot.iterator().next();
-                assertThat(create.source(), equalTo("{2}"));
+                assertThat(create.source(), equalTo(B_2));
             }
 
             @Override public void phase3(Translog.Snapshot snapshot) throws EngineException {
@@ -371,9 +375,9 @@ public abstract class AbstractSimpleEngineTests {
     }
 
     @Test public void testRecoverWithOperationsBetweenPhase1AndPhase2AndPhase3() throws Exception {
-        engine.create(new Engine.Create(doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "1", "{1}"));
+        engine.create(new Engine.Create(doc().add(field("_uid", "1")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "1", B_1));
         engine.flush(new Engine.Flush());
-        engine.create(new Engine.Create(doc().add(field("_uid", "2")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "2", "{2}"));
+        engine.create(new Engine.Create(doc().add(field("_uid", "2")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "2", B_2));
 
         engine.recover(new Engine.RecoveryHandler() {
             @Override public void phase1(SnapshotIndexCommit snapshot) throws EngineException {
@@ -382,16 +386,16 @@ public abstract class AbstractSimpleEngineTests {
             @Override public void phase2(Translog.Snapshot snapshot) throws EngineException {
                 assertThat(snapshot, translogSize(1));
                 Translog.Create create = (Translog.Create) snapshot.iterator().next();
-                assertThat(create.source(), equalTo("{2}"));
+                assertThat(create.source(), equalTo(B_2));
 
                 // add for phase3
-                engine.create(new Engine.Create(doc().add(field("_uid", "3")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "3", "{3}"));
+                engine.create(new Engine.Create(doc().add(field("_uid", "3")).add(field("value", "test")).build(), Lucene.STANDARD_ANALYZER, "test", "3", B_3));
             }
 
             @Override public void phase3(Translog.Snapshot snapshot) throws EngineException {
                 assertThat(snapshot, translogSize(1));
                 Translog.Create create = (Translog.Create) snapshot.iterator().next();
-                assertThat(create.source(), equalTo("{3}"));
+                assertThat(create.source(), equalTo(B_3));
             }
         });
 

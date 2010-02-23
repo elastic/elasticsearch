@@ -25,10 +25,12 @@ import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
 import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBufferInputStream;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
 import org.jboss.netty.handler.codec.http.HttpMethod;
 import org.jboss.netty.handler.codec.http.QueryStringDecoder;
 
+import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -79,6 +81,16 @@ public class NettyHttpRequest implements HttpRequest {
 
     @Override public boolean hasContent() {
         return request.getContent().readableBytes() > 0;
+    }
+
+    @Override public InputStream contentAsStream() {
+        return new ChannelBufferInputStream(request.getContent());
+    }
+
+    @Override public byte[] contentAsBytes() {
+        byte[] data = new byte[request.getContent().readableBytes()];
+        request.getContent().getBytes(request.getContent().readerIndex(), data);
+        return data;
     }
 
     @Override public String contentAsString() {
@@ -142,6 +154,10 @@ public class NettyHttpRequest implements HttpRequest {
 
     @Override public SizeValue paramAsSize(String key, SizeValue defaultValue) {
         return parseSizeValue(param(key), defaultValue);
+    }
+
+    @Override public boolean hasParam(String key) {
+        return queryStringDecoder.getParameters().containsKey(key);
     }
 
     @Override public String param(String key) {

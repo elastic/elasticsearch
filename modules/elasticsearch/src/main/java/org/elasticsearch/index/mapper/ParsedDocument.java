@@ -34,11 +34,11 @@ public class ParsedDocument {
 
     private final Document document;
 
-    private final String source;
+    private final byte[] source;
 
     private boolean mappersAdded;
 
-    public ParsedDocument(String uid, String id, String type, Document document, String source, boolean mappersAdded) {
+    public ParsedDocument(String uid, String id, String type, Document document, byte[] source, boolean mappersAdded) {
         this.uid = uid;
         this.id = id;
         this.type = type;
@@ -63,7 +63,7 @@ public class ParsedDocument {
         return this.document;
     }
 
-    public String source() {
+    public byte[] source() {
         return this.source;
     }
 

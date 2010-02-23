@@ -56,10 +56,12 @@ public class JsonBuilderTests {
     }
 
     @Test public void testSimpleJacksonGenerator() throws Exception {
-        JsonBuilder builder = new JsonBuilder();
-        assertThat(builder.startObject().field("test", "value").endObject().string(), equalTo("{\"test\":\"value\"}"));
+        StringJsonBuilder builder = JsonBuilder.stringJsonBuilder();
+        builder.startObject().field("test", "value").endObject();
+        assertThat(builder.string(), equalTo("{\"test\":\"value\"}"));
         builder.reset();
-        assertThat(builder.startObject().field("test", "value").endObject().string(), equalTo("{\"test\":\"value\"}"));
+        builder.startObject().field("test", "value").endObject();
+        assertThat(builder.string(), equalTo("{\"test\":\"value\"}"));
     }
 
     @Test public void testWritingBinaryToStream() throws Exception {

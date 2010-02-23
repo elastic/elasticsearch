@@ -76,11 +76,6 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private final Translog translog;
 
-
-    // the number of docs to sniff for mapping information in each type
-    private final int mappingSnifferDocs;
-
-
     private final Object mutex = new Object();
 
     private volatile IndexShardState state;
@@ -100,8 +95,6 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         this.queryParserService = queryParserService;
         this.filterCache = filterCache;
         state = IndexShardState.CREATED;
-
-        this.mappingSnifferDocs = componentSettings.getAsInt("mappingSnifferDocs", 100);
     }
 
     public Store store() {
@@ -204,12 +197,12 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         return engine.estimateFlushableMemorySize();
     }
 
-    public ParsedDocument create(String type, String id, String source) throws ElasticSearchException {
+    public ParsedDocument create(String type, String id, byte[] source) throws ElasticSearchException {
         writeAllowed();
         return innerCreate(type, id, source);
     }
 
-    private ParsedDocument innerCreate(String type, String id, String source) {
+    private ParsedDocument innerCreate(String type, String id, byte[] source) {
         DocumentMapper docMapper = mapperService.type(type);
         if (docMapper == null) {
             throw new DocumentMapperNotFoundException("No mapper found for type [" + type + "]");
@@ -222,12 +215,12 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         return doc;
     }
 
-    public ParsedDocument index(String type, String id, String source) throws ElasticSearchException {
+    public ParsedDocument index(String type, String id, byte[] source) throws ElasticSearchException {
         writeAllowed();
         return innerIndex(type, id, source);
     }
 
-    private ParsedDocument innerIndex(String type, String id, String source) {
+    private ParsedDocument innerIndex(String type, String id, byte[] source) {
         DocumentMapper docMapper = mapperService.type(type);
         if (docMapper == null) {
             throw new DocumentMapperNotFoundException("No mapper found for type [" + type + "]");
@@ -287,7 +280,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         engine.delete(new Engine.DeleteByQuery(query, querySource, queryParserName, types));
     }
 
-    public String get(String type, String id) throws ElasticSearchException {
+    public byte[] get(String type, String id) throws ElasticSearchException {
         readAllowed();
         DocumentMapper docMapper = mapperService.type(type);
         if (docMapper == null) {

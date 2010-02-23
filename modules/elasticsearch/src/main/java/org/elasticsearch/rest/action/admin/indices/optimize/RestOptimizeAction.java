@@ -67,7 +67,8 @@ public class RestOptimizeAction extends BaseRestHandler {
             optimizeRequest.operationThreading(operationThreading);
         } catch (Exception e) {
             try {
-                channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, JsonBuilder.jsonBuilder().startObject().field("error", e.getMessage()).endObject()));
+                JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, builder.startObject().field("error", e.getMessage()).endObject()));
             } catch (IOException e1) {
                 logger.error("Failed to send failure response", e1);
             }
@@ -76,7 +77,7 @@ public class RestOptimizeAction extends BaseRestHandler {
         client.admin().indices().execOptimize(optimizeRequest, new ActionListener<OptimizeResponse>() {
             @Override public void onResponse(OptimizeResponse response) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.cached(request);
+                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
                     builder.startObject();
                     builder.field("ok", true);
 

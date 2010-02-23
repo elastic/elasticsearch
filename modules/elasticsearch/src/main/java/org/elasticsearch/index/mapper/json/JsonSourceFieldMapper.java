@@ -20,10 +20,7 @@
 package org.elasticsearch.index.mapper.json;
 
 import org.apache.lucene.document.*;
-import org.elasticsearch.index.mapper.MapperCompressionException;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.util.io.compression.Compressor;
-import org.elasticsearch.util.io.compression.ZipCompressor;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.lucene.Lucene;
 
@@ -32,7 +29,7 @@ import java.io.IOException;
 /**
  * @author kimchy (Shay Banon)
  */
-public class JsonSourceFieldMapper extends JsonFieldMapper<String> implements SourceFieldMapper {
+public class JsonSourceFieldMapper extends JsonFieldMapper<byte[]> implements SourceFieldMapper {
 
     public static final String JSON_TYPE = "sourceField";
 
@@ -43,17 +40,11 @@ public class JsonSourceFieldMapper extends JsonFieldMapper<String> implements So
         public static final Field.Store STORE = Field.Store.YES;
         public static final boolean OMIT_NORMS = true;
         public static final boolean OMIT_TERM_FREQ_AND_POSITIONS = true;
-        public static final Compressor COMPRESSOR = new ZipCompressor();
-        public static final int NO_COMPRESSION = -1;
     }
 
     public static class Builder extends JsonMapper.Builder<Builder, JsonSourceFieldMapper> {
 
         private boolean enabled = Defaults.ENABLED;
-
-        private Compressor compressor = Defaults.COMPRESSOR;
-
-        private int compressionThreshold = Defaults.NO_COMPRESSION;
 
         public Builder() {
             super(Defaults.NAME);
@@ -65,27 +56,12 @@ public class JsonSourceFieldMapper extends JsonFieldMapper<String> implements So
 //            return this;
 //        }
 
-        public Builder compressor(Compressor compressor) {
-            this.compressor = compressor;
-            return this;
-        }
-
-        public Builder compressionThreshold(int compressionThreshold) {
-            this.compressionThreshold = compressionThreshold;
-            return this;
-        }
-
         @Override public JsonSourceFieldMapper build(BuilderContext context) {
-            return new JsonSourceFieldMapper(name, enabled, compressionThreshold, compressor);
+            return new JsonSourceFieldMapper(name, enabled);
         }
     }
 
     private final boolean enabled;
-
-    private final Compressor compressor;
-
-    // the size of the source file that we will perform compression for
-    private final int compressionThreshold;
 
     private final SourceFieldSelector fieldSelector;
 
@@ -94,15 +70,9 @@ public class JsonSourceFieldMapper extends JsonFieldMapper<String> implements So
     }
 
     protected JsonSourceFieldMapper(String name, boolean enabled) {
-        this(name, enabled, Defaults.NO_COMPRESSION, Defaults.COMPRESSOR);
-    }
-
-    protected JsonSourceFieldMapper(String name, boolean enabled, int compressionThreshold, Compressor compressor) {
         super(new Names(name, name, name, name), Defaults.INDEX, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.BOOST,
                 Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
         this.enabled = enabled;
-        this.compressionThreshold = compressionThreshold;
-        this.compressor = compressor;
         this.fieldSelector = new SourceFieldSelector(names.indexName());
     }
 
@@ -118,41 +88,20 @@ public class JsonSourceFieldMapper extends JsonFieldMapper<String> implements So
         if (!enabled) {
             return null;
         }
-        Field sourceField;
-        if (compressionThreshold == Defaults.NO_COMPRESSION || jsonContext.source().length() < compressionThreshold) {
-            sourceField = new Field(names.indexName(), jsonContext.source(), store, index);
-        } else {
-            try {
-                sourceField = new Field(names.indexName(), compressor.compressString(jsonContext.source()), store);
-            } catch (IOException e) {
-                throw new MapperCompressionException("Failed to compress data", e);
-            }
-        }
-        return sourceField;
+        return new Field(names.indexName(), jsonContext.source(), store);
     }
 
-    @Override public String value(Document document) {
+    @Override public byte[] value(Document document) {
         Fieldable field = document.getFieldable(names.indexName());
         return field == null ? null : value(field);
     }
 
-    @Override public String value(Fieldable field) {
-        if (field.stringValue() != null) {
-            return field.stringValue();
-        }
-        byte[] compressed = field.getBinaryValue();
-        if (compressed == null) {
-            return null;
-        }
-        try {
-            return compressor.decompressString(compressed);
-        } catch (IOException e) {
-            throw new MapperCompressionException("Failed to decompress data", e);
-        }
+    @Override public byte[] value(Fieldable field) {
+        return field.getBinaryValue();
     }
 
     @Override public String valueAsString(Fieldable field) {
-        return value(field);
+        throw new UnsupportedOperationException();
     }
 
     @Override public String indexedValue(String value) {

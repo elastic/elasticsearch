@@ -66,7 +66,7 @@ public class RestMainAction extends BaseRestHandler {
 
     @Override public void handleRequest(RestRequest request, RestChannel channel) {
         try {
-            JsonBuilder builder = RestJsonBuilder.cached(request).prettyPrint();
+            JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request).prettyPrint();
             builder.startObject();
             builder.field("ok", true);
             if (settings.get("name") != null) {

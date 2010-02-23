@@ -38,7 +38,7 @@ import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class DocumentActionsTests extends AbstractServersTests {
 
@@ -73,9 +73,9 @@ public class DocumentActionsTests extends AbstractServersTests {
         logger.info("Get [type1/1]");
         for (int i = 0; i < 5; i++) {
             getResult = client("server1").get(getRequest("test").type("type1").id("1").threadedOperation(false)).actionGet();
-            assertThat("cycle #" + i, getResult.source(), equalTo(source("1", "test")));
+            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test")));
             getResult = client("server1").get(getRequest("test").type("type1").id("1").threadedOperation(true)).actionGet();
-            assertThat("cycle #" + i, getResult.source(), equalTo(source("1", "test")));
+            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test")));
         }
 
         logger.info("Get [type1/2] (should be empty)");
@@ -112,9 +112,9 @@ public class DocumentActionsTests extends AbstractServersTests {
         logger.info("Get [type1/1] and [type1/2]");
         for (int i = 0; i < 5; i++) {
             getResult = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
-            assertThat("cycle #" + i, getResult.source(), equalTo(source("1", "test")));
+            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test")));
             getResult = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
-            assertThat("cycle #" + i, getResult.source(), equalTo(source("2", "test")));
+            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("2", "test")));
         }
 
         logger.info("Count");
@@ -153,7 +153,7 @@ public class DocumentActionsTests extends AbstractServersTests {
         logger.info("Get [type1/1] and [type1/2], should be empty");
         for (int i = 0; i < 5; i++) {
             getResult = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
-            assertThat("cycle #" + i, getResult.source(), equalTo(source("1", "test")));
+            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test")));
             getResult = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
             assertThat("cycle #" + i, getResult.empty(), equalTo(false));
         }

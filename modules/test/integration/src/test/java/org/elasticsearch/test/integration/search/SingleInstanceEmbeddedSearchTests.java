@@ -99,7 +99,7 @@ public class SingleInstanceEmbeddedSearchTests extends AbstractServersTests {
         QueryFetchSearchResult queryFetchResult = searchService.executeFetchPhase(searchRequest(searchSource().query(termQuery("name", "test1"))));
         assertThat(queryFetchResult.queryResult().topDocs().totalHits, equalTo(1));
         assertThat(queryFetchResult.fetchResult().hits().hits().length, equalTo(1));
-        assertThat(queryFetchResult.fetchResult().hits().hits()[0].source(), equalTo(source("1", "test1", 1)));
+        assertThat(queryFetchResult.fetchResult().hits().hits()[0].sourceAsString(), equalTo(source("1", "test1", 1)));
         assertThat(queryFetchResult.fetchResult().hits().hits()[0].id(), equalTo("1"));
         assertThat(queryFetchResult.fetchResult().hits().hits()[0].type(), equalTo("type1"));
     }
@@ -114,7 +114,7 @@ public class SingleInstanceEmbeddedSearchTests extends AbstractServersTests {
         assertThat(docIdsToLoad.values().iterator().next().size(), equalTo(1));
 
         FetchSearchResult fetchResult = searchService.executeFetchPhase(new FetchSearchRequest(queryResult.id(), docIdsToLoad.values().iterator().next()));
-        assertThat(fetchResult.hits().hits()[0].source(), equalTo(source("1", "test1", 1)));
+        assertThat(fetchResult.hits().hits()[0].sourceAsString(), equalTo(source("1", "test1", 1)));
         assertThat(fetchResult.hits().hits()[0].id(), equalTo("1"));
         assertThat(fetchResult.hits().hits()[0].type(), equalTo("type1"));
     }
@@ -122,7 +122,7 @@ public class SingleInstanceEmbeddedSearchTests extends AbstractServersTests {
     @Test public void testQueryFetchInOneGo() throws Exception {
         QueryFetchSearchResult result = searchService.executeFetchPhase(searchRequest(searchSource().query(termQuery("name", "test1"))));
         FetchSearchResult fetchResult = result.fetchResult();
-        assertThat(fetchResult.hits().hits()[0].source(), equalTo(source("1", "test1", 1)));
+        assertThat(fetchResult.hits().hits()[0].sourceAsString(), equalTo(source("1", "test1", 1)));
         assertThat(fetchResult.hits().hits()[0].id(), equalTo("1"));
         assertThat(fetchResult.hits().hits()[0].type(), equalTo("type1"));
     }
@@ -140,7 +140,7 @@ public class SingleInstanceEmbeddedSearchTests extends AbstractServersTests {
         assertThat(docIdsToLoad.values().iterator().next().size(), equalTo(1));
 
         FetchSearchResult fetchResult = searchService.executeFetchPhase(new FetchSearchRequest(queryResult.id(), docIdsToLoad.values().iterator().next()));
-        assertThat(fetchResult.hits().hits()[0].source(), equalTo(source("1", "test1", 1)));
+        assertThat(fetchResult.hits().hits()[0].sourceAsString(), equalTo(source("1", "test1", 1)));
         assertThat(fetchResult.hits().hits()[0].id(), equalTo("1"));
         assertThat(fetchResult.hits().hits()[0].type(), equalTo("type1"));
     }

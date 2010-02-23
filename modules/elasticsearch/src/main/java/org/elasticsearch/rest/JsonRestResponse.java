@@ -25,20 +25,17 @@ import org.elasticsearch.util.json.JsonBuilder;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class JsonRestResponse extends Utf8RestResponse {
+public class JsonRestResponse extends AbstractRestResponse {
 
-    private static ThreadLocal<UnicodeUtil.UTF8Result> cache = new ThreadLocal<UnicodeUtil.UTF8Result>() {
-        @Override protected UnicodeUtil.UTF8Result initialValue() {
-            return new UnicodeUtil.UTF8Result();
-        }
-    };
-
-    private static final UnicodeUtil.UTF8Result END_JSONP = new UnicodeUtil.UTF8Result();
+    private static final byte[] END_JSONP;
 
     static {
-        UnicodeUtil.UTF16toUTF8(");", 0, ");".length(), END_JSONP);
+        UnicodeUtil.UTF8Result U_END_JSONP = new UnicodeUtil.UTF8Result();
+        UnicodeUtil.UTF16toUTF8(");", 0, ");".length(), U_END_JSONP);
+        END_JSONP = new byte[U_END_JSONP.length];
+        System.arraycopy(U_END_JSONP.result, 0, END_JSONP, 0, U_END_JSONP.length);
     }
 
     private static ThreadLocal<UnicodeUtil.UTF8Result> prefixCache = new ThreadLocal<UnicodeUtil.UTF8Result>() {
@@ -47,26 +44,70 @@ public class JsonRestResponse extends Utf8RestResponse {
         }
     };
 
+    private final UnicodeUtil.UTF8Result prefixUtf8Result;
+
+    private final Status status;
+
+    private final JsonBuilder jsonBuilder;
+
     public JsonRestResponse(RestRequest request, Status status) {
-        super(status, EMPTY, startJsonp(request), endJsonp(request));
+        this.jsonBuilder = null;
+        this.status = status;
+        this.prefixUtf8Result = startJsonp(request);
     }
 
     public JsonRestResponse(RestRequest request, Status status, JsonBuilder jsonBuilder) throws IOException {
-        super(status, jsonBuilder.utf8(), startJsonp(request), endJsonp(request));
-    }
-
-    public JsonRestResponse(RestRequest request, Status status, String source) throws IOException {
-        super(status, convert(source), startJsonp(request), endJsonp(request));
+        this.jsonBuilder = jsonBuilder;
+        this.status = status;
+        this.prefixUtf8Result = startJsonp(request);
     }
 
     @Override public String contentType() {
         return "application/json; charset=UTF-8";
     }
 
-    private static UnicodeUtil.UTF8Result convert(String content) {
-        UnicodeUtil.UTF8Result result = cache.get();
-        UnicodeUtil.UTF16toUTF8(content, 0, content.length(), result);
-        return result;
+    @Override public boolean contentThreadSafe() {
+        return false;
+    }
+
+    @Override public byte[] content() throws IOException {
+        return jsonBuilder.unsafeBytes();
+    }
+
+    @Override public int contentLength() throws IOException {
+        return jsonBuilder.unsafeBytesLength();
+    }
+
+    @Override public Status status() {
+        return this.status;
+    }
+
+    @Override public byte[] prefixContent() {
+        if (prefixUtf8Result != null) {
+            return prefixUtf8Result.result;
+        }
+        return null;
+    }
+
+    @Override public int prefixContentLength() {
+        if (prefixUtf8Result != null) {
+            return prefixUtf8Result.length;
+        }
+        return -1;
+    }
+
+    @Override public byte[] suffixContent() {
+        if (prefixUtf8Result != null) {
+            return END_JSONP;
+        }
+        return null;
+    }
+
+    @Override public int suffixContentLength() {
+        if (prefixUtf8Result != null) {
+            return END_JSONP.length;
+        }
+        return -1;
     }
 
     private static UnicodeUtil.UTF8Result startJsonp(RestRequest request) {
@@ -80,13 +121,4 @@ public class JsonRestResponse extends Utf8RestResponse {
         result.length++;
         return result;
     }
-
-    private static UnicodeUtil.UTF8Result endJsonp(RestRequest request) {
-        String callback = request.param("callback");
-        if (callback == null) {
-            return null;
-        }
-        return END_JSONP;
-    }
-
 }

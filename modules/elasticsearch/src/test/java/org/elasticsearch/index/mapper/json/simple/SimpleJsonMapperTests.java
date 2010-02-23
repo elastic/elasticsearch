@@ -43,9 +43,9 @@ public class SimpleJsonMapperTests {
         JsonDocumentMapper docMapper = doc(
                 object("person")
                         .add(object("name").add(stringField("first").store(YES).index(Field.Index.NO)))
-        ).sourceField(source().compressionThreshold(0)).build();
+        ).sourceField(source()).build();
 
-        String json = copyToStringFromClasspath("/org/elasticsearch/index/mapper/json/simple/test1.json");
+        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/json/simple/test1.json");
         Document doc = docMapper.parse("person", "1", json).doc();
 
         assertThat((double) doc.getBoost(), closeTo(3.7, 0.01));
@@ -65,7 +65,7 @@ public class SimpleJsonMapperTests {
 //        System.out.println(builtMapping);
         // reparse it
         JsonDocumentMapper builtDocMapper = (JsonDocumentMapper) new JsonDocumentMapperParser(new AnalysisService(new Index("test"))).parse(builtMapping);
-        String json = copyToStringFromClasspath("/org/elasticsearch/index/mapper/json/simple/test1.json");
+        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/json/simple/test1.json");
         Document doc = builtDocMapper.parse(json).doc();
         assertThat(doc.get(docMapper.uidMapper().names().indexName()), equalTo(Uid.createUid("person", "1")));
         assertThat((double) doc.getBoost(), closeTo(3.7, 0.01));
@@ -78,7 +78,7 @@ public class SimpleJsonMapperTests {
     @Test public void testSimpleParser() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/json/simple/test-mapping.json");
         JsonDocumentMapper docMapper = (JsonDocumentMapper) new JsonDocumentMapperParser(new AnalysisService(new Index("test"))).parse(mapping);
-        String json = copyToStringFromClasspath("/org/elasticsearch/index/mapper/json/simple/test1.json");
+        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/json/simple/test1.json");
         Document doc = docMapper.parse(json).doc();
         assertThat(doc.get(docMapper.uidMapper().names().indexName()), equalTo(Uid.createUid("person", "1")));
         assertThat((double) doc.getBoost(), closeTo(3.7, 0.01));
@@ -91,7 +91,7 @@ public class SimpleJsonMapperTests {
     @Test public void testSimpleParserMappingWithNoType() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/json/simple/test-mapping-notype.json");
         JsonDocumentMapper docMapper = (JsonDocumentMapper) new JsonDocumentMapperParser(new AnalysisService(new Index("test"))).parse("person", mapping);
-        String json = copyToStringFromClasspath("/org/elasticsearch/index/mapper/json/simple/test1.json");
+        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/json/simple/test1.json");
         Document doc = docMapper.parse(json).doc();
         assertThat(doc.get(docMapper.uidMapper().names().indexName()), equalTo(Uid.createUid("person", "1")));
         assertThat((double) doc.getBoost(), closeTo(3.7, 0.01));
@@ -104,7 +104,7 @@ public class SimpleJsonMapperTests {
     @Test public void testSimpleParserNoTypeNoId() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/json/simple/test-mapping.json");
         JsonDocumentMapper docMapper = (JsonDocumentMapper) new JsonDocumentMapperParser(new AnalysisService(new Index("test"))).parse(mapping);
-        String json = copyToStringFromClasspath("/org/elasticsearch/index/mapper/json/simple/test1-notype-noid.json");
+        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/json/simple/test1-notype-noid.json");
         Document doc = docMapper.parse("person", "1", json).doc();
         assertThat(doc.get(docMapper.uidMapper().names().indexName()), equalTo(Uid.createUid("person", "1")));
         assertThat((double) doc.getBoost(), closeTo(3.7, 0.01));

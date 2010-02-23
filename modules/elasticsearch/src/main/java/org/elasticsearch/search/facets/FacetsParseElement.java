@@ -72,7 +72,7 @@ public class FacetsParseElement implements SearchParseElement {
 
                     if ("query".equals(facetType)) {
                         JsonIndexQueryParser indexQueryParser = (JsonIndexQueryParser) context.queryParser();
-                        Query facetQuery = indexQueryParser.parse(jp, context.source());
+                        Query facetQuery = indexQueryParser.parse(jp);
 
                         if (queryFacets == null) {
                             queryFacets = Lists.newArrayListWithCapacity(2);

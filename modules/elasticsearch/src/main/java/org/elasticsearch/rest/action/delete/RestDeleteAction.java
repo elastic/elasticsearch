@@ -54,7 +54,7 @@ public class RestDeleteAction extends BaseRestHandler {
         client.execDelete(deleteRequest, new ActionListener<DeleteResponse>() {
             @Override public void onResponse(DeleteResponse result) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.cached(request);
+                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
                     builder.startObject()
                             .field("ok", true)
                             .field("_index", result.index())

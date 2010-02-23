@@ -39,7 +39,7 @@ public class JsonParseContext {
 
     private String type;
 
-    private String source;
+    private byte[] source;
 
     private String id;
 
@@ -56,7 +56,7 @@ public class JsonParseContext {
         this.path = path;
     }
 
-    public void reset(JsonParser jsonParser, Document document, String type, String source) {
+    public void reset(JsonParser jsonParser, Document document, String type, byte[] source) {
         this.jsonParser = jsonParser;
         this.document = document;
         this.type = type;
@@ -78,7 +78,7 @@ public class JsonParseContext {
         return this.type;
     }
 
-    public String source() {
+    public byte[] source() {
         return this.source;
     }
 

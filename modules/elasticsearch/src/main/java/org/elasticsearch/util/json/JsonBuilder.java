@@ -19,12 +19,7 @@
 
 package org.elasticsearch.util.json;
 
-import org.apache.lucene.util.UnicodeUtil;
-import org.codehaus.jackson.JsonFactory;
-import org.codehaus.jackson.JsonGenerator;
-import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.util.concurrent.NotThreadSafe;
-import org.elasticsearch.util.io.FastCharArrayWriter;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
 import org.joda.time.format.DateTimeFormatter;
@@ -37,172 +32,112 @@ import java.util.Date;
  * @author kimchy (Shay Banon)
  */
 @NotThreadSafe
-public class JsonBuilder {
+public abstract class JsonBuilder<T extends JsonBuilder> {
 
     private final static DateTimeFormatter defaultDatePrinter = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
 
-    /**
-     * A thread local based cache of {@link JsonBuilder}.
-     */
-    public static class Cached {
+    protected org.codehaus.jackson.JsonGenerator generator;
 
-        private JsonBuilder generator;
+    protected T builder;
 
-        public Cached(JsonBuilder generator) {
-            this.generator = generator;
-        }
-
-        private static final ThreadLocal<Cached> cache = new ThreadLocal<Cached>() {
-            @Override protected Cached initialValue() {
-                try {
-                    return new Cached(new JsonBuilder());
-                } catch (IOException e) {
-                    throw new ElasticSearchException("Failed to create json generator", e);
-                }
-            }
-        };
-
-        /**
-         * Returns the cached thread local generator, with its internal {@link StringBuilder} cleared.
-         */
-        static JsonBuilder cached() throws IOException {
-            Cached cached = cache.get();
-            cached.generator.reset();
-            return cached.generator;
-        }
+    public static StringJsonBuilder stringJsonBuilder() throws IOException {
+        return StringJsonBuilder.Cached.cached();
     }
 
-    public static JsonBuilder jsonBuilder() throws IOException {
-        return Cached.cached();
+    public static BinaryJsonBuilder binaryJsonBuilder() throws IOException {
+        return BinaryJsonBuilder.Cached.cached();
     }
 
-
-    private final FastCharArrayWriter writer;
-
-    private final JsonFactory factory;
-
-    private org.codehaus.jackson.JsonGenerator generator;
-
-    final UnicodeUtil.UTF8Result utf8Result = new UnicodeUtil.UTF8Result();
-
-    public JsonBuilder() throws IOException {
-        this(Jackson.defaultJsonFactory());
-    }
-
-    public JsonBuilder(JsonFactory factory) throws IOException {
-        this.writer = new FastCharArrayWriter();
-        this.factory = factory;
-        this.generator = factory.createJsonGenerator(writer);
-    }
-
-    public JsonBuilder(JsonGenerator generator) throws IOException {
-        this.writer = new FastCharArrayWriter();
-        this.generator = generator;
-        this.factory = null;
-    }
-
-    public JsonBuilder prettyPrint() {
+    public T prettyPrint() {
         generator.useDefaultPrettyPrinter();
-        return this;
+        return builder;
     }
 
-    public JsonBuilder startJsonp(String callback) throws IOException {
-        flush();
-        writer.append(callback).append('(');
-        return this;
-    }
-
-    public JsonBuilder endJsonp() throws IOException {
-        flush();
-        writer.append(");");
-        return this;
-    }
-
-    public JsonBuilder startObject(String name) throws IOException {
+    public T startObject(String name) throws IOException {
         field(name);
         startObject();
-        return this;
+        return builder;
     }
 
-    public JsonBuilder startObject() throws IOException {
+    public T startObject() throws IOException {
         generator.writeStartObject();
-        return this;
+        return builder;
     }
 
-    public JsonBuilder endObject() throws IOException {
+    public T endObject() throws IOException {
         generator.writeEndObject();
-        return this;
+        return builder;
     }
 
-    public JsonBuilder startArray(String name) throws IOException {
+    public T startArray(String name) throws IOException {
         field(name);
         startArray();
-        return this;
+        return builder;
     }
 
-    public JsonBuilder startArray() throws IOException {
+    public T startArray() throws IOException {
         generator.writeStartArray();
-        return this;
+        return builder;
     }
 
-    public JsonBuilder endArray() throws IOException {
+    public T endArray() throws IOException {
         generator.writeEndArray();
-        return this;
+        return builder;
     }
 
-    public JsonBuilder field(String name) throws IOException {
+    public T field(String name) throws IOException {
         generator.writeFieldName(name);
-        return this;
+        return builder;
     }
 
-    public JsonBuilder field(String name, char[] value, int offset, int length) throws IOException {
+    public T field(String name, char[] value, int offset, int length) throws IOException {
         generator.writeFieldName(name);
         if (value == null) {
             generator.writeNull();
         } else {
             generator.writeString(value, offset, length);
         }
-        return this;
+        return builder;
     }
 
-    public JsonBuilder field(String name, String value) throws IOException {
+    public T field(String name, String value) throws IOException {
         generator.writeFieldName(name);
         if (value == null) {
             generator.writeNull();
         } else {
             generator.writeString(value);
         }
-        return this;
+        return builder;
     }
 
-    public JsonBuilder field(String name, int value) throws IOException {
+    public T field(String name, int value) throws IOException {
         generator.writeFieldName(name);
         generator.writeNumber(value);
-        return this;
+        return builder;
     }
 
-    public JsonBuilder field(String name, long value) throws IOException {
+    public T field(String name, long value) throws IOException {
         generator.writeFieldName(name);
         generator.writeNumber(value);
-        return this;
+        return builder;
     }
 
-    public JsonBuilder field(String name, float value) throws IOException {
+    public T field(String name, float value) throws IOException {
         generator.writeFieldName(name);
         generator.writeNumber(value);
-        return this;
+        return builder;
     }
 
-    public JsonBuilder field(String name, double value) throws IOException {
+    public T field(String name, double value) throws IOException {
         generator.writeFieldName(name);
         generator.writeNumber(value);
-        return this;
+        return builder;
     }
 
-    public JsonBuilder field(String name, Object value) throws IOException {
+    public T field(String name, Object value) throws IOException {
         if (value == null) {
             nullField(name);
-            return this;
+            return builder;
         }
         Class type = value.getClass();
         if (type == String.class) {
@@ -220,120 +155,122 @@ public class JsonBuilder {
         } else {
             field(name, value.toString());
         }
-        return this;
+        return builder;
     }
 
-    public JsonBuilder field(String name, boolean value) throws IOException {
+    public T field(String name, boolean value) throws IOException {
         generator.writeFieldName(name);
         generator.writeBoolean(value);
-        return this;
+        return builder;
     }
 
-    public JsonBuilder field(String name, byte[] value) throws IOException {
+    public T field(String name, byte[] value) throws IOException {
         generator.writeFieldName(name);
         generator.writeBinary(value);
-        return this;
+        return builder;
     }
 
-    public JsonBuilder field(String name, ReadableInstant date) throws IOException {
+    public T field(String name, ReadableInstant date) throws IOException {
         generator.writeFieldName(name);
         return date(date);
     }
 
-    public JsonBuilder field(String name, ReadableInstant date, DateTimeFormatter formatter) throws IOException {
+    public T field(String name, ReadableInstant date, DateTimeFormatter formatter) throws IOException {
         generator.writeFieldName(name);
         return date(date, formatter);
     }
 
-    public JsonBuilder field(String name, Date date) throws IOException {
+    public T field(String name, Date date) throws IOException {
         generator.writeFieldName(name);
         return date(date);
     }
 
-    public JsonBuilder field(String name, Date date, DateTimeFormatter formatter) throws IOException {
+    public T field(String name, Date date, DateTimeFormatter formatter) throws IOException {
         generator.writeFieldName(name);
         return date(date, formatter);
     }
 
-    public JsonBuilder nullField(String name) throws IOException {
+    public T nullField(String name) throws IOException {
         generator.writeNullField(name);
-        return this;
+        return builder;
     }
 
-    public JsonBuilder binary(byte[] bytes) throws IOException {
+    public T binary(byte[] bytes) throws IOException {
         generator.writeBinary(bytes);
-        return this;
+        return builder;
     }
 
-    public JsonBuilder raw(String json) throws IOException {
+    public T raw(String json) throws IOException {
         generator.writeRaw(json);
-        return this;
+        return builder;
     }
 
-    public JsonBuilder string(String value) throws IOException {
+    public abstract T raw(byte[] json) throws IOException;
+
+    public T string(String value) throws IOException {
         generator.writeString(value);
-        return this;
+        return builder;
     }
 
-    public JsonBuilder number(int value) throws IOException {
+    public T number(int value) throws IOException {
         generator.writeNumber(value);
-        return this;
+        return builder;
     }
 
-    public JsonBuilder number(long value) throws IOException {
+    public T number(long value) throws IOException {
         generator.writeNumber(value);
-        return this;
+        return builder;
     }
 
-    public JsonBuilder number(double value) throws IOException {
+    public T number(double value) throws IOException {
         generator.writeNumber(value);
-        return this;
+        return builder;
     }
 
-    public JsonBuilder number(Integer value) throws IOException {
+    public T number(Integer value) throws IOException {
         generator.writeNumber(value.intValue());
-        return this;
+        return builder;
     }
 
-    public JsonBuilder number(Long value) throws IOException {
+    public T number(Long value) throws IOException {
         generator.writeNumber(value.longValue());
-        return this;
+        return builder;
     }
 
-    public JsonBuilder number(Float value) throws IOException {
+    public T number(Float value) throws IOException {
         generator.writeNumber(value.floatValue());
-        return this;
+        return builder;
     }
 
-    public JsonBuilder number(Double value) throws IOException {
+    public T number(Double value) throws IOException {
         generator.writeNumber(value.doubleValue());
-        return this;
+        return builder;
     }
 
-    public JsonBuilder bool(boolean value) throws IOException {
+    public T bool(boolean value) throws IOException {
         generator.writeBoolean(value);
-        return this;
+        return builder;
     }
 
-    public JsonBuilder date(ReadableInstant date) throws IOException {
+    public T date(ReadableInstant date) throws IOException {
         return date(date, defaultDatePrinter);
     }
 
-    public JsonBuilder date(ReadableInstant date, DateTimeFormatter dateTimeFormatter) throws IOException {
+    public T date(ReadableInstant date, DateTimeFormatter dateTimeFormatter) throws IOException {
         string(dateTimeFormatter.print(date));
-        return this;
+        return builder;
     }
 
-    public JsonBuilder date(Date date) throws IOException {
+    public T date(Date date) throws IOException {
         return date(date, defaultDatePrinter);
     }
 
-    public JsonBuilder date(Date date, DateTimeFormatter dateTimeFormatter) throws IOException {
+    public T date(Date date, DateTimeFormatter dateTimeFormatter) throws IOException {
         string(dateTimeFormatter.print(date.getTime()));
-        return this;
+        return builder;
     }
 
-    public JsonBuilder value(Object value) throws IOException {
+    public T value(Object value) throws IOException {
         Class type = value.getClass();
         if (type == String.class) {
             string((String) value);
@@ -352,60 +289,21 @@ public class JsonBuilder {
         } else {
             throw new IOException("Type not allowed [" + type + "]");
         }
-        return this;
+        return builder;
     }
 
-    public JsonBuilder flush() throws IOException {
+    public T flush() throws IOException {
         generator.flush();
-        return this;
+        return builder;
     }
 
-    public JsonBuilder reset() throws IOException {
-        writer.reset();
-        generator = factory.createJsonGenerator(writer);
-        return this;
-    }
+    public abstract T reset() throws IOException;
 
-    public String string() throws IOException {
-        flush();
-        return writer.toStringTrim();
-    }
+    public abstract byte[] unsafeBytes() throws IOException;
 
-    /**
-     * Returns the byte[] that represents the utf8 of the json written up until now.
-     * Note, the result is shared within this instance, so copy the byte array if needed
-     * or use {@link #utf8copied()}.
-     */
-    public UnicodeUtil.UTF8Result utf8() throws IOException {
-        flush();
+    public abstract int unsafeBytesLength() throws IOException;
 
-        // ignore whitepsaces
-        int st = 0;
-        int len = writer.size();
-        char[] val = writer.unsafeCharArray();
-
-        while ((st < len) && (val[st] <= ' ')) {
-            st++;
-            len--;
-        }
-        while ((st < len) && (val[len - 1] <= ' ')) {
-            len--;
-        }
-
-        UnicodeUtil.UTF16toUTF8(val, st, len, utf8Result);
-
-        return utf8Result;
-    }
-
-    /**
-     * Returns a copied byte[] that represnts the utf8 o fthe json written up until now.
-     */
-    public byte[] utf8copied() throws IOException {
-        utf8();
-        byte[] result = new byte[utf8Result.length];
-        System.arraycopy(utf8Result.result, 0, result, 0, utf8Result.length);
-        return result;
-    }
+    public abstract byte[] copiedBytes() throws IOException;
 
     public void close() {
         try {

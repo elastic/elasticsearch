@@ -62,7 +62,7 @@ public class RestFlushAction extends BaseRestHandler {
         client.admin().indices().execFlush(flushRequest, new ActionListener<FlushResponse>() {
             @Override public void onResponse(FlushResponse response) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.cached(request);
+                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
                     builder.startObject();
                     builder.field("ok", true);
 

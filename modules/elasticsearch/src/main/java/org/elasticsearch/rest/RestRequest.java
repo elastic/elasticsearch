@@ -23,6 +23,7 @@ import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.json.ToJson;
 
+import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,6 +43,10 @@ public interface RestRequest extends ToJson.Params {
 
     boolean hasContent();
 
+    InputStream contentAsStream();
+
+    byte[] contentAsBytes();
+
     String contentAsString();
 
     Set<String> headerNames();
@@ -51,6 +56,8 @@ public interface RestRequest extends ToJson.Params {
     List<String> headers(String name);
 
     String cookie();
+
+    boolean hasParam(String key);
 
     String param(String key);
 

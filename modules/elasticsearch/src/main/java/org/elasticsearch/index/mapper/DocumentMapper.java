@@ -77,12 +77,12 @@ public interface DocumentMapper {
      * <p>Validates that the source has the provided id and type. Note, most times
      * we will already have the id and the type even though they exist in the source as well.
      */
-    ParsedDocument parse(@Nullable String type, @Nullable String id, String source) throws MapperParsingException;
+    ParsedDocument parse(@Nullable String type, @Nullable String id, byte[] source) throws MapperParsingException;
 
     /**
      * Parses the source into the parsed document.
      */
-    ParsedDocument parse(String source) throws MapperParsingException;
+    ParsedDocument parse(byte[] source) throws MapperParsingException;
 
     /**
      * Adds a field mapper listener.

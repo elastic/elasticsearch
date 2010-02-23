@@ -54,7 +54,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testQueryStringBuilder() throws Exception {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(queryString("test").defaultField("content").phraseSlop(1).build());
+        Query parsedQuery = queryParser.parse(queryString("test").defaultField("content").phraseSlop(1));
 
         assertThat(parsedQuery, instanceOf(TermQuery.class));
         TermQuery termQuery = (TermQuery) parsedQuery;
@@ -72,7 +72,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testMatchAllBuilder() throws Exception {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(matchAllQuery().boost(1.2f).build());
+        Query parsedQuery = queryParser.parse(matchAllQuery().boost(1.2f).buildAsString());
         assertThat(parsedQuery, instanceOf(MatchAllDocsQuery.class));
         MatchAllDocsQuery matchAllDocsQuery = (MatchAllDocsQuery) parsedQuery;
         assertThat((double) matchAllDocsQuery.getBoost(), closeTo(1.2, 0.01));
@@ -132,7 +132,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testTermQueryBuilder() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(termQuery("age", 34).build());
+        Query parsedQuery = queryParser.parse(termQuery("age", 34).buildAsBytes());
         assertThat(parsedQuery, instanceOf(TermQuery.class));
         TermQuery termQuery = (TermQuery) parsedQuery;
         // since age is automatically registered in data, we encode it as numeric
@@ -151,7 +151,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testTermWithBoostQueryBuilder() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(termQuery("age", 34).boost(2.0f).build());
+        Query parsedQuery = queryParser.parse(termQuery("age", 34).boost(2.0f));
         assertThat(parsedQuery, instanceOf(TermQuery.class));
         TermQuery termQuery = (TermQuery) parsedQuery;
         // since age is automatically registered in data, we encode it as numeric
@@ -172,7 +172,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testPrefixQueryBuilder() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(prefixQuery("name.first", "sh").build());
+        Query parsedQuery = queryParser.parse(prefixQuery("name.first", "sh"));
         assertThat(parsedQuery, instanceOf(PrefixQuery.class));
         PrefixQuery prefixQuery = (PrefixQuery) parsedQuery;
         // since age is automatically registered in data, we encode it as numeric
@@ -191,7 +191,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testPrefixFilteredQueryBuilder() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), prefixFilter("name.first", "sh")).build());
+        Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), prefixFilter("name.first", "sh")));
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         PrefixFilter prefixFilter = (PrefixFilter) filteredQuery.getFilter();
@@ -210,7 +210,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testPrefixQueryBoostQueryBuilder() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(prefixQuery("name.first", "sh").boost(2.0f).build());
+        Query parsedQuery = queryParser.parse(prefixQuery("name.first", "sh").boost(2.0f));
         assertThat(parsedQuery, instanceOf(PrefixQuery.class));
         PrefixQuery prefixQuery = (PrefixQuery) parsedQuery;
         assertThat(prefixQuery.getPrefix(), equalTo(new Term("name.first", "sh")));
@@ -229,7 +229,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testWildcardQueryBuilder() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(wildcardQuery("name.first", "sh*").build());
+        Query parsedQuery = queryParser.parse(wildcardQuery("name.first", "sh*"));
         assertThat(parsedQuery, instanceOf(WildcardQuery.class));
         WildcardQuery wildcardQuery = (WildcardQuery) parsedQuery;
         assertThat(wildcardQuery.getTerm(), equalTo(new Term("name.first", "sh*")));
@@ -246,7 +246,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testRangeQueryBuilder() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(rangeQuery("age").from(23).to(54).includeLower(true).includeUpper(false).build());
+        Query parsedQuery = queryParser.parse(rangeQuery("age").from(23).to(54).includeLower(true).includeUpper(false));
         // since age is automatically registered in data, we encode it as numeric
         assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
         NumericRangeQuery rangeQuery = (NumericRangeQuery) parsedQuery;
@@ -273,7 +273,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testRangeFilteredQueryBuilder() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), rangeFilter("age").from(23).to(54).includeLower(true).includeUpper(false)).build());
+        Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), rangeFilter("age").from(23).to(54).includeLower(true).includeUpper(false)));
         // since age is automatically registered in data, we encode it as numeric
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         Filter filter = ((FilteredQuery) parsedQuery).getFilter();
@@ -315,7 +315,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testBoolQueryBuilder() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(boolQuery().must(termQuery("content", "test1")).must(termQuery("content", "test4")).mustNot(termQuery("content", "test2")).should(termQuery("content", "test3")).build());
+        Query parsedQuery = queryParser.parse(boolQuery().must(termQuery("content", "test1")).must(termQuery("content", "test4")).mustNot(termQuery("content", "test2")).should(termQuery("content", "test3")));
         assertThat(parsedQuery, instanceOf(BooleanQuery.class));
         BooleanQuery booleanQuery = (BooleanQuery) parsedQuery;
         BooleanClause[] clauses = booleanQuery.getClauses();
@@ -361,7 +361,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testFilteredQueryBuilder() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), termFilter("name.last", "banon")).build());
+        Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), termFilter("name.last", "banon")));
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
@@ -419,7 +419,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testTermsFilterQueryBuilder() throws Exception {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), termsFilter("name.last", "banon", "kimchy")).build());
+        Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), termsFilter("name.last", "banon", "kimchy")));
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         assertThat(filteredQuery.getFilter(), instanceOf(TermsFilter.class));
@@ -466,7 +466,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testSpanTermQueryBuilder() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(spanTermQuery("age", 34).build());
+        Query parsedQuery = queryParser.parse(spanTermQuery("age", 34));
         assertThat(parsedQuery, instanceOf(SpanTermQuery.class));
         SpanTermQuery termQuery = (SpanTermQuery) parsedQuery;
         // since age is automatically registered in data, we encode it as numeric
@@ -485,7 +485,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testSpanNotQueryBuilder() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(spanNotQuery().include(spanTermQuery("age", 34)).exclude(spanTermQuery("age", 35)).build());
+        Query parsedQuery = queryParser.parse(spanNotQuery().include(spanTermQuery("age", 34)).exclude(spanTermQuery("age", 35)));
         assertThat(parsedQuery, instanceOf(SpanNotQuery.class));
         SpanNotQuery spanNotQuery = (SpanNotQuery) parsedQuery;
         // since age is automatically registered in data, we encode it as numeric
@@ -506,7 +506,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testSpanFirstQueryBuilder() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(spanFirstQuery(spanTermQuery("age", 34), 12).build());
+        Query parsedQuery = queryParser.parse(spanFirstQuery(spanTermQuery("age", 34), 12));
         assertThat(parsedQuery, instanceOf(SpanFirstQuery.class));
         SpanFirstQuery spanFirstQuery = (SpanFirstQuery) parsedQuery;
         // since age is automatically registered in data, we encode it as numeric
@@ -527,7 +527,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testSpanNearQueryBuilder() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(spanNearQuery().clause(spanTermQuery("age", 34)).clause(spanTermQuery("age", 35)).clause(spanTermQuery("age", 36)).slop(12).inOrder(false).collectPayloads(false).build());
+        Query parsedQuery = queryParser.parse(spanNearQuery().clause(spanTermQuery("age", 34)).clause(spanTermQuery("age", 35)).clause(spanTermQuery("age", 36)).slop(12).inOrder(false).collectPayloads(false));
         assertThat(parsedQuery, instanceOf(SpanNearQuery.class));
         SpanNearQuery spanNearQuery = (SpanNearQuery) parsedQuery;
         assertThat(spanNearQuery.getClauses().length, equalTo(3));
@@ -552,7 +552,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testSpanOrQueryBuilder() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(spanOrQuery().clause(spanTermQuery("age", 34)).clause(spanTermQuery("age", 35)).clause(spanTermQuery("age", 36)).build());
+        Query parsedQuery = queryParser.parse(spanOrQuery().clause(spanTermQuery("age", 34)).clause(spanTermQuery("age", 35)).clause(spanTermQuery("age", 36)));
         assertThat(parsedQuery, instanceOf(SpanOrQuery.class));
         SpanOrQuery spanOrQuery = (SpanOrQuery) parsedQuery;
         assertThat(spanOrQuery.getClauses().length, equalTo(3));
@@ -575,7 +575,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testQueryFilterBuilder() throws Exception {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), queryFilter(termQuery("name.last", "banon"))).build());
+        Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), queryFilter(termQuery("name.last", "banon"))));
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         QueryWrapperFilter queryWrapperFilter = (QueryWrapperFilter) filteredQuery.getFilter();
@@ -609,7 +609,7 @@ public class SimpleJsonIndexQueryParserTests {
         Environment environment = new Environment();
         MapperService mapperService = new MapperService(index, EMPTY_SETTINGS, environment, new AnalysisService(index));
         // init a mapping with data
-        mapperService.type("person").parse(copyToStringFromClasspath("/org/elasticsearch/index/query/json/data.json"));
+        mapperService.type("person").parse(copyToBytesFromClasspath("/org/elasticsearch/index/query/json/data.json"));
         return mapperService;
     }
 }

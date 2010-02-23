@@ -54,7 +54,7 @@ public class RestReplicationPingAction extends BaseRestHandler {
         client.admin().cluster().execPing(replicationPingRequest, new ActionListener<ReplicationPingResponse>() {
             @Override public void onResponse(ReplicationPingResponse result) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.cached(request);
+                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
                     builder.startObject();
                     builder.field("ok", true);
                     for (IndexReplicationPingResponse indexResponse : result.indices().values()) {

@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.util.Required;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.DataInput;
@@ -72,14 +73,14 @@ public class IndexRequest extends ShardReplicationOperationRequest {
 
     private String type;
     private String id;
-    private String source;
+    private byte[] source;
     private OpType opType = OpType.INDEX;
 
     public IndexRequest(String index) {
         this.index = index;
     }
 
-    public IndexRequest(String index, String type, String id, String source) {
+    public IndexRequest(String index, String type, String id, byte[] source) {
         this.index = index;
         this.type = type;
         this.id = id;
@@ -128,19 +129,25 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         return this;
     }
 
-    String source() {
+    byte[] source() {
         return source;
+    }
+
+    @Required public IndexRequest source(String source) {
+        this.source = Unicode.fromStringAsBytes(source);
+        return this;
     }
 
     @Required public IndexRequest source(JsonBuilder jsonBuilder) {
         try {
-            return source(jsonBuilder.string());
+            jsonBuilder.flush();
+            return source(jsonBuilder.copiedBytes());
         } catch (IOException e) {
             throw new ElasticSearchIllegalArgumentException("Failed to build json for index request", e);
         }
     }
 
-    @Required public IndexRequest source(String source) {
+    @Required public IndexRequest source(byte[] source) {
         this.source = source;
         return this;
     }
@@ -163,7 +170,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         super.readFrom(in);
         type = in.readUTF();
         id = in.readUTF();
-        source = in.readUTF();
+        source = new byte[in.readInt()];
+        in.readFully(source, 0, source.length);
         opType = OpType.fromId(in.readByte());
     }
 
@@ -171,7 +179,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         super.writeTo(out);
         out.writeUTF(type);
         out.writeUTF(id);
-        out.writeUTF(source);
+        out.writeInt(source.length);
+        out.write(source);
         out.writeByte(opType.id());
     }
 }

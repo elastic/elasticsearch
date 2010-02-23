@@ -60,7 +60,7 @@ public class RestIndicesStatusAction extends BaseRestHandler {
         client.admin().indices().execStatus(indicesStatusRequest, new ActionListener<IndicesStatusResponse>() {
             @Override public void onResponse(IndicesStatusResponse response) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.cached(request);
+                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
                     builder.startObject();
                     builder.field("ok", true);
 

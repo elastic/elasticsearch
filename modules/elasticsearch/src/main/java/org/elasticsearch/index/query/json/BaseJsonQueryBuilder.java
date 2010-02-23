@@ -20,7 +20,10 @@
 package org.elasticsearch.index.query.json;
 
 import org.elasticsearch.index.query.QueryBuilderException;
+import org.elasticsearch.util.io.FastCharArrayWriter;
+import org.elasticsearch.util.json.BinaryJsonBuilder;
 import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.json.StringJsonBuilder;
 
 import java.io.IOException;
 
@@ -29,11 +32,31 @@ import java.io.IOException;
  */
 public abstract class BaseJsonQueryBuilder implements JsonQueryBuilder {
 
-    @Override public String build() throws QueryBuilderException {
+    @Override public String buildAsString() throws QueryBuilderException {
         try {
-            JsonBuilder builder = JsonBuilder.jsonBuilder();
+            StringJsonBuilder builder = JsonBuilder.stringJsonBuilder();
             toJson(builder, EMPTY_PARAMS);
             return builder.string();
+        } catch (Exception e) {
+            throw new QueryBuilderException("Failed to build query", e);
+        }
+    }
+
+    @Override public FastCharArrayWriter buildAsUnsafeChars() throws QueryBuilderException {
+        try {
+            StringJsonBuilder builder = JsonBuilder.stringJsonBuilder();
+            toJson(builder, EMPTY_PARAMS);
+            return builder.unsafeChars();
+        } catch (Exception e) {
+            throw new QueryBuilderException("Failed to build query", e);
+        }
+    }
+
+    @Override public byte[] buildAsBytes() throws QueryBuilderException {
+        try {
+            BinaryJsonBuilder builder = JsonBuilder.binaryJsonBuilder();
+            toJson(builder, EMPTY_PARAMS);
+            return builder.copiedBytes();
         } catch (Exception e) {
             throw new QueryBuilderException("Failed to build query", e);
         }

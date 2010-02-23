@@ -74,7 +74,7 @@ public abstract class AbstractSimpleTranslogTests {
         assertThat(snapshot, translogSize(3));
         snapshot.release();
 
-        translog.add(new Translog.DeleteByQuery("{4}", null));
+        translog.add(new Translog.DeleteByQuery(new byte[]{4}, null));
         snapshot = translog.snapshot();
         assertThat(snapshot, translogSize(4));
         snapshot.release();
@@ -88,7 +88,7 @@ public abstract class AbstractSimpleTranslogTests {
         Translog.Delete delete = (Translog.Delete) it.next();
         assertThat(delete.uid(), equalTo(newUid("3")));
         Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) it.next();
-        assertThat(deleteByQuery.source(), equalTo("{4}"));
+        assertThat(deleteByQuery.source(), equalTo(new byte[]{4}));
         snapshot.release();
 
         long firstId = translog.currentId();

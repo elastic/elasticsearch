@@ -34,7 +34,7 @@ import java.io.IOException;
  */
 public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
 
-    private String querySource;
+    private byte[] querySource;
     private String queryParserName;
     private String[] types = Strings.EMPTY_ARRAY;
 
@@ -50,15 +50,15 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
         return this;
     }
 
-    String querySource() {
+    byte[] querySource() {
         return querySource;
     }
 
     @Required public DeleteByQueryRequest querySource(QueryBuilder queryBuilder) {
-        return querySource(queryBuilder.buildAsString());
+        return querySource(queryBuilder.buildAsBytes());
     }
 
-    @Required public DeleteByQueryRequest querySource(String querySource) {
+    @Required public DeleteByQueryRequest querySource(byte[] querySource) {
         this.querySource = querySource;
         return this;
     }
@@ -88,7 +88,8 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
 
     public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
         super.readFrom(in);
-        querySource = in.readUTF();
+        querySource = new byte[in.readInt()];
+        in.readFully(querySource);
         if (in.readBoolean()) {
             queryParserName = in.readUTF();
         }
@@ -96,7 +97,8 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
 
     public void writeTo(DataOutput out) throws IOException {
         super.writeTo(out);
-        out.writeUTF(querySource);
+        out.writeInt(querySource.length);
+        out.write(querySource);
         if (queryParserName == null) {
             out.writeBoolean(false);
         } else {

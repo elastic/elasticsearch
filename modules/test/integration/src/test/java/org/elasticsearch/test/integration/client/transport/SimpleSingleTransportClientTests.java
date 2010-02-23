@@ -35,6 +35,7 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.server.internal.InternalServer;
 import org.elasticsearch.test.integration.AbstractServersTests;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.transport.TransportAddress;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
@@ -150,7 +151,7 @@ public class SimpleSingleTransportClientTests extends AbstractServersTests {
             assertThat(countResponse.successfulShards(), equalTo(5));
             assertThat(countResponse.failedShards(), equalTo(0));
             // test failed (simply query that can't be parsed)
-            countResponse = client.count(countRequest("test").querySource("{ term : { _type : \"type1 } }")).actionGet();
+            countResponse = client.count(countRequest("test").querySource(Unicode.fromStringAsBytes("{ term : { _type : \"type1 } }"))).actionGet();
 
             assertThat(countResponse.count(), equalTo(0l));
             assertThat(countResponse.successfulShards(), equalTo(0));

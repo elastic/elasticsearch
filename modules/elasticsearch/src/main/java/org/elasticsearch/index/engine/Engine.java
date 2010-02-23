@@ -314,10 +314,10 @@ public interface Engine extends IndexShardComponent {
     static class DeleteByQuery {
         private final Query query;
         private final String queryParserName;
-        private final String source;
+        private final byte[] source;
         private final String[] types;
 
-        public DeleteByQuery(Query query, String source, @Nullable String queryParserName, String... types) {
+        public DeleteByQuery(Query query, byte[] source, @Nullable String queryParserName, String... types) {
             this.query = query;
             this.source = source;
             this.queryParserName = queryParserName;
@@ -332,7 +332,7 @@ public interface Engine extends IndexShardComponent {
             return this.query;
         }
 
-        public String source() {
+        public byte[] source() {
             return this.source;
         }
 

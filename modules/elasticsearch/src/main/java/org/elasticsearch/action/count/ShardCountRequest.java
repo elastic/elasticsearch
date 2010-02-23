@@ -33,7 +33,7 @@ import java.io.IOException;
 public class ShardCountRequest extends BroadcastShardOperationRequest {
 
     private float minScore;
-    private String querySource;
+    private byte[] querySource;
     private String[] types = Strings.EMPTY_ARRAY;
     @Nullable private String queryParserName;
 
@@ -41,7 +41,7 @@ public class ShardCountRequest extends BroadcastShardOperationRequest {
 
     }
 
-    public ShardCountRequest(String index, int shardId, String querySource, float minScore,
+    public ShardCountRequest(String index, int shardId, byte[] querySource, float minScore,
                              @Nullable String queryParserName, String... types) {
         super(index, shardId);
         this.minScore = minScore;
@@ -54,7 +54,7 @@ public class ShardCountRequest extends BroadcastShardOperationRequest {
         return minScore;
     }
 
-    public String querySource() {
+    public byte[] querySource() {
         return querySource;
     }
 
@@ -69,7 +69,8 @@ public class ShardCountRequest extends BroadcastShardOperationRequest {
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
         super.readFrom(in);
         minScore = in.readFloat();
-        querySource = in.readUTF();
+        querySource = new byte[in.readInt()];
+        in.readFully(querySource);
         if (in.readBoolean()) {
             queryParserName = in.readUTF();
         }
@@ -85,7 +86,8 @@ public class ShardCountRequest extends BroadcastShardOperationRequest {
     @Override public void writeTo(DataOutput out) throws IOException {
         super.writeTo(out);
         out.writeFloat(minScore);
-        out.writeUTF(querySource);
+        out.writeInt(querySource.length);
+        out.write(querySource);
         if (queryParserName == null) {
             out.writeBoolean(false);
         } else {

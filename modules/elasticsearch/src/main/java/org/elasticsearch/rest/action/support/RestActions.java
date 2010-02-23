@@ -70,9 +70,9 @@ public class RestActions {
         builder.endObject();
     }
 
-    public static String parseQuerySource(RestRequest request) {
+    public static byte[] parseQuerySource(RestRequest request) {
         if (request.hasContent()) {
-            return request.contentAsString();
+            return request.contentAsBytes();
         }
         String queryString = request.param("q");
         if (queryString == null) {
@@ -91,7 +91,7 @@ public class RestActions {
                 throw new ElasticSearchIllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
             }
         }
-        return queryBuilder.buildAsString();
+        return queryBuilder.buildAsBytes();
     }
 
     public static String[] splitIndices(String indices) {

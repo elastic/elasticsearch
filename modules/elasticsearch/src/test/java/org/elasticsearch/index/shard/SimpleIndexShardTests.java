@@ -43,6 +43,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import static org.elasticsearch.index.query.json.JsonQueryBuilders.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
@@ -91,9 +92,9 @@ public class SimpleIndexShardTests {
 
         assertThat(sourceFetched, equalTo(source1));
 
-        assertThat(indexShard.count(0, "{ term : { age : 35 } }", null), equalTo(1l));
-        assertThat(indexShard.count(0, "{ queryString : { query : \"name:test\" } }", null), equalTo(1l));
-        assertThat(indexShard.count(0, "{ queryString : { query : \"age:35\" } }", null), equalTo(1l));
+        assertThat(indexShard.count(0, termQuery("age", 35).buildAsBytes(), null), equalTo(1l));
+        assertThat(indexShard.count(0, queryString("name:test").buildAsBytes(), null), equalTo(1l));
+        assertThat(indexShard.count(0, queryString("age:35").buildAsBytes(), null), equalTo(1l));
 
         indexShard.delete("type1", "1");
         indexShard.refresh(new Engine.Refresh(true));
@@ -104,7 +105,7 @@ public class SimpleIndexShardTests {
         indexShard.refresh(new Engine.Refresh(true));
         sourceFetched = Unicode.fromBytes(indexShard.get("type1", "1"));
         assertThat(sourceFetched, equalTo(source1));
-        indexShard.deleteByQuery("{ term : { name : \"test\" } }", null);
+        indexShard.deleteByQuery(termQuery("name", "test").buildAsBytes(), null);
         indexShard.refresh(new Engine.Refresh(true));
         assertThat(indexShard.get("type1", "1"), nullValue());
 

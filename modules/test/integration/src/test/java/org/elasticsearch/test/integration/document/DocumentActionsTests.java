@@ -29,6 +29,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.test.integration.AbstractServersTests;
+import org.elasticsearch.util.Unicode;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
@@ -137,7 +138,7 @@ public class DocumentActionsTests extends AbstractServersTests {
             assertThat(countResponse.failedShards(), equalTo(0));
 
             // test failed (simply query that can't be parsed)
-            countResponse = client("server1").count(countRequest("test").querySource("{ term : { _type : \"type1 } }")).actionGet();
+            countResponse = client("server1").count(countRequest("test").querySource(Unicode.fromStringAsBytes("{ term : { _type : \"type1 } }"))).actionGet();
 
             assertThat(countResponse.count(), equalTo(0l));
             assertThat(countResponse.successfulShards(), equalTo(0));

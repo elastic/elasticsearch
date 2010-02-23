@@ -36,11 +36,11 @@ import static org.elasticsearch.action.Actions.*;
 public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest {
 
     private int shardId;
-    private String querySource;
+    private byte[] querySource;
     private String queryParserName;
     private String[] types = Strings.EMPTY_ARRAY;
 
-    public ShardDeleteByQueryRequest(String index, String querySource, @Nullable String queryParserName, String[] types, int shardId) {
+    public ShardDeleteByQueryRequest(String index, byte[] querySource, @Nullable String queryParserName, String[] types, int shardId) {
         this.index = index;
         this.querySource = querySource;
         this.queryParserName = queryParserName;
@@ -68,7 +68,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
         return this.shardId;
     }
 
-    public String querySource() {
+    public byte[] querySource() {
         return querySource;
     }
 
@@ -82,7 +82,8 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
 
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
         super.readFrom(in);
-        querySource = in.readUTF();
+        querySource = new byte[in.readInt()];
+        in.readFully(querySource);
         if (in.readBoolean()) {
             queryParserName = in.readUTF();
         }
@@ -98,7 +99,8 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
 
     @Override public void writeTo(DataOutput out) throws IOException {
         super.writeTo(out);
-        out.writeUTF(querySource);
+        out.writeInt(querySource.length);
+        out.write(querySource);
         if (queryParserName == null) {
             out.writeBoolean(false);
         } else {

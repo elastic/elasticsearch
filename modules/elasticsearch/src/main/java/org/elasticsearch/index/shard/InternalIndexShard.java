@@ -254,7 +254,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         engine.delete(new Engine.Delete(uid));
     }
 
-    public void deleteByQuery(String querySource, @Nullable String queryParserName, String... types) throws ElasticSearchException {
+    public void deleteByQuery(byte[] querySource, @Nullable String queryParserName, String... types) throws ElasticSearchException {
         writeAllowed();
         if (types == null) {
             types = Strings.EMPTY_ARRAY;
@@ -262,7 +262,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         innerDeleteByQuery(querySource, queryParserName, types);
     }
 
-    private void innerDeleteByQuery(String querySource, String queryParserName, String... types) {
+    private void innerDeleteByQuery(byte[] querySource, String queryParserName, String... types) {
         IndexQueryParser queryParser = queryParserService.defaultIndexQueryParser();
         if (queryParserName != null) {
             queryParser = queryParserService.indexQueryParser(queryParserName);
@@ -307,7 +307,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
     }
 
-    public long count(float minScore, String querySource, @Nullable String queryParserName, String... types) throws ElasticSearchException {
+    public long count(float minScore, byte[] querySource, @Nullable String queryParserName, String... types) throws ElasticSearchException {
         readAllowed();
         IndexQueryParser queryParser = queryParserService.defaultIndexQueryParser();
         if (queryParserName != null) {

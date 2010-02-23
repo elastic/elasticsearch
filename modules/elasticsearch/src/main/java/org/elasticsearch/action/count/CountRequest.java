@@ -38,7 +38,7 @@ public class CountRequest extends BroadcastOperationRequest {
     public static final float DEFAULT_MIN_SCORE = -1f;
 
     private float minScore = DEFAULT_MIN_SCORE;
-    @Required private String querySource;
+    @Required private byte[] querySource;
     private String[] types = Strings.EMPTY_ARRAY;
     @Nullable private String queryParserName;
 
@@ -73,15 +73,15 @@ public class CountRequest extends BroadcastOperationRequest {
         return this;
     }
 
-    String querySource() {
+    byte[] querySource() {
         return querySource;
     }
 
     @Required public CountRequest querySource(QueryBuilder queryBuilder) {
-        return querySource(queryBuilder.buildAsString());
+        return querySource(queryBuilder.buildAsBytes());
     }
 
-    public CountRequest querySource(String querySource) {
+    public CountRequest querySource(byte[] querySource) {
         this.querySource = querySource;
         return this;
     }
@@ -107,7 +107,8 @@ public class CountRequest extends BroadcastOperationRequest {
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
         super.readFrom(in);
         minScore = in.readFloat();
-        querySource = in.readUTF();
+        querySource = new byte[in.readInt()];
+        in.readFully(querySource());
         if (in.readBoolean()) {
             queryParserName = in.readUTF();
         }
@@ -123,7 +124,8 @@ public class CountRequest extends BroadcastOperationRequest {
     @Override public void writeTo(DataOutput out) throws IOException {
         super.writeTo(out);
         out.writeFloat(minScore);
-        out.writeUTF(querySource);
+        out.writeInt(querySource.length);
+        out.write(querySource);
         if (queryParserName == null) {
             out.writeBoolean(false);
         } else {

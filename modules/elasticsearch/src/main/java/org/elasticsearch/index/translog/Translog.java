@@ -303,7 +303,7 @@ public interface Translog extends IndexShardComponent {
     }
 
     static class DeleteByQuery implements Operation {
-        private String source;
+        private byte[] source;
         @Nullable private String queryParserName;
         private String[] types = Strings.EMPTY_ARRAY;
 
@@ -314,7 +314,7 @@ public interface Translog extends IndexShardComponent {
             this(deleteByQuery.source(), deleteByQuery.queryParserName(), deleteByQuery.types());
         }
 
-        public DeleteByQuery(String source, @Nullable String queryParserName, String... types) {
+        public DeleteByQuery(byte[] source, @Nullable String queryParserName, String... types) {
             this.queryParserName = queryParserName;
             this.source = source;
             this.types = types;
@@ -325,14 +325,14 @@ public interface Translog extends IndexShardComponent {
         }
 
         @Override public long estimateSize() {
-            return ((source.length() + (queryParserName == null ? 0 : queryParserName.length())) * 2) + 8;
+            return source.length + ((queryParserName == null ? 0 : queryParserName.length()) * 2) + 8;
         }
 
         public String queryParserName() {
             return this.queryParserName;
         }
 
-        public String source() {
+        public byte[] source() {
             return this.source;
         }
 
@@ -345,7 +345,8 @@ public interface Translog extends IndexShardComponent {
         }
 
         @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
-            source = in.readUTF();
+            source = new byte[in.readInt()];
+            in.readFully(source);
             if (in.readBoolean()) {
                 queryParserName = in.readUTF();
             }
@@ -359,7 +360,8 @@ public interface Translog extends IndexShardComponent {
         }
 
         @Override public void writeTo(DataOutput out) throws IOException {
-            out.writeUTF(source);
+            out.writeInt(source.length);
+            out.write(source);
             if (queryParserName == null) {
                 out.writeBoolean(false);
             } else {

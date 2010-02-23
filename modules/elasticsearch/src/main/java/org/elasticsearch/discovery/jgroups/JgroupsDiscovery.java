@@ -363,7 +363,7 @@ public class JgroupsDiscovery extends AbstractComponent implements Discovery, Re
         ByteArrayDataOutputStream os = new ByteArrayDataOutputStream();
         localNode.writeTo(os);
         os.close();
-        return os.unsafeByteArray();
+        return os.copiedByteArray();
     }
 
     private void sendInitialStateEventIfNeeded() {

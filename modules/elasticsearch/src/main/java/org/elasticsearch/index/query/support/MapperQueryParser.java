@@ -61,8 +61,14 @@ public class MapperQueryParser extends QueryParser {
         if (mapperService != null) {
             MapperService.SmartNameFieldMappers fieldMappers = mapperService.smartName(field);
             if (fieldMappers != null) {
-                if (fieldMappers.fieldMappers().mapper() != null) {
-                    Query query = fieldMappers.fieldMappers().mapper().fieldQuery(queryText);
+                FieldMapper mapper = fieldMappers.fieldMappers().mapper();
+                if (mapper != null) {
+                    Query query;
+                    if (mapper.useFieldQueryWithQueryString()) {
+                        query = fieldMappers.fieldMappers().mapper().fieldQuery(queryText);
+                    } else {
+                        query = super.getFieldQuery(mapper.names().indexName(), queryText);
+                    }
                     return wrapSmartNameQuery(query, fieldMappers, filterCache);
                 }
             }
@@ -80,7 +86,7 @@ public class MapperQueryParser extends QueryParser {
                 }
             }
         }
-        return super.getRangeQuery(field, part1, part2, inclusive);
+        return newRangeQuery(field, part1, part2, inclusive);
     }
 
     @Override protected Query getPrefixQuery(String field, String termStr) throws ParseException {

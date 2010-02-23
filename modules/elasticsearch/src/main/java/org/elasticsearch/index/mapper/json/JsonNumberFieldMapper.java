@@ -100,6 +100,13 @@ public abstract class JsonNumberFieldMapper<T extends Number> extends JsonFieldM
     }
 
     /**
+     * Use the field query created here when matching on numbers.
+     */
+    @Override public boolean useFieldQueryWithQueryString() {
+        return true;
+    }
+
+    /**
      * Override the default behavior (to return the string, and return the actual Number instance).
      */
     @Override public Object valueForSearch(Fieldable field) {

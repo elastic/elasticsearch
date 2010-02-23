@@ -137,6 +137,8 @@ public interface FieldMapper<T> {
      */
     String indexedValue(T value);
 
+    boolean useFieldQueryWithQueryString();
+
     Query fieldQuery(String value);
 
     Filter fieldFilter(String value);

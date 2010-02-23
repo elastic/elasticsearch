@@ -51,7 +51,6 @@ import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.component.Lifecycle;
 import org.elasticsearch.util.component.LifecycleComponent;
 import org.elasticsearch.util.concurrent.highscalelib.NonBlockingHashMapLong;
-import org.elasticsearch.util.io.FastStringReader;
 import org.elasticsearch.util.json.Jackson;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.timer.Timeout;
@@ -290,7 +289,7 @@ public class SearchService extends AbstractComponent implements LifecycleCompone
 
     private void parseSource(SearchContext context) throws SearchParseException {
         try {
-            JsonParser jp = jsonFactory.createJsonParser(new FastStringReader(context.source()));
+            JsonParser jp = jsonFactory.createJsonParser(context.source());
             JsonToken token;
             while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
                 if (token == JsonToken.FIELD_NAME) {

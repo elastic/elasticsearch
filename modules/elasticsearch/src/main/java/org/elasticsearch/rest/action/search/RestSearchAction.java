@@ -181,9 +181,9 @@ public class RestSearchAction extends BaseRestHandler {
         return searchRequest;
     }
 
-    private String parseSearchSource(RestRequest request) {
+    private byte[] parseSearchSource(RestRequest request) {
         if (request.hasContent()) {
-            return request.contentAsString();
+            return request.contentAsBytes();
         }
         String queryString = request.param("q");
         if (queryString == null) {

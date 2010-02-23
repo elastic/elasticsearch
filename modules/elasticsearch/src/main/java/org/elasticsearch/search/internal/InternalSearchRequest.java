@@ -70,16 +70,16 @@ public class InternalSearchRequest implements Streamable {
 
     private String[] types = Strings.EMPTY_ARRAY;
 
-    private String source;
+    private byte[] source;
 
     public InternalSearchRequest() {
     }
 
-    public InternalSearchRequest(ShardRouting shardRouting, String source) {
+    public InternalSearchRequest(ShardRouting shardRouting, byte[] source) {
         this(shardRouting.index(), shardRouting.id(), source);
     }
 
-    public InternalSearchRequest(String index, int shardId, String source) {
+    public InternalSearchRequest(String index, int shardId, byte[] source) {
         this.index = index;
         this.shardId = shardId;
         this.source = source;
@@ -93,7 +93,7 @@ public class InternalSearchRequest implements Streamable {
         return shardId;
     }
 
-    public String source() {
+    public byte[] source() {
         return this.source;
     }
 
@@ -165,7 +165,8 @@ public class InternalSearchRequest implements Streamable {
         if (in.readBoolean()) {
             timeout = readTimeValue(in);
         }
-        source = in.readUTF();
+        source = new byte[in.readInt()];
+        in.readFully(source);
         queryBoost = in.readFloat();
         int typesSize = in.readInt();
         if (typesSize > 0) {
@@ -193,7 +194,8 @@ public class InternalSearchRequest implements Streamable {
             out.writeBoolean(true);
             timeout.writeTo(out);
         }
-        out.writeUTF(source);
+        out.writeInt(source.length);
+        out.write(source);
         out.writeFloat(queryBoost);
         out.writeInt(types.length);
         for (String type : types) {

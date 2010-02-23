@@ -27,6 +27,7 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.integration.AbstractServersTests;
+import org.elasticsearch.util.Unicode;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -237,7 +238,7 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
 
     @Test public void testFailedSearch() throws Exception {
         logger.info("Start Testing failed search");
-        SearchResponse searchResponse = client.search(searchRequest("test").source("{ xxx }")).actionGet();
+        SearchResponse searchResponse = client.search(searchRequest("test").source(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
         assertThat(searchResponse.successfulShards(), equalTo(0));
         logger.info("Failures:");
         for (ShardSearchFailure searchFailure : searchResponse.shardFailures()) {

@@ -21,7 +21,7 @@ package org.elasticsearch.search.builder;
 
 import org.elasticsearch.index.query.json.JsonQueryBuilder;
 import org.elasticsearch.search.SearchException;
-import org.elasticsearch.util.json.StringJsonBuilder;
+import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.json.ToJson;
 
 import java.util.ArrayList;
@@ -125,9 +125,9 @@ public class SearchSourceBuilder {
         return this;
     }
 
-    public String build() throws SearchException {
+    public byte[] build() throws SearchException {
         try {
-            StringJsonBuilder builder = stringJsonBuilder();
+            JsonBuilder builder = binaryJsonBuilder();
             builder.startObject();
 
             if (from != -1) {
@@ -182,7 +182,7 @@ public class SearchSourceBuilder {
 
             builder.endObject();
 
-            return builder.string();
+            return builder.copiedBytes();
         } catch (Exception e) {
             throw new SearchSourceBuilderException("Failed to build search source", e);
         }

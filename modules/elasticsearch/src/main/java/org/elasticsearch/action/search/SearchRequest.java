@@ -50,7 +50,7 @@ public class SearchRequest implements ActionRequest {
 
     private String queryHint;
 
-    private String source;
+    private byte[] source;
 
     private Scroll scroll;
 
@@ -78,7 +78,7 @@ public class SearchRequest implements ActionRequest {
         this(index, source.build());
     }
 
-    public SearchRequest(String index, String source) {
+    public SearchRequest(String index, byte[] source) {
         this(new String[]{index}, source);
     }
 
@@ -86,7 +86,7 @@ public class SearchRequest implements ActionRequest {
         this(indices, source.build());
     }
 
-    public SearchRequest(String[] indices, String source) {
+    public SearchRequest(String[] indices, byte[] source) {
         this.indices = indices;
         this.source = source;
     }
@@ -126,7 +126,7 @@ public class SearchRequest implements ActionRequest {
         return source(sourceBuilder.build());
     }
 
-    @Required public SearchRequest source(String source) {
+    @Required public SearchRequest source(byte[] source) {
         this.source = source;
         return this;
     }
@@ -148,7 +148,7 @@ public class SearchRequest implements ActionRequest {
         return queryHint;
     }
 
-    public String source() {
+    public byte[] source() {
         return source;
     }
 
@@ -234,7 +234,8 @@ public class SearchRequest implements ActionRequest {
         if (in.readBoolean()) {
             timeout = readTimeValue(in);
         }
-        source = in.readUTF();
+        source = new byte[in.readInt()];
+        in.readFully(source);
 
         int size = in.readInt();
         if (size == 0) {
@@ -285,7 +286,8 @@ public class SearchRequest implements ActionRequest {
             out.writeBoolean(true);
             timeout.writeTo(out);
         }
-        out.writeUTF(source);
+        out.writeInt(source.length);
+        out.write(source);
         if (indexBoost == null) {
             out.writeInt(0);
         } else {

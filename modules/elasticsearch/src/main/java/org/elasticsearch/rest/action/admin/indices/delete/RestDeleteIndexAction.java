@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.admin.indices.delete;
 
 import com.google.inject.Inject;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
@@ -33,6 +32,7 @@ import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 
+import static org.elasticsearch.ExceptionsHelper.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
 import static org.elasticsearch.util.TimeValue.*;
 
@@ -50,10 +50,14 @@ public class RestDeleteIndexAction extends BaseRestHandler {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(request.param("index"));
         deleteIndexRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
         client.admin().indices().execDelete(deleteIndexRequest, new ActionListener<DeleteIndexResponse>() {
-            @Override public void onResponse(DeleteIndexResponse result) {
+            @Override public void onResponse(DeleteIndexResponse response) {
                 try {
                     JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
-                    channel.sendResponse(new JsonRestResponse(request, OK, builder.startObject().field("ok", true).endObject()));
+                    builder.startObject()
+                            .field("ok", true)
+                            .field("acknowledged", response.acknowledged())
+                            .endObject();
+                    channel.sendResponse(new JsonRestResponse(request, OK, builder));
                 } catch (IOException e) {
                     onFailure(e);
                 }
@@ -61,12 +65,10 @@ public class RestDeleteIndexAction extends BaseRestHandler {
 
             @Override public void onFailure(Throwable e) {
                 try {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof IndexMissingException) {
+                    Throwable t = unwrapCause(e);
+                    if (t instanceof IndexMissingException) {
                         JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
-                        builder.startObject()
-                                .field("ok", true)
-                                .endObject();
-                        channel.sendResponse(new JsonRestResponse(request, NOT_FOUND, builder));
+                        channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, builder.startObject().field("error", t.getMessage()).endObject()));
                     } else {
                         channel.sendResponse(new JsonThrowableRestResponse(request, e));
                     }

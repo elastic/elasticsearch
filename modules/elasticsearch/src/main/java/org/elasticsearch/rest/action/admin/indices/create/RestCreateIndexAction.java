@@ -68,11 +68,12 @@ public class RestCreateIndexAction extends BaseRestHandler {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"), indexSettings);
         createIndexRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
         client.admin().indices().execCreate(createIndexRequest, new ActionListener<CreateIndexResponse>() {
-            @Override public void onResponse(CreateIndexResponse result) {
+            @Override public void onResponse(CreateIndexResponse response) {
                 try {
                     JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
                     builder.startObject()
                             .field("ok", true)
+                            .field("acknowledged", response.acknowledged())
                             .endObject();
                     channel.sendResponse(new JsonRestResponse(request, OK, builder));
                 } catch (Exception e) {

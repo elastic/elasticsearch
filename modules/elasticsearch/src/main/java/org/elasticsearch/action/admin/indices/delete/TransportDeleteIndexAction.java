@@ -55,7 +55,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
     }
 
     @Override protected DeleteIndexResponse masterOperation(DeleteIndexRequest request) throws ElasticSearchException {
-        metaDataService.deleteIndex(request.index(), request.timeout());
-        return new DeleteIndexResponse();
+        MetaDataService.DeleteIndexResult deleteIndexResult = metaDataService.deleteIndex(request.index(), request.timeout());
+        return new DeleteIndexResponse(deleteIndexResult.acknowledged());
     }
 }

@@ -31,9 +31,24 @@ import java.io.IOException;
  */
 public class CreateIndexResponse implements ActionResponse, Streamable {
 
+    private boolean acknowledged;
+
+    CreateIndexResponse() {
+    }
+
+    public CreateIndexResponse(boolean acknowledged) {
+        this.acknowledged = acknowledged;
+    }
+
+    public boolean acknowledged() {
+        return acknowledged;
+    }
+
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+        acknowledged = in.readBoolean();
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
+        out.writeBoolean(acknowledged);
     }
 }

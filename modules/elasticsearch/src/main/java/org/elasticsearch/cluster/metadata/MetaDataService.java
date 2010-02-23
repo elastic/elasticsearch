@@ -90,7 +90,7 @@ public class MetaDataService extends AbstractComponent {
 
     // TODO should find nicer solution than sync here, since we block for timeout (same for other ops)
 
-    public synchronized boolean createIndex(final String index, final Settings indexSettings, TimeValue timeout) throws IndexAlreadyExistsException {
+    public synchronized CreateIndexResult createIndex(final String index, final Settings indexSettings, TimeValue timeout) throws IndexAlreadyExistsException {
         if (clusterService.state().routingTable().hasIndex(index)) {
             throw new IndexAlreadyExistsException(new Index(index));
         }
@@ -153,16 +153,18 @@ public class MetaDataService extends AbstractComponent {
             }
         });
 
+        boolean acknowledged;
         try {
-            return latch.await(timeout.millis(), TimeUnit.MILLISECONDS);
+            acknowledged = latch.await(timeout.millis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
-            return false;
+            acknowledged = false;
         } finally {
             nodeIndexCreatedAction.remove(nodeCreatedListener);
         }
+        return new CreateIndexResult(acknowledged);
     }
 
-    public synchronized boolean deleteIndex(final String index, TimeValue timeout) throws IndexMissingException {
+    public synchronized DeleteIndexResult deleteIndex(final String index, TimeValue timeout) throws IndexMissingException {
         RoutingTable routingTable = clusterService.state().routingTable();
         if (!routingTable.hasIndex(index)) {
             throw new IndexMissingException(new Index(index));
@@ -197,13 +199,15 @@ public class MetaDataService extends AbstractComponent {
                 return newClusterStateBuilder().state(currentState).routingTable(newRoutingTable).metaData(newMetaData).build();
             }
         });
+        boolean acknowledged;
         try {
-            return latch.await(timeout.millis(), TimeUnit.MILLISECONDS);
+            acknowledged = latch.await(timeout.millis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
-            return false;
+            acknowledged = false;
         } finally {
             nodeIndexDeletedAction.remove(listener);
         }
+        return new DeleteIndexResult(acknowledged);
     }
 
     public synchronized void updateMapping(final String index, final String type, final String mappingSource) {
@@ -332,6 +336,32 @@ public class MetaDataService extends AbstractComponent {
         private final boolean acknowledged;
 
         public PutMappingResult(boolean acknowledged) {
+            this.acknowledged = acknowledged;
+        }
+
+        public boolean acknowledged() {
+            return acknowledged;
+        }
+    }
+
+    public static class CreateIndexResult {
+
+        private final boolean acknowledged;
+
+        public CreateIndexResult(boolean acknowledged) {
+            this.acknowledged = acknowledged;
+        }
+
+        public boolean acknowledged() {
+            return acknowledged;
+        }
+    }
+
+    public static class DeleteIndexResult {
+
+        private final boolean acknowledged;
+
+        public DeleteIndexResult(boolean acknowledged) {
             this.acknowledged = acknowledged;
         }
 

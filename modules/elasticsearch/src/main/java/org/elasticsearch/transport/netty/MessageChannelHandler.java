@@ -21,7 +21,6 @@ package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
-import org.elasticsearch.util.io.DataInputInputStream;
 import org.elasticsearch.util.io.Streamable;
 import org.elasticsearch.util.io.ThrowableObjectInputStream;
 import org.jboss.netty.buffer.ChannelBufferInputStream;
@@ -106,7 +105,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
     private void handlerResponseError(ChannelBufferInputStream buffer, final TransportResponseHandler handler) {
         Throwable error;
         try {
-            ThrowableObjectInputStream ois = new ThrowableObjectInputStream(new DataInputInputStream(buffer));
+            ThrowableObjectInputStream ois = new ThrowableObjectInputStream(buffer);
             error = (Throwable) ois.readObject();
         } catch (Exception e) {
             error = new TransportSerializationException("Failed to deserialize exception response from stream", e);

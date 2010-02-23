@@ -27,7 +27,10 @@ import org.elasticsearch.transport.*;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.component.Lifecycle;
-import org.elasticsearch.util.io.*;
+import org.elasticsearch.util.io.ByteArrayDataInputStream;
+import org.elasticsearch.util.io.ByteArrayDataOutputStream;
+import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.ThrowableObjectInputStream;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.transport.BoundTransportAddress;
@@ -218,7 +221,7 @@ public class LocalTransport extends AbstractComponent implements Transport {
     private void handlerResponseError(DataInputStream buffer, final TransportResponseHandler handler) {
         Throwable error;
         try {
-            ThrowableObjectInputStream ois = new ThrowableObjectInputStream(new DataInputInputStream(buffer));
+            ThrowableObjectInputStream ois = new ThrowableObjectInputStream(buffer);
             error = (Throwable) ois.readObject();
         } catch (Exception e) {
             error = new TransportSerializationException("Failed to deserialize exception response from stream", e);

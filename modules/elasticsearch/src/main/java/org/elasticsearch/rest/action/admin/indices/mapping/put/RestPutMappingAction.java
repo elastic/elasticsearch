@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.mapper.InvalidTypeNameException;
+import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestJsonBuilder;
@@ -75,7 +76,7 @@ public class RestPutMappingAction extends BaseRestHandler {
                 try {
                     JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
                     Throwable t = unwrapCause(e);
-                    if (t instanceof IndexMissingException || t instanceof InvalidTypeNameException) {
+                    if (t instanceof IndexMissingException || t instanceof InvalidTypeNameException || t instanceof MergeMappingException) {
                         channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, builder.startObject().field("error", t.getMessage()).endObject()));
                     } else {
                         channel.sendResponse(new JsonThrowableRestResponse(request, e));

@@ -75,7 +75,7 @@ public class NettyTransportChannel implements TransportChannel {
     }
 
     @Override public void sendResponse(Throwable error) throws IOException {
-        ChannelBuffer buffer = ChannelBuffers.dynamicBuffer();
+        ChannelBuffer buffer = ChannelBuffers.dynamicBuffer(512, channel.getConfig().getBufferFactory());
         ChannelBufferOutputStream os = new ChannelBufferOutputStream(buffer);
 
         os.write(LENGTH_PLACEHOLDER);

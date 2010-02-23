@@ -99,6 +99,8 @@ public class RecoveryAction extends AbstractIndexShardComponent {
         transportService.removeHandler(startTransportAction);
         transportService.removeHandler(fileChunkTransportAction);
         transportService.removeHandler(snapshotTransportAction);
+
+        cleanOpenIndex();
     }
 
     public synchronized void startRecovery(Node node, Node targetNode, boolean markAsRelocated) throws ElasticSearchException {

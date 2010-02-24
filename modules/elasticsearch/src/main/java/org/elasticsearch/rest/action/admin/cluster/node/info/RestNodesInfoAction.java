@@ -43,7 +43,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
         super(settings, client);
 
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/${nodeId}", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/{nodeId}", this);
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {

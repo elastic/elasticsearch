@@ -22,6 +22,9 @@ package org.elasticsearch.client.server;
 import com.google.inject.Inject;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfo;
@@ -46,6 +49,8 @@ import org.elasticsearch.util.settings.Settings;
  */
 public class ServerClusterAdminClient extends AbstractComponent implements ClusterAdminClient {
 
+    private final TransportClusterHealthAction clusterHealthAction;
+
     private final TransportClusterStateAction clusterStateAction;
 
     private final TransportSinglePingAction singlePingAction;
@@ -57,15 +62,28 @@ public class ServerClusterAdminClient extends AbstractComponent implements Clust
     private final TransportNodesInfo nodesInfo;
 
     @Inject public ServerClusterAdminClient(Settings settings,
-                                            TransportClusterStateAction clusterStateAction,
+                                            TransportClusterHealthAction clusterHealthAction, TransportClusterStateAction clusterStateAction,
                                             TransportSinglePingAction singlePingAction, TransportBroadcastPingAction broadcastPingAction, TransportReplicationPingAction replicationPingAction,
                                             TransportNodesInfo nodesInfo) {
         super(settings);
+        this.clusterHealthAction = clusterHealthAction;
         this.clusterStateAction = clusterStateAction;
         this.nodesInfo = nodesInfo;
         this.singlePingAction = singlePingAction;
         this.broadcastPingAction = broadcastPingAction;
         this.replicationPingAction = replicationPingAction;
+    }
+
+    @Override public ActionFuture<ClusterHealthResponse> health(ClusterHealthRequest request) {
+        return clusterHealthAction.submit(request);
+    }
+
+    @Override public ActionFuture<ClusterHealthResponse> health(ClusterHealthRequest request, ActionListener<ClusterHealthResponse> listener) {
+        return clusterHealthAction.submit(request, listener);
+    }
+
+    @Override public void execHealth(ClusterHealthRequest request, ActionListener<ClusterHealthResponse> listener) {
+        clusterHealthAction.execute(request, listener);
     }
 
     @Override public ActionFuture<ClusterStateResponse> state(ClusterStateRequest request) {

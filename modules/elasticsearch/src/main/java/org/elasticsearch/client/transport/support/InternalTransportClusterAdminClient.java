@@ -23,6 +23,8 @@ import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingRequest;
@@ -35,6 +37,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.transport.TransportClientNodesService;
+import org.elasticsearch.client.transport.action.admin.cluster.health.ClientTransportClusterHealthAction;
 import org.elasticsearch.client.transport.action.admin.cluster.node.info.ClientTransportNodesInfoAction;
 import org.elasticsearch.client.transport.action.admin.cluster.ping.broadcast.ClientTransportBroadcastPingAction;
 import org.elasticsearch.client.transport.action.admin.cluster.ping.replication.ClientTransportReplicationPingAction;
@@ -51,6 +54,8 @@ public class InternalTransportClusterAdminClient extends AbstractComponent imple
 
     private final TransportClientNodesService nodesService;
 
+    private final ClientTransportClusterHealthAction clusterHealthAction;
+
     private final ClientTransportClusterStateAction clusterStateAction;
 
     private final ClientTransportSinglePingAction singlePingAction;
@@ -62,16 +67,42 @@ public class InternalTransportClusterAdminClient extends AbstractComponent imple
     private final ClientTransportNodesInfoAction nodesInfoAction;
 
     @Inject public InternalTransportClusterAdminClient(Settings settings, TransportClientNodesService nodesService,
-                                                       ClientTransportClusterStateAction clusterStateAction,
+                                                       ClientTransportClusterHealthAction clusterHealthAction, ClientTransportClusterStateAction clusterStateAction,
                                                        ClientTransportSinglePingAction singlePingAction, ClientTransportReplicationPingAction replicationPingAction, ClientTransportBroadcastPingAction broadcastPingAction,
                                                        ClientTransportNodesInfoAction nodesInfoAction) {
         super(settings);
         this.nodesService = nodesService;
+        this.clusterHealthAction = clusterHealthAction;
         this.clusterStateAction = clusterStateAction;
         this.nodesInfoAction = nodesInfoAction;
         this.singlePingAction = singlePingAction;
         this.replicationPingAction = replicationPingAction;
         this.broadcastPingAction = broadcastPingAction;
+    }
+
+    @Override public ActionFuture<ClusterHealthResponse> health(final ClusterHealthRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<ClusterHealthResponse>>() {
+            @Override public ActionFuture<ClusterHealthResponse> doWithNode(Node node) throws ElasticSearchException {
+                return clusterHealthAction.submit(node, request);
+            }
+        });
+    }
+
+    @Override public ActionFuture<ClusterHealthResponse> health(final ClusterHealthRequest request, final ActionListener<ClusterHealthResponse> listener) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<ClusterHealthResponse>>() {
+            @Override public ActionFuture<ClusterHealthResponse> doWithNode(Node node) throws ElasticSearchException {
+                return clusterHealthAction.submit(node, request, listener);
+            }
+        });
+    }
+
+    @Override public void execHealth(final ClusterHealthRequest request, final ActionListener<ClusterHealthResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
+            @Override public Void doWithNode(Node node) throws ElasticSearchException {
+                clusterHealthAction.execute(node, request, listener);
+                return null;
+            }
+        });
     }
 
     @Override public ActionFuture<ClusterStateResponse> state(final ClusterStateRequest request) {

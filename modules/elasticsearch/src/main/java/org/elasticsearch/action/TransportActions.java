@@ -62,6 +62,7 @@ public class TransportActions {
         public static class Cluster {
 
             public static final String STATE = "/cluster/state";
+            public static final String HEALTH = "/cluster/health";
 
             public static class Node {
                 public static final String INFO = "/cluster/nodes/info";

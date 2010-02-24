@@ -48,7 +48,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.concurrent.TimeUnit.*;
@@ -77,6 +79,16 @@ public class RecoveryAction extends AbstractIndexShardComponent {
 
     private final String snapshotTransportAction;
 
+    private volatile boolean closed = false;
+
+    private volatile Thread sendStartRecoveryThread;
+
+    private volatile Thread receiveSnapshotRecoveryThread;
+
+    private volatile Thread sendSnapshotRecoveryThread;
+
+    private final CopyOnWriteArrayList<Future> sendFileChunksRecoveryFutures = new CopyOnWriteArrayList<Future>();
+
     @Inject public RecoveryAction(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool, TransportService transportService, IndexShard indexShard, Store store) {
         super(shardId, indexSettings);
         this.threadPool = threadPool;
@@ -96,64 +108,97 @@ public class RecoveryAction extends AbstractIndexShardComponent {
     }
 
     public void close() {
+        closed = true;
         transportService.removeHandler(startTransportAction);
         transportService.removeHandler(fileChunkTransportAction);
         transportService.removeHandler(snapshotTransportAction);
 
         cleanOpenIndex();
+
+        if (true) {
+            // disable the interruptions for now
+            return;
+        }
+
+        // interrupt the startRecovery thread if its performing recovery
+        if (sendStartRecoveryThread != null) {
+            sendStartRecoveryThread.interrupt();
+        }
+        if (receiveSnapshotRecoveryThread != null) {
+            receiveSnapshotRecoveryThread.interrupt();
+        }
+        if (sendSnapshotRecoveryThread != null) {
+            sendSnapshotRecoveryThread.interrupt();
+        }
+        for (Future future : sendFileChunksRecoveryFutures) {
+            future.cancel(true);
+        }
     }
 
     public synchronized void startRecovery(Node node, Node targetNode, boolean markAsRelocated) throws ElasticSearchException {
-        // mark the shard as recovering
-        IndexShardState preRecoveringState;
+        sendStartRecoveryThread = Thread.currentThread();
         try {
-            preRecoveringState = indexShard.recovering();
-        } catch (IndexShardRecoveringException e) {
-            // that's fine, since we might be called concurrently, just ignore this, we are already recovering
-            throw new IgnoreRecoveryException("Already in recovering process", e);
-        } catch (IndexShardStartedException e) {
-            // that's fine, since we might be called concurrently, just ignore this, we are already started
-            throw new IgnoreRecoveryException("Already in recovering process", e);
-        } catch (IndexShardRelocatedException e) {
-            // that's fine, since we might be called concurrently, just ignore this, we are already relocated
-            throw new IgnoreRecoveryException("Already in recovering process", e);
-        } catch (IndexShardClosedException e) {
-            throw new IgnoreRecoveryException("can't recover a closed shard.", e);
-        }
-        logger.debug("Starting recovery from {}", targetNode);
-        StopWatch stopWatch = new StopWatch().start();
-        try {
-            RecoveryStatus recoveryStatus = transportService.submitRequest(targetNode, startTransportAction, new StartRecoveryRequest(node, markAsRelocated), new FutureTransportResponseHandler<RecoveryStatus>() {
-                @Override public RecoveryStatus newInstance() {
-                    return new RecoveryStatus();
+            // mark the shard as recovering
+            IndexShardState preRecoveringState;
+            try {
+                preRecoveringState = indexShard.recovering();
+            } catch (IndexShardRecoveringException e) {
+                // that's fine, since we might be called concurrently, just ignore this, we are already recovering
+                throw new IgnoreRecoveryException("Already in recovering process", e);
+            } catch (IndexShardStartedException e) {
+                // that's fine, since we might be called concurrently, just ignore this, we are already started
+                throw new IgnoreRecoveryException("Already in recovering process", e);
+            } catch (IndexShardRelocatedException e) {
+                // that's fine, since we might be called concurrently, just ignore this, we are already relocated
+                throw new IgnoreRecoveryException("Already in recovering process", e);
+            } catch (IndexShardClosedException e) {
+                throw new IgnoreRecoveryException("Can't recover a closed shard.", e);
+            }
+            logger.debug("Starting recovery from {}", targetNode);
+            StopWatch stopWatch = new StopWatch().start();
+            try {
+                if (closed) {
+                    throw new IgnoreRecoveryException("Recovery closed");
                 }
-            }).txGet();
-            stopWatch.stop();
-            if (logger.isDebugEnabled()) {
-                StringBuilder sb = new StringBuilder();
-                sb.append("Recovery completed from ").append(targetNode).append(", took [").append(stopWatch.totalTime()).append("]\n");
-                sb.append("   Phase1: recovered [").append(recoveryStatus.phase1FileNames.size()).append("]")
-                        .append(" files with total size of [").append(new SizeValue(recoveryStatus.phase1TotalSize)).append("]")
-                        .append(", took [").append(new TimeValue(recoveryStatus.phase1Time, MILLISECONDS)).append("]")
-                        .append("\n");
-                sb.append("   Phase2: recovered [").append(recoveryStatus.phase2Operations).append("]").append(" transaction log operations")
-                        .append(", took [").append(new TimeValue(recoveryStatus.phase2Time, MILLISECONDS)).append("]")
-                        .append("\n");
-                sb.append("   Phase3: recovered [").append(recoveryStatus.phase3Operations).append("]").append(" transaction log operations")
-                        .append(", took [").append(new TimeValue(recoveryStatus.phase3Time, MILLISECONDS)).append("]");
-                logger.debug(sb.toString());
+                RecoveryStatus recoveryStatus = transportService.submitRequest(targetNode, startTransportAction, new StartRecoveryRequest(node, markAsRelocated), new FutureTransportResponseHandler<RecoveryStatus>() {
+                    @Override public RecoveryStatus newInstance() {
+                        return new RecoveryStatus();
+                    }
+                }).txGet();
+                stopWatch.stop();
+                if (logger.isDebugEnabled()) {
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("Recovery completed from ").append(targetNode).append(", took [").append(stopWatch.totalTime()).append("]\n");
+                    sb.append("   Phase1: recovered [").append(recoveryStatus.phase1FileNames.size()).append("]")
+                            .append(" files with total size of [").append(new SizeValue(recoveryStatus.phase1TotalSize)).append("]")
+                            .append(", took [").append(new TimeValue(recoveryStatus.phase1Time, MILLISECONDS)).append("]")
+                            .append("\n");
+                    sb.append("   Phase2: recovered [").append(recoveryStatus.phase2Operations).append("]").append(" transaction log operations")
+                            .append(", took [").append(new TimeValue(recoveryStatus.phase2Time, MILLISECONDS)).append("]")
+                            .append("\n");
+                    sb.append("   Phase3: recovered [").append(recoveryStatus.phase3Operations).append("]").append(" transaction log operations")
+                            .append(", took [").append(new TimeValue(recoveryStatus.phase3Time, MILLISECONDS)).append("]");
+                    logger.debug(sb.toString());
+                }
+            } catch (RemoteTransportException e) {
+                if (closed) {
+                    throw new IgnoreRecoveryException("Recovery closed", e);
+                }
+                Throwable cause = ExceptionsHelper.unwrapCause(e);
+                if (cause instanceof ActionNotFoundTransportException || cause instanceof IndexShardNotStartedException) {
+                    // the remote shard has not yet registered the action or not started yet, we need to ignore this recovery attempt, and restore the state previous to recovering
+                    indexShard.restoreRecoveryState(preRecoveringState);
+                    throw new IgnoreRecoveryException("Ignoring recovery attempt, remote shard not started", e);
+                }
+                throw new RecoveryFailedException(shardId, node, targetNode, e);
+            } catch (Exception e) {
+                if (closed) {
+                    throw new IgnoreRecoveryException("Recovery closed", e);
+                }
+                throw new RecoveryFailedException(shardId, node, targetNode, e);
             }
-        } catch (RemoteTransportException e) {
-            Throwable cause = ExceptionsHelper.unwrapCause(e);
-            if (cause instanceof ActionNotFoundTransportException ||
-                    cause instanceof IndexShardNotStartedException) {
-                // the remote shard has not yet registered the action or not started yet, we need to ignore this recovery attempt, and restore the state previous to recovering
-                indexShard.restoreRecoveryState(preRecoveringState);
-                throw new IgnoreRecoveryException("Ignoring recovery attempt, remote shard not started", e);
-            }
-            throw new RecoveryFailedException(shardId, node, targetNode, e);
-        } catch (Exception e) {
-            throw new RecoveryFailedException(shardId, node, targetNode, e);
+        } finally {
+            sendStartRecoveryThread = null;
         }
     }
 
@@ -226,7 +271,7 @@ public class RecoveryAction extends AbstractIndexShardComponent {
                         final CountDownLatch latch = new CountDownLatch(snapshot.getFiles().length);
                         final AtomicReference<Exception> lastException = new AtomicReference<Exception>();
                         for (final String name : snapshot.getFiles()) {
-                            threadPool.execute(new Runnable() {
+                            sendFileChunksRecoveryFutures.add(threadPool.submit(new Runnable() {
                                 @Override public void run() {
                                     IndexInput indexInput = null;
                                     try {
@@ -256,7 +301,7 @@ public class RecoveryAction extends AbstractIndexShardComponent {
                                         latch.countDown();
                                     }
                                 }
-                            });
+                            }));
                         }
 
                         latch.await();
@@ -270,31 +315,49 @@ public class RecoveryAction extends AbstractIndexShardComponent {
                         recoveryStatus.phase1Time = stopWatch.totalTime().millis();
                     } catch (Throwable e) {
                         throw new RecoverFilesRecoveryException(shardId, snapshot.getFiles().length, new SizeValue(totalSize), e);
+                    } finally {
+                        sendFileChunksRecoveryFutures.clear();
                     }
                 }
 
                 @Override public void phase2(Translog.Snapshot snapshot) throws ElasticSearchException {
-                    logger.trace("Recovery [phase2] to {}: sending [{}] transaction log operations", node, snapshot.size());
-                    StopWatch stopWatch = new StopWatch().start();
-                    sendSnapshot(snapshot, false);
-                    stopWatch.stop();
-                    logger.trace("Recovery [phase2] to {}: took [{}]", node, stopWatch.totalTime());
-                    recoveryStatus.phase2Time = stopWatch.totalTime().millis();
-                    recoveryStatus.phase2Operations = snapshot.size();
+                    sendSnapshotRecoveryThread = Thread.currentThread();
+                    try {
+                        if (closed) {
+                            throw new IndexShardClosedException(shardId);
+                        }
+                        logger.trace("Recovery [phase2] to {}: sending [{}] transaction log operations", node, snapshot.size());
+                        StopWatch stopWatch = new StopWatch().start();
+                        sendSnapshot(snapshot, false);
+                        stopWatch.stop();
+                        logger.trace("Recovery [phase2] to {}: took [{}]", node, stopWatch.totalTime());
+                        recoveryStatus.phase2Time = stopWatch.totalTime().millis();
+                        recoveryStatus.phase2Operations = snapshot.size();
+                    } finally {
+                        sendSnapshotRecoveryThread = null;
+                    }
                 }
 
                 @Override public void phase3(Translog.Snapshot snapshot) throws ElasticSearchException {
-                    logger.trace("Recovery [phase3] to {}: sending [{}] transaction log operations", node, snapshot.size());
-                    StopWatch stopWatch = new StopWatch().start();
-                    sendSnapshot(snapshot, true);
-                    if (startRecoveryRequest.markAsRelocated) {
-                        // TODO what happens if the recovery process fails afterwards, we need to mark this back to started
-                        indexShard.relocated();
+                    sendSnapshotRecoveryThread = Thread.currentThread();
+                    try {
+                        if (closed) {
+                            throw new IndexShardClosedException(shardId);
+                        }
+                        logger.trace("Recovery [phase3] to {}: sending [{}] transaction log operations", node, snapshot.size());
+                        StopWatch stopWatch = new StopWatch().start();
+                        sendSnapshot(snapshot, true);
+                        if (startRecoveryRequest.markAsRelocated) {
+                            // TODO what happens if the recovery process fails afterwards, we need to mark this back to started
+                            indexShard.relocated();
+                        }
+                        stopWatch.stop();
+                        logger.trace("Recovery [phase3] to {}: took [{}]", node, stopWatch.totalTime());
+                        recoveryStatus.phase3Time = stopWatch.totalTime().millis();
+                        recoveryStatus.phase3Operations = snapshot.size();
+                    } finally {
+                        sendSnapshotRecoveryThread = null;
                     }
-                    stopWatch.stop();
-                    logger.trace("Recovery [phase3] to {}: took [{}]", node, stopWatch.totalTime());
-                    recoveryStatus.phase3Time = stopWatch.totalTime().millis();
-                    recoveryStatus.phase3Operations = snapshot.size();
                 }
 
                 private void sendSnapshot(Translog.Snapshot snapshot, boolean phase3) throws ElasticSearchException {
@@ -371,16 +434,24 @@ public class RecoveryAction extends AbstractIndexShardComponent {
         }
 
         @Override public void messageReceived(SnapshotWrapper snapshot, TransportChannel channel) throws Exception {
-            if (!snapshot.phase3) {
-                // clean open index outputs in any case (there should not be any open, we close then in the chunk)
-                cleanOpenIndex();
+            receiveSnapshotRecoveryThread = Thread.currentThread();
+            try {
+                if (closed) {
+                    throw new IndexShardClosedException(shardId);
+                }
+                if (!snapshot.phase3) {
+                    // clean open index outputs in any case (there should not be any open, we close then in the chunk)
+                    cleanOpenIndex();
+                }
+                indexShard.performRecovery(snapshot.snapshot, snapshot.phase3);
+                if (snapshot.phase3) {
+                    indexShard.refresh(new Engine.Refresh(true));
+                    // probably need to do more here...
+                }
+                channel.sendResponse(VoidStreamable.INSTANCE);
+            } finally {
+                receiveSnapshotRecoveryThread = null;
             }
-            indexShard.performRecovery(snapshot.snapshot, snapshot.phase3);
-            if (snapshot.phase3) {
-                indexShard.refresh(new Engine.Refresh(true));
-                // probably need to do more here...
-            }
-            channel.sendResponse(VoidStreamable.INSTANCE);
         }
     }
 
@@ -417,6 +488,9 @@ public class RecoveryAction extends AbstractIndexShardComponent {
         }
 
         @Override public void messageReceived(FileChunk request, TransportChannel channel) throws Exception {
+            if (closed) {
+                throw new IndexShardClosedException(shardId);
+            }
             IndexOutput indexOutput;
             if (request.position == 0) {
                 // first request

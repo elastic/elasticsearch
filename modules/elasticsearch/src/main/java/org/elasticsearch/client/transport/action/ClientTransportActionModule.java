@@ -20,6 +20,7 @@
 package org.elasticsearch.client.transport.action;
 
 import com.google.inject.AbstractModule;
+import org.elasticsearch.client.transport.action.admin.cluster.health.ClientTransportClusterHealthAction;
 import org.elasticsearch.client.transport.action.admin.cluster.node.info.ClientTransportNodesInfoAction;
 import org.elasticsearch.client.transport.action.admin.cluster.ping.broadcast.ClientTransportBroadcastPingAction;
 import org.elasticsearch.client.transport.action.admin.cluster.ping.replication.ClientTransportReplicationPingAction;
@@ -43,7 +44,7 @@ import org.elasticsearch.client.transport.action.search.ClientTransportSearchScr
 import org.elasticsearch.client.transport.action.terms.ClientTransportTermsAction;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class ClientTransportActionModule extends AbstractModule {
 
@@ -70,5 +71,6 @@ public class ClientTransportActionModule extends AbstractModule {
         bind(ClientTransportReplicationPingAction.class).asEagerSingleton();
         bind(ClientTransportBroadcastPingAction.class).asEagerSingleton();
         bind(ClientTransportClusterStateAction.class).asEagerSingleton();
+        bind(ClientTransportClusterHealthAction.class).asEagerSingleton();
     }
 }

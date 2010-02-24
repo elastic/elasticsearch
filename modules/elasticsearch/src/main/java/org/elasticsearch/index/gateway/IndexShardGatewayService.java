@@ -145,18 +145,24 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent {
             // do not snapshot when in the process of relocation of primaries so we won't get conflicts
             return;
         }
-        indexShard.snapshot(new Engine.SnapshotHandler() {
-            @Override public void snapshot(SnapshotIndexCommit snapshotIndexCommit, Translog.Snapshot translogSnapshot) throws EngineException {
-                if (lastIndexVersion != snapshotIndexCommit.getVersion() || lastTranslogId != translogSnapshot.translogId() || lastTranslogSize != translogSnapshot.size()) {
+        try {
+            indexShard.snapshot(new Engine.SnapshotHandler() {
+                @Override public void snapshot(SnapshotIndexCommit snapshotIndexCommit, Translog.Snapshot translogSnapshot) throws EngineException {
+                    if (lastIndexVersion != snapshotIndexCommit.getVersion() || lastTranslogId != translogSnapshot.translogId() || lastTranslogSize != translogSnapshot.size()) {
 
-                    shardGateway.snapshot(snapshotIndexCommit, translogSnapshot);
+                        shardGateway.snapshot(snapshotIndexCommit, translogSnapshot);
 
-                    lastIndexVersion = snapshotIndexCommit.getVersion();
-                    lastTranslogId = translogSnapshot.translogId();
-                    lastTranslogSize = translogSnapshot.size();
+                        lastIndexVersion = snapshotIndexCommit.getVersion();
+                        lastTranslogId = translogSnapshot.translogId();
+                        lastTranslogSize = translogSnapshot.size();
+                    }
                 }
-            }
-        });
+            });
+        } catch (IllegalIndexShardStateException e) {
+            // ignore, that's fine
+        } catch (Exception e) {
+            logger.warn("Failed to snapshot on close", e);
+        }
     }
 
     public void close() {

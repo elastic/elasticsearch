@@ -21,6 +21,8 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingRequest;
@@ -39,6 +41,34 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
  * @see AdminClient#cluster()
  */
 public interface ClusterAdminClient {
+
+    /**
+     * The health of the cluster.
+     *
+     * @param request The cluster state request
+     * @return The result future
+     * @see Requests#clusterHealth(String...)
+     */
+    ActionFuture<ClusterHealthResponse> health(ClusterHealthRequest request);
+
+    /**
+     * The health of the cluster.
+     *
+     * @param request  The cluster state request
+     * @param listener A listener to be notified with a result
+     * @return The result future
+     * @see Requests#clusterHealth(String...)
+     */
+    ActionFuture<ClusterHealthResponse> health(ClusterHealthRequest request, ActionListener<ClusterHealthResponse> listener);
+
+    /**
+     * The health of the cluster.
+     *
+     * @param request  The cluster state request
+     * @param listener A listener to be notified with a result
+     * @see Requests#clusterHealth(String...)
+     */
+    void execHealth(ClusterHealthRequest request, ActionListener<ClusterHealthResponse> listener);
 
     /**
      * The state of the cluster.

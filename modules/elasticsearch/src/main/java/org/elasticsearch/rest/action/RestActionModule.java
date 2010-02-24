@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action;
 
 import com.google.inject.AbstractModule;
+import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthAction;
 import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.ping.broadcast.RestBroadcastPingAction;
 import org.elasticsearch.rest.action.admin.cluster.ping.replication.RestReplicationPingAction;
@@ -52,6 +53,7 @@ public class RestActionModule extends AbstractModule {
 
         bind(RestNodesInfoAction.class).asEagerSingleton();
         bind(RestClusterStateAction.class).asEagerSingleton();
+        bind(RestClusterHealthAction.class).asEagerSingleton();
 
         bind(RestSinglePingAction.class).asEagerSingleton();
         bind(RestBroadcastPingAction.class).asEagerSingleton();

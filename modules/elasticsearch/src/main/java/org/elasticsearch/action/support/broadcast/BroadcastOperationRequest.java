@@ -22,6 +22,7 @@ package org.elasticsearch.action.support.broadcast;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.util.Nullable;
+import org.elasticsearch.util.Strings;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -78,9 +79,13 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
-        out.writeInt(indices.length);
-        for (String index : indices) {
-            out.writeUTF(index);
+        if (indices == null) {
+            out.writeInt(0);
+        } else {
+            out.writeInt(indices.length);
+            for (String index : indices) {
+                out.writeUTF(index);
+            }
         }
         if (queryHint == null) {
             out.writeBoolean(false);
@@ -92,9 +97,14 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
     }
 
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
-        indices = new String[in.readInt()];
-        for (int i = 0; i < indices.length; i++) {
-            indices[i] = in.readUTF();
+        int size = in.readInt();
+        if (size == 0) {
+            indices = Strings.EMPTY_ARRAY;
+        } else {
+            indices = new String[size];
+            for (int i = 0; i < indices.length; i++) {
+                indices[i] = in.readUTF();
+            }
         }
         if (in.readBoolean()) {
             queryHint = in.readUTF();

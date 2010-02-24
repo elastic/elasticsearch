@@ -357,7 +357,6 @@ public class DefaultShardsRoutingStrategy implements ShardsRoutingStrategy {
                         shard.deassignNode();
                         shards.remove();
                     } else {
-                        assert shard.state() == ShardRoutingState.RELOCATING;
                         shard.cancelRelocation();
                     }
                     break;

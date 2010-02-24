@@ -20,6 +20,7 @@
 package org.elasticsearch.action;
 
 import com.google.inject.AbstractModule;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfo;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.TransportBroadcastPingAction;
 import org.elasticsearch.action.admin.cluster.ping.replication.TransportIndexReplicationPingAction;
@@ -58,6 +59,7 @@ public class TransportActionModule extends AbstractModule {
 
         bind(TransportNodesInfo.class).asEagerSingleton();
         bind(TransportClusterStateAction.class).asEagerSingleton();
+        bind(TransportClusterHealthAction.class).asEagerSingleton();
 
         bind(TransportSinglePingAction.class).asEagerSingleton();
         bind(TransportBroadcastPingAction.class).asEagerSingleton();

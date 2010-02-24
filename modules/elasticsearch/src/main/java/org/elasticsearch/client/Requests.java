@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingRequest;
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingRequest;
@@ -231,6 +232,17 @@ public class Requests {
      */
     public static ClusterStateRequest clusterState() {
         return new ClusterStateRequest();
+    }
+
+    /**
+     * Creates a cluster health request.
+     *
+     * @param indices The indices to optimize. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @return The cluster health request
+     * @see org.elasticsearch.client.ClusterAdminClient#health(org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest)
+     */
+    public static ClusterHealthRequest clusterHealth(String... indices) {
+        return new ClusterHealthRequest(indices);
     }
 
     /**

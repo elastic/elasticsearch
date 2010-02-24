@@ -70,6 +70,7 @@ public class QueryStringJsonQueryParser extends AbstractIndexComponent implement
         int fuzzyPrefixLength = FuzzyQuery.defaultPrefixLength;
         int phraseSlop = 0;
         float boost = 1.0f;
+        boolean escape = true;
         Analyzer analyzer = null;
 
         String currentFieldName = null;
@@ -101,6 +102,8 @@ public class QueryStringJsonQueryParser extends AbstractIndexComponent implement
                     lowercaseExpandedTerms = token == JsonToken.VALUE_TRUE;
                 } else if ("enablePositionIncrements".equals(currentFieldName)) {
                     enablePositionIncrements = token == JsonToken.VALUE_TRUE;
+                } else if ("escape".equals(currentFieldName)) {
+                    escape = token == JsonToken.VALUE_TRUE;
                 }
             } else if (token == JsonToken.VALUE_NUMBER_FLOAT) {
                 if ("fuzzyMinSim".equals(currentFieldName)) {
@@ -123,6 +126,8 @@ public class QueryStringJsonQueryParser extends AbstractIndexComponent implement
                     lowercaseExpandedTerms = jp.getIntValue() != 0;
                 } else if ("enablePositionIncrements".equals(currentFieldName)) {
                     enablePositionIncrements = jp.getIntValue() != 0;
+                } else if ("escape".equals(currentFieldName)) {
+                    escape = jp.getIntValue() != 0;
                 }
             }
         }
@@ -141,6 +146,10 @@ public class QueryStringJsonQueryParser extends AbstractIndexComponent implement
         queryParser.setFuzzyMinSim(fuzzyMinSim);
         queryParser.setFuzzyPrefixLength(fuzzyPrefixLength);
         queryParser.setPhraseSlop(phraseSlop);
+
+        if (escape) {
+            queryString = QueryParser.escape(queryString);
+        }
 
         try {
             Query query = queryParser.parse(queryString);

@@ -36,6 +36,7 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
     private final int minMergeDocs;
     private final int maxMergeDocs;
     private final int mergeFactor;
+    private final boolean calibrateSizeByDeletes;
     private final Boolean useCompoundFile;
 
     @Inject public LogDocMergePolicyProvider(Store store) {
@@ -45,9 +46,10 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
         this.minMergeDocs = componentSettings.getAsInt("minMergeDocs", LogDocMergePolicy.DEFAULT_MIN_MERGE_DOCS);
         this.maxMergeDocs = componentSettings.getAsInt("maxMergeDocs", LogDocMergePolicy.DEFAULT_MAX_MERGE_DOCS);
         this.mergeFactor = componentSettings.getAsInt("mergeFactor", LogDocMergePolicy.DEFAULT_MERGE_FACTOR);
+        this.calibrateSizeByDeletes = componentSettings.getAsBoolean("calibrateSizeByDeletes", false);
         this.useCompoundFile = componentSettings.getAsBoolean("useCompoundFile", store == null || store.suggestUseCompoundFile());
-        logger.debug("Using [LogDoc] merge policy with mergeFactor[{}] minMergeDocs[{}], maxMergeDocs[{}], useCompoundFile[{}]",
-                new Object[]{mergeFactor, minMergeDocs, maxMergeDocs, useCompoundFile});
+        logger.debug("Using [LogDoc] merge policy with mergeFactor[{}] minMergeDocs[{}], maxMergeDocs[{}], useCompoundFile[{}], calibrateSizeByDeletes[{}]",
+                new Object[]{mergeFactor, minMergeDocs, maxMergeDocs, useCompoundFile, calibrateSizeByDeletes});
     }
 
     @Override public LogDocMergePolicy newMergePolicy(IndexWriter indexWriter) {
@@ -57,6 +59,7 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
         mergePolicy.setMergeFactor(mergeFactor);
         mergePolicy.setUseCompoundFile(useCompoundFile);
         mergePolicy.setUseCompoundDocStore(useCompoundFile);
+        mergePolicy.setCalibrateSizeByDeletes(calibrateSizeByDeletes);
         return mergePolicy;
     }
 }

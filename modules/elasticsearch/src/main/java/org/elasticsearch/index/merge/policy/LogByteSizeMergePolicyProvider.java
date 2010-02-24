@@ -39,6 +39,7 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
     private final SizeValue maxMergeSize;
     private final int mergeFactor;
     private final int maxMergeDocs;
+    private final boolean calibrateSizeByDeletes;
     private final Boolean useCompoundFile;
 
     @Inject public LogByteSizeMergePolicyProvider(Store store) {
@@ -49,9 +50,10 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
         this.maxMergeSize = componentSettings.getAsSize("maxMergeSize", new SizeValue((long) LogByteSizeMergePolicy.DEFAULT_MAX_MERGE_MB, SizeUnit.MB));
         this.mergeFactor = componentSettings.getAsInt("mergeFactor", LogByteSizeMergePolicy.DEFAULT_MERGE_FACTOR);
         this.maxMergeDocs = componentSettings.getAsInt("maxMergeDocs", LogByteSizeMergePolicy.DEFAULT_MAX_MERGE_DOCS);
+        this.calibrateSizeByDeletes = componentSettings.getAsBoolean("calibrateSizeByDeletes", false);
         this.useCompoundFile = componentSettings.getAsBoolean("useCompoundFile", store == null || store.suggestUseCompoundFile());
-        logger.debug("Using [LogByteSize] merge policy with mergeFactor[{}], minMergeSize[{}], maxMergeSize[{}], maxMergeDocs[{}] useCompoundFile[{}]",
-                new Object[]{mergeFactor, minMergeSize, maxMergeSize, maxMergeDocs, useCompoundFile});
+        logger.debug("Using [LogByteSize] merge policy with mergeFactor[{}], minMergeSize[{}], maxMergeSize[{}], maxMergeDocs[{}] useCompoundFile[{}], calibrateSizeByDeletes[{}]",
+                new Object[]{mergeFactor, minMergeSize, maxMergeSize, maxMergeDocs, useCompoundFile, calibrateSizeByDeletes});
     }
 
     @Override public LogByteSizeMergePolicy newMergePolicy(IndexWriter indexWriter) {
@@ -62,6 +64,7 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
         mergePolicy.setMaxMergeDocs(maxMergeDocs);
         mergePolicy.setUseCompoundFile(useCompoundFile);
         mergePolicy.setUseCompoundDocStore(useCompoundFile);
+        mergePolicy.setCalibrateSizeByDeletes(calibrateSizeByDeletes);
         return mergePolicy;
     }
 }

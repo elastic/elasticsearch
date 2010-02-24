@@ -168,7 +168,7 @@ public final class InternalServer implements Server {
             return this;
         }
         Logger logger = Loggers.getLogger(Server.class, settings.get("name"));
-        logger.info("{ElasticSearch/{}}: Stopping ...", Version.full());
+        logger.info("{{}}: Stopping ...", Version.full());
 
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).stop();

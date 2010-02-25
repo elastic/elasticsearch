@@ -43,11 +43,11 @@ import org.elasticsearch.index.gateway.IgnoreGatewayRecoveryException;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.InternalIndexShard;
 import org.elasticsearch.index.shard.recovery.IgnoreRecoveryException;
 import org.elasticsearch.index.shard.recovery.RecoveryAction;
+import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.component.AbstractComponent;
@@ -59,6 +59,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static com.google.common.collect.Sets.*;
+import static org.elasticsearch.ExceptionsHelper.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -146,7 +147,7 @@ public class IndicesClusterStateService extends AbstractComponent implements Clu
 
         RoutingTable routingTable = event.state().routingTable();
 
-        RoutingNode routingNodes = event.state().routingNodes().nodesToShards().get(event.state().nodes().localNodeId());
+        RoutingNode routingNodes = event.state().readOnlyRoutingNodes().nodesToShards().get(event.state().nodes().localNodeId());
         if (routingNodes != null) {
             applyShards(routingNodes, routingTable, event.state().nodes());
         }
@@ -238,7 +239,7 @@ public class IndicesClusterStateService extends AbstractComponent implements Clu
             if (!indexService.hasShard(shardId) && shardRouting.started()) {
                 // the master thinks we are started, but we don't have this shard at all, mark it as failed
                 logger.warn("[" + shardRouting.index() + "][" + shardRouting.shardId().id() + "] Master " + nodes.masterNode() + " marked shard as started, but shard have not been created, mark shard as failed");
-                shardStateAction.shardFailed(shardRouting);
+                shardStateAction.shardFailed(shardRouting, "Master " + nodes.masterNode() + " marked shard as started, but shard have not been created, mark shard as failed");
                 continue;
             }
 
@@ -268,7 +269,7 @@ public class IndicesClusterStateService extends AbstractComponent implements Clu
                 if (logger.isTraceEnabled()) {
                     logger.trace("[" + shardRouting.index() + "][" + shardRouting.shardId().id() + "] Master " + nodes.masterNode() + " marked shard as initializing, but shard already started, mark shard as started");
                 }
-                shardStateAction.shardStarted(shardRouting);
+                shardStateAction.shardStarted(shardRouting, "Master " + nodes.masterNode() + " marked shard as initializing, but shard already started, mark shard as started");
                 return;
             } else {
                 if (indexShard.ignoreRecoveryAttempt()) {
@@ -293,7 +294,7 @@ public class IndicesClusterStateService extends AbstractComponent implements Clu
                 } catch (Exception e1) {
                     logger.warn("Failed to delete shard after failed creation for index [" + indexService.index().name() + "] and shard id [" + shardRouting.id() + "]", e1);
                 }
-                shardStateAction.shardFailed(shardRouting);
+                shardStateAction.shardFailed(shardRouting, "Failed to create shard, message [" + detailedMessage(e) + "]");
                 return;
             }
         }
@@ -323,7 +324,7 @@ public class IndicesClusterStateService extends AbstractComponent implements Clu
                                 try {
                                     // we are recovering a backup from a primary, so no need to mark it as relocated
                                     recoveryAction.startRecovery(nodes.localNode(), node, false);
-                                    shardStateAction.shardStarted(shardRouting);
+                                    shardStateAction.shardStarted(shardRouting, "after recovery (backup) from node [" + node + "]");
                                 } catch (IgnoreRecoveryException e) {
                                     // that's fine, since we might be called concurrently, just ignore this
                                     break;
@@ -337,7 +338,7 @@ public class IndicesClusterStateService extends AbstractComponent implements Clu
                             IndexShardGatewayService shardGatewayService = indexService.shardInjector(shardId).getInstance(IndexShardGatewayService.class);
                             try {
                                 shardGatewayService.recover();
-                                shardStateAction.shardStarted(shardRouting);
+                                shardStateAction.shardStarted(shardRouting, "after recovery from gateway");
                             } catch (IgnoreGatewayRecoveryException e) {
                                 // that's fine, we might be called concurrently, just ignore this, we already recovered
                             }
@@ -345,9 +346,10 @@ public class IndicesClusterStateService extends AbstractComponent implements Clu
                             // relocating primaries, recovery from the relocating shard
                             Node node = nodes.get(shardRouting.relocatingNodeId());
                             try {
-                                // we mark the primary we are going to recover from as relocated
+                                // we mark the primary we are going to recover from as relocated at the end of phase 3
+                                // so operations will start moving to the new primary
                                 recoveryAction.startRecovery(nodes.localNode(), node, true);
-                                shardStateAction.shardStarted(shardRouting);
+                                shardStateAction.shardStarted(shardRouting, "after recovery (primary) from node [" + node + "]");
                             } catch (IgnoreRecoveryException e) {
                                 // that's fine, since we might be called concurrently, just ignore this, we are already recovering
                             }
@@ -363,7 +365,7 @@ public class IndicesClusterStateService extends AbstractComponent implements Clu
                         }
                     }
                     try {
-                        shardStateAction.shardFailed(shardRouting);
+                        shardStateAction.shardFailed(shardRouting, "Failed to start shard, message [" + detailedMessage(e) + "]");
                     } catch (Exception e1) {
                         logger.warn("Failed to mark shard as failed after a failed start for index [" + indexService.index().name() + "] and shard id [" + shardRouting.id() + "]", e);
                     }

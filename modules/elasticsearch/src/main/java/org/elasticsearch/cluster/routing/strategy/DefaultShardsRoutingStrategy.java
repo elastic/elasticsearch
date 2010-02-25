@@ -40,7 +40,7 @@ public class DefaultShardsRoutingStrategy implements ShardsRoutingStrategy {
         if (!applyStartedShards(routingNodes, startedShardEntries)) {
             return clusterState.routingTable();
         }
-        return new RoutingTable.Builder().updateNodes(routingNodes).build();
+        return new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData());
     }
 
     @Override public RoutingTable applyFailedShards(ClusterState clusterState, Iterable<? extends ShardRouting> failedShardEntries) {
@@ -48,7 +48,7 @@ public class DefaultShardsRoutingStrategy implements ShardsRoutingStrategy {
         if (!applyFailedShards(routingNodes, failedShardEntries)) {
             return clusterState.routingTable();
         }
-        return new RoutingTable.Builder().updateNodes(routingNodes).build();
+        return new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData());
     }
 
     @Override public RoutingTable reroute(ClusterState clusterState) {
@@ -78,7 +78,7 @@ public class DefaultShardsRoutingStrategy implements ShardsRoutingStrategy {
             return clusterState.routingTable();
         }
 
-        return new RoutingTable.Builder().updateNodes(routingNodes).build();
+        return new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData());
     }
 
     private boolean rebalance(RoutingNodes routingNodes) {

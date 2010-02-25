@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import org.elasticsearch.util.io.Streamable;
 
@@ -26,6 +27,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.admin.cluster.health.ClusterShardHealth.*;
@@ -51,17 +53,24 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
 
     final Map<Integer, ClusterShardHealth> shards = Maps.newHashMap();
 
+    List<String> validationFailures;
+
     private ClusterIndexHealth() {
     }
 
-    public ClusterIndexHealth(String index, int numberOfShards, int numberOfReplicas) {
+    public ClusterIndexHealth(String index, int numberOfShards, int numberOfReplicas, List<String> validationFailures) {
         this.index = index;
         this.numberOfShards = numberOfShards;
         this.numberOfReplicas = numberOfReplicas;
+        this.validationFailures = validationFailures;
     }
 
     public String index() {
         return index;
+    }
+
+    public List<String> validationFailures() {
+        return this.validationFailures;
     }
 
     public int numberOfShards() {
@@ -116,6 +125,14 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
             ClusterShardHealth shardHealth = readClusterShardHealth(in);
             shards.put(shardHealth.id(), shardHealth);
         }
+        size = in.readInt();
+        if (size == 0) {
+            validationFailures = ImmutableList.of();
+        } else {
+            for (int i = 0; i < size; i++) {
+                validationFailures.add(in.readUTF());
+            }
+        }
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
@@ -130,6 +147,11 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
         out.writeInt(shards.size());
         for (ClusterShardHealth shardHealth : this) {
             shardHealth.writeTo(out);
+        }
+
+        out.writeInt(validationFailures.size());
+        for (String failure : validationFailures) {
+            out.writeUTF(failure);
         }
     }
 }

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard;
+package org.elasticsearch.index.shard.service;
 
 import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticSearchException;
@@ -25,6 +25,9 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.shard.IndexShardComponent;
+import org.elasticsearch.index.shard.IndexShardLifecycle;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.concurrent.ThreadSafe;

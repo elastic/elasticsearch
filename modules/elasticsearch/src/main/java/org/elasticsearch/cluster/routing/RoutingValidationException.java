@@ -24,11 +24,14 @@ package org.elasticsearch.cluster.routing;
  */
 public class RoutingValidationException extends RoutingException {
 
-    public RoutingValidationException(String message) {
-        super(message);
+    private final RoutingTableValidation validation;
+
+    public RoutingValidationException(RoutingTableValidation validation) {
+        super(validation.toString());
+        this.validation = validation;
     }
 
-    public RoutingValidationException(String message, Throwable cause) {
-        super(message, cause);
+    public RoutingTableValidation validation() {
+        return this.validation;
     }
 }

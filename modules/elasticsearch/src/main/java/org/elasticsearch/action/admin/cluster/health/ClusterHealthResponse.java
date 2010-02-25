@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import org.elasticsearch.action.ActionResponse;
 
@@ -26,8 +27,10 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
+import static com.google.common.collect.Lists.*;
 import static org.elasticsearch.action.admin.cluster.health.ClusterIndexHealth.*;
 
 /**
@@ -47,18 +50,40 @@ public class ClusterHealthResponse implements ActionResponse, Iterable<ClusterIn
 
     ClusterHealthStatus status = ClusterHealthStatus.RED;
 
+    private List<String> validationFailures;
+
     Map<String, ClusterIndexHealth> indices = Maps.newHashMap();
 
     ClusterHealthResponse() {
     }
 
-    public ClusterHealthResponse(String clusterName) {
+    public ClusterHealthResponse(String clusterName, List<String> validationFailures) {
         this.clusterName = clusterName;
+        this.validationFailures = validationFailures;
     }
 
     public String clusterName() {
         return clusterName;
     }
+
+    /**
+     * The validation failures on the cluster level (without index validation failures).
+     */
+    public List<String> validationFailures() {
+        return this.validationFailures;
+    }
+
+    /**
+     * All the validation failures, including index level validation failures.
+     */
+    public List<String> allValidationFailures() {
+        List<String> allFailures = newArrayList(validationFailures());
+        for (ClusterIndexHealth indexHealth : indices.values()) {
+            allFailures.addAll(indexHealth.validationFailures());
+        }
+        return allFailures;
+    }
+
 
     public int activeShards() {
         return activeShards;
@@ -103,6 +128,14 @@ public class ClusterHealthResponse implements ActionResponse, Iterable<ClusterIn
             indices.put(indexHealth.index(), indexHealth);
         }
         timedOut = in.readBoolean();
+        size = in.readInt();
+        if (size == 0) {
+            validationFailures = ImmutableList.of();
+        } else {
+            for (int i = 0; i < size; i++) {
+                validationFailures.add(in.readUTF());
+            }
+        }
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
@@ -116,6 +149,11 @@ public class ClusterHealthResponse implements ActionResponse, Iterable<ClusterIn
             indexHealth.writeTo(out);
         }
         out.writeBoolean(timedOut);
+
+        out.writeInt(validationFailures.size());
+        for (String failure : validationFailures) {
+            out.writeUTF(failure);
+        }
     }
 
 }

@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.MetaDataService;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.strategy.DefaultShardsRoutingStrategy;
 import org.elasticsearch.cluster.routing.strategy.ShardsRoutingStrategy;
+import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.util.settings.Settings;
 
 /**
@@ -48,7 +49,7 @@ public class ClusterModule extends AbstractModule {
                 .to(settings.getAsClass("cluster.routing.shards.type", DefaultShardsRoutingStrategy.class))
                 .asEagerSingleton();
 
-        bind(ClusterService.class).to(DefaultClusterService.class).asEagerSingleton();
+        bind(ClusterService.class).to(InternalClusterService.class).asEagerSingleton();
         bind(MetaDataService.class).asEagerSingleton();
         bind(RoutingService.class).asEagerSingleton();
 

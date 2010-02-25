@@ -72,10 +72,15 @@ public class ClusterState {
         return routingTable;
     }
 
-    /**
-     * Returns a built (on demand) routing nodes view of the routing table.
-     */
     public RoutingNodes routingNodes() {
+        return routingTable.routingNodes(metaData);
+    }
+
+    /**
+     * Returns a built (on demand) routing nodes view of the routing table. <b>NOTE, the routing nodes
+     * are immutable, use them just for read operations</b>
+     */
+    public RoutingNodes readOnlyRoutingNodes() {
         if (routingNodes != null) {
             return routingNodes;
         }
@@ -129,11 +134,6 @@ public class ClusterState {
             this.nodes = state.nodes();
             this.routingTable = state.routingTable();
             this.metaData = state.metaData();
-            return this;
-        }
-
-        Builder incrementVersion() {
-            this.version++;
             return this;
         }
 

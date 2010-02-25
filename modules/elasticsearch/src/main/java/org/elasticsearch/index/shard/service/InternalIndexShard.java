@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard;
+package org.elasticsearch.index.shard.service;
 
 import com.google.inject.Inject;
 import org.apache.lucene.document.Document;
@@ -39,6 +39,7 @@ import org.elasticsearch.index.query.IndexQueryParser;
 import org.elasticsearch.index.query.IndexQueryParserMissingException;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.TypeMissingException;
@@ -95,6 +96,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         this.queryParserService = queryParserService;
         this.filterCache = filterCache;
         state = IndexShardState.CREATED;
+        logger.debug("Moved to state [CREATED]");
     }
 
     public Store store() {
@@ -143,6 +145,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 throw new IndexShardRecoveringException(shardId);
             }
             state = IndexShardState.RECOVERING;
+            logger.debug("Moved to state [RECOVERING]");
             return returnValue;
         }
     }
@@ -152,6 +155,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             if (this.state != IndexShardState.RECOVERING) {
                 throw new IndexShardNotRecoveringException(shardId, state);
             }
+            logger.debug("Restored to state [{}] from state [{}]", stateToRestore, state);
             this.state = stateToRestore;
         }
         return this;
@@ -162,6 +166,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             if (state != IndexShardState.STARTED) {
                 throw new IndexShardNotStartedException(shardId, state);
             }
+            logger.debug("Moved to state [RELOCATED]");
             state = IndexShardState.RELOCATED;
         }
         return this;
@@ -180,6 +185,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             }
             engine.start();
             scheduleRefresherIfNeeded();
+            logger.debug("Moved to state [STARTED]");
             state = IndexShardState.STARTED;
         }
         return this;
@@ -379,6 +385,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     refreshScheduledFuture = null;
                 }
             }
+            logger.debug("Moved to state [CLOSED]");
             state = IndexShardState.CLOSED;
         }
     }
@@ -390,6 +397,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         engine.start();
         applyTranslogOperations(operations);
         synchronized (mutex) {
+            logger.debug("Moved to state [STARTED] post recovery (from gateway)");
             state = IndexShardState.STARTED;
         }
         scheduleRefresherIfNeeded();
@@ -406,6 +414,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         applyTranslogOperations(snapshot);
         if (phase3) {
             synchronized (mutex) {
+                logger.debug("Moved to state [STARTED] post recovery (from another shard)");
                 state = IndexShardState.STARTED;
             }
             scheduleRefresherIfNeeded();

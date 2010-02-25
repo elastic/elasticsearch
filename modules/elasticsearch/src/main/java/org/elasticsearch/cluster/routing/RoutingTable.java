@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.UnmodifiableIterator;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
@@ -68,6 +69,27 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
 
     public RoutingNodes routingNodes(MetaData metaData) {
         return new RoutingNodes(metaData, this);
+    }
+
+    public RoutingTable validateRaiseException(MetaData metaData) throws RoutingValidationException {
+        RoutingTableValidation validation = validate(metaData);
+        if (!validation.valid()) {
+            throw new RoutingValidationException(validation);
+        }
+        return this;
+    }
+
+    public RoutingTableValidation validate(MetaData metaData) {
+        RoutingTableValidation validation = new RoutingTableValidation();
+        for (IndexMetaData indexMetaData : metaData) {
+            if (!indicesRouting.containsKey(indexMetaData.index())) {
+                validation.addIndexFailure(indexMetaData.index(), "Exists in metadata and does not exists in routing table");
+            }
+        }
+        for (IndexRoutingTable indexRoutingTable : this) {
+            indexRoutingTable.validate(validation, metaData);
+        }
+        return validation;
     }
 
     /**

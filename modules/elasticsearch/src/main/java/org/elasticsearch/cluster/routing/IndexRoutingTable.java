@@ -20,8 +20,10 @@
 package org.elasticsearch.cluster.routing;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.util.IdentityHashSet;
 import org.elasticsearch.util.concurrent.Immutable;
 
@@ -30,6 +32,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * @author kimchy (Shay Banon)
@@ -50,6 +53,33 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
 
     public String index() {
         return this.index;
+    }
+
+    public void validate(RoutingTableValidation validation, MetaData metaData) {
+        if (!metaData.hasIndex(index())) {
+            validation.addIndexFailure(index(), "Exists in routing does not exists in metadata");
+            return;
+        }
+        IndexMetaData indexMetaData = metaData.index(index());
+        // check the number of shards
+        if (indexMetaData.numberOfShards() != shards().size()) {
+            Set<Integer> expected = Sets.newHashSet();
+            for (int i = 0; i < indexMetaData.numberOfShards(); i++) {
+                expected.add(i);
+            }
+            for (IndexShardRoutingTable indexShardRoutingTable : this) {
+                expected.remove(indexShardRoutingTable.shardId().id());
+            }
+            validation.addIndexFailure(index(), "Wrong number of shards in routing table, missing: " + expected);
+        }
+        // check the replicas
+        for (IndexShardRoutingTable indexShardRoutingTable : this) {
+            int routingNumberOfReplicas = indexShardRoutingTable.size() - 1;
+            if (routingNumberOfReplicas != indexMetaData.numberOfReplicas()) {
+                validation.addIndexFailure(index(), "Shard [" + indexShardRoutingTable.shardId().id()
+                        + "] routing table has wrong number of replicas, expected [" + indexMetaData.numberOfReplicas() + "], got [" + routingNumberOfReplicas + "]");
+            }
+        }
     }
 
     @Override public UnmodifiableIterator<IndexShardRoutingTable> iterator() {
@@ -174,7 +204,7 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder("-- Index[" + index + "]\n");
         for (IndexShardRoutingTable indexShard : this) {
-            sb.append("----ShardId[").append(indexShard.shardId()).append("]\n");
+            sb.append("----ShardId[").append(indexShard.shardId().index().name()).append("][").append(indexShard.shardId().id()).append("]\n");
             for (ShardRouting shard : indexShard) {
                 sb.append("--------").append(shard.shortSummary()).append("\n");
             }

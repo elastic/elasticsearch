@@ -22,6 +22,7 @@ package org.elasticsearch.index.shard;
 import com.google.inject.Inject;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.jmx.JmxService;

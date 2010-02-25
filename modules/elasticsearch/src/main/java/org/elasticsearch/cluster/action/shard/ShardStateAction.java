@@ -25,7 +25,10 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.node.Nodes;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.strategy.ShardsRoutingStrategy;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
@@ -33,11 +36,17 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.VoidTransportResponseHandler;
 import org.elasticsearch.util.component.AbstractComponent;
+import org.elasticsearch.util.io.Streamable;
 import org.elasticsearch.util.io.VoidStreamable;
 import org.elasticsearch.util.settings.Settings;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+
 import static com.google.common.collect.Lists.*;
 import static org.elasticsearch.cluster.ClusterState.*;
+import static org.elasticsearch.cluster.routing.ImmutableShardRouting.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -64,41 +73,41 @@ public class ShardStateAction extends AbstractComponent {
         transportService.registerHandler(ShardFailedTransportHandler.ACTION, new ShardFailedTransportHandler());
     }
 
-    public void shardFailed(final ShardRouting shardRouting) throws ElasticSearchException {
-        logger.warn("Sending failed shard for {}", shardRouting);
+    public void shardFailed(final ShardRouting shardRouting, final String reason) throws ElasticSearchException {
+        logger.warn("Sending failed shard for {}, reason [{}]", shardRouting, reason);
         Nodes nodes = clusterService.state().nodes();
         if (nodes.localNodeMaster()) {
             threadPool.execute(new Runnable() {
                 @Override public void run() {
-                    innerShardFailed(shardRouting);
+                    innerShardFailed(shardRouting, reason);
                 }
             });
         } else {
             transportService.sendRequest(clusterService.state().nodes().masterNode(),
-                    ShardFailedTransportHandler.ACTION, shardRouting, VoidTransportResponseHandler.INSTANCE);
+                    ShardFailedTransportHandler.ACTION, new ShardRoutingEntry(shardRouting, reason), VoidTransportResponseHandler.INSTANCE);
         }
     }
 
-    public void shardStarted(final ShardRouting shardRouting) throws ElasticSearchException {
+    public void shardStarted(final ShardRouting shardRouting, final String reason) throws ElasticSearchException {
         if (logger.isDebugEnabled()) {
-            logger.debug("Sending shard started for {}", shardRouting);
+            logger.debug("Sending shard started for {}, reason [{}]", shardRouting, reason);
         }
         Nodes nodes = clusterService.state().nodes();
         if (nodes.localNodeMaster()) {
             threadPool.execute(new Runnable() {
                 @Override public void run() {
-                    innerShardStarted(shardRouting);
+                    innerShardStarted(shardRouting, reason);
                 }
             });
         } else {
             transportService.sendRequest(clusterService.state().nodes().masterNode(),
-                    ShardStartedTransportHandler.ACTION, shardRouting, VoidTransportResponseHandler.INSTANCE);
+                    ShardStartedTransportHandler.ACTION, new ShardRoutingEntry(shardRouting, reason), VoidTransportResponseHandler.INSTANCE);
         }
     }
 
-    private void innerShardFailed(final ShardRouting shardRouting) {
-        logger.warn("Received shard failed for {}", shardRouting);
-        clusterService.submitStateUpdateTask("shard-failed (" + shardRouting + ")", new ClusterStateUpdateTask() {
+    private void innerShardFailed(final ShardRouting shardRouting, final String reason) {
+        logger.warn("Received shard failed for {}, reason [{}]", shardRouting, reason);
+        clusterService.submitStateUpdateTask("shard-failed (" + shardRouting + "), reason [" + reason + "]", new ClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
                 RoutingTable routingTable = currentState.routingTable();
                 IndexRoutingTable indexRoutingTable = routingTable.index(shardRouting.index());
@@ -108,7 +117,7 @@ public class ShardStateAction extends AbstractComponent {
                     return currentState;
                 }
                 if (logger.isDebugEnabled()) {
-                    logger.debug("Applying failed shard {}", shardRouting);
+                    logger.debug("Applying failed shard {}, reason [{}]", shardRouting, reason);
                 }
                 RoutingTable prevRoutingTable = currentState.routingTable();
                 RoutingTable newRoutingTable = shardsRoutingStrategy.applyFailedShards(currentState, newArrayList(shardRouting));
@@ -120,11 +129,11 @@ public class ShardStateAction extends AbstractComponent {
         });
     }
 
-    private void innerShardStarted(final ShardRouting shardRouting) {
+    private void innerShardStarted(final ShardRouting shardRouting, final String reason) {
         if (logger.isDebugEnabled()) {
-            logger.debug("Received shard started for {}", shardRouting);
+            logger.debug("Received shard started for {}, reason [{}]", shardRouting, reason);
         }
-        clusterService.submitStateUpdateTask("shard-started (" + shardRouting + ")", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("shard-started (" + shardRouting + "), reason [" + reason + "]", new ClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
                 RoutingTable routingTable = currentState.routingTable();
                 IndexRoutingTable indexRoutingTable = routingTable.index(shardRouting.index());
@@ -147,7 +156,7 @@ public class ShardStateAction extends AbstractComponent {
                     }
                 }
                 if (logger.isDebugEnabled()) {
-                    logger.debug("Applying started shard {}", shardRouting);
+                    logger.debug("Applying started shard {}, reason [{}]", shardRouting, reason);
                 }
                 RoutingTable newRoutingTable = shardsRoutingStrategy.applyStartedShards(currentState, newArrayList(shardRouting));
                 if (routingTable == newRoutingTable) {
@@ -158,31 +167,56 @@ public class ShardStateAction extends AbstractComponent {
         });
     }
 
-    private class ShardFailedTransportHandler extends BaseTransportRequestHandler<ShardRouting> {
+    private class ShardFailedTransportHandler extends BaseTransportRequestHandler<ShardRoutingEntry> {
 
         static final String ACTION = "cluster/shardFailure";
 
-        @Override public ShardRouting newInstance() {
-            return new ImmutableShardRouting();
+        @Override public ShardRoutingEntry newInstance() {
+            return new ShardRoutingEntry();
         }
 
-        @Override public void messageReceived(ShardRouting request, TransportChannel channel) throws Exception {
-            innerShardFailed(request);
+        @Override public void messageReceived(ShardRoutingEntry request, TransportChannel channel) throws Exception {
+            innerShardFailed(request.shardRouting, request.reason);
             channel.sendResponse(VoidStreamable.INSTANCE);
         }
     }
 
-    private class ShardStartedTransportHandler extends BaseTransportRequestHandler<ShardRouting> {
+    private class ShardStartedTransportHandler extends BaseTransportRequestHandler<ShardRoutingEntry> {
 
         static final String ACTION = "cluster/shardStarted";
 
-        @Override public ShardRouting newInstance() {
-            return new ImmutableShardRouting();
+        @Override public ShardRoutingEntry newInstance() {
+            return new ShardRoutingEntry();
         }
 
-        @Override public void messageReceived(ShardRouting request, TransportChannel channel) throws Exception {
-            innerShardStarted(request);
+        @Override public void messageReceived(ShardRoutingEntry request, TransportChannel channel) throws Exception {
+            innerShardStarted(request.shardRouting, request.reason);
             channel.sendResponse(VoidStreamable.INSTANCE);
+        }
+    }
+
+    private static class ShardRoutingEntry implements Streamable {
+
+        private ShardRouting shardRouting;
+
+        private String reason;
+
+        private ShardRoutingEntry() {
+        }
+
+        private ShardRoutingEntry(ShardRouting shardRouting, String reason) {
+            this.shardRouting = shardRouting;
+            this.reason = reason;
+        }
+
+        @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+            shardRouting = readShardRoutingEntry(in);
+            reason = in.readUTF();
+        }
+
+        @Override public void writeTo(DataOutput out) throws IOException {
+            shardRouting.writeTo(out);
+            out.writeUTF(reason);
         }
     }
 }

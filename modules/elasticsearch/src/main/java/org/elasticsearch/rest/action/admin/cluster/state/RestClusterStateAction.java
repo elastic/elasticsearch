@@ -103,12 +103,12 @@ public class RestClusterStateAction extends BaseRestHandler {
                     // routing nodes
                     builder.startObject("routingNodes");
                     builder.startArray("unassigned");
-                    for (ShardRouting shardRouting : state.routingNodes().unassigned()) {
+                    for (ShardRouting shardRouting : state.readOnlyRoutingNodes().unassigned()) {
                         jsonShardRouting(builder, shardRouting);
                     }
                     builder.endArray();
                     builder.startObject("nodes");
-                    for (RoutingNode routingNode : state.routingNodes()) {
+                    for (RoutingNode routingNode : state.readOnlyRoutingNodes()) {
                         builder.startArray(routingNode.nodeId());
                         for (ShardRouting shardRouting : routingNode) {
                             jsonShardRouting(builder, shardRouting);

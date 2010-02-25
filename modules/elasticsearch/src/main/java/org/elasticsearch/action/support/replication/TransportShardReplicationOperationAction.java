@@ -35,8 +35,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
+import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -51,6 +51,8 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.elasticsearch.ExceptionsHelper.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -394,7 +396,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     @Override public void handleException(RemoteTransportException exp) {
                         if (!ignoreBackupException(exp.unwrapCause())) {
                             logger.warn("Failed to perform " + transportAction() + " on backup " + shards.shardId(), exp);
-                            shardStateAction.shardFailed(shard);
+                            shardStateAction.shardFailed(shard, "Failed to perform [" + transportAction() + "] on backup, message [" + detailedMessage(exp) + "]");
                         }
                         finishIfPossible();
                     }
@@ -427,7 +429,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                             } catch (Exception e) {
                                 if (!ignoreBackupException(e)) {
                                     logger.warn("Failed to perform " + transportAction() + " on backup " + shards.shardId(), e);
-                                    shardStateAction.shardFailed(shard);
+                                    shardStateAction.shardFailed(shard, "Failed to perform [" + transportAction() + "] on backup, message [" + detailedMessage(e) + "]");
                                 }
                             }
                             if (counter.decrementAndGet() == 0) {
@@ -441,7 +443,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     } catch (Exception e) {
                         if (!ignoreBackupException(e)) {
                             logger.warn("Failed to perform " + transportAction() + " on backup " + shards.shardId(), e);
-                            shardStateAction.shardFailed(shard);
+                            shardStateAction.shardFailed(shard, "Failed to perform [" + transportAction() + "] on backup, message [" + detailedMessage(e) + "]");
                         }
                     }
                     if (counter.decrementAndGet() == 0) {

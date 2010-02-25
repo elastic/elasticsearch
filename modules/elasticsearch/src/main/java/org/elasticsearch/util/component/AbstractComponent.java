@@ -40,8 +40,14 @@ public class AbstractComponent {
         this.componentSettings = settings.getComponentSettings(getClass());
     }
 
-    public AbstractComponent(Settings settings, Class componentClass) {
-        this.logger = Loggers.getLogger(componentClass, settings);
+    public AbstractComponent(Settings settings, Class customClass) {
+        this.logger = Loggers.getLogger(customClass, settings);
+        this.settings = settings;
+        this.componentSettings = settings.getComponentSettings(customClass);
+    }
+
+    public AbstractComponent(Settings settings, Class loggerClass, Class componentClass) {
+        this.logger = Loggers.getLogger(loggerClass, settings);
         this.settings = settings;
         this.componentSettings = settings.getComponentSettings(componentClass);
     }

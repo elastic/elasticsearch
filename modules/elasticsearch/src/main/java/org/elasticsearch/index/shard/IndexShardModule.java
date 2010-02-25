@@ -21,6 +21,8 @@ package org.elasticsearch.index.shard;
 
 import com.google.inject.AbstractModule;
 import org.elasticsearch.index.shard.recovery.RecoveryAction;
+import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.service.InternalIndexShard;
 
 /**
  * @author kimchy (Shay Banon)

@@ -79,11 +79,11 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
 
 
         ClusterState clusterState1 = clusterService1.state();
-        RoutingNode routingNodeEntry1 = clusterState1.routingNodes().nodesToShards().get(clusterState1.nodes().localNodeId());
+        RoutingNode routingNodeEntry1 = clusterState1.readOnlyRoutingNodes().nodesToShards().get(clusterState1.nodes().localNodeId());
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(11));
 
         clusterState1 = client("server1").admin().cluster().state(clusterState()).actionGet().state();
-        routingNodeEntry1 = clusterState1.routingNodes().nodesToShards().get(clusterState1.nodes().localNodeId());
+        routingNodeEntry1 = clusterState1.readOnlyRoutingNodes().nodesToShards().get(clusterState1.nodes().localNodeId());
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(11));
 
         logger.info("Starting server2");
@@ -102,11 +102,11 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
         Thread.sleep(200);
 
         clusterState1 = clusterService1.state();
-        routingNodeEntry1 = clusterState1.routingNodes().nodesToShards().get(clusterState1.nodes().localNodeId());
+        routingNodeEntry1 = clusterState1.readOnlyRoutingNodes().nodesToShards().get(clusterState1.nodes().localNodeId());
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(11));
 
         ClusterState clusterState2 = clusterService2.state();
-        RoutingNode routingNodeEntry2 = clusterState2.routingNodes().nodesToShards().get(clusterState2.nodes().localNodeId());
+        RoutingNode routingNodeEntry2 = clusterState2.readOnlyRoutingNodes().nodesToShards().get(clusterState2.nodes().localNodeId());
         assertThat(routingNodeEntry2.numberOfShardsWithState(STARTED), equalTo(11));
 
         logger.info("Starting server3");
@@ -128,15 +128,15 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
         Thread.sleep(200);
 
         clusterState1 = clusterService1.state();
-        routingNodeEntry1 = clusterState1.routingNodes().nodesToShards().get(clusterState1.nodes().localNodeId());
+        routingNodeEntry1 = clusterState1.readOnlyRoutingNodes().nodesToShards().get(clusterState1.nodes().localNodeId());
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), anyOf(equalTo(7), equalTo(8)));
 
         clusterState2 = clusterService2.state();
-        routingNodeEntry2 = clusterState2.routingNodes().nodesToShards().get(clusterState2.nodes().localNodeId());
+        routingNodeEntry2 = clusterState2.readOnlyRoutingNodes().nodesToShards().get(clusterState2.nodes().localNodeId());
         assertThat(routingNodeEntry2.numberOfShardsWithState(STARTED), anyOf(equalTo(7), equalTo(8)));
 
         ClusterState clusterState3 = clusterService3.state();
-        RoutingNode routingNodeEntry3 = clusterState3.routingNodes().nodesToShards().get(clusterState3.nodes().localNodeId());
+        RoutingNode routingNodeEntry3 = clusterState3.readOnlyRoutingNodes().nodesToShards().get(clusterState3.nodes().localNodeId());
         assertThat(routingNodeEntry3.numberOfShardsWithState(STARTED), equalTo(7));
 
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED) + routingNodeEntry2.numberOfShardsWithState(STARTED) + routingNodeEntry3.numberOfShardsWithState(STARTED), equalTo(22));
@@ -160,11 +160,11 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
         Thread.sleep(200);
 
         clusterState2 = clusterService2.state();
-        routingNodeEntry2 = clusterState2.routingNodes().nodesToShards().get(clusterState2.nodes().localNodeId());
+        routingNodeEntry2 = clusterState2.readOnlyRoutingNodes().nodesToShards().get(clusterState2.nodes().localNodeId());
         assertThat(routingNodeEntry2.numberOfShardsWithState(STARTED), equalTo(11));
 
         clusterState3 = clusterService3.state();
-        routingNodeEntry3 = clusterState3.routingNodes().nodesToShards().get(clusterState3.nodes().localNodeId());
+        routingNodeEntry3 = clusterState3.readOnlyRoutingNodes().nodesToShards().get(clusterState3.nodes().localNodeId());
         assertThat(routingNodeEntry3.numberOfShardsWithState(STARTED), equalTo(11));
 
         assertThat(routingNodeEntry2.numberOfShardsWithState(STARTED) + routingNodeEntry3.numberOfShardsWithState(STARTED), equalTo(22));
@@ -176,11 +176,11 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
 
         Thread.sleep(200);
         clusterState2 = clusterService2.state();
-        routingNodeEntry2 = clusterState2.routingNodes().nodesToShards().get(clusterState2.nodes().localNodeId());
+        routingNodeEntry2 = clusterState2.readOnlyRoutingNodes().nodesToShards().get(clusterState2.nodes().localNodeId());
         assertThat(routingNodeEntry2, nullValue());
 
         clusterState3 = clusterService3.state();
-        routingNodeEntry3 = clusterState3.routingNodes().nodesToShards().get(clusterState3.nodes().localNodeId());
+        routingNodeEntry3 = clusterState3.readOnlyRoutingNodes().nodesToShards().get(clusterState3.nodes().localNodeId());
         assertThat(routingNodeEntry3, nullValue());
     }
 
@@ -211,7 +211,7 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
         assertThat(clusterHealth.activePrimaryShards(), equalTo(11));
 
         ClusterState clusterState1 = clusterService1.state();
-        RoutingNode routingNodeEntry1 = clusterState1.routingNodes().nodesToShards().get(clusterState1.nodes().localNodeId());
+        RoutingNode routingNodeEntry1 = clusterState1.readOnlyRoutingNodes().nodesToShards().get(clusterState1.nodes().localNodeId());
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(11));
 
         // start another server
@@ -235,11 +235,11 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
         ClusterService clusterService2 = ((InternalServer) server("server2")).injector().getInstance(ClusterService.class);
 
         clusterState1 = clusterService1.state();
-        routingNodeEntry1 = clusterState1.routingNodes().nodesToShards().get(clusterState1.nodes().localNodeId());
+        routingNodeEntry1 = clusterState1.readOnlyRoutingNodes().nodesToShards().get(clusterState1.nodes().localNodeId());
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), anyOf(equalTo(6), equalTo(5)));
 
         ClusterState clusterState2 = clusterService2.state();
-        RoutingNode routingNodeEntry2 = clusterState2.routingNodes().nodesToShards().get(clusterState2.nodes().localNodeId());
+        RoutingNode routingNodeEntry2 = clusterState2.readOnlyRoutingNodes().nodesToShards().get(clusterState2.nodes().localNodeId());
         assertThat(routingNodeEntry2.numberOfShardsWithState(STARTED), anyOf(equalTo(5), equalTo(6)));
 
         // start another server
@@ -263,15 +263,15 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
         Thread.sleep(200);
 
         clusterState1 = clusterService1.state();
-        routingNodeEntry1 = clusterState1.routingNodes().nodesToShards().get(clusterState1.nodes().localNodeId());
+        routingNodeEntry1 = clusterState1.readOnlyRoutingNodes().nodesToShards().get(clusterState1.nodes().localNodeId());
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), anyOf(equalTo(5), equalTo(3)));
 
         clusterState2 = clusterService2.state();
-        routingNodeEntry2 = clusterState2.routingNodes().nodesToShards().get(clusterState2.nodes().localNodeId());
+        routingNodeEntry2 = clusterState2.readOnlyRoutingNodes().nodesToShards().get(clusterState2.nodes().localNodeId());
         assertThat(routingNodeEntry2.numberOfShardsWithState(STARTED), anyOf(equalTo(5), equalTo(3)));
 
         ClusterState clusterState3 = clusterService3.state();
-        RoutingNode routingNodeEntry3 = clusterState3.routingNodes().nodesToShards().get(clusterState3.nodes().localNodeId());
+        RoutingNode routingNodeEntry3 = clusterState3.readOnlyRoutingNodes().nodesToShards().get(clusterState3.nodes().localNodeId());
         assertThat(routingNodeEntry3.numberOfShardsWithState(STARTED), equalTo(3));
 
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED) + routingNodeEntry2.numberOfShardsWithState(STARTED) + routingNodeEntry3.numberOfShardsWithState(STARTED), equalTo(11));
@@ -295,11 +295,11 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
         Thread.sleep(200);
 
         clusterState2 = clusterService2.state();
-        routingNodeEntry2 = clusterState2.routingNodes().nodesToShards().get(clusterState2.nodes().localNodeId());
+        routingNodeEntry2 = clusterState2.readOnlyRoutingNodes().nodesToShards().get(clusterState2.nodes().localNodeId());
         assertThat(routingNodeEntry2.numberOfShardsWithState(STARTED), anyOf(equalTo(5), equalTo(6)));
 
         clusterState3 = clusterService3.state();
-        routingNodeEntry3 = clusterState3.routingNodes().nodesToShards().get(clusterState3.nodes().localNodeId());
+        routingNodeEntry3 = clusterState3.readOnlyRoutingNodes().nodesToShards().get(clusterState3.nodes().localNodeId());
         assertThat(routingNodeEntry3.numberOfShardsWithState(STARTED), anyOf(equalTo(5), equalTo(6)));
 
         assertThat(routingNodeEntry2.numberOfShardsWithState(STARTED) + routingNodeEntry3.numberOfShardsWithState(STARTED), equalTo(11));
@@ -310,11 +310,11 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
         assertThat(deleteIndexResponse.acknowledged(), equalTo(true));
 
         clusterState2 = clusterService2.state();
-        routingNodeEntry2 = clusterState2.routingNodes().nodesToShards().get(clusterState2.nodes().localNodeId());
+        routingNodeEntry2 = clusterState2.readOnlyRoutingNodes().nodesToShards().get(clusterState2.nodes().localNodeId());
         assertThat(routingNodeEntry2, nullValue());
 
         clusterState3 = clusterService3.state();
-        routingNodeEntry3 = clusterState3.routingNodes().nodesToShards().get(clusterState3.nodes().localNodeId());
+        routingNodeEntry3 = clusterState3.readOnlyRoutingNodes().nodesToShards().get(clusterState3.nodes().localNodeId());
         assertThat(routingNodeEntry3, nullValue());
     }
 

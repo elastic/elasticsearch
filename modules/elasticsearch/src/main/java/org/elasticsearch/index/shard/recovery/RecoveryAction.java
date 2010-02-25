@@ -29,6 +29,8 @@ import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.memory.MemorySnapshot;
@@ -349,7 +351,13 @@ public class RecoveryAction extends AbstractIndexShardComponent {
                         sendSnapshot(snapshot, true);
                         if (startRecoveryRequest.markAsRelocated) {
                             // TODO what happens if the recovery process fails afterwards, we need to mark this back to started
-                            indexShard.relocated();
+                            try {
+                                indexShard.relocated();
+                            } catch (IllegalIndexShardStateException e) {
+                                // we can ignore this exception since, on the other node, when it moved to phase3
+                                // it will also send shard started, which might cause the index shard we work against
+                                // to move be closed by the time we get to the the relocated method
+                            }
                         }
                         stopWatch.stop();
                         logger.trace("Recovery [phase3] to {}: took [{}]", node, stopWatch.totalTime());

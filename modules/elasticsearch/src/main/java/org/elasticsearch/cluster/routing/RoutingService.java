@@ -140,6 +140,10 @@ public class RoutingService extends AbstractComponent implements ClusterStateLis
                 clusterService.submitStateUpdateTask(CLUSTER_UPDATE_TASK_SOURCE, new ClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
                         RoutingTable newRoutingTable = shardsRoutingStrategy.reroute(currentState);
+                        if (newRoutingTable == currentState.routingTable()) {
+                            // no state changed
+                            return currentState;
+                        }
                         return newClusterStateBuilder().state(currentState).routingTable(newRoutingTable).build();
                     }
                 });

@@ -88,6 +88,31 @@ public class RestClusterHealthAction extends BaseRestHandler {
                     builder.field("activeShards", response.activeShards());
                     builder.field("relocatingShards", response.relocatingShards());
 
+                    if (!response.validationFailures().isEmpty()) {
+                        builder.startArray("validationFailures");
+                        for (String validationFailure : response.validationFailures()) {
+                            builder.string(validationFailure);
+                        }
+                        // if we don't print index level information, still print the index validation failures
+                        // so we know why the status is red
+                        if (fLevel == 0) {
+                            for (ClusterIndexHealth indexHealth : response) {
+                                builder.startObject(indexHealth.index());
+
+                                if (!indexHealth.validationFailures().isEmpty()) {
+                                    builder.startArray("validationFailures");
+                                    for (String validationFailure : indexHealth.validationFailures()) {
+                                        builder.string(validationFailure);
+                                    }
+                                    builder.endArray();
+                                }
+
+                                builder.endObject();
+                            }
+                        }
+                        builder.endArray();
+                    }
+
                     if (fLevel > 0) {
                         builder.startObject("indices");
                         for (ClusterIndexHealth indexHealth : response) {
@@ -99,6 +124,14 @@ public class RestClusterHealthAction extends BaseRestHandler {
                             builder.field("activePrimaryShards", indexHealth.activePrimaryShards());
                             builder.field("activeShards", indexHealth.activeShards());
                             builder.field("relocatingShards", indexHealth.relocatingShards());
+
+                            if (!indexHealth.validationFailures().isEmpty()) {
+                                builder.startArray("validationFailures");
+                                for (String validationFailure : indexHealth.validationFailures()) {
+                                    builder.string(validationFailure);
+                                }
+                                builder.endArray();
+                            }
 
                             if (fLevel > 1) {
                                 builder.startObject("shards");

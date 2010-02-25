@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTableValidation;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.timer.TimerService;
@@ -105,8 +106,10 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
     }
 
     private ClusterHealthResponse clusterHealth(ClusterHealthRequest request) {
-        ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value());
         ClusterState clusterState = clusterService.state();
+        RoutingTableValidation validation = clusterState.routingTable().validate(clusterState.metaData());
+        ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), validation.failures());
+
         String[] indices = processIndices(clusterState, request.indices());
         for (String index : indices) {
             IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
@@ -114,7 +117,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
             if (indexRoutingTable == null) {
                 continue;
             }
-            ClusterIndexHealth indexHealth = new ClusterIndexHealth(index, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas());
+            ClusterIndexHealth indexHealth = new ClusterIndexHealth(index, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), validation.indexFailures(indexMetaData.index()));
 
             for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
                 ClusterShardHealth shardHealth = new ClusterShardHealth(shardRoutingTable.shardId().id());
@@ -151,13 +154,17 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
             }
             // update the index status
             indexHealth.status = ClusterHealthStatus.GREEN;
-            for (ClusterShardHealth shardHealth : indexHealth) {
-                if (shardHealth.status() == ClusterHealthStatus.RED) {
-                    indexHealth.status = ClusterHealthStatus.RED;
-                    break;
-                }
-                if (shardHealth.status() == ClusterHealthStatus.YELLOW) {
-                    indexHealth.status = ClusterHealthStatus.YELLOW;
+            if (!indexHealth.validationFailures().isEmpty()) {
+                indexHealth.status = ClusterHealthStatus.RED;
+            } else {
+                for (ClusterShardHealth shardHealth : indexHealth) {
+                    if (shardHealth.status() == ClusterHealthStatus.RED) {
+                        indexHealth.status = ClusterHealthStatus.RED;
+                        break;
+                    }
+                    if (shardHealth.status() == ClusterHealthStatus.YELLOW) {
+                        indexHealth.status = ClusterHealthStatus.YELLOW;
+                    }
                 }
             }
 
@@ -171,16 +178,19 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
         }
 
         response.status = ClusterHealthStatus.GREEN;
-        for (ClusterIndexHealth indexHealth : response) {
-            if (indexHealth.status() == ClusterHealthStatus.RED) {
-                response.status = ClusterHealthStatus.RED;
-                break;
-            }
-            if (indexHealth.status() == ClusterHealthStatus.YELLOW) {
-                response.status = ClusterHealthStatus.YELLOW;
+        if (!response.validationFailures().isEmpty()) {
+            response.status = ClusterHealthStatus.RED;
+        } else {
+            for (ClusterIndexHealth indexHealth : response) {
+                if (indexHealth.status() == ClusterHealthStatus.RED) {
+                    response.status = ClusterHealthStatus.RED;
+                    break;
+                }
+                if (indexHealth.status() == ClusterHealthStatus.YELLOW) {
+                    response.status = ClusterHealthStatus.YELLOW;
+                }
             }
         }
-
 
         return response;
     }

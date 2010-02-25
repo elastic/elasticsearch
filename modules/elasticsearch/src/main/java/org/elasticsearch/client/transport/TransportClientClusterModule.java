@@ -21,7 +21,7 @@ package org.elasticsearch.client.transport;
 
 import com.google.inject.AbstractModule;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.DefaultClusterService;
+import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.util.logging.Loggers;
 import org.elasticsearch.util.settings.NoClassSettingsException;
@@ -41,7 +41,7 @@ public class TransportClientClusterModule extends AbstractModule {
     @Override protected void configure() {
         try {
             new DiscoveryModule(settings).configure(binder());
-            bind(ClusterService.class).to(DefaultClusterService.class).asEagerSingleton();
+            bind(ClusterService.class).to(InternalClusterService.class).asEagerSingleton();
             bind(TransportClientClusterService.class).asEagerSingleton();
         } catch (NoClassSettingsException e) {
             // that's fine, no actual implementation for discovery

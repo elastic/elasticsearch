@@ -17,10 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster;
+package org.elasticsearch.cluster.service;
 
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.node.Nodes;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,7 +45,7 @@ import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class DefaultClusterService extends AbstractComponent implements ClusterService {
+public class InternalClusterService extends AbstractComponent implements ClusterService {
 
     private final Lifecycle lifecycle = new Lifecycle();
 
@@ -66,7 +67,7 @@ public class DefaultClusterService extends AbstractComponent implements ClusterS
 
     private volatile ClusterState clusterState = newClusterStateBuilder().build();
 
-    @Inject public DefaultClusterService(Settings settings, DiscoveryService discoveryService, TransportService transportService, ThreadPool threadPool) {
+    @Inject public InternalClusterService(Settings settings, DiscoveryService discoveryService, TransportService transportService, ThreadPool threadPool) {
         super(settings);
         this.transportService = transportService;
         this.discoveryService = discoveryService;
@@ -90,7 +91,7 @@ public class DefaultClusterService extends AbstractComponent implements ClusterS
                 for (final TimeoutHolder holder : clusterStateTimeoutListeners) {
                     if ((timestamp - holder.timestamp) > holder.timeout.millis()) {
                         clusterStateTimeoutListeners.remove(holder);
-                        DefaultClusterService.this.threadPool.execute(new Runnable() {
+                        InternalClusterService.this.threadPool.execute(new Runnable() {
                             @Override public void run() {
                                 holder.listener.onTimeout(holder.timeout);
                             }
@@ -158,18 +159,33 @@ public class DefaultClusterService extends AbstractComponent implements ClusterS
                     return;
                 }
                 ClusterState previousClusterState = clusterState;
-                clusterState = updateTask.execute(previousClusterState);
+                try {
+                    clusterState = updateTask.execute(previousClusterState);
+                } catch (Exception e) {
+                    StringBuilder sb = new StringBuilder("Failed to execute cluster state update, state:\nVersion [").append(clusterState.version()).append("], source [").append(source).append("]\n");
+                    sb.append(clusterState.nodes().prettyPrint());
+                    sb.append(clusterState.routingTable().prettyPrint());
+                    sb.append(clusterState.readOnlyRoutingNodes().prettyPrint());
+                    logger.warn(sb.toString(), e);
+                    return;
+                }
                 if (previousClusterState != clusterState) {
                     if (clusterState.nodes().localNodeMaster()) {
                         // only the master controls the version numbers
-                        clusterState = newClusterStateBuilder().state(clusterState).incrementVersion().build();
+                        clusterState = new ClusterState(clusterState.version() + 1, clusterState.metaData(), clusterState.routingTable(), clusterState.nodes());
+                    } else {
+                        // we got this cluster state from the master, filter out based on versions (don't call listeners)
+                        if (clusterState.version() < previousClusterState.version()) {
+                            logger.info("Got old cluster state [" + clusterState.version() + "<" + previousClusterState.version() + "] from source [" + source + "], ignoring");
+                            return;
+                        }
                     }
 
                     if (logger.isTraceEnabled()) {
-                        StringBuilder sb = new StringBuilder("Cluster State updated, version [").append(clusterState.version()).append("], source [").append(source).append("]\n");
+                        StringBuilder sb = new StringBuilder("Cluster State updated:\nVersion [").append(clusterState.version()).append("], source [").append(source).append("]\n");
                         sb.append(clusterState.nodes().prettyPrint());
                         sb.append(clusterState.routingTable().prettyPrint());
-                        sb.append(clusterState.routingNodes().prettyPrint());
+                        sb.append(clusterState.readOnlyRoutingNodes().prettyPrint());
                         logger.trace(sb.toString());
                     } else if (logger.isDebugEnabled()) {
                         logger.debug("Cluster state updated, version [{}], source [{}]", clusterState.version(), source);

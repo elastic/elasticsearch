@@ -89,6 +89,7 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
         logger.info("Starting server2");
         // start another server
         startServer("server2", settings);
+        Thread.sleep(200);
 
         ClusterService clusterService2 = ((InternalServer) server("server2")).injector().getInstance(ClusterService.class);
 
@@ -112,6 +113,7 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
         logger.info("Starting server3");
         // start another server
         startServer("server3", settings);
+        Thread.sleep(200);
 
         ClusterService clusterService3 = ((InternalServer) server("server3")).injector().getInstance(ClusterService.class);
 

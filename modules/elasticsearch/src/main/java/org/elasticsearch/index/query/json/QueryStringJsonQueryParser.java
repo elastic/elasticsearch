@@ -70,7 +70,7 @@ public class QueryStringJsonQueryParser extends AbstractIndexComponent implement
         int fuzzyPrefixLength = FuzzyQuery.defaultPrefixLength;
         int phraseSlop = 0;
         float boost = 1.0f;
-        boolean escape = true;
+        boolean escape = false;
         Analyzer analyzer = null;
 
         String currentFieldName = null;

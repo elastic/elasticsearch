@@ -165,15 +165,14 @@ public class DefaultClusterService extends AbstractComponent implements ClusterS
                         clusterState = newClusterStateBuilder().state(clusterState).incrementVersion().build();
                     }
 
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("Cluster state updated, version [{}], source [{}]", clusterState.version(), source);
-                    }
                     if (logger.isTraceEnabled()) {
-                        StringBuilder sb = new StringBuilder("Cluster State:\n");
+                        StringBuilder sb = new StringBuilder("Cluster State updated, version [").append(clusterState.version()).append("], source [").append(source).append("]\n");
                         sb.append(clusterState.nodes().prettyPrint());
                         sb.append(clusterState.routingTable().prettyPrint());
                         sb.append(clusterState.routingNodes().prettyPrint());
                         logger.trace(sb.toString());
+                    } else if (logger.isDebugEnabled()) {
+                        logger.debug("Cluster state updated, version [{}], source [{}]", clusterState.version(), source);
                     }
 
                     ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent(source, clusterState, previousClusterState, discoveryService.firstMaster());

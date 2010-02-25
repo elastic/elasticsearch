@@ -37,6 +37,7 @@ import org.elasticsearch.index.gateway.IndexGatewayModule;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.routing.OperationRoutingModule;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;

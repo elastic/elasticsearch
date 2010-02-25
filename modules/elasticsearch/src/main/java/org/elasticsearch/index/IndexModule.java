@@ -20,6 +20,8 @@
 package org.elasticsearch.index;
 
 import com.google.inject.AbstractModule;
+import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.service.InternalIndexService;
 
 /**
  * @author kimchy (Shay Banon)

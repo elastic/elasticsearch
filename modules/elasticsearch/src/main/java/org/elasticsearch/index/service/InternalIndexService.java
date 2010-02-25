@@ -17,13 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index;
+package org.elasticsearch.index.service;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.UnmodifiableIterator;
 import com.google.inject.Inject;
 import com.google.inject.Injector;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.index.*;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
 import org.elasticsearch.index.engine.Engine;

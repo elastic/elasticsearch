@@ -17,10 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.index;
+package org.elasticsearch.index.service;
 
 import com.google.inject.Injector;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.index.IndexComponent;
+import org.elasticsearch.index.IndexLifecycle;
+import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;

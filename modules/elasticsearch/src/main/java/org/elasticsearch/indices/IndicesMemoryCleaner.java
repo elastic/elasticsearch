@@ -20,9 +20,9 @@
 package org.elasticsearch.indices;
 
 import com.google.inject.Inject;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.service.IndexShard;

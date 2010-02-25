@@ -101,9 +101,9 @@ public class ShardTermsResponse extends BroadcastShardOperationResponse {
             out.writeUTF(entry.getKey());
             out.writeInt(entry.getValue().size());
             for (TObjectIntIterator<String> it = entry.getValue().iterator(); it.hasNext();) {
+                it.advance();
                 out.writeUTF(it.key());
                 out.writeInt(it.value());
-                it.advance();
             }
         }
     }

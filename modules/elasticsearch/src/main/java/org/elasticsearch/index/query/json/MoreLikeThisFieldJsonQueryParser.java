@@ -114,13 +114,15 @@ public class MoreLikeThisFieldJsonQueryParser extends AbstractIndexComponent imp
         token = jp.nextToken();
         assert token == JsonToken.END_OBJECT;
 
-        mltQuery.setAnalyzer(parseContext.mapperService().searchAnalyzer());
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
                 fieldName = smartNameFieldMappers.mapper().names().indexName();
                 mltQuery.setAnalyzer(smartNameFieldMappers.mapper().searchAnalyzer());
             }
+        }
+        if (mltQuery.getAnalyzer() == null) {
+            mltQuery.setAnalyzer(parseContext.mapperService().searchAnalyzer());
         }
         mltQuery.setMoreLikeFields(new String[]{fieldName});
         return wrapSmartNameQuery(mltQuery, smartNameFieldMappers, parseContext.filterCache());

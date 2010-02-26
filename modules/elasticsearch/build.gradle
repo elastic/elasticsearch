@@ -46,9 +46,9 @@ dependencies {
     compile 'com.google.inject.extensions:guice-assisted-inject:2.0'
     compile 'com.google.inject.extensions:guice-multibindings:2.0'
 
-    compile 'org.apache.lucene:lucene-core:3.0.0'
-    compile 'org.apache.lucene:lucene-analyzers:3.0.0'
-    compile 'org.apache.lucene:lucene-queries:3.0.0'
+    compile 'org.apache.lucene:lucene-core:3.0.1'
+    compile 'org.apache.lucene:lucene-analyzers:3.0.1'
+    compile 'org.apache.lucene:lucene-queries:3.0.1'
 
     compile('jgroups:jgroups:2.9.0.GA') { transitive = false }
     compile('org.jboss.netty:netty:3.1.5.GA') { transitive = false }

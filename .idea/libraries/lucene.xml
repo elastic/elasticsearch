@@ -1,13 +1,21 @@
 <component name="libraryTable">
   <library name="lucene">
     <CLASSES>
-      <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-queries/jars/lucene-queries-3.0.0.jar!/" />
-      <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-core/jars/lucene-core-3.0.0.jar!/" />
-      <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-analyzers/jars/lucene-analyzers-3.0.0.jar!/" />
+      <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-core/jars/lucene-core-3.0.1.jar!/" />
+      <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-analyzers/jars/lucene-analyzers-3.0.1.jar!/" />
+      <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-queries/jars/lucene-queries-3.0.1.jar!/" />
     </CLASSES>
     <JAVADOC />
     <SOURCES>
-      <root url="file://$PROJECT_DIR$/../../../opt/lucene/3.0.0.src/src/java" />
+      <root url="file://$PROJECT_DIR$/../../../opt/lucene/3.0.1.src/contrib/spellchecker/src/java" />
+      <root url="file://$PROJECT_DIR$/../../../opt/lucene/3.0.1.src/contrib/analyzers/common/src/java" />
+      <root url="file://$PROJECT_DIR$/../../../opt/lucene/3.0.1.src/contrib/queries/src/java" />
+      <root url="file://$PROJECT_DIR$/../../../opt/lucene/3.0.1.src/contrib/highlighter/src/java" />
+      <root url="file://$PROJECT_DIR$/../../../opt/lucene/3.0.1.src/contrib/snowball/src/java" />
+      <root url="file://$PROJECT_DIR$/../../../opt/lucene/3.0.1.src/src/java" />
+      <root url="file://$PROJECT_DIR$/../../../opt/lucene/3.0.1.src/contrib/analyzers/smartcn/src/java" />
+      <root url="file://$PROJECT_DIR$/../../../opt/lucene/3.0.1.src/contrib/fast-vector-highlighter/src/java" />
+      <root url="file://$PROJECT_DIR$/../../../opt/lucene/3.0.1.src/contrib/spatial/src/java" />
     </SOURCES>
   </library>
 </component>

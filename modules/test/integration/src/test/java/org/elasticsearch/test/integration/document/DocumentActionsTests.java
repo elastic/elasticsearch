@@ -19,6 +19,8 @@
 
 package org.elasticsearch.test.integration.document;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -53,7 +55,12 @@ public class DocumentActionsTests extends AbstractServersTests {
 
         logger.info("Creating index test");
         client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
-        Thread.sleep(200);
+
+        logger.info("Running Cluster Health");
+        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForGreenStatus()).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing [type1/1]");
         IndexResponse indexResponse = client("server1").index(indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();

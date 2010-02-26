@@ -76,6 +76,10 @@ public abstract class JsonFilterBuilders {
         return new QueryJsonFilterBuilder(queryBuilder);
     }
 
+    public static BoolJsonFilterBuilder boolFilter() {
+        return new BoolJsonFilterBuilder();
+    }
+
     private JsonFilterBuilders() {
 
     }

@@ -38,6 +38,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.terms.TermsRequest;
@@ -109,8 +110,24 @@ public class Requests {
         return new CountRequest(indices);
     }
 
+    /**
+     * Terms request represent a request to get terms in one or more indices of specific fields and their
+     * document frequencies (in how many document each term exists).
+     *
+     * @param indices The indices the delete by query against. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @return The terms request
+     * @see org.elasticsearch.client.Client#terms(org.elasticsearch.action.terms.TermsRequest)
+     */
     public static TermsRequest termsRequest(String... indices) {
         return new TermsRequest(indices);
+    }
+
+    /**
+     * @param index
+     * @return
+     */
+    public static MoreLikeThisRequest moreLikeThisRequest(String index) {
+        return new MoreLikeThisRequest(index);
     }
 
     /**

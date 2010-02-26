@@ -28,43 +28,22 @@ import java.util.ArrayList;
 /**
  * @author kimchy (Shay Banon)
  */
-public class BoolJsonQueryBuilder extends BaseJsonQueryBuilder {
+public class BoolJsonFilterBuilder extends BaseJsonQueryBuilder {
 
     private ArrayList<Clause> clauses = new ArrayList<Clause>();
 
-    private float boost = -1;
-
-    private Boolean disableCoord;
-
-    private int minimumNumberShouldMatch = -1;
-
-    public BoolJsonQueryBuilder must(JsonQueryBuilder queryBuilder) {
-        clauses.add(new Clause(queryBuilder, BooleanClause.Occur.MUST));
+    public BoolJsonFilterBuilder must(JsonFilterBuilder filterBuilder) {
+        clauses.add(new Clause(filterBuilder, BooleanClause.Occur.MUST));
         return this;
     }
 
-    public BoolJsonQueryBuilder mustNot(JsonQueryBuilder queryBuilder) {
-        clauses.add(new Clause(queryBuilder, BooleanClause.Occur.MUST_NOT));
+    public BoolJsonFilterBuilder mustNot(JsonFilterBuilder filterBuilder) {
+        clauses.add(new Clause(filterBuilder, BooleanClause.Occur.MUST_NOT));
         return this;
     }
 
-    public BoolJsonQueryBuilder should(JsonQueryBuilder queryBuilder) {
-        clauses.add(new Clause(queryBuilder, BooleanClause.Occur.SHOULD));
-        return this;
-    }
-
-    public BoolJsonQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
-    public BoolJsonQueryBuilder disableCoord(boolean disableCoord) {
-        this.disableCoord = disableCoord;
-        return this;
-    }
-
-    public BoolJsonQueryBuilder minimumNumberShouldMatch(int minimumNumberShouldMatch) {
-        this.minimumNumberShouldMatch = minimumNumberShouldMatch;
+    public BoolJsonFilterBuilder should(JsonFilterBuilder filterBuilder) {
+        clauses.add(new Clause(filterBuilder, BooleanClause.Occur.SHOULD));
         return this;
     }
 
@@ -73,33 +52,24 @@ public class BoolJsonQueryBuilder extends BaseJsonQueryBuilder {
         for (Clause clause : clauses) {
             if (clause.occur == BooleanClause.Occur.MUST) {
                 builder.field("must");
-                clause.queryBuilder.toJson(builder, params);
+                clause.filterBuilder.toJson(builder, params);
             } else if (clause.occur == BooleanClause.Occur.MUST_NOT) {
                 builder.field("mustNot");
-                clause.queryBuilder.toJson(builder, params);
+                clause.filterBuilder.toJson(builder, params);
             } else if (clause.occur == BooleanClause.Occur.SHOULD) {
                 builder.field("should");
-                clause.queryBuilder.toJson(builder, params);
+                clause.filterBuilder.toJson(builder, params);
             }
-        }
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
-        if (disableCoord != null) {
-            builder.field("disableCoord", disableCoord);
-        }
-        if (minimumNumberShouldMatch != -1) {
-            builder.field("minimumNumberShouldMatch", minimumNumberShouldMatch);
         }
         builder.endObject();
     }
 
     private static class Clause {
-        final JsonQueryBuilder queryBuilder;
+        final JsonFilterBuilder filterBuilder;
         final BooleanClause.Occur occur;
 
-        private Clause(JsonQueryBuilder queryBuilder, BooleanClause.Occur occur) {
-            this.queryBuilder = queryBuilder;
+        private Clause(JsonFilterBuilder filterBuilder, BooleanClause.Occur occur) {
+            this.filterBuilder = filterBuilder;
             this.occur = occur;
         }
     }

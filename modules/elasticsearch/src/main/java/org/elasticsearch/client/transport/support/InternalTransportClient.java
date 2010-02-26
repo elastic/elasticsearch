@@ -33,6 +33,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
@@ -46,6 +47,7 @@ import org.elasticsearch.client.transport.action.delete.ClientTransportDeleteAct
 import org.elasticsearch.client.transport.action.deletebyquery.ClientTransportDeleteByQueryAction;
 import org.elasticsearch.client.transport.action.get.ClientTransportGetAction;
 import org.elasticsearch.client.transport.action.index.ClientTransportIndexAction;
+import org.elasticsearch.client.transport.action.mlt.ClientTransportMoreLikeThisAction;
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchAction;
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchScrollAction;
 import org.elasticsearch.client.transport.action.terms.ClientTransportTermsAction;
@@ -78,11 +80,13 @@ public class InternalTransportClient extends AbstractComponent implements Client
 
     private final ClientTransportTermsAction termsAction;
 
+    private final ClientTransportMoreLikeThisAction moreLikeThisAction;
+
     @Inject public InternalTransportClient(Settings settings, TransportClientNodesService nodesService, InternalTransportAdminClient adminClient,
                                            ClientTransportIndexAction indexAction, ClientTransportDeleteAction deleteAction, ClientTransportGetAction getAction,
                                            ClientTransportDeleteByQueryAction deleteByQueryAction, ClientTransportCountAction countAction,
                                            ClientTransportSearchAction searchAction, ClientTransportSearchScrollAction searchScrollAction,
-                                           ClientTransportTermsAction termsAction) {
+                                           ClientTransportTermsAction termsAction, ClientTransportMoreLikeThisAction moreLikeThisAction) {
         super(settings);
         this.nodesService = nodesService;
         this.adminClient = adminClient;
@@ -95,6 +99,7 @@ public class InternalTransportClient extends AbstractComponent implements Client
         this.searchAction = searchAction;
         this.searchScrollAction = searchScrollAction;
         this.termsAction = termsAction;
+        this.moreLikeThisAction = moreLikeThisAction;
     }
 
     @Override public void close() {
@@ -300,6 +305,31 @@ public class InternalTransportClient extends AbstractComponent implements Client
         nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<Void>>() {
             @Override public ActionFuture<Void> doWithNode(Node node) throws ElasticSearchException {
                 termsAction.execute(node, request, listener);
+                return null;
+            }
+        });
+    }
+
+    @Override public ActionFuture<SearchResponse> moreLikeThis(final MoreLikeThisRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<SearchResponse>>() {
+            @Override public ActionFuture<SearchResponse> doWithNode(Node node) throws ElasticSearchException {
+                return moreLikeThisAction.submit(node, request);
+            }
+        });
+    }
+
+    @Override public ActionFuture<SearchResponse> moreLikeThis(final MoreLikeThisRequest request, final ActionListener<SearchResponse> listener) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<SearchResponse>>() {
+            @Override public ActionFuture<SearchResponse> doWithNode(Node node) throws ElasticSearchException {
+                return moreLikeThisAction.submit(node, request, listener);
+            }
+        });
+    }
+
+    @Override public void execMoreLikeThis(final MoreLikeThisRequest request, final ActionListener<SearchResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
+            @Override public Void doWithNode(Node node) throws ElasticSearchException {
+                moreLikeThisAction.submit(node, request);
                 return null;
             }
         });

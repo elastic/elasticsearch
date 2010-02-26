@@ -92,7 +92,7 @@ public class MoreLikeThisFieldJsonQueryBuilder extends BaseJsonQueryBuilder {
         return this;
     }
 
-    public MoreLikeThisFieldJsonQueryBuilder boostTerms(boolean boostTerms) {
+    public MoreLikeThisFieldJsonQueryBuilder boostTerms(Boolean boostTerms) {
         this.boostTerms = boostTerms;
         return this;
     }

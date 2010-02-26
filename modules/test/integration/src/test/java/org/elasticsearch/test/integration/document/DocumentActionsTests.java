@@ -30,9 +30,11 @@ import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.test.integration.AbstractServersTests;
 import org.elasticsearch.util.Unicode;
 import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.client.Requests.*;
@@ -45,34 +47,51 @@ import static org.hamcrest.Matchers.*;
  */
 public class DocumentActionsTests extends AbstractServersTests {
 
+    private Client client1;
+    private Client client2;
+
+    @BeforeMethod public void startServers() {
+        startServer("server1");
+        startServer("server2");
+        client1 = getClient1();
+        client2 = getClient2();
+    }
+
     @AfterMethod public void closeServers() {
+        client1.close();
+        client2.close();
         closeAllServers();
     }
 
-    @Test public void testIndexActions() throws Exception {
-        startServer("server1");
-        startServer("server2");
+    protected Client getClient1() {
+        return client("server1");
+    }
 
+    protected Client getClient2() {
+        return client("server2");
+    }
+
+    @Test public void testIndexActions() throws Exception {
         logger.info("Creating index test");
-        client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
+        client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealth().waitForGreenStatus()).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing [type1/1]");
-        IndexResponse indexResponse = client("server1").index(indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
+        IndexResponse indexResponse = client1.index(indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
         assertThat(indexResponse.id(), equalTo("1"));
         assertThat(indexResponse.type(), equalTo("type1"));
         logger.info("Refreshing");
-        RefreshResponse refreshResponse = client("server1").admin().indices().refresh(refreshRequest("test")).actionGet();
+        RefreshResponse refreshResponse = client1.admin().indices().refresh(refreshRequest("test")).actionGet();
         assertThat(refreshResponse.successfulShards(), equalTo(10));
         assertThat(refreshResponse.failedShards(), equalTo(0));
 
         logger.info("Optimizing");
-        OptimizeResponse optimizeResponse = client("server1").admin().indices().optimize(optimizeRequest("test")).actionGet();
+        OptimizeResponse optimizeResponse = client1.admin().indices().optimize(optimizeRequest("test")).actionGet();
         assertThat(optimizeResponse.successfulShards(), equalTo(10));
         assertThat(optimizeResponse.failedShards(), equalTo(0));
 
@@ -80,48 +99,48 @@ public class DocumentActionsTests extends AbstractServersTests {
 
         logger.info("Get [type1/1]");
         for (int i = 0; i < 5; i++) {
-            getResult = client("server1").get(getRequest("test").type("type1").id("1").threadedOperation(false)).actionGet();
+            getResult = client1.get(getRequest("test").type("type1").id("1").threadedOperation(false)).actionGet();
             assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test")));
-            getResult = client("server1").get(getRequest("test").type("type1").id("1").threadedOperation(true)).actionGet();
+            getResult = client1.get(getRequest("test").type("type1").id("1").threadedOperation(true)).actionGet();
             assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test")));
         }
 
         logger.info("Get [type1/2] (should be empty)");
         for (int i = 0; i < 5; i++) {
-            getResult = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
+            getResult = client1.get(getRequest("test").type("type1").id("2")).actionGet();
             assertThat(getResult.empty(), equalTo(true));
         }
 
         logger.info("Delete [type1/1]");
-        DeleteResponse deleteResponse = client("server1").delete(deleteRequest("test").type("type1").id("1")).actionGet();
+        DeleteResponse deleteResponse = client1.delete(deleteRequest("test").type("type1").id("1")).actionGet();
         assertThat(deleteResponse.id(), equalTo("1"));
         assertThat(deleteResponse.type(), equalTo("type1"));
         logger.info("Refreshing");
-        client("server1").admin().indices().refresh(refreshRequest("test")).actionGet();
+        client1.admin().indices().refresh(refreshRequest("test")).actionGet();
 
         logger.info("Get [type1/1] (should be empty)");
         for (int i = 0; i < 5; i++) {
-            getResult = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
+            getResult = client1.get(getRequest("test").type("type1").id("1")).actionGet();
             assertThat(getResult.empty(), equalTo(true));
         }
 
         logger.info("Index [type1/1]");
-        client("server1").index(indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
+        client1.index(indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
         logger.info("Index [type1/2]");
-        client("server1").index(indexRequest("test").type("type1").id("2").source(source("2", "test"))).actionGet();
+        client1.index(indexRequest("test").type("type1").id("2").source(source("2", "test"))).actionGet();
 
         logger.info("Flushing");
-        FlushResponse flushResult = client("server1").admin().indices().flush(flushRequest("test")).actionGet();
+        FlushResponse flushResult = client1.admin().indices().flush(flushRequest("test")).actionGet();
         assertThat(flushResult.successfulShards(), equalTo(10));
         assertThat(flushResult.failedShards(), equalTo(0));
         logger.info("Refreshing");
-        client("server1").admin().indices().refresh(refreshRequest("test")).actionGet();
+        client1.admin().indices().refresh(refreshRequest("test")).actionGet();
 
         logger.info("Get [type1/1] and [type1/2]");
         for (int i = 0; i < 5; i++) {
-            getResult = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
+            getResult = client1.get(getRequest("test").type("type1").id("1")).actionGet();
             assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test")));
-            getResult = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
+            getResult = client1.get(getRequest("test").type("type1").id("2")).actionGet();
             assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("2", "test")));
         }
 
@@ -129,23 +148,23 @@ public class DocumentActionsTests extends AbstractServersTests {
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            CountResponse countResponse = client("server1").count(countRequest("test").querySource(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.NO_THREADS)).actionGet();
+            CountResponse countResponse = client1.count(countRequest("test").querySource(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.NO_THREADS)).actionGet();
             assertThat(countResponse.count(), equalTo(2l));
             assertThat(countResponse.successfulShards(), equalTo(5));
             assertThat(countResponse.failedShards(), equalTo(0));
 
-            countResponse = client("server1").count(countRequest("test").querySource(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.SINGLE_THREAD)).actionGet();
+            countResponse = client1.count(countRequest("test").querySource(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.SINGLE_THREAD)).actionGet();
             assertThat(countResponse.count(), equalTo(2l));
             assertThat(countResponse.successfulShards(), equalTo(5));
             assertThat(countResponse.failedShards(), equalTo(0));
 
-            countResponse = client("server1").count(countRequest("test").querySource(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD)).actionGet();
+            countResponse = client1.count(countRequest("test").querySource(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD)).actionGet();
             assertThat(countResponse.count(), equalTo(2l));
             assertThat(countResponse.successfulShards(), equalTo(5));
             assertThat(countResponse.failedShards(), equalTo(0));
 
             // test failed (simply query that can't be parsed)
-            countResponse = client("server1").count(countRequest("test").querySource(Unicode.fromStringAsBytes("{ term : { _type : \"type1 } }"))).actionGet();
+            countResponse = client1.count(countRequest("test").querySource(Unicode.fromStringAsBytes("{ term : { _type : \"type1 } }"))).actionGet();
 
             assertThat(countResponse.count(), equalTo(0l));
             assertThat(countResponse.successfulShards(), equalTo(0));
@@ -153,16 +172,16 @@ public class DocumentActionsTests extends AbstractServersTests {
         }
 
         logger.info("Delete by query");
-        DeleteByQueryResponse queryResponse = client("server2").deleteByQuery(deleteByQueryRequest("test").querySource(termQuery("name", "test2"))).actionGet();
+        DeleteByQueryResponse queryResponse = client2.deleteByQuery(deleteByQueryRequest("test").querySource(termQuery("name", "test2"))).actionGet();
         assertThat(queryResponse.index("test").successfulShards(), equalTo(5));
         assertThat(queryResponse.index("test").failedShards(), equalTo(0));
-        client("server1").admin().indices().refresh(refreshRequest("test")).actionGet();
+        client1.admin().indices().refresh(refreshRequest("test")).actionGet();
 
         logger.info("Get [type1/1] and [type1/2], should be empty");
         for (int i = 0; i < 5; i++) {
-            getResult = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
+            getResult = client1.get(getRequest("test").type("type1").id("1")).actionGet();
             assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test")));
-            getResult = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
+            getResult = client1.get(getRequest("test").type("type1").id("2")).actionGet();
             assertThat("cycle #" + i, getResult.empty(), equalTo(false));
         }
     }

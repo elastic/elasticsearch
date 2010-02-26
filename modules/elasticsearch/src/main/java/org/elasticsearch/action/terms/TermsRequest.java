@@ -37,7 +37,7 @@ import static org.elasticsearch.action.Actions.*;
  * <p>This is very handy to implement things like tag clouds and auto complete (using {@link #prefix(String)} or
  * {@link #regexp(String)}).
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TermsRequest extends BroadcastOperationRequest {
 

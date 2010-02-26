@@ -31,6 +31,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
@@ -266,9 +267,40 @@ public interface Client {
      */
     void execSearchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener);
 
+    /**
+     * A terms request  to get terms in one or more indices of specific fields and their
+     * document frequencies (in how many document each term exists).
+     *
+     * @param request The term request
+     * @return The result future
+     * @see Requests#termsRequest(String...)
+     */
     ActionFuture<TermsResponse> terms(TermsRequest request);
 
+    /**
+     * A terms request  to get terms in one or more indices of specific fields and their
+     * document frequencies (in how many document each term exists).
+     *
+     * @param request  The term request
+     * @param listener A listener to be notified of the result
+     * @return The result future
+     * @see Requests#termsRequest(String...)
+     */
     ActionFuture<TermsResponse> terms(TermsRequest request, ActionListener<TermsResponse> listener);
 
+    /**
+     * A terms request  to get terms in one or more indices of specific fields and their
+     * document frequencies (in how many document each term exists).
+     *
+     * @param request  The term request
+     * @param listener A listener to be notified of the result
+     * @see Requests#termsRequest(String...)
+     */
     void execTerms(TermsRequest request, ActionListener<TermsResponse> listener);
+
+    ActionFuture<SearchResponse> moreLikeThis(MoreLikeThisRequest request);
+
+    ActionFuture<SearchResponse> moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener);
+
+    void execMoreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener);
 }

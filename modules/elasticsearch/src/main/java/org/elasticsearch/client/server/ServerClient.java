@@ -37,6 +37,8 @@ import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
+import org.elasticsearch.action.mlt.MoreLikeThisRequest;
+import org.elasticsearch.action.mlt.TransportMoreLikeThisAction;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.terms.TermsRequest;
 import org.elasticsearch.action.terms.TermsResponse;
@@ -69,11 +71,13 @@ public class ServerClient extends AbstractComponent implements Client {
 
     private final TransportTermsAction termsAction;
 
+    private final TransportMoreLikeThisAction moreLikeThisAction;
+
     @Inject public ServerClient(Settings settings, ServerAdminClient admin,
                                 TransportIndexAction indexAction, TransportDeleteAction deleteAction,
                                 TransportDeleteByQueryAction deleteByQueryAction, TransportGetAction getAction, TransportCountAction countAction,
                                 TransportSearchAction searchAction, TransportSearchScrollAction searchScrollAction,
-                                TransportTermsAction termsAction) {
+                                TransportTermsAction termsAction, TransportMoreLikeThisAction moreLikeThisAction) {
         super(settings);
         this.admin = admin;
         this.indexAction = indexAction;
@@ -84,6 +88,7 @@ public class ServerClient extends AbstractComponent implements Client {
         this.searchAction = searchAction;
         this.searchScrollAction = searchScrollAction;
         this.termsAction = termsAction;
+        this.moreLikeThisAction = moreLikeThisAction;
     }
 
     @Override public void close() {
@@ -188,5 +193,17 @@ public class ServerClient extends AbstractComponent implements Client {
 
     @Override public void execTerms(TermsRequest request, ActionListener<TermsResponse> listener) {
         termsAction.execute(request, listener);
+    }
+
+    @Override public ActionFuture<SearchResponse> moreLikeThis(MoreLikeThisRequest request) {
+        return moreLikeThisAction.submit(request);
+    }
+
+    @Override public ActionFuture<SearchResponse> moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener) {
+        return moreLikeThisAction.submit(request, listener);
+    }
+
+    @Override public void execMoreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener) {
+        moreLikeThisAction.execute(request, listener);
     }
 }

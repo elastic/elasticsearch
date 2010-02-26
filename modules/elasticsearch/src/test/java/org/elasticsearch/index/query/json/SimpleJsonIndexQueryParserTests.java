@@ -29,6 +29,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParser;
+import org.elasticsearch.util.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.util.lucene.search.TermFilter;
 import org.testng.annotations.Test;
 
@@ -598,6 +599,53 @@ public class SimpleJsonIndexQueryParserTests {
         Query wrappedQuery = (Query) field.get(queryWrapperFilter);
         assertThat(wrappedQuery, instanceOf(TermQuery.class));
         assertThat(((TermQuery) wrappedQuery).getTerm(), equalTo(new Term("name.last", "banon")));
+    }
+
+    @Test public void testMoreLikeThisBuilder() throws Exception {
+        IndexQueryParser queryParser = newQueryParser();
+        Query parsedQuery = queryParser.parse(moreLikeThis("name.first", "name.last").likeText("something").minTermFrequency(1).maxQueryTerms(12));
+        assertThat(parsedQuery, instanceOf(MoreLikeThisQuery.class));
+        MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) parsedQuery;
+        assertThat(mltQuery.getMoreLikeFields()[0], equalTo("name.first"));
+        assertThat(mltQuery.getLikeText(), equalTo("something"));
+        assertThat(mltQuery.getMinTermFrequency(), equalTo(1));
+        assertThat(mltQuery.getMaxQueryTerms(), equalTo(12));
+    }
+
+    @Test public void testMoreLikeThis() throws Exception {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/json/mlt.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(MoreLikeThisQuery.class));
+        MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) parsedQuery;
+        assertThat(mltQuery.getMoreLikeFields()[0], equalTo("name.first"));
+        assertThat(mltQuery.getMoreLikeFields()[1], equalTo("name.last"));
+        assertThat(mltQuery.getLikeText(), equalTo("something"));
+        assertThat(mltQuery.getMinTermFrequency(), equalTo(1));
+        assertThat(mltQuery.getMaxQueryTerms(), equalTo(12));
+    }
+
+    @Test public void testMoreLikeThisFieldBuilder() throws Exception {
+        IndexQueryParser queryParser = newQueryParser();
+        Query parsedQuery = queryParser.parse(moreLikeThisField("name.first").likeText("something").minTermFrequency(1).maxQueryTerms(12));
+        assertThat(parsedQuery, instanceOf(MoreLikeThisQuery.class));
+        MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) parsedQuery;
+        assertThat(mltQuery.getMoreLikeFields()[0], equalTo("name.first"));
+        assertThat(mltQuery.getLikeText(), equalTo("something"));
+        assertThat(mltQuery.getMinTermFrequency(), equalTo(1));
+        assertThat(mltQuery.getMaxQueryTerms(), equalTo(12));
+    }
+
+    @Test public void testMoreLikeThisField() throws Exception {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/json/mltField.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(MoreLikeThisQuery.class));
+        MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) parsedQuery;
+        assertThat(mltQuery.getMoreLikeFields()[0], equalTo("name.first"));
+        assertThat(mltQuery.getLikeText(), equalTo("something"));
+        assertThat(mltQuery.getMinTermFrequency(), equalTo(1));
+        assertThat(mltQuery.getMaxQueryTerms(), equalTo(12));
     }
 
     private JsonIndexQueryParser newQueryParser() throws IOException {

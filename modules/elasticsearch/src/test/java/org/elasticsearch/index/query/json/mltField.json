@@ -1,0 +1,9 @@
+{
+    moreLikeThisField : {
+        "name.first" : {
+            likeText : "something",
+            minTermFrequency : 1,
+            maxQueryTerms : 12
+        }
+    }
+}

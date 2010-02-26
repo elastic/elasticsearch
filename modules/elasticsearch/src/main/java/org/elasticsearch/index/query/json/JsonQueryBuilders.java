@@ -116,6 +116,14 @@ public abstract class JsonQueryBuilders {
         return new ConstantScoreQueryJsonQueryBuilder(filterBuilder);
     }
 
+    public static MoreLikeThisJsonQueryBuilder moreLikeThis(String... fields) {
+        return new MoreLikeThisJsonQueryBuilder(fields);
+    }
+
+    public static MoreLikeThisFieldJsonQueryBuilder moreLikeThisField(String name) {
+        return new MoreLikeThisFieldJsonQueryBuilder(name);
+    }
+
     private JsonQueryBuilders() {
 
     }

@@ -62,6 +62,8 @@ public class JsonQueryParserRegistry {
         add(queryParsersMap, new SpanFirstJsonQueryParser(index, indexSettings));
         add(queryParsersMap, new SpanNearJsonQueryParser(index, indexSettings));
         add(queryParsersMap, new SpanOrJsonQueryParser(index, indexSettings));
+        add(queryParsersMap, new MoreLikeThisJsonQueryParser(index, indexSettings));
+        add(queryParsersMap, new MoreLikeThisFieldJsonQueryParser(index, indexSettings));
 
         // now, copy over the ones provided
         if (queryParsers != null) {

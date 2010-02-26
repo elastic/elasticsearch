@@ -143,24 +143,6 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.size(Integer.parseInt(size));
         }
 
-        String sIndicesBoost = request.param("indicesBoost");
-        if (sIndicesBoost != null) {
-            String[] indicesBoost = indicesBoostPattern.split(sIndicesBoost);
-            for (String indexBoost : indicesBoost) {
-                int divisor = indexBoost.indexOf(',');
-                if (divisor == -1) {
-                    throw new ElasticSearchIllegalArgumentException("Illegal index boost [" + indexBoost + "], no ','");
-                }
-                String indexName = indexBoost.substring(0, divisor);
-                String sBoost = indexBoost.substring(divisor + 1);
-                try {
-                    searchRequest.indexBoost(indexName, Float.parseFloat(sBoost));
-                } catch (NumberFormatException e) {
-                    throw new ElasticSearchIllegalArgumentException("Illegal index boost [" + indexBoost + "], boost not a float number");
-                }
-            }
-        }
-
         String scroll = request.param("scroll");
         if (scroll != null) {
             searchRequest.scroll(new Scroll(parseTimeValue(scroll, null)));
@@ -233,6 +215,24 @@ public class RestSearchAction extends BaseRestHandler {
                     searchSourceBuilder.sort(sortField, reverse.equals("reverse"));
                 } else {
                     searchSourceBuilder.sort(sort);
+                }
+            }
+        }
+
+        String sIndicesBoost = request.param("indicesBoost");
+        if (sIndicesBoost != null) {
+            String[] indicesBoost = indicesBoostPattern.split(sIndicesBoost);
+            for (String indexBoost : indicesBoost) {
+                int divisor = indexBoost.indexOf(',');
+                if (divisor == -1) {
+                    throw new ElasticSearchIllegalArgumentException("Illegal index boost [" + indexBoost + "], no ','");
+                }
+                String indexName = indexBoost.substring(0, divisor);
+                String sBoost = indexBoost.substring(divisor + 1);
+                try {
+                    searchSourceBuilder.indexBoost(indexName, Float.parseFloat(sBoost));
+                } catch (NumberFormatException e) {
+                    throw new ElasticSearchIllegalArgumentException("Illegal index boost [" + indexBoost + "], boost not a float number");
                 }
             }
         }

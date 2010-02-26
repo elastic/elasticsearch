@@ -31,5 +31,10 @@ public interface SearchPhase {
 
     Map<String, ? extends SearchParseElement> parseElements();
 
+    /**
+     * Performs pre processing of the search context before the execute.
+     */
+    void preProcess(SearchContext context);
+
     void execute(SearchContext context) throws ElasticSearchException;
 }

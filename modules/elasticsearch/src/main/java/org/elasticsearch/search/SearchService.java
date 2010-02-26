@@ -47,6 +47,7 @@ import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.component.Lifecycle;
 import org.elasticsearch.util.component.LifecycleComponent;
@@ -245,7 +246,7 @@ public class SearchService extends AbstractComponent implements LifecycleCompone
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.state().nodes().localNodeId(), request.index(), request.shardId());
 
         SearchContext context = new SearchContext(idGenerator.incrementAndGet(), shardTarget, request.timeout(),
-                request.queryBoost(), request.source(), request.types(), engineSearcher, indexService);
+                request.source(), request.types(), engineSearcher, indexService);
 
         // init the from and size
         context.from(request.from());
@@ -262,6 +263,11 @@ public class SearchService extends AbstractComponent implements LifecycleCompone
         if (context.size() == -1) {
             context.size(10);
         }
+
+        // pre process
+        dfsPhase.preProcess(context);
+        queryPhase.preProcess(context);
+        fetchPhase.preProcess(context);
 
         // compute the context keep alive
         TimeValue keepAlive = defaultKeepAlive;
@@ -305,7 +311,7 @@ public class SearchService extends AbstractComponent implements LifecycleCompone
                 }
             }
         } catch (Exception e) {
-            throw new SearchParseException(context, "Failed to parse [" + context.source() + "]", e);
+            throw new SearchParseException(context, "Failed to parse [" + Unicode.fromBytes(context.source()) + "]", e);
         }
     }
 

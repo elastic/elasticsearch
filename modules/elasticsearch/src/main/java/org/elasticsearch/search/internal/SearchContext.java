@@ -66,7 +66,7 @@ public class SearchContext implements Releasable {
 
     private final TimeValue timeout;
 
-    private final float queryBoost;
+    private float queryBoost = 1.0f;
 
 
     private Scroll scroll;
@@ -100,12 +100,11 @@ public class SearchContext implements Releasable {
 
     private volatile Timeout keepAliveTimeout;
 
-    public SearchContext(long id, SearchShardTarget shardTarget, TimeValue timeout, float queryBoost, byte[] source,
+    public SearchContext(long id, SearchShardTarget shardTarget, TimeValue timeout, byte[] source,
                          String[] types, Engine.Searcher engineSearcher, IndexService indexService) {
         this.id = id;
         this.shardTarget = shardTarget;
         this.timeout = timeout;
-        this.queryBoost = queryBoost;
         this.source = source;
         this.types = types;
         this.engineSearcher = engineSearcher;
@@ -148,6 +147,11 @@ public class SearchContext implements Releasable {
 
     public float queryBoost() {
         return queryBoost;
+    }
+
+    public SearchContext queryBoost(float queryBoost) {
+        this.queryBoost = queryBoost;
+        return this;
     }
 
     public Scroll scroll() {

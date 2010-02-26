@@ -46,10 +46,16 @@ public class QueryPhase implements SearchPhase {
         ImmutableMap.Builder<String, SearchParseElement> parseElements = ImmutableMap.builder();
         parseElements.put("from", new FromParseElement()).put("size", new SizeParseElement())
                 .put("queryParserName", new QueryParserNameParseElement())
+                .put("queryBoost", new QueryBoostParseElement())
                 .put("query", new QueryParseElement())
                 .put("sort", new SortParseElement())
                 .putAll(facetsPhase.parseElements());
         return parseElements.build();
+    }
+
+    @Override public void preProcess(SearchContext context) {
+        context.query().setBoost(context.query().getBoost() * context.queryBoost());
+        facetsPhase.preProcess(context);
     }
 
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {

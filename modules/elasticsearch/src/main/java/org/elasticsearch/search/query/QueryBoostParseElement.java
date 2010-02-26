@@ -19,20 +19,36 @@
 
 package org.elasticsearch.search.query;
 
-import org.apache.lucene.search.Query;
 import org.codehaus.jackson.JsonParser;
-import org.elasticsearch.index.query.json.JsonIndexQueryParser;
+import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
- * @author kimchy (Shay Banon)
+ * <pre>
+ * {
+ *    queryBoost : {
+ *         "index1" : 1.4,
+ *         "index2" : 1.5
+ *    }
+ * }
+ * </pre>
+ *
+ * @author kimchy (shay.banon)
  */
-public class QueryParseElement implements SearchParseElement {
+public class QueryBoostParseElement implements SearchParseElement {
 
     @Override public void parse(JsonParser jp, SearchContext context) throws Exception {
-        JsonIndexQueryParser indexQueryParser = (JsonIndexQueryParser) context.queryParser();
-        Query query = indexQueryParser.parse(jp);
-        context.query(query);
+        JsonToken token;
+        while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
+            if (token == JsonToken.FIELD_NAME) {
+                String indexName = jp.getCurrentName();
+                if (indexName.equals(context.shardTarget().index())) {
+                    jp.nextToken(); // move to the value
+                    // we found our query boost
+                    context.queryBoost(jp.getFloatValue());
+                }
+            }
+        }
     }
 }

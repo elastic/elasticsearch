@@ -26,8 +26,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.util.Required;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.gnu.trove.TObjectFloatHashMap;
-import org.elasticsearch.util.gnu.trove.TObjectFloatIterator;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -41,8 +39,6 @@ import static org.elasticsearch.util.TimeValue.*;
  * @author kimchy (Shay Banon)
  */
 public class SearchRequest implements ActionRequest {
-
-    private static TObjectFloatHashMap<String> EMPTY = new TObjectFloatHashMap<String>();
 
     private SearchType searchType = SearchType.QUERY_THEN_FETCH;
 
@@ -59,8 +55,6 @@ public class SearchRequest implements ActionRequest {
     private int size = -1;
 
     private String[] types = Strings.EMPTY_ARRAY;
-
-    private TObjectFloatHashMap<String> indexBoost = EMPTY;
 
     private TimeValue timeout;
 
@@ -188,22 +182,6 @@ public class SearchRequest implements ActionRequest {
         return this;
     }
 
-    /**
-     * Allows to set a dynamic query boost on an index level query. Very handy when, for example, each user has
-     * his own index, and friends matter more than friends of friends.
-     */
-    public TObjectFloatHashMap<String> indexBoost() {
-        return indexBoost;
-    }
-
-    public SearchRequest indexBoost(String index, float indexBoost) {
-        if (this.indexBoost == EMPTY) {
-            this.indexBoost = new TObjectFloatHashMap<String>();
-        }
-        this.indexBoost.put(index, indexBoost);
-        return this;
-    }
-
     public int size() {
         return size;
     }
@@ -236,16 +214,6 @@ public class SearchRequest implements ActionRequest {
         }
         source = new byte[in.readInt()];
         in.readFully(source);
-
-        int size = in.readInt();
-        if (size == 0) {
-            indexBoost = EMPTY;
-        } else {
-            indexBoost = new TObjectFloatHashMap<String>(size);
-            for (int i = 0; i < size; i++) {
-                indexBoost.put(in.readUTF(), in.readFloat());
-            }
-        }
 
         int typesSize = in.readInt();
         if (typesSize > 0) {
@@ -288,16 +256,6 @@ public class SearchRequest implements ActionRequest {
         }
         out.writeInt(source.length);
         out.write(source);
-        if (indexBoost == null) {
-            out.writeInt(0);
-        } else {
-            out.writeInt(indexBoost.size());
-            for (TObjectFloatIterator<String> it = indexBoost.iterator(); it.hasNext();) {
-                it.advance();
-                out.writeUTF(it.key());
-                out.writeFloat(it.value());
-            }
-        }
         out.writeInt(types.length);
         for (String type : types) {
             out.writeUTF(type);

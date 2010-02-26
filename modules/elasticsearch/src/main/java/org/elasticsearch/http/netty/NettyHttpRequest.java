@@ -148,6 +148,14 @@ public class NettyHttpRequest implements HttpRequest {
         return sValue.equals("true") || sValue.equals("1") || sValue.equals("on");
     }
 
+    @Override public Boolean paramAsBoolean(String key, Boolean defaultValue) {
+        String sValue = param(key);
+        if (sValue == null) {
+            return defaultValue;
+        }
+        return sValue.equals("true") || sValue.equals("1") || sValue.equals("on");
+    }
+
     @Override public TimeValue paramAsTime(String key, TimeValue defaultValue) {
         return parseTimeValue(param(key), defaultValue);
     }

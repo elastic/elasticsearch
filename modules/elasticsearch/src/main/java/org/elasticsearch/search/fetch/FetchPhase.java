@@ -47,6 +47,9 @@ public class FetchPhase implements SearchPhase {
         return ImmutableMap.of("explain", new ExplainParseElement(), "fields", new FieldsParseElement());
     }
 
+    @Override public void preProcess(SearchContext context) {
+    }
+
     public void execute(SearchContext context) {
         FieldSelector fieldSelector = buildFieldSelectors(context);
 

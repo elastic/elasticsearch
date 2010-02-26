@@ -46,6 +46,9 @@ public class FacetsPhase implements SearchPhase {
         return ImmutableMap.of("facets", new FacetsParseElement());
     }
 
+    @Override public void preProcess(SearchContext context) {
+    }
+
     @Override public void execute(SearchContext context) throws ElasticSearchException {
         if (context.facets() == null) {
             return;

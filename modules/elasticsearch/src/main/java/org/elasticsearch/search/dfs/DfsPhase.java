@@ -37,6 +37,9 @@ public class DfsPhase implements SearchPhase {
         return ImmutableMap.of();
     }
 
+    @Override public void preProcess(SearchContext context) {
+    }
+
     public void execute(SearchContext context) {
         try {
             context.rewriteQuery();

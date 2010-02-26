@@ -64,8 +64,6 @@ public class InternalSearchRequest implements Streamable {
 
     private int size = -1;
 
-    private float queryBoost = 1.0f;
-
     private TimeValue timeout;
 
     private String[] types = Strings.EMPTY_ARRAY;
@@ -124,19 +122,6 @@ public class InternalSearchRequest implements Streamable {
         return this;
     }
 
-    /**
-     * Allows to set a dynamic query boost on an index level query. Very handy when, for example, each user has
-     * his own index, and friends matter more than friends of friends.
-     */
-    public float queryBoost() {
-        return queryBoost;
-    }
-
-    public InternalSearchRequest queryBoost(float queryBoost) {
-        this.queryBoost = queryBoost;
-        return this;
-    }
-
     public int size() {
         return size;
     }
@@ -167,7 +152,6 @@ public class InternalSearchRequest implements Streamable {
         }
         source = new byte[in.readInt()];
         in.readFully(source);
-        queryBoost = in.readFloat();
         int typesSize = in.readInt();
         if (typesSize > 0) {
             types = new String[typesSize];
@@ -196,7 +180,6 @@ public class InternalSearchRequest implements Streamable {
         }
         out.writeInt(source.length);
         out.write(source);
-        out.writeFloat(queryBoost);
         out.writeInt(types.length);
         for (String type : types) {
             out.writeUTF(type);

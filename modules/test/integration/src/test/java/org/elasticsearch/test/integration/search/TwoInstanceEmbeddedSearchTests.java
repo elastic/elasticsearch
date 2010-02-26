@@ -106,7 +106,7 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractServersTests {
     @Test public void testDfsQueryFetch() throws Exception {
         SearchSourceBuilder sourceBuilder = searchSource()
                 .query(termQuery("multi", "test"))
-                .from(0).size(60).explain(true);
+                .from(0).size(60).explain(true).indexBoost("test", 1.0f).indexBoost("test2", 2.0f);
 
         List<DfsSearchResult> dfsResults = newArrayList();
         for (ShardsIterator shardsIt : indicesService.searchShards(clusterService.state(), new String[]{"test"}, null)) {

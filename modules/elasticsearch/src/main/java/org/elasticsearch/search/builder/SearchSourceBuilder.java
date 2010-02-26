@@ -21,6 +21,8 @@ package org.elasticsearch.search.builder;
 
 import org.elasticsearch.index.query.json.JsonQueryBuilder;
 import org.elasticsearch.search.SearchException;
+import org.elasticsearch.util.gnu.trove.TObjectFloatHashMap;
+import org.elasticsearch.util.gnu.trove.TObjectFloatIterator;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.json.ToJson;
 
@@ -58,6 +60,9 @@ public class SearchSourceBuilder {
     private List<String> fieldNames;
 
     private SearchSourceFacetsBuilder facetsBuilder;
+
+    private TObjectFloatHashMap<String> indexBoost = null;
+
 
     public SearchSourceBuilder() {
     }
@@ -125,6 +130,15 @@ public class SearchSourceBuilder {
         return this;
     }
 
+    public SearchSourceBuilder indexBoost(String index, float indexBoost) {
+        if (this.indexBoost == null) {
+            this.indexBoost = new TObjectFloatHashMap<String>();
+        }
+        this.indexBoost.put(index, indexBoost);
+        return this;
+    }
+
+
     public byte[] build() throws SearchException {
         try {
             JsonBuilder builder = binaryJsonBuilder();
@@ -172,6 +186,15 @@ public class SearchSourceBuilder {
                         builder.field("type", sortTuple.type());
                     }
                     builder.endObject();
+                }
+                builder.endObject();
+            }
+
+            if (indexBoost != null) {
+                builder.startObject("queryBoost");
+                for (TObjectFloatIterator<String> it = indexBoost.iterator(); it.hasNext();) {
+                    it.advance();
+                    builder.field(it.key(), it.value());
                 }
                 builder.endObject();
             }

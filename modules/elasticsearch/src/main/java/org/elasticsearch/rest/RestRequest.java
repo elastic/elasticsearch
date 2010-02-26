@@ -67,6 +67,8 @@ public interface RestRequest extends ToJson.Params {
 
     boolean paramAsBoolean(String key, boolean defaultValue);
 
+    Boolean paramAsBoolean(String key, Boolean defaultValue);
+
     TimeValue paramAsTime(String key, TimeValue defaultValue);
 
     SizeValue paramAsSize(String key, SizeValue defaultValue);

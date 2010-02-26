@@ -20,11 +20,12 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.concurrent.ThreadSafe;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 @ThreadSafe
 public interface DocumentMapper {
@@ -73,11 +74,19 @@ public interface DocumentMapper {
 
     /**
      * Parses the source into a parsed document.
-     * <p/>
+     *
      * <p>Validates that the source has the provided id and type. Note, most times
      * we will already have the id and the type even though they exist in the source as well.
      */
     ParsedDocument parse(@Nullable String type, @Nullable String id, byte[] source) throws MapperParsingException;
+
+    /**
+     * Parses the source into a parsed document.
+     *
+     * <p>Validates that the source has the provided id and type. Note, most times
+     * we will already have the id and the type even though they exist in the source as well.
+     */
+    ParsedDocument parse(@Nullable String type, @Nullable String id, byte[] source, @Nullable ParseListener listener) throws MapperParsingException;
 
     /**
      * Parses the source into the parsed document.
@@ -118,6 +127,27 @@ public interface DocumentMapper {
         public MergeFlags ignoreDuplicates(boolean ignoreDuplicates) {
             this.ignoreDuplicates = ignoreDuplicates;
             return this;
+        }
+    }
+
+    /**
+     * A listener to be called during the parse process.
+     */
+    public static interface ParseListener<ParseContext> {
+
+        public static final ParseListener EMPTY = new ParseListenerAdapter();
+
+        /**
+         * Called before a field is added to the document. Return <tt>true</tt> to include
+         * it in the document.
+         */
+        boolean beforeFieldAdded(FieldMapper fieldMapper, Fieldable fieldable, ParseContext parseContent);
+    }
+
+    public static class ParseListenerAdapter implements ParseListener {
+
+        @Override public boolean beforeFieldAdded(FieldMapper fieldMapper, Fieldable fieldable, Object parseContext) {
+            return true;
         }
     }
 }

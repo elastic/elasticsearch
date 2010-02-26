@@ -603,7 +603,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testMoreLikeThisBuilder() throws Exception {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(moreLikeThis("name.first", "name.last").likeText("something").minTermFrequency(1).maxQueryTerms(12));
+        Query parsedQuery = queryParser.parse(moreLikeThisQuery("name.first", "name.last").likeText("something").minTermFrequency(1).maxQueryTerms(12));
         assertThat(parsedQuery, instanceOf(MoreLikeThisQuery.class));
         MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) parsedQuery;
         assertThat(mltQuery.getMoreLikeFields()[0], equalTo("name.first"));
@@ -627,7 +627,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testMoreLikeThisFieldBuilder() throws Exception {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(moreLikeThisField("name.first").likeText("something").minTermFrequency(1).maxQueryTerms(12));
+        Query parsedQuery = queryParser.parse(moreLikeThisFieldQuery("name.first").likeText("something").minTermFrequency(1).maxQueryTerms(12));
         assertThat(parsedQuery, instanceOf(MoreLikeThisQuery.class));
         MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) parsedQuery;
         assertThat(mltQuery.getMoreLikeFields()[0], equalTo("name.first"));

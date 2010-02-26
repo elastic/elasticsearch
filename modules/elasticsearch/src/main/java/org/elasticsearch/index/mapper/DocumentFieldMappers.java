@@ -112,6 +112,17 @@ public class DocumentFieldMappers implements Iterable<FieldMapper> {
     }
 
     /**
+     * Tries to find first based on {@link #fullName(String)}, then by {@link #indexName(String)}.
+     */
+    public FieldMappers smartName(String name) {
+        FieldMappers fieldMappers = fullName(name);
+        if (fieldMappers != null) {
+            return fieldMappers;
+        }
+        return indexName(name);
+    }
+
+    /**
      * A smart analyzer used for indexing that takes into account specific analyzers configured
      * per {@link FieldMapper}.
      */

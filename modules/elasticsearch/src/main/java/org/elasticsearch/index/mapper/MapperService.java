@@ -249,11 +249,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             DocumentMapper possibleDocMapper = mappers.get(possibleType);
             if (possibleDocMapper != null) {
                 String possibleName = smartName.substring(dotIndex + 1);
-                FieldMappers mappers = possibleDocMapper.mappers().fullName(possibleName);
-                if (mappers != null) {
-                    return mappers;
-                }
-                mappers = possibleDocMapper.mappers().indexName(possibleName);
+                FieldMappers mappers = possibleDocMapper.mappers().smartName(possibleName);
                 if (mappers != null) {
                     return mappers;
                 }
@@ -284,11 +280,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             DocumentMapper possibleDocMapper = mappers.get(possibleType);
             if (possibleDocMapper != null) {
                 String possibleName = smartName.substring(dotIndex + 1);
-                FieldMappers mappers = possibleDocMapper.mappers().fullName(possibleName);
-                if (mappers != null) {
-                    return new SmartNameFieldMappers(mappers, possibleDocMapper);
-                }
-                mappers = possibleDocMapper.mappers().indexName(possibleName);
+                FieldMappers mappers = possibleDocMapper.mappers().smartName(possibleName);
                 if (mappers != null) {
                     return new SmartNameFieldMappers(mappers, possibleDocMapper);
                 }

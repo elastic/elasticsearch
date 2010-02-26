@@ -270,7 +270,9 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
         field.setOmitNorms(omitNorms);
         field.setOmitTermFreqAndPositions(omitTermFreqAndPositions);
         field.setBoost(boost);
-        jsonContext.doc().add(field);
+        if (jsonContext.listener().beforeFieldAdded(this, field, jsonContext)) {
+            jsonContext.doc().add(field);
+        }
     }
 
     protected abstract Field parseCreateField(JsonParseContext jsonContext) throws IOException;

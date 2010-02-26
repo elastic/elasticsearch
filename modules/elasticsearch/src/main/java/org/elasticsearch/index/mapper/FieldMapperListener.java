@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public interface FieldMapperListener {
 

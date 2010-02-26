@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.json;
 
 import org.apache.lucene.document.Document;
 import org.codehaus.jackson.JsonParser;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.util.concurrent.NotThreadSafe;
 
 /**
@@ -43,6 +44,8 @@ public class JsonParseContext {
 
     private String id;
 
+    private DocumentMapper.ParseListener listener;
+
     private String uid;
 
     private StringBuilder stringBuilder = new StringBuilder();
@@ -56,7 +59,7 @@ public class JsonParseContext {
         this.path = path;
     }
 
-    public void reset(JsonParser jsonParser, Document document, String type, byte[] source) {
+    public void reset(JsonParser jsonParser, Document document, String type, byte[] source, DocumentMapper.ParseListener listener) {
         this.jsonParser = jsonParser;
         this.document = document;
         this.type = type;
@@ -64,6 +67,7 @@ public class JsonParseContext {
         this.path.reset();
         this.parsedIdState = ParsedIdState.NO;
         this.mappersAdded = false;
+        this.listener = listener;
     }
 
     public boolean mappersAdded() {
@@ -88,6 +92,10 @@ public class JsonParseContext {
 
     public JsonParser jp() {
         return this.jsonParser;
+    }
+
+    public DocumentMapper.ParseListener listener() {
+        return this.listener;
     }
 
     public Document doc() {

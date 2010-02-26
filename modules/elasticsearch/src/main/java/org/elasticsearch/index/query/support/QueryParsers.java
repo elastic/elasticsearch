@@ -26,6 +26,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.lucene.search.TermFilter;
 
+import java.util.List;
+
 /**
  * @author kimchy (Shay Banon)
  */
@@ -33,6 +35,29 @@ public final class QueryParsers {
 
     private QueryParsers() {
 
+    }
+
+    public static boolean isNegativeQuery(Query q) {
+        if (!(q instanceof BooleanQuery)) {
+            return false;
+        }
+        List<BooleanClause> clauses = ((BooleanQuery) q).clauses();
+        if (clauses.isEmpty()) {
+            return false;
+        }
+        for (BooleanClause clause : clauses) {
+            if (!clause.isProhibited()) return false;
+        }
+        return true;
+    }
+
+    public static Query fixNegativeQueryIfNeeded(Query q) {
+        if (isNegativeQuery(q)) {
+            BooleanQuery newBq = (BooleanQuery) q.clone();
+            newBq.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+            return newBq;
+        }
+        return q;
     }
 
     public static Query wrapSmartNameQuery(Query query, @Nullable MapperService.SmartNameFieldMappers smartFieldMappers,

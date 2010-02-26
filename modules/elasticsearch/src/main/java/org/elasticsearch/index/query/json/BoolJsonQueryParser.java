@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static com.google.common.collect.Lists.*;
+import static org.elasticsearch.index.query.support.QueryParsers.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -110,6 +111,6 @@ public class BoolJsonQueryParser extends AbstractIndexComponent implements JsonQ
         if (minimumNumberShouldMatch != -1) {
             query.setMinimumNumberShouldMatch(minimumNumberShouldMatch);
         }
-        return query;
+        return fixNegativeQueryIfNeeded(query);
     }
 }

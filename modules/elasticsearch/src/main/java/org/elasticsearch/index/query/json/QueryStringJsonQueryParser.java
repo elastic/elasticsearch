@@ -37,6 +37,8 @@ import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.query.support.QueryParsers.*;
+
 /**
  * @author kimchy (Shay Banon)
  */
@@ -154,7 +156,7 @@ public class QueryStringJsonQueryParser extends AbstractIndexComponent implement
         try {
             Query query = queryParser.parse(queryString);
             query.setBoost(boost);
-            return query;
+            return fixNegativeQueryIfNeeded(query);
         } catch (ParseException e) {
             throw new QueryParsingException(index, "Failed to parse query [" + queryString + "]", e);
         }

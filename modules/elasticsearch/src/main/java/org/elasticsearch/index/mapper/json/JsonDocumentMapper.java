@@ -251,7 +251,11 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
         return parse(null, null, source);
     }
 
-    @Override public ParsedDocument parse(String type, String id, byte[] source) {
+    @Override public ParsedDocument parse(@Nullable String type, @Nullable String id, byte[] source) throws MapperParsingException {
+        return parse(type, id, source, ParseListener.EMPTY);
+    }
+
+    @Override public ParsedDocument parse(String type, String id, byte[] source, ParseListener listener) {
         JsonParseContext jsonContext = cache.get();
 
         if (type != null && !type.equals(this.type)) {
@@ -262,7 +266,7 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
         JsonParser jp = null;
         try {
             jp = jsonFactory.createJsonParser(source);
-            jsonContext.reset(jp, new Document(), type, source);
+            jsonContext.reset(jp, new Document(), type, source, listener);
 
             // will result in JsonToken.START_OBJECT
             JsonToken token = jp.nextToken();

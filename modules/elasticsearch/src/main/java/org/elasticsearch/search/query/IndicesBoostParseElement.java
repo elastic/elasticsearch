@@ -27,7 +27,7 @@ import org.elasticsearch.search.internal.SearchContext;
 /**
  * <pre>
  * {
- *    queryBoost : {
+ *    indicesBoost : {
  *         "index1" : 1.4,
  *         "index2" : 1.5
  *    }
@@ -36,7 +36,7 @@ import org.elasticsearch.search.internal.SearchContext;
  *
  * @author kimchy (shay.banon)
  */
-public class QueryBoostParseElement implements SearchParseElement {
+public class IndicesBoostParseElement implements SearchParseElement {
 
     @Override public void parse(JsonParser jp, SearchContext context) throws Exception {
         JsonToken token;

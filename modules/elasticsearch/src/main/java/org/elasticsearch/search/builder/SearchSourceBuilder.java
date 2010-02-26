@@ -191,7 +191,7 @@ public class SearchSourceBuilder {
             }
 
             if (indexBoost != null) {
-                builder.startObject("queryBoost");
+                builder.startObject("indicesBoost");
                 for (TObjectFloatIterator<String> it = indexBoost.iterator(); it.hasNext();) {
                     it.advance();
                     builder.field(it.key(), it.value());

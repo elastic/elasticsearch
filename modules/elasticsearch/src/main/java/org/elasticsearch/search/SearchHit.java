@@ -26,23 +26,51 @@ import org.elasticsearch.util.json.ToJson;
 import java.util.Map;
 
 /**
- * @author kimchy (Shay Banon)
+ * A single search hit.
+ *
+ * @author kimchy (shay.banon)
+ * @see SearchHits
  */
-public interface SearchHit extends Streamable, ToJson {
+public interface SearchHit extends Streamable, ToJson, Iterable<SearchHitField> {
 
+    /**
+     * The index of the hit.
+     */
     String index();
 
+    /**
+     * The id of the document.
+     */
     String id();
 
+    /**
+     * The type of the document.
+     */
     String type();
 
+    /**
+     * The source of the document (can be <tt>null</tt>).
+     */
     byte[] source();
 
+    /**
+     * The source of the document as string (can be <tt>null</tt>).
+     */
     String sourceAsString();
 
+    /**
+     * If enabled, the explanation of the search hit.
+     */
     Explanation explanation();
 
+    /**
+     * A map of hit fields (from field name to hit fields) if additional fields
+     * were required to be loaded.
+     */
     Map<String, SearchHitField> fields();
 
+    /**
+     * The shard of the search hit.
+     */
     SearchShardTarget target();
 }

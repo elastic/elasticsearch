@@ -31,6 +31,7 @@ import org.elasticsearch.util.json.JsonBuilder;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Map;
 
 import static org.elasticsearch.search.SearchShardTarget.*;
@@ -86,6 +87,10 @@ public class InternalSearchHit implements SearchHit {
             return null;
         }
         return Unicode.fromBytes(source);
+    }
+
+    @Override public Iterator<SearchHitField> iterator() {
+        return fields.values().iterator();
     }
 
     @Override public Map<String, SearchHitField> fields() {

@@ -34,7 +34,9 @@ import static org.elasticsearch.action.search.ShardSearchFailure.*;
 import static org.elasticsearch.search.internal.InternalSearchResponse.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * A response of a search request.
+ *
+ * @author kimchy (shay.banon)
  */
 public class SearchResponse implements ActionResponse, ToJson {
 
@@ -48,7 +50,7 @@ public class SearchResponse implements ActionResponse, ToJson {
 
     private ShardSearchFailure[] shardFailures;
 
-    public SearchResponse() {
+    SearchResponse() {
     }
 
     public SearchResponse(InternalSearchResponse internalResponse, String scrollId, int totalShards, int successfulShards, ShardSearchFailure[] shardFailures) {
@@ -59,30 +61,52 @@ public class SearchResponse implements ActionResponse, ToJson {
         this.shardFailures = shardFailures;
     }
 
+    /**
+     * The search hits.
+     */
     public SearchHits hits() {
         return internalResponse.hits();
     }
 
+    /**
+     * The search facets.
+     */
     public Facets facets() {
         return internalResponse.facets();
     }
 
+    /**
+     * The total number of shards the search was executed on.
+     */
     public int totalShards() {
         return totalShards;
     }
 
+    /**
+     * The successful number of shards the search was executed on.
+     */
     public int successfulShards() {
         return successfulShards;
     }
 
+    /**
+     * The failed number of shards the search was executed on.
+     */
     public int failedShards() {
         return totalShards - successfulShards;
     }
 
+    /**
+     * The failures that occurred during the search.
+     */
     public ShardSearchFailure[] shardFailures() {
         return this.shardFailures;
     }
 
+    /**
+     * If scrolling was enabled ({@link SearchRequest#scroll(org.elasticsearch.search.Scroll)}, the
+     * scroll id that can be used to continue scrolling.
+     */
     public String scrollId() {
         return scrollId;
     }

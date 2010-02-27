@@ -33,14 +33,24 @@ import static com.google.common.collect.Lists.*;
 import static org.elasticsearch.util.json.JsonBuilder.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * A search source builder allowing to easily build search source. Simple consruction
+ * using {@link org.elasticsearch.search.builder.SearchSourceBuilder#searchSource()}.
+ *
+ * @author kimchy (shay.banon)
+ * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
 public class SearchSourceBuilder {
 
+    /**
+     * A static factory method to construct a new search source.
+     */
     public static SearchSourceBuilder searchSource() {
         return new SearchSourceBuilder();
     }
 
+    /**
+     * A static factory method to construct new search facets.
+     */
     public static SearchSourceFacetsBuilder facets() {
         return new SearchSourceFacetsBuilder();
     }
@@ -64,46 +74,89 @@ public class SearchSourceBuilder {
     private TObjectFloatHashMap<String> indexBoost = null;
 
 
+    /**
+     * Constructs a new search source builder.
+     */
     public SearchSourceBuilder() {
     }
 
+    /**
+     * Constructs a new search source builder with a search query.
+     */
     public SearchSourceBuilder query(JsonQueryBuilder query) {
         this.queryBuilder = query;
         return this;
     }
 
+    /**
+     * From index to start the search from. Defaults to <tt>0</tt>.
+     */
     public SearchSourceBuilder from(int from) {
         this.from = from;
         return this;
     }
 
+    /**
+     * The number of search hits to return. Defaults to <tt>10</tt>.
+     */
     public SearchSourceBuilder size(int size) {
         this.size = size;
         return this;
     }
 
+    /**
+     * An optional query parser name to use.
+     */
     public SearchSourceBuilder queryParserName(String queryParserName) {
         this.queryParserName = queryParserName;
         return this;
     }
 
+    /**
+     * Should each {@link org.elasticsearch.search.SearchHit} be returned with an
+     * explanation of the hit (ranking).
+     */
     public SearchSourceBuilder explain(boolean explain) {
         this.explain = explain;
         return this;
     }
 
+    /**
+     * Add a sort against the given field name and if it should be revered or not.
+     *
+     * @param name    The name of the field to sort by
+     * @param reverse Should be soring be reversed or not
+     */
     public SearchSourceBuilder sort(String name, boolean reverse) {
         return sort(name, null, reverse);
     }
 
+    /**
+     * Add a sort against the given field name.
+     *
+     * @param name The name of the field to sort by
+     */
     public SearchSourceBuilder sort(String name) {
         return sort(name, null, false);
     }
 
+    /**
+     * Add a sort against the given field name of the given type.
+     *
+     * @param name The name of the field to sort by
+     * @param type The type of sort to perform
+     */
     public SearchSourceBuilder sort(String name, String type) {
         return sort(name, type, false);
     }
 
+    /**
+     * Add a sort against the given field name and if it should be revered or not.
+     *
+     * @param name    The name of the field to sort by
+     * @param type    The type of the sort to perform
+     * @param reverse Should the sort be reversed or not
+     */
     public SearchSourceBuilder sort(String name, String type, boolean reverse) {
         if (sortFields == null) {
             sortFields = newArrayListWithCapacity(2);
@@ -112,16 +165,27 @@ public class SearchSourceBuilder {
         return this;
     }
 
+    /**
+     * Adds facets to perform as part of the search.
+     */
     public SearchSourceBuilder facets(SearchSourceFacetsBuilder facetsBuilder) {
         this.facetsBuilder = facetsBuilder;
         return this;
     }
 
+    /**
+     * Sets the fields to load and return as part of the search request. If none are specified,
+     * the source of the document will be returend.
+     */
     public SearchSourceBuilder fields(List<String> fields) {
         this.fieldNames = fields;
         return this;
     }
 
+    /**
+     * Adds a field to load and return (note, it must be stored) as part of the search request.
+     * If none are specified, the source of the document will be return.
+     */
     public SearchSourceBuilder field(String name) {
         if (fieldNames == null) {
             fieldNames = new ArrayList<String>();
@@ -130,6 +194,12 @@ public class SearchSourceBuilder {
         return this;
     }
 
+    /**
+     * Sets the boost a specific index will receive when the query is executeed against it.
+     *
+     * @param index      The index to apply the boost against
+     * @param indexBoost The boost to apply to the index
+     */
     public SearchSourceBuilder indexBoost(String index, float indexBoost) {
         if (this.indexBoost == null) {
             this.indexBoost = new TObjectFloatHashMap<String>();

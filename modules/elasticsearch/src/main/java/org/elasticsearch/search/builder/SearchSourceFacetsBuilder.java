@@ -29,7 +29,10 @@ import java.util.List;
 import static com.google.common.collect.Lists.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * A search source facets builder.
+ *
+ * @author kimchy (shay.banon)
+ * @see SearchSourceBuilder#facets(SearchSourceFacetsBuilder)
  */
 public class SearchSourceFacetsBuilder implements ToJson {
 
@@ -37,11 +40,20 @@ public class SearchSourceFacetsBuilder implements ToJson {
 
     private List<FacetQuery> queryFacets;
 
+    /**
+     * Controls the type of query facet execution.
+     */
     public SearchSourceFacetsBuilder queryExecution(String queryExecution) {
         this.queryExecution = queryExecution;
         return this;
     }
 
+    /**
+     * Adds a query facet (which results in a count facet returned).
+     *
+     * @param name  The logical name of the facet, it will be returned under the name
+     * @param query The query facet
+     */
     public SearchSourceFacetsBuilder facet(String name, JsonQueryBuilder query) {
         if (queryFacets == null) {
             queryFacets = newArrayListWithCapacity(2);

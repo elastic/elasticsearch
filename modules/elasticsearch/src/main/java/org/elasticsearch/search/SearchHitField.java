@@ -24,11 +24,20 @@ import org.elasticsearch.util.io.Streamable;
 import java.util.List;
 
 /**
- * @author kimchy (Shay Banon)
+ * A single field name and values part of a {@link SearchHit}.
+ *
+ * @author kimchy (shay.banon)
+ * @see SearchHit
  */
-public interface SearchHitField extends Streamable {
+public interface SearchHitField extends Streamable, Iterable<Object> {
 
+    /**
+     * The name of the field.
+     */
     String name();
 
+    /**
+     * The field values.
+     */
     List<Object> values();
 }

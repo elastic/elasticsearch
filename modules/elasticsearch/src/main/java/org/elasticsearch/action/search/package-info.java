@@ -17,40 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search.type;
-
-import org.elasticsearch.util.Tuple;
-
 /**
- * @author kimchy (shay.banon)
+ * Search action.
  */
-public class ParsedScrollId {
-
-    public static String QUERY_THEN_FETCH_TYPE = "queryThenFetch";
-
-    public static String QUERY_AND_FETCH_TYPE = "queryAndFetch";
-
-    private final String source;
-
-    private final String type;
-
-    private final Tuple<String, Long>[] values;
-
-    public ParsedScrollId(String source, String type, Tuple<String, Long>[] values) {
-        this.source = source;
-        this.type = type;
-        this.values = values;
-    }
-
-    public String source() {
-        return source;
-    }
-
-    public String type() {
-        return type;
-    }
-
-    public Tuple<String, Long>[] values() {
-        return values;
-    }
-}
+package org.elasticsearch.action.search;

@@ -22,6 +22,9 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.ElasticSearchException;
 
 /**
+ * A failure during a reduce phase (when receiving results from several shards, and reducing them
+ * into one or more results and possible actions).
+ *
  * @author kimchy (shay.banon)
  */
 public class ReduceSearchPhaseException extends ElasticSearchException {

@@ -61,10 +61,16 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         this.reason = reason;
     }
 
+    /**
+     * The search shard target the failure occured on.
+     */
     @Nullable public SearchShardTarget shard() {
         return this.shardTarget;
     }
 
+    /**
+     * The index the search failed on.
+     */
     @Override public String index() {
         if (shardTarget != null) {
             return shardTarget.index();
@@ -72,6 +78,9 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         return null;
     }
 
+    /**
+     * The shard id the search failed on.
+     */
     @Override public int shardId() {
         if (shardTarget != null) {
             return shardTarget.shardId();
@@ -79,6 +88,9 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         return -1;
     }
 
+    /**
+     * The reason of the failure.
+     */
     public String reason() {
         return this.reason;
     }

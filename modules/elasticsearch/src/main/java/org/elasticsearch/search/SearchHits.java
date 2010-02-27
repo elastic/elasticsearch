@@ -23,11 +23,19 @@ import org.elasticsearch.util.io.Streamable;
 import org.elasticsearch.util.json.ToJson;
 
 /**
- * @author kimchy (Shay Banon)
+ * The hits of a search request.
+ *
+ * @author kimchy (shay.banon)
  */
 public interface SearchHits extends Streamable, ToJson {
 
+    /**
+     * The total number of hits that matches the search request.
+     */
     long totalHits();
 
+    /**
+     * The hits of the search request (based on the search type, and from / size provided).
+     */
     SearchHit[] hits();
 }

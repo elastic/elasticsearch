@@ -22,14 +22,38 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 
 /**
- * @author kimchy (Shay Banon)
+ * Search type represent the manner at which the search operation is executed.
+ *
+ * @author kimchy (shay.banon)
  */
 public enum SearchType {
+    /**
+     * Same as {@link #QUERY_THEN_FETCH}, except for an initial scatter phase which goes and computes the distributed
+     * term frequencies for more accurate scoring.
+     */
     DFS_QUERY_THEN_FETCH((byte) 0),
+    /**
+     * The query is executed against all shards, but only enough information is returned (not the document content).
+     * The results are then sorted and ranked, and based on it, only the relevant shards are asked for the actual
+     * document content. The return number of hits is exactly as specified in size, since they are the only ones that
+     * are fetched. This is very handy when the index has a lot of shards (not replicas, shard id groups).
+     */
     QUERY_THEN_FETCH((byte) 1),
+    /**
+     * Same as {@link #QUERY_AND_FETCH}, except for an initial scatter phase which goes and computes the distributed
+     * term frequencies for more accurate scoring.
+     */
     DFS_QUERY_AND_FETCH((byte) 2),
+    /**
+     * The most naive (and possibly fastest) implementation is to simply execute the query on all relevant shards
+     * and return the results. Each shard returns size results. Since each shard already returns size hits, this
+     * type actually returns size times number of shards results back to the caller.
+     */
     QUERY_AND_FETCH((byte) 3);
 
+    /**
+     * The default search type ({@link #QUERY_THEN_FETCH}.
+     */
     public static final SearchType DEFAULT = QUERY_THEN_FETCH;
 
     private byte id;
@@ -38,10 +62,16 @@ public enum SearchType {
         this.id = id;
     }
 
+    /**
+     * The internal id of the type.
+     */
     public byte id() {
         return this.id;
     }
 
+    /**
+     * Constructs search type based on the internal id.
+     */
     public static SearchType fromId(byte id) {
         if (id == 0) {
             return DFS_QUERY_THEN_FETCH;

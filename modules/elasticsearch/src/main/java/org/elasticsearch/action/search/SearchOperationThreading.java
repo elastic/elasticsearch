@@ -25,7 +25,7 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
  * Controls the operation threading model for search operation that are performed
  * locally on the executing node.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public enum SearchOperationThreading {
     /**

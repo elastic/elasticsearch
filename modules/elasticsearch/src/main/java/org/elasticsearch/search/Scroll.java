@@ -29,7 +29,10 @@ import java.io.IOException;
 import static org.elasticsearch.util.TimeValue.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * A scroll enables scrolling of search request. It holds a {@link #keepAlive()} time that
+ * will control how long to keep the scrolling resources open.
+ *
+ * @author kimchy (shay.banon)
  */
 public class Scroll implements Streamable {
 
@@ -39,10 +42,16 @@ public class Scroll implements Streamable {
 
     }
 
+    /**
+     * Constructs a new scroll of the provided keep alive.
+     */
     public Scroll(TimeValue keepAlive) {
         this.keepAlive = keepAlive;
     }
 
+    /**
+     * How long the resources will be kept open to support the scroll request.
+     */
     public TimeValue keepAlive() {
         return keepAlive;
     }

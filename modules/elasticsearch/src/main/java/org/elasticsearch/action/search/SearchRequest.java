@@ -26,6 +26,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.util.Bytes;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.Unicode;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -36,7 +37,18 @@ import static org.elasticsearch.search.Scroll.*;
 import static org.elasticsearch.util.TimeValue.*;
 
 /**
+ * A request to execute search against one or more indices (or all). Best created using
+ * {@link org.elasticsearch.client.Requests#searchRequest(String...)}.
+ *
+ * <p>Note, the search {@link #source(org.elasticsearch.search.builder.SearchSourceBuilder)}
+ * is required. The search source is the different search options, including facets and such.
+ *
+ * <p>There is an option to specify an addition search source using the {@link #extraSource(org.elasticsearch.search.builder.SearchSourceBuilder)}.
+ *
  * @author kimchy (shay.banon)
+ * @see org.elasticsearch.client.Requests#searchRequest(String...)
+ * @see org.elasticsearch.client.Client#search(SearchRequest)
+ * @see SearchResponse
  */
 public class SearchRequest implements ActionRequest {
 
@@ -62,22 +74,17 @@ public class SearchRequest implements ActionRequest {
     SearchRequest() {
     }
 
+    /**
+     * Constructs a new search request against the indices. No indices provided here means that search
+     * will run against all indices.
+     */
     public SearchRequest(String... indices) {
         this.indices = indices;
     }
 
-    public SearchRequest(String index, SearchSourceBuilder source) {
-        this(index, source.build());
-    }
-
-    public SearchRequest(String index, byte[] source) {
-        this(new String[]{index}, source);
-    }
-
-    public SearchRequest(String[] indices, SearchSourceBuilder source) {
-        this(indices, source.build());
-    }
-
+    /**
+     * Constructs a new search request against the provided indices with the given search source.
+     */
     public SearchRequest(String[] indices, byte[] source) {
         this.indices = indices;
         this.source = source;
@@ -85,30 +92,62 @@ public class SearchRequest implements ActionRequest {
 
     @Override public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (source == null) {
+        if (source == null && extraSource == null) {
             validationException = addValidationError("search source is missing", validationException);
         }
         return validationException;
     }
 
+    /**
+     * Should the listener be called on a separate thread if needed.
+     */
     @Override public boolean listenerThreaded() {
         return listenerThreaded;
     }
 
+    /**
+     * Should the listener be called on a separate thread if needed.
+     */
     @Override public SearchRequest listenerThreaded(boolean listenerThreaded) {
         this.listenerThreaded = listenerThreaded;
         return this;
     }
 
+    /**
+     * Controls the the search operation threading model.
+     */
     public SearchOperationThreading operationThreading() {
         return this.operationThreading;
     }
 
+    /**
+     * Controls the the search operation threading model.
+     */
     public SearchRequest operationThreading(SearchOperationThreading operationThreading) {
         this.operationThreading = operationThreading;
         return this;
     }
 
+    /**
+     * The document types to execute the search against. Defaults to be executed against
+     * all types.
+     */
+    public String[] types() {
+        return types;
+    }
+
+    /**
+     * The document types to execute the search against. Defaults to be executed against
+     * all types.
+     */
+    public SearchRequest types(String... types) {
+        this.types = types;
+        return this;
+    }
+
+    /**
+     * The search type to execute, defaults to {@link SearchType#DEFAULT}.
+     */
     public SearchRequest searchType(SearchType searchType) {
         this.searchType = searchType;
         return this;
@@ -121,73 +160,112 @@ public class SearchRequest implements ActionRequest {
         return source(sourceBuilder.build());
     }
 
+    /**
+     * The source of the search request. Consider using either {@link #source(byte[])} or
+     * {@link #source(org.elasticsearch.search.builder.SearchSourceBuilder)}.
+     */
+    public SearchRequest source(String source) {
+        return source(Unicode.fromStringAsBytes(source));
+    }
+
+    /**
+     * The search source to execute.
+     */
     public SearchRequest source(byte[] source) {
         this.source = source;
         return this;
     }
 
     /**
-     * Allows to provide an additional source that will be used as well.
+     * The search source to execute.
+     */
+    public byte[] source() {
+        return source;
+    }
+
+    /**
+     * Allows to provide additional source that will be used as well.
      */
     public SearchRequest extraSource(SearchSourceBuilder sourceBuilder) {
         return extraSource(sourceBuilder.build());
     }
 
     /**
-     * Allows to provide an additional source that will be used as well.
+     * Allows to provide additional source that will use used as well.
+     */
+    public SearchRequest extraSource(String source) {
+        return extraSource(Unicode.fromStringAsBytes(source));
+    }
+
+    /**
+     * Allows to provide additional source that will be used as well.
      */
     public SearchRequest extraSource(byte[] source) {
         this.source = source;
         return this;
     }
 
+    /**
+     * Additional search source to execute.
+     */
+    public byte[] extraSource() {
+        return this.extraSource;
+    }
+
+    /**
+     * The tye of search to execute.
+     */
     public SearchType searchType() {
         return searchType;
     }
 
+    /**
+     * The indices
+     */
     public String[] indices() {
         return indices;
     }
 
+    /**
+     * A query hint to optionally later be used when routing the request.
+     */
     public SearchRequest queryHint(String queryHint) {
         this.queryHint = queryHint;
         return this;
     }
 
+    /**
+     * A query hint to optionally later be used when routing the request.
+     */
     public String queryHint() {
         return queryHint;
     }
 
-    public byte[] source() {
-        return source;
-    }
-
-    public byte[] extraSource() {
-        return this.extraSource;
-    }
-
+    /**
+     * If set, will enable scrolling of the search request.
+     */
     public Scroll scroll() {
         return scroll;
     }
 
+    /**
+     * If set, will enable scrolling of the search request.
+     */
     public SearchRequest scroll(Scroll scroll) {
         this.scroll = scroll;
         return this;
     }
 
-    public String[] types() {
-        return types;
-    }
-
-    public SearchRequest types(String... types) {
-        this.types = types;
-        return this;
-    }
-
+    /**
+     * An optional timeout to control how long search is allowed to take.
+     */
     public TimeValue timeout() {
         return timeout;
     }
 
+    /**
+     * An optional timeout to control how long search is allowed to take.
+     */
     public SearchRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
         return this;

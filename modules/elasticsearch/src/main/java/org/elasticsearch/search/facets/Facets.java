@@ -27,40 +27,59 @@ import org.elasticsearch.util.json.ToJson;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 
 import static com.google.common.collect.Lists.*;
 import static org.elasticsearch.search.facets.CountFacet.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * Facets of search action.
+ *
+ * @author kimchy (shay.banon)
  */
-public class Facets implements Streamable, ToJson {
+public class Facets implements Streamable, ToJson, Iterable<Facet> {
 
     private final List<Facet> EMPTY = ImmutableList.of();
 
-    private List<Facet> facets;
+    private List<Facet> facets = EMPTY;
 
     private Facets() {
 
     }
 
+    /**
+     * Constructs a new facets.
+     */
     public Facets(List<Facet> facets) {
         this.facets = facets;
     }
 
+    /**
+     * Iterates over the {@link Facet}s.
+     */
+    @Override public Iterator<Facet> iterator() {
+        return facets.iterator();
+    }
+
+    /**
+     * The list of {@link Facet}s.
+     */
     public List<Facet> facets() {
         return facets;
     }
 
+    /**
+     * A specific count facet against the registered facet name.
+     */
     public CountFacet countFacet(String name) {
         return (CountFacet) facet(name);
     }
 
+    /**
+     * A facet of the specified name.
+     */
     public Facet facet(String name) {
-        if (facets == null) {
-            return null;
-        }
         for (Facet facet : facets) {
             if (facet.name().equals(name)) {
                 return facet;

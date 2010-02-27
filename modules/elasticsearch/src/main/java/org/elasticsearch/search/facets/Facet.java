@@ -24,11 +24,16 @@ import org.elasticsearch.util.io.Streamable;
 import org.elasticsearch.util.json.ToJson;
 
 /**
- * @author kimchy (Shay Banon)
+ * A search facet.
+ *
+ * @author kimchy (shay.banon)
  */
 public interface Facet extends Streamable, ToJson {
 
     enum Type {
+        /**
+         * Count type facet.
+         */
         COUNT((byte) 0);
 
         byte id;
@@ -50,7 +55,13 @@ public interface Facet extends Streamable, ToJson {
         }
     }
 
+    /**
+     * The "logical" name of the search facet.
+     */
     String name();
 
+    /**
+     * The type of the facet.
+     */
     Type type();
 }

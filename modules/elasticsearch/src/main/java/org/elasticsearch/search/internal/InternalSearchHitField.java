@@ -25,6 +25,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -51,6 +52,10 @@ public class InternalSearchHitField implements SearchHitField {
 
     public List<Object> values() {
         return values;
+    }
+
+    @Override public Iterator<Object> iterator() {
+        return values.iterator();
     }
 
     public static InternalSearchHitField readSearchHitField(DataInput in) throws IOException, ClassNotFoundException {

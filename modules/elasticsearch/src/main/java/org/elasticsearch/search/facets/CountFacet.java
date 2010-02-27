@@ -26,7 +26,9 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * A count facet is a facet that holds a count.
+ *
+ * @author kimchy (shay.banon)
  */
 public class CountFacet implements Facet {
 
@@ -47,10 +49,16 @@ public class CountFacet implements Facet {
         return Type.COUNT;
     }
 
+    /**
+     * The "logical" name of the facet.
+     */
     public String name() {
         return name;
     }
 
+    /**
+     * The count of the facet.
+     */
     public long count() {
         return count;
     }

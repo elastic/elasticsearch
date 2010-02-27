@@ -74,7 +74,7 @@ public class FetchPhase implements SearchPhase {
                 if (fieldMappers != null) {
                     FieldMapper mapper = fieldMappers.mapper();
                     if (mapper != null) {
-                        name = mapper.names().name();
+                        name = mapper.names().fullName();
                         value = mapper.valueForSearch(field);
                     }
                 }

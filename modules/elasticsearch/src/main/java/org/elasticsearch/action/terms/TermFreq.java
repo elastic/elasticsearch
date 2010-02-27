@@ -29,7 +29,7 @@ import java.util.Comparator;
 /**
  * A tuple of term and its document frequency (in how many documents this term exists).
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TermFreq implements Streamable {
 
@@ -81,6 +81,12 @@ public class TermFreq implements Streamable {
 
     }
 
+    /**
+     * Constructs a new term freq.
+     *
+     * @param term    The term
+     * @param docFreq The document frequency
+     */
     TermFreq(String term, int docFreq) {
         this.term = term;
         this.docFreq = docFreq;

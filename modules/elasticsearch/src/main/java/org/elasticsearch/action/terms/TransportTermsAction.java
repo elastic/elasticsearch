@@ -55,7 +55,7 @@ import static com.google.common.collect.Lists.*;
 import static org.elasticsearch.action.Actions.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TransportTermsAction extends TransportBroadcastOperationAction<TermsRequest, TermsResponse, ShardTermsRequest, ShardTermsResponse> {
 

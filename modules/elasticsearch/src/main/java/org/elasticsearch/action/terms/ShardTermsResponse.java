@@ -30,9 +30,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class ShardTermsResponse extends BroadcastShardOperationResponse {
+class ShardTermsResponse extends BroadcastShardOperationResponse {
 
     private Map<String, TObjectIntHashMap<String>> fieldsTermsFreqs = new HashMap<String, TObjectIntHashMap<String>>();
 

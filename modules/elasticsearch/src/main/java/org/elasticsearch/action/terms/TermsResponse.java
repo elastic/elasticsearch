@@ -37,7 +37,7 @@ import static org.elasticsearch.action.terms.FieldTermsFreq.*;
  * The response of terms request. Includes a list of {@link FieldTermsFreq} which include
  * the field and all its term / doc freq pair.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TermsResponse extends BroadcastOperationResponse implements Iterable<FieldTermsFreq> {
 

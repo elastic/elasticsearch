@@ -31,7 +31,9 @@ import java.util.Iterator;
 import static org.elasticsearch.action.terms.TermFreq.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * All the {@link TermFreq}s that occur in a specific field.
+ *
+ * @author kimchy (shay.banon)
  */
 public class FieldTermsFreq implements Streamable, Iterable<TermFreq> {
 
@@ -45,15 +47,21 @@ public class FieldTermsFreq implements Streamable, Iterable<TermFreq> {
 
     }
 
-    public FieldTermsFreq(String fieldName, TermFreq[] termsFreqs) {
+    FieldTermsFreq(String fieldName, TermFreq[] termsFreqs) {
         this.fieldName = fieldName;
         this.termsFreqs = termsFreqs;
     }
 
+    /**
+     * The fields name.
+     */
     public String fieldName() {
         return this.fieldName;
     }
 
+    /**
+     * The term frequencies of the field.
+     */
     public TermFreq[] termsFreqs() {
         return this.termsFreqs;
     }

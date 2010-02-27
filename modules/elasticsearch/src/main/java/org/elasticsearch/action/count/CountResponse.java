@@ -28,7 +28,9 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * @author kimchy (Shay Banon)
+ * The response of the count action.
+ *
+ * @author kimchy (shay.banon)
  */
 public class CountResponse extends BroadcastOperationResponse {
 
@@ -38,11 +40,14 @@ public class CountResponse extends BroadcastOperationResponse {
 
     }
 
-    public CountResponse(long count, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+    CountResponse(long count, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
         super(successfulShards, failedShards, shardFailures);
         this.count = count;
     }
 
+    /**
+     * The count of documents matching the query provided.
+     */
     public long count() {
         return count;
     }

@@ -17,25 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.deletebyquery;
-
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.util.io.Streamable;
-
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-
 /**
- * Delete by query response executed on a specific shard.
- *
- * @author kimchy (shay.banon)
+ * Count action.
  */
-public class ShardDeleteByQueryResponse implements ActionResponse, Streamable {
-
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
-    }
-
-    @Override public void writeTo(DataOutput out) throws IOException {
-    }
-}
+package org.elasticsearch.action.count;

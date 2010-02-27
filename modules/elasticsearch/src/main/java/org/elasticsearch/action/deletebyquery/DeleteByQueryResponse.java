@@ -25,26 +25,41 @@ import org.elasticsearch.util.io.Streamable;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
-/**
- * @author kimchy (Shay Banon)
- */
-public class DeleteByQueryResponse implements ActionResponse, Streamable {
+import static com.google.common.collect.Maps.*;
 
-    private Map<String, IndexDeleteByQueryResponse> indexResponses = new HashMap<String, IndexDeleteByQueryResponse>();
+/**
+ * The response of delete by query action. Holds the {@link IndexDeleteByQueryResponse}s from all the
+ * different indices.
+ *
+ * @author kimchy (shay.banon)
+ */
+public class DeleteByQueryResponse implements ActionResponse, Streamable, Iterable<IndexDeleteByQueryResponse> {
+
+    private Map<String, IndexDeleteByQueryResponse> indices = newHashMap();
 
     DeleteByQueryResponse() {
 
     }
 
-    public Map<String, IndexDeleteByQueryResponse> indices() {
-        return indexResponses;
+    @Override public Iterator<IndexDeleteByQueryResponse> iterator() {
+        return indices.values().iterator();
     }
 
+    /**
+     * The responses from all the different indices.
+     */
+    public Map<String, IndexDeleteByQueryResponse> indices() {
+        return indices;
+    }
+
+    /**
+     * The response of a specific index.
+     */
     public IndexDeleteByQueryResponse index(String index) {
-        return indexResponses.get(index);
+        return indices.get(index);
     }
 
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
@@ -52,13 +67,13 @@ public class DeleteByQueryResponse implements ActionResponse, Streamable {
         for (int i = 0; i < size; i++) {
             IndexDeleteByQueryResponse response = new IndexDeleteByQueryResponse();
             response.readFrom(in);
-            indexResponses.put(response.index(), response);
+            indices.put(response.index(), response);
         }
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
-        out.writeInt(indexResponses.size());
-        for (IndexDeleteByQueryResponse indexResponse : indexResponses.values()) {
+        out.writeInt(indices.size());
+        for (IndexDeleteByQueryResponse indexResponse : indices.values()) {
             indexResponse.writeTo(out);
         }
     }

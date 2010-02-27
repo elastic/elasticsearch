@@ -27,7 +27,11 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * The response of the delete action.
+ *
+ * @author kimchy (shay.banon)
+ * @see org.elasticsearch.action.delete.DeleteRequest
+ * @see org.elasticsearch.client.Client#delete(DeleteRequest)
  */
 public class DeleteResponse implements ActionResponse, Streamable {
 
@@ -41,22 +45,31 @@ public class DeleteResponse implements ActionResponse, Streamable {
 
     }
 
-    public DeleteResponse(String index, String type, String id) {
+    DeleteResponse(String index, String type, String id) {
         this.index = index;
         this.id = id;
         this.type = type;
     }
 
+    /**
+     * The index the document was deleted from.
+     */
     public String index() {
         return this.index;
     }
 
-    public String id() {
-        return this.id;
-    }
-
+    /**
+     * The type of the document deleted.
+     */
     public String type() {
         return this.type;
+    }
+
+    /**
+     * The id of the document deleted.
+     */
+    public String id() {
+        return this.id;
     }
 
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {

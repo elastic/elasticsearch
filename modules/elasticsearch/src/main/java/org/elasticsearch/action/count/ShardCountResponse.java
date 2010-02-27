@@ -26,9 +26,11 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * Internal count response of a shard count request executed directly against a specific shard.
+ *
+ * @author kimchy (shay.banon)
  */
-public class ShardCountResponse extends BroadcastShardOperationResponse {
+class ShardCountResponse extends BroadcastShardOperationResponse {
 
     private long count;
 
@@ -41,7 +43,7 @@ public class ShardCountResponse extends BroadcastShardOperationResponse {
         this.count = count;
     }
 
-    public long count() {
+    long count() {
         return this.count;
     }
 

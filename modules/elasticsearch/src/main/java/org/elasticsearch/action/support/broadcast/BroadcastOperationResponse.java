@@ -31,7 +31,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author kimchy (Shay Banon)
+ * Base class for all broadcast operation based responses.
+ *
+ * @author kimchy (shay.banon)
  */
 public abstract class BroadcastOperationResponse implements ActionResponse {
 
@@ -53,19 +55,34 @@ public abstract class BroadcastOperationResponse implements ActionResponse {
         }
     }
 
+    /**
+     * The total shards this request ran against.
+     */
     public int totalShards() {
         return successfulShards + failedShards;
     }
 
+    /**
+     * The successful shards this request was executed on.
+     */
     public int successfulShards() {
         return successfulShards;
     }
 
+    /**
+     * The failed shards this request was executed on.
+     */
     public int failedShards() {
         return failedShards;
     }
 
+    /**
+     * The list of shard failures exception.
+     */
     public List<? extends ShardOperationFailedException> shardFailures() {
+        if (shardFailures == null) {
+            return ImmutableList.of();
+        }
         return shardFailures;
     }
 

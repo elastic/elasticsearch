@@ -123,8 +123,12 @@ public class Requests {
     }
 
     /**
-     * @param index
-     * @return
+     * More like this request represents a request to search for documents that are "like" the provided (fetched)
+     * document.
+     *
+     * @param index The index to load the document from
+     * @return The more like this request
+     * @see org.elasticsearch.client.Client#moreLikeThis(org.elasticsearch.action.mlt.MoreLikeThisRequest)
      */
     public static MoreLikeThisRequest moreLikeThisRequest(String index) {
         return new MoreLikeThisRequest(index);

@@ -25,13 +25,24 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.Required;
 import org.elasticsearch.util.Strings;
+import org.elasticsearch.util.Unicode;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
- * @author kimchy (Shay Banon)
+ * A request to count the number of documents matching a specific query. Best created with
+ * {@link org.elasticsearch.client.Requests#countRequest(String...)}.
+ *
+ * <p>The request requires the query source to be set either using {@link #querySource(org.elasticsearch.index.query.QueryBuilder)},
+ * or {@link #querySource(byte[])}.
+ *
+ * @author kimchy (shay.banon)
+ * @see CountResponse
+ * @see org.elasticsearch.client.Client#count(CountRequest)
+ * @see org.elasticsearch.client.Requests#countRequest(String...)
  */
 public class CountRequest extends BroadcastOperationRequest {
 
@@ -45,60 +56,111 @@ public class CountRequest extends BroadcastOperationRequest {
     CountRequest() {
     }
 
+    /**
+     * Constructs a new count request against the provided indices. No indices provided means it will
+     * run against all indices.
+     */
     public CountRequest(String... indices) {
         super(indices, null);
     }
 
+    /**
+     * Controls the operation threading model.
+     */
     @Override public CountRequest operationThreading(BroadcastOperationThreading operationThreading) {
         super.operationThreading(operationThreading);
         return this;
     }
 
+    /**
+     * Should the listener be called on a separate thread if needed.
+     */
     @Override public CountRequest listenerThreaded(boolean threadedListener) {
         super.listenerThreaded(threadedListener);
         return this;
     }
 
+    /**
+     * A query hint to optionally later be used when routing the request.
+     */
     public CountRequest queryHint(String queryHint) {
         this.queryHint = queryHint;
         return this;
     }
 
+    /**
+     * The minimum score of the documents to include in the count.
+     */
     float minScore() {
         return minScore;
     }
 
+    /**
+     * The minimum score of the documents to include in the count. Defaults to <tt>-1</tt> which means all
+     * documents will be included in the count.
+     */
     public CountRequest minScore(float minScore) {
         this.minScore = minScore;
         return this;
     }
 
+    /**
+     * The query source to execute.
+     */
     byte[] querySource() {
         return querySource;
     }
 
+    /**
+     * The query source to execute.
+     *
+     * @see org.elasticsearch.index.query.json.JsonQueryBuilders
+     */
     @Required public CountRequest querySource(QueryBuilder queryBuilder) {
         return querySource(queryBuilder.buildAsBytes());
     }
 
-    public CountRequest querySource(byte[] querySource) {
+    /**
+     * The query source to execute. It is preferable to use either {@link #querySource(byte[])}
+     * or {@link #querySource(org.elasticsearch.index.query.QueryBuilder)}.
+     */
+    @Required public CountRequest querySource(String querySource) {
+        return querySource(Unicode.fromStringAsBytes(querySource));
+    }
+
+    /**
+     * The query source to execute.
+     */
+    @Required public CountRequest querySource(byte[] querySource) {
         this.querySource = querySource;
         return this;
     }
 
+    /**
+     * The query parse name to use. If not set, will use the default one.
+     */
     String queryParserName() {
         return queryParserName;
     }
 
+    /**
+     * The query parse name to use. If not set, will use the default one.
+     */
     public CountRequest queryParserName(String queryParserName) {
         this.queryParserName = queryParserName;
         return this;
     }
 
+    /**
+     * The types of documents the query will run against. Defaults to all types.
+     */
     String[] types() {
         return this.types;
     }
 
+    /**
+     * The types of documents the query will run against. Defaults to all types.
+     */
     public CountRequest types(String... types) {
         this.types = types;
         return this;
@@ -136,5 +198,9 @@ public class CountRequest extends BroadcastOperationRequest {
         for (String type : types) {
             out.writeUTF(type);
         }
+    }
+
+    @Override public String toString() {
+        return "[" + Arrays.toString(indices) + "][" + Arrays.toString(types) + "], querySource[" + Unicode.fromBytes(querySource) + "]";
     }
 }

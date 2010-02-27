@@ -52,6 +52,8 @@ import static org.elasticsearch.index.query.json.JsonQueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.*;
 
 /**
+ * The more like this action.
+ *
  * @author kimchy (shay.banon)
  */
 public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest, SearchResponse> {

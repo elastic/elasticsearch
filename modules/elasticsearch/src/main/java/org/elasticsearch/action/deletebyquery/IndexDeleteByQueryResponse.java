@@ -27,7 +27,9 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * Delete by query response executed on a specific index.
+ *
+ * @author kimchy (shay.banon)
  */
 public class IndexDeleteByQueryResponse implements ActionResponse, Streamable {
 
@@ -47,18 +49,30 @@ public class IndexDeleteByQueryResponse implements ActionResponse, Streamable {
 
     }
 
+    /**
+     * The index the delete by query operation was executed against.
+     */
     public String index() {
         return this.index;
     }
 
+    /**
+     * The total number of shards the delete by query was executed on.
+     */
     public int totalShards() {
         return failedShards + successfulShards;
     }
 
+    /**
+     * The successful number of shards the delete by query was executed on.
+     */
     public int successfulShards() {
         return successfulShards;
     }
 
+    /**
+     * The failed number of shards the delete by query was executed on.
+     */
     public int failedShards() {
         return failedShards;
     }

@@ -101,4 +101,8 @@ public class GetRequest extends SingleOperationRequest {
     @Override public void writeTo(DataOutput out) throws IOException {
         super.writeTo(out);
     }
+
+    @Override public String toString() {
+        return "[" + index + "][" + type + "][" + id + "]";
+    }
 }

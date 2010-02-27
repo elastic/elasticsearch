@@ -298,9 +298,28 @@ public interface Client {
      */
     void execTerms(TermsRequest request, ActionListener<TermsResponse> listener);
 
+    /**
+     * A more like this action to search for documents that are "like" a specific document.
+     *
+     * @param request The more like this request
+     * @return The response future
+     */
     ActionFuture<SearchResponse> moreLikeThis(MoreLikeThisRequest request);
 
+    /**
+     * A more like this action to search for documents that are "like" a specific document.
+     *
+     * @param request  The more like this request
+     * @param listener A listener to be notified of the result
+     * @return The response future
+     */
     ActionFuture<SearchResponse> moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener);
 
+    /**
+     * A more like this action to search for documents that are "like" a specific document.
+     *
+     * @param request  The more like this request
+     * @param listener A listener to be notified of the result
+     */
     void execMoreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener);
 }

@@ -31,17 +31,37 @@ import java.io.IOException;
 import static org.elasticsearch.action.Actions.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * A request to delete a document from an index based on its type and id. Best created using
+ * {@link org.elasticsearch.client.Requests#deleteRequest(String)}.
+ *
+ * <p>The operation requires the {@link #index()}, {@link #type(String)} and {@link #id(String)} to
+ * be set.
+ *
+ * @author kimchy (shay.banon)
+ * @see DeleteResponse
+ * @see org.elasticsearch.client.Client#delete(DeleteRequest)
+ * @see org.elasticsearch.client.Requests#deleteRequest(String)
  */
 public class DeleteRequest extends ShardReplicationOperationRequest {
 
     private String type;
     private String id;
 
+    /**
+     * Constructs a new delete request against the specified index. The {@link #type(String)} and {@link #id(String)}
+     * must be set.
+     */
     public DeleteRequest(String index) {
         this.index = index;
     }
 
+    /**
+     * Constructs a new delete request against the specified index with the type and id.
+     *
+     * @param index The index to get the document from
+     * @param type  The type of the document
+     * @param id    The id of the document
+     */
     public DeleteRequest(String index, String type, String id) {
         this.index = index;
         this.type = type;
@@ -62,34 +82,55 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
         return validationException;
     }
 
+    /**
+     * Should the listener be called on a separate thread if needed.
+     */
     @Override public DeleteRequest listenerThreaded(boolean threadedListener) {
         super.listenerThreaded(threadedListener);
         return this;
     }
 
+    /**
+     * Controls if the operation will be executed on a separate thread when executed locally.
+     */
     @Override public DeleteRequest operationThreaded(boolean threadedOperation) {
         super.operationThreaded(threadedOperation);
         return this;
     }
 
+    /**
+     * The type of the document to delete.
+     */
     String type() {
         return type;
     }
 
+    /**
+     * Sets the type of the document to delete.
+     */
     @Required public DeleteRequest type(String type) {
         this.type = type;
         return this;
     }
 
+    /**
+     * The id of the document to delete.
+     */
     String id() {
         return id;
     }
 
+    /**
+     * Sets the id of the document to delete.
+     */
     @Required public DeleteRequest id(String id) {
         this.id = id;
         return this;
     }
 
+    /**
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     */
     public DeleteRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
         return this;
@@ -105,5 +146,9 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
         super.writeTo(out);
         out.writeUTF(type);
         out.writeUTF(id);
+    }
+
+    @Override public String toString() {
+        return "[" + index + "][" + type + "][" + id + "]";
     }
 }

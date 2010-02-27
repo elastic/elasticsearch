@@ -33,7 +33,9 @@ import java.io.IOException;
 import static org.elasticsearch.action.Actions.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * Delete by query request to execute on a specific index.
+ *
+ * @author kimchy (shay.banon)
  */
 public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest {
 

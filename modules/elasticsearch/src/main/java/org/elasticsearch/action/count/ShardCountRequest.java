@@ -28,9 +28,11 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * Internal count request executed directly against a specific index shard.
+ *
+ * @author kimchy (shay.banon)
  */
-public class ShardCountRequest extends BroadcastShardOperationRequest {
+class ShardCountRequest extends BroadcastShardOperationRequest {
 
     private float minScore;
     private byte[] querySource;

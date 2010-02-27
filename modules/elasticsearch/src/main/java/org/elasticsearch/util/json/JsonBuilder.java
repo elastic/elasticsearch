@@ -29,7 +29,12 @@ import java.io.IOException;
 import java.util.Date;
 
 /**
- * @author kimchy (Shay Banon)
+ * A helper builder for JSON documents.
+ *
+ * <p>Best constructed using {@link #stringJsonBuilder()} or {@link #binaryJsonBuilder()}. When used to create
+ * source for actions/operations, it is recommended to use {@link #binaryJsonBuilder()}.
+ *
+ * @author kimchy (shay.banon)
  */
 @NotThreadSafe
 public abstract class JsonBuilder<T extends JsonBuilder> {

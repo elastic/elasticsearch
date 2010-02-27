@@ -31,7 +31,9 @@ import java.io.IOException;
 import static org.elasticsearch.action.Actions.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * Delete by query request to execute on a specific shard.
+ *
+ * @author kimchy (shay.banon)
  */
 public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest {
 

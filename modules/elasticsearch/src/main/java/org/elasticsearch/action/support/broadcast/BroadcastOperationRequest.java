@@ -33,7 +33,7 @@ import java.io.IOException;
  */
 public abstract class BroadcastOperationRequest implements ActionRequest {
 
-    private String[] indices;
+    protected String[] indices;
 
     @Nullable protected String queryHint;
 

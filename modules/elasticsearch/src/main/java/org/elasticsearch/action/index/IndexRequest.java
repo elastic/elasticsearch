@@ -270,6 +270,6 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     }
 
     @Override public String toString() {
-        return "IndexAction [" + index + "][" + type + "][" + id + "], source [" + Unicode.fromBytes(source) + "]";
+        return "[" + index + "][" + type + "][" + id + "], source[" + Unicode.fromBytes(source) + "]";
     }
 }

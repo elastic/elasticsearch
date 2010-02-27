@@ -43,7 +43,9 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import static com.google.common.collect.Lists.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * Flush Action.
+ *
+ * @author kimchy (shay.banon)
  */
 public class TransportFlushAction extends TransportBroadcastOperationAction<FlushRequest, FlushResponse, ShardFlushRequest, ShardFlushResponse> {
 

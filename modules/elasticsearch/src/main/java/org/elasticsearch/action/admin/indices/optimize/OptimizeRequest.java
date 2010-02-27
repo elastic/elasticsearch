@@ -36,7 +36,10 @@ import java.io.IOException;
  * <p>{@link #maxNumSegments(int)} allows to control the number of segments to optimize down to. By default, will
  * cause the optimize process to optimize down to half the configured number of segments.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
+ * @see org.elasticsearch.client.Requests#optimizeRequest(String...)
+ * @see org.elasticsearch.client.IndicesAdminClient#optimize(OptimizeRequest)
+ * @see OptimizeResponse
  */
 public class OptimizeRequest extends BroadcastOperationRequest {
 

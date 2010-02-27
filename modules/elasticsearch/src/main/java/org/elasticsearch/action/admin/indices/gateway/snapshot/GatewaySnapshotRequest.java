@@ -23,18 +23,32 @@ import org.elasticsearch.action.support.replication.IndicesReplicationOperationR
 import org.elasticsearch.util.TimeValue;
 
 /**
- * @author kimchy (Shay Banon)
+ * Gateway snapshot allows to explicitly perform a snapshot through the gateway of one or more indices (backup them).
+ * By default, each index gateway periodically snapshot changes, though it can be disabled and be controlled completely
+ * through this API. Best created using {@link org.elasticsearch.client.Requests#gatewaySnapshotRequest(String...)}.
+ *
+ * @author kimchy (shay.banon)
+ * @see org.elasticsearch.client.Requests#gatewaySnapshotRequest(String...)
+ * @see org.elasticsearch.client.IndicesAdminClient#gatewaySnapshot(GatewaySnapshotRequest)
+ * @see GatewaySnapshotResponse
  */
 public class GatewaySnapshotRequest extends IndicesReplicationOperationRequest {
-
-    public GatewaySnapshotRequest(String... indices) {
-        this.indices = indices;
-    }
 
     GatewaySnapshotRequest() {
 
     }
 
+    /**
+     * Constructs a new gateway snapshot against one or more indices. No indices means the gateway snapshot
+     * will be executed against all indices.
+     */
+    public GatewaySnapshotRequest(String... indices) {
+        this.indices = indices;
+    }
+
+    /**
+     * Should the listener be called on a separate thread if needed.
+     */
     @Override public GatewaySnapshotRequest listenerThreaded(boolean threadedListener) {
         super.listenerThreaded(threadedListener);
         return this;

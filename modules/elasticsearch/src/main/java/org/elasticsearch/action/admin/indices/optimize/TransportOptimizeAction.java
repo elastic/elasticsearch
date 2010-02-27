@@ -43,7 +43,9 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import static com.google.common.collect.Lists.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * Optimize index/indices action.
+ *
+ * @author kimchy (shay.banon)
  */
 public class TransportOptimizeAction extends TransportBroadcastOperationAction<OptimizeRequest, OptimizeResponse, ShardOptimizeRequest, ShardOptimizeResponse> {
 

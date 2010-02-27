@@ -35,7 +35,14 @@ import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * A request to create an index. Best created with {@link org.elasticsearch.client.Requests#createIndexRequest(String)}.
+ *
+ * <p>The index created can optionally be created with {@link #settings(org.elasticsearch.util.settings.Settings)}.
+ *
+ * @author kimchy (shay.banon)
+ * @see org.elasticsearch.client.IndicesAdminClient#create(CreateIndexRequest)
+ * @see org.elasticsearch.client.Requests#createIndexRequest(String)
+ * @see CreateIndexResponse
  */
 public class CreateIndexRequest extends MasterNodeOperationRequest {
 
@@ -45,16 +52,22 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
 
     private TimeValue timeout = new TimeValue(10, TimeUnit.SECONDS);
 
+    CreateIndexRequest() {
+    }
+
+    /**
+     * Constructs a new request to create an index with the specified name.
+     */
     public CreateIndexRequest(String index) {
         this(index, EMPTY_SETTINGS);
     }
 
+    /**
+     * Constructs a new request to create an index with the specified name and settings.
+     */
     public CreateIndexRequest(String index, Settings settings) {
         this.index = index;
         this.settings = settings;
-    }
-
-    CreateIndexRequest() {
     }
 
     @Override public ActionRequestValidationException validate() {
@@ -65,23 +78,40 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
         return validationException;
     }
 
+    /**
+     * The index name to create.
+     */
     String index() {
         return index;
     }
 
+    /**
+     * The settings to created the index with.
+     */
     Settings settings() {
         return settings;
     }
 
+    /**
+     * The settings to created the index with.
+     */
     public CreateIndexRequest settings(Settings settings) {
         this.settings = settings;
         return this;
     }
 
+    /**
+     * Timeout to wait for the index creation to be acknowledged by current cluster nodes. Defaults
+     * to <tt>10s</tt>.
+     */
     TimeValue timeout() {
         return timeout;
     }
 
+    /**
+     * Timeout to wait for the index creation to be acknowledged by current cluster nodes. Defaults
+     * to <tt>10s</tt>.
+     */
     public CreateIndexRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
         return this;

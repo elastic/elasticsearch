@@ -50,10 +50,16 @@ public class IndicesReplicationOperationRequest implements ActionRequest {
         return null;
     }
 
+    /**
+     * Should the listener be called on a separate thread if needed.
+     */
     @Override public boolean listenerThreaded() {
         return this.threadedListener;
     }
 
+    /**
+     * Should the listener be called on a separate thread if needed.
+     */
     @Override public IndicesReplicationOperationRequest listenerThreaded(boolean threadedListener) {
         this.threadedListener = threadedListener;
         return this;

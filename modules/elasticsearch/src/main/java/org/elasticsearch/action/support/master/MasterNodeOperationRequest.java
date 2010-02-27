@@ -26,7 +26,9 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * A based request for master based operation.
+ *
+ * @author kimchy (shay.banon)
  */
 public abstract class MasterNodeOperationRequest implements ActionRequest {
 

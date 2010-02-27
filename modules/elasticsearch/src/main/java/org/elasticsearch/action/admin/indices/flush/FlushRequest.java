@@ -27,7 +27,16 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * A flush request to flush one or more indices. The flush process of an index basically frees memory from the index
+ * by flushing data to the index storage and clearing the internal transaction log. By default, ElasticSearch uses
+ * memory heuristics in order to automatically trigger flush operations as required in order to clear memory.
+ *
+ * <p>Best created with {@link org.elasticsearch.client.Requests#flushRequest(String...)}.
+ *
+ * @author kimchy (shay.banon)
+ * @see org.elasticsearch.client.Requests#flushRequest(String...)
+ * @see org.elasticsearch.client.IndicesAdminClient#flush(FlushRequest)
+ * @see FlushResponse
  */
 public class FlushRequest extends BroadcastOperationRequest {
 
@@ -37,26 +46,42 @@ public class FlushRequest extends BroadcastOperationRequest {
 
     }
 
+    /**
+     * Constructs a new flush request against one or more indices. If nothing is provided, all indices will
+     * be flushed.
+     */
     public FlushRequest(String... indices) {
         super(indices, null);
         // we want to do the refresh in parallel on local shards...
         operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
     }
 
+    /**
+     * Should a refresh be performed once the flush is done. Defaults to <tt>false</tt>.
+     */
     public boolean refresh() {
         return this.refresh;
     }
 
+    /**
+     * Should a refresh be performed once the flush is done. Defaults to <tt>false</tt>.
+     */
     public FlushRequest refresh(boolean refresh) {
         this.refresh = refresh;
         return this;
     }
 
+    /**
+     * Should the listener be called on a separate thread if needed.
+     */
     @Override public FlushRequest listenerThreaded(boolean threadedListener) {
         super.listenerThreaded(threadedListener);
         return this;
     }
 
+    /**
+     * Controls the operation threading model.
+     */
     @Override public FlushRequest operationThreading(BroadcastOperationThreading operationThreading) {
         super.operationThreading(operationThreading);
         return this;

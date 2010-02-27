@@ -26,18 +26,18 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class ShardGatewaySnapshotRequest extends ShardReplicationOperationRequest {
+class ShardGatewaySnapshotRequest extends ShardReplicationOperationRequest {
 
     private int shardId;
 
-    public ShardGatewaySnapshotRequest(IndexGatewaySnapshotRequest request, int shardId) {
+    ShardGatewaySnapshotRequest(IndexGatewaySnapshotRequest request, int shardId) {
         this(request.index(), shardId);
         timeout = request.timeout();
     }
 
-    public ShardGatewaySnapshotRequest(String index, int shardId) {
+    ShardGatewaySnapshotRequest(String index, int shardId) {
         this.index = index;
         this.shardId = shardId;
     }

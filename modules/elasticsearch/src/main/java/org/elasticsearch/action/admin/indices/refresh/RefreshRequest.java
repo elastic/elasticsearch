@@ -27,11 +27,21 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * A refresh request making all operations performed since the last refresh available for search. The (near) real-time
+ * capabilities depends on the index engine used. For example, the robin one requires refresh to be called, but by
+ * default a refresh is scheduled periodically.
+ *
+ * @author kimchy (shay.banon)
+ * @see org.elasticsearch.client.Requests#refreshRequest(String...)
+ * @see org.elasticsearch.client.IndicesAdminClient#refresh(RefreshRequest)
+ * @see RefreshResponse
  */
 public class RefreshRequest extends BroadcastOperationRequest {
 
     private boolean waitForOperations = true;
+
+    RefreshRequest() {
+    }
 
     public RefreshRequest(String... indices) {
         super(indices, null);
@@ -39,15 +49,17 @@ public class RefreshRequest extends BroadcastOperationRequest {
         operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
     }
 
-    RefreshRequest() {
-
-    }
-
+    /**
+     * Should the listener be called on a separate thread if needed.
+     */
     @Override public RefreshRequest listenerThreaded(boolean threadedListener) {
         super.listenerThreaded(threadedListener);
         return this;
     }
 
+    /**
+     * Controls the operation threading model.
+     */
     @Override public RefreshRequest operationThreading(BroadcastOperationThreading operationThreading) {
         super.operationThreading(operationThreading);
         return this;

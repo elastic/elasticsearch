@@ -30,7 +30,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.settings.Settings;
 
 /**
- * @author kimchy (Shay Banon)
+ * Delete index action.
+ *
+ * @author kimchy (shay.banon)
  */
 public class TransportDeleteIndexAction extends TransportMasterNodeOperationAction<DeleteIndexRequest, DeleteIndexResponse> {
 

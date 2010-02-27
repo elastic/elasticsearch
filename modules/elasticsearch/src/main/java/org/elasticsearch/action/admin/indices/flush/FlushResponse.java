@@ -28,7 +28,9 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * @author kimchy (Shay Banon)
+ * A response to flush action.
+ *
+ * @author kimchy (shay.banon)
  */
 public class FlushResponse extends BroadcastOperationResponse {
 

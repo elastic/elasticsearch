@@ -23,6 +23,7 @@ import org.codehaus.jackson.JsonEncoding;
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonGenerator;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.io.FastByteArrayOutputStream;
 
 import java.io.IOException;
@@ -115,5 +116,10 @@ public class BinaryJsonBuilder extends JsonBuilder<BinaryJsonBuilder> {
     @Override public byte[] copiedBytes() throws IOException {
         flush();
         return bos.copiedByteArray();
+    }
+
+    @Override public String string() throws IOException {
+        flush();
+        return Unicode.fromBytes(bos.unsafeByteArray(), 0, bos.size());
     }
 }

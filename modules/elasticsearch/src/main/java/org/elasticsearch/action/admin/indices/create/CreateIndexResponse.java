@@ -27,7 +27,9 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * A response for a create index action.
+ *
+ * @author kimchy (shay.banon)
  */
 public class CreateIndexResponse implements ActionResponse, Streamable {
 
@@ -36,10 +38,14 @@ public class CreateIndexResponse implements ActionResponse, Streamable {
     CreateIndexResponse() {
     }
 
-    public CreateIndexResponse(boolean acknowledged) {
+    CreateIndexResponse(boolean acknowledged) {
         this.acknowledged = acknowledged;
     }
 
+    /**
+     * Has the index creation been acknowledged by all current cluster nodes within the
+     * provided {@link CreateIndexRequest#timeout(org.elasticsearch.util.TimeValue)}.
+     */
     public boolean acknowledged() {
         return acknowledged;
     }

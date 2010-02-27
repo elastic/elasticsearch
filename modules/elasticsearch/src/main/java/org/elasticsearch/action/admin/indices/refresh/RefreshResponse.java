@@ -28,7 +28,9 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * @author kimchy (Shay Banon)
+ * The response of a refresh action.
+ *
+ * @author kimchy (shay.banon)
  */
 public class RefreshResponse extends BroadcastOperationResponse {
 

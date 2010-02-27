@@ -43,7 +43,9 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import static com.google.common.collect.Lists.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * Refresh action.
+ *
+ * @author kimchy (shay.banon)
  */
 public class TransportRefreshAction extends TransportBroadcastOperationAction<RefreshRequest, RefreshResponse, ShardRefreshRequest, ShardRefreshResponse> {
 

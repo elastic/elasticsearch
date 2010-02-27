@@ -206,7 +206,6 @@ public class IndexRequest extends ShardReplicationOperationRequest {
      */
     @Required public IndexRequest source(JsonBuilder jsonBuilder) {
         try {
-            jsonBuilder.flush();
             return source(jsonBuilder.copiedBytes());
         } catch (IOException e) {
             throw new ElasticSearchIllegalArgumentException("Failed to build json for index request", e);

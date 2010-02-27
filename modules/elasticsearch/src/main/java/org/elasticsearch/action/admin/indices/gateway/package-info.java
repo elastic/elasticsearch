@@ -17,31 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.optimize;
-
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
-
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-
 /**
- * @author kimchy (shay.banon)
+ * Indices Gateway Administrative Actions.
  */
-class ShardOptimizeResponse extends BroadcastShardOperationResponse {
-
-    ShardOptimizeResponse() {
-    }
-
-    public ShardOptimizeResponse(String index, int shardId) {
-        super(index, shardId);
-    }
-
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
-        super.readFrom(in);
-    }
-
-    @Override public void writeTo(DataOutput out) throws IOException {
-        super.writeTo(out);
-    }
-}
+package org.elasticsearch.action.admin.indices.gateway;

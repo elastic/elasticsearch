@@ -19,10 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.mapping.put;
 
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.util.Required;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -33,7 +35,17 @@ import static org.elasticsearch.action.Actions.*;
 import static org.elasticsearch.util.TimeValue.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * Puts mapping definition registered under a specific type into one or more indices. Best created with
+ * {@link org.elasticsearch.client.Requests#putMappingRequest(String...)}.
+ *
+ * <p>If the mappings already exists, the new mappings will be merged with the new one. If there are elements
+ * that can't be merged are detected, the request will be rejected unless the {@link #ignoreDuplicates(boolean)}
+ * is set. In such a case, the duplicate mappings will be rejected.
+ *
+ * @author kimchy (shay.banon)
+ * @see org.elasticsearch.client.Requests#putMappingRequest(String...)
+ * @see org.elasticsearch.client.IndicesAdminClient#putMapping(PutMappingRequest)
+ * @see PutMappingResponse
  */
 public class PutMappingRequest extends MasterNodeOperationRequest {
 
@@ -50,18 +62,12 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
     PutMappingRequest() {
     }
 
+    /**
+     * Constructs a new put mapping request against one or more indices. If nothing is set then
+     * it will be executed against all indices.
+     */
     public PutMappingRequest(String... indices) {
         this.indices = indices;
-    }
-
-    public PutMappingRequest(String index, String mappingType, String mappingSource) {
-        this(new String[]{index}, mappingType, mappingSource);
-    }
-
-    public PutMappingRequest(String[] indices, String mappingType, String mappingSource) {
-        this.indices = indices;
-        this.mappingType = mappingType;
-        this.mappingSource = mappingSource;
     }
 
     @Override public ActionRequestValidationException validate() {
@@ -72,14 +78,16 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
         return validationException;
     }
 
-    @Override public PutMappingRequest listenerThreaded(boolean threadedListener) {
-        return this;
-    }
-
+    /**
+     * The indices the mappings will be put.
+     */
     String[] indices() {
         return indices;
     }
 
+    /**
+     * The mapping type.
+     */
     String type() {
         return mappingType;
     }
@@ -93,28 +101,63 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
         return this;
     }
 
+    /**
+     * The mapping source definition.
+     */
     String mappingSource() {
         return mappingSource;
     }
 
+    /**
+     * The mapping source definition.
+     */
+    @Required public PutMappingRequest mappingSource(JsonBuilder mappingBuilder) {
+        try {
+            return mappingSource(mappingBuilder.string());
+        } catch (IOException e) {
+            throw new ElasticSearchIllegalArgumentException("Failed to build json for mapping request", e);
+        }
+    }
+
+    /**
+     * The mapping source definition.
+     */
     @Required public PutMappingRequest mappingSource(String mappingSource) {
         this.mappingSource = mappingSource;
         return this;
     }
 
+    /**
+     * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
+     * <tt>10s</tt>.
+     */
     TimeValue timeout() {
         return timeout;
     }
 
+    /**
+     * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
+     * <tt>10s</tt>.
+     */
     public PutMappingRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
         return this;
     }
 
+    /**
+     * If there is already a mapping definition registered against the type, then it will be merged. If there are
+     * elements that can't be merged are detected, the request will be rejected unless the
+     * {@link #ignoreDuplicates(boolean)} is set. In such a case, the duplicate mappings will be rejected.
+     */
     public boolean ignoreDuplicates() {
         return ignoreDuplicates;
     }
 
+    /**
+     * If there is already a mapping definition registered against the type, then it will be merged. If there are
+     * elements that can't be merged are detected, the request will be rejected unless the
+     * {@link #ignoreDuplicates(boolean)} is set. In such a case, the duplicate mappings will be rejected.
+     */
     public PutMappingRequest ignoreDuplicates(boolean ignoreDuplicates) {
         this.ignoreDuplicates = ignoreDuplicates;
         return this;

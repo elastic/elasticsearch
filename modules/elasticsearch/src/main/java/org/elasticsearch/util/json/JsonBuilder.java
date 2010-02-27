@@ -310,6 +310,8 @@ public abstract class JsonBuilder<T extends JsonBuilder> {
 
     public abstract byte[] copiedBytes() throws IOException;
 
+    public abstract String string() throws IOException;
+
     public void close() {
         try {
             generator.close();

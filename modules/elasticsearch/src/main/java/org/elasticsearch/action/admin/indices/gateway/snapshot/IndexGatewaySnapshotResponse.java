@@ -27,7 +27,9 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * An index level gateway snapshot response.
+ *
+ * @author kimchy (shay.banon)
  */
 public class IndexGatewaySnapshotResponse implements ActionResponse, Streamable {
 
@@ -47,18 +49,30 @@ public class IndexGatewaySnapshotResponse implements ActionResponse, Streamable 
 
     }
 
+    /**
+     * The index the gateway snapshot has performed on.
+     */
     public String index() {
         return index;
     }
 
+    /**
+     * The number of successful shards the gateway snapshot operation was performed on.
+     */
     public int successfulShards() {
         return successfulShards;
     }
 
+    /**
+     * The number of failed shards the gateway snapshot operation was performed on.
+     */
     public int failedShards() {
         return failedShards;
     }
 
+    /**
+     * The number of total shards the gateway snapshot operation was performed on.
+     */
     public int totalShards() {
         return successfulShards + failedShards;
     }

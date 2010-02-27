@@ -27,6 +27,8 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 /**
+ * The response of put mapping operation.
+ *
  * @author kimchy (shay.banon)
  */
 public class PutMappingResponse implements ActionResponse, Streamable {
@@ -37,10 +39,14 @@ public class PutMappingResponse implements ActionResponse, Streamable {
 
     }
 
-    public PutMappingResponse(boolean acknowledged) {
+    PutMappingResponse(boolean acknowledged) {
         this.acknowledged = acknowledged;
     }
 
+    /**
+     * Has the put mapping creation been acknowledged by all current cluster nodes within the
+     * provided {@link PutMappingRequest#timeout(org.elasticsearch.util.TimeValue)}.
+     */
     public boolean acknowledged() {
         return acknowledged;
     }

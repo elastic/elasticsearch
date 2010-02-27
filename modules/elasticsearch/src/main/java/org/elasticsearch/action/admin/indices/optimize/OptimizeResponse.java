@@ -28,7 +28,9 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * @author kimchy (Shay Banon)
+ * A response for optimize action.
+ *
+ * @author kimchy (shay.banon)
  */
 public class OptimizeResponse extends BroadcastOperationResponse {
 

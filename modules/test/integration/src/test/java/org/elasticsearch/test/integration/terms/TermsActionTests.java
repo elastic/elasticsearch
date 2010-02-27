@@ -19,6 +19,8 @@
 
 package org.elasticsearch.test.integration.terms;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.status.IndexStatus;
 import org.elasticsearch.action.terms.TermsRequest;
@@ -34,7 +36,7 @@ import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 @Test
 public class TermsActionTests extends AbstractServersTests {
@@ -61,7 +63,11 @@ public class TermsActionTests extends AbstractServersTests {
     protected void verifyTermsActions(Client client) throws Exception {
         logger.info("Creating index test");
         client.admin().indices().create(createIndexRequest("test")).actionGet();
-        Thread.sleep(500);
+        logger.info("Running Cluster Health");
+        ClusterHealthResponse clusterHealth = client.admin().cluster().health(clusterHealth().waitForGreenStatus()).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
 
         IndexStatus indexStatus = client.admin().indices().status(indicesStatus("test")).actionGet().index("test");
 

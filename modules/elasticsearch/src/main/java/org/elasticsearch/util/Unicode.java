@@ -67,10 +67,14 @@ public class Unicode {
     }
 
     public static String fromBytes(byte[] source) {
+        return fromBytes(source, 0, source.length);
+    }
+
+    public static String fromBytes(byte[] source, int offset, int length) {
         if (source == null) {
             return null;
         }
-        UnicodeUtil.UTF16Result result = unsafeFromBytesAsUtf16(source);
+        UnicodeUtil.UTF16Result result = unsafeFromBytesAsUtf16(source, offset, length);
         return new String(result.result, 0, result.length);
     }
 
@@ -84,11 +88,15 @@ public class Unicode {
     }
 
     public static UnicodeUtil.UTF16Result unsafeFromBytesAsUtf16(byte[] source) {
+        return unsafeFromBytesAsUtf16(source, 0, source.length);
+    }
+
+    public static UnicodeUtil.UTF16Result unsafeFromBytesAsUtf16(byte[] source, int offset, int length) {
         if (source == null) {
             return null;
         }
         UnicodeUtil.UTF16Result result = cachedUtf16Result.get();
-        UnicodeUtil.UTF8toUTF16(source, 0, source.length, result);
+        UnicodeUtil.UTF8toUTF16(source, offset, length, result);
         return result;
     }
 

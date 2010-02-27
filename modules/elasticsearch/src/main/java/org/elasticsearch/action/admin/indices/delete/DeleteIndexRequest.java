@@ -31,7 +31,9 @@ import static org.elasticsearch.action.Actions.*;
 import static org.elasticsearch.util.TimeValue.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * A request to delete an index. Best created with {@link org.elasticsearch.client.Requests#deleteIndexRequest(String)}.
+ *
+ * @author kimchy (shay.banon)
  */
 public class DeleteIndexRequest extends MasterNodeOperationRequest {
 
@@ -39,11 +41,14 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest {
 
     private TimeValue timeout = timeValueSeconds(10);
 
-    public DeleteIndexRequest(String index) {
-        this.index = index;
+    DeleteIndexRequest() {
     }
 
-    DeleteIndexRequest() {
+    /**
+     * Constructs a new delete index request for the specified index.
+     */
+    public DeleteIndexRequest(String index) {
+        this.index = index;
     }
 
     @Override public ActionRequestValidationException validate() {
@@ -54,14 +59,25 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest {
         return validationException;
     }
 
+    /**
+     * The index to delete.
+     */
     String index() {
         return index;
     }
 
+    /**
+     * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
+     * to <tt>10s</tt>.
+     */
     TimeValue timeout() {
         return timeout;
     }
 
+    /**
+     * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
+     * to <tt>10s</tt>.
+     */
     public DeleteIndexRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
         return this;

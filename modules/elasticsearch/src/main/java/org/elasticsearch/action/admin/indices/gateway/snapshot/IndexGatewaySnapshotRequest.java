@@ -27,11 +27,11 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class IndexGatewaySnapshotRequest extends IndexReplicationOperationRequest {
 
-    public IndexGatewaySnapshotRequest(String index) {
+    IndexGatewaySnapshotRequest(String index) {
         this.index = index;
     }
 

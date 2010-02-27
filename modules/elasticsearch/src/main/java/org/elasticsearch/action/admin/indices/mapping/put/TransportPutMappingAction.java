@@ -41,7 +41,9 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.action.Actions.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * Put mapping action.
+ *
+ * @author kimchy (shay.banon)
  */
 public class TransportPutMappingAction extends TransportMasterNodeOperationAction<PutMappingRequest, PutMappingResponse> {
 

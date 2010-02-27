@@ -26,25 +26,38 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 /**
- * @author kimchy (Shay Banon)
+ * Reponse for the gateway snapshot action.
+ *
+ * @author kimchy (shay.banon)
  */
-public class GatewaySnapshotResponse implements ActionResponse, Streamable {
+public class GatewaySnapshotResponse implements ActionResponse, Streamable, Iterable<IndexGatewaySnapshotResponse> {
 
-    private Map<String, IndexGatewaySnapshotResponse> indexResponses = new HashMap<String, IndexGatewaySnapshotResponse>();
+    private Map<String, IndexGatewaySnapshotResponse> indices = new HashMap<String, IndexGatewaySnapshotResponse>();
 
     GatewaySnapshotResponse() {
 
     }
 
-    public Map<String, IndexGatewaySnapshotResponse> indices() {
-        return indexResponses;
+    @Override public Iterator<IndexGatewaySnapshotResponse> iterator() {
+        return indices.values().iterator();
     }
 
+    /**
+     * A map of index level responses of the gateway snapshot operation.
+     */
+    public Map<String, IndexGatewaySnapshotResponse> indices() {
+        return indices;
+    }
+
+    /**
+     * The index level gateway snapshot response for the given index.
+     */
     public IndexGatewaySnapshotResponse index(String index) {
-        return indexResponses.get(index);
+        return indices.get(index);
     }
 
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
@@ -52,13 +65,13 @@ public class GatewaySnapshotResponse implements ActionResponse, Streamable {
         for (int i = 0; i < size; i++) {
             IndexGatewaySnapshotResponse response = new IndexGatewaySnapshotResponse();
             response.readFrom(in);
-            indexResponses.put(response.index(), response);
+            indices.put(response.index(), response);
         }
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
-        out.writeInt(indexResponses.size());
-        for (IndexGatewaySnapshotResponse indexGatewaySnapshotResponse : indexResponses.values()) {
+        out.writeInt(indices.size());
+        for (IndexGatewaySnapshotResponse indexGatewaySnapshotResponse : indices.values()) {
             indexGatewaySnapshotResponse.writeTo(out);
         }
     }

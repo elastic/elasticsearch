@@ -60,19 +60,31 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
         return null;
     }
 
+    /**
+     * Should the listener be called on a separate thread if needed.
+     */
     @Override public boolean listenerThreaded() {
         return this.listenerThreaded;
     }
 
+    /**
+     * Should the listener be called on a separate thread if needed.
+     */
     @Override public BroadcastOperationRequest listenerThreaded(boolean listenerThreaded) {
         this.listenerThreaded = listenerThreaded;
         return this;
     }
 
+    /**
+     * Controls the operation threading model.
+     */
     public BroadcastOperationThreading operationThreading() {
         return operationThreading;
     }
 
+    /**
+     * Controls the operation threading model.
+     */
     public BroadcastOperationRequest operationThreading(BroadcastOperationThreading operationThreading) {
         this.operationThreading = operationThreading;
         return this;

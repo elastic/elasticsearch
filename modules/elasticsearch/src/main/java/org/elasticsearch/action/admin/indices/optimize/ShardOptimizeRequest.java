@@ -26,9 +26,9 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class ShardOptimizeRequest extends BroadcastShardOperationRequest {
+class ShardOptimizeRequest extends BroadcastShardOperationRequest {
 
     private boolean waitForMerge = true;
 

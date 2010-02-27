@@ -26,9 +26,9 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class ShardRefreshRequest extends BroadcastShardOperationRequest {
+class ShardRefreshRequest extends BroadcastShardOperationRequest {
 
     private boolean waitForOperations = true;
 

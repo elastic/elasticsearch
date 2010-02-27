@@ -47,6 +47,8 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
         super(settings, client);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_moreLikeThis", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_moreLikeThis", this);
+        controller.registerHandler(GET, "/{index}/{type}/{id}/_mlt", this);
+        controller.registerHandler(POST, "/{index}/{type}/{id}/_mlt", this);
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {

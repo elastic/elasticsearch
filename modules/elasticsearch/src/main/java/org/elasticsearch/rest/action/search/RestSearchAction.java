@@ -43,6 +43,7 @@ import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
 import static org.elasticsearch.rest.action.support.RestActions.*;
 import static org.elasticsearch.rest.action.support.RestJsonBuilder.*;
+import static org.elasticsearch.search.builder.SearchSourceBuilder.*;
 import static org.elasticsearch.util.TimeValue.*;
 
 /**
@@ -117,8 +118,22 @@ public class RestSearchAction extends BaseRestHandler {
         SearchRequest searchRequest = new SearchRequest(indices, parseSearchSource(request));
 
         searchRequest.searchType(parseSearchType(request.param("searchType")));
-        searchRequest.from(request.paramAsInt("from", -1));
-        searchRequest.size(request.paramAsInt("size", -1));
+
+        SearchSourceBuilder extraSourceBuilder = null;
+        int from = request.paramAsInt("from", -1);
+        if (from != -1) {
+            if (extraSourceBuilder == null) {
+                extraSourceBuilder = searchSource();
+            }
+            extraSourceBuilder.from(from);
+        }
+        int size = request.paramAsInt("size", -1);
+        if (size != -1) {
+            if (extraSourceBuilder == null) {
+                extraSourceBuilder = searchSource();
+            }
+            extraSourceBuilder.size(size);
+        }
 
         String scroll = request.param("scroll");
         if (scroll != null) {
@@ -133,6 +148,10 @@ public class RestSearchAction extends BaseRestHandler {
         }
 
         searchRequest.queryHint(request.param("queryHint"));
+
+        if (extraSourceBuilder != null) {
+            searchRequest.extraSource(extraSourceBuilder);
+        }
 
         return searchRequest;
     }

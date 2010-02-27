@@ -247,10 +247,6 @@ public class SearchService extends AbstractComponent implements LifecycleCompone
 
         SearchContext context = new SearchContext(idGenerator.incrementAndGet(), shardTarget, request.timeout(), request.types(), engineSearcher, indexService);
 
-        // init the from and size
-        context.from(request.from());
-        context.size(request.size());
-
         context.scroll(request.scroll());
 
         parseSource(context, request.source());

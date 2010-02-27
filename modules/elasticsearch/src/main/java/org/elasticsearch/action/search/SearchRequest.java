@@ -52,10 +52,6 @@ public class SearchRequest implements ActionRequest {
 
     private Scroll scroll;
 
-    private int from = -1;
-
-    private int size = -1;
-
     private String[] types = Strings.EMPTY_ARRAY;
 
     private TimeValue timeout;
@@ -179,15 +175,6 @@ public class SearchRequest implements ActionRequest {
         return this;
     }
 
-    public int from() {
-        return from;
-    }
-
-    public SearchRequest from(int from) {
-        this.from = from;
-        return this;
-    }
-
     public String[] types() {
         return types;
     }
@@ -203,15 +190,6 @@ public class SearchRequest implements ActionRequest {
 
     public SearchRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
-        return this;
-    }
-
-    public int size() {
-        return size;
-    }
-
-    public SearchRequest size(int size) {
-        this.size = size;
         return this;
     }
 
@@ -231,8 +209,6 @@ public class SearchRequest implements ActionRequest {
         if (in.readBoolean()) {
             scroll = readScroll(in);
         }
-        from = in.readInt();
-        size = in.readInt();
         if (in.readBoolean()) {
             timeout = readTimeValue(in);
         }
@@ -282,8 +258,6 @@ public class SearchRequest implements ActionRequest {
             out.writeBoolean(true);
             scroll.writeTo(out);
         }
-        out.writeInt(from);
-        out.writeInt(size);
         if (timeout == null) {
             out.writeBoolean(false);
         } else {

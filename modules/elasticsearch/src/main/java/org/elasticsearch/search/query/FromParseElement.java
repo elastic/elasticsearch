@@ -24,15 +24,11 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class FromParseElement implements SearchParseElement {
 
     @Override public void parse(JsonParser jp, SearchContext context) throws Exception {
-        if (context.from() != -1) {
-            // it was externally set
-            return;
-        }
         context.from(jp.getIntValue());
     }
 }

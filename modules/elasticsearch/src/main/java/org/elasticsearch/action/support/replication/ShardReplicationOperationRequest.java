@@ -52,10 +52,16 @@ public abstract class ShardReplicationOperationRequest implements ActionRequest 
         return this.index;
     }
 
+    /**
+     * Should the listener be called on a separate thread if needed.
+     */
     @Override public boolean listenerThreaded() {
         return threadedListener;
     }
 
+    /**
+     * Should the listener be called on a separate thread if needed.
+     */
     @Override public ShardReplicationOperationRequest listenerThreaded(boolean threadedListener) {
         this.threadedListener = threadedListener;
         return this;

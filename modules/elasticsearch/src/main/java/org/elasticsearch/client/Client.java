@@ -49,7 +49,7 @@ import org.elasticsearch.action.terms.TermsResponse;
  * <p>A client can either be retrieved from a {@link org.elasticsearch.server.Server} started, or connected remotely
  * to one or more nodes using {@link org.elasticsearch.client.transport.TransportClient}.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  * @see org.elasticsearch.server.Server#client()
  * @see org.elasticsearch.client.transport.TransportClient
  */

@@ -34,10 +34,28 @@ import java.io.IOException;
 import static org.elasticsearch.action.Actions.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * Index request to index a typed JSON document into a specific index and make it searchable. Best
+ * created using {@link org.elasticsearch.client.Requests#indexRequest(String)}.
+ *
+ * <p>The index requires the {@link #index()}, {@link #type(String)}, {@link #id(String)} and
+ * {@link #source(byte[])} to be set.
+ *
+ * <p>The source (JSON to index) can be set in its bytes form using ({@link #source(byte[])}),
+ * its string form ({@link #source(String)}) or using a {@link org.elasticsearch.util.json.JsonBuilder}
+ * ({@link #source(org.elasticsearch.util.json.JsonBuilder)}).
+ *
+ * <p>If the {@link #id(String)} is not set, it will be automatically generated.
+ *
+ * @author kimchy (shay.banon)
+ * @see IndexResponse
+ * @see org.elasticsearch.client.Requests#indexRequest(String)
+ * @see org.elasticsearch.client.Client#index(IndexRequest)
  */
 public class IndexRequest extends ShardReplicationOperationRequest {
 
+    /**
+     * Operation type controls if the type of the index operation.
+     */
     public static enum OpType {
         /**
          * Index the source. If there an existing document with the id, it will
@@ -56,10 +74,16 @@ public class IndexRequest extends ShardReplicationOperationRequest {
             this.id = id;
         }
 
+        /**
+         * The internal representation of the operation type.
+         */
         public byte id() {
             return id;
         }
 
+        /**
+         * Constructs the operation type from its internal representation.
+         */
         public static OpType fromId(byte id) {
             if (id == 0) {
                 return INDEX;
@@ -76,10 +100,22 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     private byte[] source;
     private OpType opType = OpType.INDEX;
 
+    /**
+     * Constructs a new index request against the specific index. The {@link #type(String)},
+     * {@link #id(String)} and {@link #source(byte[])} must be set.
+     */
     public IndexRequest(String index) {
         this.index = index;
     }
 
+    /**
+     * Constructs a new index request against the index, type, id and using the source.
+     *
+     * @param index  The index to index into
+     * @param type   The type to index into
+     * @param id     The id of document
+     * @param source The JSON source document
+     */
     public IndexRequest(String index, String type, String id, byte[] source) {
         this.index = index;
         this.type = type;
@@ -101,43 +137,73 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         return validationException;
     }
 
+    /**
+     * Should the listener be called on a separate thread if needed.
+     */
     @Override public IndexRequest listenerThreaded(boolean threadedListener) {
         super.listenerThreaded(threadedListener);
         return this;
     }
 
+    /**
+     * Controls if the operation will be executed on a separate thread when executed locally.
+     */
     @Override public IndexRequest operationThreaded(boolean threadedOperation) {
         super.operationThreaded(threadedOperation);
         return this;
     }
 
+    /**
+     * The type of the indexed document.
+     */
     String type() {
         return type;
     }
 
+    /**
+     * Sets the type of the indexed document.
+     */
     @Required public IndexRequest type(String type) {
         this.type = type;
         return this;
     }
 
+    /**
+     * The id of the indexed document. If not set, will be automatically generated.
+     */
     String id() {
         return id;
     }
 
+    /**
+     * Sets the id of the indexed document. If not set, will be automatically generated.
+     */
     public IndexRequest id(String id) {
         this.id = id;
         return this;
     }
 
+    /**
+     * The source of the JSON document to index.
+     */
     byte[] source() {
         return source;
     }
 
+    /**
+     * Sets the JSON source to index.
+     *
+     * <p>Note, its preferable to either set it using {@link #source(org.elasticsearch.util.json.JsonBuilder)}
+     * or using the {@link #source(byte[])}.
+     */
     @Required public IndexRequest source(String source) {
         this.source = Unicode.fromStringAsBytes(source);
         return this;
     }
 
+    /**
+     * Sets the JSON source to index.
+     */
     @Required public IndexRequest source(JsonBuilder jsonBuilder) {
         try {
             jsonBuilder.flush();
@@ -147,21 +213,33 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         }
     }
 
+    /**
+     * Sets the JSON source to index.
+     */
     @Required public IndexRequest source(byte[] source) {
         this.source = source;
         return this;
     }
 
+    /**
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     */
     public IndexRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
         return this;
     }
 
+    /**
+     * Sets the type of operation to perform.
+     */
     public IndexRequest opType(OpType opType) {
         this.opType = opType;
         return this;
     }
 
+    /**
+     * The type of operation to perform.
+     */
     public OpType opType() {
         return this.opType;
     }
@@ -169,7 +247,9 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
         super.readFrom(in);
         type = in.readUTF();
-        id = in.readUTF();
+        if (in.readBoolean()) {
+            id = in.readUTF();
+        }
         source = new byte[in.readInt()];
         in.readFully(source, 0, source.length);
         opType = OpType.fromId(in.readByte());
@@ -178,9 +258,18 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     @Override public void writeTo(DataOutput out) throws IOException {
         super.writeTo(out);
         out.writeUTF(type);
-        out.writeUTF(id);
+        if (id == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(id);
+        }
         out.writeInt(source.length);
         out.write(source);
         out.writeByte(opType.id());
+    }
+
+    @Override public String toString() {
+        return "IndexAction [" + index + "][" + type + "][" + id + "], source [" + Unicode.fromBytes(source) + "]";
     }
 }

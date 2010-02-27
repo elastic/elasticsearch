@@ -27,7 +27,11 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * A response of an index operation,
+ *
+ * @author kimchy (shay.banon)
+ * @see org.elasticsearch.action.index.IndexRequest
+ * @see org.elasticsearch.client.Client#index(IndexRequest)
  */
 public class IndexResponse implements ActionResponse, Streamable {
 
@@ -37,26 +41,35 @@ public class IndexResponse implements ActionResponse, Streamable {
 
     private String type;
 
-    public IndexResponse() {
+    IndexResponse() {
 
     }
 
-    public IndexResponse(String index, String type, String id) {
+    IndexResponse(String index, String type, String id) {
         this.index = index;
         this.id = id;
         this.type = type;
     }
 
+    /**
+     * The index the document was indexed into.
+     */
     public String index() {
         return this.index;
     }
 
-    public String id() {
-        return this.id;
-    }
-
+    /**
+     * The type of the document indexed.
+     */
     public String type() {
         return this.type;
+    }
+
+    /**
+     * The id of the document indexed.
+     */
+    public String id() {
+        return this.id;
     }
 
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {

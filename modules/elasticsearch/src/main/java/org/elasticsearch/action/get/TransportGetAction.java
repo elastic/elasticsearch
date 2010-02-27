@@ -31,7 +31,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.settings.Settings;
 
 /**
- * @author kimchy (Shay Banon)
+ * Performs the get operation.
+ *
+ * @author kimchy (shay.banon)
  */
 public class TransportGetAction extends TransportSingleOperationAction<GetRequest, GetResponse> {
 

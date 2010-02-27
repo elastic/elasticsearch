@@ -74,6 +74,9 @@ public abstract class SingleOperationRequest implements ActionRequest {
         return id;
     }
 
+    /**
+     * Should the listener be called on a separate thread if needed.
+     */
     @Override public boolean listenerThreaded() {
         return threadedListener;
     }

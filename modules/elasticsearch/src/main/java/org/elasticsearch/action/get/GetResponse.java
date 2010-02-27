@@ -28,7 +28,11 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * The response of a get action.
+ *
+ * @author kimchy (shay.banon)
+ * @see GetRequest
+ * @see org.elasticsearch.client.Client#get(GetRequest)
  */
 public class GetResponse implements ActionResponse, Streamable {
 
@@ -40,36 +44,54 @@ public class GetResponse implements ActionResponse, Streamable {
 
     private byte[] source;
 
-    public GetResponse() {
+    GetResponse() {
     }
 
-    public GetResponse(String index, String type, String id, byte[] source) {
+    GetResponse(String index, String type, String id, byte[] source) {
         this.index = index;
         this.type = type;
         this.id = id;
         this.source = source;
     }
 
-    public boolean empty() {
+    /**
+     * Does the document exists.
+     */
+    public boolean exists() {
         return source == null;
     }
 
+    /**
+     * The index the document was fetched from.
+     */
     public String index() {
         return this.index;
     }
 
+    /**
+     * The type of the document.
+     */
     public String type() {
         return type;
     }
 
+    /**
+     * The id of the document.
+     */
     public String id() {
         return id;
     }
 
+    /**
+     * The source of the document if exists.
+     */
     public byte[] source() {
         return this.source;
     }
 
+    /**
+     * The source of the document (as a string).
+     */
     public String sourceAsString() {
         return Unicode.fromBytes(source);
     }

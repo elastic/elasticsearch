@@ -53,7 +53,7 @@ public class RestGetAction extends BaseRestHandler {
         client.execGet(getRequest, new ActionListener<GetResponse>() {
             @Override public void onResponse(GetResponse result) {
                 try {
-                    if (result.empty()) {
+                    if (result.exists()) {
                         channel.sendResponse(new JsonRestResponse(request, NOT_FOUND));
                     } else {
                         JsonBuilder builder = restJsonBuilder(request);

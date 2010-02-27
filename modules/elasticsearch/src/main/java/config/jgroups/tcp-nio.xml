@@ -1,6 +1,7 @@
 <!-- Changes from default jgroups tcp-nio.xml: -->
 <!-- 1. Changed print_local_addr from true to false -->
 <!-- 2. Disabled STREAMING_STATE_TRANSFER, we don't use it -->
+<!-- 3. Added ${jgroups.bind_port:7800} to bind_port -->
 
 <!--
     TCP based stack, with flow control and message bundling. This is usually used when IP
@@ -14,7 +15,7 @@
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:schemaLocation="urn:org:jgroups http://www.jgroups.org/schema/JGroups-2.8.xsd">
     <TCP_NIO
-            bind_port="7800"
+            bind_port="${jgroups.bind_port:7800}"
             loopback="true"
             recv_buf_size="20000000"
             send_buf_size="640000"

@@ -34,6 +34,7 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.util.SizeValue.*;
 import static org.elasticsearch.util.TimeValue.*;
@@ -42,6 +43,8 @@ import static org.elasticsearch.util.TimeValue.*;
  * @author kimchy (Shay Banon)
  */
 public class NettyHttpRequest implements HttpRequest {
+
+    private final Pattern commaPattern = Pattern.compile(",");
 
     private final org.jboss.netty.handler.codec.http.HttpRequest request;
 
@@ -162,6 +165,14 @@ public class NettyHttpRequest implements HttpRequest {
 
     @Override public SizeValue paramAsSize(String key, SizeValue defaultValue) {
         return parseSizeValue(param(key), defaultValue);
+    }
+
+    @Override public String[] paramAsStringArray(String key, String[] defaultValue) {
+        String value = param(key);
+        if (value == null) {
+            return defaultValue;
+        }
+        return commaPattern.split(value);
     }
 
     @Override public boolean hasParam(String key) {

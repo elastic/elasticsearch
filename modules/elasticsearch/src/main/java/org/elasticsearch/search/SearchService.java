@@ -245,8 +245,7 @@ public class SearchService extends AbstractComponent implements LifecycleCompone
 
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.state().nodes().localNodeId(), request.index(), request.shardId());
 
-        SearchContext context = new SearchContext(idGenerator.incrementAndGet(), shardTarget, request.timeout(),
-                request.source(), request.types(), engineSearcher, indexService);
+        SearchContext context = new SearchContext(idGenerator.incrementAndGet(), shardTarget, request.timeout(), request.types(), engineSearcher, indexService);
 
         // init the from and size
         context.from(request.from());
@@ -254,7 +253,8 @@ public class SearchService extends AbstractComponent implements LifecycleCompone
 
         context.scroll(request.scroll());
 
-        parseSource(context);
+        parseSource(context, request.source());
+        parseSource(context, request.extraSource());
 
         // if the from and size are still not set, default them
         if (context.from() == -1) {
@@ -293,9 +293,13 @@ public class SearchService extends AbstractComponent implements LifecycleCompone
         context.release();
     }
 
-    private void parseSource(SearchContext context) throws SearchParseException {
+    private void parseSource(SearchContext context, byte[] source) throws SearchParseException {
+        // nothing to parse...
+        if (source == null || source.length == 0) {
+            return;
+        }
         try {
-            JsonParser jp = jsonFactory.createJsonParser(context.source());
+            JsonParser jp = jsonFactory.createJsonParser(source);
             JsonToken token;
             while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
                 if (token == JsonToken.FIELD_NAME) {
@@ -311,7 +315,7 @@ public class SearchService extends AbstractComponent implements LifecycleCompone
                 }
             }
         } catch (Exception e) {
-            throw new SearchParseException(context, "Failed to parse [" + Unicode.fromBytes(context.source()) + "]", e);
+            throw new SearchParseException(context, "Failed to parse [" + Unicode.fromBytes(source) + "]", e);
         }
     }
 

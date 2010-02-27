@@ -154,8 +154,10 @@ public class SearchSourceBuilder {
                 builder.field("queryParserName", queryParserName);
             }
 
-            builder.field("query");
-            queryBuilder.toJson(builder, ToJson.EMPTY_PARAMS);
+            if (queryBuilder != null) {
+                builder.field("query");
+                queryBuilder.toJson(builder, ToJson.EMPTY_PARAMS);
+            }
 
             if (explain != null) {
                 builder.field("explain", explain);

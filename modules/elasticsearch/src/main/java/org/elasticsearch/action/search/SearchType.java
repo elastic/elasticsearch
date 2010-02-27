@@ -30,6 +30,8 @@ public enum SearchType {
     DFS_QUERY_AND_FETCH((byte) 2),
     QUERY_AND_FETCH((byte) 3);
 
+    public static final SearchType DEFAULT = QUERY_THEN_FETCH;
+
     private byte id;
 
     SearchType(byte id) {

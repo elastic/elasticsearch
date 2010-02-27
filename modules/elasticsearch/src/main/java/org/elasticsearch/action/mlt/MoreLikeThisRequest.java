@@ -22,11 +22,17 @@ package org.elasticsearch.action.mlt;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.Actions;
+import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.util.Bytes;
 import org.elasticsearch.util.Strings;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+
+import static org.elasticsearch.search.Scroll.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -51,6 +57,14 @@ public class MoreLikeThisRequest implements ActionRequest {
     private int maxWordLen = -1;
     private Boolean boostTerms = null;
     private float boostTermsFactor = -1;
+
+    private SearchType searchType = SearchType.DEFAULT;
+    private String searchQueryHint;
+    private String[] searchIndices;
+    private String[] searchTypes;
+    private Scroll searchScroll;
+    private byte[] searchSource;
+
 
     private boolean threadedListener = false;
 
@@ -85,6 +99,11 @@ public class MoreLikeThisRequest implements ActionRequest {
 
     public String[] fields() {
         return this.fields;
+    }
+
+    public MoreLikeThisRequest fields(String... fields) {
+        this.fields = fields;
+        return this;
     }
 
     public MoreLikeThisRequest percentTermsToMatch(float percentTermsToMatch) {
@@ -159,7 +178,7 @@ public class MoreLikeThisRequest implements ActionRequest {
         return this.maxWordLen;
     }
 
-    public MoreLikeThisRequest boostTerms(boolean boostTerms) {
+    public MoreLikeThisRequest boostTerms(Boolean boostTerms) {
         this.boostTerms = boostTerms;
         return this;
     }
@@ -175,6 +194,75 @@ public class MoreLikeThisRequest implements ActionRequest {
 
     public float boostTermsFactor() {
         return this.boostTermsFactor;
+    }
+
+    public MoreLikeThisRequest searchSource(SearchSourceBuilder sourceBuilder) {
+        return searchSource(sourceBuilder.build());
+    }
+
+    public MoreLikeThisRequest searchSource(byte[] searchSource) {
+        this.searchSource = searchSource;
+        return this;
+    }
+
+    public byte[] searchSource() {
+        return this.searchSource;
+    }
+
+    /**
+     * Sets the search type of the mlt search query.
+     */
+    public MoreLikeThisRequest searchType(SearchType searchType) {
+        this.searchType = searchType;
+        return this;
+    }
+
+    public SearchType searchType() {
+        return this.searchType;
+    }
+
+    /**
+     * Sets the indices the resulting mlt query will run against. If not set, will run
+     * against the index the document was fetched from.
+     */
+    public MoreLikeThisRequest searchIndices(String... searchIndices) {
+        this.searchIndices = searchIndices;
+        return this;
+    }
+
+    public String[] searchIndices() {
+        return this.searchIndices;
+    }
+
+    /**
+     * Sets the types the resulting mlt query will run against. If not set, will run
+     * against the type of the document fetched.
+     */
+    public MoreLikeThisRequest searchTypes(String... searchTypes) {
+        this.searchTypes = searchTypes;
+        return this;
+    }
+
+    public String[] searchTypes() {
+        return this.searchTypes;
+    }
+
+    public MoreLikeThisRequest searchQueryHint(String searchQueryHint) {
+        this.searchQueryHint = searchQueryHint;
+        return this;
+    }
+
+    public String searchQueryHint() {
+        return this.searchQueryHint;
+    }
+
+    public MoreLikeThisRequest searchScroll(Scroll searchScroll) {
+        this.searchScroll = searchScroll;
+        return this;
+    }
+
+    public Scroll searchScroll() {
+        return this.searchScroll;
     }
 
     @Override public ActionRequestValidationException validate() {
@@ -233,6 +321,42 @@ public class MoreLikeThisRequest implements ActionRequest {
             boostTerms = in.readBoolean();
         }
         boostTermsFactor = in.readFloat();
+        searchType = SearchType.fromId(in.readByte());
+        if (in.readBoolean()) {
+            searchQueryHint = in.readUTF();
+        }
+        size = in.readInt();
+        if (size == -1) {
+            searchIndices = null;
+        } else if (size == 0) {
+            searchIndices = Strings.EMPTY_ARRAY;
+        } else {
+            searchIndices = new String[size];
+            for (int i = 0; i < size; i++) {
+                searchIndices[i] = in.readUTF();
+            }
+        }
+        size = in.readInt();
+        if (size == -1) {
+            searchTypes = null;
+        } else if (size == 0) {
+            searchTypes = Strings.EMPTY_ARRAY;
+        } else {
+            searchTypes = new String[size];
+            for (int i = 0; i < size; i++) {
+                searchTypes[i] = in.readUTF();
+            }
+        }
+        if (in.readBoolean()) {
+            searchScroll = readScroll(in);
+        }
+        size = in.readInt();
+        if (size == 0) {
+            searchSource = Bytes.EMPTY_ARRAY;
+        } else {
+            searchSource = new byte[in.readInt()];
+            in.readFully(searchSource);
+        }
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
@@ -270,5 +394,41 @@ public class MoreLikeThisRequest implements ActionRequest {
             out.writeBoolean(boostTerms);
         }
         out.writeFloat(boostTermsFactor);
+
+        out.writeByte(searchType.id());
+        if (searchQueryHint == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(searchQueryHint);
+        }
+        if (searchIndices == null) {
+            out.writeInt(-1);
+        } else {
+            out.writeInt(searchIndices.length);
+            for (String index : searchIndices) {
+                out.writeUTF(index);
+            }
+        }
+        if (searchTypes == null) {
+            out.writeInt(-1);
+        } else {
+            out.writeInt(searchTypes.length);
+            for (String type : searchTypes) {
+                out.writeUTF(type);
+            }
+        }
+        if (searchScroll == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            searchScroll.writeTo(out);
+        }
+        if (searchSource == null) {
+            out.writeInt(0);
+        } else {
+            out.writeInt(searchSource.length);
+            out.write(searchSource);
+        }
     }
 }

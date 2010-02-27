@@ -25,13 +25,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchOperationThreading;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.query.json.JsonQueryBuilders;
 import org.elasticsearch.index.query.json.QueryStringJsonQueryBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestJsonBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.util.json.JsonBuilder;
@@ -43,6 +41,8 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
+import static org.elasticsearch.rest.action.support.RestActions.*;
+import static org.elasticsearch.rest.action.support.RestJsonBuilder.*;
 import static org.elasticsearch.util.TimeValue.*;
 
 /**
@@ -82,7 +82,7 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.operationThreading(operationThreading);
         } catch (Exception e) {
             try {
-                JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                JsonBuilder builder = restJsonBuilder(request);
                 channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, builder.startObject().field("error", e.getMessage()).endObject()));
             } catch (IOException e1) {
                 logger.error("Failed to send failure response", e1);
@@ -90,11 +90,11 @@ public class RestSearchAction extends BaseRestHandler {
             return;
         }
         client.execSearch(searchRequest, new ActionListener<SearchResponse>() {
-            @Override public void onResponse(SearchResponse result) {
+            @Override public void onResponse(SearchResponse response) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                    JsonBuilder builder = restJsonBuilder(request);
                     builder.startObject();
-                    result.toJson(builder, request);
+                    response.toJson(builder, request);
                     builder.endObject();
                     channel.sendResponse(new JsonRestResponse(request, OK, builder));
                 } catch (Exception e) {
@@ -116,42 +116,16 @@ public class RestSearchAction extends BaseRestHandler {
         String[] indices = RestActions.splitIndices(request.param("index"));
         SearchRequest searchRequest = new SearchRequest(indices, parseSearchSource(request));
 
-        String searchType = request.param("searchType");
-        if (searchType != null) {
-            if ("dfs_query_then_fetch".equals(searchType)) {
-                searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
-            } else if ("dfs_query_and_fetch".equals(searchType)) {
-                searchRequest.searchType(SearchType.DFS_QUERY_AND_FETCH);
-            } else if ("query_then_fetch".equals(searchType)) {
-                searchRequest.searchType(SearchType.QUERY_THEN_FETCH);
-            } else if ("query_and_fetch".equals(searchType)) {
-                searchRequest.searchType(SearchType.QUERY_AND_FETCH);
-            } else {
-                throw new ElasticSearchIllegalArgumentException("No search type for [" + searchType + "]");
-            }
-        } else {
-            searchRequest.searchType(SearchType.QUERY_THEN_FETCH);
-        }
-
-        String from = request.param("from");
-        if (from != null) {
-            searchRequest.from(Integer.parseInt(from));
-        }
-
-        String size = request.param("size");
-        if (size != null) {
-            searchRequest.size(Integer.parseInt(size));
-        }
+        searchRequest.searchType(parseSearchType(request.param("searchType")));
+        searchRequest.from(request.paramAsInt("from", -1));
+        searchRequest.size(request.paramAsInt("size", -1));
 
         String scroll = request.param("scroll");
         if (scroll != null) {
             searchRequest.scroll(new Scroll(parseTimeValue(scroll, null)));
         }
 
-        String timeout = request.param("timeout");
-        if (timeout != null) {
-            searchRequest.timeout(parseTimeValue(timeout, null));
-        }
+        searchRequest.timeout(request.paramAsTime("timeout", null));
 
         String typesParam = request.param("type");
         if (typesParam != null) {

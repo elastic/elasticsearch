@@ -23,7 +23,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.util.Required;
+import org.elasticsearch.util.Bytes;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
 
@@ -36,17 +36,19 @@ import static org.elasticsearch.search.Scroll.*;
 import static org.elasticsearch.util.TimeValue.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class SearchRequest implements ActionRequest {
 
-    private SearchType searchType = SearchType.QUERY_THEN_FETCH;
+    private SearchType searchType = SearchType.DEFAULT;
 
     private String[] indices;
 
     private String queryHint;
 
     private byte[] source;
+
+    private byte[] extraSource;
 
     private Scroll scroll;
 
@@ -116,11 +118,29 @@ public class SearchRequest implements ActionRequest {
         return this;
     }
 
-    @Required public SearchRequest source(SearchSourceBuilder sourceBuilder) {
+    /**
+     * The source of the search request.
+     */
+    public SearchRequest source(SearchSourceBuilder sourceBuilder) {
         return source(sourceBuilder.build());
     }
 
-    @Required public SearchRequest source(byte[] source) {
+    public SearchRequest source(byte[] source) {
+        this.source = source;
+        return this;
+    }
+
+    /**
+     * Allows to provide an additional source that will be used as well.
+     */
+    public SearchRequest extraSource(SearchSourceBuilder sourceBuilder) {
+        return extraSource(sourceBuilder.build());
+    }
+
+    /**
+     * Allows to provide an additional source that will be used as well.
+     */
+    public SearchRequest extraSource(byte[] source) {
         this.source = source;
         return this;
     }
@@ -144,6 +164,10 @@ public class SearchRequest implements ActionRequest {
 
     public byte[] source() {
         return source;
+    }
+
+    public byte[] extraSource() {
+        return this.extraSource;
     }
 
     public Scroll scroll() {
@@ -212,8 +236,20 @@ public class SearchRequest implements ActionRequest {
         if (in.readBoolean()) {
             timeout = readTimeValue(in);
         }
-        source = new byte[in.readInt()];
-        in.readFully(source);
+        int size = in.readInt();
+        if (size == 0) {
+            source = Bytes.EMPTY_ARRAY;
+        } else {
+            source = new byte[size];
+            in.readFully(source);
+        }
+        size = in.readInt();
+        if (size == 0) {
+            extraSource = Bytes.EMPTY_ARRAY;
+        } else {
+            extraSource = new byte[size];
+            in.readFully(extraSource);
+        }
 
         int typesSize = in.readInt();
         if (typesSize > 0) {
@@ -254,8 +290,18 @@ public class SearchRequest implements ActionRequest {
             out.writeBoolean(true);
             timeout.writeTo(out);
         }
-        out.writeInt(source.length);
-        out.write(source);
+        if (source == null) {
+            out.writeInt(0);
+        } else {
+            out.writeInt(source.length);
+            out.write(source);
+        }
+        if (extraSource == null) {
+            out.writeInt(0);
+        } else {
+            out.writeInt(extraSource.length);
+            out.write(extraSource);
+        }
         out.writeInt(types.length);
         for (String type : types) {
             out.writeUTF(type);

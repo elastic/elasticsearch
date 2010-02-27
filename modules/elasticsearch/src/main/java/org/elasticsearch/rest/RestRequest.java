@@ -61,6 +61,8 @@ public interface RestRequest extends ToJson.Params {
 
     String param(String key);
 
+    String[] paramAsStringArray(String key, String[] defaultValue);
+
     float paramAsFloat(String key, float defaultValue);
 
     int paramAsInt(String key, int defaultValue);

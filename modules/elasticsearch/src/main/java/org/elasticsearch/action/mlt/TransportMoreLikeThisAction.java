@@ -121,11 +121,24 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
                     listener.onFailure(e);
                 }
 
-                SearchRequest searchRequest = searchRequest(request.index()).types(request.type())
-                        .listenerThreaded(request.listenerThreaded())
-                        .source(searchSource()
+                String[] searchIndices = request.searchIndices();
+                if (searchIndices == null) {
+                    searchIndices = new String[]{request.index()};
+                }
+                String[] searchTypes = request.searchTypes();
+                if (searchTypes == null) {
+                    searchTypes = new String[]{request.type()};
+                }
+
+                SearchRequest searchRequest = searchRequest(searchIndices)
+                        .types(searchTypes)
+                        .searchType(request.searchType())
+                        .source(request.searchSource())
+                        .scroll(request.searchScroll())
+                        .extraSource(searchSource()
                                 .query(boolBuilder)
-                        );
+                        )
+                        .listenerThreaded(request.listenerThreaded());
                 searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
                     @Override public void onResponse(SearchResponse response) {
                         listener.onResponse(response);

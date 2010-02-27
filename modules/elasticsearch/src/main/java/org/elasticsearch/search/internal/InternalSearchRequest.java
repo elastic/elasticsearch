@@ -21,6 +21,7 @@ package org.elasticsearch.search.internal;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.util.Bytes;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.io.Streamable;
@@ -70,6 +71,8 @@ public class InternalSearchRequest implements Streamable {
 
     private byte[] source;
 
+    private byte[] extraSource;
+
     public InternalSearchRequest() {
     }
 
@@ -93,6 +96,15 @@ public class InternalSearchRequest implements Streamable {
 
     public byte[] source() {
         return this.source;
+    }
+
+    public byte[] extraSource() {
+        return this.extraSource;
+    }
+
+    public InternalSearchRequest extraSource(byte[] extraSource) {
+        this.extraSource = extraSource;
+        return this;
     }
 
     public Scroll scroll() {
@@ -150,8 +162,20 @@ public class InternalSearchRequest implements Streamable {
         if (in.readBoolean()) {
             timeout = readTimeValue(in);
         }
-        source = new byte[in.readInt()];
-        in.readFully(source);
+        int size = in.readInt();
+        if (size == 0) {
+            source = Bytes.EMPTY_ARRAY;
+        } else {
+            source = new byte[size];
+            in.readFully(source);
+        }
+        size = in.readInt();
+        if (size == 0) {
+            extraSource = Bytes.EMPTY_ARRAY;
+        } else {
+            extraSource = new byte[size];
+            in.readFully(extraSource);
+        }
         int typesSize = in.readInt();
         if (typesSize > 0) {
             types = new String[typesSize];
@@ -178,8 +202,18 @@ public class InternalSearchRequest implements Streamable {
             out.writeBoolean(true);
             timeout.writeTo(out);
         }
-        out.writeInt(source.length);
-        out.write(source);
+        if (source == null) {
+            out.writeInt(0);
+        } else {
+            out.writeInt(source.length);
+            out.write(source);
+        }
+        if (extraSource == null) {
+            out.writeInt(0);
+        } else {
+            out.writeInt(extraSource.length);
+            out.write(extraSource);
+        }
         out.writeInt(types.length);
         for (String type : types) {
             out.writeUTF(type);

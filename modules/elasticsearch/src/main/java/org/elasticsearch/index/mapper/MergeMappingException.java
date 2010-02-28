@@ -19,16 +19,21 @@
 
 package org.elasticsearch.index.mapper;
 
+import java.util.Arrays;
+
 /**
  * @author kimchy (shay.banon)
  */
 public class MergeMappingException extends MapperException {
 
-    public MergeMappingException(String message) {
-        super(message);
+    private final String[] failures;
+
+    public MergeMappingException(String[] failures) {
+        super("Merge failed with failures [" + Arrays.toString(failures) + "]");
+        this.failures = failures;
     }
 
-    public MergeMappingException(String message, Throwable cause) {
-        super(message, cause);
+    public String[] failures() {
+        return failures;
     }
 }

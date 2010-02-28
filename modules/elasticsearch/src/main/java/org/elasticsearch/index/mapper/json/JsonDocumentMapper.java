@@ -349,7 +349,11 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
 
     @Override public synchronized void merge(DocumentMapper mergeWith, MergeFlags mergeFlags) throws MergeMappingException {
         JsonDocumentMapper jsonMergeWith = (JsonDocumentMapper) mergeWith;
-        rootObjectMapper.mergeMapping(this, jsonMergeWith.rootObjectMapper, mergeFlags);
+        JsonMergeContext mergeContext = new JsonMergeContext(this, mergeFlags);
+        rootObjectMapper.merge(jsonMergeWith.rootObjectMapper, mergeContext);
+        if (mergeContext.hasFailures()) {
+            throw new MergeMappingException(mergeContext.buildFailures());
+        }
         if (!mergeFlags.simulate()) {
             // update the source to the merged one
             mappingSource = buildSource();

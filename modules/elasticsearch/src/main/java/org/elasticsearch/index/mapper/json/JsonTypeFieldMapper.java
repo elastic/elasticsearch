@@ -23,8 +23,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.util.json.JsonBuilder;
@@ -112,7 +110,7 @@ public class JsonTypeFieldMapper extends JsonFieldMapper<String> implements Type
         // for now, don't output it at all
     }
 
-    @Override public void merge(FieldMapper mergeWith, DocumentMapper.MergeFlags mergeFlags) throws MergeMappingException {
+    @Override public void merge(JsonMapper mergeWith, JsonMergeContext mergeContext) throws MergeMappingException {
         // do nothing here, no merging, but also no exception
     }
 }

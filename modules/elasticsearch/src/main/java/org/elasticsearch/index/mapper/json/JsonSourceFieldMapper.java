@@ -20,8 +20,6 @@
 package org.elasticsearch.index.mapper.json;
 
 import org.apache.lucene.document.*;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.util.json.JsonBuilder;
@@ -135,7 +133,7 @@ public class JsonSourceFieldMapper extends JsonFieldMapper<byte[]> implements So
         // for now, don't output it at all
     }
 
-    @Override public void merge(FieldMapper mergeWith, DocumentMapper.MergeFlags mergeFlags) throws MergeMappingException {
+    @Override public void merge(JsonMapper mergeWith, JsonMergeContext mergeContext) throws MergeMappingException {
         // do nothing here, no merging, but also no exception
     }
 }

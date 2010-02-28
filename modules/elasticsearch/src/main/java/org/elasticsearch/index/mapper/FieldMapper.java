@@ -147,8 +147,6 @@ public interface FieldMapper<T> {
 
     Filter fieldFilter(String value);
 
-    void merge(FieldMapper mergeWith, DocumentMapper.MergeFlags mergeFlags) throws MergeMappingException;
-
     /**
      * Constructs a range query based on the mapper.
      */

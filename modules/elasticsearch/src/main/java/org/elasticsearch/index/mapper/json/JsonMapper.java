@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.json;
 
 import org.elasticsearch.index.mapper.FieldMapperListener;
+import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.util.concurrent.NotThreadSafe;
 import org.elasticsearch.util.concurrent.ThreadSafe;
 import org.elasticsearch.util.json.ToJson;
@@ -62,6 +63,8 @@ public interface JsonMapper extends ToJson {
     String name();
 
     void parse(JsonParseContext jsonContext) throws IOException;
+
+    void merge(JsonMapper mergeWith, JsonMergeContext mergeContext) throws MergeMappingException;
 
     void traverse(FieldMapperListener fieldMapperListener);
 }

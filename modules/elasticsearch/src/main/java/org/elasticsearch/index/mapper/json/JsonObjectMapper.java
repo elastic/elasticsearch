@@ -23,7 +23,10 @@ import com.google.common.collect.ImmutableMap;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.FieldMapperListener;
+import org.elasticsearch.index.mapper.InternalMapper;
+import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.util.concurrent.ThreadSafe;
 import org.elasticsearch.util.joda.FormatDateTimeFormatter;
 import org.elasticsearch.util.json.JsonBuilder;
@@ -337,35 +340,25 @@ public class JsonObjectMapper implements JsonMapper {
         }
     }
 
-    public void mergeMapping(JsonDocumentMapper docMapper, JsonObjectMapper mergeWith, DocumentMapper.MergeFlags mergeFlags) throws MergeMappingException {
+    @Override public void merge(JsonMapper mergeWith, JsonMergeContext mergeContext) throws MergeMappingException {
+        if (!(mergeWith instanceof JsonObjectMapper)) {
+            mergeContext.addFailure("Can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping [" + name() + "]");
+            return;
+        }
+        JsonObjectMapper mergeWithObject = (JsonObjectMapper) mergeWith;
         synchronized (mutex) {
-            for (JsonMapper mapper : mergeWith.mappers.values()) {
-                if (mapper instanceof JsonObjectMapper) {
-                    JsonObjectMapper mergeWithMapper = (JsonObjectMapper) mapper;
-                    JsonMapper mergeIntoMapper = mappers.get(mergeWithMapper.name());
-                    if (mergeIntoMapper != null) {
-                        if (!(mergeIntoMapper instanceof JsonObjectMapper)) {
-                            throw new MergeMappingException("Can't merge an object mapping [" + mergeWithMapper.name() + "] into a non object mapper");
-                        }
-                        ((JsonObjectMapper) mergeIntoMapper).mergeMapping(docMapper, mergeWithMapper, mergeFlags);
-                    } else {
-                        if (!mergeFlags.simulate()) {
-                            putMapper(mergeWithMapper);
+            for (JsonMapper mergeWithMapper : mergeWithObject.mappers.values()) {
+                JsonMapper mergeIntoMapper = mappers.get(mergeWithMapper.name());
+                if (mergeIntoMapper == null) {
+                    // no mapping, simply add it if not simulating
+                    if (!mergeContext.mergeFlags().simulate()) {
+                        putMapper(mergeWithMapper);
+                        if (mergeWithMapper instanceof JsonFieldMapper) {
+                            mergeContext.docMapper().addFieldMapper((FieldMapper) mergeWithMapper);
                         }
                     }
                 } else {
-                    JsonFieldMapper mergeWithMapper = (JsonFieldMapper) mapper;
-                    JsonFieldMapper mergeIntoMapper = (JsonFieldMapper) mappers.get(mergeWithMapper.name());
-                    // not an object mapper, bail if we have it, otherwise, add
-                    // we might get fancy later on and allow per field mapper merge
-                    if (mergeIntoMapper != null) {
-                        mergeIntoMapper.merge(mergeWithMapper, mergeFlags);
-                    } else {
-                        if (!mergeFlags.simulate()) {
-                            putMapper(mergeWithMapper);
-                            docMapper.addFieldMapper(mergeWithMapper);
-                        }
-                    }
+                    mergeIntoMapper.merge(mergeWithMapper, mergeContext);
                 }
             }
         }

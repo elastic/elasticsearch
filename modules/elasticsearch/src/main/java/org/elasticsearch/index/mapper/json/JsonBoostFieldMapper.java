@@ -27,8 +27,6 @@ import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericFloatAnalyzer;
 import org.elasticsearch.index.mapper.BoostFieldMapper;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.util.Numbers;
 import org.elasticsearch.util.json.JsonBuilder;
@@ -183,7 +181,7 @@ public class JsonBoostFieldMapper extends JsonNumberFieldMapper<Float> implement
         builder.endObject();
     }
 
-    @Override public void merge(FieldMapper mergeWith, DocumentMapper.MergeFlags mergeFlags) throws MergeMappingException {
+    @Override public void merge(JsonMapper mergeWith, JsonMergeContext mergeContext) throws MergeMappingException {
         // do nothing here, no merging, but also no exception
     }
 }

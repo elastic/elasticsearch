@@ -27,13 +27,16 @@ import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericFloatAnalyzer;
 import org.elasticsearch.index.mapper.BoostFieldMapper;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.util.Numbers;
 import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class JsonBoostFieldMapper extends JsonNumberFieldMapper<Float> implements BoostFieldMapper {
 
@@ -178,5 +181,9 @@ public class JsonBoostFieldMapper extends JsonNumberFieldMapper<Float> implement
             builder.field("nullValue", nullValue);
         }
         builder.endObject();
+    }
+
+    @Override public void merge(FieldMapper mergeWith, DocumentMapper.MergeFlags mergeFlags) throws MergeMappingException {
+        // do nothing here, no merging, but also no exception
     }
 }

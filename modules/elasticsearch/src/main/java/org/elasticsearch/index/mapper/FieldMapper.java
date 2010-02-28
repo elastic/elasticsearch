@@ -137,11 +137,17 @@ public interface FieldMapper<T> {
      */
     String indexedValue(T value);
 
+    /**
+     * Should the field query {@link #fieldQuery(String)} be used when detecting this
+     * field in query string.
+     */
     boolean useFieldQueryWithQueryString();
 
     Query fieldQuery(String value);
 
     Filter fieldFilter(String value);
+
+    void merge(FieldMapper mergeWith, DocumentMapper.MergeFlags mergeFlags) throws MergeMappingException;
 
     /**
      * Constructs a range query based on the mapper.

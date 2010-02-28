@@ -25,8 +25,10 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapperListener;
+import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.lucene.search.TermFilter;
 
@@ -317,6 +319,13 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
                 lowerTerm == null ? null : indexedValue(lowerTerm),
                 upperTerm == null ? null : indexedValue(upperTerm),
                 includeLower, includeUpper);
+    }
+
+    @Override public void merge(FieldMapper mergeWith, DocumentMapper.MergeFlags mergeFlags) throws MergeMappingException {
+        if (mergeFlags.ignoreDuplicates()) {
+            return;
+        }
+        throw new MergeMappingException("Mapper [" + names.fullName() + "] exists, can't merge");
     }
 
     @Override public int sortType() {

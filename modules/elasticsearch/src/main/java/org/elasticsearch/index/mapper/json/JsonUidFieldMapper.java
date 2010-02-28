@@ -22,9 +22,7 @@ package org.elasticsearch.index.mapper.json;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.lucene.Lucene;
 
@@ -105,5 +103,9 @@ public class JsonUidFieldMapper extends JsonFieldMapper<Uid> implements UidField
 
     @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
         // for now, don't output it at all
+    }
+
+    @Override public void merge(FieldMapper mergeWith, DocumentMapper.MergeFlags mergeFlags) throws MergeMappingException {
+        // do nothing here, no merging, but also no exception
     }
 }

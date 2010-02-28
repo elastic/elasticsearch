@@ -111,6 +111,9 @@ public interface DocumentMapper {
         public MergeFlags() {
         }
 
+        /**
+         * A simulation run, don't perform actual modifications to the mapping.
+         */
         public boolean simulate() {
             return simulate;
         }

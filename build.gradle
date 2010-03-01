@@ -38,7 +38,6 @@ allprojects {
     repositories {
         mavenCentral()
         mavenRepo urls: 'http://repository.jboss.com/maven2/'
-        mavenRepo urls: 'http://snakeyamlrepo.appspot.com/repository' // for snakeyaml
     }
 }
 

@@ -7,7 +7,7 @@
 ##############################################################################
 
 # Uncomment those lines to set JVM options. GRADLE_OPTS and JAVA_OPTS can be used together.
-# GRADLE_OPTS="$GRADLE_OPTS -Xmx512"
+GRADLE_OPTS="$GRADLE_OPTS -Xmx512m"
 # JAVA_OPTS="$JAVA_OPTS -Xmx512"
 
 warn ( ) {

@@ -36,8 +36,6 @@ dependencies {
     compile 'joda-time:joda-time:1.6'
     compile 'com.google.collections:google-collections:1.0'
 
-    compile 'org.yaml:snakeyaml:1.5'
-
     compile 'org.codehaus.jackson:jackson-core-asl:1.4.2'
     compile 'org.codehaus.jackson:jackson-mapper-asl:1.4.2'
 

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.util.settings.loader;
 
-import org.yaml.snakeyaml.Yaml;
+import org.elasticsearch.util.yaml.snakeyaml.Yaml;
 
 import java.io.IOException;
 import java.util.List;

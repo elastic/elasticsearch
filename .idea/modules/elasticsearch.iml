@@ -17,7 +17,6 @@
     <orderEntry type="library" exported="" name="google-collect" level="project" />
     <orderEntry type="library" exported="" name="joda-time" level="project" />
     <orderEntry type="library" exported="" name="jackson" level="project" />
-    <orderEntry type="library" exported="" name="snakeyaml" level="project" />
     <orderEntry type="library" exported="" name="guice" level="project" />
     <orderEntry type="library" exported="" name="jline" level="project" />
     <orderEntry type="library" exported="" name="jgroups" level="project" />

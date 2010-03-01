@@ -3,6 +3,7 @@ import java.text.SimpleDateFormat
 dependsOn(':test-testng')
 
 usePlugin 'java'
+usePlugin 'maven'
 
 archivesBaseName = "$project.archivesBaseName"
 
@@ -61,4 +62,17 @@ test {
     options.suiteName = project.name
     options.listeners = ["org.elasticsearch.util.testng.Listeners"]
     options.systemProperties = ["es.test.log.conf": System.getProperty("es.test.log.conf", "log4j-gradle.properties")]
+}
+
+configure(install.repositories.mavenInstaller) {
+//    pom.name = "ElasticSearch"
+//    pom.description = "Open Source, Distributed, RESTful, Search Engine"
+//    pom.url = "http://www.elasticsearch.org"
+}
+
+uploadArchives {
+    repositories.mavenDeployer {
+//        repository(url: "file://localhost/" + rootProject.projectDir.absolutePath + "/build/maven/repository")
+//        snapshotRepository(url: "file://localhost/" + rootProject.projectDir.absolutePath + "/build/maven/snapshotRepository")
+    }
 }

@@ -95,9 +95,9 @@ public class RestActions {
         String defaultOperator = request.param("defaultOperator");
         if (defaultOperator != null) {
             if ("OR".equals(defaultOperator)) {
-                queryBuilder.defualtOperator(QueryStringJsonQueryBuilder.Operator.OR);
+                queryBuilder.defaultOperator(QueryStringJsonQueryBuilder.Operator.OR);
             } else if ("AND".equals(defaultOperator)) {
-                queryBuilder.defualtOperator(QueryStringJsonQueryBuilder.Operator.AND);
+                queryBuilder.defaultOperator(QueryStringJsonQueryBuilder.Operator.AND);
             } else {
                 throw new ElasticSearchIllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
             }

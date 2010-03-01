@@ -64,7 +64,7 @@ public class QueryStringJsonQueryBuilder extends BaseJsonQueryBuilder {
         return this;
     }
 
-    public QueryStringJsonQueryBuilder defualtOperator(Operator defaultOperator) {
+    public QueryStringJsonQueryBuilder defaultOperator(Operator defaultOperator) {
         this.defaultOperator = defaultOperator;
         return this;
     }

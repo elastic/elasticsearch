@@ -29,7 +29,7 @@ import org.elasticsearch.util.lucene.search.TermFilter;
 import java.util.List;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public final class QueryParsers {
 

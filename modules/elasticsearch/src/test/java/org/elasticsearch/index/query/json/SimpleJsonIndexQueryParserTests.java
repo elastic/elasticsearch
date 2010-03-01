@@ -150,6 +150,49 @@ public class SimpleJsonIndexQueryParserTests {
         assertThat(termQuery.getTerm(), equalTo(new Term("age", NumericUtils.longToPrefixCoded(34))));
     }
 
+    @Test public void testFieldQueryBuilder1() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        Query parsedQuery = queryParser.parse(fieldQuery("age", 34).buildAsBytes());
+        assertThat(parsedQuery, instanceOf(TermQuery.class));
+        TermQuery termQuery = (TermQuery) parsedQuery;
+        // since age is automatically registered in data, we encode it as numeric
+        assertThat(termQuery.getTerm(), equalTo(new Term("age", NumericUtils.longToPrefixCoded(34))));
+    }
+
+    @Test public void testFieldQuery1() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/json/field1.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(TermQuery.class));
+        TermQuery termQuery = (TermQuery) parsedQuery;
+        // since age is automatically registered in data, we encode it as numeric
+        assertThat(termQuery.getTerm(), equalTo(new Term("age", NumericUtils.longToPrefixCoded(34))));
+    }
+
+    @Test public void testFieldQuery2() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/json/field2.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(BooleanQuery.class));
+        BooleanQuery bQuery = (BooleanQuery) parsedQuery;
+        assertThat(bQuery.getClauses().length, equalTo(2));
+        assertThat(((TermQuery) bQuery.getClauses()[0].getQuery()).getTerm().field(), equalTo("name.first"));
+        assertThat(((TermQuery) bQuery.getClauses()[0].getQuery()).getTerm().text(), equalTo("12-54-23"));
+        assertThat(((TermQuery) bQuery.getClauses()[1].getQuery()).getTerm().field(), equalTo("name.first"));
+        assertThat(((TermQuery) bQuery.getClauses()[1].getQuery()).getTerm().text(), equalTo("else"));
+    }
+
+    @Test public void testFieldQuery3() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/json/field3.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat((double) parsedQuery.getBoost(), closeTo(2.0, 0.01));
+        assertThat(parsedQuery, instanceOf(TermQuery.class));
+        TermQuery termQuery = (TermQuery) parsedQuery;
+        // since age is automatically registered in data, we encode it as numeric
+        assertThat(termQuery.getTerm(), equalTo(new Term("age", NumericUtils.longToPrefixCoded(34))));
+    }
+
     @Test public void testTermWithBoostQueryBuilder() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
         Query parsedQuery = queryParser.parse(termQuery("age", 34).boost(2.0f));

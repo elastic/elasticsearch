@@ -52,8 +52,28 @@ public abstract class JsonQueryBuilders {
         return new TermJsonQueryBuilder(name, value);
     }
 
-    public static PrefixJsonQueryBuilder prefixQuery(String name, String value) {
-        return new PrefixJsonQueryBuilder(name, value);
+    public static FieldJsonQueryBuilder fieldQuery(String name, String query) {
+        return new FieldJsonQueryBuilder(name, query);
+    }
+
+    public static FieldJsonQueryBuilder fieldQuery(String name, int query) {
+        return new FieldJsonQueryBuilder(name, query);
+    }
+
+    public static FieldJsonQueryBuilder fieldQuery(String name, long query) {
+        return new FieldJsonQueryBuilder(name, query);
+    }
+
+    public static FieldJsonQueryBuilder fieldQuery(String name, float query) {
+        return new FieldJsonQueryBuilder(name, query);
+    }
+
+    public static FieldJsonQueryBuilder fieldQuery(String name, double query) {
+        return new FieldJsonQueryBuilder(name, query);
+    }
+
+    public static PrefixJsonQueryBuilder prefixQuery(String name, String query) {
+        return new PrefixJsonQueryBuilder(name, query);
     }
 
     public static RangeJsonQueryBuilder rangeQuery(String name) {

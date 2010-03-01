@@ -1,0 +1,3 @@
+{
+    field : { age :  { query : 34, boost : 2.0, enablePositionIncrements : false } }
+}

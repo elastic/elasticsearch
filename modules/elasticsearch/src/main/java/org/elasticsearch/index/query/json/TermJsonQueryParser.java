@@ -37,7 +37,7 @@ import java.io.IOException;
 import static org.elasticsearch.index.query.support.QueryParsers.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TermJsonQueryParser extends AbstractIndexComponent implements JsonQueryParser {
 

@@ -52,6 +52,7 @@ public class JsonQueryParserRegistry {
         add(queryParsersMap, new QueryStringJsonQueryParser(index, indexSettings, analysisService));
         add(queryParsersMap, new BoolJsonQueryParser(index, indexSettings));
         add(queryParsersMap, new TermJsonQueryParser(index, indexSettings));
+        add(queryParsersMap, new FieldJsonQueryParser(index, indexSettings, analysisService));
         add(queryParsersMap, new RangeJsonQueryParser(index, indexSettings));
         add(queryParsersMap, new PrefixJsonQueryParser(index, indexSettings));
         add(queryParsersMap, new WildcardJsonQueryParser(index, indexSettings));

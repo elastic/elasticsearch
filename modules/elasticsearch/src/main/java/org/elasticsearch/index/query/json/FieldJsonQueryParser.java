@@ -159,7 +159,7 @@ public class FieldJsonQueryParser extends AbstractIndexComponent implements Json
         try {
             Query query = queryParser.parse(queryString);
             query.setBoost(boost);
-            return fixNegativeQueryIfNeeded(query);
+            return optimizeQuery(fixNegativeQueryIfNeeded(query));
         } catch (ParseException e) {
             throw new QueryParsingException(index, "Failed to parse query [" + queryString + "]", e);
         }

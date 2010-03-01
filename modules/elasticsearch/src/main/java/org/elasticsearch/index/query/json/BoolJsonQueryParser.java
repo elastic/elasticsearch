@@ -111,6 +111,6 @@ public class BoolJsonQueryParser extends AbstractIndexComponent implements JsonQ
         if (minimumNumberShouldMatch != -1) {
             query.setMinimumNumberShouldMatch(minimumNumberShouldMatch);
         }
-        return fixNegativeQueryIfNeeded(query);
+        return optimizeQuery(fixNegativeQueryIfNeeded(query));
     }
 }

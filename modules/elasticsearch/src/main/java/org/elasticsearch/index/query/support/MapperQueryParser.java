@@ -35,6 +35,7 @@ import org.elasticsearch.util.Nullable;
 import java.util.List;
 
 import static org.elasticsearch.index.query.support.QueryParsers.*;
+import static org.elasticsearch.util.lucene.search.Queries.*;
 
 /**
  * A query parser that uses the {@link MapperService} in order to build smarter
@@ -145,7 +146,7 @@ public class MapperQueryParser extends QueryParser {
         if (q == null) {
             return null;
         }
-        return fixNegativeQueryIfNeeded(q);
+        return optimizeQuery(fixNegativeQueryIfNeeded(q));
     }
 
     protected FieldMapper fieldMapper(String smartName) {

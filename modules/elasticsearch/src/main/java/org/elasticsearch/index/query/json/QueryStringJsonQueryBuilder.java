@@ -20,8 +20,12 @@
 package org.elasticsearch.index.query.json;
 
 import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.trove.ExtTObjectFloatHashMap;
 
 import java.io.IOException;
+import java.util.List;
+
+import static com.google.common.collect.Lists.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -55,12 +59,64 @@ public class QueryStringJsonQueryBuilder extends BaseJsonQueryBuilder {
 
     private int phraseSlop = -1;
 
+    private List<String> fields;
+
+    private ExtTObjectFloatHashMap<String> fieldsBoosts;
+
+    private Boolean useDisMax;
+
+    private float tieBreaker = -1;
+
     public QueryStringJsonQueryBuilder(String queryString) {
         this.queryString = queryString;
     }
 
     public QueryStringJsonQueryBuilder defaultField(String defaultField) {
         this.defaultField = defaultField;
+        return this;
+    }
+
+    /**
+     * Adds a field to run the query string against.
+     */
+    public QueryStringJsonQueryBuilder field(String field) {
+        if (fields == null) {
+            fields = newArrayList();
+        }
+        fields.add(field);
+        return this;
+    }
+
+    /**
+     * Adds a field to run the query string against with a specific boost.
+     */
+    public QueryStringJsonQueryBuilder field(String field, float boost) {
+        if (fields == null) {
+            fields = newArrayList();
+        }
+        fields.add(field);
+        if (fieldsBoosts == null) {
+            fieldsBoosts = new ExtTObjectFloatHashMap<String>().defaultReturnValue(-1);
+        }
+        fieldsBoosts.put(field, boost);
+        return this;
+    }
+
+    /**
+     * When more than one field is used with the query string, should queries be combined using
+     * dis max, or boolean query. Defaults to dis max (<tt>true</tt>).
+     */
+    public QueryStringJsonQueryBuilder useDisMax(boolean useDisMax) {
+        this.useDisMax = useDisMax;
+        return this;
+    }
+
+    /**
+     * When more than one field is used with the query string, and combined queries are using
+     * dis max, control the tie breaker for it.
+     */
+    public QueryStringJsonQueryBuilder tieBreaker(float tieBreaker) {
+        this.tieBreaker = tieBreaker;
         return this;
     }
 
@@ -114,6 +170,26 @@ public class QueryStringJsonQueryBuilder extends BaseJsonQueryBuilder {
         builder.field("query", queryString);
         if (defaultField != null) {
             builder.field("defaultField", defaultField);
+        }
+        if (fields != null) {
+            builder.startArray("fields");
+            for (String field : fields) {
+                float boost = -1;
+                if (fieldsBoosts != null) {
+                    boost = fieldsBoosts.get(field);
+                }
+                if (boost != -1) {
+                    field += "^" + boost;
+                }
+                builder.string(field);
+            }
+            builder.endArray();
+        }
+        if (useDisMax != null) {
+            builder.field("useDisMax", useDisMax);
+        }
+        if (tieBreaker != -1) {
+            builder.field("tieBreaker", tieBreaker);
         }
         if (defaultOperator != null) {
             builder.field("defaultOperator", defaultOperator.name().toLowerCase());

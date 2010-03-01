@@ -77,6 +77,8 @@ public class DisMaxJsonQueryParser extends AbstractIndexComponent implements Jso
                     boost = jp.getFloatValue();
                 } else if ("tieBreakerMultiplier".equals(currentFieldName)) {
                     tieBreakerMultiplier = jp.getFloatValue();
+                } else if ("tieBreaker".equals(currentFieldName)) {
+                    tieBreakerMultiplier = jp.getFloatValue();
                 }
             }
         }

@@ -37,7 +37,7 @@ import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.support.QueryParsers.*;
+import static org.elasticsearch.util.lucene.search.Queries.*;
 
 /**
  * @author kimchy (shay.banon)

@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static com.google.common.collect.Lists.*;
-import static org.elasticsearch.index.query.support.QueryParsers.*;
+import static org.elasticsearch.util.lucene.search.Queries.*;
 
 /**
  * @author kimchy (Shay Banon)

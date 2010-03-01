@@ -1,0 +1,7 @@
+{
+    queryString : {
+        fields : ["content", "name"],
+        useDisMax : true,
+        query: "test"
+    }
+}

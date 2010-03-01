@@ -30,6 +30,7 @@ import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParser;
 import org.elasticsearch.util.lucene.search.MoreLikeThisQuery;
+import org.elasticsearch.util.lucene.search.Queries;
 import org.elasticsearch.util.lucene.search.TermFilter;
 import org.testng.annotations.Test;
 
@@ -71,6 +72,73 @@ public class SimpleJsonIndexQueryParserTests {
         assertThat(termQuery.getTerm(), equalTo(new Term("content", "test")));
     }
 
+    @Test public void testQueryStringFields1Builder() throws Exception {
+        IndexQueryParser queryParser = newQueryParser();
+        Query parsedQuery = queryParser.parse(queryString("test").field("content").field("name").useDisMax(false));
+        assertThat(parsedQuery, instanceOf(BooleanQuery.class));
+        BooleanQuery bQuery = (BooleanQuery) parsedQuery;
+        assertThat(bQuery.clauses().size(), equalTo(2));
+        assertThat(((TermQuery) bQuery.clauses().get(0).getQuery()).getTerm(), equalTo(new Term("content", "test")));
+        assertThat(((TermQuery) bQuery.clauses().get(1).getQuery()).getTerm(), equalTo(new Term("name", "test")));
+    }
+
+    @Test public void testQueryStringFields1() throws Exception {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/json/query-fields1.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(BooleanQuery.class));
+        BooleanQuery bQuery = (BooleanQuery) parsedQuery;
+        assertThat(bQuery.clauses().size(), equalTo(2));
+        assertThat(((TermQuery) bQuery.clauses().get(0).getQuery()).getTerm(), equalTo(new Term("content", "test")));
+        assertThat(((TermQuery) bQuery.clauses().get(1).getQuery()).getTerm(), equalTo(new Term("name", "test")));
+    }
+
+    @Test public void testQueryStringFields2Builder() throws Exception {
+        IndexQueryParser queryParser = newQueryParser();
+        Query parsedQuery = queryParser.parse(queryString("test").field("content").field("name").useDisMax(true));
+        assertThat(parsedQuery, instanceOf(DisjunctionMaxQuery.class));
+        DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) parsedQuery;
+        List<Query> disjuncts = Queries.disMaxClauses(disMaxQuery);
+        assertThat(((TermQuery) disjuncts.get(0)).getTerm(), equalTo(new Term("content", "test")));
+        assertThat(((TermQuery) disjuncts.get(1)).getTerm(), equalTo(new Term("name", "test")));
+    }
+
+    @Test public void testQueryStringFields2() throws Exception {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/json/query-fields2.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(DisjunctionMaxQuery.class));
+        DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) parsedQuery;
+        List<Query> disjuncts = Queries.disMaxClauses(disMaxQuery);
+        assertThat(((TermQuery) disjuncts.get(0)).getTerm(), equalTo(new Term("content", "test")));
+        assertThat(((TermQuery) disjuncts.get(1)).getTerm(), equalTo(new Term("name", "test")));
+    }
+
+    @Test public void testQueryStringFields3Builder() throws Exception {
+        IndexQueryParser queryParser = newQueryParser();
+        Query parsedQuery = queryParser.parse(queryString("test").field("content", 2.2f).field("name").useDisMax(true));
+        assertThat(parsedQuery, instanceOf(DisjunctionMaxQuery.class));
+        DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) parsedQuery;
+        List<Query> disjuncts = Queries.disMaxClauses(disMaxQuery);
+        assertThat(((TermQuery) disjuncts.get(0)).getTerm(), equalTo(new Term("content", "test")));
+        assertThat((double) disjuncts.get(0).getBoost(), closeTo(2.2, 0.01));
+        assertThat(((TermQuery) disjuncts.get(1)).getTerm(), equalTo(new Term("name", "test")));
+        assertThat((double) disjuncts.get(1).getBoost(), closeTo(1, 0.01));
+    }
+
+    @Test public void testQueryStringFields3() throws Exception {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/json/query-fields3.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(DisjunctionMaxQuery.class));
+        DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) parsedQuery;
+        List<Query> disjuncts = Queries.disMaxClauses(disMaxQuery);
+        assertThat(((TermQuery) disjuncts.get(0)).getTerm(), equalTo(new Term("content", "test")));
+        assertThat((double) disjuncts.get(0).getBoost(), closeTo(2.2, 0.01));
+        assertThat(((TermQuery) disjuncts.get(1)).getTerm(), equalTo(new Term("name", "test")));
+        assertThat((double) disjuncts.get(1).getBoost(), closeTo(1, 0.01));
+    }
+
     @Test public void testMatchAllBuilder() throws Exception {
         IndexQueryParser queryParser = newQueryParser();
         Query parsedQuery = queryParser.parse(matchAllQuery().boost(1.2f).buildAsString());
@@ -95,9 +163,7 @@ public class SimpleJsonIndexQueryParserTests {
         DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) parsedQuery;
         assertThat((double) disjunctionMaxQuery.getBoost(), closeTo(1.2, 0.01));
 
-        Field field = disjunctionMaxQuery.getClass().getDeclaredField("disjuncts");
-        field.setAccessible(true);
-        List<Query> disjuncts = (List<Query>) field.get(disjunctionMaxQuery);
+        List<Query> disjuncts = Queries.disMaxClauses(disjunctionMaxQuery);
         assertThat(disjuncts.size(), equalTo(2));
 
         Query firstQ = disjuncts.get(0);
@@ -117,9 +183,7 @@ public class SimpleJsonIndexQueryParserTests {
         DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) parsedQuery;
         assertThat((double) disjunctionMaxQuery.getBoost(), closeTo(1.2, 0.01));
 
-        Field field = disjunctionMaxQuery.getClass().getDeclaredField("disjuncts");
-        field.setAccessible(true);
-        List<Query> disjuncts = (List<Query>) field.get(disjunctionMaxQuery);
+        List<Query> disjuncts = Queries.disMaxClauses(disjunctionMaxQuery);
         assertThat(disjuncts.size(), equalTo(2));
 
         Query firstQ = disjuncts.get(0);

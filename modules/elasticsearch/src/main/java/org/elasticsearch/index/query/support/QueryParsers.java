@@ -26,8 +26,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.lucene.search.TermFilter;
 
-import java.util.List;
-
 /**
  * @author kimchy (shay.banon)
  */
@@ -35,58 +33,6 @@ public final class QueryParsers {
 
     private QueryParsers() {
 
-    }
-
-    /**
-     * Optimizes the given query and returns the optimized version of it.
-     */
-    public static Query optimizeQuery(Query q) {
-        if (q instanceof BooleanQuery) {
-            return optimizeBooleanQuery((BooleanQuery) q);
-        }
-        return q;
-    }
-
-    public static BooleanQuery optimizeBooleanQuery(BooleanQuery q) {
-        BooleanQuery optimized = new BooleanQuery(q.isCoordDisabled());
-        optimized.setMinimumNumberShouldMatch(q.getMinimumNumberShouldMatch());
-        optimizeBooleanQuery(optimized, q);
-        return optimized;
-    }
-
-    public static void optimizeBooleanQuery(BooleanQuery optimized, BooleanQuery q) {
-        for (BooleanClause clause : q.clauses()) {
-            Query cq = clause.getQuery();
-            cq.setBoost(cq.getBoost() * q.getBoost());
-            if (cq instanceof BooleanQuery && !clause.isRequired() && !clause.isProhibited()) {
-                optimizeBooleanQuery(optimized, (BooleanQuery) cq);
-            } else {
-                optimized.add(clause);
-            }
-        }
-    }
-
-    public static boolean isNegativeQuery(Query q) {
-        if (!(q instanceof BooleanQuery)) {
-            return false;
-        }
-        List<BooleanClause> clauses = ((BooleanQuery) q).clauses();
-        if (clauses.isEmpty()) {
-            return false;
-        }
-        for (BooleanClause clause : clauses) {
-            if (!clause.isProhibited()) return false;
-        }
-        return true;
-    }
-
-    public static Query fixNegativeQueryIfNeeded(Query q) {
-        if (isNegativeQuery(q)) {
-            BooleanQuery newBq = (BooleanQuery) q.clone();
-            newBq.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
-            return newBq;
-        }
-        return q;
     }
 
     public static Query wrapSmartNameQuery(Query query, @Nullable MapperService.SmartNameFieldMappers smartFieldMappers,

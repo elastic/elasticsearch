@@ -342,7 +342,7 @@ public class JsonObjectMapper implements JsonMapper {
 
     @Override public void merge(JsonMapper mergeWith, JsonMergeContext mergeContext) throws MergeMappingException {
         if (!(mergeWith instanceof JsonObjectMapper)) {
-            mergeContext.addFailure("Can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping [" + name() + "]");
+            mergeContext.addConflict("Can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping [" + name() + "]");
             return;
         }
         JsonObjectMapper mergeWithObject = (JsonObjectMapper) mergeWith;

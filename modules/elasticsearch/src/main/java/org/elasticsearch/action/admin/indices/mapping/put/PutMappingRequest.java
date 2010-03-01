@@ -39,7 +39,7 @@ import static org.elasticsearch.util.TimeValue.*;
  * {@link org.elasticsearch.client.Requests#putMappingRequest(String...)}.
  *
  * <p>If the mappings already exists, the new mappings will be merged with the new one. If there are elements
- * that can't be merged are detected, the request will be rejected unless the {@link #ignoreDuplicates(boolean)}
+ * that can't be merged are detected, the request will be rejected unless the {@link #ignoreConflicts(boolean)}
  * is set. In such a case, the duplicate mappings will be rejected.
  *
  * @author kimchy (shay.banon)
@@ -57,7 +57,7 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
 
     private TimeValue timeout = new TimeValue(10, TimeUnit.SECONDS);
 
-    private boolean ignoreDuplicates = true;
+    private boolean ignoreConflicts = true;
 
     PutMappingRequest() {
     }
@@ -147,19 +147,19 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
     /**
      * If there is already a mapping definition registered against the type, then it will be merged. If there are
      * elements that can't be merged are detected, the request will be rejected unless the
-     * {@link #ignoreDuplicates(boolean)} is set. In such a case, the duplicate mappings will be rejected.
+     * {@link #ignoreConflicts(boolean)} is set. In such a case, the duplicate mappings will be rejected.
      */
-    public boolean ignoreDuplicates() {
-        return ignoreDuplicates;
+    public boolean ignoreConflicts() {
+        return ignoreConflicts;
     }
 
     /**
      * If there is already a mapping definition registered against the type, then it will be merged. If there are
      * elements that can't be merged are detected, the request will be rejected unless the
-     * {@link #ignoreDuplicates(boolean)} is set. In such a case, the duplicate mappings will be rejected.
+     * {@link #ignoreConflicts(boolean)} is set. In such a case, the duplicate mappings will be rejected.
      */
-    public PutMappingRequest ignoreDuplicates(boolean ignoreDuplicates) {
-        this.ignoreDuplicates = ignoreDuplicates;
+    public PutMappingRequest ignoreConflicts(boolean ignoreDuplicates) {
+        this.ignoreConflicts = ignoreDuplicates;
         return this;
     }
 
@@ -174,7 +174,7 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
         }
         mappingSource = in.readUTF();
         timeout = readTimeValue(in);
-        ignoreDuplicates = in.readBoolean();
+        ignoreConflicts = in.readBoolean();
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
@@ -195,6 +195,6 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
         }
         out.writeUTF(mappingSource);
         timeout.writeTo(out);
-        out.writeBoolean(ignoreDuplicates);
+        out.writeBoolean(ignoreConflicts);
     }
 }

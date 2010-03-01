@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper.json.merge.test1;
 
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.json.JsonDocumentMapper;
 import org.elasticsearch.index.mapper.json.JsonDocumentMapperParser;
 import org.testng.annotations.Test;
@@ -42,19 +42,16 @@ public class Test1MergeMapperTests {
         JsonDocumentMapper stage1 = (JsonDocumentMapper) new JsonDocumentMapperParser(new AnalysisService(new Index("test"))).parse(stage1Mapping);
         String stage2Mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/json/merge/test1/stage2.json");
         JsonDocumentMapper stage2 = (JsonDocumentMapper) new JsonDocumentMapperParser(new AnalysisService(new Index("test"))).parse(stage2Mapping);
-        try {
-            stage1.merge(stage2, mergeFlags().simulate(true));
-            assert false : "can't change field from number to type";
-        } catch (MergeMappingException e) {
-            // all is well
-        }
 
-        // now, test with ignore duplicates
-        stage1.merge(stage2, mergeFlags().ignoreDuplicates(true).simulate(true));
+        DocumentMapper.MergeResult mergeResult = stage1.merge(stage2, mergeFlags().simulate(true));
+        assertThat(mergeResult.hasConflicts(), equalTo(true));
         // since we are simulating, we should not have the age mapping
         assertThat(stage1.mappers().smartName("age"), nullValue());
-        // now merge, ignore duplicates and don't simulate
-        stage1.merge(stage2, mergeFlags().ignoreDuplicates(true).simulate(false));
+        // now merge, don't simulate
+        mergeResult = stage1.merge(stage2, mergeFlags().simulate(false));
+        // there is still merge failures
+        assertThat(mergeResult.hasConflicts(), equalTo(true));
+        // but we have the age in
         assertThat(stage1.mappers().smartName("age"), notNullValue());
     }
 }

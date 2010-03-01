@@ -33,7 +33,7 @@ public class JsonMergeContext {
 
     private final DocumentMapper.MergeFlags mergeFlags;
 
-    private final List<String> mergeFailures = Lists.newArrayList();
+    private final List<String> mergeConflicts = Lists.newArrayList();
 
     public JsonMergeContext(JsonDocumentMapper documentMapper, DocumentMapper.MergeFlags mergeFlags) {
         this.documentMapper = documentMapper;
@@ -48,15 +48,15 @@ public class JsonMergeContext {
         return mergeFlags;
     }
 
-    public void addFailure(String mergeFailure) {
-        mergeFailures.add(mergeFailure);
+    public void addConflict(String mergeFailure) {
+        mergeConflicts.add(mergeFailure);
     }
 
-    public boolean hasFailures() {
-        return !mergeFailures.isEmpty();
+    public boolean hasConflicts() {
+        return !mergeConflicts.isEmpty();
     }
 
-    public String[] buildFailures() {
-        return mergeFailures.toArray(new String[mergeFailures.size()]);
+    public String[] buildConflicts() {
+        return mergeConflicts.toArray(new String[mergeConflicts.size()]);
     }
 }

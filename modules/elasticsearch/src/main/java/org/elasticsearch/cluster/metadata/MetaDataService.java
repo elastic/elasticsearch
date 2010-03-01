@@ -35,6 +35,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.InvalidTypeNameException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndexMissingException;
@@ -219,8 +220,8 @@ public class MetaDataService extends AbstractComponent {
         if (existingMapper == null) {
             existingMapper = updatedMapper;
         } else {
-            // merge from the updated into the existing, ignore duplicates (we know we have them, we just want the new ones)
-            existingMapper.merge(updatedMapper, mergeFlags().simulate(false).ignoreDuplicates(true));
+            // merge from the updated into the existing, ignore conflicts (we know we have them, we just want the new ones)
+            existingMapper.merge(updatedMapper, mergeFlags().simulate(false));
         }
         // build the updated mapping source
         final String updatedMappingSource = existingMapper.buildSource();
@@ -236,7 +237,7 @@ public class MetaDataService extends AbstractComponent {
         });
     }
 
-    public synchronized PutMappingResult putMapping(final String[] indices, String mappingType, final String mappingSource, boolean ignoreDuplicates, TimeValue timeout) throws ElasticSearchException {
+    public synchronized PutMappingResult putMapping(final String[] indices, String mappingType, final String mappingSource, boolean ignoreConflicts, TimeValue timeout) throws ElasticSearchException {
         ClusterState clusterState = clusterService.state();
         for (String index : indices) {
             IndexRoutingTable indexTable = clusterState.routingTable().indicesRouting().get(index);
@@ -255,8 +256,12 @@ public class MetaDataService extends AbstractComponent {
                 newMappers.put(index, newMapper);
                 DocumentMapper existingMapper = indexService.mapperService().documentMapper(mappingType);
                 if (existingMapper != null) {
-                    // first simulate and throw an exception if something goes wrong
-                    existingMapper.merge(newMapper, mergeFlags().simulate(true).ignoreDuplicates(ignoreDuplicates));
+                    // first, simulate
+                    DocumentMapper.MergeResult mergeResult = existingMapper.merge(newMapper, mergeFlags().simulate(true));
+                    // if we have conflicts, and we are not supposed to ignore them, throw an exception
+                    if (!ignoreConflicts && mergeResult.hasConflicts()) {
+                        throw new MergeMappingException(mergeResult.conflicts());
+                    }
                     existingMappers.put(index, newMapper);
                 }
             } else {
@@ -282,7 +287,7 @@ public class MetaDataService extends AbstractComponent {
             if (existingMappers.containsKey(entry.getKey())) {
                 // we have an existing mapping, do the merge here (on the master), it will automatically update the mapping source
                 DocumentMapper existingMapper = existingMappers.get(entry.getKey());
-                existingMapper.merge(newMapper, mergeFlags().simulate(false).ignoreDuplicates(ignoreDuplicates));
+                existingMapper.merge(newMapper, mergeFlags().simulate(false));
                 // use the merged mapping source
                 mapping = new Tuple<String, String>(existingMapper.type(), existingMapper.buildSource());
             } else {
@@ -331,6 +336,9 @@ public class MetaDataService extends AbstractComponent {
         return new PutMappingResult(acknowledged);
     }
 
+    /**
+     * The result of a putting mapping.
+     */
     public static class PutMappingResult {
 
         private final boolean acknowledged;

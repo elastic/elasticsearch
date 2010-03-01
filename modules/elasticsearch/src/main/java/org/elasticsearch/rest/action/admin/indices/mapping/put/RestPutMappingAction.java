@@ -57,7 +57,7 @@ public class RestPutMappingAction extends BaseRestHandler {
         putMappingRequest.type(request.param("type"));
         putMappingRequest.mappingSource(request.contentAsString());
         putMappingRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
-        putMappingRequest.ignoreDuplicates(request.paramAsBoolean("ignoreDuplicates", putMappingRequest.ignoreDuplicates()));
+        putMappingRequest.ignoreConflicts(request.paramAsBoolean("ignoreConflicts", putMappingRequest.ignoreConflicts()));
         client.admin().indices().execPutMapping(putMappingRequest, new ActionListener<PutMappingResponse>() {
             @Override public void onResponse(PutMappingResponse response) {
                 try {

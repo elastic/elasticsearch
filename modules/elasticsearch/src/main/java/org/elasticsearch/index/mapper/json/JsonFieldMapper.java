@@ -321,10 +321,7 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
     }
 
     @Override public void merge(JsonMapper mergeWith, JsonMergeContext mergeContext) throws MergeMappingException {
-        if (mergeContext.mergeFlags().ignoreDuplicates()) {
-            return;
-        }
-        mergeContext.addFailure("Mapper [" + names.fullName() + "] exists, can't merge");
+        mergeContext.addConflict("Mapper [" + names.fullName() + "] exists, can't merge");
     }
 
     @Override public int sortType() {

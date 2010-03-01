@@ -43,11 +43,6 @@ public interface DocumentMapper {
      */
     String buildSource() throws FailedToGenerateSourceMapperException;
 
-    /**
-     * Merges this document mapper with the provided document mapper.
-     */
-    void merge(DocumentMapper mergeWith, MergeFlags mergeFlags) throws MergeMappingException;
-
     UidFieldMapper uidMapper();
 
     IdFieldMapper idMapper();
@@ -94,9 +89,41 @@ public interface DocumentMapper {
     ParsedDocument parse(byte[] source) throws MapperParsingException;
 
     /**
+     * Merges this document mapper with the provided document mapper. If there are conflicts, the
+     * {@link MergeResult} will hold them.
+     */
+    MergeResult merge(DocumentMapper mergeWith, MergeFlags mergeFlags) throws MergeMappingException;
+
+    /**
      * Adds a field mapper listener.
      */
     void addFieldMapperListener(FieldMapperListener fieldMapperListener, boolean includeExisting);
+
+    /**
+     * A result of a merge.
+     */
+    public static class MergeResult {
+
+        private final String[] conflicts;
+
+        public MergeResult(String[] conflicts) {
+            this.conflicts = conflicts;
+        }
+
+        /**
+         * Does the merge have conflicts or not?
+         */
+        public boolean hasConflicts() {
+            return conflicts.length > 0;
+        }
+
+        /**
+         * The merge conflicts.
+         */
+        public String[] conflicts() {
+            return this.conflicts;
+        }
+    }
 
     public static class MergeFlags {
 
@@ -105,8 +132,6 @@ public interface DocumentMapper {
         }
 
         private boolean simulate = true;
-
-        private boolean ignoreDuplicates = false;
 
         public MergeFlags() {
         }
@@ -120,15 +145,6 @@ public interface DocumentMapper {
 
         public MergeFlags simulate(boolean simulate) {
             this.simulate = simulate;
-            return this;
-        }
-
-        public boolean ignoreDuplicates() {
-            return ignoreDuplicates;
-        }
-
-        public MergeFlags ignoreDuplicates(boolean ignoreDuplicates) {
-            this.ignoreDuplicates = ignoreDuplicates;
             return this;
         }
     }

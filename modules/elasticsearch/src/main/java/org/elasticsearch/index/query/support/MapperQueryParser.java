@@ -40,7 +40,7 @@ import static org.elasticsearch.index.query.support.QueryParsers.*;
  * <p>Also breaks fields with [type].[name] into a boolean query that must include the type
  * as well as the query on the name.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class MapperQueryParser extends QueryParser {
 
@@ -57,7 +57,7 @@ public class MapperQueryParser extends QueryParser {
         setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT);
     }
 
-    @Override protected Query getFieldQuery(String field, String queryText) throws ParseException {
+    @Override public Query getFieldQuery(String field, String queryText) throws ParseException {
         if (mapperService != null) {
             MapperService.SmartNameFieldMappers fieldMappers = mapperService.smartName(field);
             if (fieldMappers != null) {
@@ -77,6 +77,12 @@ public class MapperQueryParser extends QueryParser {
     }
 
     @Override protected Query getRangeQuery(String field, String part1, String part2, boolean inclusive) throws ParseException {
+        if ("*".equals(part1)) {
+            part1 = null;
+        }
+        if ("*".equals(part2)) {
+            part2 = null;
+        }
         if (mapperService != null) {
             MapperService.SmartNameFieldMappers fieldMappers = mapperService.smartName(field);
             if (fieldMappers != null) {

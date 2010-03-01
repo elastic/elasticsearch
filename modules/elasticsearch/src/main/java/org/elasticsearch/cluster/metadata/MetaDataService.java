@@ -262,7 +262,7 @@ public class MetaDataService extends AbstractComponent {
                     if (!ignoreConflicts && mergeResult.hasConflicts()) {
                         throw new MergeMappingException(mergeResult.conflicts());
                     }
-                    existingMappers.put(index, newMapper);
+                    existingMappers.put(index, existingMapper);
                 }
             } else {
                 throw new IndexMissingException(new Index(index));

@@ -10,7 +10,6 @@ processResources.doLast {
     Properties versionProps = new Properties();
     versionProps.setProperty("number", rootProject.version)
     versionProps.setProperty("date", buildTimeStr)
-    versionProps.setProperty("devBuild", rootProject.devBuild.toString())
 
     File versionFile = new File(sourceSets.main.classesDir, "/org/elasticsearch/version.properties")
     versionFile.parentFile.mkdirs()

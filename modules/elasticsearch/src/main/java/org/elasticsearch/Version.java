@@ -26,13 +26,13 @@ import java.util.Properties;
 import java.util.TimeZone;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class Version {
 
     private static final String number;
     private static final String date;
-    private static final boolean devBuild;
+    private static final boolean snapshotBuild;
 
 
     static {
@@ -46,10 +46,10 @@ public class Version {
         }
 
         number = props.getProperty("number", "0.0.0");
+        snapshotBuild = number.contains("-SNAPSHOT");
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
         sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
         date = props.getProperty("date", sdf.format(new Date()));
-        devBuild = Boolean.parseBoolean(props.getProperty("devBuild", "false"));
     }
 
     public static String number() {
@@ -60,16 +60,15 @@ public class Version {
         return date;
     }
 
-    public static boolean devBuild() {
-        return devBuild;
+    public static boolean snapshotBuild() {
+        return snapshotBuild;
     }
 
     public static String full() {
         StringBuilder sb = new StringBuilder("ElasticSearch/");
         sb.append(number);
-        if (devBuild) {
+        if (snapshotBuild) {
             sb.append("/").append(date);
-            sb.append("/dev");
         }
         return sb.toString();
     }

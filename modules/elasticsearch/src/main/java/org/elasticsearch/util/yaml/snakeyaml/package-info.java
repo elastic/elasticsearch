@@ -17,4 +17,7 @@
  * under the License.
  */
 
-ackage org.elasticsearch.util.yaml.snakeyaml;
+/**
+ * Stripped down snakeyaml (1.6). By Andrey Somov, Apache 2.
+ */
+package org.elasticsearch.util.yaml.snakeyaml;

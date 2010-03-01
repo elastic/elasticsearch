@@ -22,6 +22,7 @@ package org.elasticsearch.index.query.support;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queryParser.ParseException;
 import org.apache.lucene.queryParser.QueryParser;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Version;
@@ -30,6 +31,8 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.util.Nullable;
+
+import java.util.List;
 
 import static org.elasticsearch.index.query.support.QueryParsers.*;
 
@@ -135,6 +138,14 @@ public class MapperQueryParser extends QueryParser {
             }
         }
         return super.getWildcardQuery(indexedNameField, termStr);
+    }
+
+    @Override protected Query getBooleanQuery(List<BooleanClause> clauses, boolean disableCoord) throws ParseException {
+        Query q = super.getBooleanQuery(clauses, disableCoord);
+        if (q == null) {
+            return null;
+        }
+        return fixNegativeQueryIfNeeded(q);
     }
 
     protected FieldMapper fieldMapper(String smartName) {

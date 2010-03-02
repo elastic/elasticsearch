@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query.json;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.apache.lucene.search.Query;
 import org.codehaus.jackson.JsonParser;
@@ -34,6 +33,8 @@ import org.elasticsearch.util.settings.Settings;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+
+import static com.google.common.collect.Lists.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -94,9 +95,9 @@ public class MoreLikeThisJsonQueryParser extends AbstractIndexComponent implemen
                     }
                     mltQuery.setStopWords(stopWords);
                 } else if ("fields".equals(currentFieldName)) {
-                    List<String> fields = Lists.newArrayList();
+                    List<String> fields = newArrayList();
                     while ((token = jp.nextToken()) != JsonToken.END_ARRAY) {
-                        fields.add(jp.getText());
+                        fields.add(parseContext.indexName(jp.getText()));
                     }
                     mltQuery.setMoreLikeFields(fields.toArray(new String[fields.size()]));
                 }

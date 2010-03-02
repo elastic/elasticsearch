@@ -91,7 +91,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
                     if (!response.validationFailures().isEmpty()) {
                         builder.startArray("validationFailures");
                         for (String validationFailure : response.validationFailures()) {
-                            builder.string(validationFailure);
+                            builder.value(validationFailure);
                         }
                         // if we don't print index level information, still print the index validation failures
                         // so we know why the status is red
@@ -102,7 +102,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
                                 if (!indexHealth.validationFailures().isEmpty()) {
                                     builder.startArray("validationFailures");
                                     for (String validationFailure : indexHealth.validationFailures()) {
-                                        builder.string(validationFailure);
+                                        builder.value(validationFailure);
                                     }
                                     builder.endArray();
                                 }
@@ -128,7 +128,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
                             if (!indexHealth.validationFailures().isEmpty()) {
                                 builder.startArray("validationFailures");
                                 for (String validationFailure : indexHealth.validationFailures()) {
-                                    builder.string(validationFailure);
+                                    builder.value(validationFailure);
                                 }
                                 builder.endArray();
                             }

@@ -24,7 +24,9 @@ import org.elasticsearch.util.json.JsonBuilder;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * A query that applies a filter to the results of another query.
+ *
+ * @author kimchy (shay.banon)
  */
 public class FilteredQueryJsonQueryBuilder extends BaseJsonQueryBuilder {
 
@@ -34,11 +36,21 @@ public class FilteredQueryJsonQueryBuilder extends BaseJsonQueryBuilder {
 
     private float boost = -1;
 
+    /**
+     * A query that applies a filter to the results of another query.
+     *
+     * @param queryBuilder  The query to apply the filter to
+     * @param filterBuilder The filter to apply on the query
+     */
     public FilteredQueryJsonQueryBuilder(JsonQueryBuilder queryBuilder, JsonFilterBuilder filterBuilder) {
         this.queryBuilder = queryBuilder;
         this.filterBuilder = filterBuilder;
     }
 
+    /**
+     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
+     * weightings) have their score multiplied by the boost provided.
+     */
     public FilteredQueryJsonQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;

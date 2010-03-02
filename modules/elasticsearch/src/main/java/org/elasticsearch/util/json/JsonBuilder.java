@@ -115,10 +115,18 @@ public abstract class JsonBuilder<T extends JsonBuilder> {
         return builder;
     }
 
+    public T field(String name, Integer value) throws IOException {
+        return field(name, value.intValue());
+    }
+
     public T field(String name, int value) throws IOException {
         generator.writeFieldName(name);
         generator.writeNumber(value);
         return builder;
+    }
+
+    public T field(String name, Long value) throws IOException {
+        return field(name, value.longValue());
     }
 
     public T field(String name, long value) throws IOException {
@@ -127,10 +135,19 @@ public abstract class JsonBuilder<T extends JsonBuilder> {
         return builder;
     }
 
+    public T field(String name, Float value) throws IOException {
+        return field(name, value.floatValue());
+    }
+
     public T field(String name, float value) throws IOException {
         generator.writeFieldName(name);
         generator.writeNumber(value);
         return builder;
+    }
+
+
+    public T field(String name, Double value) throws IOException {
+        return field(name, value.doubleValue());
     }
 
     public T field(String name, double value) throws IOException {
@@ -157,6 +174,12 @@ public abstract class JsonBuilder<T extends JsonBuilder> {
             field(name, ((Long) value).longValue());
         } else if (type == Boolean.class) {
             field(name, ((Boolean) value).booleanValue());
+        } else if (type == Date.class) {
+            field(name, (Date) value);
+        } else if (type == byte[].class) {
+            field(name, (byte[]) value);
+        } else if (value instanceof ReadableInstant) {
+            field(name, (ReadableInstant) value);
         } else {
             field(name, value.toString());
         }
@@ -177,31 +200,26 @@ public abstract class JsonBuilder<T extends JsonBuilder> {
 
     public T field(String name, ReadableInstant date) throws IOException {
         generator.writeFieldName(name);
-        return date(date);
+        return value(date);
     }
 
     public T field(String name, ReadableInstant date, DateTimeFormatter formatter) throws IOException {
         generator.writeFieldName(name);
-        return date(date, formatter);
+        return value(date, formatter);
     }
 
     public T field(String name, Date date) throws IOException {
         generator.writeFieldName(name);
-        return date(date);
+        return value(date);
     }
 
     public T field(String name, Date date, DateTimeFormatter formatter) throws IOException {
         generator.writeFieldName(name);
-        return date(date, formatter);
+        return value(date, formatter);
     }
 
     public T nullField(String name) throws IOException {
         generator.writeNullField(name);
-        return builder;
-    }
-
-    public T binary(byte[] bytes) throws IOException {
-        generator.writeBinary(bytes);
         return builder;
     }
 
@@ -212,85 +230,97 @@ public abstract class JsonBuilder<T extends JsonBuilder> {
 
     public abstract T raw(byte[] json) throws IOException;
 
-    public T string(String value) throws IOException {
-        generator.writeString(value);
-        return builder;
+    public T value(Boolean value) throws IOException {
+        return value(value.booleanValue());
     }
 
-    public T number(int value) throws IOException {
-        generator.writeNumber(value);
-        return builder;
-    }
-
-    public T number(long value) throws IOException {
-        generator.writeNumber(value);
-        return builder;
-    }
-
-    public T number(double value) throws IOException {
-        generator.writeNumber(value);
-        return builder;
-    }
-
-    public T number(Integer value) throws IOException {
-        generator.writeNumber(value.intValue());
-        return builder;
-    }
-
-    public T number(Long value) throws IOException {
-        generator.writeNumber(value.longValue());
-        return builder;
-    }
-
-    public T number(Float value) throws IOException {
-        generator.writeNumber(value.floatValue());
-        return builder;
-    }
-
-    public T number(Double value) throws IOException {
-        generator.writeNumber(value.doubleValue());
-        return builder;
-    }
-
-    public T bool(boolean value) throws IOException {
+    public T value(boolean value) throws IOException {
         generator.writeBoolean(value);
         return builder;
     }
 
-    public T date(ReadableInstant date) throws IOException {
-        return date(date, defaultDatePrinter);
+    public T value(ReadableInstant date) throws IOException {
+        return value(date, defaultDatePrinter);
     }
 
-    public T date(ReadableInstant date, DateTimeFormatter dateTimeFormatter) throws IOException {
-        string(dateTimeFormatter.print(date));
+    public T value(ReadableInstant date, DateTimeFormatter dateTimeFormatter) throws IOException {
+        return value(dateTimeFormatter.print(date));
+    }
+
+    public T value(Date date) throws IOException {
+        return value(date, defaultDatePrinter);
+    }
+
+    public T value(Date date, DateTimeFormatter dateTimeFormatter) throws IOException {
+        return value(dateTimeFormatter.print(date.getTime()));
+    }
+
+    public T value(Integer value) throws IOException {
+        return value(value.intValue());
+    }
+
+    public T value(int value) throws IOException {
+        generator.writeNumber(value);
         return builder;
     }
 
-    public T date(Date date) throws IOException {
-        return date(date, defaultDatePrinter);
+    public T value(Long value) throws IOException {
+        return value(value.longValue());
     }
 
-    public T date(Date date, DateTimeFormatter dateTimeFormatter) throws IOException {
-        string(dateTimeFormatter.print(date.getTime()));
+    public T value(long value) throws IOException {
+        generator.writeNumber(value);
+        return builder;
+    }
+
+    public T value(Float value) throws IOException {
+        return value(value.floatValue());
+    }
+
+    public T value(float value) throws IOException {
+        generator.writeNumber(value);
+        return builder;
+    }
+
+    public T value(Double value) throws IOException {
+        return value(value.doubleValue());
+    }
+
+    public T value(double value) throws IOException {
+        generator.writeNumber(value);
+        return builder;
+    }
+
+    public T value(String value) throws IOException {
+        generator.writeString(value);
+        return builder;
+    }
+
+    public T value(byte[] value) throws IOException {
+        generator.writeBinary(value);
         return builder;
     }
 
     public T value(Object value) throws IOException {
         Class type = value.getClass();
         if (type == String.class) {
-            string((String) value);
+            value((String) value);
         } else if (type == Float.class) {
-            number(((Float) value).floatValue());
+            value(((Float) value).floatValue());
         } else if (type == Double.class) {
-            number(((Double) value).doubleValue());
+            value(((Double) value).doubleValue());
         } else if (type == Integer.class) {
-            number(((Integer) value).intValue());
+            value(((Integer) value).intValue());
         } else if (type == Long.class) {
-            number(((Long) value).longValue());
+            value(((Long) value).longValue());
         } else if (type == Boolean.class) {
-            bool((Boolean) value);
+            value((Boolean) value);
         } else if (type == byte[].class) {
-            binary((byte[]) value);
+            value((byte[]) value);
+        } else if (type == Date.class) {
+            value((Date) value);
+        } else if (value instanceof ReadableInstant) {
+            value((ReadableInstant) value);
         } else {
             throw new IOException("Type not allowed [" + type + "]");
         }

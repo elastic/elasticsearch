@@ -24,7 +24,9 @@ import org.elasticsearch.util.json.JsonBuilder;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * A filter that restricts search results to values that are within the given range.
+ *
+ * @author kimchy (shay.banon)
  */
 public class RangeJsonFilterBuilder extends BaseJsonFilterBuilder {
 
@@ -38,65 +40,106 @@ public class RangeJsonFilterBuilder extends BaseJsonFilterBuilder {
 
     private boolean includeUpper = true;
 
+    /**
+     * A filter that restricts search results to values that are within the given range.
+     *
+     * @param name The field name
+     */
     public RangeJsonFilterBuilder(String name) {
         this.name = name;
     }
 
+    /**
+     * The from part of the filter query. Null indicates unbounded.
+     */
     public RangeJsonFilterBuilder from(String from) {
         this.from = from;
         return this;
     }
 
+    /**
+     * The from part of the filter query. Null indicates unbounded.
+     */
     public RangeJsonFilterBuilder from(int from) {
         this.from = from;
         return this;
     }
 
+    /**
+     * The from part of the filter query. Null indicates unbounded.
+     */
     public RangeJsonFilterBuilder from(long from) {
         this.from = from;
         return this;
     }
 
+    /**
+     * The from part of the filter query. Null indicates unbounded.
+     */
     public RangeJsonFilterBuilder from(float from) {
         this.from = from;
         return this;
     }
 
+    /**
+     * The from part of the filter query. Null indicates unbounded.
+     */
     public RangeJsonFilterBuilder from(double from) {
         this.from = from;
         return this;
     }
 
+    /**
+     * The to part of the filter query. Null indicates unbounded.
+     */
     public RangeJsonFilterBuilder to(String to) {
         this.to = to;
         return this;
     }
 
+    /**
+     * The to part of the filter query. Null indicates unbounded.
+     */
     public RangeJsonFilterBuilder to(int to) {
         this.to = to;
         return this;
     }
 
+    /**
+     * The to part of the filter query. Null indicates unbounded.
+     */
     public RangeJsonFilterBuilder to(long to) {
         this.to = to;
         return this;
     }
 
+    /**
+     * The to part of the filter query. Null indicates unbounded.
+     */
     public RangeJsonFilterBuilder to(float to) {
         this.to = to;
         return this;
     }
 
+    /**
+     * The to part of the filter query. Null indicates unbounded.
+     */
     public RangeJsonFilterBuilder to(double to) {
         this.to = to;
         return this;
     }
 
+    /**
+     * Should the lower bound be included or not. Defaults to <tt>true</tt>.
+     */
     public RangeJsonFilterBuilder includeLower(boolean includeLower) {
         this.includeLower = includeLower;
         return this;
     }
 
+    /**
+     * Should the upper bound be included or not. Defaults to <tt>true</tt>.
+     */
     public RangeJsonFilterBuilder includeUpper(boolean includeUpper) {
         this.includeUpper = includeUpper;
         return this;

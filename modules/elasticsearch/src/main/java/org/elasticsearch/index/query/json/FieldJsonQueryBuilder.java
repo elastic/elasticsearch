@@ -24,6 +24,10 @@ import org.elasticsearch.util.json.JsonBuilder;
 import java.io.IOException;
 
 /**
+ * A query that executes the query string against a field. It is a simplified
+ * version of {@link QueryStringJsonQueryBuilder} that simply runs against
+ * a single field.
+ *
  * @author kimchy (shay.banon)
  */
 public class FieldJsonQueryBuilder extends BaseJsonQueryBuilder {
@@ -57,79 +61,169 @@ public class FieldJsonQueryBuilder extends BaseJsonQueryBuilder {
 
     private boolean extraSet = false;
 
+    /**
+     * A query that executes the query string against a field. It is a simplified
+     * version of {@link QueryStringJsonQueryBuilder} that simply runs against
+     * a single field.
+     *
+     * @param name  The name of the field
+     * @param query The query string
+     */
     public FieldJsonQueryBuilder(String name, String query) {
         this(name, (Object) query);
     }
 
+    /**
+     * A query that executes the query string against a field. It is a simplified
+     * version of {@link QueryStringJsonQueryBuilder} that simply runs against
+     * a single field.
+     *
+     * @param name  The name of the field
+     * @param query The query string
+     */
     public FieldJsonQueryBuilder(String name, int query) {
         this(name, (Object) query);
     }
 
+    /**
+     * A query that executes the query string against a field. It is a simplified
+     * version of {@link QueryStringJsonQueryBuilder} that simply runs against
+     * a single field.
+     *
+     * @param name  The name of the field
+     * @param query The query string
+     */
     public FieldJsonQueryBuilder(String name, long query) {
         this(name, (Object) query);
     }
 
+    /**
+     * A query that executes the query string against a field. It is a simplified
+     * version of {@link QueryStringJsonQueryBuilder} that simply runs against
+     * a single field.
+     *
+     * @param name  The name of the field
+     * @param query The query string
+     */
     public FieldJsonQueryBuilder(String name, float query) {
         this(name, (Object) query);
     }
 
+    /**
+     * A query that executes the query string against a field. It is a simplified
+     * version of {@link QueryStringJsonQueryBuilder} that simply runs against
+     * a single field.
+     *
+     * @param name  The name of the field
+     * @param query The query string
+     */
     public FieldJsonQueryBuilder(String name, double query) {
         this(name, (Object) query);
     }
 
+    /**
+     * A query that executes the query string against a field. It is a simplified
+     * version of {@link QueryStringJsonQueryBuilder} that simply runs against
+     * a single field.
+     *
+     * @param name  The name of the field
+     * @param query The query string
+     */
     private FieldJsonQueryBuilder(String name, Object query) {
         this.name = name;
         this.query = query;
     }
 
+    /**
+     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
+     * weightings) have their score multiplied by the boost provided.
+     */
     public FieldJsonQueryBuilder boost(float boost) {
         this.boost = boost;
         extraSet = true;
         return this;
     }
 
+    /**
+     * Sets the boolean operator of the query parser used to parse the query string.
+     *
+     * <p>In default mode ({@link FieldJsonQueryBuilder.Operator#OR}) terms without any modifiers
+     * are considered optional: for example <code>capital of Hungary</code> is equal to
+     * <code>capital OR of OR Hungary</code>.
+     *
+     * <p>In {@link FieldJsonQueryBuilder.Operator#AND} mode terms are considered to be in conjunction: the
+     * above mentioned query is parsed as <code>capital AND of AND Hungary</code>
+     */
     public FieldJsonQueryBuilder defaultOperator(Operator defaultOperator) {
         this.defaultOperator = defaultOperator;
         extraSet = true;
         return this;
     }
 
+    /**
+     * The optional analyzer used to analyze the query string. Note, if a field has search analyzer
+     * defined for it, then it will be used automatically. Defaults to the smart search analyzer.
+     */
     public FieldJsonQueryBuilder analyzer(String analyzer) {
         this.analyzer = analyzer;
         extraSet = true;
         return this;
     }
 
+    /**
+     * Should leading wildcards be allowed or not. Defaults to <tt>true</tt>.
+     */
     public FieldJsonQueryBuilder allowLeadingWildcard(boolean allowLeadingWildcard) {
         this.allowLeadingWildcard = allowLeadingWildcard;
         extraSet = true;
         return this;
     }
 
+    /**
+     * Whether terms of wildcard, prefix, fuzzy and range queries are to be automatically
+     * lower-cased or not.  Default is <tt>true</tt>.
+     */
     public FieldJsonQueryBuilder lowercaseExpandedTerms(boolean lowercaseExpandedTerms) {
         this.lowercaseExpandedTerms = lowercaseExpandedTerms;
         extraSet = true;
         return this;
     }
 
+    /**
+     * Set to <tt>true</tt> to enable position increments in result query. Defaults to
+     * <tt>true</tt>.
+     *
+     * <p>When set, result phrase and multi-phrase queries will be aware of position increments.
+     * Useful when e.g. a StopFilter increases the position increment of the token that follows an omitted token.
+     */
     public FieldJsonQueryBuilder enablePositionIncrements(boolean enablePositionIncrements) {
         this.enablePositionIncrements = enablePositionIncrements;
         extraSet = true;
         return this;
     }
 
+    /**
+     * Set the minimum similarity for fuzzy queries. Default is 0.5f.
+     */
     public FieldJsonQueryBuilder fuzzyMinSim(float fuzzyMinSim) {
         this.fuzzyMinSim = fuzzyMinSim;
         extraSet = true;
         return this;
     }
 
+    /**
+     * Set the prefix length for fuzzy queries. Default is 0.
+     */
     public FieldJsonQueryBuilder fuzzyPrefixLength(int fuzzyPrefixLength) {
         this.fuzzyPrefixLength = fuzzyPrefixLength;
         extraSet = true;
         return this;
     }
 
+    /**
+     * Sets the default slop for phrases.  If zero, then exact phrase matches
+     * are required. Default value is zero.
+     */
     public FieldJsonQueryBuilder phraseSlop(int phraseSlop) {
         this.phraseSlop = phraseSlop;
         extraSet = true;

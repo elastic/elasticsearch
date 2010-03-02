@@ -24,21 +24,43 @@ import org.elasticsearch.util.json.JsonBuilder;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * Implements the wildcard search query. Supported wildcards are <tt>*</tt>, which
+ * matches any character sequence (including the empty one), and <tt>?</tt>,
+ * which matches any single character. Note this query can be slow, as it
+ * needs to iterate over many terms. In order to prevent extremely slow WildcardQueries,
+ * a Wildcard term should not start with one of the wildcards <tt>*</tt> or
+ * <tt>?</tt>.
+ *
+ * @author kimchy (shay.banon)
  */
 public class WildcardJsonQueryBuilder extends BaseJsonQueryBuilder {
 
     private final String name;
 
-    private final String value;
+    private final String wildcard;
 
     private float boost = -1;
 
-    public WildcardJsonQueryBuilder(String name, String value) {
+    /**
+     * Implements the wildcard search query. Supported wildcards are <tt>*</tt>, which
+     * matches any character sequence (including the empty one), and <tt>?</tt>,
+     * which matches any single character. Note this query can be slow, as it
+     * needs to iterate over many terms. In order to prevent extremely slow WildcardQueries,
+     * a Wildcard term should not start with one of the wildcards <tt>*</tt> or
+     * <tt>?</tt>.
+     *
+     * @param name     The field name
+     * @param wildcard The wildcard query string
+     */
+    public WildcardJsonQueryBuilder(String name, String wildcard) {
         this.name = name;
-        this.value = value;
+        this.wildcard = wildcard;
     }
 
+    /**
+     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
+     * weightings) have their score multiplied by the boost provided.
+     */
     public WildcardJsonQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;
@@ -47,10 +69,10 @@ public class WildcardJsonQueryBuilder extends BaseJsonQueryBuilder {
     @Override public void doJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject(WildcardJsonQueryParser.NAME);
         if (boost == -1) {
-            builder.field(name, value);
+            builder.field(name, wildcard);
         } else {
             builder.startObject(name);
-            builder.field("wildcard", value);
+            builder.field("wildcard", wildcard);
             builder.field("boost", boost);
             builder.endObject();
         }

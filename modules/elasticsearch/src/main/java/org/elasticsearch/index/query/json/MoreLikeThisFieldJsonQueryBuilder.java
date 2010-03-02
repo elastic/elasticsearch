@@ -25,7 +25,9 @@ import org.elasticsearch.util.json.JsonBuilder;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * A more like this query that runs against a specific field.
+ *
+ * @author kimchy (shay.banon)
  */
 public class MoreLikeThisFieldJsonQueryBuilder extends BaseJsonQueryBuilder {
 
@@ -43,10 +45,18 @@ public class MoreLikeThisFieldJsonQueryBuilder extends BaseJsonQueryBuilder {
     private Boolean boostTerms = null;
     private float boostTermsFactor = -1;
 
+    /**
+     * A more like this query that runs against a specific field.
+     *
+     * @param name The field name to run the query against
+     */
     public MoreLikeThisFieldJsonQueryBuilder(String name) {
         this.name = name;
     }
 
+    /**
+     * The text to use in order to find documents that are "like" this.
+     */
     public MoreLikeThisFieldJsonQueryBuilder likeText(String likeText) {
         this.likeText = likeText;
         return this;
@@ -57,46 +67,84 @@ public class MoreLikeThisFieldJsonQueryBuilder extends BaseJsonQueryBuilder {
         return this;
     }
 
+    /**
+     * The frequency below which terms will be ignored in the source doc. The default
+     * frequency is <tt>2</tt>.
+     */
     public MoreLikeThisFieldJsonQueryBuilder minTermFrequency(int minTermFrequency) {
         this.minTermFrequency = minTermFrequency;
         return this;
     }
 
+    /**
+     * Sets the maximum number of query terms that will be included in any generated query.
+     * Defaults to <tt>25</tt>.
+     */
     public MoreLikeThisFieldJsonQueryBuilder maxQueryTerms(int maxQueryTerms) {
         this.maxQueryTerms = maxQueryTerms;
         return this;
     }
 
+    /**
+     * Set the set of stopwords.
+     *
+     * <p>Any word in this set is considered "uninteresting" and ignored. Even if your Analyzer allows stopwords, you
+     * might want to tell the MoreLikeThis code to ignore them, as for the purposes of document similarity it seems
+     * reasonable to assume that "a stop word is never interesting".
+     */
     public MoreLikeThisFieldJsonQueryBuilder stopWords(String... stopWords) {
         this.stopWords = stopWords;
         return this;
     }
 
+    /**
+     * Sets the frequency at which words will be ignored which do not occur in at least this
+     * many docs. Defaults to <tt>5</tt>.
+     */
     public MoreLikeThisFieldJsonQueryBuilder minDocFreq(int minDocFreq) {
         this.minDocFreq = minDocFreq;
         return this;
     }
 
+    /**
+     * Set the maximum frequency in which words may still appear. Words that appear
+     * in more than this many docs will be ignored. Defaults to unbounded.
+     */
     public MoreLikeThisFieldJsonQueryBuilder maxDocFreq(int maxDocFreq) {
         this.maxDocFreq = maxDocFreq;
         return this;
     }
 
+    /**
+     * Sets the minimum word length below which words will be ignored. Defaults
+     * to <tt>0</tt>.
+     */
     public MoreLikeThisFieldJsonQueryBuilder minWordLen(int minWordLen) {
         this.minWordLen = minWordLen;
         return this;
     }
 
+    /**
+     * Sets the maximum word length above which words will be ignored. Defaults to
+     * unbounded (<tt>0</tt>).
+     */
     public MoreLikeThisFieldJsonQueryBuilder maxWordLen(int maxWordLen) {
         this.maxWordLen = maxWordLen;
         return this;
     }
 
+    /**
+     * Sets whether to boost terms in query based on "score" or not. Defaults to
+     * <tt>false</tt>.
+     */
     public MoreLikeThisFieldJsonQueryBuilder boostTerms(Boolean boostTerms) {
         this.boostTerms = boostTerms;
         return this;
     }
 
+    /**
+     * Sets the boost factor to use when boosting terms. Defaults to <tt>1</tt>.
+     */
     public MoreLikeThisFieldJsonQueryBuilder boostTermsFactor(float boostTermsFactor) {
         this.boostTermsFactor = boostTermsFactor;
         return this;
@@ -121,7 +169,7 @@ public class MoreLikeThisFieldJsonQueryBuilder extends BaseJsonQueryBuilder {
         if (stopWords != null && stopWords.length > 0) {
             builder.startArray("stopWords");
             for (String stopWord : stopWords) {
-                builder.string(stopWord);
+                builder.value(stopWord);
             }
             builder.endArray();
         }

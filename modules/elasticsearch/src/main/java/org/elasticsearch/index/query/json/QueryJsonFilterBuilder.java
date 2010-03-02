@@ -24,12 +24,19 @@ import org.elasticsearch.util.json.JsonBuilder;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * A filter that simply wraps a query.
+ *
+ * @author kimchy (shay.banon)
  */
 public class QueryJsonFilterBuilder extends BaseJsonFilterBuilder {
 
     private final JsonQueryBuilder queryBuilder;
 
+    /**
+     * A filter that simply wraps a query.
+     *
+     * @param queryBuilder The query to wrap as a filter
+     */
     public QueryJsonFilterBuilder(JsonQueryBuilder queryBuilder) {
         this.queryBuilder = queryBuilder;
     }

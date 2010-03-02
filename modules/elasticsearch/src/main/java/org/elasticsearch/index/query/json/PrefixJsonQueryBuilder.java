@@ -24,21 +24,33 @@ import org.elasticsearch.util.json.JsonBuilder;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * A Query that matches documents containing terms with a specified prefix.
+ *
+ * @author kimchy (shay.banon)
  */
 public class PrefixJsonQueryBuilder extends BaseJsonQueryBuilder {
 
     private final String name;
 
-    private final String value;
+    private final String prefix;
 
     private float boost = -1;
 
-    public PrefixJsonQueryBuilder(String name, String value) {
+    /**
+     * A Query that matches documents containing terms with a specified prefix.
+     *
+     * @param name   The name of the field
+     * @param prefix The prefix query
+     */
+    public PrefixJsonQueryBuilder(String name, String prefix) {
         this.name = name;
-        this.value = value;
+        this.prefix = prefix;
     }
 
+    /**
+     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
+     * weightings) have their score multiplied by the boost provided.
+     */
     public PrefixJsonQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;
@@ -47,10 +59,10 @@ public class PrefixJsonQueryBuilder extends BaseJsonQueryBuilder {
     @Override public void doJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject(PrefixJsonQueryParser.NAME);
         if (boost == -1) {
-            builder.field(name, value);
+            builder.field(name, prefix);
         } else {
             builder.startObject(name);
-            builder.field("prefix", value);
+            builder.field("prefix", prefix);
             builder.field("boost", boost);
             builder.endObject();
         }

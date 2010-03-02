@@ -158,7 +158,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testDisMaxBuilder() throws Exception {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(disMaxQuery().boost(1.2f).tieBreakerMultiplier(0.7f).add(termQuery("age", 34)).add(termQuery("age", 35)));
+        Query parsedQuery = queryParser.parse(disMaxQuery().boost(1.2f).tieBreaker(0.7f).add(termQuery("age", 34)).add(termQuery("age", 35)));
         assertThat(parsedQuery, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) parsedQuery;
         assertThat((double) disjunctionMaxQuery.getBoost(), closeTo(1.2, 0.01));

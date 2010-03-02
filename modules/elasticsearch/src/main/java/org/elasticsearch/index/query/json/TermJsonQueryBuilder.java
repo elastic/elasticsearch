@@ -24,6 +24,8 @@ import org.elasticsearch.util.json.JsonBuilder;
 import java.io.IOException;
 
 /**
+ * A Query that matches documents containing a term.
+ *
  * @author kimchy (shay.banon)
  */
 public class TermJsonQueryBuilder extends BaseJsonQueryBuilder {
@@ -34,31 +36,71 @@ public class TermJsonQueryBuilder extends BaseJsonQueryBuilder {
 
     private float boost = -1;
 
+    /**
+     * Constructs a new term query.
+     *
+     * @param name  The name of the field
+     * @param value The value of the term
+     */
     public TermJsonQueryBuilder(String name, String value) {
         this(name, (Object) value);
     }
 
+    /**
+     * Constructs a new term query.
+     *
+     * @param name  The name of the field
+     * @param value The value of the term
+     */
     public TermJsonQueryBuilder(String name, int value) {
         this(name, (Object) value);
     }
 
+    /**
+     * Constructs a new term query.
+     *
+     * @param name  The name of the field
+     * @param value The value of the term
+     */
     public TermJsonQueryBuilder(String name, long value) {
         this(name, (Object) value);
     }
 
+    /**
+     * Constructs a new term query.
+     *
+     * @param name  The name of the field
+     * @param value The value of the term
+     */
     public TermJsonQueryBuilder(String name, float value) {
         this(name, (Object) value);
     }
 
+    /**
+     * Constructs a new term query.
+     *
+     * @param name  The name of the field
+     * @param value The value of the term
+     */
     public TermJsonQueryBuilder(String name, double value) {
         this(name, (Object) value);
     }
 
+    /**
+     * Constructs a new term query.
+     *
+     * @param name  The name of the field
+     * @param value The value of the term
+     */
     private TermJsonQueryBuilder(String name, Object value) {
         this.name = name;
         this.value = value;
     }
 
+    /**
+     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
+     * weightings) have their score multiplied by the boost provided.
+     */
     public TermJsonQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;

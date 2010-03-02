@@ -20,58 +20,157 @@
 package org.elasticsearch.index.query.json;
 
 /**
- * @author kimchy (Shay Banon)
+ * A static factory for simple "import static" usage.
+ *
+ * @author kimchy (shay.banon)
  */
 public abstract class JsonFilterBuilders {
 
+    /**
+     * A filter for a field based on a term.
+     *
+     * @param name  The field name
+     * @param value The term value
+     */
     public static TermJsonFilterBuilder termFilter(String name, String value) {
         return new TermJsonFilterBuilder(name, value);
     }
 
+    /**
+     * A filter for a field based on a term.
+     *
+     * @param name  The field name
+     * @param value The term value
+     */
     public static TermJsonFilterBuilder termFilter(String name, int value) {
         return new TermJsonFilterBuilder(name, value);
     }
 
+    /**
+     * A filter for a field based on a term.
+     *
+     * @param name  The field name
+     * @param value The term value
+     */
     public static TermJsonFilterBuilder termFilter(String name, long value) {
         return new TermJsonFilterBuilder(name, value);
     }
 
+    /**
+     * A filter for a field based on a term.
+     *
+     * @param name  The field name
+     * @param value The term value
+     */
     public static TermJsonFilterBuilder termFilter(String name, float value) {
         return new TermJsonFilterBuilder(name, value);
     }
 
+    /**
+     * A filter for a field based on a term.
+     *
+     * @param name  The field name
+     * @param value The term value
+     */
     public static TermJsonFilterBuilder termFilter(String name, double value) {
         return new TermJsonFilterBuilder(name, value);
     }
 
+    /**
+     * A filter for a field based on a term.
+     *
+     * @param name  The field name
+     * @param value The term value
+     */
+    public static TermJsonFilterBuilder termFilter(String name, Object value) {
+        return new TermJsonFilterBuilder(name, value);
+    }
+
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
     public static TermsJsonFilterBuilder termsFilter(String name, String... values) {
         return new TermsJsonFilterBuilder(name, values);
     }
 
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
     public static TermsJsonFilterBuilder termsFilter(String name, int... values) {
         return new TermsJsonFilterBuilder(name, values);
     }
 
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
     public static TermsJsonFilterBuilder termsFilter(String name, long... values) {
         return new TermsJsonFilterBuilder(name, values);
     }
 
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
     public static TermsJsonFilterBuilder termsFilter(String name, float... values) {
         return new TermsJsonFilterBuilder(name, values);
     }
 
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
     public static TermsJsonFilterBuilder termsFilter(String name, double... values) {
         return new TermsJsonFilterBuilder(name, values);
     }
 
-    public static PrefixJsonFilterBuilder prefixFilter(String name, String value) {
-        return new PrefixJsonFilterBuilder(name, value);
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
+    public static TermsJsonFilterBuilder termsFilter(String name, Object... values) {
+        return new TermsJsonFilterBuilder(name, values);
     }
 
+    /**
+     * A filter that restricts search results to values that have a matching prefix in a given
+     * field.
+     *
+     * @param name   The field name
+     * @param prefix The prefix
+     */
+    public static PrefixJsonFilterBuilder prefixFilter(String name, String prefix) {
+        return new PrefixJsonFilterBuilder(name, prefix);
+    }
+
+    /**
+     * A filter that restricts search results to values that are within the given range.
+     *
+     * @param name The field name
+     */
     public static RangeJsonFilterBuilder rangeFilter(String name) {
         return new RangeJsonFilterBuilder(name);
     }
 
+    /**
+     * A filter that simply wraps a query.
+     *
+     * @param queryBuilder The query to wrap as a filter
+     */
     public static QueryJsonFilterBuilder queryFilter(JsonQueryBuilder queryBuilder) {
         return new QueryJsonFilterBuilder(queryBuilder);
     }

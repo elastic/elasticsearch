@@ -26,7 +26,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 
 /**
- * @author kimchy (Shay Banon)
+ * A Query that matches documents matching boolean combinations of other queries.
+ *
+ * @author kimchy (shay.banon)
  */
 public class BoolJsonQueryBuilder extends BaseJsonQueryBuilder {
 
@@ -38,31 +40,64 @@ public class BoolJsonQueryBuilder extends BaseJsonQueryBuilder {
 
     private int minimumNumberShouldMatch = -1;
 
+    /**
+     * Adds a query that <b>must</b> appear in the matching documents.
+     */
     public BoolJsonQueryBuilder must(JsonQueryBuilder queryBuilder) {
         clauses.add(new Clause(queryBuilder, BooleanClause.Occur.MUST));
         return this;
     }
 
+    /**
+     * Adds a query that <b>must not</b> appear in the matching documents.
+     */
     public BoolJsonQueryBuilder mustNot(JsonQueryBuilder queryBuilder) {
         clauses.add(new Clause(queryBuilder, BooleanClause.Occur.MUST_NOT));
         return this;
     }
 
+    /**
+     * Adds a query that <i>should</i> appear in the matching documents. For a boolean query with no
+     * <tt>MUST</tt> clauses one or more <code>SHOULD</code> clauses must match a document
+     * for the BooleanQuery to match.
+     *
+     * @see #minimumNumberShouldMatch(int)
+     */
     public BoolJsonQueryBuilder should(JsonQueryBuilder queryBuilder) {
         clauses.add(new Clause(queryBuilder, BooleanClause.Occur.SHOULD));
         return this;
     }
 
+    /**
+     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
+     * weightings) have their score multiplied by the boost provided.
+     */
     public BoolJsonQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;
     }
 
+    /**
+     * Disables <tt>Similarity#coord(int,int)</tt> in scoring. Defualts to <tt>false</tt>.
+     */
     public BoolJsonQueryBuilder disableCoord(boolean disableCoord) {
         this.disableCoord = disableCoord;
         return this;
     }
 
+    /**
+     * Specifies a minimum number of the optional (should) boolean clauses which must be satisfied.
+     *
+     * <p>By default no optional clauses are necessary for a match
+     * (unless there are no required clauses).  If this method is used,
+     * then the specified number of clauses is required.
+     *
+     * <p>Use of this method is totally independent of specifying that
+     * any specific clauses are required (or prohibited).  This number will
+     * only be compared against the number of matching optional clauses.
+     *
+     * @param minimumNumberShouldMatch the number of optional clauses that must match
+     */
     public BoolJsonQueryBuilder minimumNumberShouldMatch(int minimumNumberShouldMatch) {
         this.minimumNumberShouldMatch = minimumNumberShouldMatch;
         return this;

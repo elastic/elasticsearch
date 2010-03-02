@@ -24,7 +24,9 @@ import org.elasticsearch.util.json.JsonBuilder;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * A filter for a field based on a term.
+ *
+ * @author kimchy (shay.banon)
  */
 public class TermJsonFilterBuilder extends BaseJsonFilterBuilder {
 
@@ -32,27 +34,63 @@ public class TermJsonFilterBuilder extends BaseJsonFilterBuilder {
 
     private final Object value;
 
+    /**
+     * A filter for a field based on a term.
+     *
+     * @param name  The field name
+     * @param value The term value
+     */
     public TermJsonFilterBuilder(String name, String value) {
         this(name, (Object) value);
     }
 
+    /**
+     * A filter for a field based on a term.
+     *
+     * @param name  The field name
+     * @param value The term value
+     */
     public TermJsonFilterBuilder(String name, int value) {
         this(name, (Object) value);
     }
 
+    /**
+     * A filter for a field based on a term.
+     *
+     * @param name  The field name
+     * @param value The term value
+     */
     public TermJsonFilterBuilder(String name, long value) {
         this(name, (Object) value);
     }
 
+    /**
+     * A filter for a field based on a term.
+     *
+     * @param name  The field name
+     * @param value The term value
+     */
     public TermJsonFilterBuilder(String name, float value) {
         this(name, (Object) value);
     }
 
+    /**
+     * A filter for a field based on a term.
+     *
+     * @param name  The field name
+     * @param value The term value
+     */
     public TermJsonFilterBuilder(String name, double value) {
         this(name, (Object) value);
     }
 
-    private TermJsonFilterBuilder(String name, Object value) {
+    /**
+     * A filter for a field based on a term.
+     *
+     * @param name  The field name
+     * @param value The term value
+     */
+    public TermJsonFilterBuilder(String name, Object value) {
         this.name = name;
         this.value = value;
     }

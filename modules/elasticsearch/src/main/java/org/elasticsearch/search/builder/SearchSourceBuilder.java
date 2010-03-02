@@ -82,6 +82,8 @@ public class SearchSourceBuilder {
 
     /**
      * Constructs a new search source builder with a search query.
+     *
+     * @see org.elasticsearch.index.query.json.JsonQueryBuilders
      */
     public SearchSourceBuilder query(JsonQueryBuilder query) {
         this.queryBuilder = query;
@@ -239,7 +241,7 @@ public class SearchSourceBuilder {
                 } else {
                     builder.startArray("fields");
                     for (String fieldName : fieldNames) {
-                        builder.string(fieldName);
+                        builder.value(fieldName);
                     }
                     builder.endArray();
                 }

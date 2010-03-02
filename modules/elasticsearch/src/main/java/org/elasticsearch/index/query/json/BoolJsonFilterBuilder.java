@@ -26,22 +26,35 @@ import java.io.IOException;
 import java.util.ArrayList;
 
 /**
- * @author kimchy (Shay Banon)
+ * A filter that matches documents matching boolean combinations of other filters.
+ *
+ * @author kimchy (shay.banon)
  */
 public class BoolJsonFilterBuilder extends BaseJsonQueryBuilder {
 
     private ArrayList<Clause> clauses = new ArrayList<Clause>();
 
+    /**
+     * Adds a filter that <b>must</b> appear in the matching documents.
+     */
     public BoolJsonFilterBuilder must(JsonFilterBuilder filterBuilder) {
         clauses.add(new Clause(filterBuilder, BooleanClause.Occur.MUST));
         return this;
     }
 
+    /**
+     * Adds a filter that <b>must not</b> appear in the matching documents.
+     */
     public BoolJsonFilterBuilder mustNot(JsonFilterBuilder filterBuilder) {
         clauses.add(new Clause(filterBuilder, BooleanClause.Occur.MUST_NOT));
         return this;
     }
 
+    /**
+     * Adds a filter that <i>should</i> appear in the matching documents. For a boolean filter
+     * with no <tt>MUST</tt> clauses one or more <code>SHOULD</code> clauses must match a document
+     * for the BooleanQuery to match.
+     */
     public BoolJsonFilterBuilder should(JsonFilterBuilder filterBuilder) {
         clauses.add(new Clause(filterBuilder, BooleanClause.Occur.SHOULD));
         return this;

@@ -139,14 +139,11 @@ public class JsonQueryParseContext {
     }
 
     public String indexName(String name) {
-        MapperService.SmartNameFieldMappers smartMapper = smartFieldMappers(name);
+        FieldMapper smartMapper = fieldMapper(name);
         if (smartMapper == null) {
             return name;
         }
-        if (smartMapper.fieldMappers().mapper() != null) {
-            return smartMapper.fieldMappers().mapper().names().indexName();
-        }
-        return name;
+        return smartMapper.names().indexName();
     }
 
     public MapperService.SmartNameFieldMappers smartFieldMappers(String name) {

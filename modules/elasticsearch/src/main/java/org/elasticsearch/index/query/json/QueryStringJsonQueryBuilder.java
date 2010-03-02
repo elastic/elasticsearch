@@ -28,7 +28,13 @@ import java.util.List;
 import static com.google.common.collect.Lists.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * A query that parses a query string and runs it. There are two modes that this operates. The first,
+ * when no field is added (using {@link #field(String)}, will run the query once and non prefixed fields
+ * will use the {@link #defaultField(String)} set. The second, when one or more fields are added
+ * (using {@link #field(String)}), will run the parsed query against the provided fields, and combine
+ * them either using DisMax or a plain boolean query (see {@link #useDisMax(boolean)}).
+ *
+ * @author kimchy (shay.baon)
  */
 public class QueryStringJsonQueryBuilder extends BaseJsonQueryBuilder {
 
@@ -71,6 +77,10 @@ public class QueryStringJsonQueryBuilder extends BaseJsonQueryBuilder {
         this.queryString = queryString;
     }
 
+    /**
+     * The default field to run against when no prefix field is specified. Only relevant when
+     * not explicitly adding fields the query string will run against.
+     */
     public QueryStringJsonQueryBuilder defaultField(String defaultField) {
         this.defaultField = defaultField;
         return this;
@@ -120,48 +130,90 @@ public class QueryStringJsonQueryBuilder extends BaseJsonQueryBuilder {
         return this;
     }
 
+    /**
+     * Sets the boolean operator of the query parser used to parse the query string.
+     *
+     * <p>In default mode ({@link FieldJsonQueryBuilder.Operator#OR}) terms without any modifiers
+     * are considered optional: for example <code>capital of Hungary</code> is equal to
+     * <code>capital OR of OR Hungary</code>.
+     *
+     * <p>In {@link FieldJsonQueryBuilder.Operator#AND} mode terms are considered to be in conjunction: the
+     * above mentioned query is parsed as <code>capital AND of AND Hungary</code>
+     */
     public QueryStringJsonQueryBuilder defaultOperator(Operator defaultOperator) {
         this.defaultOperator = defaultOperator;
         return this;
     }
 
+    /**
+     * The optional analyzer used to analyze the query string. Note, if a field has search analyzer
+     * defined for it, then it will be used automatically. Defaults to the smart search analyzer.
+     */
     public QueryStringJsonQueryBuilder analyzer(String analyzer) {
         this.analyzer = analyzer;
         return this;
     }
 
+    /**
+     * Should leading wildcards be allowed or not. Defaults to <tt>true</tt>.
+     */
     public QueryStringJsonQueryBuilder allowLeadingWildcard(boolean allowLeadingWildcard) {
         this.allowLeadingWildcard = allowLeadingWildcard;
         return this;
     }
 
+    /**
+     * Whether terms of wildcard, prefix, fuzzy and range queries are to be automatically
+     * lower-cased or not.  Default is <tt>true</tt>.
+     */
     public QueryStringJsonQueryBuilder lowercaseExpandedTerms(boolean lowercaseExpandedTerms) {
         this.lowercaseExpandedTerms = lowercaseExpandedTerms;
         return this;
     }
 
+    /**
+     * Set to <tt>true</tt> to enable position increments in result query. Defaults to
+     * <tt>true</tt>.
+     *
+     * <p>When set, result phrase and multi-phrase queries will be aware of position increments.
+     * Useful when e.g. a StopFilter increases the position increment of the token that follows an omitted token.
+     */
     public QueryStringJsonQueryBuilder enablePositionIncrements(boolean enablePositionIncrements) {
         this.enablePositionIncrements = enablePositionIncrements;
         return this;
     }
 
+    /**
+     * Set the minimum similarity for fuzzy queries. Default is 0.5f.
+     */
     public QueryStringJsonQueryBuilder fuzzyMinSim(float fuzzyMinSim) {
         this.fuzzyMinSim = fuzzyMinSim;
         return this;
     }
 
-    public QueryStringJsonQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
-    }
-
+    /**
+     * Set the minimum similarity for fuzzy queries. Default is 0.5f.
+     */
     public QueryStringJsonQueryBuilder fuzzyPrefixLength(int fuzzyPrefixLength) {
         this.fuzzyPrefixLength = fuzzyPrefixLength;
         return this;
     }
 
+    /**
+     * Sets the default slop for phrases.  If zero, then exact phrase matches
+     * are required. Default value is zero.
+     */
     public QueryStringJsonQueryBuilder phraseSlop(int phraseSlop) {
         this.phraseSlop = phraseSlop;
+        return this;
+    }
+
+    /**
+     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
+     * weightings) have their score multiplied by the boost provided.
+     */
+    public QueryStringJsonQueryBuilder boost(float boost) {
+        this.boost = boost;
         return this;
     }
 
@@ -181,7 +233,7 @@ public class QueryStringJsonQueryBuilder extends BaseJsonQueryBuilder {
                 if (boost != -1) {
                     field += "^" + boost;
                 }
-                builder.string(field);
+                builder.value(field);
             }
             builder.endArray();
         }

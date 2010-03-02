@@ -24,22 +24,32 @@ import org.elasticsearch.util.json.JsonBuilder;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * A filter that restricts search results to values that have a matching prefix in a given
+ * field.
+ *
+ * @author kimchy (shay.banon)
  */
 public class PrefixJsonFilterBuilder extends BaseJsonFilterBuilder {
 
     private final String name;
 
-    private final String value;
+    private final String prefix;
 
-    public PrefixJsonFilterBuilder(String name, String value) {
+    /**
+     * A filter that restricts search results to values that have a matching prefix in a given
+     * field.
+     *
+     * @param name   The field name
+     * @param prefix The prefix
+     */
+    public PrefixJsonFilterBuilder(String name, String prefix) {
         this.name = name;
-        this.value = value;
+        this.prefix = prefix;
     }
 
     @Override public void doJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject(PrefixJsonFilterParser.NAME);
-        builder.field(name, value);
+        builder.field(name, prefix);
         builder.endObject();
     }
 }

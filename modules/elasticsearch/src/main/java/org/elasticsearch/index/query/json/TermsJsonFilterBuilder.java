@@ -24,6 +24,8 @@ import org.elasticsearch.util.json.JsonBuilder;
 import java.io.IOException;
 
 /**
+ * A filer for a field based on several terms matching on any of them.
+ *
  * @author kimchy (shay.banon)
  */
 public class TermsJsonFilterBuilder extends BaseJsonFilterBuilder {
@@ -32,10 +34,22 @@ public class TermsJsonFilterBuilder extends BaseJsonFilterBuilder {
 
     private final Object[] values;
 
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
     public TermsJsonFilterBuilder(String name, String... values) {
         this(name, (Object[]) values);
     }
 
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
     public TermsJsonFilterBuilder(String name, int... values) {
         this.name = name;
         this.values = new Integer[values.length];
@@ -44,6 +58,12 @@ public class TermsJsonFilterBuilder extends BaseJsonFilterBuilder {
         }
     }
 
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
     public TermsJsonFilterBuilder(String name, long... values) {
         this.name = name;
         this.values = new Long[values.length];
@@ -52,6 +72,12 @@ public class TermsJsonFilterBuilder extends BaseJsonFilterBuilder {
         }
     }
 
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
     public TermsJsonFilterBuilder(String name, float... values) {
         this.name = name;
         this.values = new Float[values.length];
@@ -60,6 +86,12 @@ public class TermsJsonFilterBuilder extends BaseJsonFilterBuilder {
         }
     }
 
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
     public TermsJsonFilterBuilder(String name, double... values) {
         this.name = name;
         this.values = new Double[values.length];
@@ -68,7 +100,13 @@ public class TermsJsonFilterBuilder extends BaseJsonFilterBuilder {
         }
     }
 
-    private TermsJsonFilterBuilder(String name, Object... values) {
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
+    public TermsJsonFilterBuilder(String name, Object... values) {
         this.name = name;
         this.values = values;
     }

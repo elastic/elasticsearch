@@ -24,7 +24,9 @@ import org.elasticsearch.util.json.JsonBuilder;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * A query that matches on all documents.
+ *
+ * @author kimchy (shay.banon)
  */
 public class MatchAllJsonQueryBuilder extends BaseJsonQueryBuilder {
 
@@ -32,11 +34,18 @@ public class MatchAllJsonQueryBuilder extends BaseJsonQueryBuilder {
 
     private float boost = -1;
 
+    /**
+     * Field used for normalization factor (document boost). Defaults to no field.
+     */
     public MatchAllJsonQueryBuilder normsField(String normsField) {
         this.normsField = normsField;
         return this;
     }
 
+    /**
+     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
+     * weightings) have their score multiplied by the boost provided.
+     */
     public MatchAllJsonQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;

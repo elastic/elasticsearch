@@ -27,7 +27,11 @@ import java.util.ArrayList;
 import static com.google.common.collect.Lists.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * A query that generates the union of documents produced by its sub-queries, and that scores each document
+ * with the maximum score for that document as produced by any sub-query, plus a tie breaking increment for any
+ * additional matching sub-queries.
+ *
+ * @author kimchy (shay.banon)
  */
 public class DisMaxJsonQueryBuilder extends BaseJsonQueryBuilder {
 
@@ -37,17 +41,30 @@ public class DisMaxJsonQueryBuilder extends BaseJsonQueryBuilder {
 
     private float tieBreakerMultiplier = -1;
 
+    /**
+     * Add a sub-query to this disjunction.
+     */
     public DisMaxJsonQueryBuilder add(JsonQueryBuilder queryBuilder) {
         queries.add(queryBuilder);
         return this;
     }
 
+    /**
+     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
+     * weightings) have their score multiplied by the boost provided.
+     */
     public DisMaxJsonQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;
     }
 
-    public DisMaxJsonQueryBuilder tieBreakerMultiplier(float tieBreakerMultiplier) {
+    /**
+     * The score of each non-maximum disjunct for a document is multiplied by this weight
+     * and added into the final score.  If non-zero, the value should be small, on the order of 0.1, which says that
+     * 10 occurrences of word in a lower-scored field that is also in a higher scored field is just as good as a unique
+     * word in the lower scored field (i.e., one that is not in any higher scored field.
+     */
+    public DisMaxJsonQueryBuilder tieBreaker(float tieBreakerMultiplier) {
         this.tieBreakerMultiplier = tieBreakerMultiplier;
         return this;
     }

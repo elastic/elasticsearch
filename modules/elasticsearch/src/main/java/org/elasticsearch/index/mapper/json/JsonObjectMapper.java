@@ -374,7 +374,7 @@ public class JsonObjectMapper implements JsonMapper {
         if (dateTimeFormatters.length > 0) {
             builder.startArray("dateFormats");
             for (FormatDateTimeFormatter dateTimeFormatter : dateTimeFormatters) {
-                builder.string(dateTimeFormatter.format());
+                builder.value(dateTimeFormatter.format());
             }
             builder.endArray();
         }

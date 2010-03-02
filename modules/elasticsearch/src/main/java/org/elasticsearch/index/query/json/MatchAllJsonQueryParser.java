@@ -62,7 +62,7 @@ public class MatchAllJsonQueryParser extends AbstractIndexComponent implements J
                 if ("boost".equals(currentFieldName)) {
                     boost = jp.getFloatValue();
                 } else if ("normsField".equals(currentFieldName)) {
-                    normsField = jp.getText();
+                    normsField = parseContext.indexName(jp.getText());
                 }
             }
         }

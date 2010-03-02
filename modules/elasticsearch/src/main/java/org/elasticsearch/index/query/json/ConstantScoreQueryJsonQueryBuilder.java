@@ -24,7 +24,10 @@ import org.elasticsearch.util.json.JsonBuilder;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * A query that wraps a filter and simply returns a constant score equal to the
+ * query boost for every document in the filter.
+ *
+ * @author kimchy (shay.banon)
  */
 public class ConstantScoreQueryJsonQueryBuilder extends BaseJsonQueryBuilder {
 
@@ -32,10 +35,20 @@ public class ConstantScoreQueryJsonQueryBuilder extends BaseJsonQueryBuilder {
 
     private float boost = -1;
 
+    /**
+     * A query that wraps a filter and simply returns a constant score equal to the
+     * query boost for every document in the filter.
+     *
+     * @param filterBuilder The filter to wrap in a constant score query
+     */
     public ConstantScoreQueryJsonQueryBuilder(JsonFilterBuilder filterBuilder) {
         this.filterBuilder = filterBuilder;
     }
 
+    /**
+     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
+     * weightings) have their score multiplied by the boost provided.
+     */
     public ConstantScoreQueryJsonQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;

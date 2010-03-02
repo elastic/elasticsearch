@@ -24,7 +24,9 @@ import org.elasticsearch.util.json.JsonBuilder;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * A Query that matches documents within an range of terms.
+ *
+ * @author kimchy (shay.banon)
  */
 public class RangeJsonQueryBuilder extends BaseJsonQueryBuilder {
 
@@ -40,70 +42,131 @@ public class RangeJsonQueryBuilder extends BaseJsonQueryBuilder {
 
     private float boost = -1;
 
+    /**
+     * A Query that matches documents within an range of terms.
+     *
+     * @param name The field name
+     */
     public RangeJsonQueryBuilder(String name) {
         this.name = name;
     }
 
+    /**
+     * The from part of the range query. Null indicates unbounded.
+     */
+    public RangeJsonQueryBuilder from(Object from) {
+        this.from = from;
+        return this;
+    }
+
+    /**
+     * The from part of the range query. Null indicates unbounded.
+     */
     public RangeJsonQueryBuilder from(String from) {
         this.from = from;
         return this;
     }
 
+    /**
+     * The from part of the range query. Null indicates unbounded.
+     */
     public RangeJsonQueryBuilder from(int from) {
         this.from = from;
         return this;
     }
 
+    /**
+     * The from part of the range query. Null indicates unbounded.
+     */
     public RangeJsonQueryBuilder from(long from) {
         this.from = from;
         return this;
     }
 
+    /**
+     * The from part of the range query. Null indicates unbounded.
+     */
     public RangeJsonQueryBuilder from(float from) {
         this.from = from;
         return this;
     }
 
+    /**
+     * The from part of the range query. Null indicates unbounded.
+     */
     public RangeJsonQueryBuilder from(double from) {
         this.from = from;
         return this;
     }
 
+    /**
+     * The to part of the range query. Null indicates unbounded.
+     */
+    public RangeJsonQueryBuilder to(Object to) {
+        this.to = to;
+        return this;
+    }
+
+    /**
+     * The to part of the range query. Null indicates unbounded.
+     */
     public RangeJsonQueryBuilder to(String to) {
         this.to = to;
         return this;
     }
 
+    /**
+     * The to part of the range query. Null indicates unbounded.
+     */
     public RangeJsonQueryBuilder to(int to) {
         this.to = to;
         return this;
     }
 
+    /**
+     * The to part of the range query. Null indicates unbounded.
+     */
     public RangeJsonQueryBuilder to(long to) {
         this.to = to;
         return this;
     }
 
+    /**
+     * The to part of the range query. Null indicates unbounded.
+     */
     public RangeJsonQueryBuilder to(float to) {
         this.to = to;
         return this;
     }
 
+    /**
+     * The to part of the range query. Null indicates unbounded.
+     */
     public RangeJsonQueryBuilder to(double to) {
         this.to = to;
         return this;
     }
 
+    /**
+     * Should the lower bound be included or not. Defaults to <tt>true</tt>.
+     */
     public RangeJsonQueryBuilder includeLower(boolean includeLower) {
         this.includeLower = includeLower;
         return this;
     }
 
+    /**
+     * Should the upper bound be included or not. Defaults to <tt>true</tt>.
+     */
     public RangeJsonQueryBuilder includeUpper(boolean includeUpper) {
         this.includeUpper = includeUpper;
         return this;
     }
 
+    /**
+     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
+     * weightings) have their score multiplied by the boost provided.
+     */
     public RangeJsonQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;

@@ -23,8 +23,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
-import org.elasticsearch.util.SizeUnit;
-import org.elasticsearch.util.SizeValue;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -38,49 +36,49 @@ import static org.hamcrest.Matchers.*;
 public class SimpleByteBufferStoreTests {
 
     @Test public void test1BufferNoCache() throws Exception {
-        ByteBufferDirectory dir = new ByteBufferDirectory(new SizeValue(1, SizeUnit.BYTES), new SizeValue(0, SizeUnit.BYTES), true, false);
+        ByteBufferDirectory dir = new ByteBufferDirectory(1, 0, true, false);
         insertData(dir);
         verifyData(dir);
         dir.close();
     }
 
     @Test public void test1Buffer() throws Exception {
-        ByteBufferDirectory dir = new ByteBufferDirectory(new SizeValue(1, SizeUnit.BYTES), new SizeValue(10, SizeUnit.BYTES), true, false);
+        ByteBufferDirectory dir = new ByteBufferDirectory(1, 10, true, false);
         insertData(dir);
         verifyData(dir);
         dir.close();
     }
 
     @Test public void test3Buffer() throws Exception {
-        ByteBufferDirectory dir = new ByteBufferDirectory(new SizeValue(3, SizeUnit.BYTES), new SizeValue(10, SizeUnit.BYTES), true, false);
+        ByteBufferDirectory dir = new ByteBufferDirectory(3, 10, true, false);
         insertData(dir);
         verifyData(dir);
         dir.close();
     }
 
     @Test public void test10Buffer() throws Exception {
-        ByteBufferDirectory dir = new ByteBufferDirectory(new SizeValue(10, SizeUnit.BYTES), new SizeValue(20, SizeUnit.BYTES), true, false);
+        ByteBufferDirectory dir = new ByteBufferDirectory(10, 20, true, false);
         insertData(dir);
         verifyData(dir);
         dir.close();
     }
 
     @Test public void test15Buffer() throws Exception {
-        ByteBufferDirectory dir = new ByteBufferDirectory(new SizeValue(15, SizeUnit.BYTES), new SizeValue(30, SizeUnit.BYTES), true, false);
+        ByteBufferDirectory dir = new ByteBufferDirectory(15, 30, true, false);
         insertData(dir);
         verifyData(dir);
         dir.close();
     }
 
     @Test public void test40Buffer() throws Exception {
-        ByteBufferDirectory dir = new ByteBufferDirectory(new SizeValue(40, SizeUnit.BYTES), new SizeValue(80, SizeUnit.BYTES), true, false);
+        ByteBufferDirectory dir = new ByteBufferDirectory(40, 80, true, false);
         insertData(dir);
         verifyData(dir);
         dir.close();
     }
 
     @Test public void testSimpleLocking() throws Exception {
-        ByteBufferDirectory dir = new ByteBufferDirectory(new SizeValue(40, SizeUnit.BYTES), new SizeValue(80, SizeUnit.BYTES), true, false);
+        ByteBufferDirectory dir = new ByteBufferDirectory(40, 80, true, false);
 
         Lock lock = dir.makeLock("testlock");
 

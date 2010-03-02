@@ -22,7 +22,7 @@ package org.elasticsearch.index.store.memory;
 import java.nio.ByteBuffer;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class ByteBufferFile {
 

@@ -28,7 +28,7 @@ import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.settings.Settings;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class ByteBufferStore extends AbstractStore<ByteBufferDirectory> {
 
@@ -49,9 +49,9 @@ public class ByteBufferStore extends AbstractStore<ByteBufferDirectory> {
         this.cacheSize = componentSettings.getAsSize("cacheSize", new SizeValue(20, SizeUnit.MB));
         this.direct = componentSettings.getAsBoolean("direct", true);
         this.warmCache = componentSettings.getAsBoolean("warmCache", true);
-        this.directory = new ByteBufferDirectory(bufferSize, cacheSize, direct, warmCache);
+        this.directory = new ByteBufferDirectory((int) bufferSize.bytes(), (int) cacheSize.bytes(), direct, warmCache);
         logger.debug("Using [ByteBuffer] Store with bufferSize[{}], cacheSize[{}], direct[{}], warmCache[{}]",
-                new Object[]{directory.bufferSize(), directory.cacheSize(), directory.isDirect(), warmCache});
+                new Object[]{bufferSize, cacheSize, directory.isDirect(), warmCache});
     }
 
     @Override public ByteBufferDirectory directory() {

@@ -23,9 +23,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SingleInstanceLockFactory;
-import org.elasticsearch.util.SizeUnit;
-import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.concurrent.highscalelib.NonBlockingHashMap;
 import sun.nio.ch.DirectBuffer;
 
 import java.io.FileNotFoundException;
@@ -34,40 +31,52 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * @author kimchy (Shay Banon)
+ * A memory based directory that uses {@link java.nio.ByteBuffer} in order to store the directory content.
+ *
+ * <p>The benefit of using {@link java.nio.ByteBuffer} is the fact that it can be stored in "native" memory
+ * outside of the JVM heap, thus not incurring the GC overhead of large in memory index.
+ *
+ * <p>Each "file" is segmented into one or more byte buffers.
+ *
+ * <p>Since its good practice to cache byte buffers, it also provide a simple mechanism to define a cache
+ * of byte buffers that are reused when possible.
+ *
+ * @author kimchy (shay.banon)
  */
 public class ByteBufferDirectory extends Directory {
 
-    private final Map<String, ByteBufferFile> files = new NonBlockingHashMap<String, ByteBufferFile>();
+    private final Map<String, ByteBufferFile> files = new ConcurrentHashMap<String, ByteBufferFile>();
 
     private final Queue<ByteBuffer> cache;
 
     private final int bufferSizeInBytes;
 
-    private final SizeValue bufferSize;
-
-    private final SizeValue cacheSize;
+    private final int cacheSizeInBytes;
 
     private final boolean disableCache;
 
     private final boolean direct;
 
-    public ByteBufferDirectory() {
-        this(new SizeValue(1, SizeUnit.KB), new SizeValue(20, SizeUnit.MB), false, false);
-    }
-
-    public ByteBufferDirectory(SizeValue bufferSize, SizeValue cacheSize, boolean direct, boolean warmCache) {
-        disableCache = cacheSize.bytes() == 0;
-        if (!disableCache && cacheSize.bytes() < bufferSize.bytes()) {
-            throw new IllegalArgumentException("Cache size [" + cacheSize + "] is smaller than buffer size [" + bufferSize + "]");
+    /**
+     * Constructs a new byte buffer directory.
+     *
+     * @param bufferSizeInBytes The size of a byte buffer
+     * @param cacheSizeInBytes  The size of the cache, set to <code>0</code> to disable caching
+     * @param direct            Should the byte buffers be stored outside the heap (<code>true</code) or in head (<code>false</code>)
+     * @param warmCache         Should the cache be warmed
+     */
+    public ByteBufferDirectory(int bufferSizeInBytes, int cacheSizeInBytes, boolean direct, boolean warmCache) {
+        disableCache = cacheSizeInBytes == 0;
+        if (!disableCache && cacheSizeInBytes < bufferSizeInBytes) {
+            throw new IllegalArgumentException("Cache size [" + cacheSizeInBytes + "] is smaller than buffer size [" + bufferSizeInBytes + "]");
         }
-        this.bufferSize = bufferSize;
-        this.bufferSizeInBytes = (int) bufferSize.bytes();
-        int numberOfCacheEntries = (int) (cacheSize.bytes() / bufferSize.bytes());
+        this.bufferSizeInBytes = bufferSizeInBytes;
+        int numberOfCacheEntries = cacheSizeInBytes / bufferSizeInBytes;
         this.cache = disableCache ? null : new ArrayBlockingQueue<ByteBuffer>(numberOfCacheEntries);
-        this.cacheSize = disableCache ? new SizeValue(0, SizeUnit.BYTES) : new SizeValue(numberOfCacheEntries * bufferSize.bytes(), SizeUnit.BYTES);
+        this.cacheSizeInBytes = disableCache ? 0 : numberOfCacheEntries * bufferSizeInBytes;
         this.direct = direct;
         setLockFactory(new SingleInstanceLockFactory());
         if (!disableCache && warmCache) {
@@ -77,20 +86,20 @@ public class ByteBufferDirectory extends Directory {
         }
     }
 
-    public SizeValue bufferSize() {
-        return this.bufferSize;
+    public int cacheSizeInBytes() {
+        return this.cacheSizeInBytes;
     }
 
-    public SizeValue cacheSize() {
-        return this.cacheSize;
-    }
-
-    int bufferSizeInBytes() {
+    public int bufferSizeInBytes() {
         return bufferSizeInBytes;
     }
 
     public boolean isDirect() {
         return direct;
+    }
+
+    public boolean isCacheEnabled() {
+        return !disableCache;
     }
 
     @Override public String[] listAll() throws IOException {

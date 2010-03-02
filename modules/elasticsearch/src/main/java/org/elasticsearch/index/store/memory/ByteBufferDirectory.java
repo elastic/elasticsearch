@@ -23,10 +23,10 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SingleInstanceLockFactory;
-import sun.nio.ch.DirectBuffer;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Queue;
@@ -60,6 +60,32 @@ public class ByteBufferDirectory extends Directory {
 
     private final boolean direct;
 
+    private boolean useCleanHack = true;
+
+    public static final boolean CLEAN_SUPPORTED;
+
+    private static final Method directBufferCleaner;
+    private static final Method directBufferCleanerClean;
+
+    static {
+        Method directBufferCleanerX = null;
+        Method directBufferCleanerCleanX = null;
+        boolean v;
+        try {
+            directBufferCleanerX = Class.forName("java.nio.DirectByteBuffer").getMethod("cleaner");
+            directBufferCleanerX.setAccessible(true);
+            directBufferCleanerCleanX = Class.forName("sun.misc.Cleaner").getMethod("clean");
+            directBufferCleanerCleanX.setAccessible(true);
+            v = true;
+        } catch (Exception e) {
+            v = false;
+        }
+        CLEAN_SUPPORTED = v;
+        directBufferCleaner = directBufferCleanerX;
+        directBufferCleanerClean = directBufferCleanerCleanX;
+    }
+
+
     /**
      * Constructs a new byte buffer directory.
      *
@@ -84,6 +110,16 @@ public class ByteBufferDirectory extends Directory {
                 cache.add(createBuffer());
             }
         }
+    }
+
+    public void setUseClean(final boolean useCleanHack) {
+        if (useCleanHack && !CLEAN_SUPPORTED)
+            throw new IllegalArgumentException("Clean hack not supported on this platform!");
+        this.useCleanHack = useCleanHack;
+    }
+
+    public boolean getUseClean() {
+        return useCleanHack;
     }
 
     public int cacheSizeInBytes() {
@@ -214,8 +250,14 @@ public class ByteBufferDirectory extends Directory {
     }
 
     private void closeBuffer(ByteBuffer byteBuffer) {
-        if (isDirect()) {
-            ((DirectBuffer) byteBuffer).cleaner().clean();
+        if (useCleanHack && isDirect()) {
+            try {
+                Object cleaner = directBufferCleaner.invoke(byteBuffer);
+                directBufferCleanerClean.invoke(cleaner);
+            } catch (Exception e) {
+                e.printStackTrace();
+                // silently ignore exception
+            }
         }
     }
 }

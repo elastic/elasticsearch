@@ -52,243 +52,243 @@ public class PrefixLoggerAdapter implements Logger {
         return logger.getName();
     }
 
-    public boolean isTraceEnabled() {
+    public final boolean isTraceEnabled() {
         return logger.isTraceEnabled();
     }
 
-    public void trace(String s) {
+    public final void trace(String s) {
         logger.trace(wrap(s));
     }
 
-    public void trace(String s, Object o) {
+    public final void trace(String s, Object o) {
         logger.trace(wrap(s), o);
     }
 
-    public void trace(String s, Object o, Object o1) {
+    public final void trace(String s, Object o, Object o1) {
         logger.trace(wrap(s), o, o1);
     }
 
-    public void trace(String s, Object[] objects) {
+    public final void trace(String s, Object[] objects) {
         logger.trace(wrap(s), objects);
     }
 
-    public void trace(String s, Throwable throwable) {
+    public final void trace(String s, Throwable throwable) {
         logger.trace(wrap(s), throwable);
     }
 
-    public boolean isTraceEnabled(Marker marker) {
+    public final boolean isTraceEnabled(Marker marker) {
         return logger.isTraceEnabled(marker);
     }
 
-    public void trace(Marker marker, String s) {
+    public final void trace(Marker marker, String s) {
         logger.trace(marker, wrap(s));
     }
 
-    public void trace(Marker marker, String s, Object o) {
+    public final void trace(Marker marker, String s, Object o) {
         logger.trace(marker, wrap(s), o);
     }
 
-    public void trace(Marker marker, String s, Object o, Object o1) {
+    public final void trace(Marker marker, String s, Object o, Object o1) {
         logger.trace(marker, wrap(s), o, o1);
     }
 
-    public void trace(Marker marker, String s, Object[] objects) {
+    public final void trace(Marker marker, String s, Object[] objects) {
         logger.trace(marker, wrap(s), objects);
     }
 
-    public void trace(Marker marker, String s, Throwable throwable) {
+    public final void trace(Marker marker, String s, Throwable throwable) {
         logger.trace(marker, wrap(s), throwable);
     }
 
-    public boolean isDebugEnabled() {
+    public final boolean isDebugEnabled() {
         return logger.isDebugEnabled();
     }
 
-    public void debug(String s) {
+    public final void debug(String s) {
         logger.debug(wrap(s));
     }
 
-    public void debug(String s, Object o) {
+    public final void debug(String s, Object o) {
         logger.debug(wrap(s), o);
     }
 
-    public void debug(String s, Object o, Object o1) {
+    public final void debug(String s, Object o, Object o1) {
         logger.debug(wrap(s), o, o1);
     }
 
-    public void debug(String s, Object[] objects) {
+    public final void debug(String s, Object[] objects) {
         logger.debug(wrap(s), objects);
     }
 
-    public void debug(String s, Throwable throwable) {
+    public final void debug(String s, Throwable throwable) {
         logger.debug(wrap(s), throwable);
     }
 
-    public boolean isDebugEnabled(Marker marker) {
+    public final boolean isDebugEnabled(Marker marker) {
         return logger.isDebugEnabled(marker);
     }
 
-    public void debug(Marker marker, String s) {
+    public final void debug(Marker marker, String s) {
         logger.debug(marker, wrap(s));
     }
 
-    public void debug(Marker marker, String s, Object o) {
+    public final void debug(Marker marker, String s, Object o) {
         logger.debug(marker, wrap(s), o);
     }
 
-    public void debug(Marker marker, String s, Object o, Object o1) {
+    public final void debug(Marker marker, String s, Object o, Object o1) {
         logger.debug(marker, wrap(s), o, o1);
     }
 
-    public void debug(Marker marker, String s, Object[] objects) {
+    public final void debug(Marker marker, String s, Object[] objects) {
         logger.debug(marker, wrap(s), objects);
     }
 
-    public void debug(Marker marker, String s, Throwable throwable) {
+    public final void debug(Marker marker, String s, Throwable throwable) {
         logger.debug(marker, wrap(s), throwable);
     }
 
-    public boolean isInfoEnabled() {
+    public final boolean isInfoEnabled() {
         return logger.isInfoEnabled();
     }
 
-    public void info(String s) {
+    public final void info(String s) {
         logger.info(wrap(s));
     }
 
-    public void info(String s, Object o) {
+    public final void info(String s, Object o) {
         logger.info(wrap(s), o);
     }
 
-    public void info(String s, Object o, Object o1) {
+    public final void info(String s, Object o, Object o1) {
         logger.info(wrap(s), o, o1);
     }
 
-    public void info(String s, Object[] objects) {
+    public final void info(String s, Object[] objects) {
         logger.info(wrap(s), objects);
     }
 
-    public void info(String s, Throwable throwable) {
+    public final void info(String s, Throwable throwable) {
         logger.info(wrap(s), throwable);
     }
 
-    public boolean isInfoEnabled(Marker marker) {
+    public final boolean isInfoEnabled(Marker marker) {
         return logger.isInfoEnabled(marker);
     }
 
-    public void info(Marker marker, String s) {
+    public final void info(Marker marker, String s) {
         logger.info(marker, wrap(s));
     }
 
-    public void info(Marker marker, String s, Object o) {
+    public final void info(Marker marker, String s, Object o) {
         logger.info(marker, wrap(s), o);
     }
 
-    public void info(Marker marker, String s, Object o, Object o1) {
+    public final void info(Marker marker, String s, Object o, Object o1) {
         logger.info(marker, wrap(s), o, o1);
     }
 
-    public void info(Marker marker, String s, Object[] objects) {
+    public final void info(Marker marker, String s, Object[] objects) {
         logger.info(marker, wrap(s), objects);
     }
 
-    public void info(Marker marker, String s, Throwable throwable) {
+    public final void info(Marker marker, String s, Throwable throwable) {
         logger.info(marker, wrap(s), throwable);
     }
 
-    public boolean isWarnEnabled() {
+    public final boolean isWarnEnabled() {
         return logger.isWarnEnabled();
     }
 
-    public void warn(String s) {
+    public final void warn(String s) {
         logger.warn(wrap(s));
     }
 
-    public void warn(String s, Object o) {
+    public final void warn(String s, Object o) {
         logger.warn(wrap(s), o);
     }
 
-    public void warn(String s, Object[] objects) {
+    public final void warn(String s, Object[] objects) {
         logger.warn(wrap(s), objects);
     }
 
-    public void warn(String s, Object o, Object o1) {
+    public final void warn(String s, Object o, Object o1) {
         logger.warn(wrap(s), o, o1);
     }
 
-    public void warn(String s, Throwable throwable) {
+    public final void warn(String s, Throwable throwable) {
         logger.warn(wrap(s), throwable);
     }
 
-    public boolean isWarnEnabled(Marker marker) {
+    public final boolean isWarnEnabled(Marker marker) {
         return logger.isWarnEnabled(marker);
     }
 
-    public void warn(Marker marker, String s) {
+    public final void warn(Marker marker, String s) {
         logger.warn(marker, wrap(s));
     }
 
-    public void warn(Marker marker, String s, Object o) {
+    public final void warn(Marker marker, String s, Object o) {
         logger.warn(marker, wrap(s), o);
     }
 
-    public void warn(Marker marker, String s, Object o, Object o1) {
+    public final void warn(Marker marker, String s, Object o, Object o1) {
         logger.warn(marker, wrap(s), o, o1);
     }
 
-    public void warn(Marker marker, String s, Object[] objects) {
+    public final void warn(Marker marker, String s, Object[] objects) {
         logger.warn(marker, wrap(s), objects);
     }
 
-    public void warn(Marker marker, String s, Throwable throwable) {
+    public final void warn(Marker marker, String s, Throwable throwable) {
         logger.warn(marker, wrap(s), throwable);
     }
 
-    public boolean isErrorEnabled() {
+    public final boolean isErrorEnabled() {
         return logger.isErrorEnabled();
     }
 
-    public void error(String s) {
+    public final void error(String s) {
         logger.error(wrap(s));
     }
 
-    public void error(String s, Object o) {
+    public final void error(String s, Object o) {
         logger.error(wrap(s), o);
     }
 
-    public void error(String s, Object o, Object o1) {
+    public final void error(String s, Object o, Object o1) {
         logger.error(wrap(s), o, o1);
     }
 
-    public void error(String s, Object[] objects) {
+    public final void error(String s, Object[] objects) {
         logger.error(wrap(s), objects);
     }
 
-    public void error(String s, Throwable throwable) {
+    public final void error(String s, Throwable throwable) {
         logger.error(wrap(s), throwable);
     }
 
-    public boolean isErrorEnabled(Marker marker) {
+    public final boolean isErrorEnabled(Marker marker) {
         return logger.isErrorEnabled(marker);
     }
 
-    public void error(Marker marker, String s) {
+    public final void error(Marker marker, String s) {
         logger.error(marker, wrap(s));
     }
 
-    public void error(Marker marker, String s, Object o) {
+    public final void error(Marker marker, String s, Object o) {
         logger.error(marker, wrap(s), o);
     }
 
-    public void error(Marker marker, String s, Object o, Object o1) {
+    public final void error(Marker marker, String s, Object o, Object o1) {
         logger.error(marker, wrap(s), o, o1);
     }
 
-    public void error(Marker marker, String s, Object[] objects) {
+    public final void error(Marker marker, String s, Object[] objects) {
         logger.error(marker, wrap(s), objects);
     }
 
-    public void error(Marker marker, String s, Throwable throwable) {
+    public final void error(Marker marker, String s, Throwable throwable) {
         logger.error(marker, wrap(s), throwable);
     }
 }

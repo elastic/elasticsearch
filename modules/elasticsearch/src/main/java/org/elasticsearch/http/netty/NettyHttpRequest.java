@@ -148,7 +148,7 @@ public class NettyHttpRequest implements HttpRequest {
         if (sValue == null) {
             return defaultValue;
         }
-        return sValue.equals("true") || sValue.equals("1") || sValue.equals("on");
+        return !(sValue.equals("false") || sValue.equals("0") || sValue.equals("off"));
     }
 
     @Override public Boolean paramAsBoolean(String key, Boolean defaultValue) {
@@ -156,7 +156,7 @@ public class NettyHttpRequest implements HttpRequest {
         if (sValue == null) {
             return defaultValue;
         }
-        return sValue.equals("true") || sValue.equals("1") || sValue.equals("on");
+        return !(sValue.equals("false") || sValue.equals("0") || sValue.equals("off"));
     }
 
     @Override public TimeValue paramAsTime(String key, TimeValue defaultValue) {

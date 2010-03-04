@@ -82,7 +82,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
         while (true) {
             int waitForCounter = 0;
             ClusterHealthResponse response = clusterHealth(request);
-            if (request.waitForStatus() != null && response.status() == request.waitForStatus()) {
+            if (request.waitForStatus() != null && response.status().value() <= request.waitForStatus().value()) {
                 waitForCounter++;
             }
             if (request.waitForRelocatingShards() != -1 && response.relocatingShards() <= request.waitForRelocatingShards()) {

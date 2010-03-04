@@ -21,6 +21,7 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchInterruptedException;
+import org.elasticsearch.ElasticSearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.transport.TransportException;
@@ -109,13 +110,15 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
         }
     }
 
-    @Override public T actionGet(long timeoutMillis) throws ElasticSearchException, TimeoutException {
+    @Override public T actionGet(long timeoutMillis) throws ElasticSearchException {
         return actionGet(timeoutMillis, TimeUnit.MILLISECONDS);
     }
 
-    @Override public T actionGet(long timeout, TimeUnit unit) throws ElasticSearchException, TimeoutException {
+    @Override public T actionGet(long timeout, TimeUnit unit) throws ElasticSearchException {
         try {
             return get(timeout, unit);
+        } catch (TimeoutException e) {
+            throw new ElasticSearchTimeoutException(e.getMessage());
         } catch (InterruptedException e) {
             throw new ElasticSearchInterruptedException(e.getMessage());
         } catch (ExecutionException e) {

@@ -23,16 +23,34 @@ import org.elasticsearch.ElasticSearchException;
 
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 /**
- * @author kimchy (Shay Banon)
+ * An extension to {@link Future} allowing for simplified "get" operations.
+ *
+ * @author kimchy (shay.banon)
  */
 public interface ActionFuture<T> extends Future<T> {
 
+    /**
+     * Similar to {@link #get()}, just wrapping the {@link InterruptedException} with
+     * {@link org.elasticsearch.ElasticSearchInterruptedException}, and throwing the actual
+     * cause of the {@link java.util.concurrent.ExecutionException}.
+     */
     T actionGet() throws ElasticSearchException;
 
-    T actionGet(long timeoutMillis) throws ElasticSearchException, TimeoutException;
+    /**
+     * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just wrapping the {@link InterruptedException} with
+     * {@link org.elasticsearch.ElasticSearchInterruptedException}, and throwing the actual
+     * cause of the {@link java.util.concurrent.ExecutionException}.
+     *
+     * @param timeoutMillis Timeout in millis
+     */
+    T actionGet(long timeoutMillis) throws ElasticSearchException;
 
-    T actionGet(long timeout, TimeUnit unit) throws ElasticSearchException, TimeoutException;
+    /**
+     * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just wrapping the {@link InterruptedException} with
+     * {@link org.elasticsearch.ElasticSearchInterruptedException}, and throwing the actual
+     * cause of the {@link java.util.concurrent.ExecutionException}.
+     */
+    T actionGet(long timeout, TimeUnit unit) throws ElasticSearchException;
 }

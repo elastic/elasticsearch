@@ -20,17 +20,17 @@
 package org.elasticsearch;
 
 /**
- * The same as {@link InterruptedException} simply a runtime one.
+ * The same as {@link java.util.concurrent.TimeoutException} simply a runtime one.
  *
  * @author kimchy (shay.banon)
  */
-public class ElasticSearchInterruptedException extends ElasticSearchException {
+public class ElasticSearchTimeoutException extends ElasticSearchException {
 
-    public ElasticSearchInterruptedException(String message) {
+    public ElasticSearchTimeoutException(String message) {
         super(message);
     }
 
-    public ElasticSearchInterruptedException(String message, Throwable cause) {
+    public ElasticSearchTimeoutException(String message, Throwable cause) {
         super(message, cause);
     }
 }

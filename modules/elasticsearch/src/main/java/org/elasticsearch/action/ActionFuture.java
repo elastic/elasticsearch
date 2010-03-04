@@ -20,6 +20,7 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.util.TimeValue;
 
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -53,4 +54,11 @@ public interface ActionFuture<T> extends Future<T> {
      * cause of the {@link java.util.concurrent.ExecutionException}.
      */
     T actionGet(long timeout, TimeUnit unit) throws ElasticSearchException;
+
+    /**
+     * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just wrapping the {@link InterruptedException} with
+     * {@link org.elasticsearch.ElasticSearchInterruptedException}, and throwing the actual
+     * cause of the {@link java.util.concurrent.ExecutionException}.
+     */
+    T actionGet(TimeValue timeout) throws ElasticSearchException;
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticSearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.util.TimeValue;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -112,6 +113,10 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
 
     @Override public T actionGet(long timeoutMillis) throws ElasticSearchException {
         return actionGet(timeoutMillis, TimeUnit.MILLISECONDS);
+    }
+
+    @Override public T actionGet(TimeValue timeout) throws ElasticSearchException {
+        return actionGet(timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
     @Override public T actionGet(long timeout, TimeUnit unit) throws ElasticSearchException {

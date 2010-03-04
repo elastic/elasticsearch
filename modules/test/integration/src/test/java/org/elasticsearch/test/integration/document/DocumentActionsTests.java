@@ -108,7 +108,7 @@ public class DocumentActionsTests extends AbstractServersTests {
         logger.info("Get [type1/2] (should be empty)");
         for (int i = 0; i < 5; i++) {
             getResult = client1.get(getRequest("test").type("type1").id("2")).actionGet();
-            assertThat(getResult.exists(), equalTo(true));
+            assertThat(getResult.exists(), equalTo(false));
         }
 
         logger.info("Delete [type1/1]");
@@ -121,7 +121,7 @@ public class DocumentActionsTests extends AbstractServersTests {
         logger.info("Get [type1/1] (should be empty)");
         for (int i = 0; i < 5; i++) {
             getResult = client1.get(getRequest("test").type("type1").id("1")).actionGet();
-            assertThat(getResult.exists(), equalTo(true));
+            assertThat(getResult.exists(), equalTo(false));
         }
 
         logger.info("Index [type1/1]");

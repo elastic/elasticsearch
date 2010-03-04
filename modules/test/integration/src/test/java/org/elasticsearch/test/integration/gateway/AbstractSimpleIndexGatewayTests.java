@@ -81,7 +81,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractServersTes
 
         logger.info("Getting #1, should not exists");
         GetResponse getResponse = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
-        assertThat(getResponse.exists(), equalTo(true));
+        assertThat(getResponse.exists(), equalTo(false));
         logger.info("Getting #2");
         getResponse = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
         assertThat(getResponse.sourceAsString(), equalTo(source("2", "test")));
@@ -106,7 +106,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractServersTes
 
         logger.info("Getting #1, should not exists");
         getResponse = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
-        assertThat(getResponse.exists(), equalTo(true));
+        assertThat(getResponse.exists(), equalTo(false));
         logger.info("Getting #2 (not from the translog, but from the index)");
         getResponse = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
         assertThat(getResponse.sourceAsString(), equalTo(source("2", "test")));
@@ -131,7 +131,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractServersTes
 
         logger.info("Getting #1, should not exists");
         getResponse = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
-        assertThat(getResponse.exists(), equalTo(true));
+        assertThat(getResponse.exists(), equalTo(false));
         logger.info("Getting #2 (not from the translog, but from the index)");
         getResponse = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
         assertThat(getResponse.sourceAsString(), equalTo(source("2", "test")));

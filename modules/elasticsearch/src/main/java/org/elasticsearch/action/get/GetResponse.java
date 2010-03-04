@@ -58,7 +58,7 @@ public class GetResponse implements ActionResponse, Streamable {
      * Does the document exists.
      */
     public boolean exists() {
-        return source == null;
+        return source != null && source.length > 0;
     }
 
     /**

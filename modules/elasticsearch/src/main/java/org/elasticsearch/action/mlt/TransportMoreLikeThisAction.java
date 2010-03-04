@@ -81,7 +81,7 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
                 .listenerThreaded(false);
         getAction.execute(getRequest, new ActionListener<GetResponse>() {
             @Override public void onResponse(GetResponse getResponse) {
-                if (getResponse.exists()) {
+                if (!getResponse.exists()) {
                     listener.onFailure(new ElasticSearchException("document missing"));
                     return;
                 }

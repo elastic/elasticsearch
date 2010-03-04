@@ -87,98 +87,66 @@ public class ServerIndicesAdminClient extends AbstractComponent implements Indic
     }
 
     @Override public ActionFuture<IndicesStatusResponse> status(IndicesStatusRequest request) {
-        return indicesStatusAction.submit(request);
+        return indicesStatusAction.execute(request);
     }
 
-    @Override public ActionFuture<IndicesStatusResponse> status(IndicesStatusRequest request, ActionListener<IndicesStatusResponse> listener) {
-        return indicesStatusAction.submit(request, listener);
-    }
-
-    @Override public void execStatus(IndicesStatusRequest request, ActionListener<IndicesStatusResponse> listener) {
+    @Override public void status(IndicesStatusRequest request, ActionListener<IndicesStatusResponse> listener) {
         indicesStatusAction.execute(request, listener);
     }
 
     @Override public ActionFuture<CreateIndexResponse> create(CreateIndexRequest request) {
-        return createIndexAction.submit(request);
+        return createIndexAction.execute(request);
     }
 
-    @Override public ActionFuture<CreateIndexResponse> create(CreateIndexRequest request, ActionListener<CreateIndexResponse> listener) {
-        return createIndexAction.submit(request, listener);
-    }
-
-    @Override public void execCreate(CreateIndexRequest request, ActionListener<CreateIndexResponse> listener) {
+    @Override public void create(CreateIndexRequest request, ActionListener<CreateIndexResponse> listener) {
         createIndexAction.execute(request, listener);
     }
 
     @Override public ActionFuture<DeleteIndexResponse> delete(DeleteIndexRequest request) {
-        return deleteIndexAction.submit(request);
+        return deleteIndexAction.execute(request);
     }
 
-    @Override public ActionFuture<DeleteIndexResponse> delete(DeleteIndexRequest request, ActionListener<DeleteIndexResponse> listener) {
-        return deleteIndexAction.submit(request, listener);
-    }
-
-    @Override public void execDelete(DeleteIndexRequest request, ActionListener<DeleteIndexResponse> listener) {
+    @Override public void delete(DeleteIndexRequest request, ActionListener<DeleteIndexResponse> listener) {
         deleteIndexAction.execute(request, listener);
     }
 
     @Override public ActionFuture<RefreshResponse> refresh(RefreshRequest request) {
-        return refreshAction.submit(request);
+        return refreshAction.execute(request);
     }
 
-    @Override public ActionFuture<RefreshResponse> refresh(RefreshRequest request, ActionListener<RefreshResponse> listener) {
-        return refreshAction.submit(request, listener);
-    }
-
-    @Override public void execRefresh(RefreshRequest request, ActionListener<RefreshResponse> listener) {
+    @Override public void refresh(RefreshRequest request, ActionListener<RefreshResponse> listener) {
         refreshAction.execute(request, listener);
     }
 
     @Override public ActionFuture<FlushResponse> flush(FlushRequest request) {
-        return flushAction.submit(request);
+        return flushAction.execute(request);
     }
 
-    @Override public ActionFuture<FlushResponse> flush(FlushRequest request, ActionListener<FlushResponse> listener) {
-        return flushAction.submit(request, listener);
-    }
-
-    @Override public void execFlush(FlushRequest request, ActionListener<FlushResponse> listener) {
+    @Override public void flush(FlushRequest request, ActionListener<FlushResponse> listener) {
         flushAction.execute(request, listener);
     }
 
     @Override public ActionFuture<OptimizeResponse> optimize(OptimizeRequest request) {
-        return optimizeAction.submit(request);
+        return optimizeAction.execute(request);
     }
 
-    @Override public ActionFuture<OptimizeResponse> optimize(OptimizeRequest request, ActionListener<OptimizeResponse> listener) {
-        return optimizeAction.submit(request, listener);
-    }
-
-    @Override public void execOptimize(OptimizeRequest request, ActionListener<OptimizeResponse> listener) {
+    @Override public void optimize(OptimizeRequest request, ActionListener<OptimizeResponse> listener) {
         optimizeAction.execute(request, listener);
     }
 
     @Override public ActionFuture<PutMappingResponse> putMapping(PutMappingRequest request) {
-        return putMappingAction.submit(request);
+        return putMappingAction.execute(request);
     }
 
-    @Override public ActionFuture<PutMappingResponse> putMapping(PutMappingRequest request, ActionListener<PutMappingResponse> listener) {
-        return putMapping(request, listener);
-    }
-
-    @Override public void execPutMapping(PutMappingRequest request, ActionListener<PutMappingResponse> listener) {
+    @Override public void putMapping(PutMappingRequest request, ActionListener<PutMappingResponse> listener) {
         putMappingAction.execute(request, listener);
     }
 
     @Override public ActionFuture<GatewaySnapshotResponse> gatewaySnapshot(GatewaySnapshotRequest request) {
-        return gatewaySnapshotAction.submit(request);
+        return gatewaySnapshotAction.execute(request);
     }
 
-    @Override public ActionFuture<GatewaySnapshotResponse> gatewaySnapshot(GatewaySnapshotRequest request, ActionListener<GatewaySnapshotResponse> listener) {
-        return gatewaySnapshotAction.submit(request, listener);
-    }
-
-    @Override public void execGatewaySnapshot(GatewaySnapshotRequest request, ActionListener<GatewaySnapshotResponse> listener) {
+    @Override public void gatewaySnapshot(GatewaySnapshotRequest request, ActionListener<GatewaySnapshotResponse> listener) {
         gatewaySnapshotAction.execute(request, listener);
     }
 }

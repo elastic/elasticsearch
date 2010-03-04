@@ -56,19 +56,9 @@ public interface ClusterAdminClient {
      *
      * @param request  The cluster state request
      * @param listener A listener to be notified with a result
-     * @return The result future
      * @see Requests#clusterHealth(String...)
      */
-    ActionFuture<ClusterHealthResponse> health(ClusterHealthRequest request, ActionListener<ClusterHealthResponse> listener);
-
-    /**
-     * The health of the cluster.
-     *
-     * @param request  The cluster state request
-     * @param listener A listener to be notified with a result
-     * @see Requests#clusterHealth(String...)
-     */
-    void execHealth(ClusterHealthRequest request, ActionListener<ClusterHealthResponse> listener);
+    void health(ClusterHealthRequest request, ActionListener<ClusterHealthResponse> listener);
 
     /**
      * The state of the cluster.
@@ -84,19 +74,9 @@ public interface ClusterAdminClient {
      *
      * @param request  The cluster state request.
      * @param listener A listener to be notified with a result
-     * @return The result future
      * @see Requests#clusterState()
      */
-    ActionFuture<ClusterStateResponse> state(ClusterStateRequest request, ActionListener<ClusterStateResponse> listener);
-
-    /**
-     * The state of the cluster.
-     *
-     * @param request  The cluster state request.
-     * @param listener A listener to be notified with a result
-     * @see Requests#clusterState()
-     */
-    void execState(ClusterStateRequest request, ActionListener<ClusterStateResponse> listener);
+    void state(ClusterStateRequest request, ActionListener<ClusterStateResponse> listener);
 
     /**
      * Nodes info of the cluster.
@@ -112,35 +92,19 @@ public interface ClusterAdminClient {
      *
      * @param request  The nodes info request
      * @param listener A listener to be notified with a result
-     * @return The result future
      * @see org.elasticsearch.client.Requests#nodesInfo(String...)
      */
-    ActionFuture<NodesInfoResponse> nodesInfo(NodesInfoRequest request, ActionListener<NodesInfoResponse> listener);
-
-    /**
-     * Nodes info of the cluster.
-     *
-     * @param request  The nodes info request
-     * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#nodesInfo(String...)
-     */
-    void execNodesInfo(NodesInfoRequest request, ActionListener<NodesInfoResponse> listener);
+    void nodesInfo(NodesInfoRequest request, ActionListener<NodesInfoResponse> listener);
 
     ActionFuture<SinglePingResponse> ping(SinglePingRequest request);
 
-    ActionFuture<SinglePingResponse> ping(SinglePingRequest request, ActionListener<SinglePingResponse> listener);
-
-    void execPing(SinglePingRequest request, ActionListener<SinglePingResponse> listener);
+    void ping(SinglePingRequest request, ActionListener<SinglePingResponse> listener);
 
     ActionFuture<BroadcastPingResponse> ping(BroadcastPingRequest request);
 
-    ActionFuture<BroadcastPingResponse> ping(BroadcastPingRequest request, ActionListener<BroadcastPingResponse> listener);
-
-    void execPing(BroadcastPingRequest request, ActionListener<BroadcastPingResponse> listener);
+    void ping(BroadcastPingRequest request, ActionListener<BroadcastPingResponse> listener);
 
     ActionFuture<ReplicationPingResponse> ping(ReplicationPingRequest request);
 
-    ActionFuture<ReplicationPingResponse> ping(ReplicationPingRequest request, ActionListener<ReplicationPingResponse> listener);
-
-    void execPing(ReplicationPingRequest request, ActionListener<ReplicationPingResponse> listener);
+    void ping(ReplicationPingRequest request, ActionListener<ReplicationPingResponse> listener);
 }

@@ -90,7 +90,7 @@ public class RestSearchAction extends BaseRestHandler {
             }
             return;
         }
-        client.execSearch(searchRequest, new ActionListener<SearchResponse>() {
+        client.search(searchRequest, new ActionListener<SearchResponse>() {
             @Override public void onResponse(SearchResponse response) {
                 try {
                     JsonBuilder builder = restJsonBuilder(request);

@@ -58,7 +58,7 @@ public class RestRefreshAction extends BaseRestHandler {
             operationThreading = BroadcastOperationThreading.THREAD_PER_SHARD;
         }
         refreshRequest.operationThreading(operationThreading);
-        client.admin().indices().execRefresh(refreshRequest, new ActionListener<RefreshResponse>() {
+        client.admin().indices().refresh(refreshRequest, new ActionListener<RefreshResponse>() {
             @Override public void onResponse(RefreshResponse response) {
                 try {
                     JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);

@@ -60,19 +60,9 @@ public interface IndicesAdminClient {
      *
      * @param request  The indices status request
      * @param listener A listener to be notified with a result
-     * @return The result future
      * @see Requests#indicesStatus(String...)
      */
-    ActionFuture<IndicesStatusResponse> status(IndicesStatusRequest request, ActionListener<IndicesStatusResponse> listener);
-
-    /**
-     * The status of one or more indices.
-     *
-     * @param request  The indices status request
-     * @param listener A listener to be notified with a result
-     * @see Requests#indicesStatus(String...)
-     */
-    void execStatus(IndicesStatusRequest request, ActionListener<IndicesStatusResponse> listener);
+    void status(IndicesStatusRequest request, ActionListener<IndicesStatusResponse> listener);
 
     /**
      * Creates an index using an explicit request allowing to specify the settings of the index.
@@ -88,19 +78,9 @@ public interface IndicesAdminClient {
      *
      * @param request  The create index request
      * @param listener A listener to be notified with a result
-     * @return The result future
      * @see org.elasticsearch.client.Requests#createIndexRequest(String)
      */
-    ActionFuture<CreateIndexResponse> create(CreateIndexRequest request, ActionListener<CreateIndexResponse> listener);
-
-    /**
-     * Creates an index using an explicit request allowing to specify the settings of the index.
-     *
-     * @param request  The create index request
-     * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#createIndexRequest(String)
-     */
-    void execCreate(CreateIndexRequest request, ActionListener<CreateIndexResponse> listener);
+    void create(CreateIndexRequest request, ActionListener<CreateIndexResponse> listener);
 
     /**
      * Deletes an index based on the index name.
@@ -116,19 +96,9 @@ public interface IndicesAdminClient {
      *
      * @param request  The delete index request
      * @param listener A listener to be notified with a result
-     * @return The result future
      * @see org.elasticsearch.client.Requests#deleteIndexRequest(String)
      */
-    ActionFuture<DeleteIndexResponse> delete(DeleteIndexRequest request, ActionListener<DeleteIndexResponse> listener);
-
-    /**
-     * Deletes an index based on the index name.
-     *
-     * @param request  The delete index request
-     * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#deleteIndexRequest(String)
-     */
-    void execDelete(DeleteIndexRequest request, ActionListener<DeleteIndexResponse> listener);
+    void delete(DeleteIndexRequest request, ActionListener<DeleteIndexResponse> listener);
 
     /**
      * Explicitly refresh one or more indices (making the content indexed since the last refresh searchable).
@@ -144,19 +114,9 @@ public interface IndicesAdminClient {
      *
      * @param request  The refresh request
      * @param listener A listener to be notified with a result
-     * @return The result future
      * @see org.elasticsearch.client.Requests#refreshRequest(String...)
      */
-    ActionFuture<RefreshResponse> refresh(RefreshRequest request, ActionListener<RefreshResponse> listener);
-
-    /**
-     * Explicitly refresh one or more indices (making the content indexed since the last refresh searchable).
-     *
-     * @param request  The refresh request
-     * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#refreshRequest(String...)
-     */
-    void execRefresh(RefreshRequest request, ActionListener<RefreshResponse> listener);
+    void refresh(RefreshRequest request, ActionListener<RefreshResponse> listener);
 
     /**
      * Explicitly flush one or more indices (releasing memory from the node).
@@ -172,19 +132,9 @@ public interface IndicesAdminClient {
      *
      * @param request  The flush request
      * @param listener A listener to be notified with a result
-     * @return A result future
      * @see org.elasticsearch.client.Requests#flushRequest(String...)
      */
-    ActionFuture<FlushResponse> flush(FlushRequest request, ActionListener<FlushResponse> listener);
-
-    /**
-     * Explicitly flush one or more indices (releasing memory from the node).
-     *
-     * @param request  The flush request
-     * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#flushRequest(String...)
-     */
-    void execFlush(FlushRequest request, ActionListener<FlushResponse> listener);
+    void flush(FlushRequest request, ActionListener<FlushResponse> listener);
 
     /**
      * Explicitly optimize one or more indices into a the number of segments.
@@ -200,19 +150,9 @@ public interface IndicesAdminClient {
      *
      * @param request  The optimize request
      * @param listener A listener to be notified with a result
-     * @return A result future
      * @see org.elasticsearch.client.Requests#optimizeRequest(String...)
      */
-    ActionFuture<OptimizeResponse> optimize(OptimizeRequest request, ActionListener<OptimizeResponse> listener);
-
-    /**
-     * Explicitly optimize one or more indices into a the number of segments.
-     *
-     * @param request  The optimize request
-     * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#optimizeRequest(String...)
-     */
-    void execOptimize(OptimizeRequest request, ActionListener<OptimizeResponse> listener);
+    void optimize(OptimizeRequest request, ActionListener<OptimizeResponse> listener);
 
     /**
      * Add mapping definition for a type into one or more indices.
@@ -228,19 +168,9 @@ public interface IndicesAdminClient {
      *
      * @param request  The create mapping request
      * @param listener A listener to be notified with a result
-     * @return A result future
      * @see org.elasticsearch.client.Requests#putMappingRequest(String...)
      */
-    ActionFuture<PutMappingResponse> putMapping(PutMappingRequest request, ActionListener<PutMappingResponse> listener);
-
-    /**
-     * Add mapping definition for a type into one or more indices.
-     *
-     * @param request  The create mapping request
-     * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#putMappingRequest(String...)
-     */
-    void execPutMapping(PutMappingRequest request, ActionListener<PutMappingResponse> listener);
+    void putMapping(PutMappingRequest request, ActionListener<PutMappingResponse> listener);
 
     /**
      * Explicitly perform gateway snapshot for one or more indices.
@@ -256,17 +186,7 @@ public interface IndicesAdminClient {
      *
      * @param request  The gateway snapshot request
      * @param listener A listener to be notified with a result
-     * @return The result future
      * @see org.elasticsearch.client.Requests#gatewaySnapshotRequest(String...)
      */
-    ActionFuture<GatewaySnapshotResponse> gatewaySnapshot(GatewaySnapshotRequest request, ActionListener<GatewaySnapshotResponse> listener);
-
-    /**
-     * Explicitly perform gateway snapshot for one or more indices.
-     *
-     * @param request  The gateway snapshot request
-     * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#gatewaySnapshotRequest(String...)
-     */
-    void execGatewaySnapshot(GatewaySnapshotRequest request, ActionListener<GatewaySnapshotResponse> listener);
+    void gatewaySnapshot(GatewaySnapshotRequest request, ActionListener<GatewaySnapshotResponse> listener);
 }

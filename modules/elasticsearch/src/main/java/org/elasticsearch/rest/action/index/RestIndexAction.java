@@ -68,7 +68,7 @@ public class RestIndexAction extends BaseRestHandler {
         indexRequest.listenerThreaded(false);
         // we don't spawn, then fork if local
         indexRequest.operationThreaded(true);
-        client.execIndex(indexRequest, new ActionListener<IndexResponse>() {
+        client.index(indexRequest, new ActionListener<IndexResponse>() {
             @Override public void onResponse(IndexResponse result) {
                 try {
                     JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);

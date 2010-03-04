@@ -82,7 +82,7 @@ public class RestCountAction extends BaseRestHandler {
             return;
         }
 
-        client.execCount(countRequest, new ActionListener<CountResponse>() {
+        client.count(countRequest, new ActionListener<CountResponse>() {
             @Override public void onResponse(CountResponse response) {
                 try {
                     JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);

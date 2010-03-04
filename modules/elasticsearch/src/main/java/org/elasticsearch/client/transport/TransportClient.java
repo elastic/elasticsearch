@@ -214,95 +214,63 @@ public class TransportClient implements Client {
         return internalClient.index(request);
     }
 
-    @Override public ActionFuture<IndexResponse> index(IndexRequest request, ActionListener<IndexResponse> listener) {
-        return internalClient.index(request, listener);
-    }
-
-    @Override public void execIndex(IndexRequest request, ActionListener<IndexResponse> listener) {
-        internalClient.execIndex(request, listener);
+    @Override public void index(IndexRequest request, ActionListener<IndexResponse> listener) {
+        internalClient.index(request, listener);
     }
 
     @Override public ActionFuture<DeleteResponse> delete(DeleteRequest request) {
         return internalClient.delete(request);
     }
 
-    @Override public ActionFuture<DeleteResponse> delete(DeleteRequest request, ActionListener<DeleteResponse> listener) {
-        return internalClient.delete(request, listener);
-    }
-
-    @Override public void execDelete(DeleteRequest request, ActionListener<DeleteResponse> listener) {
-        internalClient.execDelete(request, listener);
+    @Override public void delete(DeleteRequest request, ActionListener<DeleteResponse> listener) {
+        internalClient.delete(request, listener);
     }
 
     @Override public ActionFuture<DeleteByQueryResponse> deleteByQuery(DeleteByQueryRequest request) {
         return internalClient.deleteByQuery(request);
     }
 
-    @Override public ActionFuture<DeleteByQueryResponse> deleteByQuery(DeleteByQueryRequest request, ActionListener<DeleteByQueryResponse> listener) {
-        return internalClient.deleteByQuery(request, listener);
-    }
-
-    @Override public void execDeleteByQuery(DeleteByQueryRequest request, ActionListener<DeleteByQueryResponse> listener) {
-        internalClient.execDeleteByQuery(request, listener);
+    @Override public void deleteByQuery(DeleteByQueryRequest request, ActionListener<DeleteByQueryResponse> listener) {
+        internalClient.deleteByQuery(request, listener);
     }
 
     @Override public ActionFuture<GetResponse> get(GetRequest request) {
         return internalClient.get(request);
     }
 
-    @Override public ActionFuture<GetResponse> get(GetRequest request, ActionListener<GetResponse> listener) {
-        return internalClient.get(request, listener);
-    }
-
-    @Override public void execGet(GetRequest request, ActionListener<GetResponse> listener) {
-        internalClient.execGet(request, listener);
+    @Override public void get(GetRequest request, ActionListener<GetResponse> listener) {
+        internalClient.get(request, listener);
     }
 
     @Override public ActionFuture<CountResponse> count(CountRequest request) {
         return internalClient.count(request);
     }
 
-    @Override public ActionFuture<CountResponse> count(CountRequest request, ActionListener<CountResponse> listener) {
-        return internalClient.count(request, listener);
-    }
-
-    @Override public void execCount(CountRequest request, ActionListener<CountResponse> listener) {
-        internalClient.execCount(request, listener);
+    @Override public void count(CountRequest request, ActionListener<CountResponse> listener) {
+        internalClient.count(request, listener);
     }
 
     @Override public ActionFuture<SearchResponse> search(SearchRequest request) {
         return internalClient.search(request);
     }
 
-    @Override public ActionFuture<SearchResponse> search(SearchRequest request, ActionListener<SearchResponse> listener) {
-        return internalClient.search(request, listener);
-    }
-
-    @Override public void execSearch(SearchRequest request, ActionListener<SearchResponse> listener) {
-        internalClient.execSearch(request, listener);
+    @Override public void search(SearchRequest request, ActionListener<SearchResponse> listener) {
+        internalClient.search(request, listener);
     }
 
     @Override public ActionFuture<SearchResponse> searchScroll(SearchScrollRequest request) {
         return internalClient.searchScroll(request);
     }
 
-    @Override public ActionFuture<SearchResponse> searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
-        return internalClient.searchScroll(request, listener);
-    }
-
-    @Override public void execSearchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
-        internalClient.execSearchScroll(request, listener);
+    @Override public void searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
+        internalClient.searchScroll(request, listener);
     }
 
     @Override public ActionFuture<TermsResponse> terms(TermsRequest request) {
         return internalClient.terms(request);
     }
 
-    @Override public ActionFuture<TermsResponse> terms(TermsRequest request, ActionListener<TermsResponse> listener) {
-        return internalClient.terms(request, listener);
-    }
-
-    @Override public void execTerms(TermsRequest request, ActionListener<TermsResponse> listener) {
+    @Override public void terms(TermsRequest request, ActionListener<TermsResponse> listener) {
         internalClient.terms(request, listener);
     }
 
@@ -310,11 +278,7 @@ public class TransportClient implements Client {
         return internalClient.moreLikeThis(request);
     }
 
-    @Override public ActionFuture<SearchResponse> moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener) {
-        return internalClient.moreLikeThis(request, listener);
-    }
-
-    @Override public void execMoreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener) {
-        internalClient.execMoreLikeThis(request, listener);
+    @Override public void moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener) {
+        internalClient.moreLikeThis(request, listener);
     }
 }

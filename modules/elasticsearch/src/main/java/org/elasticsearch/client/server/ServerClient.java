@@ -100,110 +100,74 @@ public class ServerClient extends AbstractComponent implements Client {
     }
 
     @Override public ActionFuture<IndexResponse> index(IndexRequest request) {
-        return indexAction.submit(request);
+        return indexAction.execute(request);
     }
 
-    @Override public ActionFuture<IndexResponse> index(IndexRequest request, ActionListener<IndexResponse> listener) {
-        return indexAction.submit(request, listener);
-    }
-
-    @Override public void execIndex(IndexRequest request, ActionListener<IndexResponse> listener) {
+    @Override public void index(IndexRequest request, ActionListener<IndexResponse> listener) {
         indexAction.execute(request, listener);
     }
 
     @Override public ActionFuture<DeleteResponse> delete(DeleteRequest request) {
-        return deleteAction.submit(request);
+        return deleteAction.execute(request);
     }
 
-    @Override public ActionFuture<DeleteResponse> delete(DeleteRequest request, ActionListener<DeleteResponse> listener) {
-        return deleteAction.submit(request, listener);
-    }
-
-    @Override public void execDelete(DeleteRequest request, ActionListener<DeleteResponse> listener) {
+    @Override public void delete(DeleteRequest request, ActionListener<DeleteResponse> listener) {
         deleteAction.execute(request, listener);
     }
 
     @Override public ActionFuture<DeleteByQueryResponse> deleteByQuery(DeleteByQueryRequest request) {
-        return deleteByQueryAction.submit(request);
+        return deleteByQueryAction.execute(request);
     }
 
-    @Override public ActionFuture<DeleteByQueryResponse> deleteByQuery(DeleteByQueryRequest request, ActionListener<DeleteByQueryResponse> listener) {
-        return deleteByQueryAction.submit(request, listener);
-    }
-
-    @Override public void execDeleteByQuery(DeleteByQueryRequest request, ActionListener<DeleteByQueryResponse> listener) {
+    @Override public void deleteByQuery(DeleteByQueryRequest request, ActionListener<DeleteByQueryResponse> listener) {
         deleteByQueryAction.execute(request, listener);
     }
 
     @Override public ActionFuture<GetResponse> get(GetRequest request) {
-        return getAction.submit(request);
+        return getAction.execute(request);
     }
 
-    @Override public ActionFuture<GetResponse> get(GetRequest request, ActionListener<GetResponse> listener) {
-        return getAction.submit(request, listener);
-    }
-
-    @Override public void execGet(GetRequest request, ActionListener<GetResponse> listener) {
+    @Override public void get(GetRequest request, ActionListener<GetResponse> listener) {
         getAction.execute(request, listener);
     }
 
     @Override public ActionFuture<CountResponse> count(CountRequest request) {
-        return countAction.submit(request);
+        return countAction.execute(request);
     }
 
-    @Override public ActionFuture<CountResponse> count(CountRequest request, ActionListener<CountResponse> listener) {
-        return countAction.submit(request, listener);
-    }
-
-    @Override public void execCount(CountRequest request, ActionListener<CountResponse> listener) {
-        countAction.execute(request, listener);
+    @Override public void count(CountRequest request, ActionListener<CountResponse> listener) {
+        countAction.execute(request);
     }
 
     @Override public ActionFuture<SearchResponse> search(SearchRequest request) {
-        return searchAction.submit(request);
+        return searchAction.execute(request);
     }
 
-    @Override public ActionFuture<SearchResponse> search(SearchRequest request, ActionListener<SearchResponse> listener) {
-        return searchAction.submit(request, listener);
-    }
-
-    @Override public void execSearch(SearchRequest request, ActionListener<SearchResponse> listener) {
+    @Override public void search(SearchRequest request, ActionListener<SearchResponse> listener) {
         searchAction.execute(request, listener);
     }
 
     @Override public ActionFuture<SearchResponse> searchScroll(SearchScrollRequest request) {
-        return searchScrollAction.submit(request);
+        return searchScrollAction.execute(request);
     }
 
-    @Override public ActionFuture<SearchResponse> searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
-        return searchScrollAction.submit(request, listener);
-    }
-
-    @Override public void execSearchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
+    @Override public void searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         searchScrollAction.execute(request, listener);
     }
 
     @Override public ActionFuture<TermsResponse> terms(TermsRequest request) {
-        return termsAction.submit(request);
+        return termsAction.execute(request);
     }
 
-    @Override public ActionFuture<TermsResponse> terms(TermsRequest request, ActionListener<TermsResponse> listener) {
-        return termsAction.submit(request, listener);
-    }
-
-    @Override public void execTerms(TermsRequest request, ActionListener<TermsResponse> listener) {
+    @Override public void terms(TermsRequest request, ActionListener<TermsResponse> listener) {
         termsAction.execute(request, listener);
     }
 
     @Override public ActionFuture<SearchResponse> moreLikeThis(MoreLikeThisRequest request) {
-        return moreLikeThisAction.submit(request);
+        return moreLikeThisAction.execute(request);
     }
 
-    @Override public ActionFuture<SearchResponse> moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener) {
-        return moreLikeThisAction.submit(request, listener);
-    }
-
-    @Override public void execMoreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener) {
+    @Override public void moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener) {
         moreLikeThisAction.execute(request, listener);
     }
 }

@@ -56,7 +56,7 @@ public class RestBroadcastPingAction extends BaseRestHandler {
             operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
         }
         broadcastPingRequest.operationThreading(operationThreading);
-        client.admin().cluster().execPing(broadcastPingRequest, new ActionListener<BroadcastPingResponse>() {
+        client.admin().cluster().ping(broadcastPingRequest, new ActionListener<BroadcastPingResponse>() {
             @Override public void onResponse(BroadcastPingResponse response) {
                 try {
                     JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);

@@ -75,74 +75,50 @@ public class ServerClusterAdminClient extends AbstractComponent implements Clust
     }
 
     @Override public ActionFuture<ClusterHealthResponse> health(ClusterHealthRequest request) {
-        return clusterHealthAction.submit(request);
+        return clusterHealthAction.execute(request);
     }
 
-    @Override public ActionFuture<ClusterHealthResponse> health(ClusterHealthRequest request, ActionListener<ClusterHealthResponse> listener) {
-        return clusterHealthAction.submit(request, listener);
-    }
-
-    @Override public void execHealth(ClusterHealthRequest request, ActionListener<ClusterHealthResponse> listener) {
+    @Override public void health(ClusterHealthRequest request, ActionListener<ClusterHealthResponse> listener) {
         clusterHealthAction.execute(request, listener);
     }
 
     @Override public ActionFuture<ClusterStateResponse> state(ClusterStateRequest request) {
-        return clusterStateAction.submit(request);
+        return clusterStateAction.execute(request);
     }
 
-    @Override public ActionFuture<ClusterStateResponse> state(ClusterStateRequest request, ActionListener<ClusterStateResponse> listener) {
-        return clusterStateAction.submit(request, listener);
-    }
-
-    @Override public void execState(ClusterStateRequest request, ActionListener<ClusterStateResponse> listener) {
+    @Override public void state(ClusterStateRequest request, ActionListener<ClusterStateResponse> listener) {
         clusterStateAction.execute(request, listener);
     }
 
     @Override public ActionFuture<SinglePingResponse> ping(SinglePingRequest request) {
-        return singlePingAction.submit(request);
+        return singlePingAction.execute(request);
     }
 
-    @Override public ActionFuture<SinglePingResponse> ping(SinglePingRequest request, ActionListener<SinglePingResponse> listener) {
-        return singlePingAction.submit(request, listener);
-    }
-
-    @Override public void execPing(SinglePingRequest request, ActionListener<SinglePingResponse> listener) {
+    @Override public void ping(SinglePingRequest request, ActionListener<SinglePingResponse> listener) {
         singlePingAction.execute(request, listener);
     }
 
     @Override public ActionFuture<BroadcastPingResponse> ping(BroadcastPingRequest request) {
-        return broadcastPingAction.submit(request);
+        return broadcastPingAction.execute(request);
     }
 
-    @Override public ActionFuture<BroadcastPingResponse> ping(BroadcastPingRequest request, ActionListener<BroadcastPingResponse> listener) {
-        return broadcastPingAction.submit(request, listener);
-    }
-
-    @Override public void execPing(BroadcastPingRequest request, ActionListener<BroadcastPingResponse> listener) {
+    @Override public void ping(BroadcastPingRequest request, ActionListener<BroadcastPingResponse> listener) {
         broadcastPingAction.execute(request, listener);
     }
 
     @Override public ActionFuture<ReplicationPingResponse> ping(ReplicationPingRequest request) {
-        return replicationPingAction.submit(request);
+        return replicationPingAction.execute(request);
     }
 
-    @Override public ActionFuture<ReplicationPingResponse> ping(ReplicationPingRequest request, ActionListener<ReplicationPingResponse> listener) {
-        return replicationPingAction.submit(request, listener);
-    }
-
-    @Override public void execPing(ReplicationPingRequest request, ActionListener<ReplicationPingResponse> listener) {
+    @Override public void ping(ReplicationPingRequest request, ActionListener<ReplicationPingResponse> listener) {
         replicationPingAction.execute(request, listener);
     }
 
     @Override public ActionFuture<NodesInfoResponse> nodesInfo(NodesInfoRequest request) {
-        return nodesInfo.submit(request);
+        return nodesInfo.execute(request);
     }
 
-    @Override public ActionFuture<NodesInfoResponse> nodesInfo(NodesInfoRequest request, ActionListener<NodesInfoResponse> listener) {
-        return nodesInfo.submit(request, listener);
-    }
-
-    @Override public void execNodesInfo(NodesInfoRequest request, ActionListener<NodesInfoResponse> listener) {
+    @Override public void nodesInfo(NodesInfoRequest request, ActionListener<NodesInfoResponse> listener) {
         nodesInfo.execute(request, listener);
     }
 

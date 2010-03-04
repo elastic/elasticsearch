@@ -21,14 +21,13 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.*;
-import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.settings.Settings;
 
 import static org.elasticsearch.action.support.PlainActionFuture.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class BaseAction<Request extends ActionRequest, Response extends ActionResponse> extends AbstractComponent implements Action<Request, Response> {
 
@@ -36,17 +35,11 @@ public abstract class BaseAction<Request extends ActionRequest, Response extends
         super(settings);
     }
 
-    @Override public ActionFuture<Response> submit(Request request) throws ElasticSearchException {
-        return submit(request, null);
-    }
-
-    @Override public ActionFuture<Response> submit(Request request, @Nullable ActionListener<Response> listener) {
-        PlainActionFuture<Response> future = newFuture(listener);
-        if (listener == null) {
-            // since we don't have a listener, and we release a possible lock with the future
-            // there is no need to execute it under a listener thread
-            request.listenerThreaded(false);
-        }
+    @Override public ActionFuture<Response> execute(Request request) throws ElasticSearchException {
+        PlainActionFuture<Response> future = newFuture();
+        // since we don't have a listener, and we release a possible lock with the future
+        // there is no need to execute it under a listener thread
+        request.listenerThreaded(false);
         execute(request, future);
         return future;
     }
@@ -60,5 +53,5 @@ public abstract class BaseAction<Request extends ActionRequest, Response extends
         doExecute(request, listener);
     }
 
-    protected abstract void doExecute(Request request, ActionListener<Response> responseActionListener);
+    protected abstract void doExecute(Request request, ActionListener<Response> listener);
 }

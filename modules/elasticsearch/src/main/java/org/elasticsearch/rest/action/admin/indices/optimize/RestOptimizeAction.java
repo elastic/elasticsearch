@@ -74,7 +74,7 @@ public class RestOptimizeAction extends BaseRestHandler {
             }
             return;
         }
-        client.admin().indices().execOptimize(optimizeRequest, new ActionListener<OptimizeResponse>() {
+        client.admin().indices().optimize(optimizeRequest, new ActionListener<OptimizeResponse>() {
             @Override public void onResponse(OptimizeResponse response) {
                 try {
                     JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);

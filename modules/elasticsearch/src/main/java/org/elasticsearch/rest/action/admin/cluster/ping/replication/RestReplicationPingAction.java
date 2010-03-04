@@ -51,7 +51,7 @@ public class RestReplicationPingAction extends BaseRestHandler {
         ReplicationPingRequest replicationPingRequest = new ReplicationPingRequest(RestActions.splitIndices(request.param("index")));
         replicationPingRequest.timeout(request.paramAsTime("timeout", ShardReplicationPingRequest.DEFAULT_TIMEOUT));
         replicationPingRequest.listenerThreaded(false);
-        client.admin().cluster().execPing(replicationPingRequest, new ActionListener<ReplicationPingResponse>() {
+        client.admin().cluster().ping(replicationPingRequest, new ActionListener<ReplicationPingResponse>() {
             @Override public void onResponse(ReplicationPingResponse result) {
                 try {
                     JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);

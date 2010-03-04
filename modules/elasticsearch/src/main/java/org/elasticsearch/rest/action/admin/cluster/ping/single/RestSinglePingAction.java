@@ -50,7 +50,7 @@ public class RestSinglePingAction extends BaseRestHandler {
         singlePingRequest.listenerThreaded(false);
         // if we have a local operation, execute it on a thread since we don't spawn
         singlePingRequest.threadedOperation(true);
-        client.admin().cluster().execPing(singlePingRequest, new ActionListener<SinglePingResponse>() {
+        client.admin().cluster().ping(singlePingRequest, new ActionListener<SinglePingResponse>() {
             @Override public void onResponse(SinglePingResponse result) {
                 try {
                     JsonBuilder generator = RestJsonBuilder.restJsonBuilder(request);

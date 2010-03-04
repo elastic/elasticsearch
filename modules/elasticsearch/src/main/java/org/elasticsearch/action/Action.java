@@ -20,16 +20,13 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.util.Nullable;
 
 /**
  * @author kimchy (Shay Banon)
  */
 public interface Action<Request extends ActionRequest, Response extends ActionResponse> {
 
-    ActionFuture<Response> submit(Request request) throws ElasticSearchException;
-
-    ActionFuture<Response> submit(Request request, @Nullable ActionListener<Response> listener);
+    ActionFuture<Response> execute(Request request) throws ElasticSearchException;
 
     void execute(Request request, ActionListener<Response> listener);
 }

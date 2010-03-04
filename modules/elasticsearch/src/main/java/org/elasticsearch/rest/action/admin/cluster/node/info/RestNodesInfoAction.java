@@ -51,7 +51,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
         final boolean includeSettings = request.paramAsBoolean("settings", false);
         NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(nodesIds);
         nodesInfoRequest.listenerThreaded(false);
-        client.admin().cluster().execNodesInfo(nodesInfoRequest, new ActionListener<NodesInfoResponse>() {
+        client.admin().cluster().nodesInfo(nodesInfoRequest, new ActionListener<NodesInfoResponse>() {
             @Override public void onResponse(NodesInfoResponse result) {
                 try {
                     JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);

@@ -25,16 +25,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.node.Node;
-import org.elasticsearch.util.Nullable;
 
 /**
  * @author kimchy (Shay Banon)
  */
 public interface ClientTransportAction<Request extends ActionRequest, Response extends ActionResponse> {
 
-    ActionFuture<Response> submit(Node node, Request request) throws ElasticSearchException;
-
-    ActionFuture<Response> submit(Node node, Request request, @Nullable ActionListener<Response> listener);
+    ActionFuture<Response> execute(Node node, Request request) throws ElasticSearchException;
 
     void execute(Node node, Request request, ActionListener<Response> listener);
 }

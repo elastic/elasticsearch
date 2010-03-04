@@ -50,7 +50,7 @@ public class RestClusterStateAction extends BaseRestHandler {
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
-        client.admin().cluster().execState(new ClusterStateRequest(), new ActionListener<ClusterStateResponse>() {
+        client.admin().cluster().state(new ClusterStateRequest(), new ActionListener<ClusterStateResponse>() {
             @Override public void onResponse(ClusterStateResponse response) {
                 try {
                     ClusterState state = response.state();

@@ -57,7 +57,7 @@ public class RestIndicesStatusAction extends BaseRestHandler {
             operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
         }
         indicesStatusRequest.operationThreading(operationThreading);
-        client.admin().indices().execStatus(indicesStatusRequest, new ActionListener<IndicesStatusResponse>() {
+        client.admin().indices().status(indicesStatusRequest, new ActionListener<IndicesStatusResponse>() {
             @Override public void onResponse(IndicesStatusResponse response) {
                 try {
                     JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);

@@ -113,20 +113,12 @@ public class InternalTransportClient extends AbstractComponent implements Client
     @Override public ActionFuture<IndexResponse> index(final IndexRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<IndexResponse>>() {
             @Override public ActionFuture<IndexResponse> doWithNode(Node node) throws ElasticSearchException {
-                return indexAction.submit(node, request);
+                return indexAction.execute(node, request);
             }
         });
     }
 
-    @Override public ActionFuture<IndexResponse> index(final IndexRequest request, final ActionListener<IndexResponse> listener) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<IndexResponse>>() {
-            @Override public ActionFuture<IndexResponse> doWithNode(Node node) throws ElasticSearchException {
-                return indexAction.submit(node, request, listener);
-            }
-        });
-    }
-
-    @Override public void execIndex(final IndexRequest request, final ActionListener<IndexResponse> listener) {
+    @Override public void index(final IndexRequest request, final ActionListener<IndexResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
             @Override public Void doWithNode(Node node) throws ElasticSearchException {
                 indexAction.execute(node, request, listener);
@@ -138,20 +130,12 @@ public class InternalTransportClient extends AbstractComponent implements Client
     @Override public ActionFuture<DeleteResponse> delete(final DeleteRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<DeleteResponse>>() {
             @Override public ActionFuture<DeleteResponse> doWithNode(Node node) throws ElasticSearchException {
-                return deleteAction.submit(node, request);
+                return deleteAction.execute(node, request);
             }
         });
     }
 
-    @Override public ActionFuture<DeleteResponse> delete(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<DeleteResponse>>() {
-            @Override public ActionFuture<DeleteResponse> doWithNode(Node node) throws ElasticSearchException {
-                return deleteAction.submit(node, request, listener);
-            }
-        });
-    }
-
-    @Override public void execDelete(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
+    @Override public void delete(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
             @Override public Void doWithNode(Node node) throws ElasticSearchException {
                 deleteAction.execute(node, request, listener);
@@ -163,20 +147,12 @@ public class InternalTransportClient extends AbstractComponent implements Client
     @Override public ActionFuture<DeleteByQueryResponse> deleteByQuery(final DeleteByQueryRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<DeleteByQueryResponse>>() {
             @Override public ActionFuture<DeleteByQueryResponse> doWithNode(Node node) throws ElasticSearchException {
-                return deleteByQueryAction.submit(node, request);
+                return deleteByQueryAction.execute(node, request);
             }
         });
     }
 
-    @Override public ActionFuture<DeleteByQueryResponse> deleteByQuery(final DeleteByQueryRequest request, final ActionListener<DeleteByQueryResponse> listener) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<DeleteByQueryResponse>>() {
-            @Override public ActionFuture<DeleteByQueryResponse> doWithNode(Node node) throws ElasticSearchException {
-                return deleteByQueryAction.submit(node, request, listener);
-            }
-        });
-    }
-
-    @Override public void execDeleteByQuery(final DeleteByQueryRequest request, final ActionListener<DeleteByQueryResponse> listener) {
+    @Override public void deleteByQuery(final DeleteByQueryRequest request, final ActionListener<DeleteByQueryResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
             @Override public Void doWithNode(Node node) throws ElasticSearchException {
                 deleteByQueryAction.execute(node, request, listener);
@@ -188,20 +164,12 @@ public class InternalTransportClient extends AbstractComponent implements Client
     @Override public ActionFuture<GetResponse> get(final GetRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<GetResponse>>() {
             @Override public ActionFuture<GetResponse> doWithNode(Node node) throws ElasticSearchException {
-                return getAction.submit(node, request);
+                return getAction.execute(node, request);
             }
         });
     }
 
-    @Override public ActionFuture<GetResponse> get(final GetRequest request, final ActionListener<GetResponse> listener) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<GetResponse>>() {
-            @Override public ActionFuture<GetResponse> doWithNode(Node node) throws ElasticSearchException {
-                return getAction.submit(node, request, listener);
-            }
-        });
-    }
-
-    @Override public void execGet(final GetRequest request, final ActionListener<GetResponse> listener) {
+    @Override public void get(final GetRequest request, final ActionListener<GetResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
             @Override public Object doWithNode(Node node) throws ElasticSearchException {
                 getAction.execute(node, request, listener);
@@ -213,20 +181,12 @@ public class InternalTransportClient extends AbstractComponent implements Client
     @Override public ActionFuture<CountResponse> count(final CountRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<CountResponse>>() {
             @Override public ActionFuture<CountResponse> doWithNode(Node node) throws ElasticSearchException {
-                return countAction.submit(node, request);
+                return countAction.execute(node, request);
             }
         });
     }
 
-    @Override public ActionFuture<CountResponse> count(final CountRequest request, final ActionListener<CountResponse> listener) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<CountResponse>>() {
-            @Override public ActionFuture<CountResponse> doWithNode(Node node) throws ElasticSearchException {
-                return countAction.submit(node, request, listener);
-            }
-        });
-    }
-
-    @Override public void execCount(final CountRequest request, final ActionListener<CountResponse> listener) {
+    @Override public void count(final CountRequest request, final ActionListener<CountResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
             @Override public Void doWithNode(Node node) throws ElasticSearchException {
                 countAction.execute(node, request, listener);
@@ -238,20 +198,12 @@ public class InternalTransportClient extends AbstractComponent implements Client
     @Override public ActionFuture<SearchResponse> search(final SearchRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<SearchResponse>>() {
             @Override public ActionFuture<SearchResponse> doWithNode(Node node) throws ElasticSearchException {
-                return searchAction.submit(node, request);
+                return searchAction.execute(node, request);
             }
         });
     }
 
-    @Override public ActionFuture<SearchResponse> search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<SearchResponse>>() {
-            @Override public ActionFuture<SearchResponse> doWithNode(Node node) throws ElasticSearchException {
-                return searchAction.submit(node, request, listener);
-            }
-        });
-    }
-
-    @Override public void execSearch(final SearchRequest request, final ActionListener<SearchResponse> listener) {
+    @Override public void search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
             @Override public Object doWithNode(Node node) throws ElasticSearchException {
                 searchAction.execute(node, request, listener);
@@ -263,20 +215,12 @@ public class InternalTransportClient extends AbstractComponent implements Client
     @Override public ActionFuture<SearchResponse> searchScroll(final SearchScrollRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<SearchResponse>>() {
             @Override public ActionFuture<SearchResponse> doWithNode(Node node) throws ElasticSearchException {
-                return searchScrollAction.submit(node, request);
+                return searchScrollAction.execute(node, request);
             }
         });
     }
 
-    @Override public ActionFuture<SearchResponse> searchScroll(final SearchScrollRequest request, final ActionListener<SearchResponse> listener) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<SearchResponse>>() {
-            @Override public ActionFuture<SearchResponse> doWithNode(Node node) throws ElasticSearchException {
-                return searchScrollAction.submit(node, request, listener);
-            }
-        });
-    }
-
-    @Override public void execSearchScroll(final SearchScrollRequest request, final ActionListener<SearchResponse> listener) {
+    @Override public void searchScroll(final SearchScrollRequest request, final ActionListener<SearchResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
             @Override public Object doWithNode(Node node) throws ElasticSearchException {
                 searchScrollAction.execute(node, request, listener);
@@ -288,20 +232,12 @@ public class InternalTransportClient extends AbstractComponent implements Client
     @Override public ActionFuture<TermsResponse> terms(final TermsRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<TermsResponse>>() {
             @Override public ActionFuture<TermsResponse> doWithNode(Node node) throws ElasticSearchException {
-                return termsAction.submit(node, request);
+                return termsAction.execute(node, request);
             }
         });
     }
 
-    @Override public ActionFuture<TermsResponse> terms(final TermsRequest request, final ActionListener<TermsResponse> listener) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<TermsResponse>>() {
-            @Override public ActionFuture<TermsResponse> doWithNode(Node node) throws ElasticSearchException {
-                return termsAction.submit(node, request, listener);
-            }
-        });
-    }
-
-    @Override public void execTerms(final TermsRequest request, final ActionListener<TermsResponse> listener) {
+    @Override public void terms(final TermsRequest request, final ActionListener<TermsResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<Void>>() {
             @Override public ActionFuture<Void> doWithNode(Node node) throws ElasticSearchException {
                 termsAction.execute(node, request, listener);
@@ -313,23 +249,15 @@ public class InternalTransportClient extends AbstractComponent implements Client
     @Override public ActionFuture<SearchResponse> moreLikeThis(final MoreLikeThisRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<SearchResponse>>() {
             @Override public ActionFuture<SearchResponse> doWithNode(Node node) throws ElasticSearchException {
-                return moreLikeThisAction.submit(node, request);
+                return moreLikeThisAction.execute(node, request);
             }
         });
     }
 
-    @Override public ActionFuture<SearchResponse> moreLikeThis(final MoreLikeThisRequest request, final ActionListener<SearchResponse> listener) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<SearchResponse>>() {
-            @Override public ActionFuture<SearchResponse> doWithNode(Node node) throws ElasticSearchException {
-                return moreLikeThisAction.submit(node, request, listener);
-            }
-        });
-    }
-
-    @Override public void execMoreLikeThis(final MoreLikeThisRequest request, final ActionListener<SearchResponse> listener) {
+    @Override public void moreLikeThis(final MoreLikeThisRequest request, final ActionListener<SearchResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
             @Override public Void doWithNode(Node node) throws ElasticSearchException {
-                moreLikeThisAction.submit(node, request);
+                moreLikeThisAction.execute(node, request, listener);
                 return null;
             }
         });

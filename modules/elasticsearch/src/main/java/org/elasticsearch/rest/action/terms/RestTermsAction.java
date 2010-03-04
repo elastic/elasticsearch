@@ -109,7 +109,7 @@ public class RestTermsAction extends BaseRestHandler {
         }
 
         final boolean termsAsArray = request.paramAsBoolean("termsAsArray", true);
-        client.execTerms(termsRequest, new ActionListener<TermsResponse>() {
+        client.terms(termsRequest, new ActionListener<TermsResponse>() {
             @Override public void onResponse(TermsResponse response) {
                 try {
                     JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);

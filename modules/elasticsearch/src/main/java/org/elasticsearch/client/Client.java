@@ -41,10 +41,9 @@ import org.elasticsearch.action.terms.TermsResponse;
 /**
  * A client provides a one stop interface for performing actions/operations against the cluster.
  *
- * <p>All operations performed are asynchronous by nature. There are three flavors for each operation,
- * the simplest returns an {@link ActionFuture}, another that also accepts an {@link ActionListener},
- * and the last (prefixed with <tt>exec</tt>) which just accepts an {@link ActionListener} without returning
- * an {@link ActionFuture}.
+ * <p>All operations performed are asynchronous by nature. Each action/operation has two flavors, the first
+ * simply returns an {@link org.elasticsearch.action.ActionFuture}, while the second accepts an
+ * {@link org.elasticsearch.action.ActionListener}.
  *
  * <p>A client can either be retrieved from a {@link org.elasticsearch.server.Server} started, or connected remotely
  * to one or more nodes using {@link org.elasticsearch.client.transport.TransportClient}.
@@ -83,21 +82,9 @@ public interface Client {
      *
      * @param request  The index request
      * @param listener A listener to be notified with a result
-     * @return The result future
      * @see Requests#indexRequest(String)
      */
-    ActionFuture<IndexResponse> index(IndexRequest request, ActionListener<IndexResponse> listener);
-
-    /**
-     * Index a JSON source associated with a given index and type.
-     *
-     * <p>The id is optional, if it is not provided, one will be generated automatically.
-     *
-     * @param request  The index request
-     * @param listener A listener to be notified with a result
-     * @see Requests#indexRequest(String)
-     */
-    void execIndex(IndexRequest request, ActionListener<IndexResponse> listener);
+    void index(IndexRequest request, ActionListener<IndexResponse> listener);
 
     /**
      * Deletes a document from the index based on the index, type and id.
@@ -113,19 +100,9 @@ public interface Client {
      *
      * @param request  The delete request
      * @param listener A listener to be notified with a result
-     * @return The result future
      * @see Requests#deleteRequest(String)
      */
-    ActionFuture<DeleteResponse> delete(DeleteRequest request, ActionListener<DeleteResponse> listener);
-
-    /**
-     * Deletes a document from the index based on the index, type and id.
-     *
-     * @param request  The delete request
-     * @param listener A listener to be notified with a result
-     * @see Requests#deleteRequest(String)
-     */
-    void execDelete(DeleteRequest request, ActionListener<DeleteResponse> listener);
+    void delete(DeleteRequest request, ActionListener<DeleteResponse> listener);
 
     /**
      * Deletes all documents from one or more indices based on a query.
@@ -141,19 +118,9 @@ public interface Client {
      *
      * @param request  The delete by query request
      * @param listener A listener to be notified with a result
-     * @return The result future
      * @see Requests#deleteByQueryRequest(String...)
      */
-    ActionFuture<DeleteByQueryResponse> deleteByQuery(DeleteByQueryRequest request, ActionListener<DeleteByQueryResponse> listener);
-
-    /**
-     * Deletes all documents from one or more indices based on a query.
-     *
-     * @param request  The delete by query request
-     * @param listener A listener to be notified with a result
-     * @see Requests#deleteByQueryRequest(String...)
-     */
-    void execDeleteByQuery(DeleteByQueryRequest request, ActionListener<DeleteByQueryResponse> listener);
+    void deleteByQuery(DeleteByQueryRequest request, ActionListener<DeleteByQueryResponse> listener);
 
     /**
      * Gets the JSON source that was indexed from an index with a type and id.
@@ -169,19 +136,9 @@ public interface Client {
      *
      * @param request  The get request
      * @param listener A listener to be notified with a result
-     * @return The result future
      * @see Requests#getRequest(String)
      */
-    ActionFuture<GetResponse> get(GetRequest request, ActionListener<GetResponse> listener);
-
-    /**
-     * Gets the JSON source that was indexed from an index with a type and id.
-     *
-     * @param request  The get request
-     * @param listener A listener to be notified with a result
-     * @see Requests#getRequest(String)
-     */
-    void execGet(GetRequest request, ActionListener<GetResponse> listener);
+    void get(GetRequest request, ActionListener<GetResponse> listener);
 
     /**
      * A count of all the documents matching a specific query.
@@ -197,19 +154,9 @@ public interface Client {
      *
      * @param request  The count request
      * @param listener A listener to be notified of the result
-     * @return The result future
      * @see Requests#countRequest(String...)
      */
-    ActionFuture<CountResponse> count(CountRequest request, ActionListener<CountResponse> listener);
-
-    /**
-     * A count of all the documents matching a specific query.
-     *
-     * @param request  The count request
-     * @param listener A listener to be notified of the result
-     * @see Requests#countRequest(String...)
-     */
-    void execCount(CountRequest request, ActionListener<CountResponse> listener);
+    void count(CountRequest request, ActionListener<CountResponse> listener);
 
     /**
      * Search across one or more indices and one or more types with a query.
@@ -225,19 +172,9 @@ public interface Client {
      *
      * @param request  The search request
      * @param listener A listener to be notified of the result
-     * @return The result future
      * @see Requests#searchRequest(String...)
      */
-    ActionFuture<SearchResponse> search(SearchRequest request, ActionListener<SearchResponse> listener);
-
-    /**
-     * Search across one or more indices and one or more types with a query.
-     *
-     * @param request  The search request
-     * @param listener A listener to be notified of the result
-     * @see Requests#searchRequest(String...)
-     */
-    void execSearch(SearchRequest request, ActionListener<SearchResponse> listener);
+    void search(SearchRequest request, ActionListener<SearchResponse> listener);
 
     /**
      * A search scroll request to continue searching a previous scrollable search request.
@@ -253,19 +190,9 @@ public interface Client {
      *
      * @param request  The search scroll request
      * @param listener A listener to be notified of the result
-     * @return The result future
      * @see Requests#searchScrollRequest(String)
      */
-    ActionFuture<SearchResponse> searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener);
-
-    /**
-     * A search scroll request to continue searching a previous scrollable search request.
-     *
-     * @param request  The search scroll request
-     * @param listener A listener to be notified of the result
-     * @see Requests#searchScrollRequest(String)
-     */
-    void execSearchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener);
+    void searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener);
 
     /**
      * A terms request  to get terms in one or more indices of specific fields and their
@@ -283,20 +210,9 @@ public interface Client {
      *
      * @param request  The term request
      * @param listener A listener to be notified of the result
-     * @return The result future
      * @see Requests#termsRequest(String...)
      */
-    ActionFuture<TermsResponse> terms(TermsRequest request, ActionListener<TermsResponse> listener);
-
-    /**
-     * A terms request  to get terms in one or more indices of specific fields and their
-     * document frequencies (in how many document each term exists).
-     *
-     * @param request  The term request
-     * @param listener A listener to be notified of the result
-     * @see Requests#termsRequest(String...)
-     */
-    void execTerms(TermsRequest request, ActionListener<TermsResponse> listener);
+    void terms(TermsRequest request, ActionListener<TermsResponse> listener);
 
     /**
      * A more like this action to search for documents that are "like" a specific document.
@@ -311,15 +227,6 @@ public interface Client {
      *
      * @param request  The more like this request
      * @param listener A listener to be notified of the result
-     * @return The response future
      */
-    ActionFuture<SearchResponse> moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener);
-
-    /**
-     * A more like this action to search for documents that are "like" a specific document.
-     *
-     * @param request  The more like this request
-     * @param listener A listener to be notified of the result
-     */
-    void execMoreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener);
+    void moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener);
 }

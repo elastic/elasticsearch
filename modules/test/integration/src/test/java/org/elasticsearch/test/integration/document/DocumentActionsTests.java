@@ -127,7 +127,7 @@ public class DocumentActionsTests extends AbstractServersTests {
         logger.info("Index [type1/1]");
         client1.index(indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
         logger.info("Index [type1/2]");
-        client1.index(indexRequest("test").type("type1").id("2").source(source("2", "test"))).actionGet();
+        client1.index(indexRequest("test").type("type1").id("2").source(source("2", "test2"))).actionGet();
 
         logger.info("Flushing");
         FlushResponse flushResult = client1.admin().indices().flush(flushRequest("test")).actionGet();
@@ -141,7 +141,7 @@ public class DocumentActionsTests extends AbstractServersTests {
             getResult = client1.get(getRequest("test").type("type1").id("1")).actionGet();
             assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test")));
             getResult = client1.get(getRequest("test").type("type1").id("2")).actionGet();
-            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("2", "test")));
+            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("2", "test2")));
         }
 
         logger.info("Count");

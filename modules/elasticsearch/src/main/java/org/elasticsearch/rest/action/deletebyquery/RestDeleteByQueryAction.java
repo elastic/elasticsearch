@@ -70,7 +70,7 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
             }
             return;
         }
-        client.execDeleteByQuery(deleteByQueryRequest, new ActionListener<DeleteByQueryResponse>() {
+        client.deleteByQuery(deleteByQueryRequest, new ActionListener<DeleteByQueryResponse>() {
             @Override public void onResponse(DeleteByQueryResponse result) {
                 try {
                     JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);

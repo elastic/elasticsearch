@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.node.Node;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.settings.Settings;
 
@@ -41,7 +40,7 @@ import java.lang.reflect.Constructor;
 import static org.elasticsearch.action.support.PlainActionFuture.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class BaseClientTransportAction<Request extends ActionRequest, Response extends ActionResponse> extends AbstractComponent implements ClientTransportAction<Request, Response> {
 
@@ -60,17 +59,9 @@ public abstract class BaseClientTransportAction<Request extends ActionRequest, R
         responseConstructor.setAccessible(true);
     }
 
-    @Override public ActionFuture<Response> submit(Node node, Request request) throws ElasticSearchException {
-        return submit(node, request, null);
-    }
-
-    @Override public ActionFuture<Response> submit(Node node, Request request, @Nullable ActionListener<Response> listener) {
-        PlainActionFuture<Response> future = newFuture(listener);
-        if (listener == null) {
-            // since we don't have a listener, and we release a possible lock with the future
-            // there is no need to execute it under a listener thread
-            request.listenerThreaded(false);
-        }
+    @Override public ActionFuture<Response> execute(Node node, Request request) throws ElasticSearchException {
+        PlainActionFuture<Response> future = newFuture();
+        request.listenerThreaded(false);
         execute(node, request, future);
         return future;
     }

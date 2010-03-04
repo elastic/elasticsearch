@@ -51,7 +51,7 @@ public class RestDeleteAction extends BaseRestHandler {
         deleteRequest.listenerThreaded(false);
         // we don't spawn, then fork if local
         deleteRequest.operationThreaded(true);
-        client.execDelete(deleteRequest, new ActionListener<DeleteResponse>() {
+        client.delete(deleteRequest, new ActionListener<DeleteResponse>() {
             @Override public void onResponse(DeleteResponse result) {
                 try {
                     JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);

@@ -76,7 +76,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
             return;
         }
         final int fLevel = level;
-        client.admin().cluster().execHealth(clusterHealthRequest, new ActionListener<ClusterHealthResponse>() {
+        client.admin().cluster().health(clusterHealthRequest, new ActionListener<ClusterHealthResponse>() {
             @Override public void onResponse(ClusterHealthResponse response) {
                 try {
                     JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);

@@ -24,7 +24,6 @@ import org.elasticsearch.ElasticSearchInterruptedException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.util.Nullable;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -32,19 +31,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> {
 
     public static <T> PlainActionFuture<T> newFuture() {
-        return newFuture(null);
+        return new PlainActionFuture<T>();
     }
-
-    public static <T> PlainActionFuture<T> newFuture(@Nullable ActionListener<T> listener) {
-        return new PlainActionFuture<T>(listener);
-    }
-
-    private final ActionListener<T> listener;
 
     private final CountDownLatch latch;
 
@@ -53,8 +46,7 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
     private volatile T result;
     private volatile Throwable exp;
 
-    public PlainActionFuture(ActionListener<T> listener) {
-        this.listener = listener;
+    public PlainActionFuture() {
         latch = new CountDownLatch(1);
     }
 
@@ -142,9 +134,6 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
         if (canceled)
             return;
 
-        if (listener != null) {
-            listener.onResponse(result);
-        }
         latch.countDown();
     }
 
@@ -155,9 +144,6 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
         if (canceled)
             return;
 
-        if (listener != null) {
-            listener.onFailure(exp);
-        }
         latch.countDown();
     }
 }

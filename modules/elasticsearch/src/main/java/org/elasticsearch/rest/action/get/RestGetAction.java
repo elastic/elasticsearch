@@ -50,7 +50,7 @@ public class RestGetAction extends BaseRestHandler {
         getRequest.listenerThreaded(false);
         // if we have a local operation, execute it on a thread since we don't spawn
         getRequest.threadedOperation(true);
-        client.execGet(getRequest, new ActionListener<GetResponse>() {
+        client.get(getRequest, new ActionListener<GetResponse>() {
             @Override public void onResponse(GetResponse result) {
                 try {
                     if (!result.exists()) {

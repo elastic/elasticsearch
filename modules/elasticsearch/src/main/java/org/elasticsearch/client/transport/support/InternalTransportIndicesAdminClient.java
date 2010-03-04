@@ -96,20 +96,12 @@ public class InternalTransportIndicesAdminClient extends AbstractComponent imple
     @Override public ActionFuture<IndicesStatusResponse> status(final IndicesStatusRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<IndicesStatusResponse>>() {
             @Override public ActionFuture<IndicesStatusResponse> doWithNode(Node node) throws ElasticSearchException {
-                return indicesStatusAction.submit(node, request);
+                return indicesStatusAction.execute(node, request);
             }
         });
     }
 
-    @Override public ActionFuture<IndicesStatusResponse> status(final IndicesStatusRequest request, final ActionListener<IndicesStatusResponse> listener) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<IndicesStatusResponse>>() {
-            @Override public ActionFuture<IndicesStatusResponse> doWithNode(Node node) throws ElasticSearchException {
-                return indicesStatusAction.submit(node, request, listener);
-            }
-        });
-    }
-
-    @Override public void execStatus(final IndicesStatusRequest request, final ActionListener<IndicesStatusResponse> listener) {
+    @Override public void status(final IndicesStatusRequest request, final ActionListener<IndicesStatusResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
             @Override public Void doWithNode(Node node) throws ElasticSearchException {
                 indicesStatusAction.execute(node, request, listener);
@@ -121,20 +113,12 @@ public class InternalTransportIndicesAdminClient extends AbstractComponent imple
     @Override public ActionFuture<CreateIndexResponse> create(final CreateIndexRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<CreateIndexResponse>>() {
             @Override public ActionFuture<CreateIndexResponse> doWithNode(Node node) throws ElasticSearchException {
-                return createIndexAction.submit(node, request);
+                return createIndexAction.execute(node, request);
             }
         });
     }
 
-    @Override public ActionFuture<CreateIndexResponse> create(final CreateIndexRequest request, final ActionListener<CreateIndexResponse> listener) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<CreateIndexResponse>>() {
-            @Override public ActionFuture<CreateIndexResponse> doWithNode(Node node) throws ElasticSearchException {
-                return createIndexAction.submit(node, request, listener);
-            }
-        });
-    }
-
-    @Override public void execCreate(final CreateIndexRequest request, final ActionListener<CreateIndexResponse> listener) {
+    @Override public void create(final CreateIndexRequest request, final ActionListener<CreateIndexResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
             @Override public Object doWithNode(Node node) throws ElasticSearchException {
                 createIndexAction.execute(node, request, listener);
@@ -146,20 +130,12 @@ public class InternalTransportIndicesAdminClient extends AbstractComponent imple
     @Override public ActionFuture<DeleteIndexResponse> delete(final DeleteIndexRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<DeleteIndexResponse>>() {
             @Override public ActionFuture<DeleteIndexResponse> doWithNode(Node node) throws ElasticSearchException {
-                return deleteIndexAction.submit(node, request);
+                return deleteIndexAction.execute(node, request);
             }
         });
     }
 
-    @Override public ActionFuture<DeleteIndexResponse> delete(final DeleteIndexRequest request, final ActionListener<DeleteIndexResponse> listener) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<DeleteIndexResponse>>() {
-            @Override public ActionFuture<DeleteIndexResponse> doWithNode(Node node) throws ElasticSearchException {
-                return deleteIndexAction.submit(node, request, listener);
-            }
-        });
-    }
-
-    @Override public void execDelete(final DeleteIndexRequest request, final ActionListener<DeleteIndexResponse> listener) {
+    @Override public void delete(final DeleteIndexRequest request, final ActionListener<DeleteIndexResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
             @Override public Object doWithNode(Node node) throws ElasticSearchException {
                 deleteIndexAction.execute(node, request, listener);
@@ -171,20 +147,12 @@ public class InternalTransportIndicesAdminClient extends AbstractComponent imple
     @Override public ActionFuture<RefreshResponse> refresh(final RefreshRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<RefreshResponse>>() {
             @Override public ActionFuture<RefreshResponse> doWithNode(Node node) throws ElasticSearchException {
-                return refreshAction.submit(node, request);
+                return refreshAction.execute(node, request);
             }
         });
     }
 
-    @Override public ActionFuture<RefreshResponse> refresh(final RefreshRequest request, final ActionListener<RefreshResponse> listener) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<RefreshResponse>>() {
-            @Override public ActionFuture<RefreshResponse> doWithNode(Node node) throws ElasticSearchException {
-                return refreshAction.submit(node, request, listener);
-            }
-        });
-    }
-
-    @Override public void execRefresh(final RefreshRequest request, final ActionListener<RefreshResponse> listener) {
+    @Override public void refresh(final RefreshRequest request, final ActionListener<RefreshResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
             @Override public Void doWithNode(Node node) throws ElasticSearchException {
                 refreshAction.execute(node, request, listener);
@@ -196,20 +164,12 @@ public class InternalTransportIndicesAdminClient extends AbstractComponent imple
     @Override public ActionFuture<FlushResponse> flush(final FlushRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<FlushResponse>>() {
             @Override public ActionFuture<FlushResponse> doWithNode(Node node) throws ElasticSearchException {
-                return flushAction.submit(node, request);
+                return flushAction.execute(node, request);
             }
         });
     }
 
-    @Override public ActionFuture<FlushResponse> flush(final FlushRequest request, final ActionListener<FlushResponse> listener) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<FlushResponse>>() {
-            @Override public ActionFuture<FlushResponse> doWithNode(Node node) throws ElasticSearchException {
-                return flushAction.submit(node, request, listener);
-            }
-        });
-    }
-
-    @Override public void execFlush(final FlushRequest request, final ActionListener<FlushResponse> listener) {
+    @Override public void flush(final FlushRequest request, final ActionListener<FlushResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
             @Override public Object doWithNode(Node node) throws ElasticSearchException {
                 flushAction.execute(node, request, listener);
@@ -221,20 +181,12 @@ public class InternalTransportIndicesAdminClient extends AbstractComponent imple
     @Override public ActionFuture<OptimizeResponse> optimize(final OptimizeRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<OptimizeResponse>>() {
             @Override public ActionFuture<OptimizeResponse> doWithNode(Node node) throws ElasticSearchException {
-                return optimizeAction.submit(node, request);
+                return optimizeAction.execute(node, request);
             }
         });
     }
 
-    @Override public ActionFuture<OptimizeResponse> optimize(final OptimizeRequest request, final ActionListener<OptimizeResponse> listener) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<OptimizeResponse>>() {
-            @Override public ActionFuture<OptimizeResponse> doWithNode(Node node) throws ElasticSearchException {
-                return optimizeAction.submit(node, request, listener);
-            }
-        });
-    }
-
-    @Override public void execOptimize(final OptimizeRequest request, final ActionListener<OptimizeResponse> listener) {
+    @Override public void optimize(final OptimizeRequest request, final ActionListener<OptimizeResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<Void>>() {
             @Override public ActionFuture<Void> doWithNode(Node node) throws ElasticSearchException {
                 optimizeAction.execute(node, request, listener);
@@ -246,20 +198,12 @@ public class InternalTransportIndicesAdminClient extends AbstractComponent imple
     @Override public ActionFuture<PutMappingResponse> putMapping(final PutMappingRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<PutMappingResponse>>() {
             @Override public ActionFuture<PutMappingResponse> doWithNode(Node node) throws ElasticSearchException {
-                return putMappingAction.submit(node, request);
+                return putMappingAction.execute(node, request);
             }
         });
     }
 
-    @Override public ActionFuture<PutMappingResponse> putMapping(final PutMappingRequest request, final ActionListener<PutMappingResponse> listener) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<PutMappingResponse>>() {
-            @Override public ActionFuture<PutMappingResponse> doWithNode(Node node) throws ElasticSearchException {
-                return putMappingAction.submit(node, request, listener);
-            }
-        });
-    }
-
-    @Override public void execPutMapping(final PutMappingRequest request, final ActionListener<PutMappingResponse> listener) {
+    @Override public void putMapping(final PutMappingRequest request, final ActionListener<PutMappingResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
             @Override public Void doWithNode(Node node) throws ElasticSearchException {
                 putMappingAction.execute(node, request, listener);
@@ -271,20 +215,12 @@ public class InternalTransportIndicesAdminClient extends AbstractComponent imple
     @Override public ActionFuture<GatewaySnapshotResponse> gatewaySnapshot(final GatewaySnapshotRequest request) {
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<GatewaySnapshotResponse>>() {
             @Override public ActionFuture<GatewaySnapshotResponse> doWithNode(Node node) throws ElasticSearchException {
-                return gatewaySnapshotAction.submit(node, request);
+                return gatewaySnapshotAction.execute(node, request);
             }
         });
     }
 
-    @Override public ActionFuture<GatewaySnapshotResponse> gatewaySnapshot(final GatewaySnapshotRequest request, final ActionListener<GatewaySnapshotResponse> listener) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<GatewaySnapshotResponse>>() {
-            @Override public ActionFuture<GatewaySnapshotResponse> doWithNode(Node node) throws ElasticSearchException {
-                return gatewaySnapshotAction.submit(node, request, listener);
-            }
-        });
-    }
-
-    @Override public void execGatewaySnapshot(final GatewaySnapshotRequest request, final ActionListener<GatewaySnapshotResponse> listener) {
+    @Override public void gatewaySnapshot(final GatewaySnapshotRequest request, final ActionListener<GatewaySnapshotResponse> listener) {
         nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
             @Override public Object doWithNode(Node node) throws ElasticSearchException {
                 gatewaySnapshotAction.execute(node, request, listener);

@@ -49,7 +49,7 @@ public class RestDeleteIndexAction extends BaseRestHandler {
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(request.param("index"));
         deleteIndexRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
-        client.admin().indices().execDelete(deleteIndexRequest, new ActionListener<DeleteIndexResponse>() {
+        client.admin().indices().delete(deleteIndexRequest, new ActionListener<DeleteIndexResponse>() {
             @Override public void onResponse(DeleteIndexResponse response) {
                 try {
                     JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);

@@ -52,7 +52,7 @@ public class RestGatewaySnapshotAction extends BaseRestHandler {
         GatewaySnapshotRequest gatewaySnapshotRequest = new GatewaySnapshotRequest(RestActions.splitIndices(request.param("index")));
         gatewaySnapshotRequest.timeout(request.paramAsTime("timeout", DEFAULT_TIMEOUT));
         gatewaySnapshotRequest.listenerThreaded(false);
-        client.admin().indices().execGatewaySnapshot(gatewaySnapshotRequest, new ActionListener<GatewaySnapshotResponse>() {
+        client.admin().indices().gatewaySnapshot(gatewaySnapshotRequest, new ActionListener<GatewaySnapshotResponse>() {
             @Override public void onResponse(GatewaySnapshotResponse result) {
                 try {
                     JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);

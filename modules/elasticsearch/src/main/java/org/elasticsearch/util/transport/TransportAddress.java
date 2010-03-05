@@ -24,7 +24,7 @@ import org.elasticsearch.util.io.Streamable;
 import java.io.Serializable;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public interface TransportAddress extends Streamable, Serializable {
 

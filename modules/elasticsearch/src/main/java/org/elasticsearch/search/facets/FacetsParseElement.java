@@ -36,7 +36,8 @@ import java.util.List;
  * facets : {
  *  queryExecution : "collect|idset",
  *  facet1: {
- *      query : { ... }
+ *      query : { ... },
+ *      global : false
  *  }
  * }
  * </pre>
@@ -49,12 +50,12 @@ public class FacetsParseElement implements SearchParseElement {
         JsonToken token;
         SearchContextFacets.QueryExecutionType queryExecutionType = SearchContextFacets.QueryExecutionType.COLLECT;
         List<SearchContextFacets.QueryFacet> queryFacets = null;
+        String topLevelFieldName = null;
         while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
             if (token == JsonToken.FIELD_NAME) {
-                String topLevelFieldName = jp.getCurrentName();
-
+                topLevelFieldName = jp.getCurrentName();
+            } else if (token == JsonToken.VALUE_STRING) {
                 if ("queryExecution".equals(topLevelFieldName)) {
-                    jp.nextToken(); // move to value
                     String text = jp.getText();
                     if ("collect".equals(text)) {
                         queryExecutionType = SearchContextFacets.QueryExecutionType.COLLECT;
@@ -63,26 +64,36 @@ public class FacetsParseElement implements SearchParseElement {
                     } else {
                         throw new SearchParseException(context, "Unsupported query type [" + text + "]");
                     }
-                } else {
-
-                    jp.nextToken(); // move to START_OBJECT
-
-                    jp.nextToken(); // move to FIELD_NAME
-                    String facetType = jp.getCurrentName();
-
-                    if ("query".equals(facetType)) {
-                        JsonIndexQueryParser indexQueryParser = (JsonIndexQueryParser) context.queryParser();
-                        Query facetQuery = indexQueryParser.parse(jp);
-
-                        if (queryFacets == null) {
-                            queryFacets = Lists.newArrayListWithCapacity(2);
-                        }
-                        queryFacets.add(new SearchContextFacets.QueryFacet(topLevelFieldName, facetQuery));
-                    } else {
-                        throw new SearchParseException(context, "Unsupported facet type [" + facetType + "] for facet name [" + topLevelFieldName + "]");
-                    }
-                    jp.nextToken();
                 }
+            } else if (token == JsonToken.START_OBJECT) {
+                SearchContextFacets.Facet facet = null;
+                boolean global = false;
+                String facetFieldName = null;
+                while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
+                    if (token == JsonToken.FIELD_NAME) {
+                        facetFieldName = jp.getCurrentName();
+                    } else if (token == JsonToken.START_OBJECT) {
+                        if ("query".equals(facetFieldName)) {
+                            JsonIndexQueryParser indexQueryParser = (JsonIndexQueryParser) context.queryParser();
+                            Query facetQuery = indexQueryParser.parse(jp);
+                            facet = new SearchContextFacets.QueryFacet(topLevelFieldName, facetQuery);
+                            if (queryFacets == null) {
+                                queryFacets = Lists.newArrayListWithCapacity(2);
+                            }
+                            queryFacets.add((SearchContextFacets.QueryFacet) facet);
+                        }
+                    } else if (token == JsonToken.VALUE_TRUE) {
+                        if ("global".equals(facetFieldName)) {
+                            global = true;
+                        }
+                    } else if (token == JsonToken.VALUE_NUMBER_INT) {
+                        global = jp.getIntValue() != 0;
+                    }
+                }
+                if (facet == null) {
+                    throw new SearchParseException(context, "No facet type found for [" + topLevelFieldName + "]");
+                }
+                facet.global(global);
             }
         }
 

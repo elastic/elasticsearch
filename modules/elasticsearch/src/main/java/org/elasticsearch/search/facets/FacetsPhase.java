@@ -21,9 +21,7 @@ package org.elasticsearch.search.facets;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.QueryWrapperFilter;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.OpenBitSet;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
@@ -38,7 +36,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class FacetsPhase implements SearchPhase {
 
@@ -63,17 +61,27 @@ public class FacetsPhase implements SearchPhase {
         List<Facet> facets = Lists.newArrayListWithCapacity(2);
         if (contextFacets.queryFacets() != null) {
             for (SearchContextFacets.QueryFacet queryFacet : contextFacets.queryFacets()) {
-                Filter facetFilter = new QueryWrapperFilter(queryFacet.query());
-                facetFilter = context.filterCache().cache(facetFilter);
-                long count;
-                if (contextFacets.queryType() == SearchContextFacets.QueryExecutionType.COLLECT) {
-                    count = executeQueryCollectorCount(context, queryFacet, facetFilter);
-                } else if (contextFacets.queryType() == SearchContextFacets.QueryExecutionType.IDSET) {
-                    count = executeQueryIdSetCount(context, queryFacet, facetFilter);
+                if (queryFacet.global()) {
+                    try {
+                        Query globalQuery = new ConstantScoreQuery(context.filterCache().cache(new QueryWrapperFilter(queryFacet.query())));
+                        long count = Lucene.count(context.searcher(), globalQuery, -1.0f);
+                        facets.add(new CountFacet(queryFacet.name(), count));
+                    } catch (Exception e) {
+                        throw new FacetPhaseExecutionException(queryFacet.name(), "Failed to execute global facet [" + queryFacet.query() + "]", e);
+                    }
                 } else {
-                    throw new ElasticSearchIllegalStateException("No matching for type [" + contextFacets.queryType() + "]");
+                    Filter facetFilter = new QueryWrapperFilter(queryFacet.query());
+                    facetFilter = context.filterCache().cache(facetFilter);
+                    long count;
+                    if (contextFacets.queryType() == SearchContextFacets.QueryExecutionType.COLLECT) {
+                        count = executeQueryCollectorCount(context, queryFacet, facetFilter);
+                    } else if (contextFacets.queryType() == SearchContextFacets.QueryExecutionType.IDSET) {
+                        count = executeQueryIdSetCount(context, queryFacet, facetFilter);
+                    } else {
+                        throw new ElasticSearchIllegalStateException("No matching for type [" + contextFacets.queryType() + "]");
+                    }
+                    facets.add(new CountFacet(queryFacet.name(), count));
                 }
-                facets.add(new CountFacet(queryFacet.name(), count));
             }
         }
 

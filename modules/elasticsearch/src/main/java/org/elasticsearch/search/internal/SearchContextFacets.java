@@ -24,7 +24,7 @@ import org.apache.lucene.search.Query;
 import java.util.List;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class SearchContextFacets {
 
@@ -50,7 +50,22 @@ public class SearchContextFacets {
         return queryFacets;
     }
 
-    public static class QueryFacet {
+    public static abstract class Facet {
+        private boolean global;
+
+        protected Facet() {
+        }
+
+        public boolean global() {
+            return global;
+        }
+
+        public void global(boolean global) {
+            this.global = global;
+        }
+    }
+
+    public static class QueryFacet extends Facet {
         private final String name;
         private final Query query;
 

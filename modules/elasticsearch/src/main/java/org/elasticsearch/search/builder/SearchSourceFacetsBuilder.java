@@ -58,7 +58,22 @@ public class SearchSourceFacetsBuilder implements ToJson {
         if (queryFacets == null) {
             queryFacets = newArrayListWithCapacity(2);
         }
-        queryFacets.add(new FacetQuery(name, query));
+        queryFacets.add(new FacetQuery(name, query, null));
+        return this;
+    }
+
+    /**
+     * Adds a query facet (which results in a count facet returned) with an option to
+     * be global on the index or bounded by the search query.
+     *
+     * @param name  The logical name of the facet, it will be returned under the name
+     * @param query The query facet
+     */
+    public SearchSourceFacetsBuilder facet(String name, JsonQueryBuilder query, boolean global) {
+        if (queryFacets == null) {
+            queryFacets = newArrayListWithCapacity(2);
+        }
+        queryFacets.add(new FacetQuery(name, query, global));
         return this;
     }
 
@@ -78,6 +93,9 @@ public class SearchSourceFacetsBuilder implements ToJson {
                 builder.startObject(facetQuery.name());
                 builder.field("query");
                 facetQuery.queryBuilder().toJson(builder, params);
+                if (facetQuery.global() != null) {
+                    builder.field("global", facetQuery.global());
+                }
                 builder.endObject();
             }
         }
@@ -88,10 +106,12 @@ public class SearchSourceFacetsBuilder implements ToJson {
     private static class FacetQuery {
         private final String name;
         private final JsonQueryBuilder queryBuilder;
+        private final Boolean global;
 
-        private FacetQuery(String name, JsonQueryBuilder queryBuilder) {
+        private FacetQuery(String name, JsonQueryBuilder queryBuilder, Boolean global) {
             this.name = name;
             this.queryBuilder = queryBuilder;
+            this.global = global;
         }
 
         public String name() {
@@ -100,6 +120,10 @@ public class SearchSourceFacetsBuilder implements ToJson {
 
         public JsonQueryBuilder queryBuilder() {
             return queryBuilder;
+        }
+
+        public Boolean global() {
+            return this.global;
         }
     }
 }

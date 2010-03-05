@@ -49,6 +49,10 @@ public abstract class JsonBuilder<T extends JsonBuilder> {
         return StringJsonBuilder.Cached.cached();
     }
 
+    public static BinaryJsonBuilder jsonBuilder() throws IOException {
+        return BinaryJsonBuilder.Cached.cached();
+    }
+
     public static BinaryJsonBuilder binaryJsonBuilder() throws IOException {
         return BinaryJsonBuilder.Cached.cached();
     }

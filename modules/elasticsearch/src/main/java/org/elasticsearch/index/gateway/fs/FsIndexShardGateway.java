@@ -70,11 +70,11 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
 
     private final File locationTranslog;
 
-    private long lastIndexVersion;
+    private volatile long lastIndexVersion;
 
-    private long lastTranslogId = -1;
+    private volatile long lastTranslogId = -1;
 
-    private int lastTranslogSize;
+    private volatile int lastTranslogSize;
 
     private RandomAccessFile translogFile;
 
@@ -235,6 +235,23 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
         // delete the old translog
         if (lastTranslogId != translogSnapshot.translogId()) {
             new File(locationTranslog, "translog-" + lastTranslogId).delete();
+        }
+
+        // delete files that no longer exists in the index
+        if (indexDirty) {
+            File[] existingFiles = locationIndex.listFiles();
+            for (File existingFile : existingFiles) {
+                boolean found = false;
+                for (final String fileName : snapshotIndexCommit.getFiles()) {
+                    if (existingFile.getName().equals(fileName)) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    existingFile.delete();
+                }
+            }
         }
 
 

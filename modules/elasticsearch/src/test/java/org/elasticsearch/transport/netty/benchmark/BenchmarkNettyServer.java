@@ -37,7 +37,7 @@ public class BenchmarkNettyServer {
         final boolean spawn = true;
 
         Settings settings = ImmutableSettings.settingsBuilder()
-                .putInt("transport.netty.port", 9999)
+                .put("transport.netty.port", 9999)
                 .build();
 
         final ThreadPool threadPool = new CachedThreadPool();

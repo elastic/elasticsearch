@@ -82,10 +82,14 @@ public class MoreLikeThisJsonQueryParser extends AbstractIndexComponent implemen
                     mltQuery.setBoostTerms(jp.getIntValue() != 0);
                 } else if ("boostTermsFactor".equals(currentFieldName)) {
                     mltQuery.setBoostTermsFactor(jp.getIntValue());
+                } else if ("percentTermsToMatch".equals(currentFieldName)) {
+                    mltQuery.setPercentTermsToMatch(jp.getIntValue());
                 }
             } else if (token == JsonToken.VALUE_NUMBER_FLOAT) {
                 if ("boostTermsFactor".equals(currentFieldName)) {
                     mltQuery.setBoostTermsFactor(jp.getFloatValue());
+                } else if ("percentTermsToMatch".equals(currentFieldName)) {
+                    mltQuery.setPercentTermsToMatch(jp.getFloatValue());
                 }
             } else if (token == JsonToken.START_ARRAY) {
                 if ("stopWords".equals(currentFieldName)) {

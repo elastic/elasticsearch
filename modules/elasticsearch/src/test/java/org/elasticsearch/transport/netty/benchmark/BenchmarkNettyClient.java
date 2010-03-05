@@ -53,8 +53,8 @@ public class BenchmarkNettyClient {
         final boolean spawn = true;
 
         Settings settings = ImmutableSettings.settingsBuilder()
-                .putBoolean("network.server", false)
-                .putInt("transport.netty.connectionsPerNode", 5)
+                .put("network.server", false)
+                .put("transport.netty.connectionsPerNode", 5)
                 .build();
 
         final ThreadPool threadPool = new CachedThreadPool();

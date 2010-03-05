@@ -329,7 +329,7 @@ public class ImmutableSettings implements Settings {
          * @param clazz The setting class value
          * @return The builder
          */
-        public Builder putClass(String key, Class clazz) {
+        public Builder put(String key, Class clazz) {
             map.put(key, clazz.getName());
             return this;
         }
@@ -341,7 +341,7 @@ public class ImmutableSettings implements Settings {
          * @param value   The boolean value
          * @return The builder
          */
-        public Builder putBoolean(String setting, boolean value) {
+        public Builder put(String setting, boolean value) {
             put(setting, String.valueOf(value));
             return this;
         }
@@ -353,7 +353,7 @@ public class ImmutableSettings implements Settings {
          * @param value   The int value
          * @return The builder
          */
-        public Builder putInt(String setting, int value) {
+        public Builder put(String setting, int value) {
             put(setting, String.valueOf(value));
             return this;
         }
@@ -365,7 +365,7 @@ public class ImmutableSettings implements Settings {
          * @param value   The long value
          * @return The builder
          */
-        public Builder putLong(String setting, long value) {
+        public Builder put(String setting, long value) {
             put(setting, String.valueOf(value));
             return this;
         }
@@ -377,12 +377,19 @@ public class ImmutableSettings implements Settings {
          * @param value   The float value
          * @return The builder
          */
-        public Builder putFloat(String setting, float value) {
+        public Builder put(String setting, float value) {
             put(setting, String.valueOf(value));
             return this;
         }
 
-        public Builder putDouble(String setting, double value) {
+        /**
+         * Sets the setting with the provided setting key and the double value.
+         *
+         * @param setting The setting key
+         * @param value   The double value
+         * @return The builder
+         */
+        public Builder put(String setting, double value) {
             put(setting, String.valueOf(value));
             return this;
         }
@@ -394,8 +401,8 @@ public class ImmutableSettings implements Settings {
          * @param value   The time value
          * @return The builder
          */
-        public Builder putTime(String setting, long value, TimeUnit timeUnit) {
-            putLong(setting, timeUnit.toMillis(value));
+        public Builder put(String setting, long value, TimeUnit timeUnit) {
+            put(setting, timeUnit.toMillis(value));
             return this;
         }
 
@@ -406,15 +413,15 @@ public class ImmutableSettings implements Settings {
          * @param value   The size value
          * @return The builder
          */
-        public Builder putSize(String setting, long value, SizeUnit sizeUnit) {
-            putLong(setting, sizeUnit.toBytes(value));
+        public Builder put(String setting, long value, SizeUnit sizeUnit) {
+            put(setting, sizeUnit.toBytes(value));
             return this;
         }
 
         /**
          * Sets the setting group.
          */
-        public Builder putGroup(String settingPrefix, String groupName, String[] settings, String[] values) throws SettingsException {
+        public Builder put(String settingPrefix, String groupName, String[] settings, String[] values) throws SettingsException {
             if (settings.length != values.length) {
                 throw new SettingsException("The settings length must match the value length");
             }
@@ -430,7 +437,7 @@ public class ImmutableSettings implements Settings {
         /**
          * Sets all the provided settings.
          */
-        public Builder putAll(Settings settings) {
+        public Builder put(Settings settings) {
             map.putAll(settings.getAsMap());
             return this;
         }
@@ -438,7 +445,7 @@ public class ImmutableSettings implements Settings {
         /**
          * Sets all the provided settings.
          */
-        public Builder putAll(Map<String, String> settings) {
+        public Builder put(Map<String, String> settings) {
             map.putAll(settings);
             return this;
         }
@@ -446,7 +453,7 @@ public class ImmutableSettings implements Settings {
         /**
          * Sets all the provided settings.
          */
-        public Builder putAll(Properties properties) {
+        public Builder put(Properties properties) {
             for (Map.Entry entry : properties.entrySet()) {
                 map.put((String) entry.getKey(), (String) entry.getValue());
             }
@@ -461,7 +468,7 @@ public class ImmutableSettings implements Settings {
             SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromSource(source);
             try {
                 Map<String, String> loadedSettings = settingsLoader.load(source);
-                putAll(loadedSettings);
+                put(loadedSettings);
             } catch (IOException e) {
                 throw new SettingsException("Failed to load settings from [" + source + "]");
             }
@@ -488,7 +495,7 @@ public class ImmutableSettings implements Settings {
             SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromResource(resourceName);
             try {
                 Map<String, String> loadedSettings = settingsLoader.load(Streams.copyToString(new InputStreamReader(is, "UTF-8")));
-                putAll(loadedSettings);
+                put(loadedSettings);
             } catch (IOException e) {
                 throw new SettingsException("Failed to load settings from [" + resourceName + "]");
             }

@@ -56,7 +56,7 @@ public abstract class AbstractServersTests {
         String settingsSource = getClass().getName().replace('.', '/') + ".yml";
         Settings finalSettings = settingsBuilder()
                 .loadFromClasspath(settingsSource)
-                .putAll(settings)
+                .put(settings)
                 .put("name", id)
                 .build();
         Server server = serverBuilder()

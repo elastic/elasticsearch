@@ -44,9 +44,9 @@ public class IndexQueryParserModuleTests {
 
     @Test public void testCustomInjection() {
         Settings settings = settingsBuilder()
-                .putClass("index.queryparser.json.query.my.type", MyJsonQueryParser.class)
+                .put("index.queryparser.json.query.my.type", MyJsonQueryParser.class)
                 .put("index.queryparser.json.query.my.param1", "value1")
-                .putClass("index.queryparser.json.filter.my.type", MyJsonFilterParser.class)
+                .put("index.queryparser.json.filter.my.type", MyJsonFilterParser.class)
                 .put("index.queryparser.json.filter.my.param2", "value2")
                 .put("index.cache.filter.type", "none")
                 .build();

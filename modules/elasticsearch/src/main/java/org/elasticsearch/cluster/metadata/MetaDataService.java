@@ -129,12 +129,12 @@ public class MetaDataService extends AbstractComponent {
                 for (IndexRoutingTable indexRoutingTable : currentState.routingTable().indicesRouting().values()) {
                     routingTableBuilder.add(indexRoutingTable);
                 }
-                ImmutableSettings.Builder indexSettingsBuilder = settingsBuilder().putAll(indexSettings);
+                ImmutableSettings.Builder indexSettingsBuilder = settingsBuilder().put(indexSettings);
                 if (indexSettings.get(SETTING_NUMBER_OF_SHARDS) == null) {
-                    indexSettingsBuilder.putInt(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
+                    indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
                 }
                 if (indexSettings.get(SETTING_NUMBER_OF_REPLICAS) == null) {
-                    indexSettingsBuilder.putInt(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
+                    indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
                 }
                 Settings actualIndexSettings = indexSettingsBuilder.build();
 

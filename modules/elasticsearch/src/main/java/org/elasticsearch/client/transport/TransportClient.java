@@ -74,7 +74,7 @@ import static org.elasticsearch.util.settings.ImmutableSettings.*;
  * <p>The transport client important modules used is the {@link org.elasticsearch.transport.TransportModule} which is
  * started in client mode (only connects, no bind).
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TransportClient implements Client {
 
@@ -117,9 +117,9 @@ public class TransportClient implements Client {
      */
     public TransportClient(Settings pSettings, boolean loadConfigSettings) throws ElasticSearchException {
         Tuple<Settings, Environment> tuple = InternalSettingsPerparer.prepareSettings(pSettings, loadConfigSettings);
-        this.settings = settingsBuilder().putAll(tuple.v1())
-                .putBoolean("network.server", false)
-                .putBoolean("discovery.client", true)
+        this.settings = settingsBuilder().put(tuple.v1())
+                .put("network.server", false)
+                .put("discovery.client", true)
                 .build();
         this.environment = tuple.v2();
 

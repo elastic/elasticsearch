@@ -42,13 +42,13 @@ public class SimpleMemoryMonitorBenchmark {
         Random random = new Random();
 
         Settings settings = settingsBuilder()
-                .putTime("cluster.routing.schedule", 200, TimeUnit.MILLISECONDS)
-                .putInt(SETTING_NUMBER_OF_SHARDS, 5)
-                .putInt(SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("cluster.routing.schedule", 200, TimeUnit.MILLISECONDS)
+                .put(SETTING_NUMBER_OF_SHARDS, 5)
+                .put(SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();
 
-        Server server1 = serverBuilder().settings(settingsBuilder().putAll(settings).put("name", "server1")).server();
-        Server server2 = serverBuilder().settings(settingsBuilder().putAll(settings).put("name", "server2")).server();
+        Server server1 = serverBuilder().settings(settingsBuilder().put(settings).put("name", "server1")).server();
+        Server server2 = serverBuilder().settings(settingsBuilder().put(settings).put("name", "server2")).server();
 
         Client client1 = server1.client();
 

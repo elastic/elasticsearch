@@ -62,6 +62,9 @@ public class MoreLikeThisFieldJsonQueryBuilder extends BaseJsonQueryBuilder {
         return this;
     }
 
+    /**
+     * The percentage of terms to match. Defaults to <tt>0.3</tt>.
+     */
     public MoreLikeThisFieldJsonQueryBuilder percentTermsToMatch(float percentTermsToMatch) {
         this.percentTermsToMatch = percentTermsToMatch;
         return this;

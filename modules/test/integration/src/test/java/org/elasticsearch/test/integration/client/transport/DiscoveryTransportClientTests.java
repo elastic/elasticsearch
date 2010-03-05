@@ -44,7 +44,7 @@ public class DiscoveryTransportClientTests extends AbstractServersTests {
 
     public void testWithDiscovery() throws Exception {
         startServer("server1");
-        client = new TransportClient(ImmutableSettings.settingsBuilder().putBoolean("discovery.enabled", true).build());
+        client = new TransportClient(ImmutableSettings.settingsBuilder().put("discovery.enabled", true).build());
         // wait a bit so nodes will be discovered
         Thread.sleep(1000);
         client.admin().indices().create(createIndexRequest("test")).actionGet();

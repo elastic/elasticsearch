@@ -71,7 +71,7 @@ public class LogConfigurator {
         }
         loaded = true;
         Environment environment = new Environment(settings);
-        ImmutableSettings.Builder settingsBuilder = settingsBuilder().putAll(settings);
+        ImmutableSettings.Builder settingsBuilder = settingsBuilder().put(settings);
         try {
             settingsBuilder.loadFromUrl(environment.resolveConfig("logging.yml"));
         } catch (FailedToResolveConfigException e) {

@@ -166,8 +166,8 @@ public class InternalIndicesService extends AbstractComponent implements Indices
 
         Settings indexSettings = settingsBuilder()
                 .put("settingsType", "index")
-                .putAll(this.settings)
-                .putAll(settings)
+                .put(this.settings)
+                .put(settings)
                 .classLoader(settings.getClassLoader())
                 .globalSettings(settings.getGlobalSettings())
                 .build();

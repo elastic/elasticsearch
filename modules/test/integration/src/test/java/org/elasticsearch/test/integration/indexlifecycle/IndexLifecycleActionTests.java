@@ -54,8 +54,8 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
 
     @Test public void testIndexLifecycleActionsWith11Shards1Backup() throws Exception {
         Settings settings = settingsBuilder()
-                .putInt(SETTING_NUMBER_OF_SHARDS, 11)
-                .putInt(SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(SETTING_NUMBER_OF_SHARDS, 11)
+                .put(SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();
 
         // start one server
@@ -189,8 +189,8 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
     @Test public void testIndexLifecycleActionsWith11Shards0Backup() throws Exception {
 
         Settings settings = settingsBuilder()
-                .putInt(SETTING_NUMBER_OF_SHARDS, 11)
-                .putInt(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(SETTING_NUMBER_OF_SHARDS, 11)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();
 
         // start one server
@@ -323,8 +323,8 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
     @Test public void testTwoIndicesCreation() throws Exception {
 
         Settings settings = settingsBuilder()
-                .putInt(SETTING_NUMBER_OF_SHARDS, 11)
-                .putInt(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(SETTING_NUMBER_OF_SHARDS, 11)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();
 
         // start one server

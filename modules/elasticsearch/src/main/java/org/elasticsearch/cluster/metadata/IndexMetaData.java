@@ -120,7 +120,7 @@ public class IndexMetaData {
         }
 
         public Builder numberOfShards(int numberOfShards) {
-            settings = settingsBuilder().putAll(settings).putInt(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
+            settings = settingsBuilder().put(settings).put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
             return this;
         }
 
@@ -129,7 +129,7 @@ public class IndexMetaData {
         }
 
         public Builder numberOfReplicas(int numberOfReplicas) {
-            settings = settingsBuilder().putAll(settings).putInt(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
+            settings = settingsBuilder().put(settings).put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
             return this;
         }
 

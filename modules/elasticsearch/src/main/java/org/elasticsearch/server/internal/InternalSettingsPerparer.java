@@ -38,7 +38,7 @@ public class InternalSettingsPerparer {
     public static Tuple<Settings, Environment> prepareSettings(Settings pSettings, boolean loadConfigSettings) {
         // just create enough settings to build the environment
         ImmutableSettings.Builder settingsBuilder = settingsBuilder()
-                .putAll(pSettings)
+                .put(pSettings)
                 .putProperties("elasticsearch.", System.getProperties())
                 .putProperties("es.", System.getProperties())
                 .replacePropertyPlaceholders();
@@ -46,7 +46,7 @@ public class InternalSettingsPerparer {
         Environment environment = new Environment(settingsBuilder.build());
 
         // put back the env settings
-        settingsBuilder = settingsBuilder().putAll(pSettings);
+        settingsBuilder = settingsBuilder().put(pSettings);
         settingsBuilder.put("path.home", cleanPath(environment.homeFile().getAbsolutePath()));
         settingsBuilder.put("path.work", cleanPath(environment.workFile().getAbsolutePath()));
         settingsBuilder.put("path.workWithCluster", cleanPath(environment.workWithClusterFile().getAbsolutePath()));
@@ -78,7 +78,7 @@ public class InternalSettingsPerparer {
             }
         }
 
-        settingsBuilder.putAll(pSettings)
+        settingsBuilder.put(pSettings)
                 .putProperties("elasticsearch.", System.getProperties())
                 .putProperties("es.", System.getProperties())
                 .replacePropertyPlaceholders();

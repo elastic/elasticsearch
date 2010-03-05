@@ -278,13 +278,13 @@ public class SimpleStoreBenchmark {
             store = new MmapFsStore(shardId, settings, environment, localNodeId);
         } else if (type.equalsIgnoreCase("memory-direct")) {
             Settings byteBufferSettings = settingsBuilder()
-                    .putAll(settings)
-                    .putBoolean("index.store.bytebuffer.direct", true)
+                    .put(settings)
+                    .put("index.store.bytebuffer.direct", true)
                     .build();
             store = new ByteBufferStore(shardId, byteBufferSettings);
         } else if (type.equalsIgnoreCase("memory-heap")) {
             Settings memorySettings = settingsBuilder()
-                    .putAll(settings)
+                    .put(settings)
                     .build();
             store = new HeapStore(shardId, memorySettings);
         } else {

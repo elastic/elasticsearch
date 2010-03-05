@@ -42,7 +42,7 @@ public class SimpleDataNodesTests extends AbstractServersTests {
     }
 
     @Test public void testDataNodes() throws Exception {
-        startServer("nonData1", settingsBuilder().putBoolean("node.data", false).build());
+        startServer("nonData1", settingsBuilder().put("node.data", false).build());
         client("nonData1").admin().indices().create(createIndexRequest("test")).actionGet();
         try {
             client("nonData1").index(Requests.indexRequest("test").type("type1").id("1").source(source("1", "test")).timeout(timeValueSeconds(1))).actionGet();
@@ -51,7 +51,7 @@ public class SimpleDataNodesTests extends AbstractServersTests {
             // all is well
         }
 
-        startServer("nonData2", settingsBuilder().putBoolean("node.data", false).build());
+        startServer("nonData2", settingsBuilder().put("node.data", false).build());
         Thread.sleep(500);
 
         // still no shard should be allocated
@@ -63,7 +63,7 @@ public class SimpleDataNodesTests extends AbstractServersTests {
         }
 
         // now, start a node data, and see that it gets with shards
-        startServer("data1", settingsBuilder().putBoolean("node.data", true).build());
+        startServer("data1", settingsBuilder().put("node.data", true).build());
         Thread.sleep(500);
 
         IndexResponse indexResponse = client("nonData2").index(Requests.indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();

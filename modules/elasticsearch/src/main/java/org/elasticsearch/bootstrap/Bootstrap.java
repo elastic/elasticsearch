@@ -68,7 +68,7 @@ public class Bootstrap {
 
         if (tuple.v1().get(JmxService.SettingsConstants.CREATE_CONNECTOR) == null) {
             // automatically create the connector if we are bootstrapping
-            Settings updated = settingsBuilder().putAll(tuple.v1()).putBoolean(JmxService.SettingsConstants.CREATE_CONNECTOR, true).build();
+            Settings updated = settingsBuilder().put(tuple.v1()).put(JmxService.SettingsConstants.CREATE_CONNECTOR, true).build();
             tuple = new Tuple<Settings, Environment>(updated, tuple.v2());
         }
 

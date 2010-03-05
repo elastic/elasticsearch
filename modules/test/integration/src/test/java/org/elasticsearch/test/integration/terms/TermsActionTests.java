@@ -23,13 +23,13 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.status.IndexStatus;
-import org.elasticsearch.action.terms.TermsRequest;
 import org.elasticsearch.action.terms.TermsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.test.integration.AbstractServersTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
+import static org.elasticsearch.action.terms.TermsRequest.SortType.*;
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.util.json.JsonBuilder.*;
 import static org.hamcrest.MatcherAssert.*;
@@ -134,7 +134,7 @@ public class TermsActionTests extends AbstractServersTests {
         assertThat(termsResponse.field("value").termsFreqs()[1].docFreq(), equalTo(2));
 
         logger.info("Verify freqs (sort gy freq)");
-        termsResponse = client.terms(termsRequest("test").fields("value").sortType(TermsRequest.SortType.FREQ)).actionGet();
+        termsResponse = client.terms(termsRequest("test").fields("value").sortType(FREQ)).actionGet();
         assertThat(termsResponse.successfulShards(), equalTo(indexStatus.shards().size()));
         assertThat(termsResponse.failedShards(), equalTo(0));
         assertThat(termsResponse.fieldsAsMap().isEmpty(), equalTo(false));
@@ -148,7 +148,7 @@ public class TermsActionTests extends AbstractServersTests {
         assertThat(termsResponse.field("value").termsFreqs()[1].docFreq(), equalTo(1));
 
         logger.info("Verify freq (size and sort by freq)");
-        termsResponse = client.terms(termsRequest("test").fields("value").sortType(TermsRequest.SortType.FREQ).size(1)).actionGet();
+        termsResponse = client.terms(termsRequest("test").fields("value").sortType(FREQ).size(1)).actionGet();
         assertThat(termsResponse.successfulShards(), equalTo(indexStatus.shards().size()));
         assertThat(termsResponse.failedShards(), equalTo(0));
         assertThat(termsResponse.fieldsAsMap().isEmpty(), equalTo(false));
@@ -160,7 +160,7 @@ public class TermsActionTests extends AbstractServersTests {
         assertThat(termsResponse.field("value").termsFreqs()[0].docFreq(), equalTo(2));
 
         logger.info("Verify freq (minFreq with sort by freq)");
-        termsResponse = client.terms(termsRequest("test").fields("value").sortType(TermsRequest.SortType.FREQ).minFreq(2)).actionGet();
+        termsResponse = client.terms(termsRequest("test").fields("value").sortType(FREQ).minFreq(2)).actionGet();
         assertThat(termsResponse.successfulShards(), equalTo(indexStatus.shards().size()));
         assertThat(termsResponse.failedShards(), equalTo(0));
         assertThat(termsResponse.fieldsAsMap().isEmpty(), equalTo(false));
@@ -172,7 +172,7 @@ public class TermsActionTests extends AbstractServersTests {
         assertThat(termsResponse.field("value").termsFreqs()[0].docFreq(), equalTo(2));
 
         logger.info("Verify freq (prefix with sort by freq)");
-        termsResponse = client.terms(termsRequest("test").fields("value").sortType(TermsRequest.SortType.FREQ).prefix("bb")).actionGet();
+        termsResponse = client.terms(termsRequest("test").fields("value").sortType(FREQ).prefix("bb")).actionGet();
         assertThat(termsResponse.successfulShards(), equalTo(indexStatus.shards().size()));
         assertThat(termsResponse.failedShards(), equalTo(0));
         assertThat(termsResponse.fieldsAsMap().isEmpty(), equalTo(false));

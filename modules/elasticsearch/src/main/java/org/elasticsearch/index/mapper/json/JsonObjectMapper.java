@@ -70,6 +70,7 @@ public class JsonObjectMapper implements JsonMapper {
 
         public Builder(String name) {
             super(name);
+            this.builder = this;
         }
 
         public Builder enabled(boolean enabled) {
@@ -358,7 +359,21 @@ public class JsonObjectMapper implements JsonMapper {
                         }
                     }
                 } else {
-                    mergeIntoMapper.merge(mergeWithMapper, mergeContext);
+                    if ((mergeWithMapper instanceof JsonMultiFieldMapper) && !(mergeIntoMapper instanceof JsonMultiFieldMapper)) {
+                        JsonMultiFieldMapper mergeWithMultiField = (JsonMultiFieldMapper) mergeWithMapper;
+                        mergeWithMultiField.merge(mergeIntoMapper, mergeContext);
+                        if (!mergeContext.mergeFlags().simulate()) {
+                            putMapper(mergeWithMultiField);
+                            // now, raise events for all mappers
+                            for (JsonMapper mapper : mergeWithMultiField.mappers().values()) {
+                                if (mapper instanceof JsonFieldMapper) {
+                                    mergeContext.docMapper().addFieldMapper((FieldMapper) mapper);
+                                }
+                            }
+                        }
+                    } else {
+                        mergeIntoMapper.merge(mergeWithMapper, mergeContext);
+                    }
                 }
             }
         }

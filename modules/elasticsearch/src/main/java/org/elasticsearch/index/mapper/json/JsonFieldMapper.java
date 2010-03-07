@@ -112,7 +112,6 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
 
         protected Builder(String name) {
             super(name);
-            indexName = name;
         }
 
         protected T index(Field.Index index) {

@@ -49,7 +49,7 @@ public interface JsonMapper extends ToJson {
     @NotThreadSafe
     public static abstract class Builder<T extends Builder, Y extends JsonMapper> {
 
-        protected final String name;
+        protected String name;
 
         protected T builder;
 

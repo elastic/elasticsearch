@@ -261,6 +261,8 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
                 // lets see if we can derive this...
                 if (propNode.isObject() && propNode.get("properties") != null) {
                     type = JsonObjectMapper.JSON_TYPE;
+                } else if (propNode.isObject() && propNode.get("fields") != null) {
+                    type = JsonMultiFieldMapper.JSON_TYPE;
                 } else {
                     throw new MapperParsingException("No type specified for property [" + propName + "]");
                 }
@@ -281,10 +283,58 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
                 objBuilder.add(parseBoolean(propName, (ObjectNode) propNode));
             } else if (type.equals(JsonObjectMapper.JSON_TYPE)) {
                 objBuilder.add(parseObject(propName, (ObjectNode) propNode));
+            } else if (type.equals(JsonMultiFieldMapper.JSON_TYPE)) {
+                objBuilder.add(parseMultiField(propName, (ObjectNode) propNode));
             } else if (type.equals(JsonBinaryFieldMapper.JSON_TYPE)) {
                 objBuilder.add(parseBinary(propName, (ObjectNode) propNode));
             }
         }
+    }
+
+    private JsonMultiFieldMapper.Builder parseMultiField(String name, ObjectNode multiFieldNode) {
+        JsonMultiFieldMapper.Builder builder = multiField(name);
+        for (Iterator<Map.Entry<String, JsonNode>> fieldsIt = multiFieldNode.getFields(); fieldsIt.hasNext();) {
+            Map.Entry<String, JsonNode> entry = fieldsIt.next();
+            String fieldName = entry.getKey();
+            JsonNode fieldNode = entry.getValue();
+            if (fieldName.equals("pathType")) {
+                builder.pathType(parsePathType(name, fieldNode.getValueAsText()));
+            } else if (fieldName.equals("fields")) {
+                ObjectNode fieldsNode = (ObjectNode) fieldNode;
+                for (Iterator<Map.Entry<String, JsonNode>> propsIt = fieldsNode.getFields(); propsIt.hasNext();) {
+                    Map.Entry<String, JsonNode> entry1 = propsIt.next();
+                    String propName = entry1.getKey();
+                    JsonNode propNode = entry1.getValue();
+
+                    String type;
+                    JsonNode typeNode = propNode.get("type");
+                    if (typeNode != null) {
+                        type = typeNode.getTextValue();
+                    } else {
+                        throw new MapperParsingException("No type specified for property [" + propName + "]");
+                    }
+
+                    if (type.equals(JsonStringFieldMapper.JSON_TYPE)) {
+                        builder.add(parseString(propName, (ObjectNode) propNode));
+                    } else if (type.equals(JsonDateFieldMapper.JSON_TYPE)) {
+                        builder.add(parseDate(propName, (ObjectNode) propNode));
+                    } else if (type.equals(JsonIntegerFieldMapper.JSON_TYPE)) {
+                        builder.add(parseInteger(propName, (ObjectNode) propNode));
+                    } else if (type.equals(JsonLongFieldMapper.JSON_TYPE)) {
+                        builder.add(parseLong(propName, (ObjectNode) propNode));
+                    } else if (type.equals(JsonFloatFieldMapper.JSON_TYPE)) {
+                        builder.add(parseFloat(propName, (ObjectNode) propNode));
+                    } else if (type.equals(JsonDoubleFieldMapper.JSON_TYPE)) {
+                        builder.add(parseDouble(propName, (ObjectNode) propNode));
+                    } else if (type.equals(JsonBooleanFieldMapper.JSON_TYPE)) {
+                        builder.add(parseBoolean(propName, (ObjectNode) propNode));
+                    } else if (type.equals(JsonBinaryFieldMapper.JSON_TYPE)) {
+                        builder.add(parseBinary(propName, (ObjectNode) propNode));
+                    }
+                }
+            }
+        }
+        return builder;
     }
 
     private JsonDateFieldMapper.Builder parseDate(String name, ObjectNode dateNode) {

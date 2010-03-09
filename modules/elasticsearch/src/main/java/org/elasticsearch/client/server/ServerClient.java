@@ -49,7 +49,7 @@ import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.settings.Settings;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class ServerClient extends AbstractComponent implements Client {
 
@@ -136,7 +136,7 @@ public class ServerClient extends AbstractComponent implements Client {
     }
 
     @Override public void count(CountRequest request, ActionListener<CountResponse> listener) {
-        countAction.execute(request);
+        countAction.execute(request, listener);
     }
 
     @Override public ActionFuture<SearchResponse> search(SearchRequest request) {

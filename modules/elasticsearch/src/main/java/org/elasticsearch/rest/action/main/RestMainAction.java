@@ -51,7 +51,7 @@ public class RestMainAction extends BaseRestHandler {
         JsonNode rootNode;
         int quotesSize;
         try {
-            rootNode = Jackson.newObjectMapper().readValue(Classes.getDefaultClassLoader().getResourceAsStream("org/elasticsearch/rest/action/main/quotes.json"), JsonNode.class);
+            rootNode = Jackson.defaultObjectMapper().readValue(Classes.getDefaultClassLoader().getResourceAsStream("org/elasticsearch/rest/action/main/quotes.json"), JsonNode.class);
             ArrayNode arrayNode = (ArrayNode) rootNode.get("quotes");
             quotesSize = Iterators.size(arrayNode.getElements());
         } catch (Exception e) {

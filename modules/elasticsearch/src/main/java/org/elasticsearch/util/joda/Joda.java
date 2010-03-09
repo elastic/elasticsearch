@@ -73,7 +73,10 @@ public class Joda {
         } else if ("dateHourMinuteSecondMillis".equals(input)) {
             formatter = ISODateTimeFormat.dateHourMinuteSecondMillis();
         } else if ("dateOptionalTime".equals(input)) {
-            formatter = ISODateTimeFormat.dateOptionalTimeParser();
+            // in this case, we have a separate parser and printer since the dataOptionalTimeParser can't print
+            return new FormatDateTimeFormatter(input,
+                    ISODateTimeFormat.dateOptionalTimeParser().withZone(DateTimeZone.UTC),
+                    ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC));
         } else if ("dateTime".equals(input)) {
             formatter = ISODateTimeFormat.dateTime();
         } else if ("dateTimeNoMillis".equals(input)) {

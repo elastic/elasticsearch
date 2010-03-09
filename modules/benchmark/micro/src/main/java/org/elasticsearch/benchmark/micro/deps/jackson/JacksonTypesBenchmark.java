@@ -55,7 +55,7 @@ public class JacksonTypesBenchmark {
     public JacksonTypesBenchmark(String jsonString) throws IOException {
         Preconditions.checkNotNull(jsonString, "jsonString must have a value");
         this.jsonString = jsonString;
-        this.objectMapper = newObjectMapper();
+        this.objectMapper = defaultObjectMapper();
         this.factor = 10;
         this.cycles = 10000;
 

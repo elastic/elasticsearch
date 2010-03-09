@@ -22,17 +22,24 @@ package org.elasticsearch.util.json;
 import org.codehaus.jackson.JsonEncoding;
 import org.codehaus.jackson.JsonGenerator;
 import org.codehaus.jackson.JsonNode;
+import org.elasticsearch.util.MapBuilder;
 import org.elasticsearch.util.io.FastByteArrayInputStream;
 import org.elasticsearch.util.io.FastByteArrayOutputStream;
 import org.elasticsearch.util.io.FastCharArrayWriter;
+import org.joda.time.DateTime;
 import org.testng.annotations.Test;
 
+import java.util.Date;
+import java.util.Map;
+
+import static org.elasticsearch.util.json.Jackson.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
+@Test
 public class JsonBuilderTests {
 
     @Test public void verifyReuseJsonGenerator() throws Exception {
@@ -82,5 +89,15 @@ public class JsonBuilderTests {
 
         JsonNode node = Jackson.newObjectMapper().readValue(new FastByteArrayInputStream(data), JsonNode.class);
         assertThat(node.get("source").get("test").getTextValue(), equalTo("value"));
+    }
+
+    @Test public void testDatesObjectMapper() throws Exception {
+        Date date = new Date();
+        DateTime dateTime = new DateTime();
+        Map<String, Object> data = MapBuilder.<String, Object>newMapBuilder()
+                .put("date", date)
+                .put("dateTime", dateTime)
+                .map();
+        System.out.println("Data: " + defaultObjectMapper().writeValueAsString(data));
     }
 }

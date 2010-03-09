@@ -33,18 +33,29 @@ public class FormatDateTimeFormatter {
 
     private final String format;
 
-    private final DateTimeFormatter formatter;
+    private final DateTimeFormatter parser;
 
-    public FormatDateTimeFormatter(String format, DateTimeFormatter formatter) {
+    private final DateTimeFormatter printer;
+
+    public FormatDateTimeFormatter(String format, DateTimeFormatter parser) {
+        this(format, parser, parser);
+    }
+
+    public FormatDateTimeFormatter(String format, DateTimeFormatter parser, DateTimeFormatter printer) {
         this.format = format;
-        this.formatter = formatter;
+        this.parser = parser;
+        this.printer = printer;
     }
 
     public String format() {
         return format;
     }
 
-    public DateTimeFormatter formatter() {
-        return formatter;
+    public DateTimeFormatter parser() {
+        return parser;
+    }
+
+    public DateTimeFormatter printer() {
+        return this.printer;
     }
 }

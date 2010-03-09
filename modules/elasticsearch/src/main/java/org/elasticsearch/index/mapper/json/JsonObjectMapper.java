@@ -310,7 +310,7 @@ public class JsonObjectMapper implements JsonMapper {
                 boolean isDate = false;
                 for (FormatDateTimeFormatter dateTimeFormatter : dateTimeFormatters) {
                     try {
-                        dateTimeFormatter.formatter().parseMillis(jsonContext.jp().getText());
+                        dateTimeFormatter.parser().parseMillis(jsonContext.jp().getText());
                         mapper = dateField(currentFieldName).dateTimeFormatter(dateTimeFormatter).build(builderContext);
                         isDate = true;
                         break;

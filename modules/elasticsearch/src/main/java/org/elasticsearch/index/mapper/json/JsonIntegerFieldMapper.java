@@ -115,7 +115,11 @@ public class JsonIntegerFieldMapper extends JsonNumberFieldMapper<Integer> {
             }
             value = nullValue;
         } else {
-            value = jsonContext.jp().getIntValue();
+            if (jsonContext.jp().getCurrentToken() == JsonToken.VALUE_STRING) {
+                value = Integer.parseInt(jsonContext.jp().getText());
+            } else {
+                value = jsonContext.jp().getIntValue();
+            }
         }
         Field field = null;
         if (stored()) {

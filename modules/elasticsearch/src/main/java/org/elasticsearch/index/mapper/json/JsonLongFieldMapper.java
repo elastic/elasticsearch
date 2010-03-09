@@ -115,7 +115,11 @@ public class JsonLongFieldMapper extends JsonNumberFieldMapper<Long> {
             }
             value = nullValue;
         } else {
-            value = jsonContext.jp().getLongValue();
+            if (jsonContext.jp().getCurrentToken() == JsonToken.VALUE_STRING) {
+                value = Long.parseLong(jsonContext.jp().getText());
+            } else {
+                value = jsonContext.jp().getLongValue();
+            }
         }
         Field field = null;
         if (stored()) {

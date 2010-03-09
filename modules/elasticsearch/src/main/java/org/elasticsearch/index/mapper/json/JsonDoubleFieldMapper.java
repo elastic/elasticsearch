@@ -116,7 +116,11 @@ public class JsonDoubleFieldMapper extends JsonNumberFieldMapper<Double> {
             }
             value = nullValue;
         } else {
-            value = jsonContext.jp().getDoubleValue();
+            if (jsonContext.jp().getCurrentToken() == JsonToken.VALUE_STRING) {
+                value = Double.parseDouble(jsonContext.jp().getText());
+            } else {
+                value = jsonContext.jp().getDoubleValue();
+            }
         }
         Field field = null;
         if (stored()) {

@@ -116,7 +116,11 @@ public class JsonFloatFieldMapper extends JsonNumberFieldMapper<Float> {
             }
             value = nullValue;
         } else {
-            value = jsonContext.jp().getFloatValue();
+            if (jsonContext.jp().getCurrentToken() == JsonToken.VALUE_STRING) {
+                value = Float.parseFloat(jsonContext.jp().getText());
+            } else {
+                value = jsonContext.jp().getFloatValue();
+            }
         }
         Field field = null;
         if (stored()) {

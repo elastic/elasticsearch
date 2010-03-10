@@ -40,6 +40,7 @@ import java.util.Map;
 
 import static com.google.common.collect.Lists.*;
 import static org.elasticsearch.index.mapper.json.JsonMapperBuilders.*;
+import static org.elasticsearch.util.json.JacksonNodes.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -151,7 +152,7 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
             String propName = entry.getKey();
             JsonNode propNode = entry.getValue();
             if (propName.equals("nullValue")) {
-                builder.nullValue(propNode.getNumberValue().floatValue());
+                builder.nullValue(nodeFloatValue(propNode));
             }
         }
         return builder;
@@ -180,7 +181,7 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
             String fieldName = entry.getKey();
             JsonNode fieldNode = entry.getValue();
 //            if (fieldName.equals("compressionThreshold")) {
-//                builder.compressionThreshold(fieldNode.getNumberValue().intValue());
+//                builder.compressionThreshold(nodeIn...);
 //            } else if (fieldName.equals("compressionType")) {
 //                String compressionType = fieldNode.getTextValue();
 //                if ("zip".equals(compressionType)) {
@@ -204,7 +205,7 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
             String fieldName = entry.getKey();
             JsonNode fieldNode = entry.getValue();
             if (fieldName.equals("dynamic")) {
-                builder.dynamic(fieldNode.getBooleanValue());
+                builder.dynamic(nodeBooleanValue(fieldNode));
             } else if (fieldName.equals("type")) {
                 String type = fieldNode.getTextValue();
                 if (!type.equals("object")) {
@@ -227,7 +228,7 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
                     builder.dateTimeFormatter(dateTimeFormatters);
                 }
             } else if (fieldName.equals("enabled")) {
-                builder.enabled(fieldNode.getBooleanValue());
+                builder.enabled(nodeBooleanValue(fieldNode));
             } else if (fieldName.equals("pathType")) {
                 builder.pathType(parsePathType(name, fieldNode.getValueAsText()));
             } else if (fieldName.equals("properties")) {
@@ -362,7 +363,7 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
             String propName = entry.getKey();
             JsonNode propNode = entry.getValue();
             if (propName.equals("nullValue")) {
-                builder.nullValue(propNode.getNumberValue().intValue());
+                builder.nullValue(nodeIntegerValue(propNode));
             }
         }
         return builder;
@@ -376,7 +377,7 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
             String propName = entry.getKey();
             JsonNode propNode = entry.getValue();
             if (propName.equals("nullValue")) {
-                builder.nullValue(propNode.getNumberValue().longValue());
+                builder.nullValue(nodeLongValue(propNode));
             }
         }
         return builder;
@@ -390,7 +391,7 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
             String propName = entry.getKey();
             JsonNode propNode = entry.getValue();
             if (propName.equals("nullValue")) {
-                builder.nullValue(propNode.getNumberValue().floatValue());
+                builder.nullValue(nodeFloatValue(propNode));
             }
         }
         return builder;
@@ -404,7 +405,7 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
             String propName = entry.getKey();
             JsonNode propNode = entry.getValue();
             if (propName.equals("nullValue")) {
-                builder.nullValue(propNode.getNumberValue().doubleValue());
+                builder.nullValue(nodeDoubleValue(propNode));
             }
         }
         return builder;
@@ -438,7 +439,7 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
             String propName = entry.getKey();
             JsonNode propNode = entry.getValue();
             if (propName.equals("nullValue")) {
-                builder.nullValue(propNode.getBooleanValue());
+                builder.nullValue(nodeBooleanValue(propNode));
             }
         }
         return builder;
@@ -451,7 +452,7 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
             String propName = entry.getKey();
             JsonNode propNode = entry.getValue();
             if (propName.equals("precisionStep")) {
-                builder.precisionStep(propNode.getNumberValue().intValue());
+                builder.precisionStep(nodeIntegerValue(propNode));
             }
         }
     }
@@ -462,7 +463,7 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
             String propName = entry.getKey();
             JsonNode propNode = entry.getValue();
             if (propName.equals("indexName")) {
-                builder.indexName(propNode.getValueAsText());
+                builder.indexName(propNode.getTextValue());
             } else if (propName.equals("store")) {
                 builder.store(parseStore(name, propNode.getTextValue()));
             } else if (propName.equals("index")) {
@@ -470,11 +471,11 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
             } else if (propName.equals("termVector")) {
                 builder.termVector(parseTermVector(name, propNode.getTextValue()));
             } else if (propName.equals("boost")) {
-                builder.boost(propNode.getNumberValue().floatValue());
+                builder.boost(nodeFloatValue(propNode));
             } else if (propName.equals("omitNorms")) {
-                builder.omitNorms(propNode.getBooleanValue());
+                builder.omitNorms(nodeBooleanValue(propNode));
             } else if (propName.equals("omitTermFreqAndPositions")) {
-                builder.omitTermFreqAndPositions(propNode.getBooleanValue());
+                builder.omitTermFreqAndPositions(nodeBooleanValue(propNode));
             } else if (propName.equals("indexAnalyzer")) {
                 builder.indexAnalyzer(analysisService.analyzer(propNode.getTextValue()));
             } else if (propName.equals("searchAnalyzer")) {

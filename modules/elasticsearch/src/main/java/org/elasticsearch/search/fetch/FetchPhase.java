@@ -152,7 +152,7 @@ public class FetchPhase implements SearchPhase {
     }
 
     private FieldSelector buildFieldSelectors(SearchContext context) {
-        if (context.fieldNames() == null || context.fieldNames().length == 0) {
+        if (context.fieldNames() == null) {
             return new UidAndSourceFieldSelector();
         }
 

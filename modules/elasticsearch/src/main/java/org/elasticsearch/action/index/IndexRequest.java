@@ -19,19 +19,23 @@
 
 package org.elasticsearch.action.index;
 
+import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.util.Required;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.Unicode;
+import org.elasticsearch.util.io.FastByteArrayOutputStream;
 import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.action.Actions.*;
+import static org.elasticsearch.util.json.Jackson.*;
 
 /**
  * Index request to index a typed JSON document into a specific index and make it searchable. Best
@@ -188,6 +192,22 @@ public class IndexRequest extends ShardReplicationOperationRequest {
      */
     byte[] source() {
         return source;
+    }
+
+    /**
+     * Writes the JSON as a {@link Map}.
+     *
+     * @param source The map to index
+     */
+    @Required public IndexRequest source(Map source) throws ElasticSearchGenerationException {
+        FastByteArrayOutputStream os = FastByteArrayOutputStream.Cached.cached();
+        try {
+            defaultObjectMapper().writeValue(os, source);
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
+        }
+        this.source = os.copiedByteArray();
+        return this;
     }
 
     /**

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.get;
 
+import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.io.Streamable;
@@ -26,6 +27,9 @@ import org.elasticsearch.util.io.Streamable;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.Map;
+
+import static org.elasticsearch.util.json.Jackson.*;
 
 /**
  * The response of a get action.
@@ -94,6 +98,20 @@ public class GetResponse implements ActionResponse, Streamable {
      */
     public String sourceAsString() {
         return Unicode.fromBytes(source);
+    }
+
+    /**
+     * The source of the document (As a map).
+     */
+    public Map<String, Object> sourceAsMap() throws ElasticSearchParseException {
+        if (!exists()) {
+            return null;
+        }
+        try {
+            return defaultObjectMapper().readValue(source, 0, source.length, Map.class);
+        } catch (Exception e) {
+            throw new ElasticSearchParseException("Failed to parse source to map", e);
+        }
     }
 
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {

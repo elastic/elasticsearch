@@ -32,6 +32,27 @@ import java.util.Arrays;
 public class FastByteArrayOutputStream extends OutputStream {
 
     /**
+     * A thread local based cache of {@link FastByteArrayOutputStream}.
+     */
+    public static class Cached {
+
+        private static final ThreadLocal<FastByteArrayOutputStream> cache = new ThreadLocal<FastByteArrayOutputStream>() {
+            @Override protected FastByteArrayOutputStream initialValue() {
+                return new FastByteArrayOutputStream();
+            }
+        };
+
+        /**
+         * Returns the cached thread local byte stream, with its internal stream cleared.
+         */
+        public static FastByteArrayOutputStream cached() {
+            FastByteArrayOutputStream os = cache.get();
+            os.reset();
+            return os;
+        }
+    }
+
+    /**
      * The buffer where data is stored.
      */
     protected byte buf[];
@@ -82,15 +103,14 @@ public class FastByteArrayOutputStream extends OutputStream {
      * Writes <code>len</code> bytes from the specified byte array
      * starting at offset <code>off</code> to this byte array output stream.
      *
+     * <b>NO checks for bounds, parameters must be ok!</b>
+     *
      * @param b   the data.
      * @param off the start offset in the data.
      * @param len the number of bytes to write.
      */
     public void write(byte b[], int off, int len) {
-        if ((off < 0) || (off > b.length) || (len < 0) ||
-                ((off + len) > b.length) || ((off + len) < 0)) {
-            throw new IndexOutOfBoundsException();
-        } else if (len == 0) {
+        if (len == 0) {
             return;
         }
         int newcount = count + len;

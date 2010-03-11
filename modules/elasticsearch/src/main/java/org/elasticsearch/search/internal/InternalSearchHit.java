@@ -21,6 +21,7 @@ package org.elasticsearch.search.internal;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchShardTarget;
@@ -36,6 +37,7 @@ import java.util.Map;
 
 import static org.elasticsearch.search.SearchShardTarget.*;
 import static org.elasticsearch.search.internal.InternalSearchHitField.*;
+import static org.elasticsearch.util.json.Jackson.*;
 import static org.elasticsearch.util.lucene.Lucene.*;
 
 /**
@@ -87,6 +89,17 @@ public class InternalSearchHit implements SearchHit {
             return null;
         }
         return Unicode.fromBytes(source);
+    }
+
+    @Override public Map<String, Object> sourceAsMap() throws ElasticSearchParseException {
+        if (source == null) {
+            return null;
+        }
+        try {
+            return defaultObjectMapper().readValue(source, 0, source.length, Map.class);
+        } catch (Exception e) {
+            throw new ElasticSearchParseException("Failed to parse source to map", e);
+        }
     }
 
     @Override public Iterator<SearchHitField> iterator() {

@@ -37,6 +37,8 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.util.Map;
+
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.index.query.json.JsonQueryBuilders.*;
 import static org.hamcrest.MatcherAssert.*;
@@ -101,6 +103,7 @@ public class DocumentActionsTests extends AbstractServersTests {
         for (int i = 0; i < 5; i++) {
             getResult = client1.get(getRequest("test").type("type1").id("1").threadedOperation(false)).actionGet();
             assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test")));
+            assertThat("cycle(map) #" + i, (String) ((Map) getResult.sourceAsMap().get("type1")).get("name"), equalTo("test"));
             getResult = client1.get(getRequest("test").type("type1").id("1").threadedOperation(true)).actionGet();
             assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test")));
         }

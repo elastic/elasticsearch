@@ -306,16 +306,20 @@ public class JsonObjectMapper implements JsonMapper {
 
             BuilderContext builderContext = new BuilderContext(jsonContext.path());
             if (token == JsonToken.VALUE_STRING) {
+                String text = jsonContext.jp().getText();
                 // check if it fits one of the date formats
                 boolean isDate = false;
-                for (FormatDateTimeFormatter dateTimeFormatter : dateTimeFormatters) {
-                    try {
-                        dateTimeFormatter.parser().parseMillis(jsonContext.jp().getText());
-                        mapper = dateField(currentFieldName).dateTimeFormatter(dateTimeFormatter).build(builderContext);
-                        isDate = true;
-                        break;
-                    } catch (Exception e) {
-                        // failure to parse this, continue
+                // a safe check since "1" gets parsed as well
+                if (text.contains(":") || text.contains("-")) {
+                    for (FormatDateTimeFormatter dateTimeFormatter : dateTimeFormatters) {
+                        try {
+                            dateTimeFormatter.parser().parseMillis(text);
+                            mapper = dateField(currentFieldName).dateTimeFormatter(dateTimeFormatter).build(builderContext);
+                            isDate = true;
+                            break;
+                        } catch (Exception e) {
+                            // failure to parse this, continue
+                        }
                     }
                 }
                 if (!isDate) {

@@ -22,12 +22,13 @@ package org.elasticsearch.index.mapper.json;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.codehaus.jackson.JsonToken;
+import org.elasticsearch.util.Booleans;
 import org.elasticsearch.util.lucene.Lucene;
 
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 // TODO this can be made better, maybe storing a byte for it?
 public class JsonBooleanFieldMapper extends JsonFieldMapper<Boolean> {
@@ -93,7 +94,7 @@ public class JsonBooleanFieldMapper extends JsonFieldMapper<Boolean> {
     }
 
     @Override public Boolean value(Fieldable field) {
-        return Boolean.parseBoolean(valueAsString(field));
+        return field.stringValue().charAt(0) == 'T' ? Boolean.TRUE : Boolean.FALSE;
     }
 
     @Override public String valueAsString(Fieldable field) {
@@ -104,7 +105,10 @@ public class JsonBooleanFieldMapper extends JsonFieldMapper<Boolean> {
         if (value == null || value.length() == 0) {
             return "F";
         }
-        return value.equals("true") ? "T" : "F";
+        if (Booleans.parseBoolean(value, false)) {
+            return "T";
+        }
+        return "F";
     }
 
     @Override public String indexedValue(Boolean value) {
@@ -132,10 +136,10 @@ public class JsonBooleanFieldMapper extends JsonFieldMapper<Boolean> {
                 value = "T";
             }
         } else if (token == JsonToken.VALUE_STRING) {
-            if (jsonContext.jp().getText().equals("false")) {
-                value = "F";
-            } else {
+            if (Booleans.parseBoolean(jsonContext.jp().getText(), false)) {
                 value = "T";
+            } else {
+                value = "F";
             }
         } else {
             return null;

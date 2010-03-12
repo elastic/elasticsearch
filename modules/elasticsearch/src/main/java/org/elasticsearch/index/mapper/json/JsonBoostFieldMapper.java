@@ -126,7 +126,7 @@ public class JsonBoostFieldMapper extends JsonNumberFieldMapper<Float> implement
 
     @Override public void parse(JsonParseContext jsonContext) throws IOException {
         // we override parse since we want to handle cases where it is not indexed and not stored (the default)
-        float value = parsedFloatValue(jsonContext);
+        float value = parseFloatValue(jsonContext);
         if (!Float.isNaN(value)) {
             jsonContext.doc().setBoost(value);
         }
@@ -134,7 +134,7 @@ public class JsonBoostFieldMapper extends JsonNumberFieldMapper<Float> implement
     }
 
     @Override protected Field parseCreateField(JsonParseContext jsonContext) throws IOException {
-        float value = parsedFloatValue(jsonContext);
+        float value = parseFloatValue(jsonContext);
         if (Float.isNaN(value)) {
             return null;
         }
@@ -151,7 +151,7 @@ public class JsonBoostFieldMapper extends JsonNumberFieldMapper<Float> implement
         return field;
     }
 
-    private float parsedFloatValue(JsonParseContext jsonContext) throws IOException {
+    private float parseFloatValue(JsonParseContext jsonContext) throws IOException {
         float value;
         if (jsonContext.jp().getCurrentToken() == JsonToken.VALUE_NULL) {
             if (nullValue == null) {

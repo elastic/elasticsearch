@@ -33,6 +33,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.support.MapperQueryParser;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.util.Booleans;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
@@ -80,29 +81,17 @@ public class FieldJsonQueryParser extends AbstractIndexComponent implements Json
             while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
                 if (token == JsonToken.FIELD_NAME) {
                     currentFieldName = jp.getCurrentName();
-                } else {
+                } else if (token == JsonToken.VALUE_STRING) {
                     if ("query".equals(currentFieldName)) {
                         queryString = jp.getText();
                     } else if ("boost".equals(currentFieldName)) {
-                        boost = jp.getFloatValue();
+                        boost = Float.parseFloat(jp.getText());
                     } else if ("enablePositionIncrements".equals(currentFieldName)) {
-                        if (token == JsonToken.VALUE_TRUE) {
-                            enablePositionIncrements = true;
-                        } else if (token == JsonToken.VALUE_FALSE) {
-                            enablePositionIncrements = false;
-                        } else {
-                            enablePositionIncrements = jp.getIntValue() != 0;
-                        }
+                        enablePositionIncrements = Booleans.parseBoolean(jp.getText(), true);
                     } else if ("lowercaseExpandedTerms".equals(currentFieldName)) {
-                        if (token == JsonToken.VALUE_TRUE) {
-                            lowercaseExpandedTerms = true;
-                        } else if (token == JsonToken.VALUE_FALSE) {
-                            lowercaseExpandedTerms = false;
-                        } else {
-                            lowercaseExpandedTerms = jp.getIntValue() != 0;
-                        }
+                        lowercaseExpandedTerms = Booleans.parseBoolean(jp.getText(), true);
                     } else if ("phraseSlop".equals(currentFieldName)) {
-                        phraseSlop = jp.getIntValue();
+                        phraseSlop = Integer.parseInt(jp.getText());
                     } else if ("analyzer".equals(currentFieldName)) {
                         analyzer = analysisService.analyzer(jp.getText());
                     } else if ("defaultOperator".equals(currentFieldName)) {
@@ -115,17 +104,57 @@ public class FieldJsonQueryParser extends AbstractIndexComponent implements Json
                             throw new QueryParsingException(index, "Query default operator [" + op + "] is not allowed");
                         }
                     } else if ("fuzzyMinSim".equals(currentFieldName)) {
-                        fuzzyMinSim = jp.getFloatValue();
+                        fuzzyMinSim = Float.parseFloat(jp.getText());
+                    } else if ("fuzzyPrefixLength".equals(currentFieldName)) {
+                        fuzzyPrefixLength = Integer.parseInt(jp.getText());
+                    } else if ("escape".equals(currentFieldName)) {
+                        escape = Booleans.parseBoolean(jp.getText(), false);
+                    }
+                } else if (token == JsonToken.VALUE_NUMBER_INT) {
+                    if ("query".equals(currentFieldName)) {
+                        queryString = jp.getText();
+                    } else if ("boost".equals(currentFieldName)) {
+                        boost = jp.getIntValue();
+                    } else if ("enablePositionIncrements".equals(currentFieldName)) {
+                        enablePositionIncrements = jp.getIntValue() != 0;
+                    } else if ("lowercaseExpandedTerms".equals(currentFieldName)) {
+                        lowercaseExpandedTerms = jp.getIntValue() != 0;
+                    } else if ("phraseSlop".equals(currentFieldName)) {
+                        phraseSlop = jp.getIntValue();
+                    } else if ("fuzzyMinSim".equals(currentFieldName)) {
+                        fuzzyMinSim = jp.getIntValue();
                     } else if ("fuzzyPrefixLength".equals(currentFieldName)) {
                         fuzzyPrefixLength = jp.getIntValue();
                     } else if ("escape".equals(currentFieldName)) {
-                        if (token == JsonToken.VALUE_TRUE) {
-                            escape = true;
-                        } else if (token == JsonToken.VALUE_FALSE) {
-                            escape = false;
-                        } else {
-                            escape = jp.getIntValue() != 0;
-                        }
+                        escape = jp.getIntValue() != 0;
+                    }
+                } else if (token == JsonToken.VALUE_NUMBER_FLOAT) {
+                    if ("query".equals(currentFieldName)) {
+                        queryString = jp.getText();
+                    } else if ("boost".equals(currentFieldName)) {
+                        boost = jp.getFloatValue();
+                    } else if ("fuzzyPrefixLength".equals(currentFieldName)) {
+                        fuzzyPrefixLength = jp.getIntValue();
+                    }
+                } else if (token == JsonToken.VALUE_TRUE) {
+                    if ("query".equals(currentFieldName)) {
+                        queryString = jp.getText();
+                    } else if ("enablePositionIncrements".equals(currentFieldName)) {
+                        enablePositionIncrements = true;
+                    } else if ("lowercaseExpandedTerms".equals(currentFieldName)) {
+                        lowercaseExpandedTerms = true;
+                    } else if ("escape".equals(currentFieldName)) {
+                        escape = true;
+                    }
+                } else if (token == JsonToken.VALUE_FALSE) {
+                    if ("query".equals(currentFieldName)) {
+                        queryString = jp.getText();
+                    } else if ("enablePositionIncrements".equals(currentFieldName)) {
+                        enablePositionIncrements = false;
+                    } else if ("lowercaseExpandedTerms".equals(currentFieldName)) {
+                        lowercaseExpandedTerms = false;
+                    } else if ("escape".equals(currentFieldName)) {
+                        escape = false;
                     }
                 }
             }

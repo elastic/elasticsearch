@@ -28,6 +28,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.util.Booleans;
 import org.elasticsearch.util.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.util.settings.Settings;
 
@@ -72,6 +73,24 @@ public class MoreLikeThisFieldJsonQueryParser extends AbstractIndexComponent imp
             } else if (token == JsonToken.VALUE_STRING) {
                 if ("likeText".equals(currentFieldName)) {
                     mltQuery.setLikeText(jp.getText());
+                } else if ("minTermFrequency".equals(currentFieldName)) {
+                    mltQuery.setMinTermFrequency(Integer.parseInt(jp.getText()));
+                } else if ("maxQueryTerms".equals(currentFieldName)) {
+                    mltQuery.setMaxQueryTerms(Integer.parseInt(jp.getText()));
+                } else if ("minDocFreq".equals(currentFieldName)) {
+                    mltQuery.setMinDocFreq(Integer.parseInt(jp.getText()));
+                } else if ("maxDocFreq".equals(currentFieldName)) {
+                    mltQuery.setMaxDocFreq(Integer.parseInt(jp.getText()));
+                } else if ("minWordLen".equals(currentFieldName)) {
+                    mltQuery.setMinWordLen(Integer.parseInt(jp.getText()));
+                } else if ("maxWordLen".equals(currentFieldName)) {
+                    mltQuery.setMaxWordLen(Integer.parseInt(jp.getText()));
+                } else if ("boostTerms".equals(currentFieldName)) {
+                    mltQuery.setBoostTerms(Booleans.parseBoolean(jp.getText(), false));
+                } else if ("boostTermsFactor".equals(currentFieldName)) {
+                    mltQuery.setBoostTermsFactor(Float.parseFloat(jp.getText()));
+                } else if ("percentTermsToMatch".equals(currentFieldName)) {
+                    mltQuery.setPercentTermsToMatch(Float.parseFloat(jp.getText()));
                 }
             } else if (token == JsonToken.VALUE_NUMBER_INT) {
                 if ("minTermFrequency".equals(currentFieldName)) {

@@ -17,24 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query.json;
-
-import org.apache.lucene.search.Filter;
-import org.elasticsearch.index.IndexComponent;
-import org.elasticsearch.index.query.QueryParsingException;
-
-import java.io.IOException;
+package org.elasticsearch.util;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface JsonFilterParser extends IndexComponent {
+public class Booleans {
 
-    String name();
+    public static boolean parseBoolean(String value, boolean defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        return !(value.equals("false") || value.equals("0") || value.equals("off"));
+    }
 
-    /**
-     * Parses the into a filter from the current json parser location. Will be at "START_OBJECT" location,
-     * and should end when the token is at the matching "END_OBJECT".
-     */
-    Filter parse(JsonQueryParseContext parseContext) throws IOException, QueryParsingException;
+    public static Boolean parseBoolean(String value, Boolean defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        return !(value.equals("false") || value.equals("0") || value.equals("off"));
+    }
 }

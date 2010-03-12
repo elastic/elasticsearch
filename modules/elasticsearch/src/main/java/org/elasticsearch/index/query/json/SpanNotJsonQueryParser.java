@@ -34,7 +34,7 @@ import org.elasticsearch.util.settings.Settings;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class SpanNotJsonQueryParser extends AbstractIndexComponent implements JsonQueryParser {
 
@@ -77,7 +77,11 @@ public class SpanNotJsonQueryParser extends AbstractIndexComponent implements Js
                 }
             } else {
                 if ("boost".equals(currentFieldName)) {
-                    boost = jp.getFloatValue();
+                    if (token == JsonToken.VALUE_STRING) {
+                        boost = Float.parseFloat(jp.getText());
+                    } else {
+                        boost = jp.getFloatValue();
+                    }
                 }
             }
         }

@@ -72,7 +72,11 @@ public class WildcardJsonQueryParser extends AbstractIndexComponent implements J
                     if ("wildcard".equals(currentFieldName)) {
                         value = jp.getText();
                     } else if ("boost".equals(currentFieldName)) {
-                        boost = jp.getFloatValue();
+                        if (token == JsonToken.VALUE_STRING) {
+                            boost = Float.parseFloat(jp.getText());
+                        } else {
+                            boost = jp.getFloatValue();
+                        }
                     }
                 }
             }

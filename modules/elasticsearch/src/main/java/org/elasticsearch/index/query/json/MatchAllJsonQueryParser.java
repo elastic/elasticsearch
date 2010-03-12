@@ -58,11 +58,15 @@ public class MatchAllJsonQueryParser extends AbstractIndexComponent implements J
         while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
             if (token == JsonToken.FIELD_NAME) {
                 currentFieldName = jp.getCurrentName();
+            } else if (token == JsonToken.VALUE_STRING) {
+                if ("boost".equals(currentFieldName)) {
+                    boost = Float.parseFloat(jp.getText());
+                } else if ("normsField".equals(currentFieldName)) {
+                    normsField = parseContext.indexName(jp.getText());
+                }
             } else {
                 if ("boost".equals(currentFieldName)) {
                     boost = jp.getFloatValue();
-                } else if ("normsField".equals(currentFieldName)) {
-                    normsField = parseContext.indexName(jp.getText());
                 }
             }
         }

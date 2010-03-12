@@ -29,6 +29,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.util.Booleans;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
@@ -36,7 +37,7 @@ import java.io.IOException;
 import static org.elasticsearch.index.query.support.QueryParsers.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class RangeJsonQueryParser extends AbstractIndexComponent implements JsonQueryParser {
 
@@ -83,17 +84,25 @@ public class RangeJsonQueryParser extends AbstractIndexComponent implements Json
                 } else if ("includeLower".equals(currentFieldName)) {
                     if (token == JsonToken.VALUE_NUMBER_INT) {
                         includeLower = jp.getIntValue() != 0;
+                    } else if (token == JsonToken.VALUE_STRING) {
+                        includeLower = Booleans.parseBoolean(jp.getText(), includeLower);
                     } else {
                         includeLower = token == JsonToken.VALUE_TRUE;
                     }
                 } else if ("includeUpper".equals(currentFieldName)) {
                     if (token == JsonToken.VALUE_NUMBER_INT) {
                         includeUpper = jp.getIntValue() != 0;
+                    } else if (token == JsonToken.VALUE_STRING) {
+                        includeUpper = Booleans.parseBoolean(jp.getText(), includeUpper);
                     } else {
                         includeUpper = token == JsonToken.VALUE_TRUE;
                     }
                 } else if ("boost".equals(currentFieldName)) {
-                    boost = jp.getFloatValue();
+                    if (token == JsonToken.VALUE_STRING) {
+                        boost = Float.parseFloat(jp.getText());
+                    } else {
+                        boost = jp.getFloatValue();
+                    }
                 }
             }
         }

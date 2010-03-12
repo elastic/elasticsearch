@@ -35,6 +35,7 @@ import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.support.MapperQueryParser;
 import org.elasticsearch.index.query.support.MultiFieldMapperQueryParser;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.util.Booleans;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.trove.ExtTObjectFloatHashMap;
 
@@ -134,6 +135,26 @@ public class QueryStringJsonQueryParser extends AbstractIndexComponent implement
                     }
                 } else if ("analyzer".equals(currentFieldName)) {
                     analyzer = analysisService.analyzer(jp.getText());
+                } else if ("allowLeadingWildcard".equals(currentFieldName)) {
+                    allowLeadingWildcard = Booleans.parseBoolean(jp.getText(), false);
+                } else if ("lowercaseExpandedTerms".equals(currentFieldName)) {
+                    lowercaseExpandedTerms = Booleans.parseBoolean(jp.getText(), false);
+                } else if ("enablePositionIncrements".equals(currentFieldName)) {
+                    enablePositionIncrements = Booleans.parseBoolean(jp.getText(), false);
+                } else if ("escape".equals(currentFieldName)) {
+                    escape = Booleans.parseBoolean(jp.getText(), false);
+                } else if ("useDisMax".equals(currentFieldName)) {
+                    useDisMax = Booleans.parseBoolean(jp.getText(), false);
+                } else if ("fuzzyPrefixLength".equals(currentFieldName)) {
+                    fuzzyPrefixLength = Integer.parseInt(jp.getText());
+                } else if ("phraseSlop".equals(currentFieldName)) {
+                    phraseSlop = Integer.parseInt(jp.getText());
+                } else if ("fuzzyMinSim".equals(currentFieldName)) {
+                    fuzzyMinSim = Float.parseFloat(jp.getText());
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = Float.parseFloat(jp.getText());
+                } else if ("tieBreaker".equals(currentFieldName)) {
+                    tieBreaker = Float.parseFloat(jp.getText());
                 }
             } else if (token == JsonToken.VALUE_FALSE || token == JsonToken.VALUE_TRUE) {
                 if ("allowLeadingWildcard".equals(currentFieldName)) {

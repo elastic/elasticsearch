@@ -152,15 +152,7 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override public Boolean getAsBoolean(String setting, Boolean defaultValue) {
-        String sValue = get(setting);
-        if (sValue == null) {
-            return defaultValue;
-        }
-        try {
-            return sValue.equals("true") || sValue.equals("1");
-        } catch (NumberFormatException e) {
-            throw new SettingsException("Failed to parse boolean setting [" + setting + "] with value [" + sValue + "]", e);
-        }
+        return Booleans.parseBoolean(get(setting), defaultValue);
     }
 
     @Override public TimeValue getAsTime(String setting, TimeValue defaultValue) {

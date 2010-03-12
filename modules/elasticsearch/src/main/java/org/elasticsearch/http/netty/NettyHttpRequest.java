@@ -22,6 +22,7 @@ package org.elasticsearch.http.netty;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.util.Booleans;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -144,11 +145,7 @@ public class NettyHttpRequest implements HttpRequest {
     }
 
     @Override public boolean paramAsBoolean(String key, boolean defaultValue) {
-        String sValue = param(key);
-        if (sValue == null) {
-            return defaultValue;
-        }
-        return !(sValue.equals("false") || sValue.equals("0") || sValue.equals("off"));
+        return Booleans.parseBoolean(param(key), defaultValue);
     }
 
     @Override public Boolean paramAsBoolean(String key, Boolean defaultValue) {

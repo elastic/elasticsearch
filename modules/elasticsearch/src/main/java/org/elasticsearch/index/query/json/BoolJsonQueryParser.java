@@ -29,6 +29,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.util.Booleans;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
@@ -38,7 +39,7 @@ import static com.google.common.collect.Lists.*;
 import static org.elasticsearch.util.lucene.search.Queries.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class BoolJsonQueryParser extends AbstractIndexComponent implements JsonQueryParser {
 
@@ -93,12 +94,22 @@ public class BoolJsonQueryParser extends AbstractIndexComponent implements JsonQ
             } else if (token == JsonToken.VALUE_NUMBER_INT) {
                 if ("disableCoord".equals(currentFieldName)) {
                     disableCoord = jp.getIntValue() != 0;
-                }
-            } else {
-                if ("boost".equals(currentFieldName)) {
-                    boost = jp.getFloatValue();
                 } else if ("minimumNumberShouldMatch".equals(currentFieldName)) {
                     minimumNumberShouldMatch = jp.getIntValue();
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = jp.getIntValue();
+                }
+            } else if (token == JsonToken.VALUE_NUMBER_FLOAT) {
+                if ("boost".equals(currentFieldName)) {
+                    boost = jp.getFloatValue();
+                }
+            } else if (token == JsonToken.VALUE_STRING) {
+                if ("disableCoord".equals(currentFieldName)) {
+                    disableCoord = Booleans.parseBoolean(jp.getText(), false);
+                } else if ("minimumNumberShouldMatch".equals(currentFieldName)) {
+                    minimumNumberShouldMatch = Integer.parseInt(jp.getText());
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = Float.parseFloat(jp.getText());
                 }
             }
         }

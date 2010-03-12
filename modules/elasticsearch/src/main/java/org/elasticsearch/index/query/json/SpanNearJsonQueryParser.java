@@ -29,6 +29,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.util.Booleans;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
@@ -37,7 +38,7 @@ import java.util.List;
 import static com.google.common.collect.Lists.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class SpanNearJsonQueryParser extends AbstractIndexComponent implements JsonQueryParser {
 
@@ -76,6 +77,16 @@ public class SpanNearJsonQueryParser extends AbstractIndexComponent implements J
                         clauses.add((SpanQuery) query);
                     }
                 }
+            } else if (token == JsonToken.VALUE_STRING) {
+                if ("inOrder".equals(currentFieldName)) {
+                    inOrder = Booleans.parseBoolean(jp.getText(), inOrder);
+                } else if ("collectPayloads".equals(currentFieldName)) {
+                    collectPayloads = Booleans.parseBoolean(jp.getText(), collectPayloads);
+                } else if ("slop".equals(currentFieldName)) {
+                    slop = Integer.parseInt(jp.getText());
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = Float.parseFloat(jp.getText());
+                }
             } else if (token == JsonToken.VALUE_FALSE || token == JsonToken.VALUE_TRUE) {
                 if ("inOrder".equals(currentFieldName)) {
                     inOrder = token == JsonToken.VALUE_TRUE;
@@ -89,8 +100,10 @@ public class SpanNearJsonQueryParser extends AbstractIndexComponent implements J
                     collectPayloads = jp.getIntValue() != 0;
                 } else if ("slop".equals(currentFieldName)) {
                     slop = jp.getIntValue();
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = jp.getIntValue();
                 }
-            } else {
+            } else if (token == JsonToken.VALUE_NUMBER_FLOAT) {
                 if ("boost".equals(currentFieldName)) {
                     boost = jp.getFloatValue();
                 }

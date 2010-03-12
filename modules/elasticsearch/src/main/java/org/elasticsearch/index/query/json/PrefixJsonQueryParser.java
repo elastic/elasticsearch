@@ -38,7 +38,7 @@ import java.io.IOException;
 import static org.elasticsearch.index.query.support.QueryParsers.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class PrefixJsonQueryParser extends AbstractIndexComponent implements JsonQueryParser {
 
@@ -68,10 +68,18 @@ public class PrefixJsonQueryParser extends AbstractIndexComponent implements Jso
             while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
                 if (token == JsonToken.FIELD_NAME) {
                     currentFieldName = jp.getCurrentName();
-                } else {
+                } else if (token == JsonToken.VALUE_STRING) {
                     if (NAME.equals(currentFieldName)) {
                         value = jp.getText();
                     } else if ("boost".equals(currentFieldName)) {
+                        boost = Float.parseFloat(jp.getText());
+                    }
+                } else if (token == JsonToken.VALUE_NUMBER_INT) {
+                    if ("boost".equals(currentFieldName)) {
+                        boost = jp.getIntValue();
+                    }
+                } else if (token == JsonToken.VALUE_NUMBER_FLOAT) {
+                    if ("boost".equals(currentFieldName)) {
                         boost = jp.getFloatValue();
                     }
                 }

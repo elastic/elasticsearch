@@ -26,7 +26,7 @@ import org.elasticsearch.index.query.QueryParsingException;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public interface JsonQueryParser extends IndexComponent {
 

@@ -71,9 +71,17 @@ public class SpanFirstJsonQueryParser extends AbstractIndexComponent implements 
                 }
             } else {
                 if ("boost".equals(currentFieldName)) {
-                    boost = jp.getFloatValue();
+                    if (token == JsonToken.VALUE_STRING) {
+                        boost = Float.parseFloat(jp.getText());
+                    } else {
+                        boost = jp.getFloatValue();
+                    }
                 } else if ("end".equals(currentFieldName)) {
-                    end = jp.getIntValue();
+                    if (token == JsonToken.VALUE_STRING) {
+                        end = Integer.parseInt(jp.getText());
+                    } else {
+                        end = jp.getIntValue();
+                    }
                 }
             }
         }

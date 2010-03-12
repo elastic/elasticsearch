@@ -29,6 +29,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.util.Booleans;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
@@ -86,12 +87,16 @@ public class RangeJsonFilterParser extends AbstractIndexComponent implements Jso
                 } else if ("includeLower".equals(currentFieldName)) {
                     if (token == JsonToken.VALUE_NUMBER_INT) {
                         includeLower = jp.getIntValue() != 0;
+                    } else if (token == JsonToken.VALUE_STRING) {
+                        includeLower = Booleans.parseBoolean(jp.getText(), includeLower);
                     } else {
                         includeLower = token == JsonToken.VALUE_TRUE;
                     }
                 } else if ("includeUpper".equals(currentFieldName)) {
                     if (token == JsonToken.VALUE_NUMBER_INT) {
                         includeUpper = jp.getIntValue() != 0;
+                    } else if (token == JsonToken.VALUE_STRING) {
+                        includeUpper = Booleans.parseBoolean(jp.getText(), includeUpper);
                     } else {
                         includeUpper = token == JsonToken.VALUE_TRUE;
                     }

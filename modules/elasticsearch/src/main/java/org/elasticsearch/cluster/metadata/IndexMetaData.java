@@ -89,6 +89,10 @@ public class IndexMetaData {
         return mappings;
     }
 
+    public String mapping(String mappingType) {
+        return mappings.get(mappingType);
+    }
+
     public static Builder newIndexMetaDataBuilder(String index) {
         return new Builder(index);
     }

@@ -32,6 +32,7 @@ import org.elasticsearch.util.component.LifecycleComponent;
 import org.elasticsearch.util.concurrent.DynamicExecutors;
 import org.elasticsearch.util.settings.Settings;
 
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -162,9 +163,16 @@ public class GatewayService extends AbstractComponent implements ClusterStateLis
                             threadPool.execute(new Runnable() {
                                 @Override public void run() {
                                     try {
-                                        metaDataService.createIndex(indexMetaData.index(), indexMetaData.settings(), timeValueMillis(10));
+                                        metaDataService.createIndex(indexMetaData.index(), indexMetaData.settings(), timeValueMillis(500));
                                     } catch (Exception e) {
                                         logger.error("Failed to create index [" + indexMetaData.index() + "]", e);
+                                    }
+                                    for (Map.Entry<String, String> entry : indexMetaData.mappings().entrySet()) {
+                                        try {
+                                            metaDataService.putMapping(new String[]{indexMetaData.index()}, entry.getKey(), entry.getValue(), true, timeValueMillis(10));
+                                        } catch (Exception e) {
+                                            logger.error("Failed to put mapping [" + entry.getKey() + "] for index [" + indexMetaData.index() + "]", e);
+                                        }
                                     }
                                 }
                             });

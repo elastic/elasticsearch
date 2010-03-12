@@ -19,6 +19,8 @@
 
 package org.elasticsearch.test.integration.gateway;
 
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.gateway.Gateway;
@@ -57,6 +59,16 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractServersTes
 
         logger.info("Creating index [{}]", "test");
         client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
+
+        // create a mapping
+        PutMappingResponse putMappingResponse = client("server1").admin().indices().putMapping(putMappingRequest("test").type("type1")
+                .mappingSource(mappingSource())).actionGet();
+        assertThat(putMappingResponse.acknowledged(), equalTo(true));
+
+        // verify that mapping is there
+        ClusterStateResponse clusterState = client("server1").admin().cluster().state(clusterState()).actionGet();
+        assertThat(clusterState.state().metaData().index("test").mapping("type1"), notNullValue());
+
         // create two and delete the first
         logger.info("Indexing #1");
         client("server1").index(Requests.indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
@@ -78,6 +90,10 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractServersTes
         logger.info("Starting the server, should recover from the gateway (only translog should be populated)");
         startServer("server1");
         Thread.sleep(1000);
+
+        // verify that mapping is there
+        clusterState = client("server1").admin().cluster().state(clusterState()).actionGet();
+        assertThat(clusterState.state().metaData().index("test").mapping("type1"), notNullValue());
 
         logger.info("Getting #1, should not exists");
         GetResponse getResponse = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
@@ -138,6 +154,10 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractServersTes
         logger.info("Getting #3 (not from the translog, but from the index)");
         getResponse = client("server1").get(getRequest("test").type("type1").id("3")).actionGet();
         assertThat(getResponse.sourceAsString(), equalTo(source("3", "test")));
+    }
+
+    private String mappingSource() {
+        return "{ type1 : { properties : { name : { type : \"string\" } } } }";
     }
 
     private String source(String id, String nameValue) {

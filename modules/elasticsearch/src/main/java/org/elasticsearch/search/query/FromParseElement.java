@@ -20,6 +20,7 @@
 package org.elasticsearch.search.query;
 
 import org.codehaus.jackson.JsonParser;
+import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -29,6 +30,10 @@ import org.elasticsearch.search.internal.SearchContext;
 public class FromParseElement implements SearchParseElement {
 
     @Override public void parse(JsonParser jp, SearchContext context) throws Exception {
-        context.from(jp.getIntValue());
+        if (jp.getCurrentToken() == JsonToken.VALUE_STRING) {
+            context.from(Integer.parseInt(jp.getText()));
+        } else {
+            context.from(jp.getIntValue());
+        }
     }
 }

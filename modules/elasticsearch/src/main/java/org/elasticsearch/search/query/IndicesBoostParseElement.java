@@ -46,7 +46,11 @@ public class IndicesBoostParseElement implements SearchParseElement {
                 if (indexName.equals(context.shardTarget().index())) {
                     jp.nextToken(); // move to the value
                     // we found our query boost
-                    context.queryBoost(jp.getFloatValue());
+                    if (jp.getCurrentToken() == JsonToken.VALUE_STRING) {
+                        context.queryBoost(Float.parseFloat(jp.getText()));
+                    } else {
+                        context.queryBoost(jp.getFloatValue());
+                    }
                 }
             }
         }

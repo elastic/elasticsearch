@@ -23,7 +23,7 @@ import org.codehaus.jackson.JsonParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public interface SearchParseElement {
 

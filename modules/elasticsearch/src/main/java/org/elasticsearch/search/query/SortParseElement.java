@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.util.Booleans;
 import org.elasticsearch.util.gnu.trove.TObjectIntHashMap;
 import org.elasticsearch.util.trove.ExtTObjectIntHasMap;
 
@@ -35,7 +36,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class SortParseElement implements SearchParseElement {
 
@@ -87,6 +88,15 @@ public class SortParseElement implements SearchParseElement {
                 while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
                     if (token == JsonToken.FIELD_NAME) {
                         innerJsonName = jp.getCurrentName();
+                    } else if (token == JsonToken.VALUE_STRING) {
+                        if ("type".equals(innerJsonName)) {
+                            type = sortFieldTypesMapper.get(jp.getText());
+                            if (type == -1) {
+                                throw new SearchParseException(context, "No sort type for [" + jp.getText() + "] with field [" + fieldName + "]");
+                            }
+                        } else if ("reverse".equals(innerJsonName)) {
+                            reverse = Booleans.parseBoolean(jp.getText(), reverse);
+                        }
                     } else if (token == JsonToken.VALUE_NUMBER_INT) {
                         if ("reverse".equals(innerJsonName)) {
                             reverse = jp.getIntValue() != 0;
@@ -94,13 +104,6 @@ public class SortParseElement implements SearchParseElement {
                     } else if (token == JsonToken.VALUE_TRUE) {
                         if ("reverse".equals(innerJsonName)) {
                             reverse = true;
-                        }
-                    } else {
-                        if ("type".equals(innerJsonName)) {
-                            type = sortFieldTypesMapper.get(jp.getText());
-                            if (type == -1) {
-                                throw new SearchParseException(context, "No sort type for [" + jp.getText() + "] with field [" + fieldName + "]");
-                            }
                         }
                     }
                 }

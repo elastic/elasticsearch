@@ -28,6 +28,7 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContextFacets;
+import org.elasticsearch.util.Booleans;
 
 import java.util.List;
 
@@ -88,6 +89,8 @@ public class FacetsParseElement implements SearchParseElement {
                         }
                     } else if (token == JsonToken.VALUE_NUMBER_INT) {
                         global = jp.getIntValue() != 0;
+                    } else if (token == JsonToken.VALUE_STRING) {
+                        global = Booleans.parseBoolean(jp.getText(), global);
                     }
                 }
                 if (facet == null) {

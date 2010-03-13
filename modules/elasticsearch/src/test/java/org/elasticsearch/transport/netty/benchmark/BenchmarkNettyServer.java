@@ -41,7 +41,7 @@ public class BenchmarkNettyServer {
                 .build();
 
         final ThreadPool threadPool = new CachedThreadPool();
-        final TransportService transportService = new TransportService(new NettyTransport(settings, threadPool)).start();
+        final TransportService transportService = new TransportService(new NettyTransport(settings, threadPool), threadPool).start();
 
         transportService.registerHandler("benchmark", new BaseTransportRequestHandler<BenchmarkMessage>() {
             @Override public BenchmarkMessage newInstance() {

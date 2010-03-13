@@ -22,6 +22,7 @@ package org.elasticsearch.transport;
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.component.Lifecycle;
 import org.elasticsearch.util.component.LifecycleComponent;
@@ -45,6 +46,8 @@ public class TransportService extends AbstractComponent implements LifecycleComp
 
     private final Transport transport;
 
+    private final ThreadPool threadPool;
+
     private final ConcurrentMap<String, TransportRequestHandler> serverHandlers = newConcurrentMap();
 
     private final NonBlockingHashMapLong<TransportResponseHandler> clientHandlers = new NonBlockingHashMapLong<TransportResponseHandler>();
@@ -53,13 +56,14 @@ public class TransportService extends AbstractComponent implements LifecycleComp
 
     private boolean throwConnectException = false;
 
-    public TransportService(Transport transport) {
-        this(EMPTY_SETTINGS, transport);
+    public TransportService(Transport transport, ThreadPool threadPool) {
+        this(EMPTY_SETTINGS, transport, threadPool);
     }
 
-    @Inject public TransportService(Settings settings, Transport transport) {
+    @Inject public TransportService(Settings settings, Transport transport, ThreadPool threadPool) {
         super(settings);
         this.transport = transport;
+        this.threadPool = threadPool;
     }
 
     @Override public Lifecycle.State lifecycleState() {
@@ -143,13 +147,13 @@ public class TransportService extends AbstractComponent implements LifecycleComp
         return futureHandler;
     }
 
-    public <T extends Streamable> void sendRequest(Node node, String action, Streamable message,
-                                                   TransportResponseHandler<T> handler) throws TransportException {
+    public <T extends Streamable> void sendRequest(final Node node, final String action, final Streamable message,
+                                                   final TransportResponseHandler<T> handler) throws TransportException {
         final long requestId = newRequestId();
         try {
             clientHandlers.put(requestId, handler);
             transport.sendRequest(node, requestId, action, message, handler);
-        } catch (Exception e) {
+        } catch (final Exception e) {
             // usually happen either because we failed to connect to the node
             // or because we failed serializing the message
             clientHandlers.remove(requestId);
@@ -158,7 +162,13 @@ public class TransportService extends AbstractComponent implements LifecycleComp
                     throw (ConnectTransportException) e;
                 }
             }
-            handler.handleException(new SendRequestTransportException(node, action, e));
+            // callback that an exception happened, but on a different thread since we don't
+            // want handlers to worry about stack overflows
+            threadPool.execute(new Runnable() {
+                @Override public void run() {
+                    handler.handleException(new SendRequestTransportException(node, action, e));
+                }
+            });
         }
     }
 

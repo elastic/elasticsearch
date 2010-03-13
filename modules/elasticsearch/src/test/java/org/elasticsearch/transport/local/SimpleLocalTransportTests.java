@@ -47,10 +47,10 @@ public class SimpleLocalTransportTests {
     @BeforeClass public void setUp() {
         threadPool = new DynamicThreadPool();
 
-        serviceA = new TransportService(new LocalTransport(threadPool)).start();
+        serviceA = new TransportService(new LocalTransport(threadPool), threadPool).start();
         serviceANode = new Node("A", serviceA.boundAddress().publishAddress());
 
-        serviceB = new TransportService(new LocalTransport(threadPool)).start();
+        serviceB = new TransportService(new LocalTransport(threadPool), threadPool).start();
         serviceBNode = new Node("B", serviceB.boundAddress().publishAddress());
     }
 

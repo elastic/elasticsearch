@@ -19,14 +19,18 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import com.google.common.collect.Maps;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.Actions.*;
@@ -49,6 +53,8 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
     private String index;
 
     private Settings settings = EMPTY_SETTINGS;
+
+    private Map<String, String> mappings = Maps.newHashMap();
 
     private TimeValue timeout = new TimeValue(10, TimeUnit.SECONDS);
 
@@ -101,6 +107,36 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
     }
 
     /**
+     * Adds mapping that will be added when the index gets created.
+     *
+     * @param type   The mapping type
+     * @param source The mapping source
+     */
+    public CreateIndexRequest mapping(String type, String source) {
+        mappings.put(type, source);
+        return this;
+    }
+
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
+     * @param type   The mapping type
+     * @param source The mapping source
+     */
+    public CreateIndexRequest mapping(String type, JsonBuilder source) {
+        try {
+            mappings.put(type, source.string());
+        } catch (IOException e) {
+            throw new ElasticSearchIllegalArgumentException("Failed to build json for mapping request", e);
+        }
+        return this;
+    }
+
+    Map<String, String> mappings() {
+        return this.mappings;
+    }
+
+    /**
      * Timeout to wait for the index creation to be acknowledged by current cluster nodes. Defaults
      * to <tt>10s</tt>.
      */
@@ -121,11 +157,20 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
         index = in.readUTF();
         settings = readSettingsFromStream(in);
         timeout = readTimeValue(in);
+        int size = in.readInt();
+        for (int i = 0; i < size; i++) {
+            mappings.put(in.readUTF(), in.readUTF());
+        }
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
         out.writeUTF(index);
         writeSettingsToStream(settings, out);
         timeout.writeTo(out);
+        out.writeInt(mappings.size());
+        for (Map.Entry<String, String> entry : mappings.entrySet()) {
+            out.writeUTF(entry.getKey());
+            out.writeUTF(entry.getValue());
+        }
     }
 }

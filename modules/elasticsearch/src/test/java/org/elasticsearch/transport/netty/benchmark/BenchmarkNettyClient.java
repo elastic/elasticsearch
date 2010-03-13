@@ -58,7 +58,7 @@ public class BenchmarkNettyClient {
                 .build();
 
         final ThreadPool threadPool = new CachedThreadPool();
-        final TransportService transportService = new TransportService(new NettyTransport(settings, threadPool)).start();
+        final TransportService transportService = new TransportService(new NettyTransport(settings, threadPool), threadPool).start();
 
         final Node node = new Node("server", new InetSocketTransportAddress("localhost", 9999));
 

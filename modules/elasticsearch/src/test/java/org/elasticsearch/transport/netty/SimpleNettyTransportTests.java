@@ -47,10 +47,10 @@ public class SimpleNettyTransportTests {
     @BeforeClass public void setUp() {
         threadPool = new DynamicThreadPool();
 
-        serviceA = new TransportService(new NettyTransport(threadPool)).start();
+        serviceA = new TransportService(new NettyTransport(threadPool), threadPool).start();
         serviceANode = new Node("A", serviceA.boundAddress().publishAddress());
 
-        serviceB = new TransportService(new NettyTransport(threadPool)).start();
+        serviceB = new TransportService(new NettyTransport(threadPool), threadPool).start();
         serviceBNode = new Node("B", serviceB.boundAddress().publishAddress());
     }
 

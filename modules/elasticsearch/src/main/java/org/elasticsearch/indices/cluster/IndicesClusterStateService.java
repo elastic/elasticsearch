@@ -147,11 +147,6 @@ public class IndicesClusterStateService extends AbstractComponent implements Clu
 
         RoutingTable routingTable = event.state().routingTable();
 
-        RoutingNode routingNodes = event.state().readOnlyRoutingNodes().nodesToShards().get(event.state().nodes().localNodeId());
-        if (routingNodes != null) {
-            applyShards(routingNodes, routingTable, event.state().nodes());
-        }
-
         // go over and update mappings
         for (IndexMetaData indexMetaData : metaData) {
             if (!indicesService.hasIndex(indexMetaData.index())) {
@@ -189,6 +184,11 @@ public class IndicesClusterStateService extends AbstractComponent implements Clu
                     logger.warn("Failed to add mapping [" + mappingType + "], source [" + mappingSource + "]", e);
                 }
             }
+        }
+
+        RoutingNode routingNodes = event.state().readOnlyRoutingNodes().nodesToShards().get(event.state().nodes().localNodeId());
+        if (routingNodes != null) {
+            applyShards(routingNodes, routingTable, event.state().nodes());
         }
 
         // go over and delete either all indices or specific shards

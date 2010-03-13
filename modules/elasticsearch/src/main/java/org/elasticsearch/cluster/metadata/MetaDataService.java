@@ -91,7 +91,7 @@ public class MetaDataService extends AbstractComponent {
 
     // TODO should find nicer solution than sync here, since we block for timeout (same for other ops)
 
-    public synchronized CreateIndexResult createIndex(final String index, final Settings indexSettings, TimeValue timeout) throws IndexAlreadyExistsException {
+    public synchronized CreateIndexResult createIndex(final String index, final Settings indexSettings, final Map<String, String> mappings, TimeValue timeout) throws IndexAlreadyExistsException {
         if (clusterService.state().routingTable().hasIndex(index)) {
             throw new IndexAlreadyExistsException(new Index(index));
         }
@@ -138,7 +138,12 @@ public class MetaDataService extends AbstractComponent {
                 }
                 Settings actualIndexSettings = indexSettingsBuilder.build();
 
-                IndexMetaData indexMetaData = newIndexMetaDataBuilder(index).settings(actualIndexSettings).build();
+                IndexMetaData.Builder indexMetaData = newIndexMetaDataBuilder(index).settings(actualIndexSettings);
+                if (mappings != null) {
+                    for (Map.Entry<String, String> entry : mappings.entrySet()) {
+                        indexMetaData.putMapping(entry.getKey(), entry.getValue());
+                    }
+                }
                 MetaData newMetaData = newMetaDataBuilder()
                         .metaData(currentState.metaData())
                         .put(indexMetaData)

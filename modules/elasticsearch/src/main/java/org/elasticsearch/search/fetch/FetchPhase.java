@@ -156,6 +156,10 @@ public class FetchPhase implements SearchPhase {
             return new UidAndSourceFieldSelector();
         }
 
+        if (context.fieldNames().length == 0) {
+            return new UidFieldSelector();
+        }
+
         FieldMappersFieldSelector fieldSelector = new FieldMappersFieldSelector();
         for (String fieldName : context.fieldNames()) {
             FieldMappers x = context.mapperService().smartNameFieldMappers(fieldName);

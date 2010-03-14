@@ -109,6 +109,10 @@ public final class Jackson {
 
         private final FormatDateTimeFormatter formatter = Joda.forPattern("dateTime");
 
+        public DateSerializer() {
+            super(Date.class);
+        }
+
         @Override public void serialize(Date value, JsonGenerator jgen, SerializerProvider provider) throws IOException, JsonGenerationException {
             jgen.writeString(formatter.parser().print(value.getTime()));
         }
@@ -139,6 +143,10 @@ public final class Jackson {
     public final static class DateTimeSerializer extends SerializerBase<DateTime> {
 
         private final FormatDateTimeFormatter formatter = Joda.forPattern("dateTime");
+
+        public DateTimeSerializer() {
+            super(DateTime.class);
+        }
 
         @Override public void serialize(DateTime value, JsonGenerator jgen, SerializerProvider provider) throws IOException, JsonGenerationException {
             jgen.writeString(formatter.printer().print(value));

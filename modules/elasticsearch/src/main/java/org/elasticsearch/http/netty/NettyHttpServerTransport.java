@@ -109,6 +109,8 @@ public class NettyHttpServerTransport extends AbstractComponent implements HttpS
 
     private volatile HttpServerAdapter httpServerAdapter;
 
+    private HashedWheelTimer keepAliveTimer;
+
     @Inject public NettyHttpServerTransport(Settings settings, ThreadPool threadPool) {
         super(settings);
         this.threadPool = threadPool;
@@ -157,7 +159,7 @@ public class NettyHttpServerTransport extends AbstractComponent implements HttpS
                 Executors.newCachedThreadPool(daemonThreadFactory(settings, "httpIoWorker")),
                 workerCount));
 
-        final HashedWheelTimer keepAliveTimer = new HashedWheelTimer(daemonThreadFactory(settings, "keepAliveTimer"), httpKeepAliveTickDuration.millis(), TimeUnit.MILLISECONDS);
+        keepAliveTimer = new HashedWheelTimer(daemonThreadFactory(settings, "keepAliveTimer"), httpKeepAliveTickDuration.millis(), TimeUnit.MILLISECONDS);
         final HttpRequestHandler requestHandler = new HttpRequestHandler(this);
 
         ChannelPipelineFactory pipelineFactory = new ChannelPipelineFactory() {
@@ -252,6 +254,8 @@ public class NettyHttpServerTransport extends AbstractComponent implements HttpS
             serverOpenChannels.close();
             serverOpenChannels = null;
         }
+
+        keepAliveTimer.stop();
 
         if (serverBootstrap != null) {
             serverBootstrap.releaseExternalResources();

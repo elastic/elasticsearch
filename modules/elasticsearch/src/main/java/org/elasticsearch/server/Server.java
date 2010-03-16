@@ -29,7 +29,7 @@ import org.elasticsearch.util.settings.Settings;
  * <p>In order to create a server, the {@link ServerBuilder} can be used. When done with it, make sure to
  * call {@link #close()} on it.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public interface Server {
 

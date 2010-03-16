@@ -28,6 +28,9 @@ import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthActio
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfo;
+import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest;
+import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownResponse;
+import org.elasticsearch.action.admin.cluster.node.shutdown.TransportNodesShutdown;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingRequest;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingResponse;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.TransportBroadcastPingAction;
@@ -61,14 +64,17 @@ public class ServerClusterAdminClient extends AbstractComponent implements Clust
 
     private final TransportNodesInfo nodesInfo;
 
+    private final TransportNodesShutdown nodesShutdown;
+
     @Inject public ServerClusterAdminClient(Settings settings,
                                             TransportClusterHealthAction clusterHealthAction, TransportClusterStateAction clusterStateAction,
                                             TransportSinglePingAction singlePingAction, TransportBroadcastPingAction broadcastPingAction, TransportReplicationPingAction replicationPingAction,
-                                            TransportNodesInfo nodesInfo) {
+                                            TransportNodesInfo nodesInfo, TransportNodesShutdown nodesShutdown) {
         super(settings);
         this.clusterHealthAction = clusterHealthAction;
         this.clusterStateAction = clusterStateAction;
         this.nodesInfo = nodesInfo;
+        this.nodesShutdown = nodesShutdown;
         this.singlePingAction = singlePingAction;
         this.broadcastPingAction = broadcastPingAction;
         this.replicationPingAction = replicationPingAction;
@@ -122,4 +128,11 @@ public class ServerClusterAdminClient extends AbstractComponent implements Clust
         nodesInfo.execute(request, listener);
     }
 
+    @Override public ActionFuture<NodesShutdownResponse> nodesShutdown(NodesShutdownRequest request) {
+        return nodesShutdown.execute(request);
+    }
+
+    @Override public void nodesShutdown(NodesShutdownRequest request, ActionListener<NodesShutdownResponse> listener) {
+        nodesShutdown.execute(request, listener);
+    }
 }

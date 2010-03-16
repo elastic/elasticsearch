@@ -73,7 +73,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.util.settings.ImmutableSettings.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public final class InternalServer implements Server {
 
@@ -100,6 +100,7 @@ public final class InternalServer implements Server {
         logger.info("{{}}: Initializing ...", Version.full());
 
         ArrayList<Module> modules = new ArrayList<Module>();
+        modules.add(new ServerModule(this));
         modules.add(new JmxModule(settings));
         modules.add(new EnvironmentModule(environment));
         modules.add(new ClusterNameModule(settings));

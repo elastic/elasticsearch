@@ -22,13 +22,19 @@ package org.elasticsearch.action.admin.cluster.node.info;
 import org.elasticsearch.action.support.nodes.NodesOperationRequest;
 
 /**
- * @author kimchy (Shay Banon)
+ * A request to get node (cluster) level information.
+ *
+ * @author kimchy (shay.banon)
  */
 public class NodesInfoRequest extends NodesOperationRequest {
 
     protected NodesInfoRequest() {
     }
 
+    /**
+     * Get information from nodes based on the nodes ids specified. If none are passed, information
+     * for all nodes will be returned.
+     */
     public NodesInfoRequest(String... nodesIds) {
         super(nodesIds);
     }

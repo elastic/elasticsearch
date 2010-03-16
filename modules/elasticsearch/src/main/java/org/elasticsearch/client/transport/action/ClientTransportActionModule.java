@@ -22,6 +22,7 @@ package org.elasticsearch.client.transport.action;
 import com.google.inject.AbstractModule;
 import org.elasticsearch.client.transport.action.admin.cluster.health.ClientTransportClusterHealthAction;
 import org.elasticsearch.client.transport.action.admin.cluster.node.info.ClientTransportNodesInfoAction;
+import org.elasticsearch.client.transport.action.admin.cluster.node.shutdown.ClientTransportNodesShutdownAction;
 import org.elasticsearch.client.transport.action.admin.cluster.ping.broadcast.ClientTransportBroadcastPingAction;
 import org.elasticsearch.client.transport.action.admin.cluster.ping.replication.ClientTransportReplicationPingAction;
 import org.elasticsearch.client.transport.action.admin.cluster.ping.single.ClientTransportSinglePingAction;
@@ -67,6 +68,7 @@ public class ClientTransportActionModule extends AbstractModule {
         bind(ClientTransportPutMappingAction.class).asEagerSingleton();
         bind(ClientTransportGatewaySnapshotAction.class).asEagerSingleton();
         bind(ClientTransportNodesInfoAction.class).asEagerSingleton();
+        bind(ClientTransportNodesShutdownAction.class).asEagerSingleton();
         bind(ClientTransportSinglePingAction.class).asEagerSingleton();
         bind(ClientTransportReplicationPingAction.class).asEagerSingleton();
         bind(ClientTransportBroadcastPingAction.class).asEagerSingleton();

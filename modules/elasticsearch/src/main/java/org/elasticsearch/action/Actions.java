@@ -22,7 +22,7 @@ package org.elasticsearch.action;
 import org.elasticsearch.cluster.ClusterState;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class Actions {
 

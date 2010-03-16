@@ -17,13 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.action.admin.cluster.node.info;
+package org.elasticsearch.rest.action.admin.cluster.node.shutdown;
 
 import com.google.inject.Inject;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest;
+import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
@@ -32,52 +31,35 @@ import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class RestNodesInfoAction extends BaseRestHandler {
+public class RestNodesShutdownAction extends BaseRestHandler {
 
-    @Inject public RestNodesInfoAction(Settings settings, Client client, RestController controller) {
+    @Inject public RestNodesShutdownAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
 
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/{nodeId}", this);
+        controller.registerHandler(RestRequest.Method.POST, "/_cluster/nodes/_shutdown", this);
+        controller.registerHandler(RestRequest.Method.POST, "/_cluster/nodes/{nodeId}/_shutdown", this);
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
         String[] nodesIds = RestActions.splitNodes(request.param("nodeId"));
-        final boolean includeSettings = request.paramAsBoolean("settings", false);
-        NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(nodesIds);
-        nodesInfoRequest.listenerThreaded(false);
-        client.admin().cluster().nodesInfo(nodesInfoRequest, new ActionListener<NodesInfoResponse>() {
-            @Override public void onResponse(NodesInfoResponse result) {
+        NodesShutdownRequest nodesShutdownRequest = new NodesShutdownRequest(nodesIds);
+        nodesShutdownRequest.listenerThreaded(false);
+        nodesShutdownRequest.delay(request.paramAsTime("delay", nodesShutdownRequest.delay()));
+        client.admin().cluster().nodesShutdown(nodesShutdownRequest, new ActionListener<NodesShutdownResponse>() {
+            @Override public void onResponse(NodesShutdownResponse result) {
                 try {
                     JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
                     builder.startObject();
                     builder.field("clusterName", result.clusterName().value());
 
                     builder.startObject("nodes");
-                    for (NodeInfo nodeInfo : result) {
+                    for (NodesShutdownResponse.NodeShutdownResponse nodeInfo : result) {
                         builder.startObject(nodeInfo.node().id());
-
                         builder.field("name", nodeInfo.node().name());
-                        builder.field("transportAddress", nodeInfo.node().address().toString());
-                        builder.field("dataNode", nodeInfo.node().dataNode());
-
-                        for (Map.Entry<String, String> nodeAttribute : nodeInfo.attributes().entrySet()) {
-                            builder.field(nodeAttribute.getKey(), nodeAttribute.getValue());
-                        }
-
-                        if (includeSettings) {
-                            builder.startObject("settings");
-                            for (Map.Entry<String, String> entry : nodeInfo.settings().getAsMap().entrySet()) {
-                                builder.field(entry.getKey(), entry.getValue());
-                            }
-                            builder.endObject();
-                        }
-
                         builder.endObject();
                     }
                     builder.endObject();

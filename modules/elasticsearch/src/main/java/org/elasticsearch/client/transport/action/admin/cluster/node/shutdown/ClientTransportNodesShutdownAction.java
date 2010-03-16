@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.client.transport.action.admin.cluster.node.info;
+package org.elasticsearch.client.transport.action.admin.cluster.node.shutdown;
 
 import com.google.inject.Inject;
 import org.elasticsearch.action.TransportActions;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest;
+import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownResponse;
 import org.elasticsearch.client.transport.action.support.BaseClientTransportAction;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.settings.Settings;
@@ -30,13 +30,13 @@ import org.elasticsearch.util.settings.Settings;
 /**
  * @author kimchy (shay.banon)
  */
-public class ClientTransportNodesInfoAction extends BaseClientTransportAction<NodesInfoRequest, NodesInfoResponse> {
+public class ClientTransportNodesShutdownAction extends BaseClientTransportAction<NodesShutdownRequest, NodesShutdownResponse> {
 
-    @Inject public ClientTransportNodesInfoAction(Settings settings, TransportService transportService) {
-        super(settings, transportService, NodesInfoResponse.class);
+    @Inject public ClientTransportNodesShutdownAction(Settings settings, TransportService transportService) {
+        super(settings, transportService, NodesShutdownResponse.class);
     }
 
     @Override protected String action() {
-        return TransportActions.Admin.Cluster.Node.INFO;
+        return TransportActions.Admin.Cluster.Node.SHUTDOWN;
     }
 }

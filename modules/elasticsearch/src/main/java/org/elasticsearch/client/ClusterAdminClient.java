@@ -25,6 +25,8 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest;
+import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownResponse;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingRequest;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingResponse;
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingRequest;
@@ -95,6 +97,24 @@ public interface ClusterAdminClient {
      * @see org.elasticsearch.client.Requests#nodesInfo(String...)
      */
     void nodesInfo(NodesInfoRequest request, ActionListener<NodesInfoResponse> listener);
+
+    /**
+     * Shutdown nodes in the cluster.
+     *
+     * @param request The nodes shutdown request
+     * @return The result future
+     * @see org.elasticsearch.client.Requests#nodesShutdown(String...)
+     */
+    ActionFuture<NodesShutdownResponse> nodesShutdown(NodesShutdownRequest request);
+
+    /**
+     * Shutdown nodes in the cluster.
+     *
+     * @param request  The nodes shutdown request
+     * @param listener A listener to be notified with a result
+     * @see org.elasticsearch.client.Requests#nodesShutdown(String...)
+     */
+    void nodesShutdown(NodesShutdownRequest request, ActionListener<NodesShutdownResponse> listener);
 
     ActionFuture<SinglePingResponse> ping(SinglePingRequest request);
 

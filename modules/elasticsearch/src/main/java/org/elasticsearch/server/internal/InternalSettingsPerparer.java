@@ -31,7 +31,7 @@ import static org.elasticsearch.util.Strings.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class InternalSettingsPerparer {
 

@@ -22,6 +22,7 @@ package org.elasticsearch.action;
 import com.google.inject.AbstractModule;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfo;
+import org.elasticsearch.action.admin.cluster.node.shutdown.TransportNodesShutdown;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.TransportBroadcastPingAction;
 import org.elasticsearch.action.admin.cluster.ping.replication.TransportIndexReplicationPingAction;
 import org.elasticsearch.action.admin.cluster.ping.replication.TransportReplicationPingAction;
@@ -52,13 +53,14 @@ import org.elasticsearch.action.search.type.*;
 import org.elasticsearch.action.terms.TransportTermsAction;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TransportActionModule extends AbstractModule {
 
     @Override protected void configure() {
 
         bind(TransportNodesInfo.class).asEagerSingleton();
+        bind(TransportNodesShutdown.class).asEagerSingleton();
         bind(TransportClusterStateAction.class).asEagerSingleton();
         bind(TransportClusterHealthAction.class).asEagerSingleton();
 

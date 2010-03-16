@@ -53,7 +53,7 @@ import org.elasticsearch.util.settings.Settings;
  *
  * <p>When done with the server, make sure you call {@link Server#close()} on it.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class ServerBuilder {
 

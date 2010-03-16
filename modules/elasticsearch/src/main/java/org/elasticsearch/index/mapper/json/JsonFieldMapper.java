@@ -110,6 +110,8 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
 
         protected NamedAnalyzer searchAnalyzer;
 
+        protected Boolean includeInAll;
+
         protected Builder(String name) {
             super(name);
         }
@@ -159,6 +161,11 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
 
         protected T searchAnalyzer(NamedAnalyzer searchAnalyzer) {
             this.searchAnalyzer = searchAnalyzer;
+            return builder;
+        }
+
+        protected T includeInAll(Boolean includeInAll) {
+            this.includeInAll = includeInAll;
             return builder;
         }
 

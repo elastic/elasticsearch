@@ -111,6 +111,17 @@ public class TermsActionTests extends AbstractServersTests {
         assertThat(termsResponse.field("value").docFreq("aaa"), equalTo(1));
         assertThat(termsResponse.field("value").docFreq("bbb"), equalTo(1));
 
+        logger.info("Verify freqs (no fields, on _all)");
+        termsResponse = client.terms(termsRequest("test")).actionGet();
+        assertThat(termsResponse.numDocs(), equalTo(2l));
+        assertThat(termsResponse.maxDoc(), equalTo(2l));
+        assertThat(termsResponse.deletedDocs(), equalTo(0l));
+        assertThat(termsResponse.successfulShards(), equalTo(indexStatus.shards().size()));
+        assertThat(termsResponse.failedShards(), equalTo(0));
+        assertThat(termsResponse.fieldsAsMap().isEmpty(), equalTo(false));
+        assertThat(termsResponse.field("_all").docFreq("aaa"), equalTo(1));
+        assertThat(termsResponse.field("_all").docFreq("bbb"), equalTo(1));
+
         logger.info("Delete 3");
         client.index(indexRequest("test").type("type1").id("3").source(binaryJsonBuilder().startObject().field("value", "bbb").endObject())).actionGet();
         logger.info("Refresh");

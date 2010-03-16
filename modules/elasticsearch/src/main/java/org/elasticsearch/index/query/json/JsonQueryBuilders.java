@@ -273,6 +273,14 @@ public abstract class JsonQueryBuilders {
     }
 
     /**
+     * A more like this query that finds documents that are "like" the provided {@link MoreLikeThisJsonQueryBuilder#likeText(String)}
+     * which is checked against the "_all" field.
+     */
+    public static MoreLikeThisJsonQueryBuilder moreLikeThisQuery() {
+        return new MoreLikeThisJsonQueryBuilder();
+    }
+
+    /**
      * A more like this query that runs against a specific field.
      *
      * @param name The field name

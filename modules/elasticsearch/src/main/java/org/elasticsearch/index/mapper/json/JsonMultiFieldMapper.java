@@ -36,7 +36,7 @@ import static org.elasticsearch.util.MapBuilder.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class JsonMultiFieldMapper implements JsonMapper {
+public class JsonMultiFieldMapper implements JsonMapper, JsonIncludeInAllMapper {
 
     public static final String JSON_TYPE = "multi_field";
 
@@ -113,10 +113,23 @@ public class JsonMultiFieldMapper implements JsonMapper {
         this.pathType = pathType;
         this.mappers = ImmutableMap.copyOf(mappers);
         this.defaultMapper = defaultMapper;
+
+        // we disable the all in mappers, only the default one can be added
+        for (JsonMapper mapper : mappers.values()) {
+            if (mapper instanceof JsonIncludeInAllMapper) {
+                ((JsonIncludeInAllMapper) mapper).includeInAll(false);
+            }
+        }
     }
 
     @Override public String name() {
         return this.name;
+    }
+
+    @Override public void includeInAll(Boolean includeInAll) {
+        if (includeInAll != null && defaultMapper != null && (defaultMapper instanceof JsonIncludeInAllMapper)) {
+            ((JsonIncludeInAllMapper) defaultMapper).includeInAll(includeInAll);
+        }
     }
 
     public JsonPath.Type pathType() {
@@ -176,6 +189,10 @@ public class JsonMultiFieldMapper implements JsonMapper {
                 if (mergeIntoMapper == null) {
                     // no mapping, simply add it if not simulating
                     if (!mergeContext.mergeFlags().simulate()) {
+                        // disable the mapper from being in all, only the default mapper is in all
+                        if (mergeWithMapper instanceof JsonIncludeInAllMapper) {
+                            ((JsonIncludeInAllMapper) mergeWithMapper).includeInAll(false);
+                        }
                         mappers = newMapBuilder(mappers).put(mergeWithMapper.name(), mergeWithMapper).immutableMap();
                         if (mergeWithMapper instanceof JsonFieldMapper) {
                             mergeContext.docMapper().addFieldMapper((FieldMapper) mergeWithMapper);

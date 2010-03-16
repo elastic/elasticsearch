@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.json;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
-import org.elasticsearch.index.mapper.FieldMapperListener;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -72,8 +71,8 @@ public class JsonIdFieldMapper extends JsonFieldMapper<String> implements IdFiel
                 Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS);
     }
 
-    public JsonIdFieldMapper(String name, String indexName, Field.Store store, Field.TermVector termVector,
-                             float boost, boolean omitNorms, boolean omitTermFreqAndPositions) {
+    protected JsonIdFieldMapper(String name, String indexName, Field.Store store, Field.TermVector termVector,
+                                float boost, boolean omitNorms, boolean omitTermFreqAndPositions) {
         super(new Names(name, indexName, indexName, name), Defaults.INDEX, store, termVector, boost, omitNorms, omitTermFreqAndPositions,
                 Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
     }
@@ -112,10 +111,6 @@ public class JsonIdFieldMapper extends JsonFieldMapper<String> implements IdFiel
         } else {
             throw new MapperParsingException("Illegal parsed id state");
         }
-    }
-
-    @Override public void traverse(FieldMapperListener fieldMapperListener) {
-        fieldMapperListener.fieldMapper(this);
     }
 
     @Override protected String jsonType() {

@@ -53,6 +53,8 @@ public interface DocumentMapper {
 
     BoostFieldMapper boostMapper();
 
+    AllFieldMapper allFieldMapper();
+
     DocumentFieldMappers mappers();
 
     /**

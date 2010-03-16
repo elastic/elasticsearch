@@ -42,10 +42,10 @@ import static org.elasticsearch.index.mapper.json.JsonMapperBuilders.*;
 import static org.elasticsearch.util.MapBuilder.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 @ThreadSafe
-public class JsonObjectMapper implements JsonMapper {
+public class JsonObjectMapper implements JsonMapper, JsonIncludeInAllMapper {
 
     public static final String JSON_TYPE = "object";
 
@@ -65,6 +65,8 @@ public class JsonObjectMapper implements JsonMapper {
         private JsonPath.Type pathType = Defaults.PATH_TYPE;
 
         private List<FormatDateTimeFormatter> dateTimeFormatters = newArrayList();
+
+        private Boolean includeInAll;
 
         private final List<JsonMapper.Builder> mappersBuilders = newArrayList();
 
@@ -90,6 +92,11 @@ public class JsonObjectMapper implements JsonMapper {
 
         public Builder noDateTimeFormatter() {
             this.dateTimeFormatters = null;
+            return this;
+        }
+
+        public Builder includeInAll(boolean includeInAll) {
+            this.includeInAll = includeInAll;
             return this;
         }
 
@@ -138,6 +145,8 @@ public class JsonObjectMapper implements JsonMapper {
             context.path().pathType(origPathType);
             context.path().remove();
 
+            objectMapper.includeInAll(includeInAll);
+
             return objectMapper;
         }
     }
@@ -151,6 +160,8 @@ public class JsonObjectMapper implements JsonMapper {
     private final JsonPath.Type pathType;
 
     private final FormatDateTimeFormatter[] dateTimeFormatters;
+
+    private Boolean includeInAll;
 
     private volatile ImmutableMap<String, JsonMapper> mappers = ImmutableMap.of();
 
@@ -185,7 +196,23 @@ public class JsonObjectMapper implements JsonMapper {
         return this.name;
     }
 
+    @Override public void includeInAll(Boolean includeInAll) {
+        if (includeInAll == null) {
+            return;
+        }
+        this.includeInAll = includeInAll;
+        // when called from outside, apply this on all the inner mappers
+        for (JsonMapper mapper : mappers.values()) {
+            if (mapper instanceof JsonIncludeInAllMapper) {
+                ((JsonIncludeInAllMapper) mapper).includeInAll(includeInAll);
+            }
+        }
+    }
+
     public JsonObjectMapper putMapper(JsonMapper mapper) {
+        if (mapper instanceof JsonIncludeInAllMapper) {
+            ((JsonIncludeInAllMapper) mapper).includeInAll(includeInAll);
+        }
         synchronized (mutex) {
             mappers = newMapBuilder(mappers).put(mapper.name(), mapper).immutableMap();
         }
@@ -389,6 +416,9 @@ public class JsonObjectMapper implements JsonMapper {
         builder.field("dynamic", dynamic);
         builder.field("enabled", enabled);
         builder.field("pathType", pathType.name().toLowerCase());
+        if (includeInAll != null) {
+            builder.field("includeInAll", includeInAll);
+        }
 
         if (dateTimeFormatters.length > 0) {
             builder.startArray("dateFormats");

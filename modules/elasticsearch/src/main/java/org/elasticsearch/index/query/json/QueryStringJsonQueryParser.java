@@ -31,6 +31,7 @@ import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.support.MapperQueryParser;
 import org.elasticsearch.index.query.support.MultiFieldMapperQueryParser;
@@ -45,7 +46,7 @@ import java.util.List;
 import static org.elasticsearch.util.lucene.search.Queries.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class QueryStringJsonQueryParser extends AbstractIndexComponent implements JsonQueryParser {
 
@@ -68,7 +69,7 @@ public class QueryStringJsonQueryParser extends AbstractIndexComponent implement
         // move to the field value
 
         String queryString = null;
-        String defaultField = null;
+        String defaultField = AllFieldMapper.NAME; // default to all
         MapperQueryParser.Operator defaultOperator = QueryParser.Operator.OR;
         boolean allowLeadingWildcard = true;
         boolean lowercaseExpandedTerms = true;

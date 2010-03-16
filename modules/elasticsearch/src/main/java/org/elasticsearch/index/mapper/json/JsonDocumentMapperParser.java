@@ -103,6 +103,8 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
                 docBuilder.uidField(parseUidField((ObjectNode) fieldNode));
             } else if (JsonBoostFieldMapper.JSON_TYPE.equals(fieldName)) {
                 docBuilder.boostField(parseBoostField((ObjectNode) fieldNode));
+            } else if (JsonAllFieldMapper.JSON_TYPE.equals(fieldName)) {
+                docBuilder.allField(parseAllField((ObjectNode) fieldNode));
             } else if ("indexAnalyzer".equals(fieldName)) {
                 docBuilder.indexAnalyzer(analysisService.analyzer(fieldNode.getTextValue()));
             } else if ("searchAnalyzer".equals(fieldName)) {
@@ -173,6 +175,21 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
         return builder;
     }
 
+    private JsonAllFieldMapper.Builder parseAllField(ObjectNode allNode) {
+//        String name = idNode.get("name") == null ? JsonIdFieldMapper.Defaults.NAME : idNode.get("name").getTextValue();
+        JsonAllFieldMapper.Builder builder = all();
+        parseJsonField(builder, builder.name, allNode);
+        for (Iterator<Map.Entry<String, JsonNode>> fieldsIt = allNode.getFields(); fieldsIt.hasNext();) {
+            Map.Entry<String, JsonNode> entry = fieldsIt.next();
+            String fieldName = entry.getKey();
+            JsonNode fieldNode = entry.getValue();
+            if (fieldName.equals("enabled")) {
+                builder.enabled(nodeBooleanValue(fieldNode));
+            }
+        }
+        return builder;
+    }
+
     private JsonSourceFieldMapper.Builder parseSourceField(ObjectNode sourceNode) {
 //        String name = sourceNode.get("name") == null ? JsonSourceFieldMapper.Defaults.NAME : sourceNode.get("name").getTextValue();
         JsonSourceFieldMapper.Builder builder = source();
@@ -233,6 +250,8 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
                 builder.pathType(parsePathType(name, fieldNode.getValueAsText()));
             } else if (fieldName.equals("properties")) {
                 parseProperties(builder, (ObjectNode) fieldNode);
+            } else if (fieldName.equals("includeInAll")) {
+                builder.includeInAll(nodeBooleanValue(fieldNode));
             }
         }
         return builder;
@@ -483,6 +502,8 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
             } else if (propName.equals("analyzer")) {
                 builder.indexAnalyzer(analysisService.analyzer(propNode.getTextValue()));
                 builder.searchAnalyzer(analysisService.analyzer(propNode.getTextValue()));
+            } else if (propName.equals("includeInAll")) {
+                builder.includeInAll(nodeBooleanValue(propNode));
             }
         }
     }

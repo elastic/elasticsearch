@@ -47,6 +47,13 @@ public class MoreLikeThisJsonQueryBuilder extends BaseJsonQueryBuilder {
     private float boostTermsFactor = -1;
 
     /**
+     * Constructs a new more like this query which uses the "_all" field.
+     */
+    public MoreLikeThisJsonQueryBuilder() {
+        this.fields = null;
+    }
+
+    /**
      * Sets the field names that will be used when generating the 'More Like This' query.
      *
      * @param fields the field names that will be used when generating the 'More Like This' query.
@@ -159,11 +166,13 @@ public class MoreLikeThisJsonQueryBuilder extends BaseJsonQueryBuilder {
         if (fields == null || fields.length == 0) {
             throw new QueryBuilderException("moreLikeThis requires 'fields' to be provided");
         }
-        builder.startArray("fields");
-        for (String field : fields) {
-            builder.value(field);
+        if (fields != null) {
+            builder.startArray("fields");
+            for (String field : fields) {
+                builder.value(field);
+            }
+            builder.endArray();
         }
-        builder.endArray();
         if (likeText == null) {
             throw new QueryBuilderException("moreLikeThis requires 'likeText' to be provided");
         }

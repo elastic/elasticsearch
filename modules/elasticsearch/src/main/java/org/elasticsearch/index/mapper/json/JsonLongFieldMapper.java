@@ -32,7 +32,7 @@ import org.elasticsearch.util.json.JsonBuilder;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class JsonLongFieldMapper extends JsonNumberFieldMapper<Long> {
 
@@ -57,12 +57,16 @@ public class JsonLongFieldMapper extends JsonNumberFieldMapper<Long> {
         }
 
         @Override public JsonLongFieldMapper build(BuilderContext context) {
-            return new JsonLongFieldMapper(buildNames(context),
+            JsonLongFieldMapper fieldMapper = new JsonLongFieldMapper(buildNames(context),
                     precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
+            fieldMapper.includeInAll(includeInAll);
+            return fieldMapper;
         }
     }
 
     private final Long nullValue;
+
+    private final String nullValueAsString;
 
     protected JsonLongFieldMapper(Names names, int precisionStep, Field.Index index, Field.Store store,
                                   float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
@@ -71,6 +75,7 @@ public class JsonLongFieldMapper extends JsonNumberFieldMapper<Long> {
                 new NamedAnalyzer("_long/" + precisionStep, new NumericLongAnalyzer(precisionStep)),
                 new NamedAnalyzer("_long/max", new NumericLongAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;
+        this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }
 
     @Override protected int maxPrecisionStep() {
@@ -114,11 +119,17 @@ public class JsonLongFieldMapper extends JsonNumberFieldMapper<Long> {
                 return null;
             }
             value = nullValue;
+            if (includeInAll == null || includeInAll) {
+                jsonContext.allEntries().addText(names.fullName(), nullValueAsString, boost);
+            }
         } else {
             if (jsonContext.jp().getCurrentToken() == JsonToken.VALUE_STRING) {
                 value = Long.parseLong(jsonContext.jp().getText());
             } else {
                 value = jsonContext.jp().getLongValue();
+            }
+            if (includeInAll == null || includeInAll) {
+                jsonContext.allEntries().addText(names.fullName(), jsonContext.jp().getText(), boost);
             }
         }
         Field field = null;
@@ -145,6 +156,9 @@ public class JsonLongFieldMapper extends JsonNumberFieldMapper<Long> {
         super.doJsonBody(builder);
         if (nullValue != null) {
             builder.field("nullValue", nullValue);
+        }
+        if (includeInAll != null) {
+            builder.field("includeInAll", includeInAll);
         }
     }
 }

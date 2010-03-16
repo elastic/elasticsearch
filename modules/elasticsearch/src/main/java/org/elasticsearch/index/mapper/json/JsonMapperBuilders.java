@@ -52,6 +52,10 @@ public final class JsonMapperBuilders {
         return new JsonBoostFieldMapper.Builder(name);
     }
 
+    public static JsonAllFieldMapper.Builder all() {
+        return new JsonAllFieldMapper.Builder();
+    }
+
     public static JsonMultiFieldMapper.Builder multiField(String name) {
         return new JsonMultiFieldMapper.Builder(name);
     }

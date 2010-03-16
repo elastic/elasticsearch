@@ -20,19 +20,18 @@
 package org.elasticsearch.action.terms;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
-import org.elasticsearch.util.Required;
+import org.elasticsearch.index.mapper.AllFieldMapper;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
-import static org.elasticsearch.action.Actions.*;
-
 /**
  * Terms request represent a request to get terms in one or more indices of specific fields and their
  * document frequencies (in how many document each term exists).
+ *
+ * <p>By default, the "_all" field will be used to extract terms and frequencies.
  *
  * <p>This is very handy to implement things like tag clouds and auto complete (using {@link #prefix(String)} or
  * {@link #regexp(String)}).
@@ -103,7 +102,9 @@ public class TermsRequest extends BroadcastOperationRequest {
         }
     }
 
-    private String[] fields;
+    private static final String[] DEFAULT_FIELDS = new String[]{AllFieldMapper.NAME};
+
+    private String[] fields = DEFAULT_FIELDS;
 
     private String from;
 
@@ -134,18 +135,10 @@ public class TermsRequest extends BroadcastOperationRequest {
 
     /**
      * Constructs a new terms requests with the provided indices. Don't pass anything for it to run
-     * over all the indices. Note, the {@link #fields(String...)} is required.
+     * over all the indices.
      */
     public TermsRequest(String... indices) {
         super(indices, null);
-    }
-
-    @Override public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = super.validate();
-        if (fields == null || fields.length == 0) {
-            validationException = addValidationError("fields is missing", validationException);
-        }
-        return validationException;
     }
 
     /**
@@ -158,9 +151,9 @@ public class TermsRequest extends BroadcastOperationRequest {
 
     /**
      * The fields within each document which terms will be iterated over and returned with the
-     * document frequencies.
+     * document frequencies. By default will use the "_all" field.
      */
-    @Required public TermsRequest fields(String... fields) {
+    public TermsRequest fields(String... fields) {
         this.fields = fields;
         return this;
     }

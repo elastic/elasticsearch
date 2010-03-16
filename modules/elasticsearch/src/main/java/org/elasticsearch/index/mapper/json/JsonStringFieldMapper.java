@@ -30,7 +30,7 @@ import java.io.IOException;
 /**
  * @author kimchy (shay.banon)
  */
-public class JsonStringFieldMapper extends JsonFieldMapper<String> {
+public class JsonStringFieldMapper extends JsonFieldMapper<String> implements JsonIncludeInAllMapper {
 
     public static final String JSON_TYPE = "string";
 
@@ -53,20 +53,35 @@ public class JsonStringFieldMapper extends JsonFieldMapper<String> {
             return this;
         }
 
+        @Override public Builder includeInAll(Boolean includeInAll) {
+            this.includeInAll = includeInAll;
+            return this;
+        }
+
         @Override public JsonStringFieldMapper build(BuilderContext context) {
-            return new JsonStringFieldMapper(buildNames(context),
+            JsonStringFieldMapper fieldMapper = new JsonStringFieldMapper(buildNames(context),
                     index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, nullValue,
                     indexAnalyzer, searchAnalyzer);
+            fieldMapper.includeInAll(includeInAll);
+            return fieldMapper;
         }
     }
 
     private final String nullValue;
+
+    private Boolean includeInAll;
 
     protected JsonStringFieldMapper(Names names, Field.Index index, Field.Store store, Field.TermVector termVector,
                                     float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
                                     String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
         super(names, index, store, termVector, boost, omitNorms, omitTermFreqAndPositions, indexAnalyzer, searchAnalyzer);
         this.nullValue = nullValue;
+    }
+
+    @Override public void includeInAll(Boolean includeInAll) {
+        if (includeInAll != null) {
+            this.includeInAll = includeInAll;
+        }
     }
 
     @Override public String value(Fieldable field) {
@@ -91,6 +106,9 @@ public class JsonStringFieldMapper extends JsonFieldMapper<String> {
         if (value == null) {
             return null;
         }
+        if (includeInAll == null || includeInAll) {
+            jsonContext.allEntries().addText(names.fullName(), value, boost);
+        }
         return new Field(names.indexName(), value, store, index, termVector);
     }
 
@@ -102,6 +120,9 @@ public class JsonStringFieldMapper extends JsonFieldMapper<String> {
         super.doJsonBody(builder);
         if (nullValue != null) {
             builder.field("nullValue", nullValue);
+        }
+        if (includeInAll != null) {
+            builder.field("includeInAll", includeInAll);
         }
     }
 }

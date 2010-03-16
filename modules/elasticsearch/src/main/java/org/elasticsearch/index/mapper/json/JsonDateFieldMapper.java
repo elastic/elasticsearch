@@ -34,7 +34,7 @@ import org.elasticsearch.util.json.JsonBuilder;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class JsonDateFieldMapper extends JsonNumberFieldMapper<Long> {
 
@@ -68,8 +68,10 @@ public class JsonDateFieldMapper extends JsonNumberFieldMapper<Long> {
         }
 
         @Override public JsonDateFieldMapper build(BuilderContext context) {
-            return new JsonDateFieldMapper(buildNames(context), dateTimeFormatter,
+            JsonDateFieldMapper fieldMapper = new JsonDateFieldMapper(buildNames(context), dateTimeFormatter,
                     precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
+            fieldMapper.includeInAll(includeInAll);
+            return fieldMapper;
         }
     }
 
@@ -137,6 +139,9 @@ public class JsonDateFieldMapper extends JsonNumberFieldMapper<Long> {
         if (dateAsString == null) {
             return null;
         }
+        if (includeInAll == null || includeInAll) {
+            jsonContext.allEntries().addText(names.fullName(), dateAsString, boost);
+        }
         long value = dateTimeFormatter.parser().parseMillis(dateAsString);
         Field field = null;
         if (stored()) {
@@ -163,6 +168,9 @@ public class JsonDateFieldMapper extends JsonNumberFieldMapper<Long> {
         builder.field("format", dateTimeFormatter.format());
         if (nullValue != null) {
             builder.field("nullValue", nullValue);
+        }
+        if (includeInAll != null) {
+            builder.field("includeInAll", includeInAll);
         }
     }
 }

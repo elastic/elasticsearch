@@ -32,7 +32,7 @@ import org.elasticsearch.util.json.JsonBuilder;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class JsonIntegerFieldMapper extends JsonNumberFieldMapper<Integer> {
 
@@ -57,12 +57,16 @@ public class JsonIntegerFieldMapper extends JsonNumberFieldMapper<Integer> {
         }
 
         @Override public JsonIntegerFieldMapper build(BuilderContext context) {
-            return new JsonIntegerFieldMapper(buildNames(context),
+            JsonIntegerFieldMapper fieldMapper = new JsonIntegerFieldMapper(buildNames(context),
                     precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
+            fieldMapper.includeInAll(includeInAll);
+            return fieldMapper;
         }
     }
 
     private final Integer nullValue;
+
+    private final String nullValueAsString;
 
     protected JsonIntegerFieldMapper(Names names, int precisionStep, Field.Index index, Field.Store store,
                                      float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
@@ -71,6 +75,7 @@ public class JsonIntegerFieldMapper extends JsonNumberFieldMapper<Integer> {
                 new NamedAnalyzer("_int/" + precisionStep, new NumericIntegerAnalyzer(precisionStep)),
                 new NamedAnalyzer("_int/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;
+        this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }
 
     @Override protected int maxPrecisionStep() {
@@ -114,11 +119,17 @@ public class JsonIntegerFieldMapper extends JsonNumberFieldMapper<Integer> {
                 return null;
             }
             value = nullValue;
+            if (includeInAll == null || includeInAll) {
+                jsonContext.allEntries().addText(names.fullName(), nullValueAsString, boost);
+            }
         } else {
             if (jsonContext.jp().getCurrentToken() == JsonToken.VALUE_STRING) {
                 value = Integer.parseInt(jsonContext.jp().getText());
             } else {
                 value = jsonContext.jp().getIntValue();
+            }
+            if (includeInAll == null || includeInAll) {
+                jsonContext.allEntries().addText(names.fullName(), jsonContext.jp().getText(), boost);
             }
         }
         Field field = null;
@@ -145,6 +156,9 @@ public class JsonIntegerFieldMapper extends JsonNumberFieldMapper<Integer> {
         super.doJsonBody(builder);
         if (nullValue != null) {
             builder.field("nullValue", nullValue);
+        }
+        if (includeInAll != null) {
+            builder.field("includeInAll", includeInAll);
         }
     }
 }

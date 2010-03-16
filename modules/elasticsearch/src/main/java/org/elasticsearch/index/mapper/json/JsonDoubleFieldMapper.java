@@ -32,7 +32,7 @@ import org.elasticsearch.util.json.JsonBuilder;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class JsonDoubleFieldMapper extends JsonNumberFieldMapper<Double> {
 
@@ -57,12 +57,16 @@ public class JsonDoubleFieldMapper extends JsonNumberFieldMapper<Double> {
         }
 
         @Override public JsonDoubleFieldMapper build(BuilderContext context) {
-            return new JsonDoubleFieldMapper(buildNames(context),
+            JsonDoubleFieldMapper fieldMapper = new JsonDoubleFieldMapper(buildNames(context),
                     precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
+            fieldMapper.includeInAll(includeInAll);
+            return fieldMapper;
         }
     }
 
     private final Double nullValue;
+
+    private final String nullValueAsString;
 
     protected JsonDoubleFieldMapper(Names names, int precisionStep,
                                     Field.Index index, Field.Store store,
@@ -72,6 +76,7 @@ public class JsonDoubleFieldMapper extends JsonNumberFieldMapper<Double> {
                 new NamedAnalyzer("_double/" + precisionStep, new NumericDoubleAnalyzer(precisionStep)),
                 new NamedAnalyzer("_double/max", new NumericDoubleAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;
+        this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }
 
     @Override protected int maxPrecisionStep() {
@@ -115,11 +120,17 @@ public class JsonDoubleFieldMapper extends JsonNumberFieldMapper<Double> {
                 return null;
             }
             value = nullValue;
+            if (includeInAll == null || includeInAll) {
+                jsonContext.allEntries().addText(names.fullName(), nullValueAsString, boost);
+            }
         } else {
             if (jsonContext.jp().getCurrentToken() == JsonToken.VALUE_STRING) {
                 value = Double.parseDouble(jsonContext.jp().getText());
             } else {
                 value = jsonContext.jp().getDoubleValue();
+            }
+            if (includeInAll == null || includeInAll) {
+                jsonContext.allEntries().addText(names.fullName(), jsonContext.jp().getText(), boost);
             }
         }
         Field field = null;
@@ -146,6 +157,9 @@ public class JsonDoubleFieldMapper extends JsonNumberFieldMapper<Double> {
         super.doJsonBody(builder);
         if (nullValue != null) {
             builder.field("nullValue", nullValue);
+        }
+        if (includeInAll != null) {
+            builder.field("includeInAll", includeInAll);
         }
     }
 }

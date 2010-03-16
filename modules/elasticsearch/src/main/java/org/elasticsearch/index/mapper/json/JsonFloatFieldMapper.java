@@ -57,13 +57,17 @@ public class JsonFloatFieldMapper extends JsonNumberFieldMapper<Float> {
         }
 
         @Override public JsonFloatFieldMapper build(BuilderContext context) {
-            return new JsonFloatFieldMapper(buildNames(context),
+            JsonFloatFieldMapper fieldMapper = new JsonFloatFieldMapper(buildNames(context),
                     precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
+            fieldMapper.includeInAll(includeInAll);
+            return fieldMapper;
         }
     }
 
 
     private final Float nullValue;
+
+    private final String nullValueAsString;
 
     protected JsonFloatFieldMapper(Names names, int precisionStep, Field.Index index, Field.Store store,
                                    float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
@@ -72,6 +76,7 @@ public class JsonFloatFieldMapper extends JsonNumberFieldMapper<Float> {
                 new NamedAnalyzer("_float/" + precisionStep, new NumericFloatAnalyzer(precisionStep)),
                 new NamedAnalyzer("_float/max", new NumericFloatAnalyzer(Integer.MAX_VALUE)));
         this.nullValue = nullValue;
+        this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }
 
     @Override protected int maxPrecisionStep() {
@@ -115,11 +120,17 @@ public class JsonFloatFieldMapper extends JsonNumberFieldMapper<Float> {
                 return null;
             }
             value = nullValue;
+            if (includeInAll == null || includeInAll) {
+                jsonContext.allEntries().addText(names.fullName(), nullValueAsString, boost);
+            }
         } else {
             if (jsonContext.jp().getCurrentToken() == JsonToken.VALUE_STRING) {
                 value = Float.parseFloat(jsonContext.jp().getText());
             } else {
                 value = jsonContext.jp().getFloatValue();
+            }
+            if (includeInAll == null || includeInAll) {
+                jsonContext.allEntries().addText(names.fullName(), jsonContext.jp().getText(), boost);
             }
         }
         Field field = null;
@@ -146,6 +157,9 @@ public class JsonFloatFieldMapper extends JsonNumberFieldMapper<Float> {
         super.doJsonBody(builder);
         if (nullValue != null) {
             builder.field("nullValue", nullValue);
+        }
+        if (includeInAll != null) {
+            builder.field("includeInAll", includeInAll);
         }
     }
 }

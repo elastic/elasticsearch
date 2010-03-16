@@ -40,7 +40,7 @@ import static com.google.common.collect.Lists.*;
 import static org.elasticsearch.util.json.JsonBuilder.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class JsonDocumentMapper implements DocumentMapper, ToJson {
 
@@ -55,6 +55,8 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
         private JsonSourceFieldMapper sourceFieldMapper = new JsonSourceFieldMapper();
 
         private JsonBoostFieldMapper boostFieldMapper = new JsonBoostFieldMapper();
+
+        private JsonAllFieldMapper allFieldMapper = new JsonAllFieldMapper();
 
         private Analyzer indexAnalyzer;
 
@@ -95,6 +97,11 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
             return this;
         }
 
+        public Builder allField(JsonAllFieldMapper.Builder builder) {
+            this.allFieldMapper = builder.build(builderContext);
+            return this;
+        }
+
         public Builder mappingSource(String mappingSource) {
             this.mappingSource = mappingSource;
             return this;
@@ -121,7 +128,7 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
         public JsonDocumentMapper build() {
             Preconditions.checkNotNull(rootObjectMapper, "Json mapper builder must have the root object mapper set");
             return new JsonDocumentMapper(rootObjectMapper, uidFieldMapper, idFieldMapper, typeFieldMapper,
-                    sourceFieldMapper, indexAnalyzer, searchAnalyzer, boostFieldMapper, mappingSource);
+                    sourceFieldMapper, allFieldMapper, indexAnalyzer, searchAnalyzer, boostFieldMapper, mappingSource);
         }
     }
 
@@ -148,6 +155,8 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
 
     private final JsonBoostFieldMapper boostFieldMapper;
 
+    private final JsonAllFieldMapper allFieldMapper;
+
     private final JsonObjectMapper rootObjectMapper;
 
     private final Analyzer indexAnalyzer;
@@ -165,6 +174,7 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
                               JsonIdFieldMapper idFieldMapper,
                               JsonTypeFieldMapper typeFieldMapper,
                               JsonSourceFieldMapper sourceFieldMapper,
+                              JsonAllFieldMapper allFieldMapper,
                               Analyzer indexAnalyzer, Analyzer searchAnalyzer,
                               @Nullable JsonBoostFieldMapper boostFieldMapper,
                               @Nullable String mappingSource) {
@@ -175,10 +185,16 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
         this.idFieldMapper = idFieldMapper;
         this.typeFieldMapper = typeFieldMapper;
         this.sourceFieldMapper = sourceFieldMapper;
+        this.allFieldMapper = allFieldMapper;
         this.boostFieldMapper = boostFieldMapper;
 
         this.indexAnalyzer = indexAnalyzer;
         this.searchAnalyzer = searchAnalyzer;
+
+        // if we are not enabling all, set it to false on the root object, (and on all the rest...)
+        if (!allFieldMapper.enabled()) {
+            this.rootObjectMapper.includeInAll(allFieldMapper.enabled());
+        }
 
         rootObjectMapper.putMapper(idFieldMapper);
         if (boostFieldMapper != null) {
@@ -233,6 +249,10 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
 
     @Override public BoostFieldMapper boostMapper() {
         return this.boostFieldMapper;
+    }
+
+    @Override public AllFieldMapper allFieldMapper() {
+        return this.allFieldMapper;
     }
 
     @Override public Analyzer indexAnalyzer() {
@@ -311,6 +331,7 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
                 jsonContext.parsedId(JsonParseContext.ParsedIdState.EXTERNAL);
                 idFieldMapper.parse(jsonContext);
             }
+            allFieldMapper.parse(jsonContext);
         } catch (IOException e) {
             throw new MapperParsingException("Failed to parse", e);
         } finally {
@@ -342,6 +363,7 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
                 fieldMapperListener.fieldMapper(typeFieldMapper);
                 fieldMapperListener.fieldMapper(idFieldMapper);
                 fieldMapperListener.fieldMapper(uidFieldMapper);
+                fieldMapperListener.fieldMapper(allFieldMapper);
                 rootObjectMapper.traverse(fieldMapperListener);
             }
         }

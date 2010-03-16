@@ -23,6 +23,7 @@ import org.apache.lucene.document.Document;
 import org.codehaus.jackson.JsonParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.util.concurrent.NotThreadSafe;
+import org.elasticsearch.util.lucene.all.AllEntries;
 
 /**
  * @author kimchy (Shay Banon)
@@ -54,6 +55,8 @@ public class JsonParseContext {
 
     private boolean mappersAdded = false;
 
+    private AllEntries allEntries = new AllEntries();
+
     public JsonParseContext(JsonDocumentMapper docMapper, JsonPath path) {
         this.docMapper = docMapper;
         this.path = path;
@@ -68,6 +71,7 @@ public class JsonParseContext {
         this.parsedIdState = ParsedIdState.NO;
         this.mappersAdded = false;
         this.listener = listener;
+        this.allEntries = new AllEntries();
     }
 
     public boolean mappersAdded() {
@@ -134,6 +138,10 @@ public class JsonParseContext {
      */
     public void uid(String uid) {
         this.uid = uid;
+    }
+
+    public AllEntries allEntries() {
+        return this.allEntries;
     }
 
     /**

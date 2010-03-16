@@ -33,9 +33,9 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public abstract class JsonNumberFieldMapper<T extends Number> extends JsonFieldMapper<T> {
+public abstract class JsonNumberFieldMapper<T extends Number> extends JsonFieldMapper<T> implements JsonIncludeInAllMapper {
 
     public static class Defaults extends JsonFieldMapper.Defaults {
         public static final int PRECISION_STEP = NumericUtils.PRECISION_STEP_DEFAULT;
@@ -59,12 +59,16 @@ public abstract class JsonNumberFieldMapper<T extends Number> extends JsonFieldM
             return super.store(store);
         }
 
-        @Override protected T boost(float boost) {
+        @Override public T boost(float boost) {
             return super.boost(boost);
         }
 
-        @Override protected T indexName(String indexName) {
+        @Override public T indexName(String indexName) {
             return super.indexName(indexName);
+        }
+
+        @Override public T includeInAll(Boolean includeInAll) {
+            return super.includeInAll(includeInAll);
         }
 
         public T precisionStep(int precisionStep) {
@@ -81,6 +85,8 @@ public abstract class JsonNumberFieldMapper<T extends Number> extends JsonFieldM
 
     protected final int precisionStep;
 
+    protected Boolean includeInAll;
+
     protected JsonNumberFieldMapper(Names names, int precisionStep,
                                     Field.Index index, Field.Store store,
                                     float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
@@ -90,6 +96,12 @@ public abstract class JsonNumberFieldMapper<T extends Number> extends JsonFieldM
             this.precisionStep = Integer.MAX_VALUE;
         } else {
             this.precisionStep = precisionStep;
+        }
+    }
+
+    @Override public void includeInAll(Boolean includeInAll) {
+        if (includeInAll != null) {
+            this.includeInAll = includeInAll;
         }
     }
 

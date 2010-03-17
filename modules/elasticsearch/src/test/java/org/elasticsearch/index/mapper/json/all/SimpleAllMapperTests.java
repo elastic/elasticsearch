@@ -27,10 +27,10 @@ import org.elasticsearch.index.mapper.json.JsonDocumentMapper;
 import org.elasticsearch.index.mapper.json.JsonDocumentMapperParser;
 import org.elasticsearch.util.lucene.all.AllEntries;
 import org.elasticsearch.util.lucene.all.AllTokenFilter;
-import org.hamcrest.MatcherAssert;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.util.io.Streams.*;
+import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -46,9 +46,9 @@ public class SimpleAllMapperTests {
         Document doc = docMapper.parse(json).doc();
         Field field = doc.getField("_all");
         AllEntries allEntries = ((AllTokenFilter) field.tokenStreamValue()).allEntries();
-        MatcherAssert.assertThat(allEntries.fields().size(), equalTo(2));
-        MatcherAssert.assertThat(allEntries.fields().contains("name.last"), equalTo(true));
-        MatcherAssert.assertThat(allEntries.fields().contains("simple1"), equalTo(true));
+        assertThat(allEntries.fields().size(), equalTo(2));
+        assertThat(allEntries.fields().contains("name.last"), equalTo(true));
+        assertThat(allEntries.fields().contains("simple1"), equalTo(true));
     }
 
     @Test public void testSimpleAllMappersWithReparse() throws Exception {
@@ -63,8 +63,43 @@ public class SimpleAllMapperTests {
 
         Field field = doc.getField("_all");
         AllEntries allEntries = ((AllTokenFilter) field.tokenStreamValue()).allEntries();
-        MatcherAssert.assertThat(allEntries.fields().size(), equalTo(2));
-        MatcherAssert.assertThat(allEntries.fields().contains("name.last"), equalTo(true));
-        MatcherAssert.assertThat(allEntries.fields().contains("simple1"), equalTo(true));
+        assertThat(allEntries.fields().size(), equalTo(2));
+        assertThat(allEntries.fields().contains("name.last"), equalTo(true));
+        assertThat(allEntries.fields().contains("simple1"), equalTo(true));
+    }
+
+    @Test public void testSimpleAllMappersWithStore() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/json/all/store-mapping.json");
+        JsonDocumentMapper docMapper = (JsonDocumentMapper) new JsonDocumentMapperParser(new AnalysisService(new Index("test"))).parse(mapping);
+        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/json/all/test1.json");
+        Document doc = docMapper.parse(json).doc();
+        Field field = doc.getField("_all");
+        AllEntries allEntries = ((AllTokenFilter) field.tokenStreamValue()).allEntries();
+        assertThat(allEntries.fields().size(), equalTo(2));
+        assertThat(allEntries.fields().contains("name.last"), equalTo(true));
+        assertThat(allEntries.fields().contains("simple1"), equalTo(true));
+
+        String text = field.stringValue();
+        assertThat(text, equalTo(allEntries.buildText()));
+    }
+
+    @Test public void testSimpleAllMappersWithReparseWithStore() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/json/all/store-mapping.json");
+        JsonDocumentMapper docMapper = (JsonDocumentMapper) new JsonDocumentMapperParser(new AnalysisService(new Index("test"))).parse(mapping);
+        String builtMapping = docMapper.buildSource();
+        System.out.println(builtMapping);
+        // reparse it
+        JsonDocumentMapper builtDocMapper = (JsonDocumentMapper) new JsonDocumentMapperParser(new AnalysisService(new Index("test"))).parse(builtMapping);
+        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/json/all/test1.json");
+        Document doc = builtDocMapper.parse(json).doc();
+
+        Field field = doc.getField("_all");
+        AllEntries allEntries = ((AllTokenFilter) field.tokenStreamValue()).allEntries();
+        assertThat(allEntries.fields().size(), equalTo(2));
+        assertThat(allEntries.fields().contains("name.last"), equalTo(true));
+        assertThat(allEntries.fields().contains("simple1"), equalTo(true));
+
+        String text = field.stringValue();
+        assertThat(text, equalTo(allEntries.buildText()));
     }
 }

@@ -20,13 +20,16 @@
 package org.elasticsearch.index.mapper.json;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.AllFieldMapper;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.lucene.Lucene;
+import org.elasticsearch.util.lucene.all.AllAnalyzer;
 
 import java.io.IOException;
 
@@ -61,6 +64,10 @@ public class JsonAllFieldMapper extends JsonFieldMapper<Void> implements AllFiel
             return this;
         }
 
+        @Override public Builder store(Field.Store store) {
+            return super.store(store);
+        }
+
         @Override public Builder termVector(Field.TermVector termVector) {
             return super.termVector(termVector);
         }
@@ -74,7 +81,7 @@ public class JsonAllFieldMapper extends JsonFieldMapper<Void> implements AllFiel
         }
 
         @Override public JsonAllFieldMapper build(BuilderContext context) {
-            return new JsonAllFieldMapper(name, termVector, omitNorms, omitTermFreqAndPositions,
+            return new JsonAllFieldMapper(name, store, termVector, omitNorms, omitTermFreqAndPositions,
                     indexAnalyzer, searchAnalyzer, enabled);
         }
     }
@@ -82,13 +89,15 @@ public class JsonAllFieldMapper extends JsonFieldMapper<Void> implements AllFiel
 
     private boolean enabled;
 
+    private AllAnalyzer allAnalyzer;
+
     public JsonAllFieldMapper() {
-        this(Defaults.NAME, Defaults.TERM_VECTOR, Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, null, null, Defaults.ENABLED);
+        this(Defaults.NAME, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, null, null, Defaults.ENABLED);
     }
 
-    protected JsonAllFieldMapper(String name, Field.TermVector termVector, boolean omitNorms, boolean omitTermFreqAndPositions,
+    protected JsonAllFieldMapper(String name, Field.Store store, Field.TermVector termVector, boolean omitNorms, boolean omitTermFreqAndPositions,
                                  NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer, boolean enabled) {
-        super(new Names(name, name, name, name), Field.Index.ANALYZED, Field.Store.NO, termVector, 1.0f, omitNorms, omitTermFreqAndPositions,
+        super(new Names(name, name, name, name), Field.Index.ANALYZED, store, termVector, 1.0f, omitNorms, omitTermFreqAndPositions,
                 indexAnalyzer, searchAnalyzer);
         this.enabled = enabled;
     }
@@ -101,14 +110,30 @@ public class JsonAllFieldMapper extends JsonFieldMapper<Void> implements AllFiel
         if (!enabled) {
             return null;
         }
-        Analyzer analyzer = indexAnalyzer();
+        // reset the entries
+        jsonContext.allEntries().reset();
+
+        Analyzer analyzer = findAnalyzer(jsonContext.docMapper());
+        TokenStream tokenStream = allTokenStream(names.indexName(), jsonContext.allEntries(), analyzer);
+        if (stored()) {
+            // TODO when its possible to pass char[] to field, we can optimize
+            Field field = new Field(names.indexName(), jsonContext.allEntries().buildText(), store, index, termVector);
+            field.setTokenStream(tokenStream);
+            return field;
+        } else {
+            return new Field(names.indexName(), tokenStream, termVector);
+        }
+    }
+
+    private Analyzer findAnalyzer(DocumentMapper docMapper) {
+        Analyzer analyzer = indexAnalyzer;
         if (analyzer == null) {
-            analyzer = jsonContext.docMapper().indexAnalyzer();
+            analyzer = docMapper.indexAnalyzer();
             if (analyzer == null) {
                 analyzer = Lucene.STANDARD_ANALYZER;
             }
         }
-        return new Field(names.indexName(), allTokenStream(names.indexName(), jsonContext.allEntries().finishTexts(), analyzer), termVector);
+        return analyzer;
     }
 
     @Override public Void value(Fieldable field) {
@@ -138,6 +163,7 @@ public class JsonAllFieldMapper extends JsonFieldMapper<Void> implements AllFiel
     @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject(JSON_TYPE);
         builder.field("enabled", enabled);
+        builder.field("store", store.name().toLowerCase());
         builder.field("termVector", termVector.name().toLowerCase());
         if (indexAnalyzer != null && !indexAnalyzer.name().startsWith("_")) {
             builder.field("indexAnalyzer", indexAnalyzer.name());

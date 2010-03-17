@@ -28,10 +28,31 @@ import java.util.Arrays;
 /**
  * A similar class to {@link java.io.CharArrayWriter} allowing to get the underlying <tt>char[]</tt> buffer.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 @NotThreadSafe
 public class FastCharArrayWriter extends Writer {
+
+    /**
+     * A thread local based cache of {@link FastByteArrayOutputStream}.
+     */
+    public static class Cached {
+
+        private static final ThreadLocal<FastCharArrayWriter> cache = new ThreadLocal<FastCharArrayWriter>() {
+            @Override protected FastCharArrayWriter initialValue() {
+                return new FastCharArrayWriter();
+            }
+        };
+
+        /**
+         * Returns the cached thread local byte stream, with its internal stream cleared.
+         */
+        public static FastCharArrayWriter cached() {
+            FastCharArrayWriter os = cache.get();
+            os.reset();
+            return os;
+        }
+    }
 
     /**
      * The buffer where data is stored.

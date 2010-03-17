@@ -1,0 +1,33 @@
+{
+    person : {
+        allField : {enabled : true, store : "yes"},
+        properties : {
+            name : {
+                type : "object",
+                dynamic : false,
+                properties : {
+                    first : {type : "string", store : "yes", includeInAll : false},
+                    last : {type : "string", index : "not_analyzed"}
+                }
+            },
+            address : {
+                type : "object",
+                includeInAll : false,
+                properties : {
+                    first : {
+                        properties : {
+                            location : {type : "string", store : "yes", indexName : "firstLocation"}
+                        }
+                    },
+                    last : {
+                        properties : {
+                            location : {type : "string"}
+                        }
+                    }
+                }
+            },
+            simple1 : {type : "long", includeInAll : true},
+            simple2 : {type : "long", includeInAll : false}
+        }
+    }
+}

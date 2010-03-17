@@ -24,6 +24,7 @@ import org.apache.lucene.document.Document;
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.Preconditions;
@@ -58,9 +59,9 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
 
         private JsonAllFieldMapper allFieldMapper = new JsonAllFieldMapper();
 
-        private Analyzer indexAnalyzer;
+        private NamedAnalyzer indexAnalyzer;
 
-        private Analyzer searchAnalyzer;
+        private NamedAnalyzer searchAnalyzer;
 
         private final JsonObjectMapper rootObjectMapper;
 
@@ -107,7 +108,7 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
             return this;
         }
 
-        public Builder indexAnalyzer(Analyzer indexAnalyzer) {
+        public Builder indexAnalyzer(NamedAnalyzer indexAnalyzer) {
             this.indexAnalyzer = indexAnalyzer;
             return this;
         }
@@ -116,7 +117,7 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
             return indexAnalyzer != null;
         }
 
-        public Builder searchAnalyzer(Analyzer searchAnalyzer) {
+        public Builder searchAnalyzer(NamedAnalyzer searchAnalyzer) {
             this.searchAnalyzer = searchAnalyzer;
             return this;
         }
@@ -393,6 +394,6 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
     }
 
     @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
-        rootObjectMapper.toJson(builder, params);
+        rootObjectMapper.toJson(builder, params, allFieldMapper);
     }
 }

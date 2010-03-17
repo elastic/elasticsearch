@@ -411,6 +411,10 @@ public class JsonObjectMapper implements JsonMapper, JsonIncludeInAllMapper {
     }
 
     @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
+        toJson(builder, params, null);
+    }
+
+    public void toJson(JsonBuilder builder, Params params, JsonMapper... additionalMappers) throws IOException {
         builder.startObject(name);
         builder.field("type", JSON_TYPE);
         builder.field("dynamic", dynamic);
@@ -431,6 +435,11 @@ public class JsonObjectMapper implements JsonMapper, JsonIncludeInAllMapper {
         // check internal mappers first (this is only relevant for root object)
         for (JsonMapper mapper : mappers.values()) {
             if (mapper instanceof InternalMapper) {
+                mapper.toJson(builder, params);
+            }
+        }
+        if (additionalMappers != null) {
+            for (JsonMapper mapper : additionalMappers) {
                 mapper.toJson(builder, params);
             }
         }

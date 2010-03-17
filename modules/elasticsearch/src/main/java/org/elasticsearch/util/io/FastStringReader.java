@@ -27,10 +27,11 @@ import java.io.Reader;
 /**
  * A character stream whose source is a string that is <b>not thread safe</b>
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon
+ *         )
  */
 @NotThreadSafe
-public class FastStringReader extends Reader {
+public class FastStringReader extends CharSequenceReader {
 
     private String str;
     private int length;
@@ -53,6 +54,18 @@ public class FastStringReader extends Reader {
     private void ensureOpen() throws IOException {
         if (length == -1)
             throw new IOException("Stream closed");
+    }
+
+    @Override public int length() {
+        return length;
+    }
+
+    @Override public char charAt(int index) {
+        return str.charAt(index);
+    }
+
+    @Override public CharSequence subSequence(int start, int end) {
+        return str.subSequence(start, end);
     }
 
     /**

@@ -20,6 +20,9 @@
 package org.elasticsearch.util.lucene.all;
 
 import com.google.common.collect.Lists;
+import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.util.io.CharSequenceReader;
+import org.elasticsearch.util.io.FastCharArrayWriter;
 import org.elasticsearch.util.io.FastStringReader;
 
 import java.io.IOException;
@@ -37,10 +40,10 @@ public class AllEntries extends Reader {
 
     public static class Entry {
         private final String name;
-        private final Reader reader;
+        private final CharSequenceReader reader;
         private final float boost;
 
-        public Entry(String name, Reader reader, float boost) {
+        public Entry(String name, CharSequenceReader reader, float boost) {
             this.name = name;
             this.reader = reader;
             this.boost = boost;
@@ -54,7 +57,7 @@ public class AllEntries extends Reader {
             return this.boost;
         }
 
-        public Reader reader() {
+        public CharSequenceReader reader() {
             return this.reader;
         }
     }
@@ -79,13 +82,31 @@ public class AllEntries extends Reader {
         itsSeparatorTime = false;
     }
 
-    public AllEntries finishTexts() {
+    public void reset() {
+        try {
+            for (Entry entry : entries) {
+                entry.reader().reset();
+            }
+        } catch (IOException e) {
+            throw new ElasticSearchIllegalStateException("should not happen");
+        }
         it = entries.iterator();
         if (it.hasNext()) {
             current = it.next();
             itsSeparatorTime = true;
         }
-        return this;
+    }
+
+
+    public String buildText() {
+        reset();
+        FastCharArrayWriter writer = FastCharArrayWriter.Cached.cached();
+        for (Entry entry : entries) {
+            writer.append(entry.reader());
+            writer.append(' ');
+        }
+        reset();
+        return writer.toString();
     }
 
     public List<Entry> entries() {

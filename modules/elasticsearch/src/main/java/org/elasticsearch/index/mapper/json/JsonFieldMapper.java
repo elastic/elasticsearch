@@ -308,6 +308,10 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
         return new TermQuery(new Term(names.indexName(), indexedValue(value)));
     }
 
+    @Override public Query queryStringTermQuery(Term term) {
+        return null;
+    }
+
     @Override public Filter fieldFilter(String value) {
         return new TermFilter(new Term(names.indexName(), indexedValue(value)));
     }

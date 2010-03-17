@@ -23,6 +23,8 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -30,6 +32,7 @@ import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.lucene.Lucene;
 import org.elasticsearch.util.lucene.all.AllAnalyzer;
+import org.elasticsearch.util.lucene.all.AllTermQuery;
 
 import java.io.IOException;
 
@@ -104,6 +107,10 @@ public class JsonAllFieldMapper extends JsonFieldMapper<Void> implements AllFiel
 
     public boolean enabled() {
         return this.enabled;
+    }
+
+    @Override public Query queryStringTermQuery(Term term) {
+        return new AllTermQuery(term);
     }
 
     @Override protected Field parseCreateField(JsonParseContext jsonContext) throws IOException {

@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.StringHelper;
@@ -143,7 +144,15 @@ public interface FieldMapper<T> {
      */
     boolean useFieldQueryWithQueryString();
 
+    /**
+     * A field query for the specified value.
+     */
     Query fieldQuery(String value);
+
+    /**
+     * A term query to use when parsing a query string. Can return <tt>null</tt>.
+     */
+    Query queryStringTermQuery(Term term);
 
     Filter fieldFilter(String value);
 

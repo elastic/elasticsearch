@@ -394,6 +394,6 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
     }
 
     @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
-        rootObjectMapper.toJson(builder, params, allFieldMapper);
+        rootObjectMapper.toJson(builder, params, allFieldMapper, sourceFieldMapper);
     }
 }

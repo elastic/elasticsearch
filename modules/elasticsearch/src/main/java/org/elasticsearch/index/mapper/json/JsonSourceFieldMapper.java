@@ -28,7 +28,7 @@ import org.elasticsearch.util.lucene.Lucene;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class JsonSourceFieldMapper extends JsonFieldMapper<byte[]> implements SourceFieldMapper {
 
@@ -51,11 +51,10 @@ public class JsonSourceFieldMapper extends JsonFieldMapper<byte[]> implements So
             super(Defaults.NAME);
         }
 
-        // source is always enabled for now
-//        public Builder enabled(boolean enabled) {
-//            this.enabled = enabled;
-//            return this;
-//        }
+        public Builder enabled(boolean enabled) {
+            this.enabled = enabled;
+            return this;
+        }
 
         @Override public JsonSourceFieldMapper build(BuilderContext context) {
             return new JsonSourceFieldMapper(name, enabled);
@@ -130,7 +129,10 @@ public class JsonSourceFieldMapper extends JsonFieldMapper<byte[]> implements So
     }
 
     @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
-        // for now, don't output it at all
+        builder.startObject(jsonType());
+        builder.field("name", name());
+        builder.field("enabled", enabled);
+        builder.endObject();
     }
 
     @Override public void merge(JsonMapper mergeWith, JsonMergeContext mergeContext) throws MergeMappingException {

@@ -43,7 +43,7 @@ import static org.elasticsearch.index.mapper.json.JsonMapperBuilders.*;
 import static org.elasticsearch.util.json.JacksonNodes.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class JsonDocumentMapperParser implements DocumentMapperParser {
 
@@ -197,6 +197,9 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
             Map.Entry<String, JsonNode> entry = fieldsIt.next();
             String fieldName = entry.getKey();
             JsonNode fieldNode = entry.getValue();
+            if (fieldName.equals("enabled")) {
+                builder.enabled(nodeBooleanValue(fieldNode));
+            }
 //            if (fieldName.equals("compressionThreshold")) {
 //                builder.compressionThreshold(nodeIn...);
 //            } else if (fieldName.equals("compressionType")) {

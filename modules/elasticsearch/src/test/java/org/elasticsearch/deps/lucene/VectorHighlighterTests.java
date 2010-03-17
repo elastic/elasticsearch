@@ -60,4 +60,40 @@ public class VectorHighlighterTests {
         assertThat(fragment, notNullValue());
         System.out.println(fragment);
     }
+
+    @Test public void testVectorHighlighterNoStore() throws Exception {
+        Directory dir = new RAMDirectory();
+        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+
+        indexWriter.addDocument(doc().add(field("_id", "1")).add(field("content", "the big bad dog", Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS)).build());
+
+        IndexReader reader = indexWriter.getReader();
+        IndexSearcher searcher = new IndexSearcher(reader);
+        TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
+
+        assertThat(topDocs.totalHits, equalTo(1));
+
+        FastVectorHighlighter highlighter = new FastVectorHighlighter();
+        String fragment = highlighter.getBestFragment(highlighter.getFieldQuery(new TermQuery(new Term("content", "bad"))),
+                reader, topDocs.scoreDocs[0].doc, "content", 30);
+        assertThat(fragment, nullValue());
+    }
+
+    @Test public void testVectorHighlighterNoTermVector() throws Exception {
+        Directory dir = new RAMDirectory();
+        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+
+        indexWriter.addDocument(doc().add(field("_id", "1")).add(field("content", "the big bad dog", Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.NO)).build());
+
+        IndexReader reader = indexWriter.getReader();
+        IndexSearcher searcher = new IndexSearcher(reader);
+        TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
+
+        assertThat(topDocs.totalHits, equalTo(1));
+
+        FastVectorHighlighter highlighter = new FastVectorHighlighter();
+        String fragment = highlighter.getBestFragment(highlighter.getFieldQuery(new TermQuery(new Term("content", "bad"))),
+                reader, topDocs.scoreDocs[0].doc, "content", 30);
+        assertThat(fragment, nullValue());
+    }
 }

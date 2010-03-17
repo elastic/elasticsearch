@@ -21,6 +21,7 @@ package org.elasticsearch.rest.action.get;
 
 import com.google.inject.Inject;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.get.GetField;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
@@ -29,7 +30,10 @@ import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.regex.Pattern;
 
+import static com.google.common.collect.Lists.*;
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
 import static org.elasticsearch.rest.action.support.RestJsonBuilder.*;
@@ -38,6 +42,12 @@ import static org.elasticsearch.rest.action.support.RestJsonBuilder.*;
  * @author kimchy (Shay Banon)
  */
 public class RestGetAction extends BaseRestHandler {
+
+    private final static Pattern fieldsPattern;
+
+    static {
+        fieldsPattern = Pattern.compile(",");
+    }
 
     @Inject public RestGetAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
@@ -50,25 +60,69 @@ public class RestGetAction extends BaseRestHandler {
         getRequest.listenerThreaded(false);
         // if we have a local operation, execute it on a thread since we don't spawn
         getRequest.threadedOperation(true);
+
+
+        List<String> fields = request.params("field");
+        String sField = request.param("fields");
+        if (sField != null) {
+            String[] sFields = fieldsPattern.split(sField);
+            if (sFields != null) {
+                if (fields == null) {
+                    fields = newArrayListWithExpectedSize(sField.length());
+                }
+                for (String field : sFields) {
+                    fields.add(field);
+                }
+            }
+        }
+        if (fields != null) {
+            getRequest.fields(fields.toArray(new String[fields.size()]));
+        }
+
+
         client.get(getRequest, new ActionListener<GetResponse>() {
-            @Override public void onResponse(GetResponse result) {
+            @Override public void onResponse(GetResponse response) {
                 try {
-                    if (!result.exists()) {
+                    if (!response.exists()) {
                         JsonBuilder builder = restJsonBuilder(request);
                         builder.startObject();
-                        builder.field("_index", result.index());
-                        builder.field("_type", result.type());
-                        builder.field("_id", result.id());
+                        builder.field("_index", response.index());
+                        builder.field("_type", response.type());
+                        builder.field("_id", response.id());
                         builder.endObject();
                         channel.sendResponse(new JsonRestResponse(request, NOT_FOUND, builder));
                     } else {
                         JsonBuilder builder = restJsonBuilder(request);
                         builder.startObject();
-                        builder.field("_index", result.index());
-                        builder.field("_type", result.type());
-                        builder.field("_id", result.id());
-                        builder.raw(", \"_source\" : ");
-                        builder.raw(result.source());
+                        builder.field("_index", response.index());
+                        builder.field("_type", response.type());
+                        builder.field("_id", response.id());
+                        if (response.source() != null) {
+                            builder.raw(", \"_source\" : ");
+                            builder.raw(response.source());
+                        }
+
+                        if (response.fields() != null && !response.fields().isEmpty()) {
+                            builder.startObject("fields");
+                            for (GetField field : response.fields().values()) {
+                                if (field.values().isEmpty()) {
+                                    continue;
+                                }
+                                if (field.values().size() == 1) {
+                                    builder.field(field.name(), field.values().get(0));
+                                } else {
+                                    builder.field(field.name());
+                                    builder.startArray();
+                                    for (Object value : field.values()) {
+                                        builder.value(value);
+                                    }
+                                    builder.endArray();
+                                }
+                            }
+                            builder.endObject();
+                        }
+
+
                         builder.endObject();
                         channel.sendResponse(new JsonRestResponse(request, OK, builder));
                     }

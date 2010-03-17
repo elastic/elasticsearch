@@ -40,6 +40,8 @@ import java.io.IOException;
  */
 public class GetRequest extends SingleOperationRequest {
 
+    private String[] fields;
+
     GetRequest() {
     }
 
@@ -79,6 +81,23 @@ public class GetRequest extends SingleOperationRequest {
     }
 
     /**
+     * Explicitly specify the fields that will be returned. By default, the <tt>_source</tt>
+     * field will be returned.
+     */
+    public GetRequest fields(String... fields) {
+        this.fields = fields;
+        return this;
+    }
+
+    /**
+     * Explicitly specify the fields that will be returned. By default, the <tt>_source</tt>
+     * field will be returned.
+     */
+    public String[] fields() {
+        return this.fields;
+    }
+
+    /**
      * Should the listener be called on a separate thread if needed.
      */
     @Override public GetRequest listenerThreaded(boolean threadedListener) {
@@ -96,10 +115,25 @@ public class GetRequest extends SingleOperationRequest {
 
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
         super.readFrom(in);
+        int size = in.readInt();
+        if (size >= 0) {
+            fields = new String[size];
+            for (int i = 0; i < size; i++) {
+                fields[i] = in.readUTF();
+            }
+        }
     }
 
     @Override public void writeTo(DataOutput out) throws IOException {
         super.writeTo(out);
+        if (fields == null) {
+            out.writeInt(-1);
+        } else {
+            out.writeInt(fields.length);
+            for (String field : fields) {
+                out.writeUTF(field);
+            }
+        }
     }
 
     @Override public String toString() {

@@ -27,8 +27,12 @@ import org.elasticsearch.util.io.Streamable;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Map;
 
+import static com.google.common.collect.Iterators.*;
+import static com.google.common.collect.Maps.*;
+import static org.elasticsearch.action.get.GetField.*;
 import static org.elasticsearch.util.json.Jackson.*;
 
 /**
@@ -38,7 +42,7 @@ import static org.elasticsearch.util.json.Jackson.*;
  * @see GetRequest
  * @see org.elasticsearch.client.Client#get(GetRequest)
  */
-public class GetResponse implements ActionResponse, Streamable {
+public class GetResponse implements ActionResponse, Streamable, Iterable<GetField> {
 
     private String index;
 
@@ -46,23 +50,29 @@ public class GetResponse implements ActionResponse, Streamable {
 
     private String id;
 
+    private boolean exists;
+
+    private Map<String, GetField> fields;
+
     private byte[] source;
 
     GetResponse() {
     }
 
-    GetResponse(String index, String type, String id, byte[] source) {
+    GetResponse(String index, String type, String id, boolean exists, byte[] source, Map<String, GetField> fields) {
         this.index = index;
         this.type = type;
         this.id = id;
+        this.exists = exists;
         this.source = source;
+        this.fields = fields;
     }
 
     /**
      * Does the document exists.
      */
     public boolean exists() {
-        return source != null && source.length > 0;
+        return exists;
     }
 
     /**
@@ -103,8 +113,9 @@ public class GetResponse implements ActionResponse, Streamable {
     /**
      * The source of the document (As a map).
      */
+    @SuppressWarnings({"unchecked"})
     public Map<String, Object> sourceAsMap() throws ElasticSearchParseException {
-        if (!exists()) {
+        if (source == null) {
             return null;
         }
         try {
@@ -114,14 +125,40 @@ public class GetResponse implements ActionResponse, Streamable {
         }
     }
 
+    public Map<String, GetField> fields() {
+        return this.fields;
+    }
+
+    public GetField field(String name) {
+        return fields.get(name);
+    }
+
+    @Override public Iterator<GetField> iterator() {
+        if (fields == null) {
+            return emptyIterator();
+        }
+        return fields.values().iterator();
+    }
+
     @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
         index = in.readUTF();
         type = in.readUTF();
         id = in.readUTF();
-        int size = in.readInt();
-        if (size > 0) {
-            source = new byte[size];
-            in.readFully(source);
+        exists = in.readBoolean();
+        if (exists) {
+            int size = in.readInt();
+            if (size > 0) {
+                source = new byte[size];
+                in.readFully(source);
+            }
+            size = in.readInt();
+            if (size > 0) {
+                fields = newHashMapWithExpectedSize(size);
+                for (int i = 0; i < size; i++) {
+                    GetField field = readGetField(in);
+                    fields.put(field.name(), field);
+                }
+            }
         }
     }
 
@@ -129,11 +166,22 @@ public class GetResponse implements ActionResponse, Streamable {
         out.writeUTF(index);
         out.writeUTF(type);
         out.writeUTF(id);
-        if (source == null) {
-            out.writeInt(0);
-        } else {
-            out.writeInt(source.length);
-            out.write(source);
+        out.writeBoolean(exists);
+        if (exists) {
+            if (source == null) {
+                out.writeInt(0);
+            } else {
+                out.writeInt(source.length);
+                out.write(source);
+            }
+            if (fields == null) {
+                out.writeInt(0);
+            } else {
+                out.writeInt(fields.size());
+                for (GetField field : fields.values()) {
+                    field.writeTo(out);
+                }
+            }
         }
     }
 }

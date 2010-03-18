@@ -45,7 +45,7 @@ public class ByteBufferStore extends AbstractStore<ByteBufferDirectory> {
     @Inject public ByteBufferStore(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
 
-        this.bufferSize = componentSettings.getAsSize("bufferSize", new SizeValue(1, SizeUnit.KB));
+        this.bufferSize = componentSettings.getAsSize("bufferSize", new SizeValue(100, SizeUnit.KB));
         this.cacheSize = componentSettings.getAsSize("cacheSize", new SizeValue(20, SizeUnit.MB));
         this.direct = componentSettings.getAsBoolean("direct", true);
         this.warmCache = componentSettings.getAsBoolean("warmCache", true);

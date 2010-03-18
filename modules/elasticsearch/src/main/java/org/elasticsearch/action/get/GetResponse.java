@@ -107,6 +107,9 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
      * The source of the document (as a string).
      */
     public String sourceAsString() {
+        if (source == null) {
+            return null;
+        }
         return Unicode.fromBytes(source);
     }
 

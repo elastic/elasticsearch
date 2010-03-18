@@ -21,6 +21,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.util.io.Streamable;
 import org.elasticsearch.util.json.ToJson;
 
@@ -76,7 +77,12 @@ public interface SearchHit extends Streamable, ToJson, Iterable<SearchHitField> 
     Map<String, SearchHitField> fields();
 
     /**
+     * A map of highlighted fields.
+     */
+    Map<String, HighlightField> highlightFields();
+
+    /**
      * The shard of the search hit.
      */
-    SearchShardTarget target();
+    SearchShardTarget shard();
 }

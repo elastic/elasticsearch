@@ -27,7 +27,6 @@ import org.elasticsearch.index.query.json.JsonIndexQueryParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.SearchContextFacets;
 import org.elasticsearch.util.Booleans;
 
 import java.util.List;

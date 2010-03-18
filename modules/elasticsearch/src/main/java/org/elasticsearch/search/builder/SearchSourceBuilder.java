@@ -55,6 +55,13 @@ public class SearchSourceBuilder {
         return new SearchSourceFacetsBuilder();
     }
 
+    /**
+     * A static factory method to construct new search highlights.
+     */
+    public static SearchSourceHighlightBuilder highlight() {
+        return new SearchSourceHighlightBuilder();
+    }
+
     private JsonQueryBuilder queryBuilder;
 
     private int from = -1;
@@ -70,6 +77,8 @@ public class SearchSourceBuilder {
     private List<String> fieldNames;
 
     private SearchSourceFacetsBuilder facetsBuilder;
+
+    private SearchSourceHighlightBuilder highlightBuilder;
 
     private TObjectFloatHashMap<String> indexBoost = null;
 
@@ -176,6 +185,14 @@ public class SearchSourceBuilder {
     }
 
     /**
+     * Adds highlight to perform as part of the search.
+     */
+    public SearchSourceBuilder highlight(SearchSourceHighlightBuilder highlightBuilder) {
+        this.highlightBuilder = highlightBuilder;
+        return this;
+    }
+
+    /**
      * Sets the fields to load and return as part of the search request. If none are specified,
      * the source of the document will be returend.
      */
@@ -275,6 +292,10 @@ public class SearchSourceBuilder {
 
             if (facetsBuilder != null) {
                 facetsBuilder.toJson(builder, ToJson.EMPTY_PARAMS);
+            }
+
+            if (highlightBuilder != null) {
+                highlightBuilder.toJson(builder, ToJson.EMPTY_PARAMS);
             }
 
             builder.endObject();

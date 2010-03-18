@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.json.JsonBuilder;
@@ -36,6 +37,7 @@ import java.util.Iterator;
 import java.util.Map;
 
 import static org.elasticsearch.search.SearchShardTarget.*;
+import static org.elasticsearch.search.highlight.HighlightField.*;
 import static org.elasticsearch.search.internal.InternalSearchHitField.*;
 import static org.elasticsearch.util.json.Jackson.*;
 import static org.elasticsearch.util.lucene.Lucene.*;
@@ -45,13 +47,17 @@ import static org.elasticsearch.util.lucene.Lucene.*;
  */
 public class InternalSearchHit implements SearchHit {
 
+    private transient int docId;
+
     private String id;
 
     private String type;
 
     private byte[] source;
 
-    private Map<String, SearchHitField> fields;
+    private Map<String, SearchHitField> fields = ImmutableMap.of();
+
+    private Map<String, HighlightField> highlightFields = ImmutableMap.of();
 
     private Explanation explanation;
 
@@ -61,11 +67,16 @@ public class InternalSearchHit implements SearchHit {
 
     }
 
-    public InternalSearchHit(String id, String type, byte[] source, Map<String, SearchHitField> fields) {
+    public InternalSearchHit(int docId, String id, String type, byte[] source, Map<String, SearchHitField> fields) {
+        this.docId = docId;
         this.id = id;
         this.type = type;
         this.source = source;
         this.fields = fields;
+    }
+
+    public int docId() {
+        return this.docId;
     }
 
     @Override public String index() {
@@ -114,6 +125,14 @@ public class InternalSearchHit implements SearchHit {
         this.fields = fields;
     }
 
+    @Override public Map<String, HighlightField> highlightFields() {
+        return this.highlightFields;
+    }
+
+    public void highlightFields(Map<String, HighlightField> highlightFields) {
+        this.highlightFields = highlightFields;
+    }
+
     @Override public Explanation explanation() {
         return explanation;
     }
@@ -122,16 +141,12 @@ public class InternalSearchHit implements SearchHit {
         this.explanation = explanation;
     }
 
-    public SearchShardTarget shard() {
+    @Override public SearchShardTarget shard() {
         return shard;
     }
 
     public void shard(SearchShardTarget target) {
         this.shard = target;
-    }
-
-    @Override public SearchShardTarget target() {
-        return null;
     }
 
     @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
@@ -145,9 +160,9 @@ public class InternalSearchHit implements SearchHit {
             builder.raw(", \"_source\" : ");
             builder.raw(source());
         }
-        if (fields() != null && !fields().isEmpty()) {
+        if (fields != null && !fields.isEmpty()) {
             builder.startObject("fields");
-            for (SearchHitField field : fields().values()) {
+            for (SearchHitField field : fields.values()) {
                 if (field.values().isEmpty()) {
                     continue;
                 }
@@ -158,6 +173,22 @@ public class InternalSearchHit implements SearchHit {
                     builder.startArray();
                     for (Object value : field.values()) {
                         builder.value(value);
+                    }
+                    builder.endArray();
+                }
+            }
+            builder.endObject();
+        }
+        if (highlightFields != null && !highlightFields.isEmpty()) {
+            builder.startObject("highlight");
+            for (HighlightField field : highlightFields.values()) {
+                builder.field(field.name());
+                if (field.fragments() == null) {
+                    builder.nullValue();
+                } else {
+                    builder.startArray();
+                    for (String fragment : field.fragments()) {
+                        builder.value(fragment);
                     }
                     builder.endArray();
                 }
@@ -239,6 +270,37 @@ public class InternalSearchHit implements SearchHit {
             }
             fields = builder.build();
         }
+
+        size = in.readInt();
+        if (size == 0) {
+            highlightFields = ImmutableMap.of();
+        } else if (size == 1) {
+            HighlightField field = readHighlightField(in);
+            highlightFields = ImmutableMap.of(field.name(), field);
+        } else if (size == 2) {
+            HighlightField field1 = readHighlightField(in);
+            HighlightField field2 = readHighlightField(in);
+            highlightFields = ImmutableMap.of(field1.name(), field1, field2.name(), field2);
+        } else if (size == 3) {
+            HighlightField field1 = readHighlightField(in);
+            HighlightField field2 = readHighlightField(in);
+            HighlightField field3 = readHighlightField(in);
+            highlightFields = ImmutableMap.of(field1.name(), field1, field2.name(), field2, field3.name(), field3);
+        } else if (size == 4) {
+            HighlightField field1 = readHighlightField(in);
+            HighlightField field2 = readHighlightField(in);
+            HighlightField field3 = readHighlightField(in);
+            HighlightField field4 = readHighlightField(in);
+            highlightFields = ImmutableMap.of(field1.name(), field1, field2.name(), field2, field3.name(), field3, field4.name(), field4);
+        } else {
+            ImmutableMap.Builder<String, HighlightField> builder = ImmutableMap.builder();
+            for (int i = 0; i < size; i++) {
+                HighlightField field = readHighlightField(in);
+                builder.put(field.name(), field);
+            }
+            highlightFields = builder.build();
+        }
+
         if (in.readBoolean()) {
             shard = readSearchShardTarget(in);
         }
@@ -265,6 +327,14 @@ public class InternalSearchHit implements SearchHit {
             out.writeInt(fields.size());
             for (SearchHitField hitField : fields().values()) {
                 hitField.writeTo(out);
+            }
+        }
+        if (highlightFields == null) {
+            out.writeInt(0);
+        } else {
+            out.writeInt(highlightFields.size());
+            for (HighlightField highlightField : highlightFields.values()) {
+                highlightField.writeTo(out);
             }
         }
         if (shard == null) {

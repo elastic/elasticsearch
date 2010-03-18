@@ -95,6 +95,10 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         return this.reason;
     }
 
+    @Override public String toString() {
+        return "Search Failure Shard " + shardTarget + ", reason [" + reason + "]";
+    }
+
     public static ShardSearchFailure readShardSearchFailure(DataInput in) throws IOException, ClassNotFoundException {
         ShardSearchFailure shardSearchFailure = new ShardSearchFailure();
         shardSearchFailure.readFrom(in);

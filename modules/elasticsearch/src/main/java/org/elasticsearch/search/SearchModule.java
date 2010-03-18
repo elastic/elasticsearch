@@ -25,6 +25,7 @@ import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.facets.FacetsPhase;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.query.QueryPhase;
 
 /**
@@ -37,6 +38,7 @@ public class SearchModule extends AbstractModule {
         bind(FacetsPhase.class).asEagerSingleton();
         bind(QueryPhase.class).asEagerSingleton();
         bind(FetchPhase.class).asEagerSingleton();
+        bind(HighlightPhase.class).asEagerSingleton();
         bind(SearchService.class).asEagerSingleton();
         bind(SearchPhaseController.class).asEagerSingleton();
 

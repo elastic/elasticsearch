@@ -78,6 +78,24 @@ public abstract class JsonBuilder<T extends JsonBuilder> {
         return builder;
     }
 
+    public T array(String name, String... values) throws IOException {
+        startArray(name);
+        for (String value : values) {
+            value(value);
+        }
+        endArray();
+        return builder;
+    }
+
+    public T array(String name, Object... values) throws IOException {
+        startArray(name);
+        for (Object value : values) {
+            value(value);
+        }
+        endArray();
+        return builder;
+    }
+
     public T startArray(String name) throws IOException {
         field(name);
         startArray();
@@ -224,6 +242,11 @@ public abstract class JsonBuilder<T extends JsonBuilder> {
 
     public T nullField(String name) throws IOException {
         generator.writeNullField(name);
+        return builder;
+    }
+
+    public T nullValue() throws IOException {
+        generator.writeNull();
         return builder;
     }
 

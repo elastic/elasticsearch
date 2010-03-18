@@ -28,7 +28,6 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.SearchContextFacets;
 import org.elasticsearch.util.lucene.Lucene;
 
 import java.io.IOException;

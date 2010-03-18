@@ -122,6 +122,14 @@ public class DocumentFieldMappers implements Iterable<FieldMapper> {
         return indexName(name);
     }
 
+    public FieldMapper smartNameFieldMapper(String name) {
+        FieldMappers fieldMappers = smartName(name);
+        if (fieldMappers == null) {
+            return null;
+        }
+        return fieldMappers.mapper();
+    }
+
     /**
      * A smart analyzer used for indexing that takes into account specific analyzers configured
      * per {@link FieldMapper}.

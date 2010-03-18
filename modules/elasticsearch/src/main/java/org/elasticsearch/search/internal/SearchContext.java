@@ -33,7 +33,9 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.search.facets.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.lease.Releasable;
@@ -88,6 +90,8 @@ public class SearchContext implements Releasable {
     private int[] docIdsToLoad;
 
     private SearchContextFacets facets;
+
+    private SearchContextHighlight highlight;
 
 
     private boolean queryRewritten;
@@ -165,8 +169,12 @@ public class SearchContext implements Releasable {
         return this;
     }
 
-    public Engine.Searcher engineSearcher() {
-        return this.engineSearcher;
+    public SearchContextHighlight highlight() {
+        return highlight;
+    }
+
+    public void highlight(SearchContextHighlight highlight) {
+        this.highlight = highlight;
     }
 
     public ContextIndexSearcher searcher() {

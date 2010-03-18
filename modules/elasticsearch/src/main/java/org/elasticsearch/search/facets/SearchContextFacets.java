@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.internal;
+package org.elasticsearch.search.facets;
 
 import org.apache.lucene.search.Query;
 

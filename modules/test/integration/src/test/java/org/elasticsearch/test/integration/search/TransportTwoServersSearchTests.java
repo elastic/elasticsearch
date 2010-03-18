@@ -28,15 +28,20 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.integration.AbstractServersTests;
 import org.elasticsearch.util.Unicode;
+import org.elasticsearch.util.json.JsonBuilder;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
+
+import java.io.IOException;
+import java.util.Arrays;
 
 import static org.elasticsearch.action.search.SearchType.*;
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.index.query.json.JsonQueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.*;
 import static org.elasticsearch.util.TimeValue.*;
+import static org.elasticsearch.util.json.JsonBuilder.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -75,6 +80,7 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
                 .from(0).size(60).explain(true);
 
         SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(DFS_QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
 
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
         assertThat(searchResponse.hits().hits().length, equalTo(60));
@@ -102,6 +108,7 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
                 .from(0).size(60).explain(true).sort("age", false);
 
         SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(DFS_QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
         assertThat(searchResponse.hits().hits().length, equalTo(60));
         for (int i = 0; i < 60; i++) {
@@ -126,6 +133,7 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
                 .from(0).size(60).explain(true);
 
         SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
         assertThat(searchResponse.hits().hits().length, equalTo(60));
         for (int i = 0; i < 60; i++) {
@@ -150,6 +158,7 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
                 .from(0).size(60).explain(true).sort("age", false);
 
         SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
         assertThat(searchResponse.hits().hits().length, equalTo(60));
         for (int i = 0; i < 60; i++) {
@@ -174,6 +183,7 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
                 .from(0).size(20).explain(true);
 
         SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_AND_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
         assertThat(searchResponse.hits().hits().length, equalTo(60)); // 20 per shard
         for (int i = 0; i < 60; i++) {
@@ -199,6 +209,7 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
                 .from(0).size(20).explain(true);
 
         SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(DFS_QUERY_AND_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
         assertThat(searchResponse.hits().hits().length, equalTo(60)); // 20 per shard
         for (int i = 0; i < 60; i++) {
@@ -225,6 +236,7 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
                 .facets(facets().facet("all", termQuery("multi", "test"), true).facet("test1", termQuery("name", "test1")));
 
         SearchResponse searchResponse = client.search(searchRequest("test").source(sourceBuilder)).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
 
         assertThat(searchResponse.facets().countFacet("test1").count(), equalTo(1l));
@@ -248,15 +260,21 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
     }
 
 
-    private void index(Client client, String id, String nameValue, int age) {
+    private void index(Client client, String id, String nameValue, int age) throws IOException {
         client.index(Requests.indexRequest("test").type("type1").id(id).source(source(id, nameValue, age))).actionGet();
     }
 
-    private String source(String id, String nameValue, int age) {
+    private JsonBuilder source(String id, String nameValue, int age) throws IOException {
         StringBuilder multi = new StringBuilder().append(nameValue);
         for (int i = 0; i < age; i++) {
             multi.append(" ").append(nameValue);
         }
-        return "{ type1 : { \"id\" : \"" + id + "\", \"name\" : \"" + (nameValue + id) + "\", age : " + age + ", multi : \"" + multi.toString() + "\", _boost : " + (age * 10) + " } }";
+        return binaryJsonBuilder().startObject()
+                .field("id", id)
+                .field("name", nameValue + id)
+                .field("age", age)
+                .field("multi", multi.toString())
+                .field("_boost", age * 10)
+                .endObject();
     }
 }

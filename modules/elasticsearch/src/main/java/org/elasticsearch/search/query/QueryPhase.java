@@ -24,6 +24,7 @@ import com.google.inject.Inject;
 import org.apache.lucene.search.*;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.search.SearchParseElement;
+import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.facets.FacetsPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -54,6 +55,9 @@ public class QueryPhase implements SearchPhase {
     }
 
     @Override public void preProcess(SearchContext context) {
+        if (context.query() == null) {
+            throw new SearchParseException(context, "No query specified in search request");
+        }
         context.query().setBoost(context.query().getBoost() * context.queryBoost());
         facetsPhase.preProcess(context);
     }

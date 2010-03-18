@@ -115,7 +115,13 @@ public class RestSearchAction extends BaseRestHandler {
 
     private SearchRequest parseSearchRequest(RestRequest request) {
         String[] indices = RestActions.splitIndices(request.param("index"));
-        SearchRequest searchRequest = new SearchRequest(indices, parseSearchSource(request));
+        SearchRequest searchRequest = new SearchRequest(indices);
+        // get the content, and put it in the body
+        if (request.hasContent()) {
+            searchRequest.source(request.contentAsBytes());
+        }
+        // add extra source based on the request parameters
+        searchRequest.extraSource(parseSearchSource(request));
 
         searchRequest.searchType(parseSearchType(request.param("searchType")));
 
@@ -157,29 +163,26 @@ public class RestSearchAction extends BaseRestHandler {
     }
 
     private byte[] parseSearchSource(RestRequest request) {
-        if (request.hasContent()) {
-            return request.contentAsBytes();
-        }
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         String queryString = request.param("q");
-        if (queryString == null) {
-            throw new ElasticSearchIllegalArgumentException("No query to execute, not in body, and not bounded to 'q' parameter");
-        }
-        QueryStringJsonQueryBuilder queryBuilder = JsonQueryBuilders.queryString(queryString);
-        queryBuilder.defaultField(request.param("df"));
-        queryBuilder.analyzer(request.param("analyzer"));
-        String defaultOperator = request.param("defaultOperator");
-        if (defaultOperator != null) {
-            if ("OR".equals(defaultOperator)) {
-                queryBuilder.defaultOperator(QueryStringJsonQueryBuilder.Operator.OR);
-            } else if ("AND".equals(defaultOperator)) {
-                queryBuilder.defaultOperator(QueryStringJsonQueryBuilder.Operator.AND);
-            } else {
-                throw new ElasticSearchIllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
+        if (queryString != null) {
+            QueryStringJsonQueryBuilder queryBuilder = JsonQueryBuilders.queryString(queryString);
+            queryBuilder.defaultField(request.param("df"));
+            queryBuilder.analyzer(request.param("analyzer"));
+            String defaultOperator = request.param("defaultOperator");
+            if (defaultOperator != null) {
+                if ("OR".equals(defaultOperator)) {
+                    queryBuilder.defaultOperator(QueryStringJsonQueryBuilder.Operator.OR);
+                } else if ("AND".equals(defaultOperator)) {
+                    queryBuilder.defaultOperator(QueryStringJsonQueryBuilder.Operator.AND);
+                } else {
+                    throw new ElasticSearchIllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
+                }
             }
+            searchSourceBuilder.query(queryBuilder);
         }
         // TODO add different parameters to the query
 
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder);
 
         searchSourceBuilder.queryParserName(request.param("queryParserName"));
         searchSourceBuilder.explain(request.paramAsBoolean("explain", false));

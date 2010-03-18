@@ -201,7 +201,7 @@ public class SearchRequest implements ActionRequest {
      * Allows to provide additional source that will be used as well.
      */
     public SearchRequest extraSource(byte[] source) {
-        this.source = source;
+        this.extraSource = source;
         return this;
     }
 
@@ -254,6 +254,13 @@ public class SearchRequest implements ActionRequest {
     public SearchRequest scroll(Scroll scroll) {
         this.scroll = scroll;
         return this;
+    }
+
+    /**
+     * If set, will enable scrolling of the search request for the specified timeout.
+     */
+    public SearchRequest scroll(TimeValue keepAlive) {
+        return scroll(new Scroll(keepAlive));
     }
 
     /**

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.fetch;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.inject.Inject;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldSelector;
 import org.apache.lucene.document.Fieldable;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
+import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.InternalSearchHits;
@@ -43,11 +45,22 @@ import java.util.Map;
  */
 public class FetchPhase implements SearchPhase {
 
+    private final HighlightPhase highlightPhase;
+
+    @Inject public FetchPhase(HighlightPhase highlightPhase) {
+        this.highlightPhase = highlightPhase;
+    }
+
     @Override public Map<String, ? extends SearchParseElement> parseElements() {
-        return ImmutableMap.of("explain", new ExplainParseElement(), "fields", new FieldsParseElement());
+        ImmutableMap.Builder<String, SearchParseElement> parseElements = ImmutableMap.builder();
+        parseElements.put("explain", new ExplainParseElement())
+                .put("fields", new FieldsParseElement())
+                .putAll(highlightPhase.parseElements());
+        return parseElements.build();
     }
 
     @Override public void preProcess(SearchContext context) {
+        highlightPhase.preProcess(context);
     }
 
     public void execute(SearchContext context) {
@@ -63,7 +76,7 @@ public class FetchPhase implements SearchPhase {
 
             byte[] source = extractSource(doc, documentMapper);
 
-            InternalSearchHit searchHit = new InternalSearchHit(uid.id(), uid.type(), source, null);
+            InternalSearchHit searchHit = new InternalSearchHit(docId, uid.id(), uid.type(), source, null);
             hits[index] = searchHit;
 
             for (Object oField : doc.getFields()) {
@@ -102,6 +115,8 @@ public class FetchPhase implements SearchPhase {
             index++;
         }
         context.fetchResult().hits(new InternalSearchHits(hits, context.queryResult().topDocs().totalHits));
+
+        highlightPhase.execute(context);
     }
 
     private void doExplanation(SearchContext context, int docId, InternalSearchHit searchHit) {

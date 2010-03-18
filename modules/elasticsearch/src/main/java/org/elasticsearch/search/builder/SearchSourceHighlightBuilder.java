@@ -1,0 +1,192 @@
+/*
+ * Licensed to Elastic Search and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Elastic Search licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.search.builder;
+
+import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.json.ToJson;
+
+import java.io.IOException;
+import java.util.List;
+
+import static com.google.common.collect.Lists.*;
+
+/**
+ * A builder for search highlighting.
+ *
+ * @author kimchy (shay.banon)
+ * @see SearchSourceBuilder#highlight()
+ */
+public class SearchSourceHighlightBuilder implements ToJson {
+
+    private List<Field> fields;
+
+    private String tagsSchema;
+
+    private String[] preTags;
+
+    private String[] postTags;
+
+    private String order;
+
+    /**
+     * Adds a field to be highlighted with default fragment size of 100 characters, and
+     * default number of fragments of 5.
+     *
+     * @param name The field to highlight
+     */
+    public SearchSourceHighlightBuilder field(String name) {
+        if (fields == null) {
+            fields = newArrayList();
+        }
+        fields.add(new Field(name));
+        return this;
+    }
+
+    /**
+     * Adds a field to be highlighted with a provided fragment size (in characters), and
+     * default number of fragments of 5.
+     *
+     * @param name         The field to highlight
+     * @param fragmentSize The size of a fragment in characters
+     */
+    public SearchSourceHighlightBuilder field(String name, int fragmentSize) {
+        if (fields == null) {
+            fields = newArrayList();
+        }
+        fields.add(new Field(name).fragmentSize(fragmentSize));
+        return this;
+    }
+
+    /**
+     * Adds a field to be highlighted with a provided fragment size (in characters), and
+     * a provided (maximum) number of fragments.
+     *
+     * @param name              The field to highlight
+     * @param fragmentSize      The size of a fragment in characters
+     * @param numberOfFragments The (maximum) number of fragments
+     */
+    public SearchSourceHighlightBuilder field(String name, int fragmentSize, int numberOfFragments) {
+        if (fields == null) {
+            fields = newArrayList();
+        }
+        fields.add(new Field(name).fragmentSize(fragmentSize).numOfFragments(numberOfFragments));
+        return this;
+    }
+
+    /**
+     * Set a tag scheme that encapsulates a built in pre and post tags. The allows schemes
+     * are <tt>styled</tt> and <tt>default</tt>.
+     *
+     * @param schemaName The tag scheme name
+     */
+    public SearchSourceHighlightBuilder tagsSchema(String schemaName) {
+        this.tagsSchema = schemaName;
+        return this;
+    }
+
+    /**
+     * Explicitly set the pre tags that will be used for highlighting.
+     */
+    public SearchSourceHighlightBuilder preTags(String... preTags) {
+        this.preTags = preTags;
+        return this;
+    }
+
+    /**
+     * Explicitly set the post tags that will be used for highlighting.
+     */
+    public SearchSourceHighlightBuilder postTags(String... postTags) {
+        this.postTags = postTags;
+        return this;
+    }
+
+    /**
+     * The order of fragments per field. By default, ordered by the order in the
+     * highlighted text. Can be <tt>score</tt>, which then it will be ordered
+     * by score of the fragments.
+     */
+    public SearchSourceHighlightBuilder order(String order) {
+        this.order = order;
+        return this;
+    }
+
+    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
+        builder.startObject("highlight");
+        if (tagsSchema != null) {
+            builder.field("tagsSchema", tagsSchema);
+        }
+        if (preTags != null) {
+            builder.array("preTags", preTags);
+        }
+        if (postTags != null) {
+            builder.array("postTags", postTags);
+        }
+        if (order != null) {
+            builder.field("order", order);
+        }
+        if (fields != null) {
+            builder.startObject("fields");
+            for (Field field : fields) {
+                builder.startObject(field.name());
+                if (field.fragmentSize() != -1) {
+                    builder.field("fragmentSize", field.fragmentSize());
+                }
+                if (field.numOfFragments() != -1) {
+                    builder.field("numberOfFragments", field.numOfFragments());
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+    }
+
+    private static class Field {
+        private final String name;
+        private int fragmentSize = -1;
+        private int numOfFragments = -1;
+
+        private Field(String name) {
+            this.name = name;
+        }
+
+        public String name() {
+            return name;
+        }
+
+        public int fragmentSize() {
+            return fragmentSize;
+        }
+
+        public Field fragmentSize(int fragmentSize) {
+            this.fragmentSize = fragmentSize;
+            return this;
+        }
+
+        public int numOfFragments() {
+            return numOfFragments;
+        }
+
+        public Field numOfFragments(int numOfFragments) {
+            this.numOfFragments = numOfFragments;
+            return this;
+        }
+    }
+}

@@ -107,7 +107,7 @@ public class RecoveryAction extends AbstractIndexShardComponent {
         snapshotTransportAction = shardId.index().name() + "/" + shardId.id() + "/recovery/snapshot";
         transportService.registerHandler(snapshotTransportAction, new SnapshotTransportRequestHandler());
 
-        this.fileChunkSize = componentSettings.getAsSize("fileChunkSize", new SizeValue(16, SizeUnit.KB));
+        this.fileChunkSize = componentSettings.getAsSize("fileChunkSize", new SizeValue(100, SizeUnit.KB));
         logger.trace("Recovery Action registered, using fileChunkSize[{}]", fileChunkSize);
     }
 

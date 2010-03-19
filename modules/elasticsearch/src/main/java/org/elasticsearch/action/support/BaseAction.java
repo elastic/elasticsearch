@@ -50,7 +50,11 @@ public abstract class BaseAction<Request extends ActionRequest, Response extends
             listener.onFailure(validationException);
             return;
         }
-        doExecute(request, listener);
+        try {
+            doExecute(request, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     protected abstract void doExecute(Request request, ActionListener<Response> listener);

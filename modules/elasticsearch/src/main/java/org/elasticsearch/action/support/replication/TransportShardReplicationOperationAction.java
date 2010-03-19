@@ -218,7 +218,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             try {
                 shards = shards(request);
             } catch (Exception e) {
-                listener.onFailure(new ReplicationShardOperationFailedException(shards.shardId(), e));
+                listener.onFailure(e);
                 return true;
             }
 

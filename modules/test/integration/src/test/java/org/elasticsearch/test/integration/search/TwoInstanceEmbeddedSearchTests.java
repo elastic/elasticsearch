@@ -103,7 +103,7 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractServersTests {
         closeAllServers();
     }
 
-    @Test public void testDfsQueryFetch() throws Exception {
+    @Test public void testDfsQueryThenFetch() throws Exception {
         SearchSourceBuilder sourceBuilder = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(60).explain(true).indexBoost("test", 1.0f).indexBoost("test2", 2.0f);
@@ -145,11 +145,11 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractServersTests {
         }
 
         // now try and scroll to the next batch of results
-        Map<SearchShardTarget, QuerySearchResultProvider> scollQueryResults = newHashMap();
+        Map<SearchShardTarget, QuerySearchResultProvider> scrollQueryResults = newHashMap();
         for (QuerySearchResultProvider queryResult : queryResults.values()) {
-            scollQueryResults.put(queryResult.queryResult().shardTarget(), nodeToSearchService.get(queryResult.shardTarget().nodeId()).executeQueryPhase(new InternalScrollSearchRequest(queryResult.id())));
+            scrollQueryResults.put(queryResult.queryResult().shardTarget(), nodeToSearchService.get(queryResult.shardTarget().nodeId()).executeQueryPhase(new InternalScrollSearchRequest(queryResult.id())));
         }
-        queryResults = scollQueryResults;
+        queryResults = scrollQueryResults;
 
         sortedShardList = searchPhaseController.sortDocs(queryResults.values());
         docIdsToLoad = searchPhaseController.docIdsToLoad(sortedShardList);
@@ -171,7 +171,7 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractServersTests {
         }
     }
 
-    @Test public void testDfsQueryFetchWithSort() throws Exception {
+    @Test public void testDfsQueryThenFetchWithSort() throws Exception {
         SearchSourceBuilder sourceBuilder = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(60).explain(true).sort("age", false);
@@ -212,11 +212,11 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractServersTests {
         }
 
         // now try and scroll to the next batch of results
-        Map<SearchShardTarget, QuerySearchResultProvider> scollQueryResults = newHashMap();
+        Map<SearchShardTarget, QuerySearchResultProvider> scrollQueryResults = newHashMap();
         for (QuerySearchResultProvider queryResult : queryResults.values()) {
-            scollQueryResults.put(queryResult.queryResult().shardTarget(), nodeToSearchService.get(queryResult.shardTarget().nodeId()).executeQueryPhase(new InternalScrollSearchRequest(queryResult.id()).scroll(new Scroll(timeValueMinutes(10)))));
+            scrollQueryResults.put(queryResult.queryResult().shardTarget(), nodeToSearchService.get(queryResult.shardTarget().nodeId()).executeQueryPhase(new InternalScrollSearchRequest(queryResult.id()).scroll(new Scroll(timeValueMinutes(10)))));
         }
-        queryResults = scollQueryResults;
+        queryResults = scrollQueryResults;
 
         sortedShardList = searchPhaseController.sortDocs(queryResults.values());
         docIdsToLoad = searchPhaseController.docIdsToLoad(sortedShardList);
@@ -238,11 +238,11 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractServersTests {
         }
 
         // now try and scroll to the next next batch of results
-        scollQueryResults = newHashMap();
+        scrollQueryResults = newHashMap();
         for (QuerySearchResultProvider queryResult : queryResults.values()) {
-            scollQueryResults.put(queryResult.queryResult().shardTarget(), nodeToSearchService.get(queryResult.shardTarget().nodeId()).executeQueryPhase(new InternalScrollSearchRequest(queryResult.id())));
+            scrollQueryResults.put(queryResult.queryResult().shardTarget(), nodeToSearchService.get(queryResult.shardTarget().nodeId()).executeQueryPhase(new InternalScrollSearchRequest(queryResult.id())));
         }
-        queryResults = scollQueryResults;
+        queryResults = scrollQueryResults;
 
         sortedShardList = searchPhaseController.sortDocs(queryResults.values());
         docIdsToLoad = searchPhaseController.docIdsToLoad(sortedShardList);
@@ -260,7 +260,7 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractServersTests {
         assertThat(hits.hits().length, equalTo(0));
     }
 
-    @Test public void testQueryFetchInOneGo() {
+    @Test public void testQueryAndFetch() {
         SearchSourceBuilder sourceBuilder = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true);

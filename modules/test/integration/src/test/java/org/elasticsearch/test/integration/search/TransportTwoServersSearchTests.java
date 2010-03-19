@@ -198,13 +198,13 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
         }
 
         // TODO support scrolling
-//        searchResponse = searchScrollAction.submit(new SearchScrollRequest(searchResponse.scrollId())).actionGet();
+//        searchResponse = client.searchScroll(searchScrollRequest(searchResponse.scrollId())).actionGet();
 //
-//        assertEquals(100, searchResponse.hits().totalHits());
-//        assertEquals(40, searchResponse.hits().hits().length);
+//        assertThat(searchResponse.hits().totalHits(), equalTo(100l));
+//        assertThat(searchResponse.hits().hits().length, equalTo(40));
 //        for (int i = 0; i < 40; i++) {
 //            SearchHit hit = searchResponse.hits().hits()[i];
-//            assertEquals("id[" + hit.id() + "]", Integer.toString(100 - 60 - 1 - i), hit.id());
+//            assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - 60 - 1 - i)));
 //        }
     }
 

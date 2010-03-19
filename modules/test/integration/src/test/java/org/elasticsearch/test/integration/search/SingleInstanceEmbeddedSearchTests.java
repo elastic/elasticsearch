@@ -104,7 +104,7 @@ public class SingleInstanceEmbeddedSearchTests extends AbstractServersTests {
         assertThat(queryFetchResult.fetchResult().hits().hits()[0].type(), equalTo("type1"));
     }
 
-    @Test public void testQueryFetch() throws Exception {
+    @Test public void testQueryThenFetch() throws Exception {
         QuerySearchResult queryResult = searchService.executeQueryPhase(searchRequest(searchSource().query(termQuery("name", "test1"))));
         assertThat(queryResult.topDocs().totalHits, equalTo(1));
 
@@ -119,7 +119,7 @@ public class SingleInstanceEmbeddedSearchTests extends AbstractServersTests {
         assertThat(fetchResult.hits().hits()[0].type(), equalTo("type1"));
     }
 
-    @Test public void testQueryFetchInOneGo() throws Exception {
+    @Test public void testQueryAndFetch() throws Exception {
         QueryFetchSearchResult result = searchService.executeFetchPhase(searchRequest(searchSource().query(termQuery("name", "test1"))));
         FetchSearchResult fetchResult = result.fetchResult();
         assertThat(fetchResult.hits().hits()[0].sourceAsString(), equalTo(source("1", "test1", 1)));
@@ -127,7 +127,7 @@ public class SingleInstanceEmbeddedSearchTests extends AbstractServersTests {
         assertThat(fetchResult.hits().hits()[0].type(), equalTo("type1"));
     }
 
-    @Test public void testDfsQueryFetch() throws Exception {
+    @Test public void testDfsQueryThenFetch() throws Exception {
         DfsSearchResult dfsResult = searchService.executeDfsPhase(searchRequest(searchSource().query(termQuery("name", "test1"))));
         AggregatedDfs dfs = searchPhaseController.aggregateDfs(newArrayList(dfsResult));
 

@@ -46,7 +46,7 @@ import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TransportTwoServersSearchTests extends AbstractServersTests {
 
@@ -86,7 +86,8 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
         assertThat(searchResponse.hits().hits().length, equalTo(60));
         for (int i = 0; i < 60; i++) {
             SearchHit hit = searchResponse.hits().hits()[i];
-//            System.out.println(hit.target() + ": " +  hit.explanation());
+//            System.out.println(hit.shard() + ": " +  hit.explanation());
+            assertThat(hit.explanation(), notNullValue());
             assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
         }
 
@@ -113,7 +114,8 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
         assertThat(searchResponse.hits().hits().length, equalTo(60));
         for (int i = 0; i < 60; i++) {
             SearchHit hit = searchResponse.hits().hits()[i];
-//            System.out.println(hit.target() + ": " +  hit.explanation());
+//            System.out.println(hit.shard() + ": " +  hit.explanation());
+            assertThat(hit.explanation(), notNullValue());
             assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(i)));
         }
 
@@ -138,7 +140,8 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
         assertThat(searchResponse.hits().hits().length, equalTo(60));
         for (int i = 0; i < 60; i++) {
             SearchHit hit = searchResponse.hits().hits()[i];
-//            System.out.println(hit.target() + ": " +  hit.explanation());
+//            System.out.println(hit.shard() + ": " +  hit.explanation());
+            assertThat(hit.explanation(), notNullValue());
             assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
         }
 
@@ -163,7 +166,8 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
         assertThat(searchResponse.hits().hits().length, equalTo(60));
         for (int i = 0; i < 60; i++) {
             SearchHit hit = searchResponse.hits().hits()[i];
-//            System.out.println(hit.target() + ": " +  hit.explanation());
+//            System.out.println(hit.shard() + ": " +  hit.explanation());
+            assertThat(hit.explanation(), notNullValue());
             assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(i)));
         }
 
@@ -188,7 +192,8 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
         assertThat(searchResponse.hits().hits().length, equalTo(60)); // 20 per shard
         for (int i = 0; i < 60; i++) {
             SearchHit hit = searchResponse.hits().hits()[i];
-//            System.out.println(hit.target() + ": " +  hit.explanation());
+//            System.out.println(hit.shard() + ": " +  hit.explanation());
+            assertThat(hit.explanation(), notNullValue());
             assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
         }
 
@@ -214,7 +219,8 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
         assertThat(searchResponse.hits().hits().length, equalTo(60)); // 20 per shard
         for (int i = 0; i < 60; i++) {
             SearchHit hit = searchResponse.hits().hits()[i];
-//            System.out.println(hit.target() + ": " +  hit.explanation());
+//            System.out.println(hit.shard() + ": " +  hit.explanation());
+            assertThat(hit.explanation(), notNullValue());
             assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
         }
 

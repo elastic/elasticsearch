@@ -127,7 +127,7 @@ public class SearchSourceBuilder {
      * Should each {@link org.elasticsearch.search.SearchHit} be returned with an
      * explanation of the hit (ranking).
      */
-    public SearchSourceBuilder explain(boolean explain) {
+    public SearchSourceBuilder explain(Boolean explain) {
         this.explain = explain;
         return this;
     }

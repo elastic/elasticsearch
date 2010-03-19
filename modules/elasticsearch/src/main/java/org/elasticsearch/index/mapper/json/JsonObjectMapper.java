@@ -411,7 +411,7 @@ public class JsonObjectMapper implements JsonMapper, JsonIncludeInAllMapper {
     }
 
     @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
-        toJson(builder, params, null);
+        toJson(builder, params, JsonMapper.EMPTY_ARRAY);
     }
 
     public void toJson(JsonBuilder builder, Params params, JsonMapper... additionalMappers) throws IOException {

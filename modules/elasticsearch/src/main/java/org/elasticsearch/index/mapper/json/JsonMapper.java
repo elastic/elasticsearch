@@ -33,6 +33,8 @@ import java.io.IOException;
 @ThreadSafe
 public interface JsonMapper extends ToJson {
 
+    public static final JsonMapper[] EMPTY_ARRAY = new JsonMapper[0];
+
     @NotThreadSafe
     public static class BuilderContext {
         private final JsonPath jsonPath;

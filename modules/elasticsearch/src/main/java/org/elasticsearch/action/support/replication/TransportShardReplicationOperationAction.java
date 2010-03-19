@@ -42,12 +42,12 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.io.Streamable;
 import org.elasticsearch.util.io.VoidStreamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.settings.Settings;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -176,14 +176,14 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             this.request = request;
         }
 
-        @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
-            shardId = in.readInt();
+        @Override public void readFrom(StreamInput in) throws IOException {
+            shardId = in.readVInt();
             request = newRequestInstance();
             request.readFrom(in);
         }
 
-        @Override public void writeTo(DataOutput out) throws IOException {
-            out.writeInt(shardId);
+        @Override public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(shardId);
             request.writeTo(out);
         }
     }

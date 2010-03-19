@@ -29,9 +29,9 @@ import org.elasticsearch.util.Bytes;
 import org.elasticsearch.util.Required;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.Unicode;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import static org.elasticsearch.search.Scroll.*;
@@ -450,35 +450,35 @@ public class MoreLikeThisRequest implements ActionRequest {
         return this;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         index = in.readUTF();
         type = in.readUTF();
         id = in.readUTF();
         // no need to pass threading over the network, they are always false when coming throw a thread pool
-        int size = in.readInt();
+        int size = in.readVInt();
         if (size == 0) {
             fields = Strings.EMPTY_ARRAY;
         } else {
-            fields = new String[in.readInt()];
+            fields = new String[size];
             for (int i = 0; i < size; i++) {
                 fields[i] = in.readUTF();
             }
         }
 
         percentTermsToMatch = in.readFloat();
-        minTermFrequency = in.readInt();
-        maxQueryTerms = in.readInt();
-        size = in.readInt();
+        minTermFrequency = in.readVInt();
+        maxQueryTerms = in.readVInt();
+        size = in.readVInt();
         if (size > 0) {
             stopWords = new String[size];
             for (int i = 0; i < size; i++) {
                 stopWords[i] = in.readUTF();
             }
         }
-        minDocFreq = in.readInt();
-        maxDocFreq = in.readInt();
-        minWordLen = in.readInt();
-        maxWordLen = in.readInt();
+        minDocFreq = in.readVInt();
+        maxDocFreq = in.readVInt();
+        minWordLen = in.readVInt();
+        maxWordLen = in.readVInt();
         if (in.readBoolean()) {
             boostTerms = in.readBoolean();
         }
@@ -487,68 +487,68 @@ public class MoreLikeThisRequest implements ActionRequest {
         if (in.readBoolean()) {
             searchQueryHint = in.readUTF();
         }
-        size = in.readInt();
-        if (size == -1) {
+        size = in.readVInt();
+        if (size == 0) {
             searchIndices = null;
-        } else if (size == 0) {
+        } else if (size == 1) {
             searchIndices = Strings.EMPTY_ARRAY;
         } else {
-            searchIndices = new String[size];
-            for (int i = 0; i < size; i++) {
+            searchIndices = new String[size - 1];
+            for (int i = 0; i < searchIndices.length; i++) {
                 searchIndices[i] = in.readUTF();
             }
         }
-        size = in.readInt();
-        if (size == -1) {
+        size = in.readVInt();
+        if (size == 0) {
             searchTypes = null;
-        } else if (size == 0) {
+        } else if (size == 1) {
             searchTypes = Strings.EMPTY_ARRAY;
         } else {
-            searchTypes = new String[size];
-            for (int i = 0; i < size; i++) {
+            searchTypes = new String[size - 1];
+            for (int i = 0; i < searchTypes.length; i++) {
                 searchTypes[i] = in.readUTF();
             }
         }
         if (in.readBoolean()) {
             searchScroll = readScroll(in);
         }
-        size = in.readInt();
+        size = in.readVInt();
         if (size == 0) {
             searchSource = Bytes.EMPTY_ARRAY;
         } else {
-            searchSource = new byte[in.readInt()];
+            searchSource = new byte[in.readVInt()];
             in.readFully(searchSource);
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(index);
         out.writeUTF(type);
         out.writeUTF(id);
         if (fields == null) {
-            out.writeInt(0);
+            out.writeVInt(0);
         } else {
-            out.writeInt(fields.length);
+            out.writeVInt(fields.length);
             for (String field : fields) {
                 out.writeUTF(field);
             }
         }
 
         out.writeFloat(percentTermsToMatch);
-        out.writeInt(minTermFrequency);
-        out.writeInt(maxQueryTerms);
+        out.writeVInt(minTermFrequency);
+        out.writeVInt(maxQueryTerms);
         if (stopWords == null) {
-            out.writeInt(0);
+            out.writeVInt(0);
         } else {
-            out.writeInt(stopWords.length);
+            out.writeVInt(stopWords.length);
             for (String stopWord : stopWords) {
                 out.writeUTF(stopWord);
             }
         }
-        out.writeInt(minDocFreq);
-        out.writeInt(maxDocFreq);
-        out.writeInt(minWordLen);
-        out.writeInt(maxWordLen);
+        out.writeVInt(minDocFreq);
+        out.writeVInt(maxDocFreq);
+        out.writeVInt(minWordLen);
+        out.writeVInt(maxWordLen);
         if (boostTerms == null) {
             out.writeBoolean(false);
         } else {
@@ -565,17 +565,17 @@ public class MoreLikeThisRequest implements ActionRequest {
             out.writeUTF(searchQueryHint);
         }
         if (searchIndices == null) {
-            out.writeInt(-1);
+            out.writeVInt(0);
         } else {
-            out.writeInt(searchIndices.length);
+            out.writeVInt(searchIndices.length + 1);
             for (String index : searchIndices) {
                 out.writeUTF(index);
             }
         }
         if (searchTypes == null) {
-            out.writeInt(-1);
+            out.writeVInt(0);
         } else {
-            out.writeInt(searchTypes.length);
+            out.writeVInt(searchTypes.length + 1);
             for (String type : searchTypes) {
                 out.writeUTF(type);
             }
@@ -587,10 +587,10 @@ public class MoreLikeThisRequest implements ActionRequest {
             searchScroll.writeTo(out);
         }
         if (searchSource == null) {
-            out.writeInt(0);
+            out.writeVInt(0);
         } else {
-            out.writeInt(searchSource.length);
-            out.write(searchSource);
+            out.writeVInt(searchSource.length);
+            out.writeBytes(searchSource);
         }
     }
 }

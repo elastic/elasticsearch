@@ -23,9 +23,9 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
@@ -94,9 +94,9 @@ public class ClusterHealthRequest extends MasterNodeOperationRequest {
         return null;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        int size = in.readInt();
+        int size = in.readVInt();
         if (size == 0) {
             indices = Strings.EMPTY_ARRAY;
         } else {
@@ -112,12 +112,12 @@ public class ClusterHealthRequest extends MasterNodeOperationRequest {
         waitForRelocatingShards = in.readInt();
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (indices == null) {
-            out.writeInt(0);
+            out.writeVInt(0);
         } else {
-            out.writeInt(indices.length);
+            out.writeVInt(indices.length);
             for (String index : indices) {
                 out.writeUTF(index);
             }

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.serialization;
+package org.elasticsearch.cluster.serialization;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -25,11 +25,13 @@ import org.elasticsearch.cluster.node.Node;
 import org.elasticsearch.cluster.node.Nodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.strategy.DefaultShardsRoutingStrategy;
-import org.elasticsearch.util.io.ByteArrayDataInputStream;
-import org.elasticsearch.util.io.ByteArrayDataOutputStream;
+import org.elasticsearch.util.io.stream.BytesStreamInput;
+import org.elasticsearch.util.io.stream.BytesStreamOutput;
+import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.transport.DummyTransportAddress;
 import org.testng.annotations.Test;
 
+import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.cluster.metadata.MetaData.*;
 import static org.elasticsearch.cluster.routing.RoutingBuilders.*;
@@ -39,9 +41,31 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class RoutingTableSerializationTests {
+public class ClusterSerializationTests {
 
-    @Test public void testSimple() throws Exception {
+    @Test public void testClusterStateSerialization() throws Exception {
+        MetaData metaData = newMetaDataBuilder()
+                .put(newIndexMetaDataBuilder("test").numberOfShards(10).numberOfReplicas(1))
+                .build();
+
+        RoutingTable routingTable = routingTable()
+                .add(indexRoutingTable("test").initializeEmpty(metaData.index("test")))
+                .build();
+
+        Nodes nodes = Nodes.newNodesBuilder().put(newNode("node1")).put(newNode("node2")).put(newNode("node3")).localNodeId("node1").masterNodeId("node2").build();
+
+        ClusterState clusterState = newClusterStateBuilder().nodes(nodes).metaData(metaData).routingTable(routingTable).build();
+
+        DefaultShardsRoutingStrategy strategy = new DefaultShardsRoutingStrategy();
+        clusterState = newClusterStateBuilder().state(clusterState).routingTable(strategy.reroute(clusterState)).build();
+
+        ClusterState serializedClusterState = ClusterState.Builder.fromBytes(ClusterState.Builder.toBytes(clusterState), ImmutableSettings.settingsBuilder().build(), newNode("node1"));
+
+        assertThat(serializedClusterState.routingTable().prettyPrint(), equalTo(clusterState.routingTable().prettyPrint()));
+    }
+
+
+    @Test public void testRoutingTableSerialization() throws Exception {
         MetaData metaData = newMetaDataBuilder()
                 .put(newIndexMetaDataBuilder("test").numberOfShards(10).numberOfReplicas(1))
                 .build();
@@ -52,14 +76,14 @@ public class RoutingTableSerializationTests {
 
         Nodes nodes = Nodes.newNodesBuilder().put(newNode("node1")).put(newNode("node2")).put(newNode("node3")).build();
 
-        ClusterState clusterState = ClusterState.newClusterStateBuilder().nodes(nodes).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = newClusterStateBuilder().nodes(nodes).metaData(metaData).routingTable(routingTable).build();
 
         DefaultShardsRoutingStrategy strategy = new DefaultShardsRoutingStrategy();
         RoutingTable source = strategy.reroute(clusterState);
 
-        ByteArrayDataOutputStream outStream = new ByteArrayDataOutputStream();
+        BytesStreamOutput outStream = new BytesStreamOutput();
         RoutingTable.Builder.writeTo(source, outStream);
-        ByteArrayDataInputStream inStream = new ByteArrayDataInputStream(outStream.copiedByteArray());
+        BytesStreamInput inStream = new BytesStreamInput(outStream.copiedByteArray());
         RoutingTable target = RoutingTable.Builder.readFrom(inStream);
 
         assertThat(target.prettyPrint(), equalTo(source.prettyPrint()));

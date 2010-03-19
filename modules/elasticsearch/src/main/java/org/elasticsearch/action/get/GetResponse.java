@@ -22,10 +22,10 @@ package org.elasticsearch.action.get;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.util.Unicode;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
@@ -143,18 +143,18 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
         return fields.values().iterator();
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         index = in.readUTF();
         type = in.readUTF();
         id = in.readUTF();
         exists = in.readBoolean();
         if (exists) {
-            int size = in.readInt();
+            int size = in.readVInt();
             if (size > 0) {
                 source = new byte[size];
                 in.readFully(source);
             }
-            size = in.readInt();
+            size = in.readVInt();
             if (size > 0) {
                 fields = newHashMapWithExpectedSize(size);
                 for (int i = 0; i < size; i++) {
@@ -165,22 +165,22 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(index);
         out.writeUTF(type);
         out.writeUTF(id);
         out.writeBoolean(exists);
         if (exists) {
             if (source == null) {
-                out.writeInt(0);
+                out.writeVInt(0);
             } else {
-                out.writeInt(source.length);
-                out.write(source);
+                out.writeVInt(source.length);
+                out.writeBytes(source);
             }
             if (fields == null) {
-                out.writeInt(0);
+                out.writeVInt(0);
             } else {
-                out.writeInt(fields.size());
+                out.writeVInt(fields.size());
                 for (GetField field : fields.values()) {
                     field.writeTo(out);
                 }

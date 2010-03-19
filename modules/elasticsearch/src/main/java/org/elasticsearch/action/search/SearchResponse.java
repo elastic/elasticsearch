@@ -23,11 +23,11 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facets.Facets;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.json.ToJson;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import static org.elasticsearch.action.search.ShardSearchFailure.*;
@@ -111,12 +111,6 @@ public class SearchResponse implements ActionResponse, ToJson {
         return scrollId;
     }
 
-    public static SearchResponse readSearchResponse(DataInput in) throws IOException, ClassNotFoundException {
-        SearchResponse response = new SearchResponse();
-        response.readFrom(in);
-        return response;
-    }
-
     @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
         if (scrollId != null) {
             builder.field("_scrollId", scrollId);
@@ -144,11 +138,17 @@ public class SearchResponse implements ActionResponse, ToJson {
         internalResponse.toJson(builder, params);
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    public static SearchResponse readSearchResponse(StreamInput in) throws IOException {
+        SearchResponse response = new SearchResponse();
+        response.readFrom(in);
+        return response;
+    }
+
+    @Override public void readFrom(StreamInput in) throws IOException {
         internalResponse = readInternalSearchResponse(in);
-        totalShards = in.readInt();
-        successfulShards = in.readInt();
-        int size = in.readInt();
+        totalShards = in.readVInt();
+        successfulShards = in.readVInt();
+        int size = in.readVInt();
         if (size == 0) {
             shardFailures = ShardSearchFailure.EMPTY_ARRAY;
         } else {
@@ -162,12 +162,12 @@ public class SearchResponse implements ActionResponse, ToJson {
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         internalResponse.writeTo(out);
-        out.writeInt(totalShards);
-        out.writeInt(successfulShards);
+        out.writeVInt(totalShards);
+        out.writeVInt(successfulShards);
 
-        out.writeInt(shardFailures.length);
+        out.writeVInt(shardFailures.length);
         for (ShardSearchFailure shardSearchFailure : shardFailures) {
             shardSearchFailure.writeTo(out);
         }

@@ -20,10 +20,10 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import static org.elasticsearch.util.TimeValue.*;
@@ -56,19 +56,19 @@ public class Scroll implements Streamable {
         return keepAlive;
     }
 
-    public static Scroll readScroll(DataInput in) throws IOException, ClassNotFoundException {
+    public static Scroll readScroll(StreamInput in) throws IOException {
         Scroll scroll = new Scroll();
         scroll.readFrom(in);
         return scroll;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             keepAlive = readTimeValue(in);
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         if (keepAlive == null) {
             out.writeBoolean(false);
         } else {

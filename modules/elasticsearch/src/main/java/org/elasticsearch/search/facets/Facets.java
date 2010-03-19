@@ -20,12 +20,12 @@
 package org.elasticsearch.search.facets;
 
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.json.ToJson;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
@@ -96,14 +96,14 @@ public class Facets implements Streamable, ToJson, Iterable<Facet> {
         builder.endObject();
     }
 
-    public static Facets readFacets(DataInput in) throws IOException, ClassNotFoundException {
+    public static Facets readFacets(StreamInput in) throws IOException {
         Facets result = new Facets();
         result.readFrom(in);
         return result;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
-        int size = in.readInt();
+    @Override public void readFrom(StreamInput in) throws IOException {
+        int size = in.readVInt();
         if (size == 0) {
             facets = EMPTY;
         } else {
@@ -119,10 +119,10 @@ public class Facets implements Streamable, ToJson, Iterable<Facet> {
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
-        out.writeInt(facets.size());
+    @Override public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(facets.size());
         for (Facet facet : facets) {
-            out.write(facet.type().id());
+            out.writeByte(facet.type().id());
             facet.writeTo(out);
         }
     }

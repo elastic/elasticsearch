@@ -17,18 +17,38 @@
  * under the License.
  */
 
-package org.elasticsearch.util.io;
+package org.elasticsearch.util.io.stream;
 
-import java.io.DataInput;
+import java.io.Closeable;
 import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public interface Streamable {
+public class DataOutputStreamOutput extends StreamOutput {
 
-    void readFrom(DataInput in) throws IOException, ClassNotFoundException;
+    private final DataOutput out;
 
-    void writeTo(DataOutput out) throws IOException;
+    public DataOutputStreamOutput(DataOutput out) {
+        this.out = out;
+    }
+
+    @Override public void writeByte(byte b) throws IOException {
+        out.write(b);
+    }
+
+    @Override public void writeBytes(byte[] b, int offset, int length) throws IOException {
+        out.write(b, offset, length);
+    }
+
+    @Override public void flush() throws IOException {
+        // nothing to do there...
+    }
+
+    @Override public void close() throws IOException {
+        if (out instanceof Closeable) {
+            ((Closeable) out).close();
+        }
+    }
 }

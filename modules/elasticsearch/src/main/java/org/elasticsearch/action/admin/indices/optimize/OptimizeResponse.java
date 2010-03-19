@@ -21,9 +21,9 @@ package org.elasticsearch.action.admin.indices.optimize;
 
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.List;
 
@@ -42,11 +42,11 @@ public class OptimizeResponse extends BroadcastOperationResponse {
         super(successfulShards, failedShards, shardFailures);
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
     }
 }

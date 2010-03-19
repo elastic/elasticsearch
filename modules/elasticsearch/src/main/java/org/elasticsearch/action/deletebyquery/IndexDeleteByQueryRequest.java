@@ -25,9 +25,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.util.Required;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import static org.elasticsearch.action.Actions.*;
@@ -99,14 +99,14 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         return this;
     }
 
-    public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        querySource = new byte[in.readInt()];
+        querySource = new byte[in.readVInt()];
         in.readFully(querySource);
         if (in.readBoolean()) {
             queryParserName = in.readUTF();
         }
-        int typesSize = in.readInt();
+        int typesSize = in.readVInt();
         if (typesSize > 0) {
             types = new String[typesSize];
             for (int i = 0; i < typesSize; i++) {
@@ -115,17 +115,17 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
         }
     }
 
-    public void writeTo(DataOutput out) throws IOException {
+    public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeInt(querySource.length);
-        out.write(querySource);
+        out.writeVInt(querySource.length);
+        out.writeBytes(querySource);
         if (queryParserName == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
             out.writeUTF(queryParserName);
         }
-        out.writeInt(types.length);
+        out.writeVInt(types.length);
         for (String type : types) {
             out.writeUTF(type);
         }

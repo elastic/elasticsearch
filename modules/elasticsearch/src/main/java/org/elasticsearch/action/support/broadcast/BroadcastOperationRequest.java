@@ -23,13 +23,13 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.Strings;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class BroadcastOperationRequest implements ActionRequest {
 
@@ -90,11 +90,11 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
         return this;
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         if (indices == null) {
-            out.writeInt(0);
+            out.writeVInt(0);
         } else {
-            out.writeInt(indices.length);
+            out.writeVInt(indices.length);
             for (String index : indices) {
                 out.writeUTF(index);
             }
@@ -108,8 +108,8 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
         out.writeByte(operationThreading.id());
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
-        int size = in.readInt();
+    @Override public void readFrom(StreamInput in) throws IOException {
+        int size = in.readVInt();
         if (size == 0) {
             indices = Strings.EMPTY_ARRAY;
         } else {

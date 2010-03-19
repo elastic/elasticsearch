@@ -23,9 +23,9 @@ import com.google.common.collect.Iterables;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -76,17 +76,17 @@ public class MemorySnapshot implements Translog.Snapshot {
         return Arrays.asList(Arrays.copyOfRange(operations, skipTo, operations.length));
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         id = in.readLong();
-        operations = new Translog.Operation[in.readInt()];
+        operations = new Translog.Operation[in.readVInt()];
         for (int i = 0; i < operations.length; i++) {
             operations[i] = readTranslogOperation(in);
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(id);
-        out.writeInt(operations.length);
+        out.writeVInt(operations.length);
         for (Translog.Operation op : operations) {
             writeTranslogOperation(out, op);
         }

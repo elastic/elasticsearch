@@ -22,11 +22,10 @@ package org.elasticsearch.transport.netty;
 import org.elasticsearch.transport.NotSerializableTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.util.io.ByteArrayDataOutputStream;
-import org.elasticsearch.util.io.Streamable;
 import org.elasticsearch.util.io.ThrowableObjectOutputStream;
+import org.elasticsearch.util.io.stream.BytesStreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBufferOutputStream;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
 
@@ -62,8 +61,8 @@ public class NettyTransportChannel implements TransportChannel {
     }
 
     @Override public void sendResponse(Streamable message) throws IOException {
-        ByteArrayDataOutputStream stream = ByteArrayDataOutputStream.Cached.cached();
-        stream.write(LENGTH_PLACEHOLDER); // fake size
+        BytesStreamOutput stream = BytesStreamOutput.Cached.cached();
+        stream.writeBytes(LENGTH_PLACEHOLDER); // fake size
         stream.writeLong(requestId);
         byte status = 0;
         status = setResponse(status);
@@ -75,34 +74,33 @@ public class NettyTransportChannel implements TransportChannel {
     }
 
     @Override public void sendResponse(Throwable error) throws IOException {
-        ChannelBuffer buffer = ChannelBuffers.dynamicBuffer(512, channel.getConfig().getBufferFactory());
-        ChannelBufferOutputStream os = new ChannelBufferOutputStream(buffer);
-
-        os.write(LENGTH_PLACEHOLDER);
-        os.writeLong(requestId);
-
-        byte status = 0;
-        status = setResponse(status);
-        status = setError(status);
-        os.writeByte(status);
-
-        // mark the buffer, so we can reset it when the exception is not serializable
-        os.flush();
-        buffer.markWriterIndex();
+        BytesStreamOutput stream;
         try {
+            stream = BytesStreamOutput.Cached.cached();
+            writeResponseExceptionHeader(stream);
             RemoteTransportException tx = new RemoteTransportException(transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()), action, error);
-            ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(os);
+            ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(stream);
             too.writeObject(tx);
             too.close();
         } catch (NotSerializableException e) {
-            buffer.resetWriterIndex();
+            stream = BytesStreamOutput.Cached.cached();
+            writeResponseExceptionHeader(stream);
             RemoteTransportException tx = new RemoteTransportException(transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()), action, new NotSerializableTransportException(error));
-            ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(os);
+            ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(stream);
             too.writeObject(tx);
             too.close();
         }
-
+        ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(stream.copiedByteArray());
         buffer.setInt(0, buffer.writerIndex() - 4); // update real size.
         channel.write(buffer);
+    }
+
+    private void writeResponseExceptionHeader(BytesStreamOutput stream) throws IOException {
+        stream.writeBytes(LENGTH_PLACEHOLDER);
+        stream.writeLong(requestId);
+        byte status = 0;
+        status = setResponse(status);
+        status = setError(status);
+        stream.writeByte(status);
     }
 }

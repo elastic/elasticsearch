@@ -39,6 +39,9 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
+import org.elasticsearch.util.io.stream.DataInputStreamInput;
+import org.elasticsearch.util.io.stream.DataOutputStreamOutput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.File;
@@ -175,14 +178,15 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
             try {
                 File f = new File(locationTranslog, "translog-" + translogSnapshot.translogId());
                 translogFile = new RandomAccessFile(f, "rw");
-                translogFile.writeInt(-1); // write the number of operations header with -1 currently
+                StreamOutput out = new DataOutputStreamOutput(translogFile);
+                out.writeInt(-1); // write the number of operations header with -1 currently
                 // double check that we managed to read/write correctly
                 translogFile.seek(0);
                 if (translogFile.readInt() != -1) {
                     throw new ElasticSearchIllegalStateException("Wrote to snapshot file [" + f + "] but did not read...");
                 }
                 for (Translog.Operation operation : translogSnapshot) {
-                    writeTranslogOperation(translogFile, operation);
+                    writeTranslogOperation(out, operation);
                 }
             } catch (Exception e) {
                 try {
@@ -196,8 +200,9 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
         } else if (translogSnapshot.size() > lastTranslogSize) {
             translogDirty = true;
             try {
+                StreamOutput out = new DataOutputStreamOutput(translogFile);
                 for (Translog.Operation operation : translogSnapshot.skipTo(lastTranslogSize)) {
-                    writeTranslogOperation(translogFile, operation);
+                    writeTranslogOperation(out, operation);
                 }
             } catch (Exception e) {
                 try {
@@ -307,7 +312,7 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
             int numberOfOperations = raf.readInt();
             ArrayList<Translog.Operation> operations = newArrayListWithExpectedSize(numberOfOperations);
             for (int i = 0; i < numberOfOperations; i++) {
-                operations.add(readTranslogOperation(raf));
+                operations.add(readTranslogOperation(new DataInputStreamInput(raf)));
             }
             indexShard.performRecovery(operations);
             return new RecoveryStatus.Translog(operations.size(), new SizeValue(recoveryTranslogFile.length(), SizeUnit.BYTES));

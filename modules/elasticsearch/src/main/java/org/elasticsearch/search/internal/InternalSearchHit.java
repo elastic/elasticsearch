@@ -28,10 +28,10 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.Unicode;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.json.JsonBuilder;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
@@ -217,16 +217,16 @@ public class InternalSearchHit implements SearchHit {
         builder.endObject();
     }
 
-    public static InternalSearchHit readSearchHit(DataInput in) throws IOException, ClassNotFoundException {
+    public static InternalSearchHit readSearchHit(StreamInput in) throws IOException {
         InternalSearchHit hit = new InternalSearchHit();
         hit.readFrom(in);
         return hit;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         id = in.readUTF();
         type = in.readUTF();
-        int size = in.readInt();
+        int size = in.readVInt();
         if (size > 0) {
             source = new byte[size];
             in.readFully(source);
@@ -234,7 +234,7 @@ public class InternalSearchHit implements SearchHit {
         if (in.readBoolean()) {
             explanation = readExplanation(in);
         }
-        size = in.readInt();
+        size = in.readVInt();
         if (size == 0) {
             fields = ImmutableMap.of();
         } else if (size == 1) {
@@ -271,7 +271,7 @@ public class InternalSearchHit implements SearchHit {
             fields = builder.build();
         }
 
-        size = in.readInt();
+        size = in.readVInt();
         if (size == 0) {
             highlightFields = ImmutableMap.of();
         } else if (size == 1) {
@@ -306,14 +306,14 @@ public class InternalSearchHit implements SearchHit {
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(id);
         out.writeUTF(type);
         if (source == null) {
-            out.writeInt(0);
+            out.writeVInt(0);
         } else {
-            out.writeInt(source.length);
-            out.write(source);
+            out.writeVInt(source.length);
+            out.writeBytes(source);
         }
         if (explanation == null) {
             out.writeBoolean(false);
@@ -322,17 +322,17 @@ public class InternalSearchHit implements SearchHit {
             writeExplanation(out, explanation);
         }
         if (fields == null) {
-            out.writeInt(0);
+            out.writeVInt(0);
         } else {
-            out.writeInt(fields.size());
+            out.writeVInt(fields.size());
             for (SearchHitField hitField : fields().values()) {
                 hitField.writeTo(out);
             }
         }
         if (highlightFields == null) {
-            out.writeInt(0);
+            out.writeVInt(0);
         } else {
-            out.writeInt(highlightFields.size());
+            out.writeVInt(highlightFields.size());
             for (HighlightField highlightField : highlightFields.values()) {
                 highlightField.writeTo(out);
             }

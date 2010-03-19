@@ -20,10 +20,10 @@
 package org.elasticsearch.action.admin.cluster.ping.replication;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -47,8 +47,8 @@ public class ReplicationPingResponse implements ActionResponse, Streamable {
         return responses.get(index);
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
-        int size = in.readInt();
+    @Override public void readFrom(StreamInput in) throws IOException {
+        int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             IndexReplicationPingResponse response = new IndexReplicationPingResponse();
             response.readFrom(in);
@@ -56,8 +56,8 @@ public class ReplicationPingResponse implements ActionResponse, Streamable {
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
-        out.writeInt(responses.size());
+    @Override public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(responses.size());
         for (IndexReplicationPingResponse response : responses.values()) {
             response.writeTo(out);
         }

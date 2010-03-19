@@ -20,10 +20,10 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.io.Serializable;
 
@@ -71,7 +71,7 @@ public interface ShardRouting extends Streamable, Serializable {
     /**
      * Does not write index name and shard id
      */
-    void writeToThin(DataOutput out) throws IOException;
+    void writeToThin(StreamOutput out) throws IOException;
 
-    void readFromThin(DataInput in) throws ClassNotFoundException, IOException;
+    void readFromThin(StreamInput in) throws ClassNotFoundException, IOException;
 }

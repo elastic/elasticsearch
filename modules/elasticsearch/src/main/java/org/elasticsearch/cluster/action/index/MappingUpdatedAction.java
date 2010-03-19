@@ -29,10 +29,10 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaDataService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.settings.Settings;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 /**
@@ -69,10 +69,10 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
     }
 
     public static class MappingUpdatedResponse implements ActionResponse {
-        @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+        @Override public void readFrom(StreamInput in) throws IOException {
         }
 
-        @Override public void writeTo(DataOutput out) throws IOException {
+        @Override public void writeTo(StreamOutput out) throws IOException {
         }
     }
 
@@ -109,14 +109,14 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
             return null;
         }
 
-        @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+        @Override public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             index = in.readUTF();
             type = in.readUTF();
             mappingSource = in.readUTF();
         }
 
-        @Override public void writeTo(DataOutput out) throws IOException {
+        @Override public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeUTF(index);
             out.writeUTF(type);

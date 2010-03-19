@@ -22,9 +22,9 @@ package org.elasticsearch.action.terms;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.index.mapper.AllFieldMapper;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 /**
@@ -353,9 +353,9 @@ public class TermsRequest extends BroadcastOperationRequest {
         return this;
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeInt(fields.length);
+        out.writeVInt(fields.length);
         for (String field : fields) {
             out.writeUTF(field);
         }
@@ -385,17 +385,17 @@ public class TermsRequest extends BroadcastOperationRequest {
             out.writeBoolean(true);
             out.writeUTF(regexp);
         }
-        out.writeInt(size);
+        out.writeVInt(size);
         out.writeBoolean(convert);
         out.writeByte(sortType.value());
-        out.writeInt(minFreq);
-        out.writeInt(maxFreq);
+        out.writeVInt(minFreq);
+        out.writeVInt(maxFreq);
         out.writeBoolean(exact);
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        fields = new String[in.readInt()];
+        fields = new String[in.readVInt()];
         for (int i = 0; i < fields.length; i++) {
             fields[i] = in.readUTF();
         }
@@ -413,11 +413,11 @@ public class TermsRequest extends BroadcastOperationRequest {
         if (in.readBoolean()) {
             regexp = in.readUTF();
         }
-        size = in.readInt();
+        size = in.readVInt();
         convert = in.readBoolean();
         sortType = TermsRequest.SortType.fromValue(in.readByte());
-        minFreq = in.readInt();
-        maxFreq = in.readInt();
+        minFreq = in.readVInt();
+        maxFreq = in.readVInt();
         exact = in.readBoolean();
     }
 }

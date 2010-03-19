@@ -27,10 +27,10 @@ import org.elasticsearch.util.Required;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.io.FastByteArrayOutputStream;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.json.JsonBuilder;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Map;
 
@@ -263,18 +263,18 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         return this.opType;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         type = in.readUTF();
         if (in.readBoolean()) {
             id = in.readUTF();
         }
-        source = new byte[in.readInt()];
-        in.readFully(source, 0, source.length);
+        source = new byte[in.readVInt()];
+        in.readFully(source);
         opType = OpType.fromId(in.readByte());
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeUTF(type);
         if (id == null) {
@@ -283,8 +283,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
             out.writeBoolean(true);
             out.writeUTF(id);
         }
-        out.writeInt(source.length);
-        out.write(source);
+        out.writeVInt(source.length);
+        out.writeBytes(source);
         out.writeByte(opType.id());
     }
 

@@ -21,9 +21,9 @@ package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 /**
@@ -44,11 +44,11 @@ public class ClusterStateResponse implements ActionResponse {
         return this.clusterState;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         clusterState = ClusterState.Builder.readFrom(in, null, null);
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         ClusterState.Builder.writeTo(clusterState, out);
     }
 }

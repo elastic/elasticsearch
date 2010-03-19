@@ -21,6 +21,7 @@ package org.elasticsearch.util.io.compression;
 
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.util.SizeUnit;
+import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.io.FastByteArrayInputStream;
 import org.elasticsearch.util.io.FastByteArrayOutputStream;
 
@@ -54,7 +55,6 @@ public class GZIPCompressor implements Compressor {
     private static class CompressHolder {
         final FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
         final byte[] buffer = new byte[(int) SizeUnit.KB.toBytes(5)];
-        final UnicodeUtil.UTF16Result utf16Result = new UnicodeUtil.UTF16Result();
         final UnicodeUtil.UTF8Result utf8Result = new UnicodeUtil.UTF8Result();
     }
 
@@ -82,8 +82,7 @@ public class GZIPCompressor implements Compressor {
     @Override public String decompressString(byte[] value) throws IOException {
         CompressHolder ch = Cached.cached();
         decompress(value);
-        UnicodeUtil.UTF8toUTF16(ch.bos.unsafeByteArray(), 0, ch.bos.size(), ch.utf16Result);
-        return new String(ch.utf16Result.result, 0, ch.utf16Result.length);
+        return Unicode.fromBytes(ch.bos.unsafeByteArray(), 0, ch.bos.size());
     }
 
     private static void decompress(byte[] value, CompressHolder ch) throws IOException {

@@ -19,8 +19,9 @@
 
 package org.elasticsearch.index.translog;
 
-import java.io.DataInput;
-import java.io.DataOutput;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+
 import java.io.IOException;
 
 /**
@@ -28,7 +29,7 @@ import java.io.IOException;
  */
 public class TranslogStreams {
 
-    public static Translog.Operation readTranslogOperation(DataInput in) throws IOException, ClassNotFoundException {
+    public static Translog.Operation readTranslogOperation(StreamInput in) throws IOException {
         Translog.Operation.Type type = Translog.Operation.Type.fromId(in.readByte());
         Translog.Operation operation;
         switch (type) {
@@ -51,7 +52,7 @@ public class TranslogStreams {
         return operation;
     }
 
-    public static void writeTranslogOperation(DataOutput out, Translog.Operation op) throws IOException {
+    public static void writeTranslogOperation(StreamOutput out, Translog.Operation op) throws IOException {
         out.writeByte(op.opType().id());
         op.writeTo(out);
     }

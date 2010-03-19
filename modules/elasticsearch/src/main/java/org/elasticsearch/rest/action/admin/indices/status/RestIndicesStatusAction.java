@@ -76,10 +76,20 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                         }
                         builder.endObject();
 
-                        builder.field("storeSize", indexStatus.storeSize().toString());
-                        builder.field("storeSizeInBytes", indexStatus.storeSize().bytes());
-                        builder.field("estimatedFlushableMemorySize", indexStatus.estimatedFlushableMemorySize().toString());
-                        builder.field("estimatedFlushableMemorySizeInBytes", indexStatus.estimatedFlushableMemorySize().bytes());
+                        if (indexStatus.storeSize() == null) {
+                            builder.nullField("storeSize");
+                            builder.nullField("storeSizeInBytes");
+                        } else {
+                            builder.field("storeSize", indexStatus.storeSize().toString());
+                            builder.field("storeSizeInBytes", indexStatus.storeSize().bytes());
+                        }
+                        if (indexStatus.estimatedFlushableMemorySize() == null) {
+                            builder.nullField("estimatedFlushableMemorySize");
+                            builder.nullField("estimatedFlushableMemorySizeInBytes");
+                        } else {
+                            builder.field("estimatedFlushableMemorySize", indexStatus.estimatedFlushableMemorySize().toString());
+                            builder.field("estimatedFlushableMemorySizeInBytes", indexStatus.estimatedFlushableMemorySize().bytes());
+                        }
                         builder.field("translogOperations", indexStatus.translogOperations());
 
                         builder.startObject("docs");
@@ -104,10 +114,20 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                                         .endObject();
 
                                 builder.field("state", shardStatus.state());
-                                builder.field("storeSize", shardStatus.storeSize().toString());
-                                builder.field("storeSizeInBytes", shardStatus.storeSize().bytes());
-                                builder.field("estimatedFlushableMemorySize", shardStatus.estimatedFlushableMemorySize().toString());
-                                builder.field("estimatedFlushableMemorySizeInBytes", shardStatus.estimatedFlushableMemorySize().bytes());
+                                if (shardStatus.storeSize() == null) {
+                                    builder.nullField("storeSize");
+                                    builder.nullField("storeSizeInBytes");
+                                } else {
+                                    builder.field("storeSize", shardStatus.storeSize().toString());
+                                    builder.field("storeSizeInBytes", shardStatus.storeSize().bytes());
+                                }
+                                if (shardStatus.estimatedFlushableMemorySize() == null) {
+                                    builder.nullField("estimatedFlushableMemorySize");
+                                    builder.nullField("estimatedFlushableMemorySizeInBytes");
+                                } else {
+                                    builder.field("estimatedFlushableMemorySize", shardStatus.estimatedFlushableMemorySize().toString());
+                                    builder.field("estimatedFlushableMemorySizeInBytes", shardStatus.estimatedFlushableMemorySize().bytes());
+                                }
                                 builder.field("translogId", shardStatus.translogId());
                                 builder.field("translogOperations", shardStatus.translogOperations());
                                 builder.startObject("docs");

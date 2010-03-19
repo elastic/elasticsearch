@@ -19,10 +19,10 @@
 
 package org.elasticsearch.transport.netty.benchmark;
 
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 /**
@@ -42,15 +42,15 @@ public class BenchmarkMessage implements Streamable {
     public BenchmarkMessage() {
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         id = in.readLong();
-        payload = new byte[in.readInt()];
+        payload = new byte[in.readVInt()];
         in.readFully(payload);
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(id);
-        out.writeInt(payload.length);
-        out.write(payload);
+        out.writeVInt(payload.length);
+        out.writeBytes(payload);
     }
 }

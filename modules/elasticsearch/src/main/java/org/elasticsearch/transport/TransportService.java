@@ -27,7 +27,7 @@ import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.component.Lifecycle;
 import org.elasticsearch.util.component.LifecycleComponent;
 import org.elasticsearch.util.concurrent.highscalelib.NonBlockingHashMapLong;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.transport.BoundTransportAddress;
 

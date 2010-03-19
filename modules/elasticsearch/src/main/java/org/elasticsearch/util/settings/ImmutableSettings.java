@@ -23,10 +23,14 @@ import org.elasticsearch.util.*;
 import org.elasticsearch.util.concurrent.Immutable;
 import org.elasticsearch.util.concurrent.ThreadSafe;
 import org.elasticsearch.util.io.Streams;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.settings.loader.SettingsLoader;
 import org.elasticsearch.util.settings.loader.SettingsLoaderFactory;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -247,13 +251,13 @@ public class ImmutableSettings implements Settings {
         return Classes.getDefaultClassLoader();
     }
 
-    public static Settings readSettingsFromStream(DataInput in) throws IOException {
+    public static Settings readSettingsFromStream(StreamInput in) throws IOException {
         return readSettingsFromStream(in, null);
     }
 
-    public static Settings readSettingsFromStream(DataInput in, Settings globalSettings) throws IOException {
+    public static Settings readSettingsFromStream(StreamInput in, Settings globalSettings) throws IOException {
         Builder builder = new Builder();
-        int numberOfSettings = in.readInt();
+        int numberOfSettings = in.readVInt();
         for (int i = 0; i < numberOfSettings; i++) {
             builder.put(in.readUTF(), in.readUTF());
         }
@@ -261,8 +265,8 @@ public class ImmutableSettings implements Settings {
         return builder.build();
     }
 
-    public static void writeSettingsToStream(Settings settings, DataOutput out) throws IOException {
-        out.writeInt(settings.getAsMap().size());
+    public static void writeSettingsToStream(Settings settings, StreamOutput out) throws IOException {
+        out.writeVInt(settings.getAsMap().size());
         for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
             out.writeUTF(entry.getKey());
             out.writeUTF(entry.getValue());

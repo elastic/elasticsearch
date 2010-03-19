@@ -21,10 +21,10 @@ package org.elasticsearch.action.admin.cluster.health;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
@@ -105,27 +105,27 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
         return shards.values().iterator();
     }
 
-    public static ClusterIndexHealth readClusterIndexHealth(DataInput in) throws IOException, ClassNotFoundException {
+    public static ClusterIndexHealth readClusterIndexHealth(StreamInput in) throws IOException {
         ClusterIndexHealth indexHealth = new ClusterIndexHealth();
         indexHealth.readFrom(in);
         return indexHealth;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         index = in.readUTF();
-        numberOfShards = in.readInt();
-        numberOfReplicas = in.readInt();
-        activePrimaryShards = in.readInt();
-        activeShards = in.readInt();
-        relocatingShards = in.readInt();
+        numberOfShards = in.readVInt();
+        numberOfReplicas = in.readVInt();
+        activePrimaryShards = in.readVInt();
+        activeShards = in.readVInt();
+        relocatingShards = in.readVInt();
         status = ClusterHealthStatus.fromValue(in.readByte());
 
-        int size = in.readInt();
+        int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             ClusterShardHealth shardHealth = readClusterShardHealth(in);
             shards.put(shardHealth.id(), shardHealth);
         }
-        size = in.readInt();
+        size = in.readVInt();
         if (size == 0) {
             validationFailures = ImmutableList.of();
         } else {
@@ -135,21 +135,21 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(index);
-        out.writeInt(numberOfShards);
-        out.writeInt(numberOfReplicas);
-        out.writeInt(activePrimaryShards);
-        out.writeInt(activeShards);
-        out.writeInt(relocatingShards);
+        out.writeVInt(numberOfShards);
+        out.writeVInt(numberOfReplicas);
+        out.writeVInt(activePrimaryShards);
+        out.writeVInt(activeShards);
+        out.writeVInt(relocatingShards);
         out.writeByte(status.value());
 
-        out.writeInt(shards.size());
+        out.writeVInt(shards.size());
         for (ClusterShardHealth shardHealth : this) {
             shardHealth.writeTo(out);
         }
 
-        out.writeInt(validationFailures.size());
+        out.writeVInt(validationFailures.size());
         for (String failure : validationFailures) {
             out.writeUTF(failure);
         }

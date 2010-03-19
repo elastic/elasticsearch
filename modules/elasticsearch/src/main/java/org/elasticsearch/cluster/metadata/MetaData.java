@@ -26,13 +26,13 @@ import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.util.MapBuilder;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.concurrent.Immutable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.json.StringJsonBuilder;
 import org.elasticsearch.util.json.ToJson;
 import org.elasticsearch.util.settings.Settings;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import static org.elasticsearch.util.MapBuilder.*;
@@ -169,19 +169,19 @@ public class MetaData implements Iterable<IndexMetaData> {
             return builder.build();
         }
 
-        public static MetaData readFrom(DataInput in, @Nullable Settings globalSettings) throws IOException, ClassNotFoundException {
+        public static MetaData readFrom(StreamInput in, @Nullable Settings globalSettings) throws IOException {
             Builder builder = new Builder();
             builder.maxNumberOfShardsPerNode(in.readInt());
-            int size = in.readInt();
+            int size = in.readVInt();
             for (int i = 0; i < size; i++) {
                 builder.put(IndexMetaData.Builder.readFrom(in, globalSettings));
             }
             return builder.build();
         }
 
-        public static void writeTo(MetaData metaData, DataOutput out) throws IOException {
+        public static void writeTo(MetaData metaData, StreamOutput out) throws IOException {
             out.writeInt(metaData.maxNumberOfShardsPerNode());
-            out.writeInt(metaData.indices.size());
+            out.writeVInt(metaData.indices.size());
             for (IndexMetaData indexMetaData : metaData) {
                 IndexMetaData.Builder.writeTo(indexMetaData, out);
             }

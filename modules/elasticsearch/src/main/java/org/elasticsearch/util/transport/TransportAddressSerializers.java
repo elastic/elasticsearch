@@ -21,11 +21,11 @@ package org.elasticsearch.util.transport;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.logging.Loggers;
 import org.slf4j.Logger;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 
@@ -64,7 +64,7 @@ public abstract class TransportAddressSerializers {
         addressConstructors = newMapBuilder(addressConstructors).put(address.uniqueAddressTypeId(), constructor).immutableMap();
     }
 
-    public static TransportAddress addressFromStream(DataInput input) throws IOException, ClassNotFoundException {
+    public static TransportAddress addressFromStream(StreamInput input) throws IOException {
         short addressUniqueId = input.readShort();
         Constructor<? extends TransportAddress> constructor = addressConstructors.get(addressUniqueId);
         if (constructor == null) {
@@ -80,7 +80,7 @@ public abstract class TransportAddressSerializers {
         return address;
     }
 
-    public static void addressToStream(DataOutput out, TransportAddress address) throws IOException {
+    public static void addressToStream(StreamOutput out, TransportAddress address) throws IOException {
         out.writeShort(address.uniqueAddressTypeId());
         address.writeTo(out);
     }

@@ -19,8 +19,9 @@
 
 package org.elasticsearch.util.transport;
 
-import java.io.DataInput;
-import java.io.DataOutput;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+
 import java.io.IOException;
 
 /**
@@ -37,9 +38,9 @@ public class DummyTransportAddress implements TransportAddress {
         return 0;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
     }
 }

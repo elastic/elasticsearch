@@ -21,7 +21,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.Node;
 import org.elasticsearch.util.component.LifecycleComponent;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.transport.BoundTransportAddress;
 
 import java.io.IOException;

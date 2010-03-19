@@ -21,9 +21,9 @@ package org.elasticsearch.action.admin.cluster.node.shutdown;
 
 import org.elasticsearch.action.support.nodes.NodesOperationRequest;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import static org.elasticsearch.util.TimeValue.*;
@@ -60,12 +60,12 @@ public class NodesShutdownRequest extends NodesOperationRequest {
         return this.delay;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         delay = readTimeValue(in);
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         delay.writeTo(out);
     }

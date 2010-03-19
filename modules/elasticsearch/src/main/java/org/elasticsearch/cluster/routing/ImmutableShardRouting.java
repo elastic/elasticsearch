@@ -21,10 +21,10 @@ package org.elasticsearch.cluster.routing;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.io.Serializable;
 
@@ -129,25 +129,25 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         return new PlainShardsIterator(shardId(), ImmutableList.of((ShardRouting) this));
     }
 
-    public static ImmutableShardRouting readShardRoutingEntry(DataInput in) throws IOException, ClassNotFoundException {
+    public static ImmutableShardRouting readShardRoutingEntry(StreamInput in) throws IOException {
         ImmutableShardRouting entry = new ImmutableShardRouting();
         entry.readFrom(in);
         return entry;
     }
 
-    public static ImmutableShardRouting readShardRoutingEntry(DataInput in, String index, int shardId) throws IOException, ClassNotFoundException {
+    public static ImmutableShardRouting readShardRoutingEntry(StreamInput in, String index, int shardId) throws IOException {
         ImmutableShardRouting entry = new ImmutableShardRouting();
         entry.readFrom(in, index, shardId);
         return entry;
     }
 
-    public void readFrom(DataInput in, String index, int shardId) throws IOException, ClassNotFoundException {
+    public void readFrom(StreamInput in, String index, int shardId) throws IOException {
         this.index = index;
         this.shardId = shardId;
         readFromThin(in);
     }
 
-    @Override public void readFromThin(DataInput in) throws IOException {
+    @Override public void readFromThin(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             currentNodeId = in.readUTF();
         }
@@ -160,14 +160,14 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         state = ShardRoutingState.fromValue(in.readByte());
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
-        readFrom(in, in.readUTF(), in.readInt());
+    @Override public void readFrom(StreamInput in) throws IOException {
+        readFrom(in, in.readUTF(), in.readVInt());
     }
 
     /**
      * Does not write index name and shard id
      */
-    public void writeToThin(DataOutput out) throws IOException {
+    public void writeToThin(StreamOutput out) throws IOException {
         if (currentNodeId != null) {
             out.writeBoolean(true);
             out.writeUTF(currentNodeId);
@@ -186,9 +186,9 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         out.writeByte(state.value());
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(index);
-        out.writeInt(shardId);
+        out.writeVInt(shardId);
         writeToThin(out);
     }
 

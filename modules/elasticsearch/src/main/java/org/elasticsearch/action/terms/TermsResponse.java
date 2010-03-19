@@ -22,9 +22,9 @@ package org.elasticsearch.action.terms;
 import com.google.common.collect.Iterators;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -124,23 +124,23 @@ public class TermsResponse extends BroadcastOperationResponse implements Iterabl
         return fieldsTermsFreqMap;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        numDocs = in.readLong();
-        maxDoc = in.readLong();
-        numDeletedDocs = in.readLong();
-        fieldsTermsFreq = new FieldTermsFreq[in.readInt()];
+        numDocs = in.readVLong();
+        maxDoc = in.readVLong();
+        numDeletedDocs = in.readVLong();
+        fieldsTermsFreq = new FieldTermsFreq[in.readVInt()];
         for (int i = 0; i < fieldsTermsFreq.length; i++) {
             fieldsTermsFreq[i] = readFieldTermsFreq(in);
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeLong(numDocs);
-        out.writeLong(maxDoc);
-        out.writeLong(numDeletedDocs);
-        out.writeInt(fieldsTermsFreq.length);
+        out.writeVLong(numDocs);
+        out.writeVLong(maxDoc);
+        out.writeVLong(numDeletedDocs);
+        out.writeVInt(fieldsTermsFreq.length);
         for (FieldTermsFreq fieldTermsFreq : fieldsTermsFreq) {
             fieldTermsFreq.writeTo(out);
         }

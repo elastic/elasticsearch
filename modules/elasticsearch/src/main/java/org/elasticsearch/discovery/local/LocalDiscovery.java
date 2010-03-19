@@ -236,7 +236,7 @@ public class LocalDiscovery extends AbstractComponent implements Discovery {
                 }
             }
         } catch (Exception e) {
-            // failure to marshal or unmarshal
+            // failure to marshal or un-marshal
             throw new ElasticSearchIllegalStateException("Cluster state failed to serialize", e);
         }
     }

@@ -24,9 +24,9 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.util.Nullable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import static org.elasticsearch.search.SearchShardTarget.*;
@@ -99,20 +99,20 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         return "Search Failure Shard " + shardTarget + ", reason [" + reason + "]";
     }
 
-    public static ShardSearchFailure readShardSearchFailure(DataInput in) throws IOException, ClassNotFoundException {
+    public static ShardSearchFailure readShardSearchFailure(StreamInput in) throws IOException {
         ShardSearchFailure shardSearchFailure = new ShardSearchFailure();
         shardSearchFailure.readFrom(in);
         return shardSearchFailure;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             shardTarget = readSearchShardTarget(in);
         }
         reason = in.readUTF();
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         if (shardTarget == null) {
             out.writeBoolean(false);
         } else {

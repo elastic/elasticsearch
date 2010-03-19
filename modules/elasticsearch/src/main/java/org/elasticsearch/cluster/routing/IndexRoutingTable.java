@@ -26,9 +26,9 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.util.IdentityHashSet;
 import org.elasticsearch.util.concurrent.Immutable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -136,11 +136,11 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
             this.index = index;
         }
 
-        public static IndexRoutingTable readFrom(DataInput in) throws IOException, ClassNotFoundException {
+        public static IndexRoutingTable readFrom(StreamInput in) throws IOException {
             String index = in.readUTF();
             Builder builder = new Builder(index);
 
-            int size = in.readInt();
+            int size = in.readVInt();
             for (int i = 0; i < size; i++) {
                 builder.addIndexShard(IndexShardRoutingTable.Builder.readFromThin(in, index));
             }
@@ -148,9 +148,9 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
             return builder.build();
         }
 
-        public static void writeTo(IndexRoutingTable index, DataOutput out) throws IOException {
+        public static void writeTo(IndexRoutingTable index, StreamOutput out) throws IOException {
             out.writeUTF(index.index());
-            out.writeInt(index.shards.size());
+            out.writeVInt(index.shards.size());
             for (IndexShardRoutingTable indexShard : index) {
                 IndexShardRoutingTable.Builder.writeToThin(indexShard, out);
             }

@@ -27,17 +27,17 @@ import org.elasticsearch.transport.*;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.component.Lifecycle;
-import org.elasticsearch.util.io.ByteArrayDataInputStream;
-import org.elasticsearch.util.io.ByteArrayDataOutputStream;
-import org.elasticsearch.util.io.Streamable;
 import org.elasticsearch.util.io.ThrowableObjectInputStream;
+import org.elasticsearch.util.io.stream.BytesStreamInput;
+import org.elasticsearch.util.io.stream.BytesStreamOutput;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.transport.BoundTransportAddress;
 import org.elasticsearch.util.transport.LocalTransportAddress;
 import org.elasticsearch.util.transport.TransportAddress;
 
-import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -120,7 +120,7 @@ public class LocalTransport extends AbstractComponent implements Transport {
 
     @Override public <T extends Streamable> void sendRequest(final Node node, final long requestId, final String action,
                                                              final Streamable message, final TransportResponseHandler<T> handler) throws IOException, TransportException {
-        ByteArrayDataOutputStream stream = ByteArrayDataOutputStream.Cached.cached();
+        BytesStreamOutput stream = BytesStreamOutput.Cached.cached();
 
         stream.writeLong(requestId);
         byte status = 0;
@@ -148,7 +148,7 @@ public class LocalTransport extends AbstractComponent implements Transport {
     }
 
     void messageReceived(byte[] data, String action, LocalTransport sourceTransport, @Nullable final TransportResponseHandler responseHandler) {
-        ByteArrayDataInputStream stream = new ByteArrayDataInputStream(data);
+        BytesStreamInput stream = new BytesStreamInput(data);
 
         try {
             long requestId = stream.readLong();
@@ -177,7 +177,7 @@ public class LocalTransport extends AbstractComponent implements Transport {
         }
     }
 
-    private void handleRequest(DataInputStream stream, long requestId, LocalTransport sourceTransport) throws Exception {
+    private void handleRequest(StreamInput stream, long requestId, LocalTransport sourceTransport) throws Exception {
         final String action = stream.readUTF();
         final LocalTransportChannel transportChannel = new LocalTransportChannel(this, sourceTransport, action, requestId);
         final TransportRequestHandler handler = transportServiceAdapter.handler(action);
@@ -190,7 +190,7 @@ public class LocalTransport extends AbstractComponent implements Transport {
     }
 
 
-    private void handleResponse(DataInputStream buffer, final TransportResponseHandler handler) {
+    private void handleResponse(StreamInput buffer, final TransportResponseHandler handler) {
         final Streamable streamable = handler.newInstance();
         try {
             streamable.readFrom(buffer);
@@ -218,7 +218,7 @@ public class LocalTransport extends AbstractComponent implements Transport {
         }
     }
 
-    private void handlerResponseError(DataInputStream buffer, final TransportResponseHandler handler) {
+    private void handlerResponseError(StreamInput buffer, final TransportResponseHandler handler) {
         Throwable error;
         try {
             ThrowableObjectInputStream ois = new ThrowableObjectInputStream(buffer);

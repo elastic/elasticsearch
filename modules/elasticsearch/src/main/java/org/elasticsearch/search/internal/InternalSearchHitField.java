@@ -20,9 +20,9 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.search.SearchHitField;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -58,15 +58,15 @@ public class InternalSearchHitField implements SearchHitField {
         return values.iterator();
     }
 
-    public static InternalSearchHitField readSearchHitField(DataInput in) throws IOException, ClassNotFoundException {
+    public static InternalSearchHitField readSearchHitField(StreamInput in) throws IOException {
         InternalSearchHitField result = new InternalSearchHitField();
         result.readFrom(in);
         return result;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
-        int size = in.readInt();
+        int size = in.readVInt();
         values = new ArrayList<Object>(size);
         for (int i = 0; i < size; i++) {
             Object value;
@@ -84,7 +84,7 @@ public class InternalSearchHitField implements SearchHitField {
             } else if (type == 5) {
                 value = in.readBoolean();
             } else if (type == 6) {
-                int bytesSize = in.readInt();
+                int bytesSize = in.readVInt();
                 value = new byte[bytesSize];
                 in.readFully(((byte[]) value));
             } else {
@@ -94,33 +94,33 @@ public class InternalSearchHitField implements SearchHitField {
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
-        out.writeInt(values.size());
+        out.writeVInt(values.size());
         for (Object obj : values) {
             Class type = obj.getClass();
             if (type == String.class) {
-                out.write(0);
+                out.writeByte((byte) 0);
                 out.writeUTF((String) obj);
             } else if (type == Integer.class) {
-                out.write(1);
+                out.writeByte((byte) 1);
                 out.writeInt((Integer) obj);
             } else if (type == Long.class) {
-                out.write(2);
+                out.writeByte((byte) 2);
                 out.writeLong((Long) obj);
             } else if (type == Float.class) {
-                out.write(3);
+                out.writeByte((byte) 3);
                 out.writeFloat((Float) obj);
             } else if (type == Double.class) {
-                out.write(4);
+                out.writeByte((byte) 4);
                 out.writeDouble((Double) obj);
             } else if (type == Boolean.class) {
-                out.write(5);
+                out.writeByte((byte) 5);
                 out.writeBoolean((Boolean) obj);
             } else if (type == byte[].class) {
-                out.write(6);
-                out.writeInt(((byte[]) obj).length);
-                out.write(((byte[]) obj));
+                out.writeByte((byte) 6);
+                out.writeVInt(((byte[]) obj).length);
+                out.writeBytes(((byte[]) obj));
             } else {
                 throw new IOException("Can't write type [" + type + "]");
             }

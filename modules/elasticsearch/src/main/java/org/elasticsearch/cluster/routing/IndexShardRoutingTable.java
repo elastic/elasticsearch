@@ -23,9 +23,9 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.util.concurrent.ThreadLocalRandom;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
@@ -187,17 +187,17 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             return new IndexShardRoutingTable(shardId, ImmutableList.copyOf(shards));
         }
 
-        public static IndexShardRoutingTable readFrom(DataInput in) throws IOException, ClassNotFoundException {
+        public static IndexShardRoutingTable readFrom(StreamInput in) throws IOException {
             String index = in.readUTF();
             return readFromThin(in, index);
         }
 
-        public static IndexShardRoutingTable readFromThin(DataInput in, String index) throws IOException, ClassNotFoundException {
-            int iShardId = in.readInt();
+        public static IndexShardRoutingTable readFromThin(StreamInput in, String index) throws IOException {
+            int iShardId = in.readVInt();
             ShardId shardId = new ShardId(index, iShardId);
             Builder builder = new Builder(shardId);
 
-            int size = in.readInt();
+            int size = in.readVInt();
             for (int i = 0; i < size; i++) {
                 ImmutableShardRouting shard = ImmutableShardRouting.readShardRoutingEntry(in, index, iShardId);
                 builder.addShard(shard);
@@ -206,14 +206,14 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             return builder.build();
         }
 
-        public static void writeTo(IndexShardRoutingTable indexShard, DataOutput out) throws IOException {
+        public static void writeTo(IndexShardRoutingTable indexShard, StreamOutput out) throws IOException {
             out.writeUTF(indexShard.shardId().index().name());
             writeToThin(indexShard, out);
         }
 
-        public static void writeToThin(IndexShardRoutingTable indexShard, DataOutput out) throws IOException {
-            out.writeInt(indexShard.shardId.id());
-            out.writeInt(indexShard.shards.size());
+        public static void writeToThin(IndexShardRoutingTable indexShard, StreamOutput out) throws IOException {
+            out.writeVInt(indexShard.shardId.id());
+            out.writeVInt(indexShard.shards.size());
             for (ShardRouting entry : indexShard) {
                 entry.writeToThin(out);
             }

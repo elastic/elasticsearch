@@ -20,10 +20,10 @@
 package org.elasticsearch.action.admin.indices.gateway.snapshot;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 /**
@@ -35,9 +35,9 @@ class ShardGatewaySnapshotResponse implements ActionResponse, Streamable {
 
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
     }
 }

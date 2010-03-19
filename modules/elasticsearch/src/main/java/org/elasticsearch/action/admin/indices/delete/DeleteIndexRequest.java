@@ -22,9 +22,9 @@ package org.elasticsearch.action.admin.indices.delete;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import static org.elasticsearch.action.Actions.*;
@@ -83,12 +83,12 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest {
         return this;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         index = in.readUTF();
         timeout = readTimeValue(in);
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(index);
         timeout.writeTo(out);
     }

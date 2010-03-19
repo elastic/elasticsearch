@@ -70,12 +70,15 @@ public class IndexShardStatus implements Iterable<ShardStatus> {
     public SizeValue storeSize() {
         long bytes = -1;
         for (ShardStatus shard : shards()) {
-            if (shard.storeSize().bytes() != SizeValue.UNKNOWN.bytes()) {
+            if (shard.storeSize() != null) {
                 if (bytes == -1) {
                     bytes = 0;
                 }
                 bytes += shard.storeSize().bytes();
             }
+        }
+        if (bytes == -1) {
+            return null;
         }
         return new SizeValue(bytes);
     }
@@ -83,12 +86,15 @@ public class IndexShardStatus implements Iterable<ShardStatus> {
     public SizeValue estimatedFlushableMemorySize() {
         long bytes = -1;
         for (ShardStatus shard : shards()) {
-            if (shard.estimatedFlushableMemorySize().bytes() != SizeValue.UNKNOWN.bytes()) {
+            if (shard.estimatedFlushableMemorySize() != null) {
                 if (bytes == -1) {
                     bytes = 0;
                 }
                 bytes += shard.estimatedFlushableMemorySize().bytes();
             }
+        }
+        if (bytes == -1) {
+            return null;
         }
         return new SizeValue(bytes);
     }

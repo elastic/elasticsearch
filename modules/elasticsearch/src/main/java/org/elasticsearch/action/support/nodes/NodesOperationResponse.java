@@ -22,9 +22,9 @@ package org.elasticsearch.action.support.nodes;
 import com.google.common.collect.Maps;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
@@ -70,11 +70,11 @@ public abstract class NodesOperationResponse<NodeResponse extends NodeOperationR
         return nodesMap;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         clusterName = ClusterName.readClusterName(in);
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         clusterName.writeTo(out);
     }
 }

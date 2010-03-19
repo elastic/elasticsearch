@@ -20,15 +20,15 @@
 package org.elasticsearch.search.highlight;
 
 import org.elasticsearch.util.Strings;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Arrays;
 
 /**
- * A field highlighted with its higlighted fragments.
+ * A field highlighted with its highlighted fragments.
  *
  * @author kimchy (shay.banon)
  */
@@ -64,16 +64,16 @@ public class HighlightField implements Streamable {
         return "[" + name + "], fragments[" + Arrays.toString(fragments) + "]";
     }
 
-    public static HighlightField readHighlightField(DataInput in) throws IOException, ClassNotFoundException {
+    public static HighlightField readHighlightField(StreamInput in) throws IOException {
         HighlightField field = new HighlightField();
         field.readFrom(in);
         return field;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
         if (in.readBoolean()) {
-            int size = in.readInt();
+            int size = in.readVInt();
             if (size == 0) {
                 fragments = Strings.EMPTY_ARRAY;
             } else {
@@ -85,13 +85,13 @@ public class HighlightField implements Streamable {
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
         if (fragments == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeInt(fragments.length);
+            out.writeVInt(fragments.length);
             for (String fragment : fragments) {
                 out.writeUTF(fragment);
             }

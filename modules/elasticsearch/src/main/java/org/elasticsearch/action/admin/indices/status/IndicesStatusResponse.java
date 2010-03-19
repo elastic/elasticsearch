@@ -23,10 +23,10 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.settings.Settings;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -87,27 +87,27 @@ public class IndicesStatusResponse extends BroadcastOperationResponse {
         return indicesStatus;
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeInt(shards().length);
+        out.writeVInt(shards().length);
         for (ShardStatus status : shards()) {
             status.writeTo(out);
         }
-        out.writeInt(indicesSettings.size());
+        out.writeVInt(indicesSettings.size());
         for (Map.Entry<String, Settings> entry : indicesSettings.entrySet()) {
             out.writeUTF(entry.getKey());
             writeSettingsToStream(entry.getValue(), out);
         }
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        shards = new ShardStatus[in.readInt()];
+        shards = new ShardStatus[in.readVInt()];
         for (int i = 0; i < shards.length; i++) {
             shards[i] = readIndexShardStatus(in);
         }
         indicesSettings = newHashMap();
-        int size = in.readInt();
+        int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             indicesSettings.put(in.readUTF(), readSettingsFromStream(in));
         }

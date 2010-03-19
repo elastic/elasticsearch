@@ -20,10 +20,10 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 /**
@@ -72,13 +72,13 @@ public class IndexResponse implements ActionResponse, Streamable {
         return this.id;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         index = in.readUTF();
         id = in.readUTF();
         type = in.readUTF();
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(index);
         out.writeUTF(id);
         out.writeUTF(type);

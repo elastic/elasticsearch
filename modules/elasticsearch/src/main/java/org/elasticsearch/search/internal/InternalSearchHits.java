@@ -21,10 +21,10 @@ package org.elasticsearch.search.internal;
 
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.json.JsonBuilder;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import static org.elasticsearch.search.internal.InternalSearchHit.*;
@@ -57,12 +57,6 @@ public class InternalSearchHits implements SearchHits {
         return this.hits;
     }
 
-    public static InternalSearchHits readSearchHits(DataInput in) throws IOException, ClassNotFoundException {
-        InternalSearchHits hits = new InternalSearchHits();
-        hits.readFrom(in);
-        return hits;
-    }
-
     @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject("hits");
         builder.field("total", totalHits);
@@ -75,9 +69,15 @@ public class InternalSearchHits implements SearchHits {
         builder.endObject();
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
-        totalHits = in.readLong();
-        int size = in.readInt();
+    public static InternalSearchHits readSearchHits(StreamInput in) throws IOException {
+        InternalSearchHits hits = new InternalSearchHits();
+        hits.readFrom(in);
+        return hits;
+    }
+
+    @Override public void readFrom(StreamInput in) throws IOException {
+        totalHits = in.readVLong();
+        int size = in.readVInt();
         if (size == 0) {
             hits = EMPTY;
         } else {
@@ -88,9 +88,9 @@ public class InternalSearchHits implements SearchHits {
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
-        out.writeLong(totalHits);
-        out.writeInt(hits.length);
+    @Override public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(totalHits);
+        out.writeVInt(hits.length);
         for (SearchHit hit : hits) {
             hit.writeTo(out);
         }

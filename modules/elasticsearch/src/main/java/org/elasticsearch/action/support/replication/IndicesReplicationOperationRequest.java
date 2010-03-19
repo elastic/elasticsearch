@@ -22,9 +22,9 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 /**
@@ -65,17 +65,17 @@ public class IndicesReplicationOperationRequest implements ActionRequest {
         return this;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         timeout = TimeValue.readTimeValue(in);
-        indices = new String[in.readInt()];
+        indices = new String[in.readVInt()];
         for (int i = 0; i < indices.length; i++) {
             indices[i] = in.readUTF();
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         timeout.writeTo(out);
-        out.writeInt(indices.length);
+        out.writeVInt(indices.length);
         for (String index : indices) {
             out.writeUTF(index);
         }

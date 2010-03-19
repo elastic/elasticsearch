@@ -23,9 +23,9 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.util.Nullable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -324,21 +324,21 @@ public class Nodes implements Iterable<Node> {
             return new Nodes(ImmutableMap.copyOf(nodes), dataNodesBuilder.build(), masterNodeId, localNodeId);
         }
 
-        public static void writeTo(Nodes nodes, DataOutput out) throws IOException {
+        public static void writeTo(Nodes nodes, StreamOutput out) throws IOException {
             out.writeUTF(nodes.masterNodeId);
-            out.writeInt(nodes.size());
+            out.writeVInt(nodes.size());
             for (Node node : nodes) {
                 node.writeTo(out);
             }
         }
 
-        public static Nodes readFrom(DataInput in, @Nullable Node localNode) throws IOException, ClassNotFoundException {
+        public static Nodes readFrom(StreamInput in, @Nullable Node localNode) throws IOException {
             Builder builder = new Builder();
             builder.masterNodeId(in.readUTF());
             if (localNode != null) {
                 builder.localNodeId(localNode.id());
             }
-            int size = in.readInt();
+            int size = in.readVInt();
             for (int i = 0; i < size; i++) {
                 Node node = Node.readNode(in);
                 if (localNode != null && node.id().equals(localNode.id())) {

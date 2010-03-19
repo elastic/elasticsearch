@@ -26,9 +26,9 @@ import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.Required;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.Unicode;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Arrays;
 
@@ -166,15 +166,15 @@ public class CountRequest extends BroadcastOperationRequest {
         return this;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         minScore = in.readFloat();
-        querySource = new byte[in.readInt()];
+        querySource = new byte[in.readVInt()];
         in.readFully(querySource());
         if (in.readBoolean()) {
             queryParserName = in.readUTF();
         }
-        int typesSize = in.readInt();
+        int typesSize = in.readVInt();
         if (typesSize > 0) {
             types = new String[typesSize];
             for (int i = 0; i < typesSize; i++) {
@@ -183,18 +183,18 @@ public class CountRequest extends BroadcastOperationRequest {
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeFloat(minScore);
-        out.writeInt(querySource.length);
-        out.write(querySource);
+        out.writeVInt(querySource.length);
+        out.writeBytes(querySource);
         if (queryParserName == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
             out.writeUTF(queryParserName);
         }
-        out.writeInt(types.length);
+        out.writeVInt(types.length);
         for (String type : types) {
             out.writeUTF(type);
         }

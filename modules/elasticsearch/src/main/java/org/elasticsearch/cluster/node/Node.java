@@ -20,12 +20,12 @@
 package org.elasticsearch.cluster.node;
 
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.transport.TransportAddress;
 import org.elasticsearch.util.transport.TransportAddressSerializers;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.io.Serializable;
 
@@ -89,20 +89,20 @@ public class Node implements Streamable, Serializable {
         return dataNode;
     }
 
-    public static Node readNode(DataInput in) throws IOException, ClassNotFoundException {
+    public static Node readNode(StreamInput in) throws IOException {
         Node node = new Node();
         node.readFrom(in);
         return node;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         nodeName = in.readUTF();
         dataNode = in.readBoolean();
         nodeId = in.readUTF();
         address = TransportAddressSerializers.addressFromStream(in);
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(nodeName);
         out.writeBoolean(dataNode);
         out.writeUTF(nodeId);

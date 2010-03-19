@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.facets;
 
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.json.JsonBuilder;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 /**
@@ -71,19 +71,19 @@ public class CountFacet implements Facet {
         builder.field(name, count);
     }
 
-    public static CountFacet readCountFacet(DataInput in) throws IOException, ClassNotFoundException {
+    public static CountFacet readCountFacet(StreamInput in) throws IOException {
         CountFacet result = new CountFacet();
         result.readFrom(in);
         return result;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
-        count = in.readLong();
+        count = in.readVLong();
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
-        out.writeLong(count);
+        out.writeVLong(count);
     }
 }

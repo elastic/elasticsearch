@@ -27,9 +27,9 @@ import org.elasticsearch.util.Bytes;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.Unicode;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import static org.elasticsearch.action.Actions.*;
@@ -278,11 +278,11 @@ public class SearchRequest implements ActionRequest {
         return this;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         operationThreading = SearchOperationThreading.fromId(in.readByte());
         searchType = SearchType.fromId(in.readByte());
 
-        indices = new String[in.readInt()];
+        indices = new String[in.readVInt()];
         for (int i = 0; i < indices.length; i++) {
             indices[i] = in.readUTF();
         }
@@ -297,14 +297,14 @@ public class SearchRequest implements ActionRequest {
         if (in.readBoolean()) {
             timeout = readTimeValue(in);
         }
-        int size = in.readInt();
+        int size = in.readVInt();
         if (size == 0) {
             source = Bytes.EMPTY_ARRAY;
         } else {
             source = new byte[size];
             in.readFully(source);
         }
-        size = in.readInt();
+        size = in.readVInt();
         if (size == 0) {
             extraSource = Bytes.EMPTY_ARRAY;
         } else {
@@ -312,7 +312,7 @@ public class SearchRequest implements ActionRequest {
             in.readFully(extraSource);
         }
 
-        int typesSize = in.readInt();
+        int typesSize = in.readVInt();
         if (typesSize > 0) {
             types = new String[typesSize];
             for (int i = 0; i < typesSize; i++) {
@@ -321,11 +321,11 @@ public class SearchRequest implements ActionRequest {
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeByte(operationThreading.id());
         out.writeByte(searchType.id());
 
-        out.writeInt(indices.length);
+        out.writeVInt(indices.length);
         for (String index : indices) {
             out.writeUTF(index);
         }
@@ -350,18 +350,18 @@ public class SearchRequest implements ActionRequest {
             timeout.writeTo(out);
         }
         if (source == null) {
-            out.writeInt(0);
+            out.writeVInt(0);
         } else {
-            out.writeInt(source.length);
-            out.write(source);
+            out.writeVInt(source.length);
+            out.writeBytes(source);
         }
         if (extraSource == null) {
-            out.writeInt(0);
+            out.writeVInt(0);
         } else {
-            out.writeInt(extraSource.length);
-            out.write(extraSource);
+            out.writeVInt(extraSource.length);
+            out.writeBytes(extraSource);
         }
-        out.writeInt(types.length);
+        out.writeVInt(types.length);
         for (String type : types) {
             out.writeUTF(type);
         }

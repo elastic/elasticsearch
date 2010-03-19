@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.Streamable;
 
 /**
  * A response handler to be used when all interaction will be done through the {@link TransportFuture}.

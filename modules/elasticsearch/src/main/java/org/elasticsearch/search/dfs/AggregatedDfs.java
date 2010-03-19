@@ -21,11 +21,11 @@ package org.elasticsearch.search.dfs;
 
 import org.apache.lucene.index.Term;
 import org.elasticsearch.util.gnu.trove.TObjectIntProcedure;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.trove.ExtTObjectIntHasMap;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 /**
@@ -54,37 +54,37 @@ public class AggregatedDfs implements Streamable {
         return maxDoc;
     }
 
-    public static AggregatedDfs readAggregatedDfs(DataInput in) throws IOException, ClassNotFoundException {
+    public static AggregatedDfs readAggregatedDfs(StreamInput in) throws IOException {
         AggregatedDfs result = new AggregatedDfs();
         result.readFrom(in);
         return result;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
-        int size = in.readInt();
+    @Override public void readFrom(StreamInput in) throws IOException {
+        int size = in.readVInt();
         dfMap = new ExtTObjectIntHasMap<Term>(size).defaultReturnValue(-1);
         for (int i = 0; i < size; i++) {
-            dfMap.put(new Term(in.readUTF(), in.readUTF()), in.readInt());
+            dfMap.put(new Term(in.readUTF(), in.readUTF()), in.readVInt());
         }
-        maxDoc = in.readLong();
+        maxDoc = in.readVLong();
     }
 
-    @Override public void writeTo(final DataOutput out) throws IOException {
-        out.writeInt(dfMap.size());
+    @Override public void writeTo(final StreamOutput out) throws IOException {
+        out.writeVInt(dfMap.size());
         WriteToProcedure writeToProcedure = new WriteToProcedure(out);
         if (!dfMap.forEachEntry(writeToProcedure)) {
             throw writeToProcedure.exception;
         }
-        out.writeLong(maxDoc);
+        out.writeVLong(maxDoc);
     }
 
     private static class WriteToProcedure implements TObjectIntProcedure<Term> {
 
-        private final DataOutput out;
+        private final StreamOutput out;
 
         IOException exception;
 
-        private WriteToProcedure(DataOutput out) {
+        private WriteToProcedure(StreamOutput out) {
             this.out = out;
         }
 
@@ -92,7 +92,7 @@ public class AggregatedDfs implements Streamable {
             try {
                 out.writeUTF(a.field());
                 out.writeUTF(a.text());
-                out.writeInt(b);
+                out.writeVInt(b);
                 return true;
             } catch (IOException e) {
                 exception = e;

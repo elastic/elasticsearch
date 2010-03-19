@@ -32,9 +32,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.component.Lifecycle;
-import org.elasticsearch.util.io.ByteArrayDataInputStream;
-import org.elasticsearch.util.io.ByteArrayDataOutputStream;
 import org.elasticsearch.util.io.HostResolver;
+import org.elasticsearch.util.io.stream.BytesStreamInput;
+import org.elasticsearch.util.io.stream.BytesStreamOutput;
 import org.elasticsearch.util.settings.Settings;
 import org.jgroups.*;
 
@@ -268,7 +268,7 @@ public class JgroupsDiscovery extends AbstractComponent implements Discovery, Re
         // direct message from a member that indicate his state has changed.
         if (isMaster()) {
             try {
-                ByteArrayDataInputStream is = new ByteArrayDataInputStream(msg.getBuffer());
+                BytesStreamInput is = new BytesStreamInput(msg.getBuffer());
                 final Node newNode = Node.readNode(is);
                 is.close();
                 clusterService.submitStateUpdateTask("jgroups-disco-receive(from node[" + newNode + "])", new ClusterStateUpdateTask() {
@@ -360,9 +360,8 @@ public class JgroupsDiscovery extends AbstractComponent implements Discovery, Re
     }
 
     private byte[] nodeMessagePayload() throws IOException {
-        ByteArrayDataOutputStream os = new ByteArrayDataOutputStream();
+        BytesStreamOutput os = BytesStreamOutput.Cached.cached();
         localNode.writeTo(os);
-        os.close();
         return os.copiedByteArray();
     }
 

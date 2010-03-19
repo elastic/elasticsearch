@@ -20,6 +20,7 @@
 package org.elasticsearch.util.io.compression;
 
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.io.compression.lzf.LZFDecoder;
 import org.elasticsearch.util.io.compression.lzf.LZFEncoder;
 
@@ -44,7 +45,6 @@ public class LzfCompressor implements Compressor {
     }
 
     private static class CompressHolder {
-        final UnicodeUtil.UTF16Result utf16Result = new UnicodeUtil.UTF16Result();
         final UnicodeUtil.UTF8Result utf8Result = new UnicodeUtil.UTF8Result();
     }
 
@@ -65,7 +65,6 @@ public class LzfCompressor implements Compressor {
     @Override public String decompressString(byte[] value) throws IOException {
         CompressHolder ch = Cached.cached();
         byte[] result = decompress(value);
-        UnicodeUtil.UTF8toUTF16(result, 0, result.length, ch.utf16Result);
-        return new String(ch.utf16Result.result, 0, ch.utf16Result.length);
+        return Unicode.fromBytes(result, 0, result.length);
     }
 }

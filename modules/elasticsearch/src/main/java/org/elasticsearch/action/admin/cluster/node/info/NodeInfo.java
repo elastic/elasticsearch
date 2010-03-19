@@ -22,11 +22,11 @@ package org.elasticsearch.action.admin.cluster.node.info;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.support.nodes.NodeOperationResponse;
 import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Map;
 
@@ -60,16 +60,16 @@ public class NodeInfo extends NodeOperationResponse {
         return this.settings;
     }
 
-    public static NodeInfo readNodeInfo(DataInput in) throws ClassNotFoundException, IOException {
+    public static NodeInfo readNodeInfo(StreamInput in) throws IOException {
         NodeInfo nodeInfo = new NodeInfo();
         nodeInfo.readFrom(in);
         return nodeInfo;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-        int size = in.readInt();
+        int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             builder.put(in.readUTF(), in.readUTF());
         }
@@ -77,9 +77,9 @@ public class NodeInfo extends NodeOperationResponse {
         settings = ImmutableSettings.readSettingsFromStream(in);
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeInt(attributes.size());
+        out.writeVInt(attributes.size());
         for (Map.Entry<String, String> entry : attributes.entrySet()) {
             out.writeUTF(entry.getKey());
             out.writeUTF(entry.getValue());

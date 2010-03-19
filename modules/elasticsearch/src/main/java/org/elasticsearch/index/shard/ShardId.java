@@ -21,10 +21,10 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.index.Index;
 import org.elasticsearch.util.concurrent.Immutable;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.io.Serializable;
 
@@ -83,18 +83,18 @@ public class ShardId implements Serializable, Streamable {
         return result;
     }
 
-    public static ShardId readShardId(DataInput in) throws IOException, ClassNotFoundException {
+    public static ShardId readShardId(StreamInput in) throws IOException {
         ShardId shardId = new ShardId();
         shardId.readFrom(in);
         return shardId;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         index = Index.readIndexName(in);
-        shardId = in.readInt();
+        shardId = in.readVInt();
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         index.writeTo(out);
         out.writeInt(shardId);
     }

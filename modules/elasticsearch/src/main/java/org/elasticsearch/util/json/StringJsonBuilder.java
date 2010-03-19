@@ -92,7 +92,7 @@ public class StringJsonBuilder extends JsonBuilder<StringJsonBuilder> {
 
     @Override public StringJsonBuilder raw(byte[] json) throws IOException {
         flush();
-        UnicodeUtil.UTF16Result result = Unicode.unsafeFromBytesAsUtf16(json);
+        Unicode.UTF16Result result = Unicode.unsafeFromBytesAsUtf16(json);
         writer.write(result.result, 0, result.length);
         return this;
     }

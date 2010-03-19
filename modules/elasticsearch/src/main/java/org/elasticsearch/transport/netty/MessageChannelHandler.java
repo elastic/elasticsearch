@@ -21,9 +21,10 @@ package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
-import org.elasticsearch.util.io.Streamable;
 import org.elasticsearch.util.io.ThrowableObjectInputStream;
-import org.jboss.netty.buffer.ChannelBufferInputStream;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.Streamable;
+import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.*;
 import org.slf4j.Logger;
 
@@ -53,28 +54,29 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
     }
 
     @Override public void messageReceived(ChannelHandlerContext ctx, MessageEvent event) throws Exception {
-        ChannelBufferInputStream buffer = (ChannelBufferInputStream) event.getMessage();
+        ChannelBuffer buffer = (ChannelBuffer) event.getMessage();
+        StreamInput streamIn = new ChannelBufferStreamInput(buffer);
 
         long requestId = buffer.readLong();
         byte status = buffer.readByte();
         boolean isRequest = isRequest(status);
 
         if (isRequest) {
-            handleRequest(event, buffer, requestId);
+            handleRequest(event, streamIn, requestId);
         } else {
             final TransportResponseHandler handler = transportServiceAdapter.remove(requestId);
             if (handler == null) {
                 throw new ResponseHandlerNotFoundTransportException(requestId);
             }
             if (isError(status)) {
-                handlerResponseError(buffer, handler);
+                handlerResponseError(streamIn, handler);
             } else {
-                handleResponse(buffer, handler);
+                handleResponse(streamIn, handler);
             }
         }
     }
 
-    private void handleResponse(ChannelBufferInputStream buffer, final TransportResponseHandler handler) {
+    private void handleResponse(StreamInput buffer, final TransportResponseHandler handler) {
         final Streamable streamable = handler.newInstance();
         try {
             streamable.readFrom(buffer);
@@ -102,7 +104,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         }
     }
 
-    private void handlerResponseError(ChannelBufferInputStream buffer, final TransportResponseHandler handler) {
+    private void handlerResponseError(StreamInput buffer, final TransportResponseHandler handler) {
         Throwable error;
         try {
             ThrowableObjectInputStream ois = new ThrowableObjectInputStream(buffer);
@@ -133,7 +135,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         }
     }
 
-    private void handleRequest(MessageEvent event, ChannelBufferInputStream buffer, long requestId) throws IOException {
+    private void handleRequest(MessageEvent event, StreamInput buffer, long requestId) throws IOException {
         final String action = buffer.readUTF();
 
         final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, action, event.getChannel(), requestId);

@@ -20,9 +20,9 @@
 package org.elasticsearch.action.admin.cluster.ping.single;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 /**
@@ -30,9 +30,9 @@ import java.io.IOException;
  */
 public class SinglePingResponse implements ActionResponse {
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
     }
 }

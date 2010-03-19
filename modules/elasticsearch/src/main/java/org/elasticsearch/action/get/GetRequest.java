@@ -21,9 +21,9 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.support.single.SingleOperationRequest;
 import org.elasticsearch.util.Required;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 /**
@@ -113,7 +113,7 @@ public class GetRequest extends SingleOperationRequest {
         return this;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readInt();
         if (size >= 0) {
@@ -124,7 +124,7 @@ public class GetRequest extends SingleOperationRequest {
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (fields == null) {
             out.writeInt(-1);

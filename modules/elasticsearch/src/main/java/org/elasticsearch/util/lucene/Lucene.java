@@ -29,9 +29,9 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.util.gnu.trove.TIntArrayList;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 /**
@@ -105,23 +105,23 @@ public class Lucene {
         }
     }
 
-    public static TopDocs readTopDocs(DataInput in) throws IOException {
+    public static TopDocs readTopDocs(StreamInput in) throws IOException {
         if (!in.readBoolean()) {
             // no docs
             return null;
         }
         if (in.readBoolean()) {
-            int totalHits = in.readInt();
+            int totalHits = in.readVInt();
             float maxScore = in.readFloat();
 
-            SortField[] fields = new SortField[in.readInt()];
+            SortField[] fields = new SortField[in.readVInt()];
             for (int i = 0; i < fields.length; i++) {
-                fields[i] = new SortField(in.readUTF(), in.readInt(), in.readBoolean());
+                fields[i] = new SortField(in.readUTF(), in.readVInt(), in.readBoolean());
             }
 
-            FieldDoc[] fieldDocs = new FieldDoc[in.readInt()];
+            FieldDoc[] fieldDocs = new FieldDoc[in.readVInt()];
             for (int i = 0; i < fieldDocs.length; i++) {
-                Comparable[] cFields = new Comparable[in.readInt()];
+                Comparable[] cFields = new Comparable[in.readVInt()];
                 for (int j = 0; j < cFields.length; j++) {
                     byte type = in.readByte();
                     if (type == 0) {
@@ -140,22 +140,22 @@ public class Lucene {
                         throw new IOException("Can't match type [" + type + "]");
                     }
                 }
-                fieldDocs[i] = new FieldDoc(in.readInt(), in.readFloat(), cFields);
+                fieldDocs[i] = new FieldDoc(in.readVInt(), in.readFloat(), cFields);
             }
             return new TopFieldDocs(totalHits, fieldDocs, fields, maxScore);
         } else {
-            int totalHits = in.readInt();
+            int totalHits = in.readVInt();
             float maxScore = in.readFloat();
 
-            ScoreDoc[] scoreDocs = new ScoreDoc[in.readInt()];
+            ScoreDoc[] scoreDocs = new ScoreDoc[in.readVInt()];
             for (int i = 0; i < scoreDocs.length; i++) {
-                scoreDocs[i] = new ScoreDoc(in.readInt(), in.readFloat());
+                scoreDocs[i] = new ScoreDoc(in.readVInt(), in.readFloat());
             }
             return new TopDocs(totalHits, scoreDocs, maxScore);
         }
     }
 
-    public static void writeTopDocs(DataOutput out, TopDocs topDocs, int from) throws IOException {
+    public static void writeTopDocs(StreamOutput out, TopDocs topDocs, int from) throws IOException {
         if (topDocs.scoreDocs.length - from < 0) {
             out.writeBoolean(false);
             return;
@@ -165,75 +165,75 @@ public class Lucene {
             out.writeBoolean(true);
             TopFieldDocs topFieldDocs = (TopFieldDocs) topDocs;
 
-            out.writeInt(topDocs.totalHits);
+            out.writeVInt(topDocs.totalHits);
             out.writeFloat(topDocs.getMaxScore());
 
-            out.writeInt(topFieldDocs.fields.length);
+            out.writeVInt(topFieldDocs.fields.length);
             for (SortField sortField : topFieldDocs.fields) {
                 out.writeUTF(sortField.getField());
-                out.writeInt(sortField.getType());
+                out.writeVInt(sortField.getType());
                 out.writeBoolean(sortField.getReverse());
             }
 
-            out.writeInt(topDocs.scoreDocs.length - from);
+            out.writeVInt(topDocs.scoreDocs.length - from);
             int index = 0;
             for (ScoreDoc doc : topFieldDocs.scoreDocs) {
                 if (index++ < from) {
                     continue;
                 }
                 FieldDoc fieldDoc = (FieldDoc) doc;
-                out.writeInt(fieldDoc.fields.length);
+                out.writeVInt(fieldDoc.fields.length);
                 for (Comparable field : fieldDoc.fields) {
                     Class type = field.getClass();
                     if (type == String.class) {
-                        out.write(0);
+                        out.writeByte((byte) 0);
                         out.writeUTF((String) field);
                     } else if (type == Integer.class) {
-                        out.write(1);
+                        out.writeByte((byte) 1);
                         out.writeInt((Integer) field);
                     } else if (type == Long.class) {
-                        out.write(2);
+                        out.writeByte((byte) 2);
                         out.writeLong((Long) field);
                     } else if (type == Float.class) {
-                        out.write(3);
+                        out.writeByte((byte) 3);
                         out.writeFloat((Float) field);
                     } else if (type == Double.class) {
-                        out.write(4);
+                        out.writeByte((byte) 4);
                         out.writeDouble((Double) field);
                     } else if (type == Byte.class) {
-                        out.write(5);
-                        out.write((Byte) field);
+                        out.writeByte((byte) 5);
+                        out.writeByte((Byte) field);
                     } else {
                         throw new IOException("Can't handle sort field value of type [" + type + "]");
                     }
                 }
 
-                out.writeInt(doc.doc);
+                out.writeVInt(doc.doc);
                 out.writeFloat(doc.score);
             }
         } else {
             out.writeBoolean(false);
-            out.writeInt(topDocs.totalHits);
+            out.writeVInt(topDocs.totalHits);
             out.writeFloat(topDocs.getMaxScore());
 
-            out.writeInt(topDocs.scoreDocs.length - from);
+            out.writeVInt(topDocs.scoreDocs.length - from);
             int index = 0;
             for (ScoreDoc doc : topDocs.scoreDocs) {
                 if (index++ < from) {
                     continue;
                 }
-                out.writeInt(doc.doc);
+                out.writeVInt(doc.doc);
                 out.writeFloat(doc.score);
             }
         }
     }
 
-    public static Explanation readExplanation(DataInput in) throws IOException {
+    public static Explanation readExplanation(StreamInput in) throws IOException {
         float value = in.readFloat();
         String description = in.readUTF();
         Explanation explanation = new Explanation(value, description);
         if (in.readBoolean()) {
-            int size = in.readInt();
+            int size = in.readVInt();
             for (int i = 0; i < size; i++) {
                 explanation.addDetail(readExplanation(in));
             }
@@ -241,7 +241,7 @@ public class Lucene {
         return explanation;
     }
 
-    public static void writeExplanation(DataOutput out, Explanation explanation) throws IOException {
+    public static void writeExplanation(StreamOutput out, Explanation explanation) throws IOException {
         out.writeFloat(explanation.getValue());
         out.writeUTF(explanation.getDescription());
         Explanation[] subExplanations = explanation.getDetails();
@@ -249,7 +249,7 @@ public class Lucene {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeInt(subExplanations.length);
+            out.writeVInt(subExplanations.length);
             for (Explanation subExp : subExplanations) {
                 writeExplanation(out, subExp);
             }

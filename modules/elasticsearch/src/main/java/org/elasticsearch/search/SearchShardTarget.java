@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.io.Serializable;
 
@@ -61,22 +61,22 @@ public class SearchShardTarget implements Streamable, Serializable {
         return shardId;
     }
 
-    public static SearchShardTarget readSearchShardTarget(DataInput in) throws IOException, ClassNotFoundException {
+    public static SearchShardTarget readSearchShardTarget(StreamInput in) throws IOException {
         SearchShardTarget result = new SearchShardTarget();
         result.readFrom(in);
         return result;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         nodeId = in.readUTF();
         index = in.readUTF();
-        shardId = in.readInt();
+        shardId = in.readVInt();
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(nodeId);
         out.writeUTF(index);
-        out.writeInt(shardId);
+        out.writeVInt(shardId);
     }
 
     @Override public boolean equals(Object o) {

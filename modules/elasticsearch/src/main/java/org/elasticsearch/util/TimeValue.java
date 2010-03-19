@@ -20,10 +20,10 @@
 package org.elasticsearch.util;
 
 import org.elasticsearch.ElasticSearchParseException;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.concurrent.TimeUnit;
@@ -32,8 +32,6 @@ import java.util.concurrent.TimeUnit;
  * @author kimchy (Shay Banon)
  */
 public class TimeValue implements Serializable, Streamable {
-
-    public static final TimeValue UNKNOWN = new TimeValue(-1);
 
     public static TimeValue timeValueMillis(long millis) {
         return new TimeValue(millis, TimeUnit.MILLISECONDS);
@@ -182,18 +180,18 @@ public class TimeValue implements Serializable, Streamable {
     static final long C5 = C4 * 60L;
     static final long C6 = C5 * 24L;
 
-    public static TimeValue readTimeValue(DataInput in) throws IOException, ClassNotFoundException {
+    public static TimeValue readTimeValue(StreamInput in) throws IOException {
         TimeValue timeValue = new TimeValue();
         timeValue.readFrom(in);
         return timeValue;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         duration = in.readLong();
         timeUnit = TimeUnit.NANOSECONDS;
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(nanos());
     }
 

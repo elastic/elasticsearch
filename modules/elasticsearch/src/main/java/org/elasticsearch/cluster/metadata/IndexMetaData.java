@@ -26,13 +26,13 @@ import org.elasticsearch.util.MapBuilder;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.Preconditions;
 import org.elasticsearch.util.concurrent.Immutable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.json.ToJson;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Map;
 
@@ -227,20 +227,20 @@ public class IndexMetaData {
             return builder.build();
         }
 
-        public static IndexMetaData readFrom(DataInput in, Settings globalSettings) throws ClassNotFoundException, IOException {
+        public static IndexMetaData readFrom(StreamInput in, Settings globalSettings) throws IOException {
             Builder builder = new Builder(in.readUTF());
             builder.settings(readSettingsFromStream(in, globalSettings));
-            int mappingsSize = in.readInt();
+            int mappingsSize = in.readVInt();
             for (int i = 0; i < mappingsSize; i++) {
                 builder.putMapping(in.readUTF(), in.readUTF());
             }
             return builder.build();
         }
 
-        public static void writeTo(IndexMetaData indexMetaData, DataOutput out) throws IOException {
+        public static void writeTo(IndexMetaData indexMetaData, StreamOutput out) throws IOException {
             out.writeUTF(indexMetaData.index());
             writeSettingsToStream(indexMetaData.settings(), out);
-            out.writeInt(indexMetaData.mappings().size());
+            out.writeVInt(indexMetaData.mappings().size());
             for (Map.Entry<String, String> entry : indexMetaData.mappings().entrySet()) {
                 out.writeUTF(entry.getKey());
                 out.writeUTF(entry.getValue());

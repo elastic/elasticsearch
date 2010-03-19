@@ -22,9 +22,9 @@ package org.elasticsearch.action.terms;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
 import org.elasticsearch.util.gnu.trove.TObjectIntHashMap;
 import org.elasticsearch.util.gnu.trove.TObjectIntIterator;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -72,38 +72,38 @@ class ShardTermsResponse extends BroadcastShardOperationResponse {
         return fieldsTermsFreqs;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        numDocs = in.readInt();
-        maxDoc = in.readInt();
-        numDeletedDocs = in.readInt();
-        int size = in.readInt();
+        numDocs = in.readVInt();
+        maxDoc = in.readVInt();
+        numDeletedDocs = in.readVInt();
+        int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             String fieldName = in.readUTF();
 
             TObjectIntHashMap<String> termsFreq = new TObjectIntHashMap<String>();
-            int size1 = in.readInt();
+            int size1 = in.readVInt();
             for (int j = 0; j < size1; j++) {
-                termsFreq.put(in.readUTF(), in.readInt());
+                termsFreq.put(in.readUTF(), in.readVInt());
             }
 
             fieldsTermsFreqs.put(fieldName, termsFreq);
         }
     }
 
-    @Override public void writeTo(final DataOutput out) throws IOException {
+    @Override public void writeTo(final StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeInt(numDocs);
-        out.writeInt(maxDoc);
-        out.writeInt(numDeletedDocs);
-        out.writeInt(fieldsTermsFreqs.size());
+        out.writeVInt(numDocs);
+        out.writeVInt(maxDoc);
+        out.writeVInt(numDeletedDocs);
+        out.writeVInt(fieldsTermsFreqs.size());
         for (Map.Entry<String, TObjectIntHashMap<String>> entry : fieldsTermsFreqs.entrySet()) {
             out.writeUTF(entry.getKey());
-            out.writeInt(entry.getValue().size());
+            out.writeVInt(entry.getValue().size());
             for (TObjectIntIterator<String> it = entry.getValue().iterator(); it.hasNext();) {
                 it.advance();
                 out.writeUTF(it.key());
-                out.writeInt(it.value());
+                out.writeVInt(it.value());
             }
         }
     }

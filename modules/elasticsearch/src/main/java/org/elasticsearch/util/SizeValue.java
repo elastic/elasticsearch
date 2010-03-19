@@ -20,19 +20,17 @@
 package org.elasticsearch.util;
 
 import org.elasticsearch.ElasticSearchParseException;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.io.Serializable;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class SizeValue implements Serializable, Streamable {
-
-    public static final SizeValue UNKNOWN = new SizeValue(-1);
 
     private long size;
 
@@ -125,19 +123,19 @@ public class SizeValue implements Serializable, Streamable {
         return new SizeValue(bytes, SizeUnit.BYTES);
     }
 
-    public static SizeValue readSizeValue(DataInput dataInput) throws IOException, ClassNotFoundException {
+    public static SizeValue readSizeValue(StreamInput in) throws IOException {
         SizeValue sizeValue = new SizeValue();
-        sizeValue.readFrom(dataInput);
+        sizeValue.readFrom(in);
         return sizeValue;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
-        size = in.readLong();
+    @Override public void readFrom(StreamInput in) throws IOException {
+        size = in.readVLong();
         sizeUnit = SizeUnit.BYTES;
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
-        out.writeLong(bytes());
+    @Override public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(bytes());
     }
 
     @Override public boolean equals(Object o) {

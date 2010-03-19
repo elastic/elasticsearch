@@ -21,9 +21,9 @@ package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 /**
@@ -87,12 +87,12 @@ public class FlushRequest extends BroadcastOperationRequest {
         return this;
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(refresh);
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         refresh = in.readBoolean();
     }

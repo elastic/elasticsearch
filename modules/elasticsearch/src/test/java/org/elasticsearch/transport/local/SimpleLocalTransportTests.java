@@ -23,13 +23,13 @@ import org.elasticsearch.cluster.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.dynamic.DynamicThreadPool;
 import org.elasticsearch.transport.*;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import static org.hamcrest.MatcherAssert.*;
@@ -156,11 +156,11 @@ public class SimpleLocalTransportTests {
         private StringMessage() {
         }
 
-        @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+        @Override public void readFrom(StreamInput in) throws IOException {
             message = in.readUTF();
         }
 
-        @Override public void writeTo(DataOutput out) throws IOException {
+        @Override public void writeTo(StreamOutput out) throws IOException {
             out.writeUTF(message);
         }
     }

@@ -22,10 +22,10 @@ package org.elasticsearch.search.fetch;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import static org.elasticsearch.search.fetch.FetchSearchResult.*;
@@ -69,18 +69,18 @@ public class QueryFetchSearchResult implements Streamable, QuerySearchResultProv
         return fetchResult;
     }
 
-    public static QueryFetchSearchResult readQueryFetchSearchResult(DataInput in) throws IOException, ClassNotFoundException {
+    public static QueryFetchSearchResult readQueryFetchSearchResult(StreamInput in) throws IOException {
         QueryFetchSearchResult result = new QueryFetchSearchResult();
         result.readFrom(in);
         return result;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         queryResult = readQuerySearchResult(in);
         fetchResult = readFetchSearchResult(in);
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         queryResult.writeTo(out);
         fetchResult.writeTo(out);
     }

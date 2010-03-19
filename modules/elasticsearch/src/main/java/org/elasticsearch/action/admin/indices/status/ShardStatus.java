@@ -23,9 +23,9 @@ import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRespons
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.util.SizeValue;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import static org.elasticsearch.cluster.routing.ImmutableShardRouting.*;
@@ -60,9 +60,9 @@ public class ShardStatus extends BroadcastShardOperationResponse {
 
     IndexShardState state;
 
-    SizeValue storeSize = SizeValue.UNKNOWN;
+    SizeValue storeSize;
 
-    SizeValue estimatedFlushableMemorySize = SizeValue.UNKNOWN;
+    SizeValue estimatedFlushableMemorySize;
 
     long translogId = -1;
 
@@ -106,18 +106,28 @@ public class ShardStatus extends BroadcastShardOperationResponse {
         return docs;
     }
 
-    public static ShardStatus readIndexShardStatus(DataInput in) throws ClassNotFoundException, IOException {
+    public static ShardStatus readIndexShardStatus(StreamInput in) throws IOException {
         ShardStatus shardStatus = new ShardStatus();
         shardStatus.readFrom(in);
         return shardStatus;
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         shardRouting.writeTo(out);
         out.writeByte(state.id());
-        storeSize.writeTo(out);
-        estimatedFlushableMemorySize.writeTo(out);
+        if (storeSize == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            storeSize.writeTo(out);
+        }
+        if (estimatedFlushableMemorySize == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            estimatedFlushableMemorySize.writeTo(out);
+        }
         out.writeLong(translogId);
         out.writeLong(translogOperations);
         out.writeInt(docs.numDocs());
@@ -125,12 +135,16 @@ public class ShardStatus extends BroadcastShardOperationResponse {
         out.writeInt(docs.deletedDocs());
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         shardRouting = readShardRoutingEntry(in);
         state = IndexShardState.fromId(in.readByte());
-        storeSize = readSizeValue(in);
-        estimatedFlushableMemorySize = readSizeValue(in);
+        if (in.readBoolean()) {
+            storeSize = readSizeValue(in);
+        }
+        if (in.readBoolean()) {
+            estimatedFlushableMemorySize = readSizeValue(in);
+        }
         translogId = in.readLong();
         translogOperations = in.readLong();
         docs = new Docs();

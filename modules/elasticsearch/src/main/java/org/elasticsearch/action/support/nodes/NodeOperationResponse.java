@@ -20,14 +20,14 @@
 package org.elasticsearch.action.support.nodes;
 
 import org.elasticsearch.cluster.node.Node;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class NodeOperationResponse implements Streamable {
 
@@ -44,11 +44,11 @@ public abstract class NodeOperationResponse implements Streamable {
         return node;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         node = Node.readNode(in);
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         node.writeTo(out);
     }
 }

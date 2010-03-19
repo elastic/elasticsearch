@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.Streamable;
 
 /**
  * @author kimchy (Shay Banon)

@@ -20,10 +20,10 @@
 package org.elasticsearch.action.deletebyquery;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
@@ -62,8 +62,8 @@ public class DeleteByQueryResponse implements ActionResponse, Streamable, Iterab
         return indices.get(index);
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
-        int size = in.readInt();
+    @Override public void readFrom(StreamInput in) throws IOException {
+        int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             IndexDeleteByQueryResponse response = new IndexDeleteByQueryResponse();
             response.readFrom(in);
@@ -71,8 +71,8 @@ public class DeleteByQueryResponse implements ActionResponse, Streamable, Iterab
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
-        out.writeInt(indices.size());
+    @Override public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(indices.size());
         for (IndexDeleteByQueryResponse indexResponse : indices.values()) {
             indexResponse.writeTo(out);
         }

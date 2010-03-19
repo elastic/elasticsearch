@@ -22,10 +22,10 @@ package org.elasticsearch.cluster.routing;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.List;
@@ -115,9 +115,9 @@ public class RoutingTableValidation implements Serializable, Streamable {
         return allFailures().toString();
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         valid = in.readBoolean();
-        int size = in.readInt();
+        int size = in.readVInt();
         if (size == 0) {
             failures = ImmutableList.of();
         } else {
@@ -126,14 +126,14 @@ public class RoutingTableValidation implements Serializable, Streamable {
                 failures.add(in.readUTF());
             }
         }
-        size = in.readInt();
+        size = in.readVInt();
         if (size == 0) {
             indicesFailures = ImmutableMap.of();
         } else {
             indicesFailures = newHashMap();
             for (int i = 0; i < size; i++) {
                 String index = in.readUTF();
-                int size2 = in.readInt();
+                int size2 = in.readVInt();
                 List<String> indexFailures = newArrayListWithCapacity(size2);
                 for (int j = 0; j < size2; j++) {
                     indexFailures.add(in.readUTF());
@@ -143,23 +143,23 @@ public class RoutingTableValidation implements Serializable, Streamable {
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(valid);
         if (failures == null) {
-            out.writeInt(0);
+            out.writeVInt(0);
         } else {
-            out.writeInt(failures.size());
+            out.writeVInt(failures.size());
             for (String failure : failures) {
                 out.writeUTF(failure);
             }
         }
         if (indicesFailures == null) {
-            out.writeInt(0);
+            out.writeVInt(0);
         } else {
-            out.writeInt(indicesFailures.size());
+            out.writeVInt(indicesFailures.size());
             for (Map.Entry<String, List<String>> entry : indicesFailures.entrySet()) {
                 out.writeUTF(entry.getKey());
-                out.writeInt(entry.getValue().size());
+                out.writeVInt(entry.getValue().size());
                 for (String failure : entry.getValue()) {
                     out.writeUTF(failure);
                 }

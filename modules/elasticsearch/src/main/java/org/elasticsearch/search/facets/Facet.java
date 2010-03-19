@@ -20,7 +20,7 @@
 package org.elasticsearch.search.facets;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.json.ToJson;
 
 /**

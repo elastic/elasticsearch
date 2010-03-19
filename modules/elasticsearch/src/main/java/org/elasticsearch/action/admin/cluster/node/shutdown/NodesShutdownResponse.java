@@ -23,13 +23,13 @@ import org.elasticsearch.action.support.nodes.NodeOperationResponse;
 import org.elasticsearch.action.support.nodes.NodesOperationResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class NodesShutdownResponse extends NodesOperationResponse<NodesShutdownResponse.NodeShutdownResponse> {
 
@@ -40,17 +40,17 @@ public class NodesShutdownResponse extends NodesOperationResponse<NodesShutdownR
         super(clusterName, nodes);
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        nodes = new NodeShutdownResponse[in.readInt()];
+        nodes = new NodeShutdownResponse[in.readVInt()];
         for (int i = 0; i < nodes.length; i++) {
             nodes[i] = NodeShutdownResponse.readNodeShutdownResponse(in);
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeInt(nodes.length);
+        out.writeVInt(nodes.length);
         for (NodeShutdownResponse node : nodes) {
             node.writeTo(out);
         }
@@ -65,7 +65,7 @@ public class NodesShutdownResponse extends NodesOperationResponse<NodesShutdownR
             super(node);
         }
 
-        public static NodeShutdownResponse readNodeShutdownResponse(DataInput in) throws ClassNotFoundException, IOException {
+        public static NodeShutdownResponse readNodeShutdownResponse(StreamInput in) throws IOException {
             NodeShutdownResponse res = new NodeShutdownResponse();
             res.readFrom(in);
             return res;

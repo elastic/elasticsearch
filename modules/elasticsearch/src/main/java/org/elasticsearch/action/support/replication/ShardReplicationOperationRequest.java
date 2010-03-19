@@ -22,9 +22,9 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
@@ -91,13 +91,13 @@ public abstract class ShardReplicationOperationRequest implements ActionRequest 
         return validationException;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         timeout = TimeValue.readTimeValue(in);
         index = in.readUTF();
         // no need to serialize threaded* parameters, since they only matter locally
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         timeout.writeTo(out);
         out.writeUTF(index);
     }

@@ -23,9 +23,9 @@ import org.elasticsearch.transport.NotSerializableTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.util.io.ByteArrayDataOutputStream;
-import org.elasticsearch.util.io.Streamable;
 import org.elasticsearch.util.io.ThrowableObjectOutputStream;
+import org.elasticsearch.util.io.stream.BytesStreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
 import java.io.IOException;
 import java.io.NotSerializableException;
@@ -56,7 +56,7 @@ public class LocalTransportChannel implements TransportChannel {
     }
 
     @Override public void sendResponse(Streamable message) throws IOException {
-        ByteArrayDataOutputStream stream = ByteArrayDataOutputStream.Cached.cached();
+        BytesStreamOutput stream = BytesStreamOutput.Cached.cached();
         stream.writeLong(requestId);
         byte status = 0;
         status = Transport.Helper.setResponse(status);
@@ -71,16 +71,16 @@ public class LocalTransportChannel implements TransportChannel {
     }
 
     @Override public void sendResponse(Throwable error) throws IOException {
-        ByteArrayDataOutputStream stream;
+        BytesStreamOutput stream;
         try {
-            stream = ByteArrayDataOutputStream.Cached.cached();
+            stream = BytesStreamOutput.Cached.cached();
             writeResponseExceptionHeader(stream);
             RemoteTransportException tx = new RemoteTransportException(targetTransport.nodeName(), targetTransport.boundAddress().boundAddress(), action, error);
             ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(stream);
             too.writeObject(tx);
             too.close();
         } catch (NotSerializableException e) {
-            stream = ByteArrayDataOutputStream.Cached.cached();
+            stream = BytesStreamOutput.Cached.cached();
             writeResponseExceptionHeader(stream);
             RemoteTransportException tx = new RemoteTransportException(targetTransport.nodeName(), targetTransport.boundAddress().boundAddress(), action, new NotSerializableTransportException(error));
             ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(stream);
@@ -95,7 +95,7 @@ public class LocalTransportChannel implements TransportChannel {
         });
     }
 
-    private void writeResponseExceptionHeader(ByteArrayDataOutputStream stream) throws IOException {
+    private void writeResponseExceptionHeader(BytesStreamOutput stream) throws IOException {
         stream.writeLong(requestId);
         byte status = 0;
         status = Transport.Helper.setResponse(status);

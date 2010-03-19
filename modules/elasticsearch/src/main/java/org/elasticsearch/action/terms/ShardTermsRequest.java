@@ -20,9 +20,9 @@
 package org.elasticsearch.action.terms;
 
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 /**
@@ -114,9 +114,9 @@ class ShardTermsRequest extends BroadcastShardOperationRequest {
         return this.exact;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        fields = new String[in.readInt()];
+        fields = new String[in.readVInt()];
         for (int i = 0; i < fields.length; i++) {
             fields[i] = in.readUTF();
         }
@@ -134,15 +134,15 @@ class ShardTermsRequest extends BroadcastShardOperationRequest {
         if (in.readBoolean()) {
             regexp = in.readUTF();
         }
-        size = in.readInt();
+        size = in.readVInt();
         convert = in.readBoolean();
         sortType = TermsRequest.SortType.fromValue(in.readByte());
         exact = in.readBoolean();
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeInt(fields.length);
+        out.writeVInt(fields.length);
         for (String field : fields) {
             out.writeUTF(field);
         }
@@ -172,7 +172,7 @@ class ShardTermsRequest extends BroadcastShardOperationRequest {
             out.writeBoolean(true);
             out.writeUTF(regexp);
         }
-        out.writeInt(size);
+        out.writeVInt(size);
         out.writeBoolean(convert);
         out.writeByte(sortType.value());
         out.writeBoolean(exact);

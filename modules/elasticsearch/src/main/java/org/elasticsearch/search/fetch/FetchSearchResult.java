@@ -21,10 +21,10 @@ package org.elasticsearch.search.fetch;
 
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHits;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import static org.elasticsearch.search.SearchShardTarget.*;
@@ -82,19 +82,19 @@ public class FetchSearchResult implements Streamable, FetchSearchResultProvider 
         return counter++;
     }
 
-    public static FetchSearchResult readFetchSearchResult(DataInput in) throws IOException, ClassNotFoundException {
+    public static FetchSearchResult readFetchSearchResult(StreamInput in) throws IOException {
         FetchSearchResult result = new FetchSearchResult();
         result.readFrom(in);
         return result;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         id = in.readLong();
         shardTarget = readSearchShardTarget(in);
         hits = readSearchHits(in);
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(id);
         shardTarget.writeTo(out);
         hits.writeTo(out);

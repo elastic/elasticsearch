@@ -19,10 +19,10 @@
 
 package org.elasticsearch.util.io.compression;
 
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 /**
@@ -50,19 +50,19 @@ public class CompressedString implements Streamable {
         return string;
     }
 
-    public static CompressedString readCompressedString(DataInput in) throws IOException, ClassNotFoundException {
+    public static CompressedString readCompressedString(StreamInput in) throws IOException, ClassNotFoundException {
         CompressedString result = new CompressedString();
         result.readFrom(in);
         return result;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
-        compressedString = new byte[in.readInt()];
+    @Override public void readFrom(StreamInput in) throws IOException {
+        compressedString = new byte[in.readVInt()];
         in.readFully(compressedString);
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
-        out.writeInt(compressedString.length);
-        out.write(compressedString);
+    @Override public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(compressedString.length);
+        out.writeBytes(compressedString);
     }
 }

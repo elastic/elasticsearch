@@ -20,10 +20,10 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.search.Scroll;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import static org.elasticsearch.search.Scroll.*;
@@ -57,14 +57,14 @@ public class InternalScrollSearchRequest implements Streamable {
         return this;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         id = in.readLong();
         if (in.readBoolean()) {
             scroll = readScroll(in);
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(id);
         if (scroll == null) {
             out.writeBoolean(false);

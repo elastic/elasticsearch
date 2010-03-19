@@ -21,9 +21,9 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.index.shard.IndexShardException;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import static org.elasticsearch.ExceptionsHelper.*;
@@ -67,28 +67,28 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
         return this.reason;
     }
 
-    public static DefaultShardOperationFailedException readShardOperationFailed(DataInput in) throws IOException, ClassNotFoundException {
+    public static DefaultShardOperationFailedException readShardOperationFailed(StreamInput in) throws IOException {
         DefaultShardOperationFailedException exp = new DefaultShardOperationFailedException();
         exp.readFrom(in);
         return exp;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             index = in.readUTF();
         }
-        shardId = in.readInt();
+        shardId = in.readVInt();
         reason = in.readUTF();
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         if (index == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
             out.writeUTF(index);
         }
-        out.writeInt(shardId);
+        out.writeVInt(shardId);
         out.writeUTF(reason);
     }
 }

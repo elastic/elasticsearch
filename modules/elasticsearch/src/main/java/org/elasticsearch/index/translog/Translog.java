@@ -29,11 +29,11 @@ import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.concurrent.NotThreadSafe;
 import org.elasticsearch.util.concurrent.ThreadSafe;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.lease.Releasable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 /**
@@ -190,18 +190,18 @@ public interface Translog extends IndexShardComponent {
             indexShard.create(type, id, source);
         }
 
-        @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+        @Override public void readFrom(StreamInput in) throws IOException {
             id = in.readUTF();
             type = in.readUTF();
-            source = new byte[in.readInt()];
+            source = new byte[in.readVInt()];
             in.readFully(source);
         }
 
-        @Override public void writeTo(DataOutput out) throws IOException {
+        @Override public void writeTo(StreamOutput out) throws IOException {
             out.writeUTF(id);
             out.writeUTF(type);
-            out.writeInt(source.length);
-            out.write(source);
+            out.writeVInt(source.length);
+            out.writeBytes(source);
         }
     }
 
@@ -247,18 +247,18 @@ public interface Translog extends IndexShardComponent {
             indexShard.index(type, id, source);
         }
 
-        @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+        @Override public void readFrom(StreamInput in) throws IOException {
             id = in.readUTF();
             type = in.readUTF();
-            source = new byte[in.readInt()];
+            source = new byte[in.readVInt()];
             in.readFully(source);
         }
 
-        @Override public void writeTo(DataOutput out) throws IOException {
+        @Override public void writeTo(StreamOutput out) throws IOException {
             out.writeUTF(id);
             out.writeUTF(type);
-            out.writeInt(source.length);
-            out.write(source);
+            out.writeVInt(source.length);
+            out.writeBytes(source);
         }
     }
 
@@ -292,11 +292,11 @@ public interface Translog extends IndexShardComponent {
             indexShard.delete(uid);
         }
 
-        @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+        @Override public void readFrom(StreamInput in) throws IOException {
             uid = new Term(in.readUTF(), in.readUTF());
         }
 
-        @Override public void writeTo(DataOutput out) throws IOException {
+        @Override public void writeTo(StreamOutput out) throws IOException {
             out.writeUTF(uid.field());
             out.writeUTF(uid.text());
         }
@@ -344,13 +344,13 @@ public interface Translog extends IndexShardComponent {
             indexShard.deleteByQuery(source, queryParserName, types);
         }
 
-        @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
-            source = new byte[in.readInt()];
+        @Override public void readFrom(StreamInput in) throws IOException {
+            source = new byte[in.readVInt()];
             in.readFully(source);
             if (in.readBoolean()) {
                 queryParserName = in.readUTF();
             }
-            int typesSize = in.readInt();
+            int typesSize = in.readVInt();
             if (typesSize > 0) {
                 types = new String[typesSize];
                 for (int i = 0; i < typesSize; i++) {
@@ -359,16 +359,16 @@ public interface Translog extends IndexShardComponent {
             }
         }
 
-        @Override public void writeTo(DataOutput out) throws IOException {
-            out.writeInt(source.length);
-            out.write(source);
+        @Override public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(source.length);
+            out.writeBytes(source);
             if (queryParserName == null) {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
                 out.writeUTF(queryParserName);
             }
-            out.writeInt(types.length);
+            out.writeVInt(types.length);
             for (String type : types) {
                 out.writeUTF(type);
             }

@@ -42,12 +42,12 @@ import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.StopWatch;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.io.Streamable;
 import org.elasticsearch.util.io.VoidStreamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.settings.Settings;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -235,12 +235,12 @@ public class RecoveryAction extends AbstractIndexShardComponent {
             this.markAsRelocated = markAsRelocated;
         }
 
-        @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+        @Override public void readFrom(StreamInput in) throws IOException {
             node = Node.readNode(in);
             markAsRelocated = in.readBoolean();
         }
 
-        @Override public void writeTo(DataOutput out) throws IOException {
+        @Override public void writeTo(StreamOutput out) throws IOException {
             node.writeTo(out);
             out.writeBoolean(markAsRelocated);
         }
@@ -411,40 +411,40 @@ public class RecoveryAction extends AbstractIndexShardComponent {
         private RecoveryStatus() {
         }
 
-        @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
-            int size = in.readInt();
+        @Override public void readFrom(StreamInput in) throws IOException {
+            int size = in.readVInt();
             phase1FileNames = new ArrayList<String>(size);
             for (int i = 0; i < size; i++) {
                 phase1FileNames.add(in.readUTF());
             }
-            size = in.readInt();
+            size = in.readVInt();
             phase1FileSizes = new ArrayList<Long>(size);
             for (int i = 0; i < size; i++) {
-                phase1FileSizes.add(in.readLong());
+                phase1FileSizes.add(in.readVLong());
             }
-            phase1TotalSize = in.readLong();
-            phase1Time = in.readLong();
-            phase2Operations = in.readInt();
-            phase2Time = in.readLong();
-            phase3Operations = in.readInt();
-            phase3Time = in.readLong();
+            phase1TotalSize = in.readVLong();
+            phase1Time = in.readVLong();
+            phase2Operations = in.readVInt();
+            phase2Time = in.readVLong();
+            phase3Operations = in.readVInt();
+            phase3Time = in.readVLong();
         }
 
-        @Override public void writeTo(DataOutput out) throws IOException {
-            out.writeInt(phase1FileNames.size());
+        @Override public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(phase1FileNames.size());
             for (String name : phase1FileNames) {
                 out.writeUTF(name);
             }
-            out.writeInt(phase1FileSizes.size());
+            out.writeVInt(phase1FileSizes.size());
             for (long size : phase1FileSizes) {
-                out.writeLong(size);
+                out.writeVLong(size);
             }
-            out.writeLong(phase1TotalSize);
-            out.writeLong(phase1Time);
-            out.writeInt(phase2Operations);
-            out.writeLong(phase2Time);
-            out.writeInt(phase3Operations);
-            out.writeLong(phase3Time);
+            out.writeVLong(phase1TotalSize);
+            out.writeVLong(phase1Time);
+            out.writeVInt(phase2Operations);
+            out.writeVLong(phase2Time);
+            out.writeVInt(phase3Operations);
+            out.writeVLong(phase3Time);
         }
     }
 
@@ -490,13 +490,13 @@ public class RecoveryAction extends AbstractIndexShardComponent {
             this.phase3 = phase3;
         }
 
-        @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+        @Override public void readFrom(StreamInput in) throws IOException {
             snapshot = new MemorySnapshot();
             snapshot.readFrom(in);
             phase3 = in.readBoolean();
         }
 
-        @Override public void writeTo(DataOutput out) throws IOException {
+        @Override public void writeTo(StreamOutput out) throws IOException {
             snapshot.writeTo(out);
             out.writeBoolean(phase3);
         }
@@ -568,20 +568,20 @@ public class RecoveryAction extends AbstractIndexShardComponent {
             this.contentLength = contentLength;
         }
 
-        @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+        @Override public void readFrom(StreamInput in) throws IOException {
             name = in.readUTF();
-            position = in.readLong();
-            length = in.readLong();
-            content = new byte[in.readInt()];
+            position = in.readVLong();
+            length = in.readVLong();
+            content = new byte[in.readVInt()];
             in.readFully(content);
         }
 
-        @Override public void writeTo(DataOutput out) throws IOException {
+        @Override public void writeTo(StreamOutput out) throws IOException {
             out.writeUTF(name);
-            out.writeLong(position);
-            out.writeLong(length);
-            out.writeInt(contentLength);
-            out.write(content, 0, contentLength);
+            out.writeVLong(position);
+            out.writeVLong(length);
+            out.writeVInt(contentLength);
+            out.writeBytes(content, 0, contentLength);
         }
     }
 }

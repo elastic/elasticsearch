@@ -24,10 +24,10 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.util.Bytes;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import static org.elasticsearch.search.Scroll.*;
@@ -129,30 +129,30 @@ public class InternalSearchRequest implements Streamable {
         this.types = types;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         index = in.readUTF();
-        shardId = in.readInt();
+        shardId = in.readVInt();
         if (in.readBoolean()) {
             scroll = readScroll(in);
         }
         if (in.readBoolean()) {
             timeout = readTimeValue(in);
         }
-        int size = in.readInt();
+        int size = in.readVInt();
         if (size == 0) {
             source = Bytes.EMPTY_ARRAY;
         } else {
             source = new byte[size];
             in.readFully(source);
         }
-        size = in.readInt();
+        size = in.readVInt();
         if (size == 0) {
             extraSource = Bytes.EMPTY_ARRAY;
         } else {
             extraSource = new byte[size];
             in.readFully(extraSource);
         }
-        int typesSize = in.readInt();
+        int typesSize = in.readVInt();
         if (typesSize > 0) {
             types = new String[typesSize];
             for (int i = 0; i < typesSize; i++) {
@@ -161,9 +161,9 @@ public class InternalSearchRequest implements Streamable {
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(index);
-        out.writeInt(shardId);
+        out.writeVInt(shardId);
         if (scroll == null) {
             out.writeBoolean(false);
         } else {
@@ -177,18 +177,18 @@ public class InternalSearchRequest implements Streamable {
             timeout.writeTo(out);
         }
         if (source == null) {
-            out.writeInt(0);
+            out.writeVInt(0);
         } else {
-            out.writeInt(source.length);
-            out.write(source);
+            out.writeVInt(source.length);
+            out.writeBytes(source);
         }
         if (extraSource == null) {
-            out.writeInt(0);
+            out.writeVInt(0);
         } else {
-            out.writeInt(extraSource.length);
-            out.write(extraSource);
+            out.writeVInt(extraSource.length);
+            out.writeBytes(extraSource);
         }
-        out.writeInt(types.length);
+        out.writeVInt(types.length);
         for (String type : types) {
             out.writeUTF(type);
         }

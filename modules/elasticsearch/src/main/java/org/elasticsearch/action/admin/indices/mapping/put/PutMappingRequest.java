@@ -24,10 +24,10 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.util.Required;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.json.JsonBuilder;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
@@ -163,9 +163,9 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
         return this;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        indices = new String[in.readInt()];
+        indices = new String[in.readVInt()];
         for (int i = 0; i < indices.length; i++) {
             indices[i] = in.readUTF();
         }
@@ -177,12 +177,12 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
         ignoreConflicts = in.readBoolean();
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (indices == null) {
-            out.writeInt(0);
+            out.writeVInt(0);
         } else {
-            out.writeInt(indices.length);
+            out.writeVInt(indices.length);
             for (String index : indices) {
                 out.writeUTF(index);
             }

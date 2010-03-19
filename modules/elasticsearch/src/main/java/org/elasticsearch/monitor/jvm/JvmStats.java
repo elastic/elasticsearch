@@ -21,10 +21,10 @@ package org.elasticsearch.monitor.jvm;
 
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.io.Serializable;
 import java.lang.management.*;
@@ -144,35 +144,35 @@ public class JvmStats implements Streamable, Serializable {
         return new TimeValue(gcCollectionTime, TimeUnit.MILLISECONDS);
     }
 
-    public static JvmStats readJvmStats(DataInput in) throws IOException, ClassNotFoundException {
+    public static JvmStats readJvmStats(StreamInput in) throws IOException {
         JvmStats jvmStats = new JvmStats();
         jvmStats.readFrom(in);
         return jvmStats;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
-        timestamp = in.readLong();
-        uptime = in.readLong();
-        memoryHeapCommitted = in.readLong();
-        memoryHeapUsed = in.readLong();
-        memoryNonHeapCommitted = in.readLong();
-        memoryNonHeapUsed = in.readLong();
-        threadCount = in.readInt();
-        peakThreadCount = in.readInt();
-        gcCollectionCount = in.readLong();
-        gcCollectionTime = in.readLong();
+    @Override public void readFrom(StreamInput in) throws IOException {
+        timestamp = in.readVLong();
+        uptime = in.readVLong();
+        memoryHeapCommitted = in.readVLong();
+        memoryHeapUsed = in.readVLong();
+        memoryNonHeapCommitted = in.readVLong();
+        memoryNonHeapUsed = in.readVLong();
+        threadCount = in.readVInt();
+        peakThreadCount = in.readVInt();
+        gcCollectionCount = in.readVLong();
+        gcCollectionTime = in.readVLong();
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
-        out.writeLong(timestamp);
-        out.writeLong(uptime);
-        out.writeLong(memoryHeapCommitted);
-        out.writeLong(memoryHeapUsed);
-        out.writeLong(memoryNonHeapCommitted);
-        out.writeLong(memoryNonHeapUsed);
-        out.writeInt(threadCount);
-        out.writeInt(peakThreadCount);
-        out.writeLong(gcCollectionCount);
-        out.writeLong(gcCollectionTime);
+    @Override public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(timestamp);
+        out.writeVLong(uptime);
+        out.writeVLong(memoryHeapCommitted);
+        out.writeVLong(memoryHeapUsed);
+        out.writeVLong(memoryNonHeapCommitted);
+        out.writeVLong(memoryNonHeapUsed);
+        out.writeVInt(threadCount);
+        out.writeVInt(peakThreadCount);
+        out.writeVLong(gcCollectionCount);
+        out.writeVLong(gcCollectionTime);
     }
 }

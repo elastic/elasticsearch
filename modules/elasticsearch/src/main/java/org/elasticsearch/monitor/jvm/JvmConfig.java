@@ -20,10 +20,10 @@
 package org.elasticsearch.monitor.jvm;
 
 import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.io.Serializable;
 import java.lang.management.ManagementFactory;
@@ -162,13 +162,13 @@ public class JvmConfig implements Streamable, Serializable {
         return systemProperties;
     }
 
-    public static JvmConfig readJvmComing(DataInput in) throws IOException, ClassNotFoundException {
+    public static JvmConfig readJvmComing(StreamInput in) throws IOException {
         JvmConfig jvmConfig = new JvmConfig();
         jvmConfig.readFrom(in);
         return jvmConfig;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         pid = in.readLong();
         vmName = in.readUTF();
         vmVersion = in.readUTF();
@@ -191,7 +191,7 @@ public class JvmConfig implements Streamable, Serializable {
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(pid);
         out.writeUTF(vmName);
         out.writeUTF(vmVersion);

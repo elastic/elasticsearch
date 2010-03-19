@@ -19,10 +19,10 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 /**
@@ -68,25 +68,25 @@ public class ClusterShardHealth implements Streamable {
         return primaryActive;
     }
 
-    static ClusterShardHealth readClusterShardHealth(DataInput in) throws IOException, ClassNotFoundException {
+    static ClusterShardHealth readClusterShardHealth(StreamInput in) throws IOException {
         ClusterShardHealth ret = new ClusterShardHealth();
         ret.readFrom(in);
         return ret;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
-        shardId = in.readInt();
+    @Override public void readFrom(StreamInput in) throws IOException {
+        shardId = in.readVInt();
         status = ClusterHealthStatus.fromValue(in.readByte());
-        activeShards = in.readInt();
-        relocatingShards = in.readInt();
+        activeShards = in.readVInt();
+        relocatingShards = in.readVInt();
         primaryActive = in.readBoolean();
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
-        out.writeInt(shardId);
+    @Override public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(shardId);
         out.writeByte(status.value());
-        out.writeInt(activeShards);
-        out.writeInt(relocatingShards);
+        out.writeVInt(activeShards);
+        out.writeVInt(relocatingShards);
         out.writeBoolean(primaryActive);
     }
 }

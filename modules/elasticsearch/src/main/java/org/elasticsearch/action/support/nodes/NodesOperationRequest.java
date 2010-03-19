@@ -22,9 +22,9 @@ package org.elasticsearch.action.support.nodes;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.util.Strings;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 /**
@@ -63,18 +63,18 @@ public abstract class NodesOperationRequest implements ActionRequest {
         return null;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
-        nodesIds = new String[in.readInt()];
+    @Override public void readFrom(StreamInput in) throws IOException {
+        nodesIds = new String[in.readVInt()];
         for (int i = 0; i < nodesIds.length; i++) {
             nodesIds[i] = in.readUTF();
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         if (nodesIds == null) {
-            out.writeInt(0);
+            out.writeVInt(0);
         } else {
-            out.writeInt(nodesIds.length);
+            out.writeVInt(nodesIds.length);
             for (String nodeId : nodesIds) {
                 out.writeUTF(nodeId);
             }

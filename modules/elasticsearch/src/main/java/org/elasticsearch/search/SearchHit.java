@@ -22,7 +22,7 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.search.highlight.HighlightField;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.json.ToJson;
 
 import java.util.Map;

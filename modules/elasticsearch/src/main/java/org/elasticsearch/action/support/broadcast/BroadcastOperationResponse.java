@@ -22,13 +22,14 @@ package org.elasticsearch.action.support.broadcast;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.action.support.DefaultShardOperationFailedException.*;
 
 /**
  * Base class for all broadcast operation based responses.
@@ -86,22 +87,22 @@ public abstract class BroadcastOperationResponse implements ActionResponse {
         return shardFailures;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
-        successfulShards = in.readInt();
-        failedShards = in.readInt();
-        int size = in.readInt();
+    @Override public void readFrom(StreamInput in) throws IOException {
+        successfulShards = in.readVInt();
+        failedShards = in.readVInt();
+        int size = in.readVInt();
         if (size > 0) {
             shardFailures = new ArrayList<ShardOperationFailedException>(size);
             for (int i = 0; i < size; i++) {
-                shardFailures.add(DefaultShardOperationFailedException.readShardOperationFailed(in));
+                shardFailures.add(readShardOperationFailed(in));
             }
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
-        out.writeInt(successfulShards);
-        out.writeInt(failedShards);
-        out.writeInt(shardFailures.size());
+    @Override public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(successfulShards);
+        out.writeVInt(failedShards);
+        out.writeVInt(shardFailures.size());
         for (ShardOperationFailedException exp : shardFailures) {
             exp.writeTo(out);
         }

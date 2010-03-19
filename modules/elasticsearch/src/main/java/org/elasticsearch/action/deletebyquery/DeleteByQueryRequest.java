@@ -26,9 +26,9 @@ import org.elasticsearch.util.Required;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.Unicode;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Arrays;
 
@@ -149,19 +149,19 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
         return this;
     }
 
-    public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        querySource = new byte[in.readInt()];
+        querySource = new byte[in.readVInt()];
         in.readFully(querySource);
         if (in.readBoolean()) {
             queryParserName = in.readUTF();
         }
     }
 
-    public void writeTo(DataOutput out) throws IOException {
+    public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeInt(querySource.length);
-        out.write(querySource);
+        out.writeVInt(querySource.length);
+        out.writeBytes(querySource);
         if (queryParserName == null) {
             out.writeBoolean(false);
         } else {

@@ -19,8 +19,9 @@
 
 package org.elasticsearch.util.transport;
 
-import java.io.DataInput;
-import java.io.DataOutput;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 
@@ -43,7 +44,7 @@ public class InetSocketTransportAddress implements TransportAddress {
         this.address = address;
     }
 
-    public static InetSocketTransportAddress readInetSocketTransportAddress(DataInput in) throws IOException, ClassNotFoundException {
+    public static InetSocketTransportAddress readInetSocketTransportAddress(StreamInput in) throws IOException {
         InetSocketTransportAddress address = new InetSocketTransportAddress();
         address.readFrom(in);
         return address;
@@ -57,11 +58,11 @@ public class InetSocketTransportAddress implements TransportAddress {
         return this.address;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         address = new InetSocketAddress(in.readUTF(), in.readInt());
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(address.getHostName());
         out.writeInt(address.getPort());
     }

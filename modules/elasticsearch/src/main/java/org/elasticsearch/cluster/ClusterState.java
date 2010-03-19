@@ -25,12 +25,12 @@ import org.elasticsearch.cluster.node.Nodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.util.Nullable;
-import org.elasticsearch.util.io.ByteArrayDataInputStream;
-import org.elasticsearch.util.io.ByteArrayDataOutputStream;
+import org.elasticsearch.util.io.stream.BytesStreamInput;
+import org.elasticsearch.util.io.stream.BytesStreamOutput;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.settings.Settings;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 /**
@@ -142,23 +142,23 @@ public class ClusterState {
         }
 
         public static byte[] toBytes(ClusterState state) throws IOException {
-            ByteArrayDataOutputStream os = ByteArrayDataOutputStream.Cached.cached();
+            BytesStreamOutput os = BytesStreamOutput.Cached.cached();
             writeTo(state, os);
             return os.copiedByteArray();
         }
 
-        public static ClusterState fromBytes(byte[] data, Settings globalSettings, Node localNode) throws IOException, ClassNotFoundException {
-            return readFrom(new ByteArrayDataInputStream(data), globalSettings, localNode);
+        public static ClusterState fromBytes(byte[] data, Settings globalSettings, Node localNode) throws IOException {
+            return readFrom(new BytesStreamInput(data), globalSettings, localNode);
         }
 
-        public static void writeTo(ClusterState state, DataOutput out) throws IOException {
+        public static void writeTo(ClusterState state, StreamOutput out) throws IOException {
             out.writeLong(state.version());
             MetaData.Builder.writeTo(state.metaData(), out);
             RoutingTable.Builder.writeTo(state.routingTable(), out);
             Nodes.Builder.writeTo(state.nodes(), out);
         }
 
-        public static ClusterState readFrom(DataInput in, @Nullable Settings globalSettings, @Nullable Node localNode) throws ClassNotFoundException, IOException {
+        public static ClusterState readFrom(StreamInput in, @Nullable Settings globalSettings, @Nullable Node localNode) throws IOException {
             Builder builder = new Builder();
             builder.version = in.readLong();
             builder.metaData = MetaData.Builder.readFrom(in, globalSettings);

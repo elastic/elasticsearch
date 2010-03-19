@@ -23,9 +23,9 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.util.Required;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import static org.elasticsearch.action.Actions.*;
@@ -136,13 +136,13 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
         return this;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         type = in.readUTF();
         id = in.readUTF();
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeUTF(type);
         out.writeUTF(id);

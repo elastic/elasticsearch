@@ -22,10 +22,10 @@ package org.elasticsearch.search.query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.facets.Facets;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import static org.elasticsearch.search.SearchShardTarget.*;
@@ -118,17 +118,17 @@ public class QuerySearchResult implements Streamable, QuerySearchResultProvider 
         return this;
     }
 
-    public static QuerySearchResult readQuerySearchResult(DataInput in) throws IOException, ClassNotFoundException {
+    public static QuerySearchResult readQuerySearchResult(StreamInput in) throws IOException {
         QuerySearchResult result = new QuerySearchResult();
         result.readFrom(in);
         return result;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         id = in.readLong();
         shardTarget = readSearchShardTarget(in);
-        from = in.readInt();
-        size = in.readInt();
+        from = in.readVInt();
+        size = in.readVInt();
         topDocs = readTopDocs(in);
         if (in.readBoolean()) {
             facets = readFacets(in);
@@ -136,11 +136,11 @@ public class QuerySearchResult implements Streamable, QuerySearchResultProvider 
         searchTimedOut = in.readBoolean();
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(id);
         shardTarget.writeTo(out);
-        out.writeInt(from);
-        out.writeInt(size);
+        out.writeVInt(from);
+        out.writeVInt(size);
         writeTopDocs(out, topDocs, 0);
         if (facets == null) {
             out.writeBoolean(false);

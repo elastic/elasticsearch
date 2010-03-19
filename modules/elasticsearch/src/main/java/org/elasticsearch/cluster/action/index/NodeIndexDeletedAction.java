@@ -29,12 +29,12 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.VoidTransportResponseHandler;
 import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.io.Streamable;
 import org.elasticsearch.util.io.VoidStreamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.settings.Settings;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -120,12 +120,12 @@ public class NodeIndexDeletedAction extends AbstractComponent {
             this.nodeId = nodeId;
         }
 
-        @Override public void writeTo(DataOutput out) throws IOException {
+        @Override public void writeTo(StreamOutput out) throws IOException {
             out.writeUTF(index);
             out.writeUTF(nodeId);
         }
 
-        @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+        @Override public void readFrom(StreamInput in) throws IOException {
             index = in.readUTF();
             nodeId = in.readUTF();
         }

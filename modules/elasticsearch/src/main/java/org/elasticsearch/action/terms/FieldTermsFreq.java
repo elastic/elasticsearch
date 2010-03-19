@@ -20,11 +20,11 @@
 package org.elasticsearch.action.terms;
 
 import com.google.common.collect.Iterators;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.trove.ExtTObjectIntHasMap;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Iterator;
 
@@ -84,23 +84,23 @@ public class FieldTermsFreq implements Streamable, Iterable<TermFreq> {
         return Iterators.forArray(termsFreqs);
     }
 
-    public static FieldTermsFreq readFieldTermsFreq(DataInput in) throws IOException, ClassNotFoundException {
+    public static FieldTermsFreq readFieldTermsFreq(StreamInput in) throws IOException {
         FieldTermsFreq fieldTermsFreq = new FieldTermsFreq();
         fieldTermsFreq.readFrom(in);
         return fieldTermsFreq;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         fieldName = in.readUTF();
-        termsFreqs = new TermFreq[in.readInt()];
+        termsFreqs = new TermFreq[in.readVInt()];
         for (int i = 0; i < termsFreqs.length; i++) {
             termsFreqs[i] = readTermFreq(in);
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(fieldName);
-        out.writeInt(termsFreqs.length);
+        out.writeVInt(termsFreqs.length);
         for (TermFreq termFreq : termsFreqs) {
             termFreq.writeTo(out);
         }

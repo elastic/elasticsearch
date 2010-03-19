@@ -20,10 +20,10 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.util.concurrent.Immutable;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.io.Serializable;
 
@@ -66,17 +66,17 @@ public class Index implements Serializable, Streamable {
         return name != null ? name.hashCode() : 0;
     }
 
-    public static Index readIndexName(DataInput in) throws IOException, ClassNotFoundException {
+    public static Index readIndexName(StreamInput in) throws IOException {
         Index index = new Index();
         index.readFrom(in);
         return index;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
     }
 }

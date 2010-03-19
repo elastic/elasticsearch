@@ -19,8 +19,10 @@
 
 package org.elasticsearch.util.io;
 
-import java.io.DataInput;
-import java.io.DataOutput;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
+
 import java.io.IOException;
 
 /**
@@ -30,9 +32,9 @@ public class VoidStreamable implements Streamable {
 
     public static final VoidStreamable INSTANCE = new VoidStreamable();
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
     }
 }

@@ -24,11 +24,11 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -153,21 +153,21 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
         return this;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         index = in.readUTF();
         settings = readSettingsFromStream(in);
         timeout = readTimeValue(in);
-        int size = in.readInt();
+        int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             mappings.put(in.readUTF(), in.readUTF());
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(index);
         writeSettingsToStream(settings, out);
         timeout.writeTo(out);
-        out.writeInt(mappings.size());
+        out.writeVInt(mappings.size());
         for (Map.Entry<String, String> entry : mappings.entrySet()) {
             out.writeUTF(entry.getKey());
             out.writeUTF(entry.getValue());

@@ -21,9 +21,9 @@ package org.elasticsearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.action.support.nodes.NodesOperationResponse;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 /**
@@ -38,17 +38,17 @@ public class NodesInfoResponse extends NodesOperationResponse<NodeInfo> {
         super(clusterName, nodes);
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        nodes = new NodeInfo[in.readInt()];
+        nodes = new NodeInfo[in.readVInt()];
         for (int i = 0; i < nodes.length; i++) {
             nodes[i] = NodeInfo.readNodeInfo(in);
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeInt(nodes.length);
+        out.writeVInt(nodes.length);
         for (NodeInfo node : nodes) {
             node.writeTo(out);
         }

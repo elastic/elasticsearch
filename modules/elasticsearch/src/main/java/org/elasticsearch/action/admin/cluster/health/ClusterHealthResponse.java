@@ -22,9 +22,9 @@ package org.elasticsearch.action.admin.cluster.health;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
@@ -116,19 +116,19 @@ public class ClusterHealthResponse implements ActionResponse, Iterable<ClusterIn
         return indices.values().iterator();
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         clusterName = in.readUTF();
-        activePrimaryShards = in.readInt();
-        activeShards = in.readInt();
-        relocatingShards = in.readInt();
+        activePrimaryShards = in.readVInt();
+        activeShards = in.readVInt();
+        relocatingShards = in.readVInt();
         status = ClusterHealthStatus.fromValue(in.readByte());
-        int size = in.readInt();
+        int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             ClusterIndexHealth indexHealth = readClusterIndexHealth(in);
             indices.put(indexHealth.index(), indexHealth);
         }
         timedOut = in.readBoolean();
-        size = in.readInt();
+        size = in.readVInt();
         if (size == 0) {
             validationFailures = ImmutableList.of();
         } else {
@@ -138,19 +138,19 @@ public class ClusterHealthResponse implements ActionResponse, Iterable<ClusterIn
         }
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(clusterName);
-        out.writeInt(activePrimaryShards);
-        out.writeInt(activeShards);
-        out.writeInt(relocatingShards);
+        out.writeVInt(activePrimaryShards);
+        out.writeVInt(activeShards);
+        out.writeVInt(relocatingShards);
         out.writeByte(status.value());
-        out.writeInt(indices.size());
+        out.writeVInt(indices.size());
         for (ClusterIndexHealth indexHealth : this) {
             indexHealth.writeTo(out);
         }
         out.writeBoolean(timedOut);
 
-        out.writeInt(validationFailures.size());
+        out.writeVInt(validationFailures.size());
         for (String failure : validationFailures) {
             out.writeUTF(failure);
         }

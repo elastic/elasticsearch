@@ -21,10 +21,10 @@ package org.elasticsearch.search.dfs;
 
 import org.apache.lucene.index.Term;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.util.io.Streamable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import static org.elasticsearch.search.SearchShardTarget.*;
@@ -88,16 +88,16 @@ public class DfsSearchResult implements Streamable {
         return freqs;
     }
 
-    public static DfsSearchResult readDfsSearchResult(DataInput in) throws IOException, ClassNotFoundException {
+    public static DfsSearchResult readDfsSearchResult(StreamInput in) throws IOException, ClassNotFoundException {
         DfsSearchResult result = new DfsSearchResult();
         result.readFrom(in);
         return result;
     }
 
-    @Override public void readFrom(DataInput in) throws IOException, ClassNotFoundException {
+    @Override public void readFrom(StreamInput in) throws IOException {
         id = in.readLong();
         shardTarget = readSearchShardTarget(in);
-        int termsSize = in.readInt();
+        int termsSize = in.readVInt();
         if (termsSize == 0) {
             terms = EMPTY_TERMS;
         } else {
@@ -106,7 +106,7 @@ public class DfsSearchResult implements Streamable {
                 terms[i] = new Term(in.readUTF(), in.readUTF());
             }
         }
-        int freqsSize = in.readInt();
+        int freqsSize = in.readVInt();
         if (freqsSize == 0) {
             freqs = EMPTY_FREQS;
         } else {
@@ -115,21 +115,21 @@ public class DfsSearchResult implements Streamable {
                 freqs[i] = in.readInt();
             }
         }
-        maxDoc = in.readInt();
+        maxDoc = in.readVInt();
     }
 
-    @Override public void writeTo(DataOutput out) throws IOException {
+    @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(id);
         shardTarget.writeTo(out);
-        out.writeInt(terms.length);
+        out.writeVInt(terms.length);
         for (Term term : terms) {
             out.writeUTF(term.field());
             out.writeUTF(term.text());
         }
-        out.writeInt(freqs.length);
+        out.writeVInt(freqs.length);
         for (int freq : freqs) {
             out.writeInt(freq);
         }
-        out.writeInt(maxDoc);
+        out.writeVInt(maxDoc);
     }
 }

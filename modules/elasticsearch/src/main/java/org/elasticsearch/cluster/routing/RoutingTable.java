@@ -27,9 +27,9 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.util.concurrent.Immutable;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -202,9 +202,9 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
             return new RoutingTable(indicesRouting);
         }
 
-        public static RoutingTable readFrom(DataInput in) throws IOException, ClassNotFoundException {
+        public static RoutingTable readFrom(StreamInput in) throws IOException {
             Builder builder = new Builder();
-            int size = in.readInt();
+            int size = in.readVInt();
             for (int i = 0; i < size; i++) {
                 IndexRoutingTable index = IndexRoutingTable.Builder.readFrom(in);
                 builder.add(index);
@@ -213,8 +213,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
             return builder.build();
         }
 
-        public static void writeTo(RoutingTable table, DataOutput out) throws IOException {
-            out.writeInt(table.indicesRouting.size());
+        public static void writeTo(RoutingTable table, StreamOutput out) throws IOException {
+            out.writeVInt(table.indicesRouting.size());
             for (IndexRoutingTable index : table.indicesRouting.values()) {
                 IndexRoutingTable.Builder.writeTo(index, out);
             }

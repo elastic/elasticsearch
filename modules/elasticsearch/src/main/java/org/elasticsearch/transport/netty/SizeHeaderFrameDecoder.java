@@ -20,7 +20,6 @@
 package org.elasticsearch.transport.netty;
 
 import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBufferInputStream;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.channel.ChannelPipelineCoverage;
@@ -29,7 +28,7 @@ import org.jboss.netty.handler.codec.frame.FrameDecoder;
 import java.io.StreamCorruptedException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 @ChannelPipelineCoverage("one")
 public class SizeHeaderFrameDecoder extends FrameDecoder {
@@ -51,7 +50,7 @@ public class SizeHeaderFrameDecoder extends FrameDecoder {
 
         buffer.skipBytes(4);
 
-        return new ChannelBufferInputStream(buffer, dataLen);
+        return buffer;
     }
 
 }

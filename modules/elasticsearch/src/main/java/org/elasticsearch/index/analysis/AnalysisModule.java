@@ -81,7 +81,25 @@ public class AnalysisModule extends AbstractModule {
         if (!tokenFiltersSettings.containsKey("shingle")) {
             tokenFilterBinder.addBinding("shingle").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, ShingleTokenFilterFactory.class)).in(Scopes.SINGLETON);
         }
-
+        // extends defaults
+        if (!tokenFiltersSettings.containsKey("arabicStem")) {
+            tokenFilterBinder.addBinding("arabicStem").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, ArabicStemTokenFilterFactory.class)).in(Scopes.SINGLETON);
+        }
+        if (!tokenFiltersSettings.containsKey("brazilianStem")) {
+            tokenFilterBinder.addBinding("brazilianStem").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, BrazilianStemTokenFilterFactory.class)).in(Scopes.SINGLETON);
+        }
+        if (!tokenFiltersSettings.containsKey("dutchStem")) {
+            tokenFilterBinder.addBinding("dutchStem").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, DutchStemTokenFilterFactory.class)).in(Scopes.SINGLETON);
+        }
+        if (!tokenFiltersSettings.containsKey("frenchStem")) {
+            tokenFilterBinder.addBinding("frenchStem").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, FrenchStemTokenFilterFactory.class)).in(Scopes.SINGLETON);
+        }
+        if (!tokenFiltersSettings.containsKey("germanStem")) {
+            tokenFilterBinder.addBinding("germanStem").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, GermanStemTokenFilterFactory.class)).in(Scopes.SINGLETON);
+        }
+        if (!tokenFiltersSettings.containsKey("russianStem")) {
+            tokenFilterBinder.addBinding("russianStem").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, RussianStemTokenFilterFactory.class)).in(Scopes.SINGLETON);
+        }
 
         MapBinder<String, TokenizerFactoryFactory> tokenizerBinder
                 = MapBinder.newMapBinder(binder(), String.class, TokenizerFactoryFactory.class);

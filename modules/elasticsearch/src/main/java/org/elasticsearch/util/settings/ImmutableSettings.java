@@ -465,7 +465,7 @@ public class ImmutableSettings implements Settings {
             try {
                 Map<String, String> loadedSettings = settingsLoader.load(source);
                 put(loadedSettings);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 throw new SettingsException("Failed to load settings from [" + source + "]");
             }
             return this;
@@ -492,8 +492,8 @@ public class ImmutableSettings implements Settings {
             try {
                 Map<String, String> loadedSettings = settingsLoader.load(Streams.copyToString(new InputStreamReader(is, "UTF-8")));
                 put(loadedSettings);
-            } catch (IOException e) {
-                throw new SettingsException("Failed to load settings from [" + resourceName + "]");
+            } catch (Exception e) {
+                throw new SettingsException("Failed to load settings from [" + resourceName + "]", e);
             }
             return this;
         }

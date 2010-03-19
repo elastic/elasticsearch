@@ -51,26 +51,8 @@ public class Bootstrap {
 
     private Server server;
 
-    private void setup(boolean addShutdownHook) throws Exception {
-        Tuple<Settings, Environment> tuple = InternalSettingsPerparer.prepareSettings(EMPTY_SETTINGS, true);
-
-        try {
-            Classes.getDefaultClassLoader().loadClass("org.apache.log4j.Logger");
-            LogConfigurator.configure(tuple.v1());
-        } catch (ClassNotFoundException e) {
-            // no log4j
-        } catch (NoClassDefFoundError e) {
-            // no log4j
-        } catch (Exception e) {
-            System.err.println("Failed to configure logging...");
-            e.printStackTrace();
-        }
-
-        if (tuple.v1().get(JmxService.SettingsConstants.CREATE_CONNECTOR) == null) {
-            // automatically create the connector if we are bootstrapping
-            Settings updated = settingsBuilder().put(tuple.v1()).put(JmxService.SettingsConstants.CREATE_CONNECTOR, true).build();
-            tuple = new Tuple<Settings, Environment>(updated, tuple.v2());
-        }
+    private void setup(boolean addShutdownHook, Tuple<Settings, Environment> tuple) throws Exception {
+        tuple = setupJmx(tuple);
 
         ServerBuilder serverBuilder = ServerBuilder.serverBuilder().settings(tuple.v1()).loadConfigSettings(false);
         server = serverBuilder.build();
@@ -83,11 +65,40 @@ public class Bootstrap {
         }
     }
 
+    private static Tuple<Settings, Environment> setupJmx(Tuple<Settings, Environment> tuple) {
+        if (tuple.v1().get(JmxService.SettingsConstants.CREATE_CONNECTOR) == null) {
+            // automatically create the connector if we are bootstrapping
+            Settings updated = settingsBuilder().put(tuple.v1()).put(JmxService.SettingsConstants.CREATE_CONNECTOR, true).build();
+            tuple = new Tuple<Settings, Environment>(updated, tuple.v2());
+        }
+        return tuple;
+    }
+
+    private static void setupLogging(Tuple<Settings, Environment> tuple) {
+        try {
+            Classes.getDefaultClassLoader().loadClass("org.apache.log4j.Logger");
+            LogConfigurator.configure(tuple.v1());
+        } catch (ClassNotFoundException e) {
+            // no log4j
+        } catch (NoClassDefFoundError e) {
+            // no log4j
+        } catch (Exception e) {
+            System.err.println("Failed to configure logging...");
+            e.printStackTrace();
+        }
+    }
+
+    private static Tuple<Settings, Environment> initialSettings() {
+        return InternalSettingsPerparer.prepareSettings(EMPTY_SETTINGS, true);
+    }
+
     /**
      * hook for JSVC
      */
     public void init(String[] args) throws Exception {
-        setup(true);
+        Tuple<Settings, Environment> tuple = initialSettings();
+        setupLogging(tuple);
+        setup(true, tuple);
     }
 
     /**
@@ -119,13 +130,24 @@ public class Bootstrap {
 
         boolean foreground = System.getProperty("es-foreground") != null;
 
+        Tuple<Settings, Environment> tuple = null;
+        try {
+            tuple = initialSettings();
+            setupLogging(tuple);
+        } catch (Exception e) {
+            String errorMessage = buildErrorMessage("Setup", e);
+            System.err.println(errorMessage);
+            System.err.flush();
+            System.exit(3);
+        }
+
         String stage = "Initialization";
         try {
             if (!foreground) {
                 Loggers.disableConsoleLogging();
                 System.out.close();
             }
-            bootstrap.setup(true);
+            bootstrap.setup(true, tuple);
 
             if (pidFile != null) {
                 new File(pidFile).deleteOnExit();
@@ -142,41 +164,9 @@ public class Bootstrap {
             if (bootstrap.server != null) {
                 logger = Loggers.getLogger(Bootstrap.class, bootstrap.server.settings().get("name"));
             }
-            StringBuilder errorMessage = new StringBuilder("{").append(Version.full()).append("}: ");
-            try {
-                if (ANSI.isEnabled()) {
-                    errorMessage.append(attrib(ANSI.Code.FG_RED)).append(stage).append(" Failed ...").append(attrib(ANSI.Code.OFF)).append("\n");
-                } else {
-                    errorMessage.append(stage).append(" Failed ...\n");
-                }
-            } catch (Throwable t) {
-                errorMessage.append(stage).append(" Failed ...\n");
-            }
-            if (e instanceof CreationException) {
-                CreationException createException = (CreationException) e;
-                Set<String> seenMessages = newHashSet();
-                int counter = 1;
-                for (Message message : createException.getErrorMessages()) {
-                    String detailedMessage;
-                    if (message.getCause() == null) {
-                        detailedMessage = message.getMessage();
-                    } else {
-                        detailedMessage = ExceptionsHelper.detailedMessage(message.getCause(), true, 0);
-                    }
-                    if (detailedMessage == null) {
-                        detailedMessage = message.getMessage();
-                    }
-                    if (seenMessages.contains(detailedMessage)) {
-                        continue;
-                    }
-                    seenMessages.add(detailedMessage);
-                    errorMessage.append("").append(counter++).append(") ").append(detailedMessage);
-                }
-            } else {
-                errorMessage.append("- ").append(ExceptionsHelper.detailedMessage(e, true, 0));
-            }
+            String errorMessage = buildErrorMessage(stage, e);
             if (foreground) {
-                logger.error(errorMessage.toString());
+                logger.error(errorMessage);
             } else {
                 System.err.println(errorMessage);
                 System.err.flush();
@@ -187,5 +177,42 @@ public class Bootstrap {
             }
             System.exit(3);
         }
+    }
+
+    private static String buildErrorMessage(String stage, Throwable e) {
+        StringBuilder errorMessage = new StringBuilder("{").append(Version.full()).append("}: ");
+        try {
+            if (ANSI.isEnabled()) {
+                errorMessage.append(attrib(ANSI.Code.FG_RED)).append(stage).append(" Failed ...").append(attrib(ANSI.Code.OFF)).append("\n");
+            } else {
+                errorMessage.append(stage).append(" Failed ...\n");
+            }
+        } catch (Throwable t) {
+            errorMessage.append(stage).append(" Failed ...\n");
+        }
+        if (e instanceof CreationException) {
+            CreationException createException = (CreationException) e;
+            Set<String> seenMessages = newHashSet();
+            int counter = 1;
+            for (Message message : createException.getErrorMessages()) {
+                String detailedMessage;
+                if (message.getCause() == null) {
+                    detailedMessage = message.getMessage();
+                } else {
+                    detailedMessage = ExceptionsHelper.detailedMessage(message.getCause(), true, 0);
+                }
+                if (detailedMessage == null) {
+                    detailedMessage = message.getMessage();
+                }
+                if (seenMessages.contains(detailedMessage)) {
+                    continue;
+                }
+                seenMessages.add(detailedMessage);
+                errorMessage.append("").append(counter++).append(") ").append(detailedMessage);
+            }
+        } else {
+            errorMessage.append("- ").append(ExceptionsHelper.detailedMessage(e, true, 0));
+        }
+        return errorMessage.toString();
     }
 }

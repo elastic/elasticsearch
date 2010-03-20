@@ -288,20 +288,20 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractServersTests {
         }
 
         // TODO we need to support scrolling for query+fetch
-//        Map<SearchShardTarget, QueryFetchSearchResult> scollQueryFetchResults = newHashMap();
+//        Map<SearchShardTarget, QueryFetchSearchResult> scrollQueryFetchResults = newHashMap();
 //        for (QueryFetchSearchResult searchResult : queryFetchResults.values()) {
 //            QueryFetchSearchResult queryFetchResult = nodeToSearchService.get(searchResult.shardTarget().nodeId()).executeFetchPhase(new InternalScrollSearchRequest(searchResult.id()).scroll(new Scroll(timeValueMinutes(10))));
-//            scollQueryFetchResults.put(queryFetchResult.shardTarget(), queryFetchResult);
+//            scrollQueryFetchResults.put(queryFetchResult.shardTarget(), queryFetchResult);
 //        }
-//        queryFetchResults = scollQueryFetchResults;
+//        queryFetchResults = scrollQueryFetchResults;
 //
 //        sortedShardList = searchPhaseController.sortDocs(queryFetchResults.values());
 //        hits = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults).hits();
-//        assertEquals(100, hits.totalHits());
-//        assertEquals(40, hits.hits().length);
+//        assertThat(hits.totalHits(), equalTo(100l));
+//        assertThat(hits.hits().length, equalTo(40));
 //        for (int i = 0; i < 40; i++) {
 //            SearchHit hit = hits.hits()[i];
-//            assertEquals("id[" + hit.id() + "]", Integer.toString(100 - 60 - 1 - i), hit.id());
+//            assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - 60 - 1 - i)));
 //        }
     }
 

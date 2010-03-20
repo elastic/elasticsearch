@@ -55,7 +55,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.ExceptionsHelper.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class TransportShardReplicationOperationAction<Request extends ShardReplicationOperationRequest, Response extends ActionResponse> extends BaseAction<Request, Response> {
 
@@ -159,6 +159,13 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         @Override public void messageReceived(ShardOperationRequest request, TransportChannel channel) throws Exception {
             shardOperationOnBackup(request);
             channel.sendResponse(VoidStreamable.INSTANCE);
+        }
+
+        /**
+         * We spawn, since we want to perform the operation on the backup on a different thread.
+         */
+        @Override public boolean spawn() {
+            return true;
         }
     }
 

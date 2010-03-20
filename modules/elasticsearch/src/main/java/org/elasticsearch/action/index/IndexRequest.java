@@ -150,7 +150,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     }
 
     /**
-     * Controls if the operation will be executed on a separate thread when executed locally.
+     * Controls if the operation will be executed on a separate thread when executed locally. Defaults
+     * to <tt>true</tt> when running in embedded mode.
      */
     @Override public IndexRequest operationThreaded(boolean threadedOperation) {
         super.operationThreaded(threadedOperation);

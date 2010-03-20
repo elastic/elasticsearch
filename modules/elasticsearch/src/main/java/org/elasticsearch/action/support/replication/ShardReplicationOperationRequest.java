@@ -42,7 +42,7 @@ public abstract class ShardReplicationOperationRequest implements ActionRequest 
     protected String index;
 
     private boolean threadedListener = false;
-    private boolean threadedOperation = false;
+    private boolean threadedOperation = true;
 
     public TimeValue timeout() {
         return timeout;
@@ -76,7 +76,8 @@ public abstract class ShardReplicationOperationRequest implements ActionRequest 
     }
 
     /**
-     * Controls if the operation will be executed on a separate thread when executed locally.
+     * Controls if the operation will be executed on a separate thread when executed locally. Defaults
+     * to <tt>true</tt> when running in embedded mode.
      */
     public ShardReplicationOperationRequest operationThreaded(boolean threadedOperation) {
         this.threadedOperation = threadedOperation;

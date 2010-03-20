@@ -62,6 +62,9 @@ public class JacksonNodes {
         if (node.isBoolean()) {
             return node.getBooleanValue();
         }
+        if (node.isNumber()) {
+            return node.getNumberValue().intValue() != 0;
+        }
         String value = node.getTextValue();
         return !(value.equals("false") || value.equals("0") || value.equals("off"));
     }

@@ -194,7 +194,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                 try {
                     moveToSecondPhase();
                 } catch (Exception e) {
-                    listener.onFailure(new ReduceSearchPhaseException(firstPhaseName(), "", e));
+                    listener.onFailure(new ReduceSearchPhaseException(firstPhaseName(), "", e, buildShardFailures()));
                 }
             }
         }
@@ -208,10 +208,15 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             if (totalOps.incrementAndGet() == expectedTotalOps) {
                 // no more shards, add a failure
                 shardFailures.add(new ShardSearchFailure(t));
-                try {
-                    moveToSecondPhase();
-                } catch (Exception e) {
-                    listener.onFailure(new ReduceSearchPhaseException(firstPhaseName(), "", e));
+                if (successulOps.get() == 0) {
+                    // no successful ops, raise an exception
+                    listener.onFailure(new SearchPhaseExecutionException(firstPhaseName(), "total failure", buildShardFailures()));
+                } else {
+                    try {
+                        moveToSecondPhase();
+                    } catch (Exception e) {
+                        listener.onFailure(new ReduceSearchPhaseException(firstPhaseName(), "", e, buildShardFailures()));
+                    }
                 }
             } else {
                 if (shardIt.hasNext()) {

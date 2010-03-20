@@ -19,21 +19,19 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.ElasticSearchException;
-
 /**
  * A failure during a reduce phase (when receiving results from several shards, and reducing them
  * into one or more results and possible actions).
  *
  * @author kimchy (shay.banon)
  */
-public class ReduceSearchPhaseException extends ElasticSearchException {
+public class ReduceSearchPhaseException extends SearchPhaseExecutionException {
 
-    public ReduceSearchPhaseException(String phaseName, String msg) {
-        super("Failed to reduce [" + phaseName + "] " + msg);
+    public ReduceSearchPhaseException(String phaseName, String msg, ShardSearchFailure[] shardFailures) {
+        super(phaseName, "[reduce] " + msg, shardFailures);
     }
 
-    public ReduceSearchPhaseException(String phaseName, String msg, Throwable cause) {
-        super("Failed to reduce [" + phaseName + "]" + msg, cause);
+    public ReduceSearchPhaseException(String phaseName, String msg, Throwable cause, ShardSearchFailure[] shardFailures) {
+        super(phaseName, "[reduce] " + msg, cause, shardFailures);
     }
 }

@@ -158,7 +158,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
             try {
                 innerFinishHim();
             } catch (Exception e) {
-                listener.onFailure(new ReduceSearchPhaseException("query_fetch", "", e));
+                listener.onFailure(new ReduceSearchPhaseException("query_fetch", "", e, buildShardFailures()));
             }
         }
 

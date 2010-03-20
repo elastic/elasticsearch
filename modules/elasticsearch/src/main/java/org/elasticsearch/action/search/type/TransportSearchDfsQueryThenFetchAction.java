@@ -164,7 +164,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             try {
                 innerExecuteFetchPhase();
             } catch (Exception e) {
-                listener.onFailure(new ReduceSearchPhaseException("query", "", e));
+                listener.onFailure(new ReduceSearchPhaseException("query", "", e, buildShardFailures()));
             }
         }
 
@@ -248,7 +248,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             try {
                 innerFinishHim();
             } catch (Exception e) {
-                listener.onFailure(new ReduceSearchPhaseException("fetch", "", e));
+                listener.onFailure(new ReduceSearchPhaseException("fetch", "", e, buildShardFailures()));
             }
         }
 

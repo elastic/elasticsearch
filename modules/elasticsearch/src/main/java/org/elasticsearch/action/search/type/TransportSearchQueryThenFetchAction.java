@@ -161,7 +161,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
             try {
                 innerFinishHim();
             } catch (Exception e) {
-                listener.onFailure(new ReduceSearchPhaseException("fetch", "", e));
+                listener.onFailure(new ReduceSearchPhaseException("fetch", "", e, buildShardFailures()));
             }
         }
 

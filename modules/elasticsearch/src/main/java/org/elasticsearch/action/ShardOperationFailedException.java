@@ -21,12 +21,14 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.util.io.stream.Streamable;
 
+import java.io.Serializable;
+
 /**
  * An exception indicating that a failure occurred performing an operation on the shard.
  *
  * @author kimchy (Shay Banon)
  */
-public interface ShardOperationFailedException extends Streamable {
+public interface ShardOperationFailedException extends Streamable, Serializable {
 
     /**
      * The index the operation failed on. Might return <tt>null</tt> if it can't be derived.

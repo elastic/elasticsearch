@@ -28,8 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * possibly several pooled threads, normally configured using
  * {@link DynamicExecutors} factory methods.
  *
- * @author moran
- * @since 6.5
+ * @author kimchy (shay.banon)
  */
 public class DynamicThreadPoolExecutor extends ThreadPoolExecutor {
     /**

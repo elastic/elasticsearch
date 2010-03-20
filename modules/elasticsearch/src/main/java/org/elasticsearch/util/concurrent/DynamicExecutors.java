@@ -26,7 +26,7 @@ import java.util.concurrent.*;
 /**
  * Factory and utility methods for handling {@link DynamicThreadPoolExecutor}.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class DynamicExecutors {
     /**

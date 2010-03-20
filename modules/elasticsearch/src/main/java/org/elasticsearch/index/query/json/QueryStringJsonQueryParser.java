@@ -195,7 +195,7 @@ public class QueryStringJsonQueryParser extends AbstractIndexComponent implement
                 } else if ("escape".equals(currentFieldName)) {
                     escape = jp.getIntValue() != 0;
                 } else if ("useDisMax".equals(currentFieldName)) {
-                    escape = jp.getIntValue() != 0;
+                    useDisMax = jp.getIntValue() != 0;
                 } else if ("tieBreaker".equals(currentFieldName)) {
                     tieBreaker = jp.getFloatValue();
                 }

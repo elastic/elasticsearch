@@ -36,7 +36,7 @@ import java.util.List;
 import static com.google.common.collect.Lists.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class DisMaxJsonQueryParser extends AbstractIndexComponent implements JsonQueryParser {
 
@@ -52,7 +52,7 @@ public class DisMaxJsonQueryParser extends AbstractIndexComponent implements Jso
         JsonParser jp = parseContext.jp();
 
         float boost = 1.0f;
-        float tieBreakerMultiplier = 0.0f;
+        float tieBreaker = 0.0f;
 
         List<Query> queries = newArrayList();
 
@@ -79,23 +79,17 @@ public class DisMaxJsonQueryParser extends AbstractIndexComponent implements Jso
                     } else {
                         boost = jp.getFloatValue();
                     }
-                } else if ("tieBreakerMultiplier".equals(currentFieldName)) {
-                    if (token == JsonToken.VALUE_STRING) {
-                        tieBreakerMultiplier = Float.parseFloat(jp.getText());
-                    } else {
-                        tieBreakerMultiplier = jp.getFloatValue();
-                    }
                 } else if ("tieBreaker".equals(currentFieldName)) {
                     if (token == JsonToken.VALUE_STRING) {
-                        tieBreakerMultiplier = Float.parseFloat(jp.getText());
+                        tieBreaker = Float.parseFloat(jp.getText());
                     } else {
-                        tieBreakerMultiplier = jp.getFloatValue();
+                        tieBreaker = jp.getFloatValue();
                     }
                 }
             }
         }
 
-        DisjunctionMaxQuery query = new DisjunctionMaxQuery(queries, tieBreakerMultiplier);
+        DisjunctionMaxQuery query = new DisjunctionMaxQuery(queries, tieBreaker);
         query.setBoost(boost);
         return query;
     }

@@ -1,6 +1,6 @@
 {
     disMax : {
-        tieBreakerMultiplier : 0.7,
+        tieBreaker: 0.7,
         boost: 1.2,
         queries : [
             {

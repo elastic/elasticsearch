@@ -39,7 +39,7 @@ public class DisMaxJsonQueryBuilder extends BaseJsonQueryBuilder {
 
     private float boost = -1;
 
-    private float tieBreakerMultiplier = -1;
+    private float tieBreaker = -1;
 
     /**
      * Add a sub-query to this disjunction.
@@ -64,15 +64,15 @@ public class DisMaxJsonQueryBuilder extends BaseJsonQueryBuilder {
      * 10 occurrences of word in a lower-scored field that is also in a higher scored field is just as good as a unique
      * word in the lower scored field (i.e., one that is not in any higher scored field.
      */
-    public DisMaxJsonQueryBuilder tieBreaker(float tieBreakerMultiplier) {
-        this.tieBreakerMultiplier = tieBreakerMultiplier;
+    public DisMaxJsonQueryBuilder tieBreaker(float tieBreaker) {
+        this.tieBreaker = tieBreaker;
         return this;
     }
 
     @Override protected void doJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject("disMax");
-        if (tieBreakerMultiplier != -1) {
-            builder.field("tieBreakerMultiplier", tieBreakerMultiplier);
+        if (tieBreaker != -1) {
+            builder.field("tieBreaker", tieBreaker);
         }
         if (boost != -1) {
             builder.field("boost", boost);

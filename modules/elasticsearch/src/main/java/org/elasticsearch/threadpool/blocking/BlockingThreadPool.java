@@ -17,51 +17,55 @@
  * under the License.
  */
 
-package org.elasticsearch.threadpool.cached;
+package org.elasticsearch.threadpool.blocking;
 
 import com.google.inject.Inject;
 import org.elasticsearch.threadpool.support.AbstractThreadPool;
+import org.elasticsearch.util.SizeUnit;
+import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.concurrent.DynamicExecutors;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.concurrent.Executors;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.util.TimeValue.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 
 /**
- * A thread pool that will create an unbounded number of threads.
+ * A thread pool that will will block the execute if all threads are busy.
  *
  * @author kimchy (shay.banon)
  */
-public class CachedThreadPool extends AbstractThreadPool {
+public class BlockingThreadPool extends AbstractThreadPool {
 
+    private final int min;
+    private final int max;
+    private final int capacity;
+    private final TimeValue waitTime;
     private final TimeValue keepAlive;
 
     private final int scheduledSize;
 
-    public CachedThreadPool() {
+    public BlockingThreadPool() {
         this(EMPTY_SETTINGS);
     }
 
-    @Inject public CachedThreadPool(Settings settings) {
+    @Inject public BlockingThreadPool(Settings settings) {
         super(settings);
-        this.scheduledSize = componentSettings.getAsInt("scheduledSize", 20);
+        this.min = componentSettings.getAsInt("min", 1);
+        this.max = componentSettings.getAsInt("max", 100);
+        this.capacity = (int) componentSettings.getAsSize("capacity", new SizeValue(1, SizeUnit.KB)).bytes();
+        this.waitTime = componentSettings.getAsTime("waitTime", timeValueSeconds(60));
         this.keepAlive = componentSettings.getAsTime("keepAlive", timeValueSeconds(60));
-        logger.debug("Initializing {} thread pool with keepAlive[{}], scheduledSize[{}]", new Object[]{getType(), keepAlive, scheduledSize});
-        executorService = new ThreadPoolExecutor(0, Integer.MAX_VALUE,
-                keepAlive.millis(), TimeUnit.MILLISECONDS,
-                new SynchronousQueue<Runnable>(),
-                DynamicExecutors.daemonThreadFactory(settings, "[tp]"));
+        this.scheduledSize = componentSettings.getAsInt("scheduledSize", 20);
+        logger.debug("Initializing {} thread pool with min[{}], max[{}], keepAlive[{}], capacity[{}], waitTime[{}], scheduledSize[{}]", new Object[]{getType(), min, max, keepAlive, capacity, waitTime, scheduledSize});
+        executorService = DynamicExecutors.newBlockingThreadPool(min, max, keepAlive.millis(), capacity, waitTime.millis(), DynamicExecutors.daemonThreadFactory(settings, "[tp]"));
         scheduledExecutorService = Executors.newScheduledThreadPool(scheduledSize, DynamicExecutors.daemonThreadFactory(settings, "[sc]"));
         started = true;
     }
 
     @Override public String getType() {
-        return "cached";
+        return "blocking";
     }
 }

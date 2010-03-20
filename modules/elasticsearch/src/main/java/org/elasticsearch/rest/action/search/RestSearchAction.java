@@ -43,11 +43,10 @@ import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
 import static org.elasticsearch.rest.action.support.RestActions.*;
 import static org.elasticsearch.rest.action.support.RestJsonBuilder.*;
-import static org.elasticsearch.search.builder.SearchSourceBuilder.*;
 import static org.elasticsearch.util.TimeValue.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class RestSearchAction extends BaseRestHandler {
 
@@ -125,22 +124,6 @@ public class RestSearchAction extends BaseRestHandler {
 
         searchRequest.searchType(parseSearchType(request.param("searchType")));
 
-        SearchSourceBuilder extraSourceBuilder = null;
-        int from = request.paramAsInt("from", -1);
-        if (from != -1) {
-            if (extraSourceBuilder == null) {
-                extraSourceBuilder = searchSource();
-            }
-            extraSourceBuilder.from(from);
-        }
-        int size = request.paramAsInt("size", -1);
-        if (size != -1) {
-            if (extraSourceBuilder == null) {
-                extraSourceBuilder = searchSource();
-            }
-            extraSourceBuilder.size(size);
-        }
-
         String scroll = request.param("scroll");
         if (scroll != null) {
             searchRequest.scroll(new Scroll(parseTimeValue(scroll, null)));
@@ -154,10 +137,6 @@ public class RestSearchAction extends BaseRestHandler {
         }
 
         searchRequest.queryHint(request.param("queryHint"));
-
-        if (extraSourceBuilder != null) {
-            searchRequest.extraSource(extraSourceBuilder);
-        }
 
         return searchRequest;
     }
@@ -181,7 +160,15 @@ public class RestSearchAction extends BaseRestHandler {
             }
             searchSourceBuilder.query(queryBuilder);
         }
-        // TODO add different parameters to the query
+
+        int from = request.paramAsInt("from", -1);
+        if (from != -1) {
+            searchSourceBuilder.from(from);
+        }
+        int size = request.paramAsInt("size", -1);
+        if (size != -1) {
+            searchSourceBuilder.size(size);
+        }
 
 
         searchSourceBuilder.queryParserName(request.param("queryParserName"));

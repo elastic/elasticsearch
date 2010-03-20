@@ -17,14 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.search.fetch;
+package org.elasticsearch.search;
 
-import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.util.io.stream.Streamable;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public interface FetchSearchResultProvider extends SearchPhaseResult {
+public interface SearchPhaseResult extends Streamable {
 
-    FetchSearchResult fetchResult();
+    long id();
+
+    SearchShardTarget shardTarget();
 }

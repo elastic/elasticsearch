@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.io.Serializable;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public interface ShardRouting extends Streamable, Serializable {
 

@@ -19,21 +19,17 @@
 
 package org.elasticsearch.search.query;
 
-import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.SearchPhaseResult;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public interface QuerySearchResultProvider {
+public interface QuerySearchResultProvider extends SearchPhaseResult {
 
     /**
      * If both query and fetch happened on the same call.
      */
     boolean includeFetch();
-
-    long id();
-
-    SearchShardTarget shardTarget();
 
     QuerySearchResult queryResult();
 }

@@ -315,11 +315,13 @@ public class SearchService extends AbstractComponent implements LifecycleCompone
         }
     }
 
+    private static final int[] EMPTY_DOC_IDS = new int[0];
+
     private void shortcutDocIdsToLoad(SearchContext context) {
         TopDocs topDocs = context.queryResult().topDocs();
         if (topDocs.scoreDocs.length < context.from()) {
             // no more docs...
-            context.docIdsToLoad(new int[0]);
+            context.docIdsToLoad(EMPTY_DOC_IDS);
             return;
         }
         int totalSize = context.from() + context.size();

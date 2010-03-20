@@ -22,6 +22,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 
@@ -39,6 +40,9 @@ public class SearchScrollRequest implements ActionRequest {
 
     private Scroll scroll;
 
+    private boolean listenerThreaded = false;
+    private SearchOperationThreading operationThreading = SearchOperationThreading.SINGLE_THREAD;
+
     public SearchScrollRequest() {
     }
 
@@ -54,29 +58,67 @@ public class SearchScrollRequest implements ActionRequest {
         return validationException;
     }
 
+    /**
+     * Controls the the search operation threading model.
+     */
+    public SearchOperationThreading operationThreading() {
+        return this.operationThreading;
+    }
+
+    /**
+     * Controls the the search operation threading model.
+     */
+    public SearchScrollRequest operationThreading(SearchOperationThreading operationThreading) {
+        this.operationThreading = operationThreading;
+        return this;
+    }
+
+    /**
+     * Should the listener be called on a separate thread if needed.
+     */
     @Override public boolean listenerThreaded() {
-        // TODO threaded
-        return false;  //To change body of implemented methods use File | Settings | File Templates.
+        return listenerThreaded;
     }
 
-    @Override public ActionRequest listenerThreaded(boolean threadedListener) {
-        // TODO threaded
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+    /**
+     * Should the listener be called on a separate thread if needed.
+     */
+    @Override public SearchScrollRequest listenerThreaded(boolean threadedListener) {
+        this.listenerThreaded = threadedListener;
+        return this;
     }
 
+    /**
+     * The scroll id used to scroll the search.
+     */
     public String scrollId() {
         return scrollId;
     }
 
+    /**
+     * If set, will enable scrolling of the search request.
+     */
     public Scroll scroll() {
         return scroll;
     }
 
-    public void scroll(Scroll scroll) {
+    /**
+     * If set, will enable scrolling of the search request.
+     */
+    public SearchScrollRequest scroll(Scroll scroll) {
         this.scroll = scroll;
+        return this;
+    }
+
+    /**
+     * If set, will enable scrolling of the search request for the specified timeout.
+     */
+    public SearchScrollRequest scroll(TimeValue keepAlive) {
+        return scroll(new Scroll(keepAlive));
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
+        operationThreading = SearchOperationThreading.fromId(in.readByte());
         scrollId = in.readUTF();
         if (in.readBoolean()) {
             scroll = readScroll(in);
@@ -84,6 +126,7 @@ public class SearchScrollRequest implements ActionRequest {
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
+        out.writeByte(operationThreading.id());
         out.writeUTF(scrollId);
         if (scroll == null) {
             out.writeBoolean(false);

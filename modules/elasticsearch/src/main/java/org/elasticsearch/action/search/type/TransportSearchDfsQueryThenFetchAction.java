@@ -113,7 +113,6 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                                     executeQuery(counter, querySearchRequest, node);
                                 }
                             }
-                            searchCache.releaseDfsResults(dfsResults);
                         }
                     });
                 } else {
@@ -133,7 +132,6 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                             }
                         }
                     }
-                    searchCache.releaseDfsResults(dfsResults);
                 }
             }
         }
@@ -164,7 +162,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             try {
                 innerExecuteFetchPhase();
             } catch (Exception e) {
-                listener.onFailure(new ReduceSearchPhaseException("query", "", e, buildShardFailures()));
+                invokeListener(new ReduceSearchPhaseException("query", "", e, buildShardFailures()));
             }
         }
 
@@ -248,28 +246,20 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             try {
                 innerFinishHim();
             } catch (Exception e) {
-                listener.onFailure(new ReduceSearchPhaseException("fetch", "", e, buildShardFailures()));
+                invokeListener(new ReduceSearchPhaseException("fetch", "", e, buildShardFailures()));
             }
         }
 
         private void innerFinishHim() {
             final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults, fetchResults);
-            String scrollIdX = null;
+            String scrollId = null;
             if (request.scroll() != null) {
-                scrollIdX = TransportSearchHelper.buildScrollId(request.searchType(), fetchResults.values());
+                scrollId = TransportSearchHelper.buildScrollId(request.searchType(), dfsResults);
             }
-            final String scrollId = scrollIdX;
+            searchCache.releaseDfsResults(dfsResults);
             searchCache.releaseQueryResults(queryResults);
             searchCache.releaseFetchResults(fetchResults);
-            if (request.listenerThreaded()) {
-                threadPool.execute(new Runnable() {
-                    @Override public void run() {
-                        listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildShardFailures()));
-                    }
-                });
-            } else {
-                listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildShardFailures()));
-            }
+            invokeListener(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildShardFailures()));
         }
     }
 }

@@ -194,7 +194,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                 try {
                     moveToSecondPhase();
                 } catch (Exception e) {
-                    listener.onFailure(new ReduceSearchPhaseException(firstPhaseName(), "", e, buildShardFailures()));
+                    invokeListener(new ReduceSearchPhaseException(firstPhaseName(), "", e, buildShardFailures()));
                 }
             }
         }
@@ -210,12 +210,12 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                 shardFailures.add(new ShardSearchFailure(t));
                 if (successulOps.get() == 0) {
                     // no successful ops, raise an exception
-                    listener.onFailure(new SearchPhaseExecutionException(firstPhaseName(), "total failure", buildShardFailures()));
+                    invokeListener(new SearchPhaseExecutionException(firstPhaseName(), "total failure", buildShardFailures()));
                 } else {
                     try {
                         moveToSecondPhase();
                     } catch (Exception e) {
-                        listener.onFailure(new ReduceSearchPhaseException(firstPhaseName(), "", e, buildShardFailures()));
+                        invokeListener(new ReduceSearchPhaseException(firstPhaseName(), "", e, buildShardFailures()));
                     }
                 }
             } else {
@@ -233,6 +233,30 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
          */
         protected ShardSearchFailure[] buildShardFailures() {
             return TransportSearchHelper.buildShardFailures(shardFailures, searchCache);
+        }
+
+        protected void invokeListener(final SearchResponse response) {
+            if (request.listenerThreaded()) {
+                threadPool.execute(new Runnable() {
+                    @Override public void run() {
+                        listener.onResponse(response);
+                    }
+                });
+            } else {
+                listener.onResponse(response);
+            }
+        }
+
+        protected void invokeListener(final Throwable t) {
+            if (request.listenerThreaded()) {
+                threadPool.execute(new Runnable() {
+                    @Override public void run() {
+                        listener.onFailure(t);
+                    }
+                });
+            } else {
+                listener.onFailure(t);
+            }
         }
 
         protected abstract void sendExecuteFirstPhase(Node node, InternalSearchRequest request, SearchServiceListener<FirstResult> listener);

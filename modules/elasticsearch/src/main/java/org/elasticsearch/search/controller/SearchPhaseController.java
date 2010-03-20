@@ -70,7 +70,7 @@ public class SearchPhaseController {
     }
 
     public ShardDoc[] sortDocs(Collection<? extends QuerySearchResultProvider> results) {
-        if (Iterables.isEmpty(results)) {
+        if (results.isEmpty()) {
             return EMPTY;
         }
 
@@ -199,9 +199,11 @@ public class SearchPhaseController {
                 }
                 FetchSearchResult fetchResult = fetchResultProvider.fetchResult();
                 int index = fetchResult.counterGetAndIncrement();
-                SearchHit searchHit = fetchResult.hits().hits()[index];
-                ((InternalSearchHit) searchHit).shard(fetchResult.shardTarget());
-                hits.add(searchHit);
+                if (index < fetchResult.hits().hits().length) {
+                    SearchHit searchHit = fetchResult.hits().hits()[index];
+                    ((InternalSearchHit) searchHit).shard(fetchResult.shardTarget());
+                    hits.add(searchHit);
+                }
             }
         }
         InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new SearchHit[hits.size()]), totalHits);

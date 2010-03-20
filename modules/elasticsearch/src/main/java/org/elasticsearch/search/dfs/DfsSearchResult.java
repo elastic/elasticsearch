@@ -20,10 +20,10 @@
 package org.elasticsearch.search.dfs;
 
 import org.apache.lucene.index.Term;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.io.stream.Streamable;
 
 import java.io.IOException;
 
@@ -32,7 +32,7 @@ import static org.elasticsearch.search.SearchShardTarget.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class DfsSearchResult implements Streamable {
+public class DfsSearchResult implements SearchPhaseResult {
 
     private static Term[] EMPTY_TERMS = new Term[0];
 

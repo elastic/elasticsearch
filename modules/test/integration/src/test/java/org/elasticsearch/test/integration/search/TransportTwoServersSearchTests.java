@@ -19,8 +19,10 @@
 
 package org.elasticsearch.test.integration.search;
 
+import com.google.common.collect.Sets;
+import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.search.Scroll;
@@ -35,6 +37,7 @@ import org.testng.annotations.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Set;
 
 import static org.elasticsearch.action.search.SearchType.*;
 import static org.elasticsearch.client.Requests.*;
@@ -100,8 +103,6 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
             assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - 60 - 1 - i)));
         }
     }
-
-    //
 
     @Test public void testDfsQueryThenFetchWithSort() throws Exception {
         SearchSourceBuilder source = searchSource()
@@ -197,15 +198,21 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
             assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
         }
 
-        // TODO support scrolling
-//        searchResponse = client.searchScroll(searchScrollRequest(searchResponse.scrollId())).actionGet();
-//
-//        assertThat(searchResponse.hits().totalHits(), equalTo(100l));
-//        assertThat(searchResponse.hits().hits().length, equalTo(40));
-//        for (int i = 0; i < 40; i++) {
-//            SearchHit hit = searchResponse.hits().hits()[i];
+        searchResponse = client.searchScroll(searchScrollRequest(searchResponse.scrollId())).actionGet();
+
+        assertThat(searchResponse.hits().totalHits(), equalTo(100l));
+        assertThat(searchResponse.hits().hits().length, equalTo(40));
+        Set<String> expectedIds = Sets.newHashSet();
+        for (int i = 0; i < 40; i++) {
+            expectedIds.add(Integer.toString(i));
+        }
+        for (int i = 0; i < 40; i++) {
+            SearchHit hit = searchResponse.hits().hits()[i];
 //            assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - 60 - 1 - i)));
-//        }
+            // we don't do perfect sorting when it comes to scroll with Query+Fetch
+            assertThat("make sure we don't have duplicates", expectedIds.remove(hit.id()), notNullValue());
+        }
+        assertThat("make sure we got all [" + expectedIds + "]", expectedIds.size(), equalTo(0));
     }
 
     @Test public void testDfsQueryAndFetch() throws Exception {
@@ -224,15 +231,22 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
             assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
         }
 
-        // TODO support scrolling
-//        searchResponse = searchScrollAction.submit(new SearchScrollRequest(searchResponse.scrollId())).actionGet();
-//
-//        assertEquals(100, searchResponse.hits().totalHits());
-//        assertEquals(40, searchResponse.hits().hits().length);
-//        for (int i = 0; i < 40; i++) {
-//            SearchHit hit = searchResponse.hits().hits()[i];
-//            assertEquals("id[" + hit.id() + "]", Integer.toString(100 - 60 - 1 - i), hit.id());
-//        }
+        searchResponse = client.searchScroll(searchScrollRequest(searchResponse.scrollId())).actionGet();
+
+        assertThat(searchResponse.hits().totalHits(), equalTo(100l));
+        assertThat(searchResponse.hits().hits().length, equalTo(40));
+        Set<String> expectedIds = Sets.newHashSet();
+        for (int i = 0; i < 40; i++) {
+            expectedIds.add(Integer.toString(i));
+        }
+        for (int i = 0; i < 40; i++) {
+            SearchHit hit = searchResponse.hits().hits()[i];
+//            System.out.println(hit.shard() + ": " +  hit.explanation());
+//            assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - 60 - 1 - i)));
+            // we don't do perfect sorting when it comes to scroll with Query+Fetch
+            assertThat("make sure we don't have duplicates", expectedIds.remove(hit.id()), notNullValue());
+        }
+        assertThat("make sure we got all [" + expectedIds + "]", expectedIds.size(), equalTo(0));
     }
 
     @Test public void testSimpleFacets() throws Exception {
@@ -256,11 +270,12 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
 
     @Test public void testFailedSearch() throws Exception {
         logger.info("Start Testing failed search");
-        SearchResponse searchResponse = client.search(searchRequest("test").source(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
-        assertThat(searchResponse.successfulShards(), equalTo(0));
-        logger.info("Failures:");
-        for (ShardSearchFailure searchFailure : searchResponse.shardFailures()) {
-            logger.info("Reason : " + searchFailure.reason() + ", shard " + searchFailure.shard());
+        try {
+            client.search(searchRequest("test").source(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
+            assert false : "search should fail";
+        } catch (ElasticSearchException e) {
+            assertThat(e.unwrapCause(), instanceOf(SearchPhaseExecutionException.class));
+            // all is well
         }
         logger.info("Done Testing failed search");
     }

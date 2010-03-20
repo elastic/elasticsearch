@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.search;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
@@ -51,6 +52,7 @@ import org.testng.annotations.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static com.google.common.collect.Lists.*;
@@ -287,22 +289,30 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractServersTests {
             assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
         }
 
-        // TODO we need to support scrolling for query+fetch
-//        Map<SearchShardTarget, QueryFetchSearchResult> scrollQueryFetchResults = newHashMap();
-//        for (QueryFetchSearchResult searchResult : queryFetchResults.values()) {
-//            QueryFetchSearchResult queryFetchResult = nodeToSearchService.get(searchResult.shardTarget().nodeId()).executeFetchPhase(new InternalScrollSearchRequest(searchResult.id()).scroll(new Scroll(timeValueMinutes(10))));
-//            scrollQueryFetchResults.put(queryFetchResult.shardTarget(), queryFetchResult);
-//        }
-//        queryFetchResults = scrollQueryFetchResults;
-//
-//        sortedShardList = searchPhaseController.sortDocs(queryFetchResults.values());
-//        hits = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults).hits();
-//        assertThat(hits.totalHits(), equalTo(100l));
-//        assertThat(hits.hits().length, equalTo(40));
-//        for (int i = 0; i < 40; i++) {
-//            SearchHit hit = hits.hits()[i];
+        // scrolling with query+fetch is not perfect when it comes to dist sorting
+        Map<SearchShardTarget, QueryFetchSearchResult> scrollQueryFetchResults = newHashMap();
+        for (QueryFetchSearchResult searchResult : queryFetchResults.values()) {
+            QueryFetchSearchResult queryFetchResult = nodeToSearchService.get(searchResult.shardTarget().nodeId()).executeFetchPhase(new InternalScrollSearchRequest(searchResult.id()).scroll(new Scroll(timeValueMinutes(10))));
+            scrollQueryFetchResults.put(queryFetchResult.shardTarget(), queryFetchResult);
+        }
+        queryFetchResults = scrollQueryFetchResults;
+
+        sortedShardList = searchPhaseController.sortDocs(queryFetchResults.values());
+        hits = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults).hits();
+        assertThat(hits.totalHits(), equalTo(100l));
+        assertThat(hits.hits().length, equalTo(40));
+        Set<String> expectedIds = Sets.newHashSet();
+        for (int i = 0; i < 40; i++) {
+            expectedIds.add(Integer.toString(i));
+        }
+        for (int i = 0; i < 40; i++) {
+            SearchHit hit = hits.hits()[i];
+//            System.out.println(hit.id() + " " + hit.explanation());
+            // we don't do perfect sorting when it comes to scroll with Query+Fetch
 //            assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - 60 - 1 - i)));
-//        }
+            assertThat("make sure we don't have duplicates", expectedIds.remove(hit.id()), notNullValue());
+        }
+        assertThat("make sure we got all [" + expectedIds + "]", expectedIds.size(), equalTo(0));
     }
 
     @Test public void testSimpleFacets() {

@@ -19,17 +19,21 @@
 
 package org.elasticsearch.action.search.type;
 
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.search.fetch.FetchSearchResultProvider;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchRequest;
+import org.elasticsearch.util.Base64;
 import org.elasticsearch.util.Tuple;
+import org.elasticsearch.util.Unicode;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.regex.Pattern;
 
@@ -74,25 +78,30 @@ public abstract class TransportSearchHelper {
         return internalRequest;
     }
 
-    public static String buildScrollId(SearchType searchType, Iterable<? extends FetchSearchResultProvider> fetchResults) {
+    public static String buildScrollId(SearchType searchType, Iterable<? extends SearchPhaseResult> searchPhaseResults) {
         if (searchType == SearchType.DFS_QUERY_THEN_FETCH || searchType == SearchType.QUERY_THEN_FETCH) {
-            return buildScrollId(ParsedScrollId.QUERY_THEN_FETCH_TYPE, fetchResults);
+            return buildScrollId(ParsedScrollId.QUERY_THEN_FETCH_TYPE, searchPhaseResults);
         } else if (searchType == SearchType.QUERY_AND_FETCH || searchType == SearchType.DFS_QUERY_AND_FETCH) {
-            return buildScrollId(ParsedScrollId.QUERY_AND_FETCH_TYPE, fetchResults);
+            return buildScrollId(ParsedScrollId.QUERY_AND_FETCH_TYPE, searchPhaseResults);
         } else {
             throw new ElasticSearchIllegalStateException();
         }
     }
 
-    public static String buildScrollId(String type, Iterable<? extends FetchSearchResultProvider> fetchResults) {
+    public static String buildScrollId(String type, Iterable<? extends SearchPhaseResult> searchPhaseResults) {
         StringBuilder sb = new StringBuilder().append(type).append(';');
-        for (FetchSearchResultProvider fetchResult : fetchResults) {
-            sb.append(fetchResult.id()).append(':').append(fetchResult.shardTarget().nodeId()).append(';');
+        for (SearchPhaseResult searchPhaseResult : searchPhaseResults) {
+            sb.append(searchPhaseResult.id()).append(':').append(searchPhaseResult.shardTarget().nodeId()).append(';');
         }
-        return sb.toString();
+        return Base64.encodeBytes(Unicode.fromStringAsBytes(sb.toString()));
     }
 
     public static ParsedScrollId parseScrollId(String scrollId) {
+        try {
+            scrollId = Unicode.fromBytes(Base64.decode(scrollId));
+        } catch (IOException e) {
+            throw new ElasticSearchIllegalArgumentException("Failed to decode scrollId", e);
+        }
         String[] elements = scrollIdPattern.split(scrollId);
         @SuppressWarnings({"unchecked"}) Tuple<String, Long>[] values = new Tuple[elements.length - 1];
         for (int i = 1; i < elements.length; i++) {

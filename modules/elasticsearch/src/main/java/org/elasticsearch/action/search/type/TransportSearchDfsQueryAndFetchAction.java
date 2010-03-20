@@ -107,7 +107,6 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
                                     executeSecondPhase(counter, node, querySearchRequest);
                                 }
                             }
-                            searchCache.releaseDfsResults(dfsResults);
                         }
                     });
                 } else {
@@ -127,7 +126,6 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
                             }
                         }
                     }
-                    searchCache.releaseDfsResults(dfsResults);
                 }
             }
         }
@@ -158,28 +156,20 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
             try {
                 innerFinishHim();
             } catch (Exception e) {
-                listener.onFailure(new ReduceSearchPhaseException("query_fetch", "", e, buildShardFailures()));
+                invokeListener(new ReduceSearchPhaseException("query_fetch", "", e, buildShardFailures()));
             }
         }
 
         private void innerFinishHim() {
             sortedShardList = searchPhaseController.sortDocs(queryFetchResults.values());
             final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults);
-            String scrollIdX = null;
+            String scrollId = null;
             if (request.scroll() != null) {
-                scrollIdX = buildScrollId(request.searchType(), queryFetchResults.values());
+                scrollId = buildScrollId(request.searchType(), dfsResults);
             }
-            final String scrollId = scrollIdX;
+            searchCache.releaseDfsResults(dfsResults);
             searchCache.releaseQueryFetchResults(queryFetchResults);
-            if (request.listenerThreaded()) {
-                threadPool.execute(new Runnable() {
-                    @Override public void run() {
-                        listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildShardFailures()));
-                    }
-                });
-            } else {
-                listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildShardFailures()));
-            }
+            invokeListener(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildShardFailures()));
         }
     }
 }

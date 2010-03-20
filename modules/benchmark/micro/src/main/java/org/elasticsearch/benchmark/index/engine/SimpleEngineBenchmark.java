@@ -39,7 +39,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.memory.ByteBufferStore;
 import org.elasticsearch.index.translog.memory.MemoryTranslog;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.dynamic.DynamicThreadPool;
+import org.elasticsearch.threadpool.scaling.ScalingThreadPool;
 import org.elasticsearch.util.StopWatch;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.lucene.Lucene;
@@ -285,7 +285,7 @@ public class SimpleEngineBenchmark {
 
         store.deleteContent();
 
-        ThreadPool threadPool = new DynamicThreadPool();
+        ThreadPool threadPool = new ScalingThreadPool();
         SnapshotDeletionPolicy deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastDeletionPolicy(shardId, settings));
         Engine engine = new RobinEngine(shardId, settings, store, deletionPolicy, new MemoryTranslog(shardId, settings), new LogByteSizeMergePolicyProvider(store),
                 new ConcurrentMergeSchedulerProvider(shardId, settings), new AnalysisService(shardId.index()), new SimilarityService(shardId.index()));

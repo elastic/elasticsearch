@@ -38,7 +38,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.ram.RamStore;
 import org.elasticsearch.index.translog.memory.MemoryTranslog;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.dynamic.DynamicThreadPool;
+import org.elasticsearch.threadpool.scaling.ScalingThreadPool;
 import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.settings.Settings;
 import org.testng.annotations.AfterMethod;
@@ -75,7 +75,7 @@ public class SimpleIndexShardTests {
                 new LogByteSizeMergePolicyProvider(store), new SerialMergeSchedulerProvider(shardId, settings),
                 analysisService, new SimilarityService(shardId.index()));
 
-        threadPool = new DynamicThreadPool();
+        threadPool = new ScalingThreadPool();
 
         indexShard = new InternalIndexShard(shardId, EMPTY_SETTINGS, store, engine, translog, threadPool, mapperService, queryParserService, filterCache).start();
     }

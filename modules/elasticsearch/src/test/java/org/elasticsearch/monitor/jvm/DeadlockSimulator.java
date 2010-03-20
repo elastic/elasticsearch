@@ -21,7 +21,7 @@ package org.elasticsearch.monitor.jvm;
 
 import org.elasticsearch.monitor.dump.DumpMonitorService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.dynamic.DynamicThreadPool;
+import org.elasticsearch.threadpool.scaling.ScalingThreadPool;
 
 import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 
@@ -31,7 +31,7 @@ import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 public class DeadlockSimulator {
 
     public static void main(String[] args) {
-        ThreadPool threadPool = new DynamicThreadPool();
+        ThreadPool threadPool = new ScalingThreadPool();
         DumpMonitorService dumpMonitorService = new DumpMonitorService();
         JvmMonitorService jvmMonitorService = new JvmMonitorService(EMPTY_SETTINGS, threadPool, dumpMonitorService).start();
 

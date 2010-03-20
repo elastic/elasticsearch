@@ -21,7 +21,7 @@ package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.cluster.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.dynamic.DynamicThreadPool;
+import org.elasticsearch.threadpool.scaling.ScalingThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
@@ -45,7 +45,7 @@ public class SimpleNettyTransportTests {
     private Node serviceBNode;
 
     @BeforeClass public void setUp() {
-        threadPool = new DynamicThreadPool();
+        threadPool = new ScalingThreadPool();
 
         serviceA = new TransportService(new NettyTransport(threadPool), threadPool).start();
         serviceANode = new Node("A", serviceA.boundAddress().publishAddress());

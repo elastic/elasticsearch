@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.threadpool.dynamic;
+package org.elasticsearch.threadpool.scaling;
 
 import com.google.inject.Inject;
 import org.elasticsearch.threadpool.support.AbstractThreadPool;
@@ -33,7 +33,7 @@ import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class DynamicThreadPool extends AbstractThreadPool {
+public class ScalingThreadPool extends AbstractThreadPool {
 
     private final int min;
     private final int max;
@@ -41,11 +41,11 @@ public class DynamicThreadPool extends AbstractThreadPool {
 
     private final int scheduledSize;
 
-    public DynamicThreadPool() {
+    public ScalingThreadPool() {
         this(EMPTY_SETTINGS);
     }
 
-    @Inject public DynamicThreadPool(Settings settings) {
+    @Inject public ScalingThreadPool(Settings settings) {
         super(settings);
         this.min = componentSettings.getAsInt("min", 1);
         this.max = componentSettings.getAsInt("max", 100);

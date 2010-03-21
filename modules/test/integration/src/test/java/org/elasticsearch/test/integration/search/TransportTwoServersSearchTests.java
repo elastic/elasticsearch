@@ -268,8 +268,8 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
         testSimpleFacets();
     }
 
-    @Test public void testFailedSearch() throws Exception {
-        logger.info("Start Testing failed search");
+    @Test public void testFailedSearchWithWrongQuery() throws Exception {
+        logger.info("Start Testing failed search with wrong query");
         try {
             client.search(searchRequest("test").source(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
             assert false : "search should fail";
@@ -280,6 +280,28 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
         logger.info("Done Testing failed search");
     }
 
+    @Test public void testFailedSearchWithWrongFrom() throws Exception {
+        logger.info("Start Testing failed search with wrong from");
+        SearchSourceBuilder source = searchSource()
+                .query(termQuery("multi", "test"))
+                .from(1000).size(20).explain(true);
+        SearchResponse response = client.search(searchRequest("test").searchType(DFS_QUERY_AND_FETCH).source(source)).actionGet();
+        assertThat(response.hits().hits().length, equalTo(0));
+
+        response = client.search(searchRequest("test").searchType(QUERY_THEN_FETCH).source(source)).actionGet();
+        assertThat(response.shardFailures().length, equalTo(0));
+        assertThat(response.hits().hits().length, equalTo(0));
+
+        response = client.search(searchRequest("test").searchType(DFS_QUERY_AND_FETCH).source(source)).actionGet();
+        assertThat(response.shardFailures().length, equalTo(0));
+        assertThat(response.hits().hits().length, equalTo(0));
+
+        response = client.search(searchRequest("test").searchType(DFS_QUERY_THEN_FETCH).source(source)).actionGet();
+        assertThat(response.shardFailures().length, equalTo(0));
+        assertThat(response.hits().hits().length, equalTo(0));
+
+        logger.info("Done Testing failed search");
+    }
 
     private void index(Client client, String id, String nameValue, int age) throws IOException {
         client.index(Requests.indexRequest("test").type("type1").id(id).source(source(id, nameValue, age))).actionGet();

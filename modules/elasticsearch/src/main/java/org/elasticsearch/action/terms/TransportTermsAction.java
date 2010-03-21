@@ -196,6 +196,18 @@ public class TransportTermsAction extends TransportBroadcastOperationAction<Term
                             if (term == null || indexFieldName != term.field()) { // StirngHelper.intern
                                 break;
                             }
+                            // convert to actual term text
+                            if (fieldMapper != null && fieldMapper.requiresStringToStringConversion()) {
+                                // valueAsString returns null indicating that this is not interesting
+                                term = term.createTerm(fieldMapper.valueAsString(term.text()));
+                                // if we need to break on this term enumeration, bail
+                                if (fieldMapper.shouldBreakTermEnumeration(term.text())) {
+                                    break;
+                                }
+                                if (term.text() == null) {
+                                    continue;
+                                }
+                            }
                             // does it match on the prefix?
                             if (request.prefix() != null && !term.text().startsWith(request.prefix())) {
                                 break;
@@ -239,6 +251,18 @@ public class TransportTermsAction extends TransportBroadcastOperationAction<Term
                             // have we reached the end?
                             if (term == null || indexFieldName != term.field()) { // StirngHelper.intern
                                 break;
+                            }
+                            // convert to actual term text
+                            if (fieldMapper != null && fieldMapper.requiresStringToStringConversion()) {
+                                // valueAsString returns null indicating that this is not interesting
+                                term = term.createTerm(fieldMapper.valueAsString(term.text()));
+                                // if we need to break on this term enumeration, bail
+                                if (fieldMapper.shouldBreakTermEnumeration(term.text())) {
+                                    break;
+                                }
+                                if (term.text() == null) {
+                                    continue;
+                                }
                             }
                             // does it match on the prefix?
                             if (request.prefix() != null && !term.text().startsWith(request.prefix())) {

@@ -129,6 +129,25 @@ public interface FieldMapper<T> {
     String valueAsString(Fieldable field);
 
     /**
+     * Returns <tt>true</tt> if {@link #valueAsString(String)} is required to convert
+     * from text value to text value.
+     */
+    boolean requiresStringToStringConversion();
+
+    /**
+     * Converts from the internal/indexed (term) text to the actual string representation.
+     * Can return <tt>null</tt> indicating that this is "uninteresting" value (for example, with
+     * numbers). Useful for example when enumerating terms. See {@link #shouldBreakTermEnumeration(String)}.
+     */
+    String valueAsString(String text);
+
+    /**
+     * Return <tt>true</tt> if this term value indicates breaking out of term enumeration on this
+     * field. The term text passed is the one returned from {@link #valueAsString(String)}.
+     */
+    boolean shouldBreakTermEnumeration(String text);
+
+    /**
      * Returns the indexed value.
      */
     String indexedValue(String value);

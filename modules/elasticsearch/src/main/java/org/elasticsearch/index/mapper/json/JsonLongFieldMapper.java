@@ -98,6 +98,14 @@ public class JsonLongFieldMapper extends JsonNumberFieldMapper<Long> {
         return NumericUtils.longToPrefixCoded(value);
     }
 
+    @Override public String valueAsString(String text) {
+        final int shift = text.charAt(0) - NumericUtils.SHIFT_START_LONG;
+        if (shift > 0 && shift <= 63) {
+            return null;
+        }
+        return Long.toString(NumericUtils.prefixCodedToLong(text));
+    }
+
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Long.parseLong(lowerTerm),

@@ -98,6 +98,10 @@ public class JsonIntegerFieldMapper extends JsonNumberFieldMapper<Integer> {
         return NumericUtils.intToPrefixCoded(value);
     }
 
+    @Override public String valueAsString(String text) {
+        return Integer.toString(NumericUtils.prefixCodedToInt(text));
+    }
+
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Integer.parseInt(lowerTerm),

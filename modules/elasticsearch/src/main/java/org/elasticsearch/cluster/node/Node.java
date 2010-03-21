@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.node;
 
 import com.google.common.collect.ImmutableList;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
@@ -36,7 +37,7 @@ public class Node implements Streamable, Serializable {
 
     public static final ImmutableList<Node> EMPTY_LIST = ImmutableList.of();
 
-    private String nodeName = "";
+    private String nodeName = StringHelper.intern("");
 
     private String nodeId;
 
@@ -52,12 +53,13 @@ public class Node implements Streamable, Serializable {
     }
 
     public Node(String nodeName, boolean dataNode, String nodeId, TransportAddress address) {
-        this.nodeName = nodeName;
-        this.dataNode = dataNode;
-        if (this.nodeName == null) {
-            this.nodeName = "";
+        if (nodeName == null) {
+            this.nodeName = StringHelper.intern("");
+        } else {
+            this.nodeName = StringHelper.intern(nodeName);
         }
-        this.nodeId = nodeId;
+        this.dataNode = dataNode;
+        this.nodeId = StringHelper.intern(nodeId);
         this.address = address;
     }
 
@@ -96,9 +98,9 @@ public class Node implements Streamable, Serializable {
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
-        nodeName = in.readUTF();
+        nodeName = StringHelper.intern(in.readUTF());
         dataNode = in.readBoolean();
-        nodeId = in.readUTF();
+        nodeId = StringHelper.intern(in.readUTF());
         address = TransportAddressSerializers.addressFromStream(in);
     }
 

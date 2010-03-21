@@ -20,6 +20,7 @@
 package org.elasticsearch.action.terms;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.util.io.stream.StreamInput;
@@ -139,6 +140,14 @@ public class TermsRequest extends BroadcastOperationRequest {
      */
     public TermsRequest(String... indices) {
         super(indices, null);
+    }
+
+    @Override public ActionRequestValidationException validate() {
+        ActionRequestValidationException validationException = super.validate();
+        if (fields == null || fields.length == 0) {
+            fields = DEFAULT_FIELDS;
+        }
+        return validationException;
     }
 
     /**

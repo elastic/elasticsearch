@@ -99,6 +99,14 @@ public class JsonFloatFieldMapper extends JsonNumberFieldMapper<Float> {
         return NumericUtils.floatToPrefixCoded(value);
     }
 
+    @Override public String valueAsString(String text) {
+        final int shift = text.charAt(0) - NumericUtils.SHIFT_START_INT;
+        if (shift > 0 && shift <= 31) {
+            return null;
+        }
+        return Float.toString(NumericUtils.prefixCodedToFloat(text));
+    }
+
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Float.parseFloat(lowerTerm),

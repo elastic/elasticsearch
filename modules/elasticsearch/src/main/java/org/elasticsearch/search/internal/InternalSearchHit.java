@@ -28,6 +28,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.Unicode;
+import org.elasticsearch.util.gnu.trove.TIntObjectHashMap;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.json.JsonBuilder;
@@ -223,7 +224,17 @@ public class InternalSearchHit implements SearchHit {
         return hit;
     }
 
+    public static InternalSearchHit readSearchHit(StreamInput in, @Nullable TIntObjectHashMap<SearchShardTarget> shardLookupMap) throws IOException {
+        InternalSearchHit hit = new InternalSearchHit();
+        hit.readFrom(in, shardLookupMap);
+        return hit;
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
+        readFrom(in, null);
+    }
+
+    public void readFrom(StreamInput in, @Nullable TIntObjectHashMap<SearchShardTarget> shardLookupMap) throws IOException {
         id = in.readUTF();
         type = in.readUTF();
         int size = in.readVInt();
@@ -301,12 +312,23 @@ public class InternalSearchHit implements SearchHit {
             highlightFields = builder.build();
         }
 
-        if (in.readBoolean()) {
-            shard = readSearchShardTarget(in);
+        if (shardLookupMap != null) {
+            int lookupId = in.readVInt();
+            if (lookupId > 0) {
+                shard = shardLookupMap.get(lookupId);
+            }
+        } else {
+            if (in.readBoolean()) {
+                shard = readSearchShardTarget(in);
+            }
         }
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
+        writeTo(out, null);
+    }
+
+    public void writeTo(StreamOutput out, @Nullable Map<SearchShardTarget, Integer> shardLookupMap) throws IOException {
         out.writeUTF(id);
         out.writeUTF(type);
         if (source == null) {
@@ -337,11 +359,19 @@ public class InternalSearchHit implements SearchHit {
                 highlightField.writeTo(out);
             }
         }
-        if (shard == null) {
-            out.writeBoolean(false);
+        if (shardLookupMap == null) {
+            if (shard == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                shard.writeTo(out);
+            }
         } else {
-            out.writeBoolean(true);
-            shard.writeTo(out);
+            if (shard == null) {
+                out.writeVInt(0);
+            } else {
+                out.writeVInt(shardLookupMap.get(shard));
+            }
         }
     }
 }

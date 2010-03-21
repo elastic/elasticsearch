@@ -21,12 +21,17 @@ package org.elasticsearch.search.internal;
 
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.util.gnu.trove.TIntObjectHashMap;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
+import java.util.IdentityHashMap;
+import java.util.Map;
 
+import static org.elasticsearch.search.SearchShardTarget.*;
 import static org.elasticsearch.search.internal.InternalSearchHit.*;
 
 /**
@@ -34,17 +39,17 @@ import static org.elasticsearch.search.internal.InternalSearchHit.*;
  */
 public class InternalSearchHits implements SearchHits {
 
-    private static final SearchHit[] EMPTY = new SearchHit[0];
+    private static final InternalSearchHit[] EMPTY = new InternalSearchHit[0];
 
-    private SearchHit[] hits;
+    private InternalSearchHit[] hits;
 
     private long totalHits;
 
-    private InternalSearchHits() {
+    InternalSearchHits() {
 
     }
 
-    public InternalSearchHits(SearchHit[] hits, long totalHits) {
+    public InternalSearchHits(InternalSearchHit[] hits, long totalHits) {
         this.hits = hits;
         this.totalHits = totalHits;
     }
@@ -54,6 +59,10 @@ public class InternalSearchHits implements SearchHits {
     }
 
     public SearchHit[] hits() {
+        return this.hits;
+    }
+
+    public InternalSearchHit[] internalHits() {
         return this.hits;
     }
 
@@ -81,9 +90,19 @@ public class InternalSearchHits implements SearchHits {
         if (size == 0) {
             hits = EMPTY;
         } else {
-            hits = new SearchHit[size];
+            // read the lookup table first
+            int lookupSize = in.readVInt();
+            TIntObjectHashMap<SearchShardTarget> shardLookupMap = null;
+            if (lookupSize > 0) {
+                shardLookupMap = new TIntObjectHashMap<SearchShardTarget>(lookupSize);
+                for (int i = 0; i < lookupSize; i++) {
+                    shardLookupMap.put(in.readVInt(), readSearchShardTarget(in));
+                }
+            }
+
+            hits = new InternalSearchHit[size];
             for (int i = 0; i < hits.length; i++) {
-                hits[i] = readSearchHit(in);
+                hits[i] = readSearchHit(in, shardLookupMap);
             }
         }
     }
@@ -91,8 +110,31 @@ public class InternalSearchHits implements SearchHits {
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(totalHits);
         out.writeVInt(hits.length);
-        for (SearchHit hit : hits) {
-            hit.writeTo(out);
+        if (hits.length > 0) {
+            // write the header search shard targets (we assume identity equality)
+            IdentityHashMap<SearchShardTarget, Integer> shardLookupMap = new IdentityHashMap<SearchShardTarget, Integer>();
+            // start from 1, 0 is for null!
+            int counter = 1;
+            // put an entry for null
+            for (InternalSearchHit hit : hits) {
+                if (hit.shard() != null) {
+                    Integer handle = shardLookupMap.get(hit.shard());
+                    if (handle == null) {
+                        shardLookupMap.put(hit.shard(), counter++);
+                    }
+                }
+            }
+            out.writeVInt(shardLookupMap.size());
+            if (!shardLookupMap.isEmpty()) {
+                for (Map.Entry<SearchShardTarget, Integer> entry : shardLookupMap.entrySet()) {
+                    out.writeVInt(entry.getValue());
+                    entry.getKey().writeTo(out);
+                }
+            }
+
+            for (InternalSearchHit hit : hits) {
+                hit.writeTo(out, shardLookupMap.isEmpty() ? null : shardLookupMap);
+            }
         }
     }
 }

@@ -25,7 +25,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldSelector;
 import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
@@ -66,7 +65,7 @@ public class FetchPhase implements SearchPhase {
     public void execute(SearchContext context) {
         FieldSelector fieldSelector = buildFieldSelectors(context);
 
-        SearchHit[] hits = new SearchHit[context.docIdsToLoad().length];
+        InternalSearchHit[] hits = new InternalSearchHit[context.docIdsToLoad().length];
         int index = 0;
         for (int docId : context.docIdsToLoad()) {
             Document doc = loadDocument(context, fieldSelector, docId);

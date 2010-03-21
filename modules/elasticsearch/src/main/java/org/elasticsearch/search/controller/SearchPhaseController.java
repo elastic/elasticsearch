@@ -29,7 +29,6 @@ import org.apache.lucene.search.ShardFieldDocSortedHitQueue;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -190,7 +189,7 @@ public class SearchPhaseController {
         }
 
         // merge hits
-        List<SearchHit> hits = new ArrayList<SearchHit>();
+        List<InternalSearchHit> hits = new ArrayList<InternalSearchHit>();
         if (!fetchResults.isEmpty()) {
             for (ShardDoc shardDoc : sortedDocs) {
                 FetchSearchResultProvider fetchResultProvider = fetchResults.get(shardDoc.shardTarget());
@@ -199,14 +198,14 @@ public class SearchPhaseController {
                 }
                 FetchSearchResult fetchResult = fetchResultProvider.fetchResult();
                 int index = fetchResult.counterGetAndIncrement();
-                if (index < fetchResult.hits().hits().length) {
-                    SearchHit searchHit = fetchResult.hits().hits()[index];
-                    ((InternalSearchHit) searchHit).shard(fetchResult.shardTarget());
+                if (index < fetchResult.hits().internalHits().length) {
+                    InternalSearchHit searchHit = fetchResult.hits().internalHits()[index];
+                    searchHit.shard(fetchResult.shardTarget());
                     hits.add(searchHit);
                 }
             }
         }
-        InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new SearchHit[hits.size()]), totalHits);
+        InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), totalHits);
         return new InternalSearchResponse(searchHits, facets);
     }
 }

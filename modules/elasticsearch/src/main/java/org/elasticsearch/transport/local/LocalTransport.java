@@ -28,10 +28,7 @@ import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.component.Lifecycle;
 import org.elasticsearch.util.io.ThrowableObjectInputStream;
-import org.elasticsearch.util.io.stream.BytesStreamInput;
-import org.elasticsearch.util.io.stream.BytesStreamOutput;
-import org.elasticsearch.util.io.stream.StreamInput;
-import org.elasticsearch.util.io.stream.Streamable;
+import org.elasticsearch.util.io.stream.*;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.transport.BoundTransportAddress;
@@ -120,7 +117,7 @@ public class LocalTransport extends AbstractComponent implements Transport {
 
     @Override public <T extends Streamable> void sendRequest(final Node node, final long requestId, final String action,
                                                              final Streamable message, final TransportResponseHandler<T> handler) throws IOException, TransportException {
-        BytesStreamOutput stream = BytesStreamOutput.Cached.cached();
+        HandlesStreamOutput stream = BytesStreamOutput.Cached.cachedHandles();
 
         stream.writeLong(requestId);
         byte status = 0;
@@ -135,7 +132,7 @@ public class LocalTransport extends AbstractComponent implements Transport {
             throw new ConnectTransportException(node, "Failed to connect");
         }
 
-        final byte[] data = stream.copiedByteArray();
+        final byte[] data = ((BytesStreamOutput) stream.wrappedOut()).copiedByteArray();
         threadPool.execute(new Runnable() {
             @Override public void run() {
                 targetTransport.messageReceived(data, action, LocalTransport.this, handler);
@@ -148,7 +145,8 @@ public class LocalTransport extends AbstractComponent implements Transport {
     }
 
     void messageReceived(byte[] data, String action, LocalTransport sourceTransport, @Nullable final TransportResponseHandler responseHandler) {
-        BytesStreamInput stream = new BytesStreamInput(data);
+        StreamInput stream = new BytesStreamInput(data);
+        stream = HandlesStreamInput.Cached.cached(stream);
 
         try {
             long requestId = stream.readLong();

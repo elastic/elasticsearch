@@ -41,6 +41,10 @@ public class OutputStreamStreamOutput extends StreamOutput {
         os.write(b, offset, length);
     }
 
+    @Override public void reset() throws IOException {
+        // nothing to do
+    }
+
     @Override public void flush() throws IOException {
         os.flush();
     }

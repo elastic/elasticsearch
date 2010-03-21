@@ -24,6 +24,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.util.io.ThrowableObjectOutputStream;
 import org.elasticsearch.util.io.stream.BytesStreamOutput;
+import org.elasticsearch.util.io.stream.HandlesStreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
@@ -61,14 +62,15 @@ public class NettyTransportChannel implements TransportChannel {
     }
 
     @Override public void sendResponse(Streamable message) throws IOException {
-        BytesStreamOutput stream = BytesStreamOutput.Cached.cached();
+        HandlesStreamOutput stream = BytesStreamOutput.Cached.cachedHandles();
         stream.writeBytes(LENGTH_PLACEHOLDER); // fake size
         stream.writeLong(requestId);
         byte status = 0;
         status = setResponse(status);
         stream.writeByte(status); // 0 for request, 1 for response.
         message.writeTo(stream);
-        ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(stream.copiedByteArray());
+        byte[] data = ((BytesStreamOutput) stream.wrappedOut()).copiedByteArray();
+        ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(data);
         buffer.setInt(0, buffer.writerIndex() - 4); // update real size.
         channel.write(buffer);
     }

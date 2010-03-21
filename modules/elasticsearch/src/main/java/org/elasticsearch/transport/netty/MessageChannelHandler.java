@@ -22,6 +22,7 @@ package org.elasticsearch.transport.netty;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.util.io.ThrowableObjectInputStream;
+import org.elasticsearch.util.io.stream.HandlesStreamInput;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.Streamable;
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -56,6 +57,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
     @Override public void messageReceived(ChannelHandlerContext ctx, MessageEvent event) throws Exception {
         ChannelBuffer buffer = (ChannelBuffer) event.getMessage();
         StreamInput streamIn = new ChannelBufferStreamInput(buffer);
+        streamIn = HandlesStreamInput.Cached.cached(streamIn);
 
         long requestId = buffer.readLong();
         byte status = buffer.readByte();

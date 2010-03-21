@@ -43,7 +43,7 @@ import static org.elasticsearch.util.json.Jackson.*;
 import static org.elasticsearch.util.lucene.Lucene.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class InternalSearchHit implements SearchHit {
 

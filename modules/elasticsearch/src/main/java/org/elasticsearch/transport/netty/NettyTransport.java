@@ -31,6 +31,7 @@ import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.component.Lifecycle;
 import org.elasticsearch.util.io.stream.BytesStreamOutput;
+import org.elasticsearch.util.io.stream.HandlesStreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.transport.BoundTransportAddress;
@@ -378,7 +379,7 @@ public class NettyTransport extends AbstractComponent implements Transport {
 
         Channel targetChannel = nodeChannel(node);
 
-        BytesStreamOutput stream = BytesStreamOutput.Cached.cached();
+        HandlesStreamOutput stream = BytesStreamOutput.Cached.cachedHandles();
         stream.writeBytes(LENGTH_PLACEHOLDER); // fake size
 
         stream.writeLong(requestId);
@@ -389,7 +390,8 @@ public class NettyTransport extends AbstractComponent implements Transport {
         stream.writeUTF(action);
         streamable.writeTo(stream);
 
-        ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(stream.copiedByteArray());
+        byte[] data = ((BytesStreamOutput) stream.wrappedOut()).copiedByteArray();
+        ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(data);
 
         int size = buffer.writerIndex() - 4;
         if (size == 0) {

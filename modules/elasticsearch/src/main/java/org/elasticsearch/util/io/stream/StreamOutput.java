@@ -150,6 +150,8 @@ public abstract class StreamOutput extends OutputStream {
      */
     public abstract void close() throws IOException;
 
+    public abstract void reset() throws IOException;
+
     @Override public void write(int b) throws IOException {
         writeByte((byte) b);
     }

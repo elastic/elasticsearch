@@ -25,6 +25,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.util.io.ThrowableObjectOutputStream;
 import org.elasticsearch.util.io.stream.BytesStreamOutput;
+import org.elasticsearch.util.io.stream.HandlesStreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
 
 import java.io.IOException;
@@ -56,13 +57,13 @@ public class LocalTransportChannel implements TransportChannel {
     }
 
     @Override public void sendResponse(Streamable message) throws IOException {
-        BytesStreamOutput stream = BytesStreamOutput.Cached.cached();
+        HandlesStreamOutput stream = BytesStreamOutput.Cached.cachedHandles();
         stream.writeLong(requestId);
         byte status = 0;
         status = Transport.Helper.setResponse(status);
         stream.writeByte(status); // 0 for request, 1 for response.
         message.writeTo(stream);
-        final byte[] data = stream.copiedByteArray();
+        final byte[] data = ((BytesStreamOutput) stream.wrappedOut()).copiedByteArray();
         targetTransport.threadPool().execute(new Runnable() {
             @Override public void run() {
                 targetTransport.messageReceived(data, action, sourceTransport, null);

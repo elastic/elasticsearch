@@ -38,11 +38,23 @@ public class BytesStreamOutput extends StreamOutput {
             }
         };
 
+        private static final ThreadLocal<HandlesStreamOutput> cacheHandles = new ThreadLocal<HandlesStreamOutput>() {
+            @Override protected HandlesStreamOutput initialValue() {
+                return new HandlesStreamOutput(new BytesStreamOutput());
+            }
+        };
+
         /**
          * Returns the cached thread local byte stream, with its internal stream cleared.
          */
         public static BytesStreamOutput cached() {
             BytesStreamOutput os = cache.get();
+            os.reset();
+            return os;
+        }
+
+        public static HandlesStreamOutput cachedHandles() throws IOException {
+            HandlesStreamOutput os = cacheHandles.get();
             os.reset();
             return os;
         }

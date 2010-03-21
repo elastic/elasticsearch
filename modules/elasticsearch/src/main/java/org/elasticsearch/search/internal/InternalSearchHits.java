@@ -30,7 +30,7 @@ import java.io.IOException;
 import static org.elasticsearch.search.internal.InternalSearchHit.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class InternalSearchHits implements SearchHits {
 

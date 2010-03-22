@@ -110,12 +110,16 @@ public class JsonBoostFieldMapper extends JsonNumberFieldMapper<Float> implement
         return NumericUtils.floatToPrefixCoded(value);
     }
 
-    @Override public String valueAsString(String text) {
-        final int shift = text.charAt(0) - NumericUtils.SHIFT_START_INT;
+    @Override public Object valueFromTerm(String term) {
+        final int shift = term.charAt(0) - NumericUtils.SHIFT_START_INT;
         if (shift > 0 && shift <= 31) {
             return null;
         }
-        return Float.toString(NumericUtils.prefixCodedToFloat(text));
+        return NumericUtils.prefixCodedToFloat(term);
+    }
+
+    @Override public Object valueFromString(String text) {
+        return Float.parseFloat(text);
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {

@@ -94,7 +94,6 @@ public class RestTermsAction extends BaseRestHandler {
             termsRequest.minFreq(request.paramAsInt("minFreq", termsRequest.minFreq()));
             termsRequest.maxFreq(request.paramAsInt("maxFreq", termsRequest.maxFreq()));
             termsRequest.size(request.paramAsInt("size", termsRequest.size()));
-            termsRequest.convert(request.paramAsBoolean("convert", termsRequest.convert()));
             termsRequest.prefix(request.param("prefix"));
             termsRequest.regexp(request.param("regexp"));
             termsRequest.sortType(TermsRequest.SortType.fromString(request.param("sort"), termsRequest.sortType()));
@@ -130,7 +129,7 @@ public class RestTermsAction extends BaseRestHandler {
                         if (!termsAsArray) {
                             builder.startObject("terms");
                             for (TermFreq termFreq : fieldTermsFreq.termsFreqs()) {
-                                builder.startObject(termFreq.term());
+                                builder.startObject(termFreq.termAsString());
                                 builder.field("docFreq", termFreq.docFreq());
                                 builder.endObject();
                             }

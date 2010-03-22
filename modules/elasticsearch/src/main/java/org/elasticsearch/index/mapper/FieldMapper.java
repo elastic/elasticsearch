@@ -119,6 +119,11 @@ public interface FieldMapper<T> {
     Object valueForSearch(Fieldable field);
 
     /**
+     * Returns the value that will be returned to the user (similar to {@link #valueForSearch(org.apache.lucene.document.Fieldable)}).
+     */
+    Object valueForSearch(Object value);
+
+    /**
      * Returns the actual value of the field.
      */
     T value(Fieldable field);
@@ -129,23 +134,22 @@ public interface FieldMapper<T> {
     String valueAsString(Fieldable field);
 
     /**
-     * Returns <tt>true</tt> if {@link #valueAsString(String)} is required to convert
-     * from text value to text value.
+     * Parses the string back into the type of the field (should be comparable!) in a similar
+     * manner {@link #valueForSearch(org.apache.lucene.document.Fieldable)} does with fields.
      */
-    boolean requiresStringToStringConversion();
+    Object valueFromTerm(String term);
 
     /**
-     * Converts from the internal/indexed (term) text to the actual string representation.
-     * Can return <tt>null</tt> indicating that this is "uninteresting" value (for example, with
-     * numbers). Useful for example when enumerating terms. See {@link #shouldBreakTermEnumeration(String)}.
+     * Parses a string that represents the field into its value. For example, with numbers,
+     * it parses "1" to 1.
      */
-    String valueAsString(String text);
+    Object valueFromString(String text);
 
     /**
      * Return <tt>true</tt> if this term value indicates breaking out of term enumeration on this
-     * field. The term text passed is the one returned from {@link #valueAsString(String)}.
+     * field. The term text passed is the one returned from {@link #valueFromTerm(String)}.
      */
-    boolean shouldBreakTermEnumeration(String text);
+    boolean shouldBreakTermEnumeration(Object text);
 
     /**
      * Returns the indexed value.

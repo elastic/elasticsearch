@@ -46,8 +46,6 @@ class ShardTermsRequest extends BroadcastShardOperationRequest {
 
     private int size = 10;
 
-    private boolean convert = true;
-
     private TermsRequest.SortType sortType;
 
     private boolean exact = false;
@@ -65,7 +63,6 @@ class ShardTermsRequest extends BroadcastShardOperationRequest {
         this.prefix = request.prefix();
         this.regexp = request.regexp();
         this.size = request.size();
-        this.convert = request.convert();
         this.sortType = request.sortType();
         this.exact = request.exact();
     }
@@ -102,10 +99,6 @@ class ShardTermsRequest extends BroadcastShardOperationRequest {
         return size;
     }
 
-    public boolean convert() {
-        return convert;
-    }
-
     public TermsRequest.SortType sortType() {
         return sortType;
     }
@@ -135,7 +128,6 @@ class ShardTermsRequest extends BroadcastShardOperationRequest {
             regexp = in.readUTF();
         }
         size = in.readVInt();
-        convert = in.readBoolean();
         sortType = TermsRequest.SortType.fromValue(in.readByte());
         exact = in.readBoolean();
     }
@@ -173,7 +165,6 @@ class ShardTermsRequest extends BroadcastShardOperationRequest {
             out.writeUTF(regexp);
         }
         out.writeVInt(size);
-        out.writeBoolean(convert);
         out.writeByte(sortType.value());
         out.writeBoolean(exact);
     }

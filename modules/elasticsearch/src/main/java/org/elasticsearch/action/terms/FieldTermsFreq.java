@@ -41,7 +41,7 @@ public class FieldTermsFreq implements Streamable, Iterable<TermFreq> {
 
     private TermFreq[] termsFreqs;
 
-    private transient ExtTObjectIntHasMap<String> termsFreqMap;
+    private transient ExtTObjectIntHasMap<Object> termsFreqMap;
 
     private FieldTermsFreq() {
 
@@ -69,15 +69,16 @@ public class FieldTermsFreq implements Streamable, Iterable<TermFreq> {
     /**
      * Returns the document frequency of a term, <tt>-1</tt> if the term does not exists.
      */
-    public int docFreq(String term) {
+    public int docFreq(Object term) {
+        // we use "toString" on the term so we get hits when we the termValue is Long, and we lookup with int
         if (termsFreqMap == null) {
-            ExtTObjectIntHasMap<String> termsFreqMap = new ExtTObjectIntHasMap<String>().defaultReturnValue(-1);
+            ExtTObjectIntHasMap<Object> termsFreqMap = new ExtTObjectIntHasMap<Object>().defaultReturnValue(-1);
             for (TermFreq termFreq : termsFreqs) {
-                termsFreqMap.put(termFreq.term(), termFreq.docFreq());
+                termsFreqMap.put(termFreq.term().toString(), termFreq.docFreq());
             }
             this.termsFreqMap = termsFreqMap;
         }
-        return termsFreqMap.get(term);
+        return termsFreqMap.get(term.toString());
     }
 
     @Override public Iterator<TermFreq> iterator() {

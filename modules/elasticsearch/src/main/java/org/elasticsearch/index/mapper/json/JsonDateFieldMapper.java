@@ -103,6 +103,17 @@ public class JsonDateFieldMapper extends JsonNumberFieldMapper<Long> {
         return Numbers.bytesToLong(value);
     }
 
+    /**
+     * Dates should return as a string, delegates to {@link #valueAsString(org.apache.lucene.document.Fieldable)}.
+     */
+    @Override public Object valueForSearch(Fieldable field) {
+        return valueAsString(field);
+    }
+
+    @Override public Object valueForSearch(Object value) {
+        return dateTimeFormatter.printer().print((Long) value);
+    }
+
     @Override public String valueAsString(Fieldable field) {
         return dateTimeFormatter.printer().print(value(field));
     }
@@ -115,12 +126,16 @@ public class JsonDateFieldMapper extends JsonNumberFieldMapper<Long> {
         return NumericUtils.longToPrefixCoded(value);
     }
 
-    @Override public String valueAsString(String text) {
-        final int shift = text.charAt(0) - NumericUtils.SHIFT_START_LONG;
+    @Override public Object valueFromTerm(String term) {
+        final int shift = term.charAt(0) - NumericUtils.SHIFT_START_LONG;
         if (shift > 0 && shift <= 63) {
             return null;
         }
-        return dateTimeFormatter.printer().print(NumericUtils.prefixCodedToLong(text));
+        return NumericUtils.prefixCodedToLong(term);
+    }
+
+    @Override public Object valueFromString(String text) {
+        return dateTimeFormatter.parser().parseMillis(text);
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {

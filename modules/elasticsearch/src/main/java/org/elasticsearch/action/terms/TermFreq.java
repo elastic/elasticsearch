@@ -22,6 +22,7 @@ package org.elasticsearch.action.terms;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
+import org.elasticsearch.util.lucene.Lucene;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -40,7 +41,7 @@ public class TermFreq implements Streamable {
         @Override public int compare(TermFreq o1, TermFreq o2) {
             int i = o2.docFreq() - o1.docFreq();
             if (i == 0) {
-                i = o1.term().compareTo(o2.term());
+                i = ((Comparable) o1.term()).compareTo(o2.term());
             }
             return i;
         }
@@ -51,7 +52,7 @@ public class TermFreq implements Streamable {
      */
     private static final Comparator<TermFreq> termComparator = new Comparator<TermFreq>() {
         @Override public int compare(TermFreq o1, TermFreq o2) {
-            int i = o1.term().compareTo(o2.term());
+            int i = ((Comparable) o1.term()).compareTo(o2.term());
             if (i == 0) {
                 i = o1.docFreq() - o2.docFreq();
             }
@@ -73,7 +74,7 @@ public class TermFreq implements Streamable {
         return termComparator;
     }
 
-    private String term;
+    private Object term;
 
     private int docFreq;
 
@@ -87,7 +88,7 @@ public class TermFreq implements Streamable {
      * @param term    The term
      * @param docFreq The document frequency
      */
-    TermFreq(String term, int docFreq) {
+    TermFreq(Object term, int docFreq) {
         this.term = term;
         this.docFreq = docFreq;
     }
@@ -95,8 +96,12 @@ public class TermFreq implements Streamable {
     /**
      * The term.
      */
-    public String term() {
+    public Object term() {
         return term;
+    }
+
+    public String termAsString() {
+        return term.toString();
     }
 
     /**
@@ -113,12 +118,12 @@ public class TermFreq implements Streamable {
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
-        term = in.readUTF();
+        term = Lucene.readFieldValue(in);
         docFreq = in.readVInt();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(term);
+        Lucene.writeFieldValue(out, term);
         out.writeVInt(docFreq);
     }
 }

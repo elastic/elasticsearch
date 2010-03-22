@@ -292,24 +292,25 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
         return valueAsString(field);
     }
 
-    /**
-     * Default base does not require stringToString conversion.
-     */
-    @Override public boolean requiresStringToStringConversion() {
-        return false;
+    @Override public Object valueForSearch(Object value) {
+        return value;
     }
 
     /**
      * Simply returns the same string.
      */
-    @Override public String valueAsString(String text) {
+    @Override public Object valueFromTerm(String term) {
+        return term;
+    }
+
+    @Override public Object valueFromString(String text) {
         return text;
     }
 
     /**
      * Never break on this term enumeration value.
      */
-    @Override public boolean shouldBreakTermEnumeration(String text) {
+    @Override public boolean shouldBreakTermEnumeration(Object text) {
         return false;
     }
 

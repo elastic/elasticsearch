@@ -179,13 +179,13 @@ public class TermsRequest extends BroadcastOperationRequest {
      * The lower bound (lex) term from which the iteration will start.  Defaults to start from the
      * first.
      */
-    public TermsRequest from(String from) {
-        this.from = from;
+    public TermsRequest from(Object from) {
+        this.from = from.toString();
         return this;
     }
 
     /**
-     * Should the first from (if set using {@link #from(String)} be inclusive or not. Defaults
+     * Should the first from (if set using {@link #from(Object)} be inclusive or not. Defaults
      * to <tt>false</tt> (not inclusive / exclusive).
      */
     public boolean fromInclusive() {
@@ -193,7 +193,7 @@ public class TermsRequest extends BroadcastOperationRequest {
     }
 
     /**
-     * Should the first from (if set using {@link #from(String)} be inclusive or not. Defaults
+     * Should the first from (if set using {@link #from(Object)} be inclusive or not. Defaults
      * to <tt>false</tt> (not inclusive / exclusive).
      */
     public TermsRequest fromInclusive(boolean fromInclusive) {
@@ -211,13 +211,13 @@ public class TermsRequest extends BroadcastOperationRequest {
     /**
      * The upper bound (lex) term to which the iteration will end. Defaults to unbound (<tt>null</tt>).
      */
-    public TermsRequest to(String to) {
-        this.to = to;
+    public TermsRequest to(Object to) {
+        this.to = to.toString();
         return this;
     }
 
     /**
-     * Should the last to (if set using {@link #to(String)} be inclusive or not. Defaults to
+     * Should the last to (if set using {@link #to(Object)} be inclusive or not. Defaults to
      * <tt>true</tt>.
      */
     public boolean toInclusive() {
@@ -225,7 +225,7 @@ public class TermsRequest extends BroadcastOperationRequest {
     }
 
     /**
-     * Should the last to (if set using {@link #to(String)} be inclusive or not. Defaults to
+     * Should the last to (if set using {@link #to(Object)} be inclusive or not. Defaults to
      * <tt>true</tt>.
      */
     public TermsRequest toInclusive(boolean toInclusive) {
@@ -306,23 +306,6 @@ public class TermsRequest extends BroadcastOperationRequest {
      */
     public TermsRequest size(int size) {
         this.size = size;
-        return this;
-    }
-
-    /**
-     * Should an attempt be made to convert the {@link #to(String)} and {@link #from(String)}.
-     * Defaults to <tt>true</tt>.
-     */
-    public boolean convert() {
-        return convert;
-    }
-
-    /**
-     * Should an attempt be made to convert the {@link #to(String)} and {@link #from(String)}.
-     * Defaults to <tt>true</tt>.
-     */
-    public TermsRequest convert(boolean convert) {
-        this.convert = convert;
         return this;
     }
 

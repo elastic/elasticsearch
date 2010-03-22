@@ -99,12 +99,16 @@ public class JsonDoubleFieldMapper extends JsonNumberFieldMapper<Double> {
         return NumericUtils.doubleToPrefixCoded(value);
     }
 
-    @Override public String valueAsString(String text) {
-        final int shift = text.charAt(0) - NumericUtils.SHIFT_START_LONG;
+    @Override public Object valueFromTerm(String term) {
+        final int shift = term.charAt(0) - NumericUtils.SHIFT_START_LONG;
         if (shift > 0 && shift <= 63) {
             return null;
         }
-        return Double.toString(NumericUtils.prefixCodedToDouble(text));
+        return NumericUtils.prefixCodedToDouble(term);
+    }
+
+    @Override public Object valueFromString(String text) {
+        return Double.parseDouble(text);
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {

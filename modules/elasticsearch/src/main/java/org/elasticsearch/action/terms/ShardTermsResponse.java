@@ -24,6 +24,7 @@ import org.elasticsearch.util.gnu.trove.TObjectIntHashMap;
 import org.elasticsearch.util.gnu.trove.TObjectIntIterator;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.lucene.Lucene;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -34,7 +35,7 @@ import java.util.Map;
  */
 class ShardTermsResponse extends BroadcastShardOperationResponse {
 
-    private Map<String, TObjectIntHashMap<String>> fieldsTermsFreqs = new HashMap<String, TObjectIntHashMap<String>>();
+    private Map<String, TObjectIntHashMap<Object>> fieldsTermsFreqs = new HashMap<String, TObjectIntHashMap<Object>>();
 
     private int numDocs;
 
@@ -64,11 +65,11 @@ class ShardTermsResponse extends BroadcastShardOperationResponse {
         return this.numDeletedDocs;
     }
 
-    void put(String fieldName, TObjectIntHashMap<String> termsFreqs) {
+    void put(String fieldName, TObjectIntHashMap<Object> termsFreqs) {
         fieldsTermsFreqs.put(fieldName, termsFreqs);
     }
 
-    Map<String, TObjectIntHashMap<String>> fieldsTermsFreqs() {
+    Map<String, TObjectIntHashMap<Object>> fieldsTermsFreqs() {
         return fieldsTermsFreqs;
     }
 
@@ -81,10 +82,10 @@ class ShardTermsResponse extends BroadcastShardOperationResponse {
         for (int i = 0; i < size; i++) {
             String fieldName = in.readUTF();
 
-            TObjectIntHashMap<String> termsFreq = new TObjectIntHashMap<String>();
+            TObjectIntHashMap<Object> termsFreq = new TObjectIntHashMap<Object>();
             int size1 = in.readVInt();
             for (int j = 0; j < size1; j++) {
-                termsFreq.put(in.readUTF(), in.readVInt());
+                termsFreq.put(Lucene.readFieldValue(in), in.readVInt());
             }
 
             fieldsTermsFreqs.put(fieldName, termsFreq);
@@ -97,12 +98,12 @@ class ShardTermsResponse extends BroadcastShardOperationResponse {
         out.writeVInt(maxDoc);
         out.writeVInt(numDeletedDocs);
         out.writeVInt(fieldsTermsFreqs.size());
-        for (Map.Entry<String, TObjectIntHashMap<String>> entry : fieldsTermsFreqs.entrySet()) {
+        for (Map.Entry<String, TObjectIntHashMap<Object>> entry : fieldsTermsFreqs.entrySet()) {
             out.writeUTF(entry.getKey());
             out.writeVInt(entry.getValue().size());
-            for (TObjectIntIterator<String> it = entry.getValue().iterator(); it.hasNext();) {
+            for (TObjectIntIterator<Object> it = entry.getValue().iterator(); it.hasNext();) {
                 it.advance();
-                out.writeUTF(it.key());
+                Lucene.writeFieldValue(out, it.key());
                 out.writeVInt(it.value());
             }
         }

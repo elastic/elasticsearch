@@ -129,19 +129,14 @@ public abstract class JsonNumberFieldMapper<T extends Number> extends JsonFieldM
         return value(field).toString();
     }
 
-    /**
-     * Numbers require string conversion.
-     */
-    @Override public boolean requiresStringToStringConversion() {
-        return true;
-    }
+    @Override public abstract Object valueFromTerm(String term);
 
-    @Override public abstract String valueAsString(String text);
+    @Override public abstract Object valueFromString(String text);
 
     /**
      * Breaks on this text if its <tt>null</tt>.
      */
-    @Override public boolean shouldBreakTermEnumeration(String text) {
+    @Override public boolean shouldBreakTermEnumeration(Object text) {
         return text == null;
     }
 

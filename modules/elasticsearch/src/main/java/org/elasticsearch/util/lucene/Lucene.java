@@ -256,6 +256,59 @@ public class Lucene {
         }
     }
 
+    public static Object readFieldValue(StreamInput in) throws IOException {
+        byte type = in.readByte();
+        if (type == 0) {
+            return in.readUTF();
+        } else if (type == 1) {
+            return in.readInt();
+        } else if (type == 2) {
+            return in.readLong();
+        } else if (type == 3) {
+            return in.readFloat();
+        } else if (type == 4) {
+            return in.readDouble();
+        } else if (type == 5) {
+            return in.readBoolean();
+        } else if (type == 6) {
+            int bytesSize = in.readVInt();
+            byte[] value = new byte[bytesSize];
+            in.readFully(value);
+            return value;
+        } else {
+            throw new IOException("Can't read unknown type [" + type + "]");
+        }
+    }
+
+    public static void writeFieldValue(StreamOutput out, Object value) throws IOException {
+        Class type = value.getClass();
+        if (type == String.class) {
+            out.writeByte((byte) 0);
+            out.writeUTF((String) value);
+        } else if (type == Integer.class) {
+            out.writeByte((byte) 1);
+            out.writeInt((Integer) value);
+        } else if (type == Long.class) {
+            out.writeByte((byte) 2);
+            out.writeLong((Long) value);
+        } else if (type == Float.class) {
+            out.writeByte((byte) 3);
+            out.writeFloat((Float) value);
+        } else if (type == Double.class) {
+            out.writeByte((byte) 4);
+            out.writeDouble((Double) value);
+        } else if (type == Boolean.class) {
+            out.writeByte((byte) 5);
+            out.writeBoolean((Boolean) value);
+        } else if (type == byte[].class) {
+            out.writeByte((byte) 6);
+            out.writeVInt(((byte[]) value).length);
+            out.writeBytes(((byte[]) value));
+        } else {
+            throw new IOException("Can't write type [" + type + "]");
+        }
+    }
+
     public static class CountCollector extends Collector {
 
         private final float minScore;

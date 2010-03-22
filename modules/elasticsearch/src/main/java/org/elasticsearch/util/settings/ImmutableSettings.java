@@ -204,6 +204,10 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override public String[] getAsArray(String settingPrefix) throws SettingsException {
+        return getAsArray(settingPrefix, Strings.EMPTY_ARRAY);
+    }
+
+    @Override public String[] getAsArray(String settingPrefix, String[] defaultArray) throws SettingsException {
         List<String> result = newArrayList();
         int counter = 0;
         while (true) {
@@ -212,6 +216,9 @@ public class ImmutableSettings implements Settings {
                 break;
             }
             result.add(value);
+        }
+        if (result.isEmpty()) {
+            return defaultArray;
         }
         return result.toArray(new String[result.size()]);
     }

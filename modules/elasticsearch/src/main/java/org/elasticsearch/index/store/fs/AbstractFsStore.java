@@ -19,11 +19,18 @@
 
 package org.elasticsearch.index.store.fs;
 
+import com.google.common.collect.ImmutableSet;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.memory.ByteBufferDirectory;
+import org.elasticsearch.index.store.memory.HeapDirectory;
 import org.elasticsearch.index.store.support.AbstractStore;
+import org.elasticsearch.util.SizeUnit;
+import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.io.FileSystemUtils;
+import org.elasticsearch.util.lucene.store.SwitchDirectory;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
@@ -31,17 +38,40 @@ import java.io.IOException;
 /**
  * @author kimchy (Shay Banon)
  */
-public abstract class AbstractFsStore<T extends FSDirectory> extends AbstractStore<T> {
+public abstract class AbstractFsStore<T extends Directory> extends AbstractStore<T> {
 
     public AbstractFsStore(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
     }
 
     @Override public void fullDelete() throws IOException {
-        FileSystemUtils.deleteRecursively(directory().getFile());
+        FileSystemUtils.deleteRecursively(fsDirectory().getFile());
         // if we are the last ones, delete also the actual index
-        if (directory().getFile().getParentFile().list().length == 0) {
-            FileSystemUtils.deleteRecursively(directory().getFile().getParentFile());
+        if (fsDirectory().getFile().getParentFile().list().length == 0) {
+            FileSystemUtils.deleteRecursively(fsDirectory().getFile().getParentFile());
         }
+    }
+
+    public abstract FSDirectory fsDirectory();
+
+    protected SwitchDirectory buildSwitchDirectoryIfNeeded(Directory fsDirectory) {
+        boolean cache = componentSettings.getAsBoolean("cache.enabled", false);
+        if (!cache) {
+            return null;
+        }
+        SizeValue bufferSize = componentSettings.getAsSize("cache.bufferSize", new SizeValue(100, SizeUnit.KB));
+        SizeValue cacheSize = componentSettings.getAsSize("cache.cacheSize", new SizeValue(20, SizeUnit.MB));
+        boolean direct = componentSettings.getAsBoolean("cache.direct", true);
+        boolean warmCache = componentSettings.getAsBoolean("cache.warmCache", true);
+
+        Directory memDir;
+        if (direct) {
+            memDir = new ByteBufferDirectory((int) bufferSize.bytes(), (int) cacheSize.bytes(), true, warmCache);
+        } else {
+            memDir = new HeapDirectory(bufferSize, cacheSize, warmCache);
+        }
+        // see http://lucene.apache.org/java/3_0_1/fileformats.html
+        String[] primaryExtensions = componentSettings.getAsArray("cache.extensions", new String[]{"", "del", "gen"});
+        return new SwitchDirectory(ImmutableSet.of(primaryExtensions), memDir, fsDirectory, true);
     }
 }

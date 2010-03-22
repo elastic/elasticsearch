@@ -201,6 +201,8 @@ public interface Settings {
      * @return The setting array values
      * @throws SettingsException
      */
+    String[] getAsArray(String settingPrefix, String[] defaultArray) throws SettingsException;
+
     String[] getAsArray(String settingPrefix) throws SettingsException;
 
     /**

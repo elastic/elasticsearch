@@ -20,11 +20,14 @@
 package org.elasticsearch.index.store.fs;
 
 import com.google.inject.Inject;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.LocalNodeId;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.util.lucene.store.SwitchDirectory;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.File;
@@ -35,22 +38,44 @@ import static org.elasticsearch.index.store.fs.FsStores.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class SimpleFsStore extends AbstractFsStore<SimpleFSDirectory> {
+public class SimpleFsStore extends AbstractFsStore<Directory> {
 
     private final boolean syncToDisk;
 
-    private SimpleFSDirectory directory;
+    private SimpleFSDirectory fsDirectory;
+
+    private final Directory directory;
+
+    private final boolean suggestUseCompoundFile;
 
     @Inject public SimpleFsStore(ShardId shardId, @IndexSettings Settings indexSettings, Environment environment, @LocalNodeId String localNodeId) throws IOException {
         super(shardId, indexSettings);
         // by default, we don't need to sync to disk, since we use the gateway
         this.syncToDisk = componentSettings.getAsBoolean("syncToDisk", false);
-        this.directory = new CustomSimpleFSDirectory(createStoreFilePath(environment.workWithClusterFile(), localNodeId, shardId, MAIN_INDEX_SUFFIX), syncToDisk);
-        logger.debug("Using [SimpleFs] Store with path [{}], syncToDisk [{}]", directory.getFile(), syncToDisk);
+        this.fsDirectory = new CustomSimpleFSDirectory(createStoreFilePath(environment.workWithClusterFile(), localNodeId, shardId, MAIN_INDEX_SUFFIX), syncToDisk);
+
+        SwitchDirectory switchDirectory = buildSwitchDirectoryIfNeeded(fsDirectory);
+        if (switchDirectory != null) {
+            suggestUseCompoundFile = false;
+            logger.debug("Using [SimpleFs] Store with path [{}], cache [true] with extensions [{}]", new Object[]{fsDirectory.getFile(), switchDirectory.primaryExtensions()});
+            directory = switchDirectory;
+        } else {
+            suggestUseCompoundFile = true;
+            directory = fsDirectory;
+            logger.debug("Using [SimpleFs] Store with path [{}]", fsDirectory.getFile());
+        }
     }
 
-    @Override public SimpleFSDirectory directory() {
+    @Override public FSDirectory fsDirectory() {
+        return fsDirectory;
+    }
+
+    @Override public Directory directory() {
         return directory;
+    }
+
+    @Override public boolean suggestUseCompoundFile() {
+        return suggestUseCompoundFile;
     }
 
     private static class CustomSimpleFSDirectory extends SimpleFSDirectory {

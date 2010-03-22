@@ -72,13 +72,13 @@ public class RestTermsAction extends BaseRestHandler {
             termsRequest.operationThreading(operationThreading);
 
             List<String> fields = request.params("field");
-            if (fields == null) {
-                fields = new ArrayList<String>();
-            }
             String sField = request.param("fields");
             if (sField != null) {
                 String[] sFields = fieldsPattern.split(sField);
                 if (sFields != null) {
+                    if (fields == null) {
+                        fields = new ArrayList<String>();
+                    }
                     for (String field : sFields) {
                         fields.add(field);
                     }

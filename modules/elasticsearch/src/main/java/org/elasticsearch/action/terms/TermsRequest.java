@@ -180,7 +180,11 @@ public class TermsRequest extends BroadcastOperationRequest {
      * first.
      */
     public TermsRequest from(Object from) {
-        this.from = from.toString();
+        if (from == null) {
+            this.from = null;
+        } else {
+            this.from = from.toString();
+        }
         return this;
     }
 
@@ -202,17 +206,21 @@ public class TermsRequest extends BroadcastOperationRequest {
     }
 
     /**
-     * The upper bound (lex) term to which the iteration will end. Defaults to unbound (<tt>null</tt>).
+     * The upper bound term to which the iteration will end. Defaults to unbound (<tt>null</tt>).
      */
     public String to() {
         return to;
     }
 
     /**
-     * The upper bound (lex) term to which the iteration will end. Defaults to unbound (<tt>null</tt>).
+     * The upper bound term to which the iteration will end. Defaults to unbound (<tt>null</tt>).
      */
     public TermsRequest to(Object to) {
-        this.to = to.toString();
+        if (to == null) {
+            this.to = null;
+        } else {
+            this.to = to.toString();
+        }
         return this;
     }
 

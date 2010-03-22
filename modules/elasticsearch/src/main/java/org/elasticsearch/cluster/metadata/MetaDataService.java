@@ -244,6 +244,9 @@ public class MetaDataService extends AbstractComponent {
 
     public synchronized PutMappingResult putMapping(final String[] indices, String mappingType, final String mappingSource, boolean ignoreConflicts, TimeValue timeout) throws ElasticSearchException {
         ClusterState clusterState = clusterService.state();
+        if (indices.length == 0) {
+            throw new IndexMissingException(new Index("_all"));
+        }
         for (String index : indices) {
             IndexRoutingTable indexTable = clusterState.routingTable().indicesRouting().get(index);
             if (indexTable == null) {

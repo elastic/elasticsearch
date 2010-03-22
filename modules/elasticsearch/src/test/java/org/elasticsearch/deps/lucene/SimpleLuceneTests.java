@@ -20,10 +20,7 @@
 package org.elasticsearch.deps.lucene;
 
 import org.apache.lucene.document.*;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermEnum;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -197,6 +194,57 @@ public class SimpleLuceneTests {
         assertThat(termEnum.docFreq(), equalTo(1));
         termEnum.close();
 
+
+        reader.close();
+        indexWriter.close();
+    }
+
+    /**
+     * A test just to verify that term freqs are not stored for numeric fields. <tt>int1</tt> is not storing termFreq
+     * and <tt>int2</tt> does.
+     */
+    @Test public void testNumericTermDocsFreqs() throws Exception {
+        Directory dir = new RAMDirectory();
+        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+
+        Document doc = new Document();
+        NumericField field = new NumericField("int1").setIntValue(1);
+        field.setOmitNorms(true);
+        field.setOmitTermFreqAndPositions(true);
+        doc.add(field);
+
+        field = new NumericField("int1").setIntValue(1);
+        field.setOmitNorms(true);
+        field.setOmitTermFreqAndPositions(true);
+        doc.add(field);
+
+        field = new NumericField("int2").setIntValue(1);
+        field.setOmitNorms(true);
+        field.setOmitTermFreqAndPositions(false);
+        doc.add(field);
+
+        field = new NumericField("int2").setIntValue(1);
+        field.setOmitNorms(true);
+        field.setOmitTermFreqAndPositions(false);
+        doc.add(field);
+
+        indexWriter.addDocument(doc);
+
+        IndexReader reader = indexWriter.getReader();
+
+        TermDocs termDocs = reader.termDocs();
+
+        TermEnum termEnum = reader.terms(new Term("int1", ""));
+        termDocs.seek(termEnum);
+        assertThat(termDocs.next(), equalTo(true));
+        assertThat(termDocs.doc(), equalTo(0));
+        assertThat(termDocs.freq(), equalTo(1));
+
+        termEnum = reader.terms(new Term("int2", ""));
+        termDocs.seek(termEnum);
+        assertThat(termDocs.next(), equalTo(true));
+        assertThat(termDocs.doc(), equalTo(0));
+        assertThat(termDocs.freq(), equalTo(2));
 
         reader.close();
         indexWriter.close();

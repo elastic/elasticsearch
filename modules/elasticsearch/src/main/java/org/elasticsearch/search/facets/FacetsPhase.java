@@ -72,10 +72,11 @@ public class FacetsPhase implements SearchPhase {
                     Filter facetFilter = new QueryWrapperFilter(queryFacet.query());
                     facetFilter = context.filterCache().cache(facetFilter);
                     long count;
-                    if (contextFacets.queryType() == SearchContextFacets.QueryExecutionType.COLLECT) {
-                        count = executeQueryCollectorCount(context, queryFacet, facetFilter);
-                    } else if (contextFacets.queryType() == SearchContextFacets.QueryExecutionType.IDSET) {
+                    // if we already have the doc id set, then use idset since its faster
+                    if (context.searcher().docIdSet() != null || contextFacets.queryType() == SearchContextFacets.QueryExecutionType.IDSET) {
                         count = executeQueryIdSetCount(context, queryFacet, facetFilter);
+                    } else if (contextFacets.queryType() == SearchContextFacets.QueryExecutionType.COLLECT) {
+                        count = executeQueryCollectorCount(context, queryFacet, facetFilter);
                     } else {
                         throw new ElasticSearchIllegalStateException("No matching for type [" + contextFacets.queryType() + "]");
                     }

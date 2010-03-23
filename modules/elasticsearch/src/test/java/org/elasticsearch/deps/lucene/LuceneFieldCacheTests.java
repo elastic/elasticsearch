@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.*;
  * @author kimchy (shay.banon)
  */
 @Test
-public class NumericFieldCacheTests {
+public class LuceneFieldCacheTests {
 
     /**
      * A test that verifies that when using FieldCache for a field that has been added twice (under the same name)

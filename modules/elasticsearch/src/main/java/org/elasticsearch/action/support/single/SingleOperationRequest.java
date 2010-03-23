@@ -37,7 +37,7 @@ public abstract class SingleOperationRequest implements ActionRequest {
     protected String id;
 
     private boolean threadedListener = false;
-    private boolean threadedOperation = false;
+    private boolean threadedOperation = true;
 
     protected SingleOperationRequest() {
     }
@@ -89,14 +89,14 @@ public abstract class SingleOperationRequest implements ActionRequest {
     /**
      * Controls if the operation will be executed on a separate thread when executed locally.
      */
-    public boolean threadedOperation() {
+    public boolean operationThreaded() {
         return threadedOperation;
     }
 
     /**
      * Controls if the operation will be executed on a separate thread when executed locally.
      */
-    public SingleOperationRequest threadedOperation(boolean threadedOperation) {
+    public SingleOperationRequest operationThreaded(boolean threadedOperation) {
         this.threadedOperation = threadedOperation;
         return this;
     }

@@ -125,7 +125,7 @@ public abstract class TransportSingleOperationAction<Request extends SingleOpera
                     continue;
                 }
                 if (shard.currentNodeId().equals(nodes.localNodeId())) {
-                    if (request.threadedOperation()) {
+                    if (request.operationThreaded()) {
                         threadPool.execute(new Runnable() {
                             @Override public void run() {
                                 try {
@@ -226,7 +226,7 @@ public abstract class TransportSingleOperationAction<Request extends SingleOpera
             // no need to have a threaded listener since we just send back a response
             request.listenerThreaded(false);
             // if we have a local operation, execute it on a thread since we don't spawn
-            request.threadedOperation(true);
+            request.operationThreaded(true);
             execute(request, new ActionListener<Response>() {
                 @Override public void onResponse(Response result) {
                     try {

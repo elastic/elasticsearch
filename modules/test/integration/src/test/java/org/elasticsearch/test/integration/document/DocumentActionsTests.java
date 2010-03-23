@@ -101,10 +101,10 @@ public class DocumentActionsTests extends AbstractServersTests {
 
         logger.info("Get [type1/1]");
         for (int i = 0; i < 5; i++) {
-            getResult = client1.get(getRequest("test").type("type1").id("1").threadedOperation(false)).actionGet();
+            getResult = client1.get(getRequest("test").type("type1").id("1").operationThreaded(false)).actionGet();
             assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test")));
             assertThat("cycle(map) #" + i, (String) ((Map) getResult.sourceAsMap().get("type1")).get("name"), equalTo("test"));
-            getResult = client1.get(getRequest("test").type("type1").id("1").threadedOperation(true)).actionGet();
+            getResult = client1.get(getRequest("test").type("type1").id("1").operationThreaded(true)).actionGet();
             assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test")));
         }
 

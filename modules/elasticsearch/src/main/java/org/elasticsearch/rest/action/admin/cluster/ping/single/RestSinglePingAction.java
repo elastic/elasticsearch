@@ -49,7 +49,7 @@ public class RestSinglePingAction extends BaseRestHandler {
         // no need to have a threaded listener since we just send back a response
         singlePingRequest.listenerThreaded(false);
         // if we have a local operation, execute it on a thread since we don't spawn
-        singlePingRequest.threadedOperation(true);
+        singlePingRequest.operationThreaded(true);
         client.admin().cluster().ping(singlePingRequest, new ActionListener<SinglePingResponse>() {
             @Override public void onResponse(SinglePingResponse result) {
                 try {

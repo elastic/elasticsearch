@@ -108,8 +108,8 @@ public class GetRequest extends SingleOperationRequest {
     /**
      * Controls if the operation will be executed on a separate thread when executed locally.
      */
-    @Override public GetRequest threadedOperation(boolean threadedOperation) {
-        super.threadedOperation(threadedOperation);
+    @Override public GetRequest operationThreaded(boolean threadedOperation) {
+        super.operationThreaded(threadedOperation);
         return this;
     }
 

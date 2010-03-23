@@ -59,7 +59,7 @@ public class RestGetAction extends BaseRestHandler {
         // no need to have a threaded listener since we just send back a response
         getRequest.listenerThreaded(false);
         // if we have a local operation, execute it on a thread since we don't spawn
-        getRequest.threadedOperation(true);
+        getRequest.operationThreaded(true);
 
 
         List<String> fields = request.params("field");

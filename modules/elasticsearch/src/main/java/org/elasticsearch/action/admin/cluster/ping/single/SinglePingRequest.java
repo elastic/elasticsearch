@@ -56,8 +56,8 @@ public class SinglePingRequest extends SingleOperationRequest {
         return this;
     }
 
-    @Override public SinglePingRequest threadedOperation(boolean threadedOperation) {
-        super.threadedOperation(threadedOperation);
+    @Override public SinglePingRequest operationThreaded(boolean threadedOperation) {
+        super.operationThreaded(threadedOperation);
         return this;
     }
 

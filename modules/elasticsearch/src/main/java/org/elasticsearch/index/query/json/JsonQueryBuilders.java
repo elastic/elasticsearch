@@ -248,8 +248,8 @@ public abstract class JsonQueryBuilders {
      * @param queryBuilder  The query to apply the filter to
      * @param filterBuilder The filter to apply on the query
      */
-    public static FilteredQueryJsonQueryBuilder filteredQuery(JsonQueryBuilder queryBuilder, JsonFilterBuilder filterBuilder) {
-        return new FilteredQueryJsonQueryBuilder(queryBuilder, filterBuilder);
+    public static FilteredJsonQueryBuilder filtered(JsonQueryBuilder queryBuilder, JsonFilterBuilder filterBuilder) {
+        return new FilteredJsonQueryBuilder(queryBuilder, filterBuilder);
     }
 
     /**

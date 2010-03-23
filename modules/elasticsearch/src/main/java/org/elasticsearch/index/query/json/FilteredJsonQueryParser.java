@@ -36,11 +36,11 @@ import java.io.IOException;
 /**
  * @author kimchy (shay.banon)
  */
-public class FilteredQueryJsonQueryParser extends AbstractIndexComponent implements JsonQueryParser {
+public class FilteredJsonQueryParser extends AbstractIndexComponent implements JsonQueryParser {
 
-    public static final String NAME = "filteredQuery";
+    public static final String NAME = "filtered";
 
-    @Inject public FilteredQueryJsonQueryParser(Index index, @IndexSettings Settings settings) {
+    @Inject public FilteredJsonQueryParser(Index index, @IndexSettings Settings settings) {
         super(index, settings);
     }
 
@@ -77,10 +77,10 @@ public class FilteredQueryJsonQueryParser extends AbstractIndexComponent impleme
             }
         }
         if (query == null) {
-            throw new QueryParsingException(index, "[filteredQuery] requires 'query' element");
+            throw new QueryParsingException(index, "[filtered] requires 'query' element");
         }
         if (filter == null) {
-            throw new QueryParsingException(index, "[filteredQuery] requires 'filter' element");
+            throw new QueryParsingException(index, "[filtered] requires 'filter' element");
         }
         // we don't cache the filter, we assume it is already cached in the filter parsers...
         FilteredQuery filteredQuery = new FilteredQuery(query, filter);

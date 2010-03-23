@@ -1,5 +1,5 @@
 {
-    filteredQuery : {
+    filtered : {
         query : {
             wildcard : { "name.first" : {wildcard : "sh*", boost : 1.1} }
         },

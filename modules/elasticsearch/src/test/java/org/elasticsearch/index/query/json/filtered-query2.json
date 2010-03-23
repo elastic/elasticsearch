@@ -1,5 +1,5 @@
 {
-    filteredQuery : {
+    filtered : {
         filter : {
             term : { "name.last" : "banon"}
         },

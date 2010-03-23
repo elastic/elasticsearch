@@ -28,7 +28,7 @@ import java.io.IOException;
  *
  * @author kimchy (shay.banon)
  */
-public class FilteredQueryJsonQueryBuilder extends BaseJsonQueryBuilder {
+public class FilteredJsonQueryBuilder extends BaseJsonQueryBuilder {
 
     private final JsonQueryBuilder queryBuilder;
 
@@ -42,7 +42,7 @@ public class FilteredQueryJsonQueryBuilder extends BaseJsonQueryBuilder {
      * @param queryBuilder  The query to apply the filter to
      * @param filterBuilder The filter to apply on the query
      */
-    public FilteredQueryJsonQueryBuilder(JsonQueryBuilder queryBuilder, JsonFilterBuilder filterBuilder) {
+    public FilteredJsonQueryBuilder(JsonQueryBuilder queryBuilder, JsonFilterBuilder filterBuilder) {
         this.queryBuilder = queryBuilder;
         this.filterBuilder = filterBuilder;
     }
@@ -51,13 +51,13 @@ public class FilteredQueryJsonQueryBuilder extends BaseJsonQueryBuilder {
      * Sets the boost for this query.  Documents matching this query will (in addition to the normal
      * weightings) have their score multiplied by the boost provided.
      */
-    public FilteredQueryJsonQueryBuilder boost(float boost) {
+    public FilteredJsonQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;
     }
 
     @Override protected void doJson(JsonBuilder builder, Params params) throws IOException {
-        builder.startObject(FilteredQueryJsonQueryParser.NAME);
+        builder.startObject(FilteredJsonQueryParser.NAME);
         builder.field("query");
         queryBuilder.toJson(builder, params);
         builder.field("filter");

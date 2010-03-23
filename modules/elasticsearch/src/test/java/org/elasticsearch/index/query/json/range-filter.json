@@ -1,5 +1,5 @@
 {
-    filteredQuery : {
+    filtered : {
         query : {
             term : { "name.first" : "shay" }
         },

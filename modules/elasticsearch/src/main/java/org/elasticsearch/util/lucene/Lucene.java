@@ -116,7 +116,11 @@ public class Lucene {
 
             SortField[] fields = new SortField[in.readVInt()];
             for (int i = 0; i < fields.length; i++) {
-                fields[i] = new SortField(in.readUTF(), in.readVInt(), in.readBoolean());
+                String field = null;
+                if (in.readBoolean()) {
+                    field = in.readUTF();
+                }
+                fields[i] = new SortField(field, in.readVInt(), in.readBoolean());
             }
 
             FieldDoc[] fieldDocs = new FieldDoc[in.readVInt()];
@@ -170,7 +174,12 @@ public class Lucene {
 
             out.writeVInt(topFieldDocs.fields.length);
             for (SortField sortField : topFieldDocs.fields) {
-                out.writeUTF(sortField.getField());
+                if (sortField.getField() == null) {
+                    out.writeBoolean(false);
+                } else {
+                    out.writeBoolean(true);
+                    out.writeUTF(sortField.getField());
+                }
                 out.writeVInt(sortField.getType());
                 out.writeBoolean(sortField.getReverse());
             }

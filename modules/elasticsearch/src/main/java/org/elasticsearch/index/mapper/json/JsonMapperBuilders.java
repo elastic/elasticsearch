@@ -80,6 +80,10 @@ public final class JsonMapperBuilders {
         return new JsonDateFieldMapper.Builder(name);
     }
 
+    public static JsonShortFieldMapper.Builder shortField(String name) {
+        return new JsonShortFieldMapper.Builder(name);
+    }
+
     public static JsonIntegerFieldMapper.Builder integerField(String name) {
         return new JsonIntegerFieldMapper.Builder(name);
     }

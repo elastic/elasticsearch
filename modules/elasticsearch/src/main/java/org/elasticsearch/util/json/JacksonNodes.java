@@ -50,6 +50,14 @@ public class JacksonNodes {
         return Integer.parseInt(value);
     }
 
+    public static short nodeShortValue(JsonNode node) {
+        if (node.isNumber()) {
+            return node.getNumberValue().shortValue();
+        }
+        String value = node.getTextValue();
+        return Short.parseShort(value);
+    }
+
     public static long nodeLongValue(JsonNode node) {
         if (node.isNumber()) {
             return node.getNumberValue().longValue();

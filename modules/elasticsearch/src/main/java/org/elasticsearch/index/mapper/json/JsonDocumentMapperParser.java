@@ -294,6 +294,8 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
                 objBuilder.add(parseString(propName, (ObjectNode) propNode));
             } else if (type.equals(JsonDateFieldMapper.JSON_TYPE)) {
                 objBuilder.add(parseDate(propName, (ObjectNode) propNode));
+            } else if (type.equals(JsonShortFieldMapper.JSON_TYPE)) {
+                objBuilder.add(parseShort(propName, (ObjectNode) propNode));
             } else if (type.equals(JsonIntegerFieldMapper.JSON_TYPE)) {
                 objBuilder.add(parseInteger(propName, (ObjectNode) propNode));
             } else if (type.equals(JsonLongFieldMapper.JSON_TYPE)) {
@@ -371,6 +373,20 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
                 builder.nullValue(propNode.getValueAsText());
             } else if (propName.equals("format")) {
                 builder.dateTimeFormatter(parseDateTimeFormatter(propName, propNode));
+            }
+        }
+        return builder;
+    }
+
+    private JsonShortFieldMapper.Builder parseShort(String name, ObjectNode integerNode) {
+        JsonShortFieldMapper.Builder builder = shortField(name);
+        parseNumberField(builder, name, integerNode);
+        for (Iterator<Map.Entry<String, JsonNode>> propsIt = integerNode.getFields(); propsIt.hasNext();) {
+            Map.Entry<String, JsonNode> entry = propsIt.next();
+            String propName = entry.getKey();
+            JsonNode propNode = entry.getValue();
+            if (propName.equals("nullValue")) {
+                builder.nullValue(nodeShortValue(propNode));
             }
         }
         return builder;

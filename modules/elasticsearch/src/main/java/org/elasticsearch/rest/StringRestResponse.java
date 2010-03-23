@@ -20,15 +20,16 @@
 package org.elasticsearch.rest;
 
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.util.ThreadLocals;
 
 /**
  * @author kimchy (Shay Banon)
  */
 public class StringRestResponse extends Utf8RestResponse {
 
-    private static ThreadLocal<UnicodeUtil.UTF8Result> cache = new ThreadLocal<UnicodeUtil.UTF8Result>() {
-        @Override protected UnicodeUtil.UTF8Result initialValue() {
-            return new UnicodeUtil.UTF8Result();
+    private static ThreadLocal<ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result>> cache = new ThreadLocal<ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result>>() {
+        @Override protected ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result> initialValue() {
+            return new ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result>(new UnicodeUtil.UTF8Result());
         }
     };
 
@@ -41,7 +42,7 @@ public class StringRestResponse extends Utf8RestResponse {
     }
 
     private static UnicodeUtil.UTF8Result convert(String content) {
-        UnicodeUtil.UTF8Result result = cache.get();
+        UnicodeUtil.UTF8Result result = cache.get().get();
         UnicodeUtil.UTF16toUTF8(content, 0, content.length(), result);
         return result;
     }

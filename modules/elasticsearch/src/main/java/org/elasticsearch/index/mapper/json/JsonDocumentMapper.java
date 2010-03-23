@@ -28,6 +28,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.Preconditions;
+import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.json.Jackson;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.json.StringJsonBuilder;
@@ -134,9 +135,9 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
     }
 
 
-    private ThreadLocal<JsonParseContext> cache = new ThreadLocal<JsonParseContext>() {
-        @Override protected JsonParseContext initialValue() {
-            return new JsonParseContext(JsonDocumentMapper.this, new JsonPath(0));
+    private ThreadLocal<ThreadLocals.CleanableValue<JsonParseContext>> cache = new ThreadLocal<ThreadLocals.CleanableValue<JsonParseContext>>() {
+        @Override protected ThreadLocals.CleanableValue<JsonParseContext> initialValue() {
+            return new ThreadLocals.CleanableValue<JsonParseContext>(new JsonParseContext(JsonDocumentMapper.this, new JsonPath(0)));
         }
     };
 
@@ -277,7 +278,7 @@ public class JsonDocumentMapper implements DocumentMapper, ToJson {
     }
 
     @Override public ParsedDocument parse(String type, String id, byte[] source, ParseListener listener) {
-        JsonParseContext jsonContext = cache.get();
+        JsonParseContext jsonContext = cache.get().get();
 
         if (type != null && !type.equals(this.type)) {
             throw new MapperParsingException("Type mismatch, provide type [" + type + "] but mapper is of type [" + this.type + "]");

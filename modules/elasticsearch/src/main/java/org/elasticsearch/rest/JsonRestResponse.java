@@ -20,6 +20,7 @@
 package org.elasticsearch.rest;
 
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
@@ -38,9 +39,9 @@ public class JsonRestResponse extends AbstractRestResponse {
         System.arraycopy(U_END_JSONP.result, 0, END_JSONP, 0, U_END_JSONP.length);
     }
 
-    private static ThreadLocal<UnicodeUtil.UTF8Result> prefixCache = new ThreadLocal<UnicodeUtil.UTF8Result>() {
-        @Override protected UnicodeUtil.UTF8Result initialValue() {
-            return new UnicodeUtil.UTF8Result();
+    private static ThreadLocal<ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result>> prefixCache = new ThreadLocal<ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result>>() {
+        @Override protected ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result> initialValue() {
+            return new ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result>(new UnicodeUtil.UTF8Result());
         }
     };
 
@@ -115,7 +116,7 @@ public class JsonRestResponse extends AbstractRestResponse {
         if (callback == null) {
             return null;
         }
-        UnicodeUtil.UTF8Result result = prefixCache.get();
+        UnicodeUtil.UTF8Result result = prefixCache.get().get();
         UnicodeUtil.UTF16toUTF8(callback, 0, callback.length(), result);
         result.result[result.length] = '(';
         result.length++;

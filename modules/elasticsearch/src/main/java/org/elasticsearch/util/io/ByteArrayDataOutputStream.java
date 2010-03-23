@@ -19,6 +19,7 @@
 
 package org.elasticsearch.util.io;
 
+import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.concurrent.NotThreadSafe;
 
 import java.io.DataOutputStream;
@@ -34,9 +35,9 @@ public class ByteArrayDataOutputStream extends DataOutputStream {
      */
     public static class Cached {
 
-        private static final ThreadLocal<ByteArrayDataOutputStream> cache = new ThreadLocal<ByteArrayDataOutputStream>() {
-            @Override protected ByteArrayDataOutputStream initialValue() {
-                return new ByteArrayDataOutputStream();
+        private static final ThreadLocal<ThreadLocals.CleanableValue<ByteArrayDataOutputStream>> cache = new ThreadLocal<ThreadLocals.CleanableValue<ByteArrayDataOutputStream>>() {
+            @Override protected ThreadLocals.CleanableValue<ByteArrayDataOutputStream> initialValue() {
+                return new ThreadLocals.CleanableValue<ByteArrayDataOutputStream>(new ByteArrayDataOutputStream());
             }
         };
 
@@ -44,7 +45,7 @@ public class ByteArrayDataOutputStream extends DataOutputStream {
          * Returns the cached thread local byte strean, with its internal stream cleared.
          */
         public static ByteArrayDataOutputStream cached() {
-            ByteArrayDataOutputStream os = cache.get();
+            ByteArrayDataOutputStream os = cache.get().get();
             ((FastByteArrayOutputStream) os.out).reset();
             return os;
         }

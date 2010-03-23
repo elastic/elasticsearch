@@ -23,6 +23,7 @@ import org.codehaus.jackson.JsonEncoding;
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonGenerator;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.io.FastByteArrayOutputStream;
 
@@ -38,16 +39,10 @@ public class BinaryJsonBuilder extends JsonBuilder<BinaryJsonBuilder> {
      */
     public static class Cached {
 
-        private BinaryJsonBuilder builder;
-
-        public Cached(BinaryJsonBuilder builder) {
-            this.builder = builder;
-        }
-
-        private static final ThreadLocal<Cached> cache = new ThreadLocal<Cached>() {
-            @Override protected Cached initialValue() {
+        private static final ThreadLocal<ThreadLocals.CleanableValue<BinaryJsonBuilder>> cache = new ThreadLocal<ThreadLocals.CleanableValue<BinaryJsonBuilder>>() {
+            @Override protected ThreadLocals.CleanableValue<BinaryJsonBuilder> initialValue() {
                 try {
-                    return new Cached(new BinaryJsonBuilder());
+                    return new ThreadLocals.CleanableValue<BinaryJsonBuilder>(new BinaryJsonBuilder());
                 } catch (IOException e) {
                     throw new ElasticSearchException("Failed to create json generator", e);
                 }
@@ -58,9 +53,9 @@ public class BinaryJsonBuilder extends JsonBuilder<BinaryJsonBuilder> {
          * Returns the cached thread local generator, with its internal {@link StringBuilder} cleared.
          */
         static BinaryJsonBuilder cached() throws IOException {
-            Cached cached = cache.get();
-            cached.builder.reset();
-            return cached.builder;
+            ThreadLocals.CleanableValue<BinaryJsonBuilder> cached = cache.get();
+            cached.get().reset();
+            return cached.get();
         }
     }
 

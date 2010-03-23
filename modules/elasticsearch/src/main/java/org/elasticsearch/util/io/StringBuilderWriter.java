@@ -19,6 +19,7 @@
 
 package org.elasticsearch.util.io;
 
+import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.concurrent.NotThreadSafe;
 
 import java.io.Writer;
@@ -39,9 +40,9 @@ public class StringBuilderWriter extends Writer {
      */
     public static class Cached {
 
-        private static final ThreadLocal<StringBuilderWriter> cache = new ThreadLocal<StringBuilderWriter>() {
-            @Override protected StringBuilderWriter initialValue() {
-                return new StringBuilderWriter();
+        private static final ThreadLocal<ThreadLocals.CleanableValue<StringBuilderWriter>> cache = new ThreadLocal<ThreadLocals.CleanableValue<StringBuilderWriter>>() {
+            @Override protected ThreadLocals.CleanableValue<StringBuilderWriter> initialValue() {
+                return new ThreadLocals.CleanableValue<StringBuilderWriter>(new StringBuilderWriter());
             }
         };
 
@@ -49,7 +50,7 @@ public class StringBuilderWriter extends Writer {
          * Returns the cached thread local writer, with its internal {@link StringBuilder} cleared.
          */
         public static StringBuilderWriter cached() {
-            StringBuilderWriter writer = cache.get();
+            StringBuilderWriter writer = cache.get().get();
             writer.getBuilder().setLength(0);
             return writer;
         }

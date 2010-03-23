@@ -20,6 +20,7 @@
 package org.elasticsearch.util.io.compression;
 
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.io.compression.lzf.LZFDecoder;
 import org.elasticsearch.util.io.compression.lzf.LZFEncoder;
@@ -33,14 +34,14 @@ public class LzfCompressor implements Compressor {
 
     private static class Cached {
 
-        private static final ThreadLocal<CompressHolder> cache = new ThreadLocal<CompressHolder>() {
-            @Override protected CompressHolder initialValue() {
-                return new CompressHolder();
+        private static final ThreadLocal<ThreadLocals.CleanableValue<CompressHolder>> cache = new ThreadLocal<ThreadLocals.CleanableValue<CompressHolder>>() {
+            @Override protected ThreadLocals.CleanableValue<CompressHolder> initialValue() {
+                return new ThreadLocals.CleanableValue<CompressHolder>(new CompressHolder());
             }
         };
 
         public static CompressHolder cached() {
-            return cache.get();
+            return cache.get().get();
         }
     }
 

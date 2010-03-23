@@ -28,15 +28,15 @@ import java.util.Arrays;
  */
 public class Unicode {
 
-    private static ThreadLocal<UnicodeUtil.UTF8Result> cachedUtf8Result = new ThreadLocal<UnicodeUtil.UTF8Result>() {
-        @Override protected UnicodeUtil.UTF8Result initialValue() {
-            return new UnicodeUtil.UTF8Result();
+    private static ThreadLocal<ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result>> cachedUtf8Result = new ThreadLocal<ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result>>() {
+        @Override protected ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result> initialValue() {
+            return new ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result>(new UnicodeUtil.UTF8Result());
         }
     };
 
-    private static ThreadLocal<UTF16Result> cachedUtf16Result = new ThreadLocal<UTF16Result>() {
-        @Override protected UTF16Result initialValue() {
-            return new UTF16Result();
+    private static ThreadLocal<ThreadLocals.CleanableValue<UTF16Result>> cachedUtf16Result = new ThreadLocal<ThreadLocals.CleanableValue<UTF16Result>>() {
+        @Override protected ThreadLocals.CleanableValue<UTF16Result> initialValue() {
+            return new ThreadLocals.CleanableValue<UTF16Result>(new UTF16Result());
         }
     };
 
@@ -61,7 +61,7 @@ public class Unicode {
         if (source == null) {
             return null;
         }
-        UnicodeUtil.UTF8Result result = cachedUtf8Result.get();
+        UnicodeUtil.UTF8Result result = cachedUtf8Result.get().get();
         UnicodeUtil.UTF16toUTF8(source, 0, source.length(), result);
         return result;
     }
@@ -99,7 +99,7 @@ public class Unicode {
         if (source == null) {
             return null;
         }
-        UTF16Result result = cachedUtf16Result.get();
+        UTF16Result result = cachedUtf16Result.get().get();
         UTF8toUTF16(source, offset, length, result);
         return result;
     }

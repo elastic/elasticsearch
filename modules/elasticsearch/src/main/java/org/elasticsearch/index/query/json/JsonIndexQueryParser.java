@@ -35,6 +35,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.Nullable;
+import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.io.FastCharArrayReader;
 import org.elasticsearch.util.io.FastCharArrayWriter;
 import org.elasticsearch.util.io.FastStringReader;
@@ -57,9 +58,9 @@ public class JsonIndexQueryParser extends AbstractIndexComponent implements Inde
         public static final String JSON_FILTER_PREFIX = "index.queryparser.json.filter";
     }
 
-    private ThreadLocal<JsonQueryParseContext> cache = new ThreadLocal<JsonQueryParseContext>() {
-        @Override protected JsonQueryParseContext initialValue() {
-            return new JsonQueryParseContext(index, queryParserRegistry, mapperService, filterCache);
+    private ThreadLocal<ThreadLocals.CleanableValue<JsonQueryParseContext>> cache = new ThreadLocal<ThreadLocals.CleanableValue<JsonQueryParseContext>>() {
+        @Override protected ThreadLocals.CleanableValue<JsonQueryParseContext> initialValue() {
+            return new ThreadLocals.CleanableValue<JsonQueryParseContext>(new JsonQueryParseContext(index, queryParserRegistry, mapperService, filterCache));
         }
     };
 
@@ -125,7 +126,7 @@ public class JsonIndexQueryParser extends AbstractIndexComponent implements Inde
         try {
             FastCharArrayWriter unsafeChars = queryBuilder.buildAsUnsafeChars();
             jp = jsonFactory.createJsonParser(new FastCharArrayReader(unsafeChars.unsafeCharArray(), 0, unsafeChars.size()));
-            return parse(cache.get(), jp);
+            return parse(cache.get().get(), jp);
         } catch (QueryParsingException e) {
             throw e;
         } catch (Exception e) {
@@ -145,7 +146,7 @@ public class JsonIndexQueryParser extends AbstractIndexComponent implements Inde
         JsonParser jp = null;
         try {
             jp = jsonFactory.createJsonParser(source);
-            return parse(cache.get(), jp);
+            return parse(cache.get().get(), jp);
         } catch (QueryParsingException e) {
             throw e;
         } catch (Exception e) {
@@ -165,7 +166,7 @@ public class JsonIndexQueryParser extends AbstractIndexComponent implements Inde
         JsonParser jp = null;
         try {
             jp = jsonFactory.createJsonParser(new FastStringReader(source));
-            return parse(cache.get(), jp);
+            return parse(cache.get().get(), jp);
         } catch (QueryParsingException e) {
             throw e;
         } catch (Exception e) {
@@ -183,7 +184,7 @@ public class JsonIndexQueryParser extends AbstractIndexComponent implements Inde
 
     public Query parse(JsonParser jsonParser) {
         try {
-            return parse(cache.get(), jsonParser);
+            return parse(cache.get().get(), jsonParser);
         } catch (IOException e) {
             throw new QueryParsingException(index, "Failed to parse", e);
         }

@@ -57,6 +57,7 @@ import org.elasticsearch.timer.TimerModule;
 import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.Tuple;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
@@ -204,6 +205,8 @@ public class TransportClient implements Client {
 
         injector.getInstance(TimerService.class).close();
         injector.getInstance(ThreadPool.class).shutdown();
+
+        ThreadLocals.clearReferencesThreadLocals();
     }
 
     @Override public AdminClient admin() {

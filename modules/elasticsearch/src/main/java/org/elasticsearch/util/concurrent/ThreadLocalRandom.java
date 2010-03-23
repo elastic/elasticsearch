@@ -25,6 +25,8 @@
 
 package org.elasticsearch.util.concurrent;
 
+import org.elasticsearch.util.ThreadLocals;
+
 import java.util.Random;
 
 /**
@@ -77,10 +79,10 @@ public class ThreadLocalRandom extends Random {
     /**
      * The actual ThreadLocal
      */
-    private static final ThreadLocal<ThreadLocalRandom> localRandom =
-            new ThreadLocal<ThreadLocalRandom>() {
-                protected ThreadLocalRandom initialValue() {
-                    return new ThreadLocalRandom();
+    private static final ThreadLocal<ThreadLocals.CleanableValue<ThreadLocalRandom>> localRandom =
+            new ThreadLocal<ThreadLocals.CleanableValue<ThreadLocalRandom>>() {
+                protected ThreadLocals.CleanableValue<ThreadLocalRandom> initialValue() {
+                    return new ThreadLocals.CleanableValue<ThreadLocalRandom>(new ThreadLocalRandom());
                 }
             };
 
@@ -100,7 +102,7 @@ public class ThreadLocalRandom extends Random {
      * @return the current thread's {@code ThreadLocalRandom}
      */
     public static ThreadLocalRandom current() {
-        return localRandom.get();
+        return localRandom.get().get();
     }
 
     /**

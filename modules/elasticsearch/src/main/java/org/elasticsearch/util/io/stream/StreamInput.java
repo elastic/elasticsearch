@@ -19,6 +19,7 @@
 
 package org.elasticsearch.util.io.stream;
 
+import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.Unicode;
 
 import java.io.EOFException;
@@ -30,9 +31,9 @@ import java.io.InputStream;
  */
 public abstract class StreamInput extends InputStream {
 
-    private static ThreadLocal<byte[]> cachedBytes = new ThreadLocal<byte[]>() {
-        @Override protected byte[] initialValue() {
-            return new byte[256];
+    private static ThreadLocal<ThreadLocals.CleanableValue<byte[]>> cachedBytes = new ThreadLocal<ThreadLocals.CleanableValue<byte[]>>() {
+        @Override protected ThreadLocals.CleanableValue<byte[]> initialValue() {
+            return new ThreadLocals.CleanableValue<byte[]>(new byte[256]);
         }
     };
 
@@ -108,10 +109,10 @@ public abstract class StreamInput extends InputStream {
      */
     public String readUTF() throws IOException {
         int length = readVInt();
-        byte[] bytes = cachedBytes.get();
+        byte[] bytes = cachedBytes.get().get();
         if (bytes == null || length > bytes.length) {
             bytes = new byte[(int) (length * 1.25)];
-            cachedBytes.set(bytes);
+            cachedBytes.get().set(bytes);
         }
         readBytes(bytes, 0, length);
         return Unicode.fromBytes(bytes, 0, length);

@@ -25,6 +25,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.gnu.trove.TIntObjectHashMap;
 import org.elasticsearch.util.json.JsonBuilder;
 
@@ -77,9 +78,9 @@ public abstract class JsonNumberFieldMapper<T extends Number> extends JsonFieldM
         }
     }
 
-    private static final ThreadLocal<TIntObjectHashMap<Deque<CachedNumericTokenStream>>> cachedStreams = new ThreadLocal<TIntObjectHashMap<Deque<CachedNumericTokenStream>>>() {
-        @Override protected TIntObjectHashMap<Deque<CachedNumericTokenStream>> initialValue() {
-            return new TIntObjectHashMap<Deque<CachedNumericTokenStream>>();
+    private static final ThreadLocal<ThreadLocals.CleanableValue<TIntObjectHashMap<Deque<CachedNumericTokenStream>>>> cachedStreams = new ThreadLocal<ThreadLocals.CleanableValue<TIntObjectHashMap<Deque<CachedNumericTokenStream>>>>() {
+        @Override protected ThreadLocals.CleanableValue<TIntObjectHashMap<Deque<CachedNumericTokenStream>>> initialValue() {
+            return new ThreadLocals.CleanableValue<TIntObjectHashMap<Deque<CachedNumericTokenStream>>>(new TIntObjectHashMap<Deque<CachedNumericTokenStream>>());
         }
     };
 
@@ -152,10 +153,10 @@ public abstract class JsonNumberFieldMapper<T extends Number> extends JsonFieldM
      * sicne it implements the end method.
      */
     protected CachedNumericTokenStream popCachedStream(int precisionStep) {
-        Deque<CachedNumericTokenStream> deque = cachedStreams.get().get(precisionStep);
+        Deque<CachedNumericTokenStream> deque = cachedStreams.get().get().get(precisionStep);
         if (deque == null) {
             deque = new ArrayDeque<CachedNumericTokenStream>();
-            cachedStreams.get().put(precisionStep, deque);
+            cachedStreams.get().get().put(precisionStep, deque);
             deque.add(new CachedNumericTokenStream(new NumericTokenStream(precisionStep), precisionStep));
         }
         if (deque.isEmpty()) {
@@ -189,7 +190,7 @@ public abstract class JsonNumberFieldMapper<T extends Number> extends JsonFieldM
          */
         public void close() throws IOException {
             numericTokenStream.close();
-            cachedStreams.get().get(precisionStep).add(this);
+            cachedStreams.get().get().get(precisionStep).add(this);
         }
 
         /**

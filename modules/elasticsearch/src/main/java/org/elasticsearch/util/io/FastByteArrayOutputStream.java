@@ -19,6 +19,8 @@
 
 package org.elasticsearch.util.io;
 
+import org.elasticsearch.util.ThreadLocals;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
@@ -36,9 +38,9 @@ public class FastByteArrayOutputStream extends OutputStream {
      */
     public static class Cached {
 
-        private static final ThreadLocal<FastByteArrayOutputStream> cache = new ThreadLocal<FastByteArrayOutputStream>() {
-            @Override protected FastByteArrayOutputStream initialValue() {
-                return new FastByteArrayOutputStream();
+        private static final ThreadLocal<ThreadLocals.CleanableValue<FastByteArrayOutputStream>> cache = new ThreadLocal<ThreadLocals.CleanableValue<FastByteArrayOutputStream>>() {
+            @Override protected ThreadLocals.CleanableValue<FastByteArrayOutputStream> initialValue() {
+                return new ThreadLocals.CleanableValue<FastByteArrayOutputStream>(new FastByteArrayOutputStream());
             }
         };
 
@@ -46,7 +48,7 @@ public class FastByteArrayOutputStream extends OutputStream {
          * Returns the cached thread local byte stream, with its internal stream cleared.
          */
         public static FastByteArrayOutputStream cached() {
-            FastByteArrayOutputStream os = cache.get();
+            FastByteArrayOutputStream os = cache.get().get();
             os.reset();
             return os;
         }

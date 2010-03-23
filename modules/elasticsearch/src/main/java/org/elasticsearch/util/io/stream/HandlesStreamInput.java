@@ -19,6 +19,7 @@
 
 package org.elasticsearch.util.io.stream;
 
+import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.gnu.trove.TIntObjectHashMap;
 
 import java.io.IOException;
@@ -30,9 +31,9 @@ public class HandlesStreamInput extends StreamInput {
 
     public static class Cached {
 
-        private static final ThreadLocal<HandlesStreamInput> cache = new ThreadLocal<HandlesStreamInput>() {
-            @Override protected HandlesStreamInput initialValue() {
-                return new HandlesStreamInput();
+        private static final ThreadLocal<ThreadLocals.CleanableValue<HandlesStreamInput>> cache = new ThreadLocal<ThreadLocals.CleanableValue<HandlesStreamInput>>() {
+            @Override protected ThreadLocals.CleanableValue<HandlesStreamInput> initialValue() {
+                return new ThreadLocals.CleanableValue<HandlesStreamInput>(new HandlesStreamInput());
             }
         };
 
@@ -40,7 +41,7 @@ public class HandlesStreamInput extends StreamInput {
          * Returns the cached thread local byte stream, with its internal stream cleared.
          */
         public static HandlesStreamInput cached(StreamInput in) {
-            HandlesStreamInput os = cache.get();
+            HandlesStreamInput os = cache.get().get();
             os.reset(in);
             return os;
         }

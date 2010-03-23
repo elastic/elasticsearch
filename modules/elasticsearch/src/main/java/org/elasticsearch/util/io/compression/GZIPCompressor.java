@@ -21,6 +21,7 @@ package org.elasticsearch.util.io.compression;
 
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.util.SizeUnit;
+import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.io.FastByteArrayInputStream;
 import org.elasticsearch.util.io.FastByteArrayOutputStream;
@@ -36,9 +37,9 @@ public class GZIPCompressor implements Compressor {
 
     private static class Cached {
 
-        private static final ThreadLocal<CompressHolder> cache = new ThreadLocal<CompressHolder>() {
-            @Override protected CompressHolder initialValue() {
-                return new CompressHolder();
+        private static final ThreadLocal<ThreadLocals.CleanableValue<CompressHolder>> cache = new ThreadLocal<ThreadLocals.CleanableValue<CompressHolder>>() {
+            @Override protected ThreadLocals.CleanableValue<CompressHolder> initialValue() {
+                return new ThreadLocals.CleanableValue<CompressHolder>(new CompressHolder());
             }
         };
 
@@ -46,7 +47,7 @@ public class GZIPCompressor implements Compressor {
          * Returns the cached thread local byte strean, with its internal stream cleared.
          */
         public static CompressHolder cached() {
-            CompressHolder ch = cache.get();
+            CompressHolder ch = cache.get().get();
             ch.bos.reset();
             return ch;
         }

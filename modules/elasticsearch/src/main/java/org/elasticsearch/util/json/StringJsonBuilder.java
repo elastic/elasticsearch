@@ -23,6 +23,7 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonGenerator;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.concurrent.NotThreadSafe;
 import org.elasticsearch.util.io.FastCharArrayWriter;
@@ -40,16 +41,10 @@ public class StringJsonBuilder extends JsonBuilder<StringJsonBuilder> {
      */
     public static class Cached {
 
-        private StringJsonBuilder builder;
-
-        public Cached(StringJsonBuilder builder) {
-            this.builder = builder;
-        }
-
-        private static final ThreadLocal<Cached> cache = new ThreadLocal<Cached>() {
-            @Override protected Cached initialValue() {
+        private static final ThreadLocal<ThreadLocals.CleanableValue<StringJsonBuilder>> cache = new ThreadLocal<ThreadLocals.CleanableValue<StringJsonBuilder>>() {
+            @Override protected ThreadLocals.CleanableValue<StringJsonBuilder> initialValue() {
                 try {
-                    return new Cached(new StringJsonBuilder());
+                    return new ThreadLocals.CleanableValue<StringJsonBuilder>(new StringJsonBuilder());
                 } catch (IOException e) {
                     throw new ElasticSearchException("Failed to create json generator", e);
                 }
@@ -60,9 +55,9 @@ public class StringJsonBuilder extends JsonBuilder<StringJsonBuilder> {
          * Returns the cached thread local generator, with its internal {@link StringBuilder} cleared.
          */
         static StringJsonBuilder cached() throws IOException {
-            Cached cached = cache.get();
-            cached.builder.reset();
-            return cached.builder;
+            StringJsonBuilder sb = cache.get().get();
+            sb.reset();
+            return sb;
         }
     }
 

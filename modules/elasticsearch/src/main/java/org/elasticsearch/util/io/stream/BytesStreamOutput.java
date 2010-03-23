@@ -19,6 +19,8 @@
 
 package org.elasticsearch.util.io.stream;
 
+import org.elasticsearch.util.ThreadLocals;
+
 import java.io.IOException;
 import java.util.Arrays;
 
@@ -32,15 +34,15 @@ public class BytesStreamOutput extends StreamOutput {
      */
     public static class Cached {
 
-        private static final ThreadLocal<BytesStreamOutput> cache = new ThreadLocal<BytesStreamOutput>() {
-            @Override protected BytesStreamOutput initialValue() {
-                return new BytesStreamOutput();
+        private static final ThreadLocal<ThreadLocals.CleanableValue<BytesStreamOutput>> cache = new ThreadLocal<ThreadLocals.CleanableValue<BytesStreamOutput>>() {
+            @Override protected ThreadLocals.CleanableValue<BytesStreamOutput> initialValue() {
+                return new ThreadLocals.CleanableValue<BytesStreamOutput>(new BytesStreamOutput());
             }
         };
 
-        private static final ThreadLocal<HandlesStreamOutput> cacheHandles = new ThreadLocal<HandlesStreamOutput>() {
-            @Override protected HandlesStreamOutput initialValue() {
-                return new HandlesStreamOutput(new BytesStreamOutput());
+        private static final ThreadLocal<ThreadLocals.CleanableValue<HandlesStreamOutput>> cacheHandles = new ThreadLocal<ThreadLocals.CleanableValue<HandlesStreamOutput>>() {
+            @Override protected ThreadLocals.CleanableValue<HandlesStreamOutput> initialValue() {
+                return new ThreadLocals.CleanableValue<HandlesStreamOutput>(new HandlesStreamOutput(new BytesStreamOutput()));
             }
         };
 
@@ -48,13 +50,13 @@ public class BytesStreamOutput extends StreamOutput {
          * Returns the cached thread local byte stream, with its internal stream cleared.
          */
         public static BytesStreamOutput cached() {
-            BytesStreamOutput os = cache.get();
+            BytesStreamOutput os = cache.get().get();
             os.reset();
             return os;
         }
 
         public static HandlesStreamOutput cachedHandles() throws IOException {
-            HandlesStreamOutput os = cacheHandles.get();
+            HandlesStreamOutput os = cacheHandles.get().get();
             os.reset();
             return os;
         }

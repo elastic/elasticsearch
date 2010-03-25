@@ -26,9 +26,7 @@ import org.elasticsearch.monitor.dump.DumpGenerator;
 import org.elasticsearch.monitor.dump.DumpMonitorService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.component.Lifecycle;
-import org.elasticsearch.util.component.LifecycleComponent;
+import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.HashSet;
@@ -42,11 +40,9 @@ import static org.elasticsearch.monitor.jvm.JvmStats.*;
 import static org.elasticsearch.util.TimeValue.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class JvmMonitorService extends AbstractComponent implements LifecycleComponent<JvmMonitorService> {
-
-    private final Lifecycle lifecycle = new Lifecycle();
+public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorService> {
 
     private final ThreadPool threadPool;
 
@@ -70,39 +66,21 @@ public class JvmMonitorService extends AbstractComponent implements LifecycleCom
         this.gcCollectionWarning = componentSettings.getAsTime("gcCollectionWarning", timeValueSeconds(10));
     }
 
-    @Override public Lifecycle.State lifecycleState() {
-        return lifecycle.state();
-    }
-
-    @Override public JvmMonitorService start() throws ElasticSearchException {
-        if (!lifecycle.moveToStarted()) {
-            return this;
-        }
+    @Override protected void doStart() throws ElasticSearchException {
         if (!enabled) {
-            return this;
-        }
-        scheduledFuture = threadPool.scheduleWithFixedDelay(new JvmMonitor(), interval);
-        return this;
-    }
-
-    @Override public JvmMonitorService stop() throws ElasticSearchException {
-        if (!lifecycle.moveToStopped()) {
-            return this;
-        }
-        if (!enabled) {
-            return this;
-        }
-        scheduledFuture.cancel(true);
-        return this;
-    }
-
-    @Override public void close() {
-        if (lifecycle.started()) {
-            stop();
-        }
-        if (!lifecycle.moveToClosed()) {
             return;
         }
+        scheduledFuture = threadPool.scheduleWithFixedDelay(new JvmMonitor(), interval);
+    }
+
+    @Override protected void doStop() throws ElasticSearchException {
+        if (!enabled) {
+            return;
+        }
+        scheduledFuture.cancel(true);
+    }
+
+    @Override protected void doClose() throws ElasticSearchException {
     }
 
     private class JvmMonitor implements Runnable {

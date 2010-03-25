@@ -28,8 +28,7 @@ import org.elasticsearch.cluster.node.Nodes;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.component.Lifecycle;
+import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.Queue;
@@ -47,9 +46,7 @@ import static org.elasticsearch.cluster.ClusterState.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class LocalDiscovery extends AbstractComponent implements Discovery {
-
-    private final Lifecycle lifecycle = new Lifecycle();
+public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery {
 
     private final TransportService transportService;
 
@@ -79,15 +76,7 @@ public class LocalDiscovery extends AbstractComponent implements Discovery {
         this.transportService = transportService;
     }
 
-    @Override public Lifecycle.State lifecycleState() {
-        return this.lifecycle.state();
-    }
-
-    @Override public Discovery start() throws ElasticSearchException {
-        if (!lifecycle.moveToStarted()) {
-            return this;
-        }
-
+    @Override protected void doStart() throws ElasticSearchException {
         synchronized (clusterGroups) {
             ClusterGroup clusterGroup = clusterGroups.get(clusterName);
             if (clusterGroup == null) {
@@ -135,24 +124,20 @@ public class LocalDiscovery extends AbstractComponent implements Discovery {
                 });
             }
         }
-        return this;
     }
 
-    @Override public Discovery stop() throws ElasticSearchException {
-        if (!lifecycle.moveToStopped()) {
-            return this;
-        }
+    @Override protected void doStop() throws ElasticSearchException {
         synchronized (clusterGroups) {
             ClusterGroup clusterGroup = clusterGroups.get(clusterName);
             if (clusterGroup == null) {
                 logger.warn("Illegal state, should not have an empty cluster group when stopping, I should be there at teh very least...");
-                return this;
+                return;
             }
             clusterGroup.members().remove(this);
             if (clusterGroup.members().isEmpty()) {
                 // no more members, remove and return
                 clusterGroups.remove(clusterName);
-                return this;
+                return;
             }
 
             final LocalDiscovery masterDiscovery = clusterGroup.members().peek();
@@ -177,16 +162,9 @@ public class LocalDiscovery extends AbstractComponent implements Discovery {
                 }
             });
         }
-        return this;
     }
 
-    @Override public void close() throws ElasticSearchException {
-        if (lifecycle.started()) {
-            stop();
-        }
-        if (!lifecycle.moveToClosed()) {
-            return;
-        }
+    @Override protected void doClose() throws ElasticSearchException {
     }
 
     @Override public void addListener(InitialStateDiscoveryListener listener) {

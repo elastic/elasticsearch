@@ -27,8 +27,7 @@ import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.component.Lifecycle;
+import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.transport.BoundTransportAddress;
 import org.elasticsearch.util.transport.InetSocketTransportAddress;
@@ -59,9 +58,9 @@ import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
 import static org.elasticsearch.util.io.HostResolver.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class NettyHttpServerTransport extends AbstractComponent implements HttpServerTransport {
+public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpServerTransport> implements HttpServerTransport {
 
     static {
         InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory() {
@@ -70,8 +69,6 @@ public class NettyHttpServerTransport extends AbstractComponent implements HttpS
             }
         });
     }
-
-    private final Lifecycle lifecycle = new Lifecycle();
 
     private final ThreadPool threadPool;
 
@@ -139,19 +136,11 @@ public class NettyHttpServerTransport extends AbstractComponent implements HttpS
         this.maxContentLength = maxContentLength;
     }
 
-    @Override public Lifecycle.State lifecycleState() {
-        return this.lifecycle.state();
-    }
-
     public void httpServerAdapter(HttpServerAdapter httpServerAdapter) {
         this.httpServerAdapter = httpServerAdapter;
     }
 
-    @Override public HttpServerTransport start() throws HttpException {
-        if (!lifecycle.moveToStarted()) {
-            return this;
-        }
-
+    @Override protected void doStart() throws ElasticSearchException {
         this.serverOpenChannels = new OpenChannelsHandler();
 
         serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory(
@@ -238,13 +227,9 @@ public class NettyHttpServerTransport extends AbstractComponent implements HttpS
             throw new BindTransportException("Failed to resolve publish address", e);
         }
         this.boundAddress = new BoundTransportAddress(new InetSocketTransportAddress(boundAddress), new InetSocketTransportAddress(publishAddress));
-        return this;
     }
 
-    @Override public HttpServerTransport stop() throws ElasticSearchException {
-        if (!lifecycle.moveToStopped()) {
-            return this;
-        }
+    @Override protected void doStop() throws ElasticSearchException {
         if (serverChannel != null) {
             serverChannel.close().awaitUninterruptibly();
             serverChannel = null;
@@ -261,16 +246,9 @@ public class NettyHttpServerTransport extends AbstractComponent implements HttpS
             serverBootstrap.releaseExternalResources();
             serverBootstrap = null;
         }
-        return this;
     }
 
-    @Override public void close() {
-        if (lifecycle.started()) {
-            stop();
-        }
-        if (!lifecycle.moveToClosed()) {
-            return;
-        }
+    @Override protected void doClose() throws ElasticSearchException {
     }
 
     public BoundTransportAddress boundAddress() {

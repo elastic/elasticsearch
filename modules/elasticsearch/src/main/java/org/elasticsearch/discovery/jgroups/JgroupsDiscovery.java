@@ -30,8 +30,7 @@ import org.elasticsearch.discovery.DiscoveryException;
 import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.component.Lifecycle;
+import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.io.HostResolver;
 import org.elasticsearch.util.io.stream.BytesStreamInput;
 import org.elasticsearch.util.io.stream.BytesStreamOutput;
@@ -55,13 +54,11 @@ import static org.elasticsearch.cluster.ClusterState.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class JgroupsDiscovery extends AbstractComponent implements Discovery, Receiver {
+public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery, Receiver {
 
     static {
         System.setProperty("jgroups.logging.log_factory_class", JgroupsCustomLogFactory.class.getName());
     }
-
-    private final Lifecycle lifecycle = new Lifecycle();
 
     private final ClusterName clusterName;
 
@@ -140,14 +137,7 @@ public class JgroupsDiscovery extends AbstractComponent implements Discovery, Re
         initialStateListeners.remove(listener);
     }
 
-    @Override public Lifecycle.State lifecycleState() {
-        return this.lifecycle.state();
-    }
-
-    @Override public Discovery start() throws ElasticSearchException {
-        if (!lifecycle.moveToStarted()) {
-            return this;
-        }
+    @Override protected void doStart() throws ElasticSearchException {
         try {
             channel.connect(clusterName.value());
             channel.setReceiver(this);
@@ -191,27 +181,16 @@ public class JgroupsDiscovery extends AbstractComponent implements Discovery, Re
         } catch (ChannelException e) {
             throw new DiscoveryException("Can't connect to group [" + clusterName + "]", e);
         }
-        return this;
     }
 
-    @Override public Discovery stop() throws ElasticSearchException {
-        if (!lifecycle.moveToStopped()) {
-            return this;
-        }
+    @Override protected void doStop() throws ElasticSearchException {
         initialStateSent.set(false);
         if (channel.isConnected()) {
             channel.disconnect();
         }
-        return this;
     }
 
-    @Override public void close() throws DiscoveryException {
-        if (lifecycle.started()) {
-            stop();
-        }
-        if (!lifecycle.moveToClosed()) {
-            return;
-        }
+    @Override protected void doClose() throws ElasticSearchException {
         if (channel.isOpen()) {
             channel.close();
         }

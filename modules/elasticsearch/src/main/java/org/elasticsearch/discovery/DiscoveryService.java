@@ -23,20 +23,16 @@ import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.component.Lifecycle;
-import org.elasticsearch.util.component.LifecycleComponent;
+import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class DiscoveryService extends AbstractComponent implements LifecycleComponent<DiscoveryService> {
-
-    private final Lifecycle lifecycle = new Lifecycle();
+public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryService> {
 
     private final TimeValue initialStateTimeout;
 
@@ -48,14 +44,7 @@ public class DiscoveryService extends AbstractComponent implements LifecycleComp
         this.initialStateTimeout = componentSettings.getAsTime("initialStateTimeout", TimeValue.timeValueSeconds(30));
     }
 
-    @Override public Lifecycle.State lifecycleState() {
-        return this.lifecycle.state();
-    }
-
-    @Override public DiscoveryService start() throws ElasticSearchException {
-        if (!lifecycle.moveToStarted()) {
-            return this;
-        }
+    @Override protected void doStart() throws ElasticSearchException {
         final CountDownLatch latch = new CountDownLatch(1);
         InitialStateDiscoveryListener listener = new InitialStateDiscoveryListener() {
             @Override public void initialStateProcessed() {
@@ -79,24 +68,13 @@ public class DiscoveryService extends AbstractComponent implements LifecycleComp
             discovery.removeListener(listener);
         }
         logger.info(discovery.nodeDescription());
-        return this;
     }
 
-    @Override public DiscoveryService stop() throws ElasticSearchException {
-        if (!lifecycle.moveToStopped()) {
-            return this;
-        }
+    @Override protected void doStop() throws ElasticSearchException {
         discovery.stop();
-        return this;
     }
 
-    @Override public void close() throws ElasticSearchException {
-        if (lifecycle.started()) {
-            stop();
-        }
-        if (!lifecycle.moveToClosed()) {
-            return;
-        }
+    @Override protected void doClose() throws ElasticSearchException {
         discovery.close();
     }
 

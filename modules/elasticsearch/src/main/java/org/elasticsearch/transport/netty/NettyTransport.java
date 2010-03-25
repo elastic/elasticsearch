@@ -28,8 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.component.Lifecycle;
+import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.io.stream.BytesStreamOutput;
 import org.elasticsearch.util.io.stream.HandlesStreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
@@ -72,9 +71,9 @@ import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.util.transport.NetworkExceptionHelper.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class NettyTransport extends AbstractComponent implements Transport {
+public class NettyTransport extends AbstractLifecycleComponent<Transport> implements Transport {
 
     static {
         InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory() {
@@ -83,8 +82,6 @@ public class NettyTransport extends AbstractComponent implements Transport {
             }
         });
     }
-
-    private final Lifecycle lifecycle = new Lifecycle();
 
     final int workerCount;
 
@@ -150,10 +147,6 @@ public class NettyTransport extends AbstractComponent implements Transport {
         this.tcpReceiveBufferSize = componentSettings.getAsSize("tcpReceiveBufferSize", null);
     }
 
-    @Override public Lifecycle.State lifecycleState() {
-        return this.lifecycle.state();
-    }
-
     public Settings settings() {
         return this.settings;
     }
@@ -170,11 +163,7 @@ public class NettyTransport extends AbstractComponent implements Transport {
         return threadPool;
     }
 
-    @Override public Transport start() throws TransportException {
-        if (!lifecycle.moveToStarted()) {
-            return this;
-        }
-
+    @Override protected void doStart() throws ElasticSearchException {
         clientBootstrap = new ClientBootstrap(new NioClientSocketChannelFactory(
                 Executors.newCachedThreadPool(daemonThreadFactory(settings, "transportClientBoss")),
                 Executors.newCachedThreadPool(daemonThreadFactory(settings, "transportClientIoWorker")),
@@ -206,7 +195,7 @@ public class NettyTransport extends AbstractComponent implements Transport {
         }
 
         if (!settings.getAsBoolean("network.server", true)) {
-            return null;
+            return;
         }
 
         serverOpenChannels = new OpenChannelsHandler();
@@ -287,14 +276,9 @@ public class NettyTransport extends AbstractComponent implements Transport {
             throw new BindTransportException("Failed to resolve publish address", e);
         }
         this.boundAddress = new BoundTransportAddress(new InetSocketTransportAddress(boundAddress), new InetSocketTransportAddress(publishAddress));
-        return this;
     }
 
-    @Override public Transport stop() throws ElasticSearchException {
-        if (!lifecycle.moveToStopped()) {
-            return this;
-        }
-
+    @Override protected void doStop() throws ElasticSearchException {
         if (serverChannel != null) {
             try {
                 serverChannel.close().awaitUninterruptibly();
@@ -339,16 +323,9 @@ public class NettyTransport extends AbstractComponent implements Transport {
             scheduledFuture.cancel(false);
             clientBootstrap = null;
         }
-        return this;
     }
 
-    @Override public void close() {
-        if (lifecycle.started()) {
-            stop();
-        }
-        if (!lifecycle.moveToClosed()) {
-            return;
-        }
+    @Override protected void doClose() throws ElasticSearchException {
     }
 
     @Override public BoundTransportAddress boundAddress() {

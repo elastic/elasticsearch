@@ -25,9 +25,7 @@ import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.routing.strategy.ShardsRoutingStrategy;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.component.Lifecycle;
-import org.elasticsearch.util.component.LifecycleComponent;
+import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.concurrent.Future;
@@ -36,11 +34,9 @@ import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.util.TimeValue.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class RoutingService extends AbstractComponent implements ClusterStateListener, LifecycleComponent<RoutingService> {
-
-    private final Lifecycle lifecycle = new Lifecycle();
+public class RoutingService extends AbstractLifecycleComponent<RoutingService> implements ClusterStateListener {
 
     private final ThreadPool threadPool;
 
@@ -62,36 +58,18 @@ public class RoutingService extends AbstractComponent implements ClusterStateLis
         this.schedule = componentSettings.getAsTime("schedule", timeValueSeconds(10));
     }
 
-    @Override public Lifecycle.State lifecycleState() {
-        return this.lifecycle.state();
-    }
-
-    @Override public RoutingService start() throws ElasticSearchException {
-        if (!lifecycle.moveToStarted()) {
-            return this;
-        }
+    @Override protected void doStart() throws ElasticSearchException {
         clusterService.add(this);
-        return this;
     }
 
-    @Override public RoutingService stop() throws ElasticSearchException {
-        if (!lifecycle.moveToStopped()) {
-            return this;
-        }
+    @Override protected void doStop() throws ElasticSearchException {
         if (scheduledRoutingTableFuture != null) {
             scheduledRoutingTableFuture.cancel(true);
         }
         clusterService.remove(this);
-        return this;
     }
 
-    public void close() {
-        if (lifecycle.started()) {
-            stop();
-        }
-        if (!lifecycle.moveToClosed()) {
-            return;
-        }
+    @Override protected void doClose() throws ElasticSearchException {
     }
 
     @Override public void clusterChanged(ClusterChangedEvent event) {

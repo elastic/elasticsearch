@@ -22,9 +22,7 @@ package org.elasticsearch.rest;
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.component.Lifecycle;
-import org.elasticsearch.util.component.LifecycleComponent;
+import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.path.PathTrie;
 import org.elasticsearch.util.settings.Settings;
 
@@ -35,9 +33,7 @@ import static org.elasticsearch.rest.RestResponse.Status.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class RestController extends AbstractComponent implements LifecycleComponent<RestController> {
-
-    private final Lifecycle lifecycle = new Lifecycle();
+public class RestController extends AbstractLifecycleComponent<RestController> {
 
     private final PathTrie<RestHandler> getHandlers = new PathTrie<RestHandler>();
     private final PathTrie<RestHandler> postHandlers = new PathTrie<RestHandler>();
@@ -48,31 +44,13 @@ public class RestController extends AbstractComponent implements LifecycleCompon
         super(settings);
     }
 
-    @Override public Lifecycle.State lifecycleState() {
-        return this.lifecycle.state();
+    @Override protected void doStart() throws ElasticSearchException {
     }
 
-    @Override public RestController start() throws ElasticSearchException {
-        if (!lifecycle.moveToStarted()) {
-            return this;
-        }
-        return this;
+    @Override protected void doStop() throws ElasticSearchException {
     }
 
-    @Override public RestController stop() throws ElasticSearchException {
-        if (!lifecycle.moveToStopped()) {
-            return this;
-        }
-        return this;
-    }
-
-    @Override public void close() throws ElasticSearchException {
-        if (lifecycle.started()) {
-            stop();
-        }
-        if (!lifecycle.moveToClosed()) {
-            return;
-        }
+    @Override protected void doClose() throws ElasticSearchException {
     }
 
     public void registerHandler(RestRequest.Method method, String path, RestHandler handler) {

@@ -30,8 +30,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.GatewayException;
 import org.elasticsearch.index.gateway.fs.FsIndexGatewayModule;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.component.Lifecycle;
+import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.io.FileSystemUtils;
 import org.elasticsearch.util.json.BinaryJsonBuilder;
 import org.elasticsearch.util.json.Jackson;
@@ -44,11 +43,9 @@ import java.io.*;
 import static org.elasticsearch.util.io.FileSystemUtils.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class FsGateway extends AbstractComponent implements Gateway {
-
-    private final Lifecycle lifecycle = new Lifecycle();
+public class FsGateway extends AbstractLifecycleComponent<Gateway> implements Gateway {
 
     private final Environment environment;
 
@@ -71,31 +68,13 @@ public class FsGateway extends AbstractComponent implements Gateway {
         this.currentIndex = findLatestIndex(gatewayHome);
     }
 
-    @Override public Lifecycle.State lifecycleState() {
-        return lifecycle.state();
+    @Override protected void doStart() throws ElasticSearchException {
     }
 
-    @Override public Gateway start() throws ElasticSearchException {
-        if (!lifecycle.moveToStarted()) {
-            return this;
-        }
-        return this;
+    @Override protected void doStop() throws ElasticSearchException {
     }
 
-    @Override public Gateway stop() throws ElasticSearchException {
-        if (!lifecycle.moveToStopped()) {
-            return this;
-        }
-        return this;
-    }
-
-    @Override public void close() throws ElasticSearchException {
-        if (lifecycle.started()) {
-            stop();
-        }
-        if (!lifecycle.moveToClosed()) {
-            return;
-        }
+    @Override protected void doClose() throws ElasticSearchException {
     }
 
     public File gatewayHome() {

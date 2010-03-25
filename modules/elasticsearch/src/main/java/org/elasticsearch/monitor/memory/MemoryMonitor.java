@@ -22,7 +22,7 @@ package org.elasticsearch.monitor.memory;
 import org.elasticsearch.util.component.LifecycleComponent;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public interface MemoryMonitor extends LifecycleComponent<MemoryMonitor> {
 

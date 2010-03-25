@@ -19,46 +19,32 @@
 
 package org.elasticsearch.gateway.none;
 
+import com.google.inject.Inject;
 import com.google.inject.Module;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.GatewayException;
 import org.elasticsearch.index.gateway.none.NoneIndexGatewayModule;
-import org.elasticsearch.util.component.Lifecycle;
+import org.elasticsearch.util.component.AbstractLifecycleComponent;
+import org.elasticsearch.util.settings.Settings;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class NoneGateway implements Gateway {
+public class NoneGateway extends AbstractLifecycleComponent<Gateway> implements Gateway {
 
-    private final Lifecycle lifecycle = new Lifecycle();
-
-    @Override public Lifecycle.State lifecycleState() {
-        return lifecycle.state();
+    @Inject public NoneGateway(Settings settings) {
+        super(settings);
     }
 
-    @Override public Gateway start() throws ElasticSearchException {
-        if (!lifecycle.moveToStarted()) {
-            return this;
-        }
-        return this;
+    @Override protected void doStart() throws ElasticSearchException {
     }
 
-    @Override public Gateway stop() throws ElasticSearchException {
-        if (!lifecycle.moveToStopped()) {
-            return this;
-        }
-        return this;
+    @Override protected void doStop() throws ElasticSearchException {
     }
 
-    @Override public void close() throws ElasticSearchException {
-        if (lifecycle.started()) {
-            stop();
-        }
-        if (!lifecycle.moveToClosed()) {
-            return;
-        }
+    @Override protected void doClose() throws ElasticSearchException {
     }
 
     @Override public void write(MetaData metaData) throws GatewayException {

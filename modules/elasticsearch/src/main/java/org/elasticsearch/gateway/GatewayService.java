@@ -26,9 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.component.Lifecycle;
-import org.elasticsearch.util.component.LifecycleComponent;
+import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.concurrent.DynamicExecutors;
 import org.elasticsearch.util.settings.Settings;
 
@@ -44,9 +42,7 @@ import static org.elasticsearch.util.TimeValue.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class GatewayService extends AbstractComponent implements ClusterStateListener, LifecycleComponent<GatewayService> {
-
-    private final Lifecycle lifecycle = new Lifecycle();
+public class GatewayService extends AbstractLifecycleComponent<GatewayService> implements ClusterStateListener {
 
     private final Gateway gateway;
 
@@ -69,24 +65,13 @@ public class GatewayService extends AbstractComponent implements ClusterStateLis
         this.metaDataService = metaDataService;
     }
 
-    @Override public Lifecycle.State lifecycleState() {
-        return lifecycle.state();
-    }
-
-    @Override public GatewayService start() throws ElasticSearchException {
-        if (!lifecycle.moveToStarted()) {
-            return this;
-        }
+    @Override protected void doStart() throws ElasticSearchException {
         gateway.start();
         this.executor = Executors.newSingleThreadExecutor(DynamicExecutors.daemonThreadFactory(settings, "gateway"));
         clusterService.add(this);
-        return this;
     }
 
-    @Override public GatewayService stop() throws ElasticSearchException {
-        if (!lifecycle.moveToStopped()) {
-            return this;
-        }
+    @Override protected void doStop() throws ElasticSearchException {
         clusterService.remove(this);
         executor.shutdown();
         try {
@@ -95,16 +80,9 @@ public class GatewayService extends AbstractComponent implements ClusterStateLis
             // ignore
         }
         gateway.stop();
-        return this;
     }
 
-    public void close() {
-        if (lifecycle.started()) {
-            stop();
-        }
-        if (!lifecycle.moveToClosed()) {
-            return;
-        }
+    @Override protected void doClose() throws ElasticSearchException {
         gateway.close();
     }
 

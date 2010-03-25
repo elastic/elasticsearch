@@ -24,11 +24,7 @@ import org.elasticsearch.ElasticSearchException;
 /**
  * @author kimchy (shay.banon)
  */
-public interface LifecycleComponent<T> extends CloseableComponent {
+public interface CloseableComponent {
 
-    Lifecycle.State lifecycleState();
-
-    T start() throws ElasticSearchException;
-
-    T stop() throws ElasticSearchException;
+    void close() throws ElasticSearchException;
 }

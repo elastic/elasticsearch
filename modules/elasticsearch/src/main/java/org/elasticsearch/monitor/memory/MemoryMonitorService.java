@@ -21,17 +21,13 @@ package org.elasticsearch.monitor.memory;
 
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.component.Lifecycle;
-import org.elasticsearch.util.component.LifecycleComponent;
+import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.settings.Settings;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class MemoryMonitorService extends AbstractComponent implements LifecycleComponent<MemoryMonitorService> {
-
-    private final Lifecycle lifecycle = new Lifecycle();
+public class MemoryMonitorService extends AbstractLifecycleComponent<MemoryMonitorService> {
 
     private final MemoryMonitor memoryMonitor;
 
@@ -40,32 +36,15 @@ public class MemoryMonitorService extends AbstractComponent implements Lifecycle
         this.memoryMonitor = memoryMonitor;
     }
 
-    @Override public Lifecycle.State lifecycleState() {
-        return lifecycle.state();
-    }
-
-    @Override public MemoryMonitorService start() throws ElasticSearchException {
-        if (!lifecycle.moveToStarted()) {
-            return this;
-        }
+    @Override protected void doStart() throws ElasticSearchException {
         memoryMonitor.start();
-        return this;
     }
 
-    @Override public MemoryMonitorService stop() throws ElasticSearchException {
-        if (!lifecycle.moveToStopped()) {
-            return this;
-        }
+    @Override protected void doStop() throws ElasticSearchException {
         memoryMonitor.stop();
-        return this;
     }
 
-    @Override public void close() throws ElasticSearchException {
-        if (lifecycle.started()) {
-            stop();
-        }
-        if (!lifecycle.moveToClosed()) {
-            return;
-        }
+    @Override protected void doClose() throws ElasticSearchException {
+        memoryMonitor.close();
     }
 }

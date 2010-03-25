@@ -25,8 +25,7 @@ import org.elasticsearch.cluster.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.util.Nullable;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.component.Lifecycle;
+import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.io.ThrowableObjectInputStream;
 import org.elasticsearch.util.io.stream.*;
 import org.elasticsearch.util.settings.ImmutableSettings;
@@ -45,9 +44,7 @@ import static org.elasticsearch.util.concurrent.ConcurrentMaps.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class LocalTransport extends AbstractComponent implements Transport {
-
-    private final Lifecycle lifecycle = new Lifecycle();
+public class LocalTransport extends AbstractLifecycleComponent<Transport> implements Transport {
 
     private final ThreadPool threadPool;
 
@@ -70,35 +67,17 @@ public class LocalTransport extends AbstractComponent implements Transport {
         this.threadPool = threadPool;
     }
 
-    @Override public Lifecycle.State lifecycleState() {
-        return this.lifecycle.state();
-    }
-
-    @Override public Transport start() throws ElasticSearchException {
-        if (!lifecycle.moveToStarted()) {
-            return this;
-        }
+    @Override protected void doStart() throws ElasticSearchException {
         localAddress = new LocalTransportAddress(Long.toString(transportAddressIdGenerator.incrementAndGet()));
         transports.put(localAddress, this);
         boundAddress = new BoundTransportAddress(localAddress, localAddress);
-        return this;
     }
 
-    @Override public Transport stop() throws ElasticSearchException {
-        if (!lifecycle.moveToStopped()) {
-            return this;
-        }
+    @Override protected void doStop() throws ElasticSearchException {
         transports.remove(localAddress);
-        return this;
     }
 
-    @Override public void close() throws ElasticSearchException {
-        if (lifecycle.started()) {
-            stop();
-        }
-        if (!lifecycle.moveToClosed()) {
-            return;
-        }
+    @Override protected void doClose() throws ElasticSearchException {
     }
 
     @Override public void transportServiceAdapter(TransportServiceAdapter transportServiceAdapter) {

@@ -28,8 +28,7 @@ import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.StopWatch;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.component.Lifecycle;
+import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.concurrent.ScheduledFuture;
@@ -38,11 +37,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.elasticsearch.util.TimeValue.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class AlphaMemoryMonitor extends AbstractComponent implements MemoryMonitor {
-
-    private final Lifecycle lifecycle = new Lifecycle();
+public class AlphaMemoryMonitor extends AbstractLifecycleComponent<MemoryMonitor> implements MemoryMonitor {
 
     private final double upperMemoryThreshold;
 
@@ -93,33 +90,15 @@ public class AlphaMemoryMonitor extends AbstractComponent implements MemoryMonit
         this.totalMemory = maxMemory.bytes() == runtime.totalMemory() ? new SizeValue(runtime.totalMemory()) : null; // Xmx==Xms when the JVM was started.
     }
 
-    @Override public Lifecycle.State lifecycleState() {
-        return lifecycle.state();
-    }
-
-    @Override public MemoryMonitor start() throws ElasticSearchException {
-        if (!lifecycle.moveToStarted()) {
-            return this;
-        }
+    @Override protected void doStart() throws ElasticSearchException {
         scheduledFuture = threadPool.scheduleWithFixedDelay(new MemoryCleaner(), interval);
-        return this;
     }
 
-    @Override public MemoryMonitor stop() throws ElasticSearchException {
-        if (!lifecycle.moveToStopped()) {
-            return this;
-        }
+    @Override protected void doStop() throws ElasticSearchException {
         scheduledFuture.cancel(true);
-        return this;
     }
 
-    public void close() {
-        if (lifecycle.started()) {
-            stop();
-        }
-        if (!lifecycle.moveToClosed()) {
-            return;
-        }
+    @Override protected void doClose() throws ElasticSearchException {
     }
 
     private long freeMemory() {

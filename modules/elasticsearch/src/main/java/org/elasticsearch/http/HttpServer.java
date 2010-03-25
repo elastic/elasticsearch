@@ -25,20 +25,16 @@ import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfo;
 import org.elasticsearch.rest.JsonThrowableRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.component.Lifecycle;
-import org.elasticsearch.util.component.LifecycleComponent;
+import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.path.PathTrie;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class HttpServer extends AbstractComponent implements LifecycleComponent<HttpServer> {
-
-    private final Lifecycle lifecycle = new Lifecycle();
+public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
 
     private final HttpServerTransport transport;
 
@@ -73,10 +69,6 @@ public class HttpServer extends AbstractComponent implements LifecycleComponent<
         });
     }
 
-    @Override public Lifecycle.State lifecycleState() {
-        return this.lifecycle.state();
-    }
-
     public void registerHandler(HttpRequest.Method method, String path, HttpServerHandler handler) {
         if (method == HttpRequest.Method.GET) {
             getHandlers.insert(path, handler);
@@ -89,34 +81,20 @@ public class HttpServer extends AbstractComponent implements LifecycleComponent<
         }
     }
 
-    public HttpServer start() throws ElasticSearchException {
-        if (!lifecycle.moveToStarted()) {
-            return this;
-        }
+    @Override protected void doStart() throws ElasticSearchException {
         transport.start();
         if (logger.isInfoEnabled()) {
             logger.info("{}", transport.boundAddress());
         }
         nodesInfo.putNodeAttribute("httpAddress", transport.boundAddress().publishAddress().toString());
-        return this;
     }
 
-    public HttpServer stop() throws ElasticSearchException {
-        if (!lifecycle.moveToStopped()) {
-            return this;
-        }
+    @Override protected void doStop() throws ElasticSearchException {
         nodesInfo.removeNodeAttribute("httpAddress");
         transport.stop();
-        return this;
     }
 
-    public void close() {
-        if (lifecycle.started()) {
-            stop();
-        }
-        if (!lifecycle.moveToClosed()) {
-            return;
-        }
+    @Override protected void doClose() throws ElasticSearchException {
         transport.close();
     }
 

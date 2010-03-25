@@ -50,9 +50,7 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.component.Lifecycle;
-import org.elasticsearch.util.component.LifecycleComponent;
+import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.Map;
@@ -64,9 +62,7 @@ import static org.elasticsearch.ExceptionsHelper.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class IndicesClusterStateService extends AbstractComponent implements ClusterStateListener, LifecycleComponent<IndicesClusterStateService> {
-
-    private final Lifecycle lifecycle = new Lifecycle();
+public class IndicesClusterStateService extends AbstractLifecycleComponent<IndicesClusterStateService> implements ClusterStateListener {
 
     private final IndicesService indicesService;
 
@@ -96,33 +92,15 @@ public class IndicesClusterStateService extends AbstractComponent implements Clu
         this.nodeMappingCreatedAction = nodeMappingCreatedAction;
     }
 
-    @Override public Lifecycle.State lifecycleState() {
-        return lifecycle.state();
-    }
-
-    @Override public IndicesClusterStateService start() throws ElasticSearchException {
-        if (!lifecycle.moveToStarted()) {
-            return this;
-        }
+    @Override protected void doStart() throws ElasticSearchException {
         clusterService.add(this);
-        return this;
     }
 
-    @Override public IndicesClusterStateService stop() throws ElasticSearchException {
-        if (!lifecycle.moveToStopped()) {
-            return this;
-        }
+    @Override protected void doStop() throws ElasticSearchException {
         clusterService.remove(this);
-        return this;
     }
 
-    @Override public void close() throws ElasticSearchException {
-        if (lifecycle.started()) {
-            stop();
-        }
-        if (!lifecycle.moveToClosed()) {
-            return;
-        }
+    @Override protected void doClose() throws ElasticSearchException {
     }
 
     @Override public void clusterChanged(final ClusterChangedEvent event) {

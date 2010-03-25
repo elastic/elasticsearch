@@ -32,8 +32,7 @@ import org.elasticsearch.discovery.DiscoveryException;
 import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.component.Lifecycle;
+import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.io.HostResolver;
 import org.elasticsearch.util.settings.Settings;
 import org.jgroups.*;
@@ -56,11 +55,9 @@ import static org.elasticsearch.cluster.node.Nodes.*;
 /**
  * A simplified discovery implementation based on JGroups that only works in client mode.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class JgroupsClientDiscovery extends AbstractComponent implements Discovery, Receiver {
-
-    private final Lifecycle lifecycle = new Lifecycle();
+public class JgroupsClientDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery, Receiver {
 
     private final ClusterName clusterName;
 
@@ -128,14 +125,7 @@ public class JgroupsClientDiscovery extends AbstractComponent implements Discove
         }
     }
 
-    @Override public Lifecycle.State lifecycleState() {
-        return this.lifecycle.state();
-    }
-
-    @Override public Discovery start() throws ElasticSearchException {
-        if (!lifecycle.moveToStarted()) {
-            return this;
-        }
+    @Override protected void doStart() throws ElasticSearchException {
         channel.setReceiver(this);
         try {
             channel.connect(clusterName.value());
@@ -144,13 +134,9 @@ public class JgroupsClientDiscovery extends AbstractComponent implements Discove
         }
         connectTillMasterIfNeeded();
         sendInitialStateEventIfNeeded();
-        return this;
     }
 
-    @Override public Discovery stop() throws ElasticSearchException {
-        if (!lifecycle.moveToStopped()) {
-            return this;
-        }
+    @Override protected void doStop() throws ElasticSearchException {
         if (reconnectFuture != null) {
             reconnectFuture.cancel(true);
             reconnectFuture = null;
@@ -158,16 +144,9 @@ public class JgroupsClientDiscovery extends AbstractComponent implements Discove
         if (channel.isConnected()) {
             channel.disconnect();
         }
-        return this;
     }
 
-    @Override public void close() throws ElasticSearchException {
-        if (lifecycle.started()) {
-            stop();
-        }
-        if (!lifecycle.moveToClosed()) {
-            return;
-        }
+    @Override protected void doClose() throws ElasticSearchException {
         if (channel.isOpen()) {
             channel.close();
         }

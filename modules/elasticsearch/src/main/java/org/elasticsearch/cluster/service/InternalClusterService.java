@@ -27,8 +27,7 @@ import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.component.Lifecycle;
+import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.List;
@@ -43,11 +42,9 @@ import static org.elasticsearch.util.TimeValue.*;
 import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class InternalClusterService extends AbstractComponent implements ClusterService {
-
-    private final Lifecycle lifecycle = new Lifecycle();
+public class InternalClusterService extends AbstractLifecycleComponent<ClusterService> implements ClusterService {
 
     private final TimeValue timeoutInterval;
 
@@ -76,14 +73,7 @@ public class InternalClusterService extends AbstractComponent implements Cluster
         this.timeoutInterval = componentSettings.getAsTime("timeoutInterval", timeValueMillis(500));
     }
 
-    @Override public Lifecycle.State lifecycleState() {
-        return this.lifecycle.state();
-    }
-
-    @Override public ClusterService start() throws ElasticSearchException {
-        if (!lifecycle.moveToStarted()) {
-            return this;
-        }
+    @Override protected void doStart() throws ElasticSearchException {
         this.updateTasksExecutor = newSingleThreadExecutor(daemonThreadFactory(settings, "clusterService#updateTask"));
         scheduledFuture = threadPool.scheduleWithFixedDelay(new Runnable() {
             @Override public void run() {
@@ -100,13 +90,9 @@ public class InternalClusterService extends AbstractComponent implements Cluster
                 }
             }
         }, timeoutInterval);
-        return this;
     }
 
-    @Override public ClusterService stop() throws ElasticSearchException {
-        if (!lifecycle.moveToStopped()) {
-            return this;
-        }
+    @Override protected void doStop() throws ElasticSearchException {
         scheduledFuture.cancel(false);
         for (TimeoutHolder holder : clusterStateTimeoutListeners) {
             holder.listener.onTimeout(holder.timeout);
@@ -117,16 +103,9 @@ public class InternalClusterService extends AbstractComponent implements Cluster
         } catch (InterruptedException e) {
             // ignore
         }
-        return this;
     }
 
-    @Override public void close() throws ElasticSearchException {
-        if (lifecycle.started()) {
-            stop();
-        }
-        if (!lifecycle.moveToClosed()) {
-            return;
-        }
+    @Override protected void doClose() throws ElasticSearchException {
     }
 
     public ClusterState state() {

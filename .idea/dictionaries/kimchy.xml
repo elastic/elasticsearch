@@ -9,6 +9,7 @@
       <w>bool</w>
       <w>booleans</w>
       <w>checksum</w>
+      <w>closeable</w>
       <w>commitable</w>
       <w>committable</w>
       <w>configurator</w>

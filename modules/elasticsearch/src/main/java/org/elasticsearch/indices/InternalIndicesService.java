@@ -41,8 +41,7 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.component.Lifecycle;
+import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.concurrent.ThreadSafe;
 import org.elasticsearch.util.guice.Injectors;
 import org.elasticsearch.util.settings.Settings;
@@ -58,12 +57,10 @@ import static org.elasticsearch.util.MapBuilder.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 @ThreadSafe
-public class InternalIndicesService extends AbstractComponent implements IndicesService {
-
-    private final Lifecycle lifecycle = new Lifecycle();
+public class InternalIndicesService extends AbstractLifecycleComponent<IndicesService> implements IndicesService {
 
     private final IndicesClusterStateService clusterStateService;
 
@@ -79,36 +76,18 @@ public class InternalIndicesService extends AbstractComponent implements Indices
         this.injector = injector;
     }
 
-    @Override public Lifecycle.State lifecycleState() {
-        return lifecycle.state();
-    }
-
-    @Override public IndicesService start() throws ElasticSearchException {
-        if (!lifecycle.moveToStarted()) {
-            return this;
-        }
+    @Override protected void doStart() throws ElasticSearchException {
         clusterStateService.start();
-        return this;
     }
 
-    @Override public IndicesService stop() throws ElasticSearchException {
-        if (!lifecycle.moveToStopped()) {
-            return this;
-        }
+    @Override protected void doStop() throws ElasticSearchException {
         clusterStateService.stop();
         for (String index : indices.keySet()) {
             deleteIndex(index, true);
         }
-        return this;
     }
 
-    public synchronized void close() {
-        if (lifecycle.started()) {
-            stop();
-        }
-        if (!lifecycle.moveToClosed()) {
-            return;
-        }
+    @Override protected void doClose() throws ElasticSearchException {
         clusterStateService.close();
     }
 

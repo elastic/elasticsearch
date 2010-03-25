@@ -23,17 +23,13 @@ import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.monitor.jvm.JvmMonitorService;
 import org.elasticsearch.monitor.memory.MemoryMonitorService;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.component.Lifecycle;
-import org.elasticsearch.util.component.LifecycleComponent;
+import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.settings.Settings;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class MonitorService extends AbstractComponent implements LifecycleComponent<MonitorService> {
-
-    private final Lifecycle lifecycle = new Lifecycle();
+public class MonitorService extends AbstractLifecycleComponent<MonitorService> {
 
     private final MemoryMonitorService memoryMonitorService;
 
@@ -45,35 +41,17 @@ public class MonitorService extends AbstractComponent implements LifecycleCompon
         this.jvmMonitorService = jvmMonitorService;
     }
 
-    @Override public Lifecycle.State lifecycleState() {
-        return lifecycle.state();
-    }
-
-    @Override public MonitorService start() throws ElasticSearchException {
-        if (!lifecycle.moveToStarted()) {
-            return this;
-        }
+    @Override protected void doStart() throws ElasticSearchException {
         memoryMonitorService.start();
         jvmMonitorService.start();
-        return this;
     }
 
-    @Override public MonitorService stop() throws ElasticSearchException {
-        if (!lifecycle.moveToStopped()) {
-            return this;
-        }
+    @Override protected void doStop() throws ElasticSearchException {
         memoryMonitorService.stop();
         jvmMonitorService.stop();
-        return this;
     }
 
-    public void close() {
-        if (lifecycle.started()) {
-            stop();
-        }
-        if (!lifecycle.moveToClosed()) {
-            return;
-        }
+    @Override protected void doClose() throws ElasticSearchException {
         memoryMonitorService.close();
         jvmMonitorService.close();
     }

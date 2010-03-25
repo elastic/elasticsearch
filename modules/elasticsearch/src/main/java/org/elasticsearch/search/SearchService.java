@@ -48,9 +48,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.Unicode;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.component.Lifecycle;
-import org.elasticsearch.util.component.LifecycleComponent;
+import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.concurrent.highscalelib.NonBlockingHashMapLong;
 import org.elasticsearch.util.json.Jackson;
 import org.elasticsearch.util.settings.Settings;
@@ -67,11 +65,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.elasticsearch.util.TimeValue.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class SearchService extends AbstractComponent implements LifecycleComponent<SearchService> {
-
-    private final Lifecycle lifecycle = new Lifecycle();
+public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private final JsonFactory jsonFactory = Jackson.defaultJsonFactory();
 
@@ -116,35 +112,17 @@ public class SearchService extends AbstractComponent implements LifecycleCompone
         this.elementParsers = ImmutableMap.copyOf(elementParsers);
     }
 
-    @Override public Lifecycle.State lifecycleState() {
-        return lifecycle.state();
+    @Override protected void doStart() throws ElasticSearchException {
     }
 
-    @Override public SearchService start() throws ElasticSearchException {
-        if (!lifecycle.moveToStarted()) {
-            return this;
-        }
-        return this;
-    }
-
-    @Override public SearchService stop() throws ElasticSearchException {
-        if (!lifecycle.moveToStopped()) {
-            return this;
-        }
+    @Override protected void doStop() throws ElasticSearchException {
         for (SearchContext context : activeContexts.values()) {
             freeContext(context);
         }
         activeContexts.clear();
-        return this;
     }
 
-    @Override public void close() throws ElasticSearchException {
-        if (lifecycle.started()) {
-            stop();
-        }
-        if (!lifecycle.moveToClosed()) {
-            return;
-        }
+    @Override protected void doClose() throws ElasticSearchException {
     }
 
     public DfsSearchResult executeDfsPhase(InternalSearchRequest request) throws ElasticSearchException {

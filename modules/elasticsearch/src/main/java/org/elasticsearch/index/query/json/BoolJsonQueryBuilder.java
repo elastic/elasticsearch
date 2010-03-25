@@ -24,6 +24,7 @@ import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A Query that matches documents matching boolean combinations of other queries.
@@ -101,6 +102,13 @@ public class BoolJsonQueryBuilder extends BaseJsonQueryBuilder {
     public BoolJsonQueryBuilder minimumNumberShouldMatch(int minimumNumberShouldMatch) {
         this.minimumNumberShouldMatch = minimumNumberShouldMatch;
         return this;
+    }
+
+    /**
+     * A list of the current clauses.
+     */
+    public List<Clause> clauses() {
+        return this.clauses;
     }
 
     @Override protected void doJson(JsonBuilder builder, Params params) throws IOException {

@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.mlt;
 
-import com.google.common.collect.Sets;
 import com.google.inject.Inject;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.TransportActions;
+import org.elasticsearch.action.get.GetField;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.TransportGetAction;
@@ -33,10 +33,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.BaseAction;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMappers;
-import org.elasticsearch.index.mapper.InternalMapper;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.json.BoolJsonQueryBuilder;
 import org.elasticsearch.index.query.json.MoreLikeThisFieldJsonQueryBuilder;
 import org.elasticsearch.indices.IndicesService;
@@ -45,8 +42,11 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.settings.Settings;
 
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.Set;
 
+import static com.google.common.collect.Sets.*;
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.index.query.json.JsonQueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.*;
@@ -75,10 +75,19 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
     }
 
     @Override protected void doExecute(final MoreLikeThisRequest request, final ActionListener<SearchResponse> listener) {
+        Set<String> getFields = newHashSet();
+        if (request.fields() != null) {
+            Collections.addAll(getFields, request.fields());
+        }
+        // add the source, in case we need to parse it to get fields
+        getFields.add(SourceFieldMapper.NAME);
+
         GetRequest getRequest = getRequest(request.index())
+                .fields(getFields.toArray(new String[getFields.size()]))
                 .type(request.type())
                 .id(request.id())
                 .listenerThreaded(false);
+
         getAction.execute(getRequest, new ActionListener<GetResponse>() {
             @Override public void onResponse(GetResponse getResponse) {
                 if (!getResponse.exists()) {
@@ -88,7 +97,7 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
                 final BoolJsonQueryBuilder boolBuilder = boolQuery();
                 try {
                     DocumentMapper docMapper = indicesService.indexServiceSafe(request.index()).mapperService().documentMapper(request.type());
-                    final Set<String> fields = Sets.newHashSet();
+                    final Set<String> fields = newHashSet();
                     if (request.fields() != null) {
                         for (String field : request.fields()) {
                             FieldMappers fieldMappers = docMapper.mappers().smartName(field);
@@ -99,23 +108,34 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
                             }
                         }
                     }
-                    docMapper.parse(request.type(), request.id(), getResponse.source(), new DocumentMapper.ParseListenerAdapter() {
-                        @Override public boolean beforeFieldAdded(FieldMapper fieldMapper, Fieldable field, Object parseContext) {
-                            if (fieldMapper instanceof InternalMapper) {
-                                return true;
-                            }
-                            String value = fieldMapper.valueAsString(field);
-                            if (value == null) {
-                                return false;
-                            }
 
-                            if (fields.isEmpty() || fields.contains(field.name())) {
-                                addMoreLikeThis(request, boolBuilder, fieldMapper, field);
+                    if (!fields.isEmpty()) {
+                        // if fields are not empty, see if we got them in the response
+                        for (Iterator<String> it = fields.iterator(); it.hasNext();) {
+                            String field = it.next();
+                            GetField getField = getResponse.field(field);
+                            if (getField != null) {
+                                for (Object value : getField.values()) {
+                                    addMoreLikeThis(request, boolBuilder, getField.name(), value.toString());
+                                }
+                                it.remove();
                             }
-
-                            return false;
                         }
-                    });
+                        if (!fields.isEmpty()) {
+                            // if we don't get all the fields in the get response, see if we can parse the source
+                            parseSource(getResponse, boolBuilder, docMapper, fields, request);
+                        }
+                    } else {
+                        // we did not ask for any fields, try and get it from the source
+                        parseSource(getResponse, boolBuilder, docMapper, fields, request);
+                    }
+
+                    if (boolBuilder.clauses().isEmpty()) {
+                        // no field added, fail
+                        listener.onFailure(new ElasticSearchException("No fields found to fetch the 'likeText' from"));
+                        return;
+                    }
+
                     // exclude myself
                     Term uidTerm = docMapper.uidMapper().term(request.type(), request.id());
                     boolBuilder.mustNot(termQuery(uidTerm.field(), uidTerm.text()));
@@ -159,9 +179,36 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
         });
     }
 
+    private void parseSource(GetResponse getResponse, final BoolJsonQueryBuilder boolBuilder, DocumentMapper docMapper, final Set<String> fields, final MoreLikeThisRequest request) {
+        if (getResponse.source() == null) {
+            return;
+        }
+        docMapper.parse(request.type(), request.id(), getResponse.source(), new DocumentMapper.ParseListenerAdapter() {
+            @Override public boolean beforeFieldAdded(FieldMapper fieldMapper, Fieldable field, Object parseContext) {
+                if (fieldMapper instanceof InternalMapper) {
+                    return true;
+                }
+                String value = fieldMapper.valueAsString(field);
+                if (value == null) {
+                    return false;
+                }
+
+                if (fields.isEmpty() || fields.contains(field.name())) {
+                    addMoreLikeThis(request, boolBuilder, fieldMapper, field);
+                }
+
+                return false;
+            }
+        });
+    }
+
     private void addMoreLikeThis(MoreLikeThisRequest request, BoolJsonQueryBuilder boolBuilder, FieldMapper fieldMapper, Fieldable field) {
-        MoreLikeThisFieldJsonQueryBuilder mlt = moreLikeThisFieldQuery(field.name())
-                .likeText(fieldMapper.valueAsString(field))
+        addMoreLikeThis(request, boolBuilder, field.name(), fieldMapper.valueAsString(field));
+    }
+
+    private void addMoreLikeThis(MoreLikeThisRequest request, BoolJsonQueryBuilder boolBuilder, String fieldName, String likeText) {
+        MoreLikeThisFieldJsonQueryBuilder mlt = moreLikeThisFieldQuery(fieldName)
+                .likeText(likeText)
                 .percentTermsToMatch(request.percentTermsToMatch())
                 .boostTerms(request.boostTerms())
                 .boostTermsFactor(request.boostTermsFactor())

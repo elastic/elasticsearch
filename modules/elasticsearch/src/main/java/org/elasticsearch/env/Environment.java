@@ -87,6 +87,10 @@ public class Environment {
         return workFile;
     }
 
+    public File configFile() {
+        return configFile;
+    }
+
     public File workWithClusterFile() {
         return workWithClusterFile;
     }

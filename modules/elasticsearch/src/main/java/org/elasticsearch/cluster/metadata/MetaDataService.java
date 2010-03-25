@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.google.common.collect.Maps;
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterService;
@@ -30,6 +31,7 @@ import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.strategy.ShardsRoutingStrategy;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.InvalidTypeNameException;
@@ -44,9 +46,13 @@ import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.Tuple;
 import org.elasticsearch.util.component.AbstractComponent;
+import org.elasticsearch.util.io.Streams;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
 
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -66,6 +72,7 @@ import static org.elasticsearch.util.settings.ImmutableSettings.*;
  */
 public class MetaDataService extends AbstractComponent {
 
+    private final Environment environment;
 
     private final ClusterService clusterService;
 
@@ -79,10 +86,11 @@ public class MetaDataService extends AbstractComponent {
 
     private final NodeMappingCreatedAction nodeMappingCreatedAction;
 
-    @Inject public MetaDataService(Settings settings, ClusterService clusterService, IndicesService indicesService, ShardsRoutingStrategy shardsRoutingStrategy,
+    @Inject public MetaDataService(Settings settings, Environment environment, ClusterService clusterService, IndicesService indicesService, ShardsRoutingStrategy shardsRoutingStrategy,
                                    NodeIndexCreatedAction nodeIndexCreatedAction, NodeIndexDeletedAction nodeIndexDeletedAction,
                                    NodeMappingCreatedAction nodeMappingCreatedAction) {
         super(settings);
+        this.environment = environment;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.shardsRoutingStrategy = shardsRoutingStrategy;
@@ -130,7 +138,7 @@ public class MetaDataService extends AbstractComponent {
         return new IndicesAliasesResult();
     }
 
-    public synchronized CreateIndexResult createIndex(final String index, final Settings indexSettings, final Map<String, String> mappings, TimeValue timeout) throws IndexAlreadyExistsException {
+    public synchronized CreateIndexResult createIndex(final String index, final Settings indexSettings, Map<String, String> mappings, TimeValue timeout) throws IndexAlreadyExistsException {
         ClusterState clusterState = clusterService.state();
 
         if (clusterState.routingTable().hasIndex(index)) {
@@ -161,6 +169,30 @@ public class MetaDataService extends AbstractComponent {
             throw new InvalidIndexNameException(new Index(index), index, "an alias with the same name already exists");
         }
 
+        // add to the mappings files that exists within the config/mappings location
+        if (mappings == null) {
+            mappings = Maps.newHashMap();
+        } else {
+            mappings = Maps.newHashMap(mappings);
+        }
+        File mappingsDir = new File(environment.configFile(), "mappings");
+        if (mappingsDir.exists() && mappingsDir.isDirectory()) {
+            File[] mappingsFiles = mappingsDir.listFiles();
+            for (File mappingFile : mappingsFiles) {
+                String fileNameNoSuffix = mappingFile.getName().substring(0, mappingFile.getName().lastIndexOf('.'));
+                if (mappings.containsKey(fileNameNoSuffix)) {
+                    // if we have the mapping defined, ignore it
+                    continue;
+                }
+                try {
+                    mappings.put(fileNameNoSuffix, Streams.copyToString(new FileReader(mappingFile)));
+                } catch (IOException e) {
+                    logger.warn("Failed to read mapping [" + fileNameNoSuffix + "] from location [" + mappingFile + "], ignoring...", e);
+                }
+            }
+        }
+        final Map<String, String> fMappings = mappings;
+
         final CountDownLatch latch = new CountDownLatch(clusterService.state().nodes().size());
         NodeIndexCreatedAction.Listener nodeCreatedListener = new NodeIndexCreatedAction.Listener() {
             @Override public void onNodeIndexCreated(String mIndex, String nodeId) {
@@ -186,10 +218,8 @@ public class MetaDataService extends AbstractComponent {
                 Settings actualIndexSettings = indexSettingsBuilder.build();
 
                 IndexMetaData.Builder indexMetaData = newIndexMetaDataBuilder(index).settings(actualIndexSettings);
-                if (mappings != null) {
-                    for (Map.Entry<String, String> entry : mappings.entrySet()) {
-                        indexMetaData.putMapping(entry.getKey(), entry.getValue());
-                    }
+                for (Map.Entry<String, String> entry : fMappings.entrySet()) {
+                    indexMetaData.putMapping(entry.getKey(), entry.getValue());
                 }
                 MetaData newMetaData = newMetaDataBuilder()
                         .metaData(currentState.metaData())
@@ -200,7 +230,7 @@ public class MetaDataService extends AbstractComponent {
                         .initializeEmpty(newMetaData.index(index));
                 routingTableBuilder.add(indexRoutingBuilder);
 
-                logger.info("Creating Index [{}], shards [{}]/[{}]", new Object[]{index, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas()});
+                logger.info("Creating Index [{}], shards [{}]/[{}], mappings {}", new Object[]{index, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), fMappings.keySet()});
                 RoutingTable newRoutingTable = shardsRoutingStrategy.reroute(newClusterStateBuilder().state(currentState).routingTable(routingTableBuilder).metaData(newMetaData).build());
                 return newClusterStateBuilder().state(currentState).routingTable(newRoutingTable).metaData(newMetaData).build();
             }

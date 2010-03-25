@@ -109,6 +109,9 @@ public class JsonStringFieldMapper extends JsonFieldMapper<String> implements Js
         if (includeInAll == null || includeInAll) {
             jsonContext.allEntries().addText(names.fullName(), value, boost);
         }
+        if (!indexed() && !stored()) {
+            return null;
+        }
         return new Field(names.indexName(), value, store, index, termVector);
     }
 

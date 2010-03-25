@@ -119,6 +119,9 @@ public class JsonBooleanFieldMapper extends JsonFieldMapper<Boolean> {
     }
 
     @Override protected Field parseCreateField(JsonParseContext jsonContext) throws IOException {
+        if (!indexed() && !stored()) {
+            return null;
+        }
         JsonToken token = jsonContext.jp().getCurrentToken();
         String value = null;
         if (token == JsonToken.VALUE_FALSE) {

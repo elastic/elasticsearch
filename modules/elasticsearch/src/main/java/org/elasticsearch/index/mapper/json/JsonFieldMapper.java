@@ -267,9 +267,6 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
     }
 
     @Override public void parse(JsonParseContext jsonContext) throws IOException {
-        if (!indexed() && !stored()) {
-            return;
-        }
         Field field = parseCreateField(jsonContext);
         if (field == null) {
             return;

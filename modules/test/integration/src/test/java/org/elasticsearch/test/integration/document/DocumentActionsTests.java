@@ -49,14 +49,24 @@ import static org.hamcrest.Matchers.*;
  */
 public class DocumentActionsTests extends AbstractServersTests {
 
-    private Client client1;
-    private Client client2;
+    protected Client client1;
+    protected Client client2;
 
     @BeforeMethod public void startServers() {
         startServer("server1");
         startServer("server2");
         client1 = getClient1();
         client2 = getClient2();
+        createIndex();
+    }
+
+    protected void createIndex() {
+        logger.info("Creating index test");
+        client1.admin().indices().create(createIndexRequest("test")).actionGet();
+    }
+
+    protected String getConcreteIndexName() {
+        return "test";
     }
 
     @AfterMethod public void closeServers() {
@@ -74,9 +84,6 @@ public class DocumentActionsTests extends AbstractServersTests {
     }
 
     @Test public void testIndexActions() throws Exception {
-        logger.info("Creating index test");
-        client1.admin().indices().create(createIndexRequest("test")).actionGet();
-
         logger.info("Running Cluster Health");
         ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealth().waitForGreenStatus()).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.status());
@@ -85,6 +92,7 @@ public class DocumentActionsTests extends AbstractServersTests {
 
         logger.info("Indexing [type1/1]");
         IndexResponse indexResponse = client1.index(indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
+        assertThat(indexResponse.index(), equalTo(getConcreteIndexName()));
         assertThat(indexResponse.id(), equalTo("1"));
         assertThat(indexResponse.type(), equalTo("type1"));
         logger.info("Refreshing");
@@ -102,10 +110,12 @@ public class DocumentActionsTests extends AbstractServersTests {
         logger.info("Get [type1/1]");
         for (int i = 0; i < 5; i++) {
             getResult = client1.get(getRequest("test").type("type1").id("1").operationThreaded(false)).actionGet();
+            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
             assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test")));
             assertThat("cycle(map) #" + i, (String) ((Map) getResult.sourceAsMap().get("type1")).get("name"), equalTo("test"));
             getResult = client1.get(getRequest("test").type("type1").id("1").operationThreaded(true)).actionGet();
             assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test")));
+            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
         }
 
         logger.info("Get [type1/2] (should be empty)");
@@ -116,6 +126,7 @@ public class DocumentActionsTests extends AbstractServersTests {
 
         logger.info("Delete [type1/1]");
         DeleteResponse deleteResponse = client1.delete(deleteRequest("test").type("type1").id("1")).actionGet();
+        assertThat(deleteResponse.index(), equalTo(getConcreteIndexName()));
         assertThat(deleteResponse.id(), equalTo("1"));
         assertThat(deleteResponse.type(), equalTo("type1"));
         logger.info("Refreshing");
@@ -142,9 +153,11 @@ public class DocumentActionsTests extends AbstractServersTests {
         logger.info("Get [type1/1] and [type1/2]");
         for (int i = 0; i < 5; i++) {
             getResult = client1.get(getRequest("test").type("type1").id("1")).actionGet();
+            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
             assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test")));
             getResult = client1.get(getRequest("test").type("type1").id("2")).actionGet();
             assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("2", "test2")));
+            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
         }
 
         logger.info("Count");
@@ -176,16 +189,18 @@ public class DocumentActionsTests extends AbstractServersTests {
 
         logger.info("Delete by query");
         DeleteByQueryResponse queryResponse = client2.deleteByQuery(deleteByQueryRequest("test").querySource(termQuery("name", "test2"))).actionGet();
-        assertThat(queryResponse.index("test").successfulShards(), equalTo(5));
-        assertThat(queryResponse.index("test").failedShards(), equalTo(0));
+        assertThat(queryResponse.index(getConcreteIndexName()).successfulShards(), equalTo(5));
+        assertThat(queryResponse.index(getConcreteIndexName()).failedShards(), equalTo(0));
         client1.admin().indices().refresh(refreshRequest("test")).actionGet();
 
         logger.info("Get [type1/1] and [type1/2], should be empty");
         for (int i = 0; i < 5; i++) {
             getResult = client1.get(getRequest("test").type("type1").id("1")).actionGet();
+            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
             assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test")));
             getResult = client1.get(getRequest("test").type("type1").id("2")).actionGet();
             assertThat("cycle #" + i, getResult.exists(), equalTo(false));
+            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
         }
     }
 

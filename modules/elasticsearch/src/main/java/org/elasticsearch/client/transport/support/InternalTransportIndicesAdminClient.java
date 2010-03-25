@@ -23,6 +23,8 @@ import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -41,6 +43,7 @@ import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.transport.TransportClientNodesService;
+import org.elasticsearch.client.transport.action.admin.indices.alias.ClientTransportIndicesAliasesAction;
 import org.elasticsearch.client.transport.action.admin.indices.create.ClientTransportCreateIndexAction;
 import org.elasticsearch.client.transport.action.admin.indices.delete.ClientTransportDeleteIndexAction;
 import org.elasticsearch.client.transport.action.admin.indices.flush.ClientTransportFlushAction;
@@ -76,11 +79,14 @@ public class InternalTransportIndicesAdminClient extends AbstractComponent imple
 
     private final ClientTransportGatewaySnapshotAction gatewaySnapshotAction;
 
+    private final ClientTransportIndicesAliasesAction indicesAliasesAction;
+
     @Inject public InternalTransportIndicesAdminClient(Settings settings, TransportClientNodesService nodesService,
                                                        ClientTransportIndicesStatusAction indicesStatusAction,
                                                        ClientTransportCreateIndexAction createIndexAction, ClientTransportDeleteIndexAction deleteIndexAction,
                                                        ClientTransportRefreshAction refreshAction, ClientTransportFlushAction flushAction, ClientTransportOptimizeAction optimizeAction,
-                                                       ClientTransportPutMappingAction putMappingAction, ClientTransportGatewaySnapshotAction gatewaySnapshotAction) {
+                                                       ClientTransportPutMappingAction putMappingAction, ClientTransportGatewaySnapshotAction gatewaySnapshotAction,
+                                                       ClientTransportIndicesAliasesAction indicesAliasesAction) {
         super(settings);
         this.nodesService = nodesService;
         this.indicesStatusAction = indicesStatusAction;
@@ -91,6 +97,7 @@ public class InternalTransportIndicesAdminClient extends AbstractComponent imple
         this.optimizeAction = optimizeAction;
         this.putMappingAction = putMappingAction;
         this.gatewaySnapshotAction = gatewaySnapshotAction;
+        this.indicesAliasesAction = indicesAliasesAction;
     }
 
     @Override public ActionFuture<IndicesStatusResponse> status(final IndicesStatusRequest request) {
@@ -224,6 +231,23 @@ public class InternalTransportIndicesAdminClient extends AbstractComponent imple
         nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
             @Override public Object doWithNode(Node node) throws ElasticSearchException {
                 gatewaySnapshotAction.execute(node, request, listener);
+                return null;
+            }
+        });
+    }
+
+    @Override public ActionFuture<IndicesAliasesResponse> indicesAliases(final IndicesAliasesRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<IndicesAliasesResponse>>() {
+            @Override public ActionFuture<IndicesAliasesResponse> doWithNode(Node node) throws ElasticSearchException {
+                return indicesAliasesAction.execute(node, request);
+            }
+        });
+    }
+
+    @Override public void aliases(final IndicesAliasesRequest request, final ActionListener<IndicesAliasesResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
+            @Override public Void doWithNode(Node node) throws ElasticSearchException {
+                indicesAliasesAction.execute(node, request, listener);
                 return null;
             }
         });

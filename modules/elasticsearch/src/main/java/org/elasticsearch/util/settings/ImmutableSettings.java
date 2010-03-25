@@ -254,6 +254,29 @@ public class ImmutableSettings implements Settings {
         return Collections.unmodifiableMap(retVal);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        ImmutableSettings that = (ImmutableSettings) o;
+
+        if (classLoader != null ? !classLoader.equals(that.classLoader) : that.classLoader != null) return false;
+        if (globalSettings != null ? !globalSettings.equals(that.globalSettings) : that.globalSettings != null)
+            return false;
+        if (settings != null ? !settings.equals(that.settings) : that.settings != null) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = settings != null ? settings.hashCode() : 0;
+        result = 31 * result + (globalSettings != null ? globalSettings.hashCode() : 0);
+        result = 31 * result + (classLoader != null ? classLoader.hashCode() : 0);
+        return result;
+    }
+
     private static ClassLoader buildClassLoader() {
         return Classes.getDefaultClassLoader();
     }
@@ -418,6 +441,27 @@ public class ImmutableSettings implements Settings {
          */
         public Builder put(String setting, long value, SizeUnit sizeUnit) {
             put(setting, sizeUnit.toBytes(value));
+            return this;
+        }
+
+        /**
+         * Sets the setting with the provided setting key and an array of values.
+         *
+         * @param setting The setting key
+         * @param values  The values
+         * @return The builder
+         */
+        public Builder putArray(String setting, String... values) {
+            int counter = 0;
+            while (true) {
+                String value = map.remove(setting + '.' + (counter++));
+                if (value == null) {
+                    break;
+                }
+            }
+            for (int i = 0; i < values.length; i++) {
+                put(setting + "." + i, values[i]);
+            }
             return this;
         }
 

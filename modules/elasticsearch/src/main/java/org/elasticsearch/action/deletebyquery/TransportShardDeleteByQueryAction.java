@@ -23,6 +23,7 @@ import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardsIterator;
@@ -65,7 +66,7 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
         indexShard(shardRequest).deleteByQuery(request.querySource(), request.queryParserName(), request.types());
     }
 
-    @Override protected ShardsIterator shards(ShardDeleteByQueryRequest request) {
+    @Override protected ShardsIterator shards(ClusterState clusterState, ShardDeleteByQueryRequest request) {
         GroupShardsIterator group = indicesService.indexServiceSafe(request.index()).operationRouting().deleteByQueryShards(clusterService.state());
         for (ShardsIterator shards : group) {
             if (shards.shardId().id() == request.shardId()) {

@@ -21,6 +21,8 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -189,4 +191,22 @@ public interface IndicesAdminClient {
      * @see org.elasticsearch.client.Requests#gatewaySnapshotRequest(String...)
      */
     void gatewaySnapshot(GatewaySnapshotRequest request, ActionListener<GatewaySnapshotResponse> listener);
+
+    /**
+     * Allows to add/remove aliases from indices.
+     *
+     * @param request The index aliases request
+     * @return The result future
+     * @see Requests#indexAliasesRequest()
+     */
+    ActionFuture<IndicesAliasesResponse> indicesAliases(IndicesAliasesRequest request);
+
+    /**
+     * Allows to add/remove aliases from indices.
+     *
+     * @param request  The index aliases request
+     * @param listener A listener to be notified with a result
+     * @see Requests#indexAliasesRequest()
+     */
+    void aliases(IndicesAliasesRequest request, ActionListener<IndicesAliasesResponse> listener);
 }

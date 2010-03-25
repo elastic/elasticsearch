@@ -79,16 +79,24 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
     }
 
     /**
+     * Sets the indices this put mapping operation will execute on.
+     */
+    public PutMappingRequest indices(String[] indices) {
+        this.indices = indices;
+        return this;
+    }
+
+    /**
      * The indices the mappings will be put.
      */
-    String[] indices() {
+    public String[] indices() {
         return indices;
     }
 
     /**
      * The mapping type.
      */
-    String type() {
+    public String type() {
         return mappingType;
     }
 

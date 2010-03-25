@@ -52,6 +52,11 @@ public abstract class ShardReplicationOperationRequest implements ActionRequest 
         return this.index;
     }
 
+    public ShardReplicationOperationRequest index(String index) {
+        this.index = index;
+        return this;
+    }
+
     /**
      * Should the listener be called on a separate thread if needed.
      */

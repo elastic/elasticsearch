@@ -36,8 +36,6 @@ import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.settings.Settings;
 
-import static org.elasticsearch.action.Actions.*;
-
 /**
  * @author kimchy (shay.banon)
  */
@@ -110,8 +108,9 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
         RoutingTableValidation validation = clusterState.routingTable().validate(clusterState.metaData());
         ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), validation.failures());
 
-        String[] indices = processIndices(clusterState, request.indices());
-        for (String index : indices) {
+        request.indices(clusterState.metaData().concreteIndices(request.indices()));
+
+        for (String index : request.indices()) {
             IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
             IndexMetaData indexMetaData = clusterState.metaData().index(index);
             if (indexRoutingTable == null) {

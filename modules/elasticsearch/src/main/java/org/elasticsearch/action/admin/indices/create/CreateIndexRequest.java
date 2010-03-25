@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
@@ -33,6 +32,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static com.google.common.collect.Maps.*;
 import static org.elasticsearch.action.Actions.*;
 import static org.elasticsearch.util.TimeValue.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
@@ -54,7 +54,7 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
 
     private Settings settings = EMPTY_SETTINGS;
 
-    private Map<String, String> mappings = Maps.newHashMap();
+    private Map<String, String> mappings = newHashMap();
 
     private TimeValue timeout = new TimeValue(10, TimeUnit.SECONDS);
 
@@ -103,6 +103,14 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
      */
     public CreateIndexRequest settings(Settings settings) {
         this.settings = settings;
+        return this;
+    }
+
+    /**
+     * The settings to created the index with.
+     */
+    public CreateIndexRequest settings(Settings.Builder settings) {
+        this.settings = settings.build();
         return this;
     }
 

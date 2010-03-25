@@ -114,6 +114,10 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             this.listener = listener;
 
             clusterState = clusterService.state();
+
+            // update to concrete indices
+            request.indices(clusterState.metaData().concreteIndices(request.indices()));
+
             nodes = clusterState.nodes();
             shardsIts = shards(request, clusterState);
             expectedOps = shardsIts.size();

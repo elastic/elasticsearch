@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.google.common.collect.Sets;
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterService;
@@ -48,12 +47,14 @@ import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static com.google.common.collect.Maps.*;
+import static com.google.common.collect.Sets.*;
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.cluster.metadata.MetaData.*;
@@ -64,6 +65,7 @@ import static org.elasticsearch.util.settings.ImmutableSettings.*;
  * @author kimchy (Shay Banon)
  */
 public class MetaDataService extends AbstractComponent {
+
 
     private final ClusterService clusterService;
 
@@ -91,8 +93,50 @@ public class MetaDataService extends AbstractComponent {
 
     // TODO should find nicer solution than sync here, since we block for timeout (same for other ops)
 
+    public synchronized IndicesAliasesResult indicesAliases(final List<AliasAction> aliasActions) {
+        ClusterState clusterState = clusterService.state();
+
+        for (AliasAction aliasAction : aliasActions) {
+            if (!clusterState.metaData().hasIndex(aliasAction.index())) {
+                throw new IndexMissingException(new Index(aliasAction.index()));
+            }
+        }
+
+        clusterService.submitStateUpdateTask("index-aliases", new ClusterStateUpdateTask() {
+            @Override public ClusterState execute(ClusterState currentState) {
+                MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
+                for (AliasAction aliasAction : aliasActions) {
+                    IndexMetaData indexMetaData = builder.get(aliasAction.index());
+                    if (indexMetaData == null) {
+                        throw new IndexMissingException(new Index(aliasAction.index()));
+                    }
+                    Set<String> indexAliases = newHashSet(indexMetaData.settings().getAsArray("index.aliases"));
+                    if (aliasAction.actionType() == AliasAction.Type.ADD) {
+                        indexAliases.add(aliasAction.alias());
+                    } else if (aliasAction.actionType() == AliasAction.Type.REMOVE) {
+                        indexAliases.remove(aliasAction.alias());
+                    }
+
+                    Settings settings = settingsBuilder().put(indexMetaData.settings())
+                            .putArray("index.aliases", indexAliases.toArray(new String[indexAliases.size()]))
+                            .build();
+
+                    builder.put(newIndexMetaDataBuilder(indexMetaData).settings(settings));
+                }
+                return newClusterStateBuilder().state(currentState).metaData(builder).build();
+            }
+        });
+
+        return new IndicesAliasesResult();
+    }
+
     public synchronized CreateIndexResult createIndex(final String index, final Settings indexSettings, final Map<String, String> mappings, TimeValue timeout) throws IndexAlreadyExistsException {
-        if (clusterService.state().routingTable().hasIndex(index)) {
+        ClusterState clusterState = clusterService.state();
+
+        if (clusterState.routingTable().hasIndex(index)) {
+            throw new IndexAlreadyExistsException(new Index(index));
+        }
+        if (clusterState.metaData().hasIndex(index)) {
             throw new IndexAlreadyExistsException(new Index(index));
         }
         if (index.contains(" ")) {
@@ -112,6 +156,9 @@ public class MetaDataService extends AbstractComponent {
         }
         if (!Strings.validFileName(index)) {
             throw new InvalidIndexNameException(new Index(index), index, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+        }
+        if (clusterState.metaData().aliases().contains(index)) {
+            throw new InvalidIndexNameException(new Index(index), index, "an alias with the same name already exists");
         }
 
         final CountDownLatch latch = new CountDownLatch(clusterService.state().nodes().size());
@@ -306,7 +353,7 @@ public class MetaDataService extends AbstractComponent {
         }
 
         final CountDownLatch latch = new CountDownLatch(clusterService.state().nodes().size() * indices.length);
-        final Set<String> indicesSet = Sets.newHashSet(indices);
+        final Set<String> indicesSet = newHashSet(indices);
         final String fMappingType = mappingType;
         NodeMappingCreatedAction.Listener listener = new NodeMappingCreatedAction.Listener() {
             @Override public void onNodeMappingCreated(NodeMappingCreatedAction.NodeMappingCreatedResponse response) {
@@ -383,6 +430,12 @@ public class MetaDataService extends AbstractComponent {
 
         public boolean acknowledged() {
             return acknowledged;
+        }
+    }
+
+    public static class IndicesAliasesResult {
+
+        public IndicesAliasesResult() {
         }
     }
 }

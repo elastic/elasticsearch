@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
@@ -57,7 +58,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
 
     @Override protected void doExecute(final DeleteRequest deleteRequest, final ActionListener<DeleteResponse> listener) {
         if (autoCreateIndex) {
-            if (!clusterService.state().metaData().hasIndex(deleteRequest.index())) {
+            if (!clusterService.state().metaData().hasConcreteIndex(deleteRequest.index())) {
                 createIndexAction.execute(new CreateIndexRequest(deleteRequest.index()), new ActionListener<CreateIndexResponse>() {
                     @Override public void onResponse(CreateIndexResponse result) {
                         TransportDeleteAction.super.doExecute(deleteRequest, listener);
@@ -101,7 +102,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
         indexShard(shardRequest).delete(request.type(), request.id());
     }
 
-    @Override protected ShardsIterator shards(DeleteRequest request) {
+    @Override protected ShardsIterator shards(ClusterState clusterState, DeleteRequest request) {
         return indicesService.indexServiceSafe(request.index()).operationRouting()
                 .deleteShards(clusterService.state(), request.type(), request.id());
     }

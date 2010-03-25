@@ -106,6 +106,14 @@ public class SearchRequest implements ActionRequest {
     }
 
     /**
+     * Sets the indices the search will be executed on.
+     */
+    public SearchRequest indices(String[] indices) {
+        this.indices = indices;
+        return this;
+    }
+
+    /**
      * Should the listener be called on a separate thread if needed.
      */
     @Override public SearchRequest listenerThreaded(boolean listenerThreaded) {

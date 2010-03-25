@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.gateway.snapshot;
 import com.google.inject.Inject;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
@@ -64,7 +65,7 @@ public class TransportShardGatewaySnapshotAction extends TransportShardReplicati
         // silently ignore, we disable it with #ignoreBackups anyhow
     }
 
-    @Override protected ShardsIterator shards(ShardGatewaySnapshotRequest request) {
+    @Override protected ShardsIterator shards(ClusterState clusterState, ShardGatewaySnapshotRequest request) {
         return clusterService.state().routingTable().index(request.index()).shard(request.shardId()).shardsIt();
     }
 

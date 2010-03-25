@@ -70,6 +70,8 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                     for (IndexStatus indexStatus : response.indices().values()) {
                         builder.startObject(indexStatus.index());
 
+                        builder.array("aliases", indexStatus.settings().getAsArray("index.aliases"));
+
                         builder.startObject("settings");
                         for (Map.Entry<String, String> entry : indexStatus.settings().getAsMap().entrySet()) {
                             builder.field(entry.getKey(), entry.getValue());

@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.client.transport.action.admin.indices.create;
+package org.elasticsearch.client.transport.action.admin.indices.alias;
 
 import com.google.inject.Inject;
 import org.elasticsearch.action.TransportActions;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.client.transport.action.support.BaseClientTransportAction;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.settings.Settings;
@@ -30,13 +30,13 @@ import org.elasticsearch.util.settings.Settings;
 /**
  * @author kimchy (shay.banon)
  */
-public class ClientTransportCreateIndexAction extends BaseClientTransportAction<CreateIndexRequest, CreateIndexResponse> {
+public class ClientTransportIndicesAliasesAction extends BaseClientTransportAction<IndicesAliasesRequest, IndicesAliasesResponse> {
 
-    @Inject public ClientTransportCreateIndexAction(Settings settings, TransportService transportService) {
-        super(settings, transportService, CreateIndexResponse.class);
+    @Inject public ClientTransportIndicesAliasesAction(Settings settings, TransportService transportService) {
+        super(settings, transportService, IndicesAliasesResponse.class);
     }
 
     @Override protected String action() {
-        return TransportActions.Admin.Indices.CREATE;
+        return TransportActions.Admin.Indices.ALIASES;
     }
 }

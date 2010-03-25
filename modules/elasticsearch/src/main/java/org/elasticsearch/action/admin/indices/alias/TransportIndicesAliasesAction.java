@@ -17,55 +17,45 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.mapping.put;
+package org.elasticsearch.action.admin.indices.alias;
 
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaDataService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.settings.Settings;
 
 /**
- * Put mapping action.
- *
  * @author kimchy (shay.banon)
  */
-public class TransportPutMappingAction extends TransportMasterNodeOperationAction<PutMappingRequest, PutMappingResponse> {
+public class TransportIndicesAliasesAction extends TransportMasterNodeOperationAction<IndicesAliasesRequest, IndicesAliasesResponse> {
 
     private final MetaDataService metaDataService;
 
-    @Inject public TransportPutMappingAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                             ThreadPool threadPool, MetaDataService metaDataService) {
+    @Inject public TransportIndicesAliasesAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                                 ThreadPool threadPool, MetaDataService metaDataService) {
         super(settings, transportService, clusterService, threadPool);
         this.metaDataService = metaDataService;
     }
 
-
     @Override protected String transportAction() {
-        return TransportActions.Admin.Indices.Mapping.PUT;
+        return TransportActions.Admin.Indices.ALIASES;
     }
 
-    @Override protected PutMappingRequest newRequest() {
-        return new PutMappingRequest();
+    @Override protected IndicesAliasesRequest newRequest() {
+        return new IndicesAliasesRequest();
     }
 
-    @Override protected PutMappingResponse newResponse() {
-        return new PutMappingResponse();
+    @Override protected IndicesAliasesResponse newResponse() {
+        return new IndicesAliasesResponse();
     }
 
-    @Override protected PutMappingResponse masterOperation(PutMappingRequest request) throws ElasticSearchException {
-        ClusterState clusterState = clusterService.state();
-
-        // update to concrete indices
-        request.indices(clusterState.metaData().concreteIndices(request.indices()));
-        final String[] indices = request.indices();
-
-        MetaDataService.PutMappingResult result = metaDataService.putMapping(indices, request.type(), request.mappingSource(), request.ignoreConflicts(), request.timeout());
-        return new PutMappingResponse(result.acknowledged());
+    @Override protected IndicesAliasesResponse masterOperation(IndicesAliasesRequest request) throws ElasticSearchException {
+        MetaDataService.IndicesAliasesResult indicesAliasesResult = metaDataService.indicesAliases(request.aliasActions());
+        return new IndicesAliasesResponse();
     }
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.routing.ShardsIterator;
@@ -80,25 +81,23 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                 indexRequest.opType(IndexRequest.OpType.CREATE);
             }
         }
-        if (autoCreateIndex) {
-            if (!clusterService.state().metaData().hasIndex(indexRequest.index())) {
-                createIndexAction.execute(new CreateIndexRequest(indexRequest.index()), new ActionListener<CreateIndexResponse>() {
-                    @Override public void onResponse(CreateIndexResponse result) {
-                        TransportIndexAction.super.doExecute(indexRequest, listener);
-                    }
+        if (autoCreateIndex && !clusterService.state().metaData().hasConcreteIndex(indexRequest.index())) {
+            createIndexAction.execute(new CreateIndexRequest(indexRequest.index()), new ActionListener<CreateIndexResponse>() {
+                @Override public void onResponse(CreateIndexResponse result) {
+                    TransportIndexAction.super.doExecute(indexRequest, listener);
+                }
 
-                    @Override public void onFailure(Throwable e) {
-                        if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {
-                            // we have the index, do it
-                            TransportIndexAction.super.doExecute(indexRequest, listener);
-                        } else {
-                            listener.onFailure(e);
-                        }
+                @Override public void onFailure(Throwable e) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {
+                        // we have the index, do it
+                        TransportIndexAction.super.doExecute(indexRequest, listener);
+                    } else {
+                        listener.onFailure(e);
                     }
-                });
-            } else {
-                super.doExecute(indexRequest, listener);
-            }
+                }
+            });
+        } else {
+            super.doExecute(indexRequest, listener);
         }
     }
 
@@ -114,7 +113,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         return TransportActions.INDEX;
     }
 
-    @Override protected ShardsIterator shards(IndexRequest request) {
+    @Override protected ShardsIterator shards(ClusterState clusterState, IndexRequest request) {
         return indicesService.indexServiceSafe(request.index()).operationRouting()
                 .indexShards(clusterService.state(), request.type(), request.id());
     }

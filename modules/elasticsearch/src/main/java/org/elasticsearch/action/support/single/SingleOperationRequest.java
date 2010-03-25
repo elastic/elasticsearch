@@ -66,6 +66,11 @@ public abstract class SingleOperationRequest implements ActionRequest {
         return index;
     }
 
+    SingleOperationRequest index(String index) {
+        this.index = index;
+        return this;
+    }
+
     public String type() {
         return type;
     }

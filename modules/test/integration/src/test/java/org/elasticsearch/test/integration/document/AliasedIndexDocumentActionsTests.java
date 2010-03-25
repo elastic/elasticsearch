@@ -17,18 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.action;
+package org.elasticsearch.test.integration.document;
+
+import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.util.settings.ImmutableSettings.*;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class Actions {
+public class AliasedIndexDocumentActionsTests extends DocumentActionsTests {
 
-    public static ActionRequestValidationException addValidationError(String error, ActionRequestValidationException validationException) {
-        if (validationException == null) {
-            validationException = new ActionRequestValidationException();
-        }
-        validationException.addValidationError(error);
-        return validationException;
+    protected void createIndex() {
+        logger.info("Creating index [test1] with alias [test]");
+        client1.admin().indices().create(createIndexRequest("test1").settings(settingsBuilder().putArray("index.aliases", "test"))).actionGet();
+    }
+
+    @Override protected String getConcreteIndexName() {
+        return "test1";
     }
 }

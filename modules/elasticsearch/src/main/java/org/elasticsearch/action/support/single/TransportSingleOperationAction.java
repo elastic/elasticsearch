@@ -99,7 +99,10 @@ public abstract class TransportSingleOperationAction<Request extends SingleOpera
 
             nodes = clusterState.nodes();
 
-            this.shards = indicesService.indexServiceSafe(request.index).operationRouting()
+            // update to the concrete shard to use
+            request.index(clusterState.metaData().concreteIndex(request.index()));
+
+            this.shards = indicesService.indexServiceSafe(request.index()).operationRouting()
                     .getShards(clusterState, request.type(), request.id());
             this.shardsIt = shards.iterator();
         }

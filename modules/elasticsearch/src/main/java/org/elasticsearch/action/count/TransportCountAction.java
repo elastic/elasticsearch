@@ -40,7 +40,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static com.google.common.collect.Lists.*;
-import static org.elasticsearch.action.Actions.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -76,7 +75,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
     }
 
     @Override protected GroupShardsIterator shards(CountRequest request, ClusterState clusterState) {
-        return indicesService.searchShards(clusterState, processIndices(clusterState, request.indices()), request.queryHint());
+        return indicesService.searchShards(clusterState, request.indices(), request.queryHint());
     }
 
     @Override protected CountResponse newResponse(CountRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {

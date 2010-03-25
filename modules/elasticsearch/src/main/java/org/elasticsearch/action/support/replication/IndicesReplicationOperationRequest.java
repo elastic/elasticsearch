@@ -46,6 +46,11 @@ public class IndicesReplicationOperationRequest implements ActionRequest {
         return this.indices;
     }
 
+    public IndicesReplicationOperationRequest indices(String[] indices) {
+        this.indices = indices;
+        return this;
+    }
+
     @Override public ActionRequestValidationException validate() {
         return null;
     }

@@ -22,9 +22,9 @@ package org.elasticsearch.action.support.replication;
 import com.google.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.Actions;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class TransportIndicesReplicationOperationAction<Request extends IndicesReplicationOperationRequest, Response extends ActionResponse, IndexRequest extends IndexReplicationOperationRequest, IndexResponse extends ActionResponse, ShardRequest extends ShardReplicationOperationRequest, ShardResponse extends ActionResponse>
         extends BaseAction<Request, Response> {
@@ -57,7 +57,12 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
     }
 
     @Override protected void doExecute(final Request request, final ActionListener<Response> listener) {
-        String[] indices = Actions.processIndices(clusterService.state(), request.indices());
+        ClusterState clusterState = clusterService.state();
+
+        // update to actual indices
+        request.indices(clusterState.metaData().concreteIndices(request.indices()));
+        String[] indices = request.indices();
+
         final AtomicInteger indexCounter = new AtomicInteger();
         final AtomicInteger completionCounter = new AtomicInteger(indices.length);
         final AtomicReferenceArray<Object> indexResponses = new AtomicReferenceArray<Object>(indices.length);

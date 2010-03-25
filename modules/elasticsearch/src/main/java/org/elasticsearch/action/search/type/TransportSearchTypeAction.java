@@ -42,7 +42,6 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.action.Actions.*;
 import static org.elasticsearch.action.search.type.TransportSearchHelper.*;
 
 /**
@@ -103,7 +102,9 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
 
             nodes = clusterState.nodes();
 
-            shardsIts = indicesService.searchShards(clusterState, processIndices(clusterState, request.indices()), request.queryHint());
+            request.indices(clusterState.metaData().concreteIndices(request.indices()));
+
+            shardsIts = indicesService.searchShards(clusterState, request.indices(), request.queryHint());
             expectedSuccessfulOps = shardsIts.size();
             expectedTotalOps = shardsIts.totalSize();
         }

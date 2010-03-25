@@ -142,6 +142,14 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     }
 
     /**
+     * Sets the index the index operation will happen on.
+     */
+    @Override public IndexRequest index(String index) {
+        super.index(index);
+        return this;
+    }
+
+    /**
      * Should the listener be called on a separate thread if needed.
      */
     @Override public IndexRequest listenerThreaded(boolean threadedListener) {

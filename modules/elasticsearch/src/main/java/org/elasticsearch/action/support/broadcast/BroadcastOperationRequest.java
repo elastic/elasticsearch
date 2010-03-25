@@ -52,6 +52,11 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
         return indices;
     }
 
+    public BroadcastOperationRequest indices(String[] indices) {
+        this.indices = indices;
+        return this;
+    }
+
     public String queryHint() {
         return queryHint;
     }

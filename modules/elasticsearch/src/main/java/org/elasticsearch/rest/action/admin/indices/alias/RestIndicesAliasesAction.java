@@ -1,0 +1,138 @@
+/*
+ * Licensed to Elastic Search and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Elastic Search licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.rest.action.admin.indices.alias;
+
+import com.google.inject.Inject;
+import org.codehaus.jackson.JsonParser;
+import org.codehaus.jackson.JsonToken;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.AliasAction;
+import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestJsonBuilder;
+import org.elasticsearch.util.json.Jackson;
+import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.settings.Settings;
+
+import java.io.IOException;
+
+import static org.elasticsearch.rest.RestRequest.Method.*;
+import static org.elasticsearch.rest.RestResponse.Status.*;
+
+/**
+ * @author kimchy (shay.banon)
+ */
+public class RestIndicesAliasesAction extends BaseRestHandler {
+
+    @Inject public RestIndicesAliasesAction(Settings settings, Client client, RestController controller) {
+        super(settings, client);
+        controller.registerHandler(POST, "/_aliases", this);
+    }
+
+    @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
+        IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
+        try {
+            // {
+            //     actions : [
+            //         { add : { index : "test1", alias : "alias1" } }
+            //         { remove : { index : "test1", alias : "alias1" } }
+            //     ]
+            // }
+            JsonParser jp = Jackson.defaultJsonFactory().createJsonParser(request.contentAsStream());
+            JsonToken token = jp.nextToken();
+            if (token == null) {
+                throw new ElasticSearchIllegalArgumentException("No action is specified");
+            }
+            while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
+                if (token == JsonToken.START_ARRAY) {
+                    while ((token = jp.nextToken()) != JsonToken.END_ARRAY) {
+                        if (token == JsonToken.FIELD_NAME) {
+                            String action = jp.getCurrentName();
+                            AliasAction.Type type;
+                            if ("add".equals(action)) {
+                                type = AliasAction.Type.ADD;
+                            } else if ("remove".equals(action)) {
+                                type = AliasAction.Type.REMOVE;
+                            } else {
+                                throw new ElasticSearchIllegalArgumentException("Alias action [" + action + "] not supported");
+                            }
+                            String index = null;
+                            String alias = null;
+                            String currentFieldName = null;
+                            while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
+                                if (token == JsonToken.FIELD_NAME) {
+                                    currentFieldName = jp.getCurrentName();
+                                } else if (token == JsonToken.VALUE_STRING) {
+                                    if ("index".equals(currentFieldName)) {
+                                        index = jp.getText();
+                                    } else if ("alias".equals(currentFieldName)) {
+                                        alias = jp.getText();
+                                    }
+                                }
+                            }
+                            if (index == null) {
+                                throw new ElasticSearchIllegalArgumentException("Alias action [" + action + "] requires an [index] to be set");
+                            }
+                            if (alias == null) {
+                                throw new ElasticSearchIllegalArgumentException("Alias action [" + action + "] requires an [alias] to be set");
+                            }
+                            if (type == AliasAction.Type.ADD) {
+                                indicesAliasesRequest.addAlias(index, alias);
+                            } else if (type == AliasAction.Type.REMOVE) {
+                                indicesAliasesRequest.removeAlias(index, alias);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            try {
+                channel.sendResponse(new JsonThrowableRestResponse(request, e));
+            } catch (IOException e1) {
+                logger.warn("Failed to send response", e1);
+                return;
+            }
+        }
+        client.admin().indices().aliases(indicesAliasesRequest, new ActionListener<IndicesAliasesResponse>() {
+            @Override public void onResponse(IndicesAliasesResponse response) {
+                try {
+                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                    builder.startObject()
+                            .field("ok", true)
+                            .endObject();
+                    channel.sendResponse(new JsonRestResponse(request, OK, builder));
+                } catch (Exception e) {
+                    onFailure(e);
+                }
+            }
+
+            @Override public void onFailure(Throwable e) {
+                try {
+                    channel.sendResponse(new JsonThrowableRestResponse(request, e));
+                } catch (IOException e1) {
+                    logger.error("Failed to send failure response", e1);
+                }
+            }
+        });
+    }
+}

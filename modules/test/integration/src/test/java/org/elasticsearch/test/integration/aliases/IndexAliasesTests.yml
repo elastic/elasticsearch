@@ -1,0 +1,8 @@
+cluster:
+  routing:
+    schedule: 100ms
+index:
+  numberOfShards: 5
+  numberOfReplicas: 1
+action:
+  autoCreateIndex: false

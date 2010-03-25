@@ -22,6 +22,9 @@ package org.elasticsearch.client.server;
 import com.google.inject.Inject;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -71,10 +74,13 @@ public class ServerIndicesAdminClient extends AbstractComponent implements Indic
 
     private final TransportGatewaySnapshotAction gatewaySnapshotAction;
 
+    private final TransportIndicesAliasesAction indicesAliasesAction;
+
     @Inject public ServerIndicesAdminClient(Settings settings, TransportIndicesStatusAction indicesStatusAction,
                                             TransportCreateIndexAction createIndexAction, TransportDeleteIndexAction deleteIndexAction,
                                             TransportRefreshAction refreshAction, TransportFlushAction flushAction, TransportOptimizeAction optimizeAction,
-                                            TransportPutMappingAction putMappingAction, TransportGatewaySnapshotAction gatewaySnapshotAction) {
+                                            TransportPutMappingAction putMappingAction, TransportGatewaySnapshotAction gatewaySnapshotAction,
+                                            TransportIndicesAliasesAction indicesAliasesAction) {
         super(settings);
         this.indicesStatusAction = indicesStatusAction;
         this.createIndexAction = createIndexAction;
@@ -84,6 +90,7 @@ public class ServerIndicesAdminClient extends AbstractComponent implements Indic
         this.optimizeAction = optimizeAction;
         this.putMappingAction = putMappingAction;
         this.gatewaySnapshotAction = gatewaySnapshotAction;
+        this.indicesAliasesAction = indicesAliasesAction;
     }
 
     @Override public ActionFuture<IndicesStatusResponse> status(IndicesStatusRequest request) {
@@ -148,5 +155,13 @@ public class ServerIndicesAdminClient extends AbstractComponent implements Indic
 
     @Override public void gatewaySnapshot(GatewaySnapshotRequest request, ActionListener<GatewaySnapshotResponse> listener) {
         gatewaySnapshotAction.execute(request, listener);
+    }
+
+    @Override public ActionFuture<IndicesAliasesResponse> indicesAliases(IndicesAliasesRequest request) {
+        return indicesAliasesAction.execute(request);
+    }
+
+    @Override public void aliases(IndicesAliasesRequest request, ActionListener<IndicesAliasesResponse> listener) {
+        indicesAliasesAction.execute(request, listener);
     }
 }

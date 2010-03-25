@@ -97,7 +97,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     protected abstract void shardOperationOnBackup(ShardOperationRequest shardRequest);
 
-    protected abstract ShardsIterator shards(Request request) throws ElasticSearchException;
+    protected abstract ShardsIterator shards(ClusterState clusterState, Request request) throws ElasticSearchException;
 
     /**
      * Should the operations be performed on the backups as well. Defaults to <tt>false</tt> meaning operations
@@ -221,9 +221,11 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
          */
         public boolean start(final boolean fromClusterEvent) throws ElasticSearchException {
             ClusterState clusterState = clusterService.state();
+            // update to the concrete index
+            request.index(clusterState.metaData().concreteIndex(request.index()));
             nodes = clusterState.nodes();
             try {
-                shards = shards(request);
+                shards = shards(clusterState, request);
             } catch (Exception e) {
                 listener.onFailure(e);
                 return true;

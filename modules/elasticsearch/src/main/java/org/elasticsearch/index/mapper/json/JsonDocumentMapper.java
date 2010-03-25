@@ -44,7 +44,8 @@ import static org.elasticsearch.util.json.JsonBuilder.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class JsonDocumentMapper implements DocumentMapper, ToJson {
+public class
+        JsonDocumentMapper implements DocumentMapper, ToJson {
 
     public static class Builder {
 

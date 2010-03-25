@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.util.MapBuilder;
@@ -39,7 +40,7 @@ import java.util.Map;
 import static org.elasticsearch.util.settings.ImmutableSettings.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 @Immutable
 public class IndexMetaData {
@@ -49,6 +50,8 @@ public class IndexMetaData {
     public static final String SETTING_NUMBER_OF_REPLICAS = "index.numberOfReplicas";
 
     private final String index;
+
+    private final ImmutableSet<String> aliases;
 
     private final Settings settings;
 
@@ -63,6 +66,8 @@ public class IndexMetaData {
         this.settings = settings;
         this.mappings = mappings;
         this.totalNumberOfShards = numberOfShards() * (numberOfReplicas() + 1);
+
+        this.aliases = ImmutableSet.of(settings.getAsArray("index.aliases"));
     }
 
     public String index() {
@@ -83,6 +88,10 @@ public class IndexMetaData {
 
     public Settings settings() {
         return settings;
+    }
+
+    public ImmutableSet<String> aliases() {
+        return this.aliases;
     }
 
     public ImmutableMap<String, String> mappings() {

@@ -17,18 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.action;
+package org.elasticsearch.action.admin.indices.alias;
+
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
+
+import java.io.IOException;
 
 /**
+ * A response for a create index action.
+ *
  * @author kimchy (shay.banon)
  */
-public class Actions {
+public class IndicesAliasesResponse implements ActionResponse, Streamable {
 
-    public static ActionRequestValidationException addValidationError(String error, ActionRequestValidationException validationException) {
-        if (validationException == null) {
-            validationException = new ActionRequestValidationException();
-        }
-        validationException.addValidationError(error);
-        return validationException;
+    IndicesAliasesResponse() {
+    }
+
+    @Override public void readFrom(StreamInput in) throws IOException {
+    }
+
+    @Override public void writeTo(StreamOutput out) throws IOException {
     }
 }

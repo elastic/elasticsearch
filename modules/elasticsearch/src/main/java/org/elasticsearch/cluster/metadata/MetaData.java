@@ -20,9 +20,14 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import com.google.common.collect.UnmodifiableIterator;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.util.MapBuilder;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.concurrent.Immutable;
@@ -34,11 +39,14 @@ import org.elasticsearch.util.json.ToJson;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
+import java.util.*;
 
+import static com.google.common.collect.Lists.*;
+import static com.google.common.collect.Sets.*;
 import static org.elasticsearch.util.MapBuilder.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 @Immutable
 public class MetaData implements Iterable<IndexMetaData> {
@@ -52,6 +60,13 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     private final transient int totalNumberOfShards;
 
+    private final String[] allIndices;
+
+    private final ImmutableSet<String> aliases;
+
+    private final ImmutableMap<String, String[]> aliasAndIndexToIndexMap;
+    private final ImmutableMap<String, ImmutableSet<String>> aliasAndIndexToIndexMap2;
+
     private MetaData(ImmutableMap<String, IndexMetaData> indices, int maxNumberOfShardsPerNode) {
         this.indices = ImmutableMap.copyOf(indices);
         this.maxNumberOfShardsPerNode = maxNumberOfShardsPerNode;
@@ -60,10 +75,116 @@ public class MetaData implements Iterable<IndexMetaData> {
             totalNumberOfShards += indexMetaData.totalNumberOfShards();
         }
         this.totalNumberOfShards = totalNumberOfShards;
+
+        // build all indices map
+        List<String> allIndicesLst = Lists.newArrayList();
+        for (IndexMetaData indexMetaData : indices.values()) {
+            allIndicesLst.add(indexMetaData.index());
+        }
+        allIndices = allIndicesLst.toArray(new String[allIndicesLst.size()]);
+
+        // build aliases set
+        Set<String> aliases = newHashSet();
+        for (IndexMetaData indexMetaData : indices.values()) {
+            aliases.addAll(indexMetaData.aliases());
+        }
+        this.aliases = ImmutableSet.copyOf(aliases);
+
+        // build aliasAndIndex to Index map
+        MapBuilder<String, Set<String>> tmpAliasAndIndexToIndexBuilder = newMapBuilder();
+        for (IndexMetaData indexMetaData : indices.values()) {
+            Set<String> lst = tmpAliasAndIndexToIndexBuilder.get(indexMetaData.index());
+            if (lst == null) {
+                lst = newHashSet();
+                tmpAliasAndIndexToIndexBuilder.put(indexMetaData.index(), lst);
+            }
+            lst.add(indexMetaData.index());
+
+            for (String alias : indexMetaData.aliases()) {
+                lst = tmpAliasAndIndexToIndexBuilder.get(alias);
+                if (lst == null) {
+                    lst = newHashSet();
+                    tmpAliasAndIndexToIndexBuilder.put(alias, lst);
+                }
+                lst.add(indexMetaData.index());
+            }
+        }
+
+        MapBuilder<String, String[]> aliasAndIndexToIndexBuilder = newMapBuilder();
+        for (Map.Entry<String, Set<String>> entry : tmpAliasAndIndexToIndexBuilder.map().entrySet()) {
+            aliasAndIndexToIndexBuilder.put(entry.getKey(), entry.getValue().toArray(new String[entry.getValue().size()]));
+        }
+        this.aliasAndIndexToIndexMap = aliasAndIndexToIndexBuilder.immutableMap();
+
+        MapBuilder<String, ImmutableSet<String>> aliasAndIndexToIndexBuilder2 = newMapBuilder();
+        for (Map.Entry<String, Set<String>> entry : tmpAliasAndIndexToIndexBuilder.map().entrySet()) {
+            aliasAndIndexToIndexBuilder2.put(entry.getKey(), ImmutableSet.copyOf(entry.getValue()));
+        }
+        this.aliasAndIndexToIndexMap2 = aliasAndIndexToIndexBuilder2.immutableMap();
+    }
+
+    public ImmutableSet<String> aliases() {
+        return this.aliases;
+    }
+
+    /**
+     * Returns all the concrete indices.
+     */
+    public String[] concreteAllIndices() {
+        return allIndices;
+    }
+
+    /**
+     * Translates the provided indices (possibly aliased) into actual indices.
+     */
+    public String[] concreteIndices(String[] indices) throws IndexMissingException {
+        if (indices == null || indices.length == 0) {
+            return concreteAllIndices();
+        }
+        if (indices.length == 1) {
+            if (indices[0].length() == 0) {
+                return concreteAllIndices();
+            }
+            if (indices[0].equals("_all")) {
+                return concreteAllIndices();
+            }
+        }
+
+        ArrayList<String> actualIndices = newArrayListWithExpectedSize(indices.length);
+        for (String index : indices) {
+            String[] actualLst = aliasAndIndexToIndexMap.get(index);
+            if (actualLst == null) {
+                throw new IndexMissingException(new Index(index));
+            }
+            for (String x : actualLst) {
+                actualIndices.add(x);
+            }
+        }
+        return actualIndices.toArray(new String[actualIndices.size()]);
+    }
+
+    public String concreteIndex(String index) throws IndexMissingException, ElasticSearchIllegalArgumentException {
+        // a quick check, if this is an actual index, if so, return it
+        if (indices.containsKey(index)) {
+            return index;
+        }
+        // not an actual index, fetch from an alias
+        String[] lst = aliasAndIndexToIndexMap.get(index);
+        if (lst == null) {
+            throw new IndexMissingException(new Index(index));
+        }
+        if (lst.length > 1) {
+            throw new ElasticSearchIllegalArgumentException("Alias [" + index + "] has more than one indices associated with it [" + Arrays.toString(lst) + "], can't execute a single index op");
+        }
+        return lst[0];
     }
 
     public boolean hasIndex(String index) {
         return indices.containsKey(index);
+    }
+
+    public boolean hasConcreteIndex(String index) {
+        return aliasAndIndexToIndexMap2.get(index) != null;
     }
 
     public IndexMetaData index(String index) {
@@ -104,6 +225,10 @@ public class MetaData implements Iterable<IndexMetaData> {
         public Builder put(IndexMetaData indexMetaData) {
             indices.put(indexMetaData.index(), indexMetaData);
             return this;
+        }
+
+        public IndexMetaData get(String index) {
+            return indices.get(index);
         }
 
         public Builder remove(String index) {

@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingReques
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingRequest;
 import org.elasticsearch.action.admin.cluster.ping.single.SinglePingRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -200,6 +201,15 @@ public class Requests {
      */
     public static PutMappingRequest putMappingRequest(String... indices) {
         return new PutMappingRequest(indices);
+    }
+
+    /**
+     * Creates an index aliases request allowing to add and remove aliases.
+     *
+     * @return The index aliases request
+     */
+    public static IndicesAliasesRequest indexAliasesRequest() {
+        return new IndicesAliasesRequest();
     }
 
     /**

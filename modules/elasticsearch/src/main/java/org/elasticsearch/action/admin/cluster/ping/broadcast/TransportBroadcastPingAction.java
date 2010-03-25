@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static com.google.common.collect.Lists.*;
-import static org.elasticsearch.action.Actions.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -63,7 +62,7 @@ public class TransportBroadcastPingAction extends TransportBroadcastOperationAct
     }
 
     @Override protected GroupShardsIterator shards(BroadcastPingRequest request, ClusterState clusterState) {
-        return indicesService.searchShards(clusterState, processIndices(clusterState, request.indices()), request.queryHint());
+        return indicesService.searchShards(clusterState, request.indices(), request.queryHint());
     }
 
     @Override protected BroadcastPingResponse newResponse(BroadcastPingRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {

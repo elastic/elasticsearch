@@ -41,7 +41,7 @@ import static org.elasticsearch.rest.RestResponse.Status.*;
 import static org.elasticsearch.util.TimeValue.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class RestCreateIndexAction extends BaseRestHandler {
 

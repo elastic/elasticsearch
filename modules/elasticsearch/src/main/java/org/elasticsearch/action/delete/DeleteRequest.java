@@ -83,6 +83,14 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
     }
 
     /**
+     * Sets the index the delete will happen on.
+     */
+    @Override public DeleteRequest index(String index) {
+        super.index(index);
+        return this;
+    }
+
+    /**
      * Should the listener be called on a separate thread if needed.
      */
     @Override public DeleteRequest listenerThreaded(boolean threadedListener) {

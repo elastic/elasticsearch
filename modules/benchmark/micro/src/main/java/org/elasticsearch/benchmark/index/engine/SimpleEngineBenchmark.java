@@ -70,6 +70,8 @@ public class SimpleEngineBenchmark {
     private volatile int lastRefreshedId = 0;
 
 
+    private boolean create = false;
+
     private int searcherIterations = 10;
 
     private Thread[] searcherThreads = new Thread[1];
@@ -134,6 +136,11 @@ public class SimpleEngineBenchmark {
         return this;
     }
 
+    public SimpleEngineBenchmark create(boolean create) {
+        this.create = create;
+        return this;
+    }
+
     public SimpleEngineBenchmark build() {
         for (int i = 0; i < searcherThreads.length; i++) {
             searcherThreads[i] = new Thread(new SearcherThread(), "Searcher[" + i + "]");
@@ -154,7 +161,11 @@ public class SimpleEngineBenchmark {
             String sId = Integer.toString(id);
             Document doc = doc().add(field("_id", sId))
                     .add(field("content", contentItem)).build();
-            engine.index(new Engine.Index(new Term("_id", sId), doc, Lucene.STANDARD_ANALYZER, "type", sId, TRANSLOG_PAYLOAD));
+            if (create) {
+                engine.create(new Engine.Create(doc, Lucene.STANDARD_ANALYZER, "type", sId, TRANSLOG_PAYLOAD));
+            } else {
+                engine.index(new Engine.Index(new Term("_id", sId), doc, Lucene.STANDARD_ANALYZER, "type", sId, TRANSLOG_PAYLOAD));
+            }
         }
         engine.refresh(new Engine.Refresh(true));
         stopWatch.stop();
@@ -263,7 +274,11 @@ public class SimpleEngineBenchmark {
                     String sId = Integer.toString(id);
                     Document doc = doc().add(field("_id", sId))
                             .add(field("content", content(id))).build();
-                    engine.index(new Engine.Index(new Term("_id", sId), doc, Lucene.STANDARD_ANALYZER, "type", sId, TRANSLOG_PAYLOAD));
+                    if (create) {
+                        engine.create(new Engine.Create(doc, Lucene.STANDARD_ANALYZER, "type", sId, TRANSLOG_PAYLOAD));
+                    } else {
+                        engine.index(new Engine.Index(new Term("_id", sId), doc, Lucene.STANDARD_ANALYZER, "type", sId, TRANSLOG_PAYLOAD));
+                    }
                 }
             } catch (Exception e) {
                 System.out.println("Writer thread failed");
@@ -297,6 +312,7 @@ public class SimpleEngineBenchmark {
                 .writerThreads(10).writerIterations(10000)
                 .refreshSchedule(new TimeValue(1, TimeUnit.SECONDS))
                 .flushSchedule(new TimeValue(1, TimeUnit.MINUTES))
+                .create(false)
                 .build();
 
         benchmark.run();

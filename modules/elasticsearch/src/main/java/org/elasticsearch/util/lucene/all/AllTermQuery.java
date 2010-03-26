@@ -33,6 +33,8 @@ import java.io.IOException;
 import static org.apache.lucene.analysis.payloads.PayloadHelper.*;
 
 /**
+ * A term query that takes all payload boost values into account.
+ *
  * @author kimchy (shay.banon)
  */
 public class AllTermQuery extends SpanTermQuery {

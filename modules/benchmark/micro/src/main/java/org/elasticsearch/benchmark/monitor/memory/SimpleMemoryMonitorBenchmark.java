@@ -23,14 +23,17 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.server.Server;
 import org.elasticsearch.util.StopWatch;
+import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
 
+import java.io.IOException;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.server.ServerBuilder.*;
+import static org.elasticsearch.util.json.JsonBuilder.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.*;
 
 /**
@@ -43,6 +46,7 @@ public class SimpleMemoryMonitorBenchmark {
 
         Settings settings = settingsBuilder()
                 .put("cluster.routing.schedule", 200, TimeUnit.MILLISECONDS)
+                .put("index.engine.robin.refreshInterval", 1, TimeUnit.SECONDS)
                 .put(SETTING_NUMBER_OF_SHARDS, 5)
                 .put(SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();
@@ -78,7 +82,7 @@ public class SimpleMemoryMonitorBenchmark {
         server2.close();
     }
 
-    private static String source(String id, String nameValue) {
-        return "{ type1 : { \"id\" : \"" + id + "\", \"name\" : \"" + nameValue + "\" } }";
+    private static JsonBuilder source(String id, String nameValue) throws IOException {
+        return jsonBuilder().startObject().field("id", id).field("name", nameValue).endObject();
     }
 }

@@ -31,7 +31,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.lucene.Lucene;
-import org.elasticsearch.util.lucene.all.AllAnalyzer;
 import org.elasticsearch.util.lucene.all.AllTermQuery;
 
 import java.io.IOException;
@@ -91,8 +90,6 @@ public class JsonAllFieldMapper extends JsonFieldMapper<Void> implements AllFiel
 
 
     private boolean enabled;
-
-    private AllAnalyzer allAnalyzer;
 
     public JsonAllFieldMapper() {
         this(Defaults.NAME, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, null, null, Defaults.ENABLED);

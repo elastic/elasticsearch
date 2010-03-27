@@ -25,6 +25,7 @@ import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.fs.FsGateway;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexException;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -64,7 +65,19 @@ public class FsIndexGateway extends AbstractIndexComponent implements IndexGatew
             indexGatewayHome = new File(location);
         }
         this.location = location;
-        indexGatewayHome.mkdirs();
+
+        if (!(indexGatewayHome.exists() && indexGatewayHome.isDirectory())) {
+            boolean result;
+            for (int i = 0; i < 5; i++) {
+                result = indexGatewayHome.mkdirs();
+                if (result) {
+                    break;
+                }
+            }
+        }
+        if (!(indexGatewayHome.exists() && indexGatewayHome.isDirectory())) {
+            throw new IndexException(index, "Failed to create index gateway at [" + indexGatewayHome + "]");
+        }
     }
 
     @Override public Class<? extends IndexShardGateway> shardGatewayClass() {

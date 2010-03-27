@@ -22,12 +22,17 @@ package org.elasticsearch.util.component;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.util.settings.Settings;
 
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+
 /**
  * @author kimchy (shay.banon)
  */
 public abstract class AbstractLifecycleComponent<T> extends AbstractComponent implements LifecycleComponent<T> {
 
     protected final Lifecycle lifecycle = new Lifecycle();
+
+    private final List<LifecycleListener> listeners = new CopyOnWriteArrayList<LifecycleListener>();
 
     protected AbstractLifecycleComponent(Settings settings) {
         super(settings);
@@ -45,11 +50,25 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
         return this.lifecycle.state();
     }
 
+    @Override public void addLifecycleListener(LifecycleListener listener) {
+        listeners.add(listener);
+    }
+
+    @Override public void removeLifecycleListener(LifecycleListener listener) {
+        listeners.remove(listener);
+    }
+
     @SuppressWarnings({"unchecked"}) @Override public T start() throws ElasticSearchException {
         if (!lifecycle.moveToStarted()) {
             return (T) this;
         }
+        for (LifecycleListener listener : listeners) {
+            listener.beforeStart();
+        }
         doStart();
+        for (LifecycleListener listener : listeners) {
+            listener.afterStart();
+        }
         return (T) this;
     }
 
@@ -59,7 +78,13 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
         if (!lifecycle.moveToStopped()) {
             return (T) this;
         }
+        for (LifecycleListener listener : listeners) {
+            listener.beforeStop();
+        }
         doStop();
+        for (LifecycleListener listener : listeners) {
+            listener.afterStop();
+        }
         return (T) this;
     }
 
@@ -72,7 +97,13 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
         if (!lifecycle.moveToClosed()) {
             return;
         }
+        for (LifecycleListener listener : listeners) {
+            listener.beforeClose();
+        }
         doClose();
+        for (LifecycleListener listener : listeners) {
+            listener.afterClose();
+        }
     }
 
     protected abstract void doClose() throws ElasticSearchException;

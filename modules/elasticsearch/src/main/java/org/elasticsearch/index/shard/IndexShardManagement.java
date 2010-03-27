@@ -28,6 +28,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.jmx.JmxService;
 import org.elasticsearch.jmx.MBean;
 import org.elasticsearch.jmx.ManagedAttribute;
+import org.elasticsearch.util.component.CloseableComponent;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
@@ -38,7 +39,7 @@ import static org.elasticsearch.index.IndexServiceManagement.*;
  * @author kimchy (Shay Banon)
  */
 @MBean(objectName = "", description = "")
-public class IndexShardManagement extends AbstractIndexShardComponent {
+public class IndexShardManagement extends AbstractIndexShardComponent implements CloseableComponent {
 
     public static String buildShardGroupName(ShardId shardId) {
         return buildIndexGroupName(shardId.index()) + ",subService=shards,shard=" + shardId.id();

@@ -19,20 +19,20 @@
 
 package org.elasticsearch.util.component;
 
-import org.elasticsearch.ElasticSearchException;
-
 /**
  * @author kimchy (shay.banon)
  */
-public interface LifecycleComponent<T> extends CloseableComponent {
+public interface LifecycleListener {
 
-    Lifecycle.State lifecycleState();
+    void beforeStart();
 
-    void addLifecycleListener(LifecycleListener listener);
+    void afterStart();
 
-    void removeLifecycleListener(LifecycleListener listener);
+    void beforeStop();
 
-    T start() throws ElasticSearchException;
+    void afterStop();
 
-    T stop() throws ElasticSearchException;
+    void beforeClose();
+
+    void afterClose();
 }

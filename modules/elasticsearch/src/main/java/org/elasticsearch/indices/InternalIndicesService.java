@@ -41,7 +41,10 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
+import org.elasticsearch.plugins.IndicesPluginsModule;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
+import org.elasticsearch.util.component.CloseableComponent;
 import org.elasticsearch.util.concurrent.ThreadSafe;
 import org.elasticsearch.util.guice.Injectors;
 import org.elasticsearch.util.settings.Settings;
@@ -66,6 +69,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     private final Injector injector;
 
+    private final PluginsService pluginsService;
+
     private final Map<String, Injector> indicesInjectors = new HashMap<String, Injector>();
 
     private volatile ImmutableMap<String, IndexService> indices = ImmutableMap.of();
@@ -74,6 +79,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         super(settings);
         this.clusterStateService = clusterStateService;
         this.injector = injector;
+
+        this.pluginsService = injector.getInstance(PluginsService.class);
     }
 
     @Override protected void doStart() throws ElasticSearchException {
@@ -155,6 +162,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
                 new IndexNameModule(index),
                 new LocalNodeIdModule(localNodeId),
                 new IndexSettingsModule(indexSettings),
+                new IndicesPluginsModule(indexSettings, pluginsService),
                 new AnalysisModule(indexSettings),
                 new SimilarityModule(indexSettings),
                 new FilterCacheModule(indexSettings),
@@ -192,6 +200,10 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         Map<String, IndexService> tmpMap = newHashMap(indices);
         IndexService indexService = tmpMap.remove(index);
         indices = ImmutableMap.copyOf(tmpMap);
+
+        for (Class<? extends CloseableComponent> closeable : pluginsService.indexServices()) {
+            indexInjector.getInstance(closeable).close();
+        }
 
         indexService.close();
 

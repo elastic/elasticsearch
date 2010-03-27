@@ -27,6 +27,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexLifecycle;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.Nullable;
+import org.elasticsearch.util.component.CloseableComponent;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
 
@@ -38,7 +39,7 @@ import static com.google.common.collect.Maps.*;
  * @author kimchy (Shay Banon)
  */
 @IndexLifecycle
-public class AnalysisService extends AbstractIndexComponent {
+public class AnalysisService extends AbstractIndexComponent implements CloseableComponent {
 
     private final ImmutableMap<String, AnalyzerProvider> analyzerProviders;
 

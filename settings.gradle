@@ -6,9 +6,15 @@ include 'test-integration'
 
 include 'benchmark-micro'
 
+include 'plugins-attachments'
+
 rootProject.name = 'elasticsearch-root'
 rootProject.children.each {project ->
     String fileBaseName = project.name.replaceAll("\\p{Upper}") { "-${it.toLowerCase()}" }
     fileBaseName = fileBaseName.replace('-', '/');
-    project.projectDir = new File(settingsDir, "modules/$fileBaseName")
+    if (fileBaseName.startsWith("plugins")) {
+        project.projectDir = new File(settingsDir, "$fileBaseName")
+    } else {
+        project.projectDir = new File(settingsDir, "modules/$fileBaseName")
+    }
 }

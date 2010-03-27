@@ -46,6 +46,8 @@ import org.elasticsearch.jmx.JmxModule;
 import org.elasticsearch.jmx.JmxService;
 import org.elasticsearch.monitor.MonitorModule;
 import org.elasticsearch.monitor.MonitorService;
+import org.elasticsearch.plugins.PluginsModule;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.search.SearchModule;
@@ -60,6 +62,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.Tuple;
 import org.elasticsearch.util.component.Lifecycle;
+import org.elasticsearch.util.component.LifecycleComponent;
 import org.elasticsearch.util.guice.Injectors;
 import org.elasticsearch.util.io.FileSystemUtils;
 import org.elasticsearch.util.logging.Loggers;
@@ -86,6 +89,8 @@ public final class InternalServer implements Server {
 
     private final Environment environment;
 
+    private final PluginsService pluginsService;
+
     private final Client client;
 
     public InternalServer() throws ElasticSearchException {
@@ -94,13 +99,16 @@ public final class InternalServer implements Server {
 
     public InternalServer(Settings pSettings, boolean loadConfigSettings) throws ElasticSearchException {
         Tuple<Settings, Environment> tuple = InternalSettingsPerparer.prepareSettings(pSettings, loadConfigSettings);
-        this.settings = tuple.v1();
-        this.environment = tuple.v2();
 
-        Logger logger = Loggers.getLogger(Server.class, settings.get("name"));
+        Logger logger = Loggers.getLogger(Server.class, tuple.v1().get("name"));
         logger.info("{{}}: Initializing ...", Version.full());
 
+        this.pluginsService = new PluginsService(tuple.v1(), tuple.v2());
+        this.settings = pluginsService.updatedSettings();
+        this.environment = tuple.v2();
+
         ArrayList<Module> modules = new ArrayList<Module>();
+        modules.add(new PluginsModule(settings, pluginsService));
         modules.add(new ServerModule(this));
         modules.add(new JmxModule(settings));
         modules.add(new EnvironmentModule(environment));
@@ -146,6 +154,10 @@ public final class InternalServer implements Server {
         Logger logger = Loggers.getLogger(Server.class, settings.get("name"));
         logger.info("{{}}: Starting ...", Version.full());
 
+        for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
+            injector.getInstance(plugin).start();
+        }
+
         injector.getInstance(IndicesService.class).start();
         injector.getInstance(GatewayService.class).start();
         injector.getInstance(ClusterService.class).start();
@@ -186,6 +198,10 @@ public final class InternalServer implements Server {
         injector.getInstance(TransportService.class).stop();
         injector.getInstance(JmxService.class).close();
 
+        for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
+            injector.getInstance(plugin).stop();
+        }
+
         // Not pretty, but here we go
         try {
             FileSystemUtils.deleteRecursively(new File(new File(environment.workWithClusterFile(), FsStores.DEFAULT_INDICES_LOCATION),
@@ -225,6 +241,10 @@ public final class InternalServer implements Server {
         injector.getInstance(IndicesService.class).close();
         injector.getInstance(RestController.class).close();
         injector.getInstance(TransportService.class).close();
+
+        for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
+            injector.getInstance(plugin).close();
+        }
 
         injector.getInstance(TimerService.class).close();
         injector.getInstance(ThreadPool.class).shutdown();

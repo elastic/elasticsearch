@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="tika">
+    <CLASSES>
+      <root url="jar://$GRADLE_REPOSITORY$/org.apache.tika/tika-app/bundles/tika-app-0.6.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

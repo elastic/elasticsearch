@@ -30,6 +30,7 @@ import org.elasticsearch.index.shard.IndexShardLifecycle;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.SizeValue;
+import org.elasticsearch.util.component.CloseableComponent;
 import org.elasticsearch.util.concurrent.ThreadSafe;
 
 /**
@@ -37,7 +38,7 @@ import org.elasticsearch.util.concurrent.ThreadSafe;
  */
 @IndexShardLifecycle
 @ThreadSafe
-public interface IndexShard extends IndexShardComponent {
+public interface IndexShard extends IndexShardComponent, CloseableComponent {
 
     ShardRouting routingEntry();
 
@@ -73,8 +74,6 @@ public interface IndexShard extends IndexShardComponent {
     void recover(Engine.RecoveryHandler recoveryHandler) throws EngineException;
 
     Engine.Searcher searcher();
-
-    void close();
 
     /**
      * Returns <tt>true</tt> if this shard can ignore a recovery attempt made to it (since the already doing/done it)

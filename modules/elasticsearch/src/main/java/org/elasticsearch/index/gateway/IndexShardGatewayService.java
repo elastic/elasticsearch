@@ -36,6 +36,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.StopWatch;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.component.CloseableComponent;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
@@ -45,7 +46,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * @author kimchy (Shay Banon)
  */
-public class IndexShardGatewayService extends AbstractIndexShardComponent {
+public class IndexShardGatewayService extends AbstractIndexShardComponent implements CloseableComponent {
 
     private final boolean snapshotOnClose;
 

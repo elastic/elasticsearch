@@ -21,13 +21,12 @@ package org.elasticsearch.index.cache.filter;
 
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.index.IndexComponent;
+import org.elasticsearch.util.component.CloseableComponent;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public interface FilterCache extends IndexComponent {
+public interface FilterCache extends IndexComponent, CloseableComponent {
 
     Filter cache(Filter filterToCache);
-
-    void close();
 }

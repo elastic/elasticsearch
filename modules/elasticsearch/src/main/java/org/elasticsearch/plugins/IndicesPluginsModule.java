@@ -17,22 +17,34 @@
  * under the License.
  */
 
-package org.elasticsearch.util.component;
+package org.elasticsearch.plugins;
 
-import org.elasticsearch.ElasticSearchException;
+import com.google.inject.AbstractModule;
+import com.google.inject.Module;
+import org.elasticsearch.util.settings.Settings;
+
+import java.util.Collection;
+
+import static org.elasticsearch.util.guice.ModulesFactory.*;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface LifecycleComponent<T> extends CloseableComponent {
+public class IndicesPluginsModule extends AbstractModule {
 
-    Lifecycle.State lifecycleState();
+    private final Settings settings;
 
-    void addLifecycleListener(LifecycleListener listener);
+    private final PluginsService pluginsService;
 
-    void removeLifecycleListener(LifecycleListener listener);
+    public IndicesPluginsModule(Settings settings, PluginsService pluginsService) {
+        this.settings = settings;
+        this.pluginsService = pluginsService;
+    }
 
-    T start() throws ElasticSearchException;
-
-    T stop() throws ElasticSearchException;
+    @Override protected void configure() {
+        Collection<Class<? extends Module>> modules = pluginsService.indexModules();
+        for (Class<? extends Module> module : modules) {
+            createModule(module, settings).configure(binder());
+        }
+    }
 }

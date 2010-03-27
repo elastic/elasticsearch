@@ -20,11 +20,12 @@
 package org.elasticsearch.index.gateway;
 
 import org.elasticsearch.index.IndexComponent;
+import org.elasticsearch.util.component.CloseableComponent;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public interface IndexGateway extends IndexComponent {
+public interface IndexGateway extends IndexComponent, CloseableComponent {
 
     Class<? extends IndexShardGateway> shardGatewayClass();
 
@@ -32,9 +33,4 @@ public interface IndexGateway extends IndexComponent {
      * Deletes the content of the index gateway.
      */
     void delete();
-
-    /**
-     * Closes the index gateway.
-     */
-    void close();
 }

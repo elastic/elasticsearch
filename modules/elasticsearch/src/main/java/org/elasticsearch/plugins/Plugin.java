@@ -17,22 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.util.component;
+package org.elasticsearch.plugins;
 
-import org.elasticsearch.ElasticSearchException;
+import com.google.inject.Module;
+import org.elasticsearch.util.component.CloseableComponent;
+import org.elasticsearch.util.component.LifecycleComponent;
+
+import java.util.Collection;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface LifecycleComponent<T> extends CloseableComponent {
+public interface Plugin {
 
-    Lifecycle.State lifecycleState();
+    String name();
 
-    void addLifecycleListener(LifecycleListener listener);
+    Collection<Class<? extends Module>> modules();
 
-    void removeLifecycleListener(LifecycleListener listener);
+    Collection<Class<? extends LifecycleComponent>> services();
 
-    T start() throws ElasticSearchException;
+    Collection<Class<? extends Module>> indexModules();
 
-    T stop() throws ElasticSearchException;
+    Collection<Class<? extends CloseableComponent>> indexServices();
+
+    Collection<Class<? extends Module>> shardModules();
+
+    Collection<Class<? extends CloseableComponent>> shardServices();
 }

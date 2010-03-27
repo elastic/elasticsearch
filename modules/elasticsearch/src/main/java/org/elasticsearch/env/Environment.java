@@ -31,7 +31,9 @@ import static org.elasticsearch.util.Strings.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * The environment of where things exists.
+ *
+ * @author kimchy (shay.banon)
  */
 public class Environment {
 
@@ -42,6 +44,8 @@ public class Environment {
     private final File workWithClusterFile;
 
     private final File configFile;
+
+    private final File pluginsFile;
 
     private final File logsFile;
 
@@ -63,6 +67,12 @@ public class Environment {
             configFile = new File(homeFile, "config");
         }
 
+        if (settings.get("path.plugins") != null) {
+            pluginsFile = new File(cleanPath(settings.get("path.plugins")));
+        } else {
+            pluginsFile = new File(homeFile, "plugins");
+        }
+
         if (settings.get("path.work") != null) {
             workFile = new File(cleanPath(settings.get("path.work")));
         } else {
@@ -79,16 +89,29 @@ public class Environment {
         }
     }
 
+    /**
+     * The home of the installation.
+     */
     public File homeFile() {
         return homeFile;
     }
 
+    /**
+     * The work location.
+     */
     public File workFile() {
         return workFile;
     }
 
+    /**
+     * The config location.
+     */
     public File configFile() {
         return configFile;
+    }
+
+    public File pluginsFile() {
+        return pluginsFile;
     }
 
     public File workWithClusterFile() {

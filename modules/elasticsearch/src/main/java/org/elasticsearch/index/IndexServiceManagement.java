@@ -25,13 +25,14 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.jmx.JmxService;
 import org.elasticsearch.jmx.MBean;
 import org.elasticsearch.jmx.ManagedAttribute;
+import org.elasticsearch.util.component.CloseableComponent;
 import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)
  */
 @MBean(objectName = "", description = "")
-public class IndexServiceManagement extends AbstractIndexComponent {
+public class IndexServiceManagement extends AbstractIndexComponent implements CloseableComponent {
 
     public static String buildIndexGroupName(Index index) {
         return "service=indices,index=" + index.name();

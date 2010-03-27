@@ -42,6 +42,7 @@ import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.StopWatch;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.component.CloseableComponent;
 import org.elasticsearch.util.io.VoidStreamable;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
@@ -63,7 +64,7 @@ import static org.elasticsearch.util.concurrent.ConcurrentMaps.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class RecoveryAction extends AbstractIndexShardComponent {
+public class RecoveryAction extends AbstractIndexShardComponent implements CloseableComponent {
 
     private final SizeValue fileChunkSize;
 

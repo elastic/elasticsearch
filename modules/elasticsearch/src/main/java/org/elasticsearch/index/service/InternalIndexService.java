@@ -47,6 +47,9 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreModule;
 import org.elasticsearch.index.translog.TranslogModule;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.ShardsPluginsModule;
+import org.elasticsearch.util.component.CloseableComponent;
 import org.elasticsearch.util.guice.Injectors;
 import org.elasticsearch.util.settings.Settings;
 
@@ -67,6 +70,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     private final Injector injector;
 
     private final Settings indexSettings;
+
+    private final PluginsService pluginsService;
 
     private final MapperService mapperService;
 
@@ -93,6 +98,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         this.similarityService = similarityService;
         this.filterCache = filterCache;
         this.operationRouting = operationRouting;
+
+        this.pluginsService = injector.getInstance(PluginsService.class);
     }
 
     @Override public int numberOfShards() {
@@ -174,6 +181,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         logger.debug("Creating Shard Id [{}]", shardId.id());
 
         Injector shardInjector = injector.createChildInjector(
+                new ShardsPluginsModule(indexSettings, pluginsService),
                 new IndexShardModule(shardId),
                 new StoreModule(indexSettings),
                 new DeletionPolicyModule(indexSettings),
@@ -221,6 +229,11 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         Map<Integer, IndexShard> tmpShardsMap = newHashMap(shards);
         IndexShard indexShard = tmpShardsMap.remove(shardId);
         shards = ImmutableMap.copyOf(tmpShardsMap);
+
+
+        for (Class<? extends CloseableComponent> closeable : pluginsService.shardServices()) {
+            shardInjector.getInstance(closeable).close();
+        }
 
         // close shard actions
         shardInjector.getInstance(IndexShardManagement.class).close();

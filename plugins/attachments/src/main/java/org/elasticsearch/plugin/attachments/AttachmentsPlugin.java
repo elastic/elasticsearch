@@ -17,22 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.util.component;
+package org.elasticsearch.plugin.attachments;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.plugins.AbstractPlugin;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface LifecycleComponent<T> extends CloseableComponent {
+public class AttachmentsPlugin extends AbstractPlugin {
 
-    Lifecycle.State lifecycleState();
-
-    void addLifecycleListener(LifecycleListener listener);
-
-    void removeLifecycleListener(LifecycleListener listener);
-
-    T start() throws ElasticSearchException;
-
-    T stop() throws ElasticSearchException;
+    @Override public String name() {
+        return "attachments";
+    }
 }

@@ -65,6 +65,11 @@ public class FsGateway extends AbstractLifecycleComponent<Gateway> implements Ga
         this.location = componentSettings.get("location");
 
         this.gatewayHome = createGatewayHome(location, environment, clusterName);
+
+        if (!gatewayHome.exists()) {
+            throw new IOException("FsGateway location [" + gatewayHome + "] can't be created");
+        }
+
         this.currentIndex = findLatestIndex(gatewayHome);
     }
 

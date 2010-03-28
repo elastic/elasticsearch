@@ -155,6 +155,10 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         }
     }
 
+    public DocumentMapperParser documentMapperParser() {
+        return this.documentParser;
+    }
+
     public void add(String type, String mappingSource) {
         add(documentParser.parse(type, mappingSource));
     }

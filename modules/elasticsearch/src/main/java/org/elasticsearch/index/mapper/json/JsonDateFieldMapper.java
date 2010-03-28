@@ -154,17 +154,26 @@ public class JsonDateFieldMapper extends JsonNumberFieldMapper<Long> {
 
     @Override protected Field parseCreateField(JsonParseContext jsonContext) throws IOException {
         String dateAsString;
-        if (jsonContext.jp().getCurrentToken() == JsonToken.VALUE_NULL) {
-            dateAsString = nullValue;
+        if (jsonContext.externalValueSet()) {
+            dateAsString = (String) jsonContext.externalValue();
+            if (dateAsString == null) {
+                dateAsString = nullValue;
+            }
         } else {
-            dateAsString = jsonContext.jp().getText();
+            if (jsonContext.jp().getCurrentToken() == JsonToken.VALUE_NULL) {
+                dateAsString = nullValue;
+            } else {
+                dateAsString = jsonContext.jp().getText();
+            }
         }
+
         if (dateAsString == null) {
             return null;
         }
         if (includeInAll == null || includeInAll) {
             jsonContext.allEntries().addText(names.fullName(), dateAsString, boost);
         }
+
         long value = dateTimeFormatter.parser().parseMillis(dateAsString);
         Field field = null;
         if (stored()) {

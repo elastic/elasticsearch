@@ -4,6 +4,10 @@
       <root url="jar://$GRADLE_REPOSITORY$/org.apache.tika/tika-app/bundles/tika-app-0.6.jar!/" />
     </CLASSES>
     <JAVADOC />
-    <SOURCES />
+    <SOURCES>
+      <root url="file://$PROJECT_DIR$/../../../opt/tika/0.6/tika-parsers/src/main/java" />
+      <root url="file://$PROJECT_DIR$/../../../opt/tika/0.6/tika-core/src/main/java" />
+      <root url="file://$PROJECT_DIR$/../../../opt/tika/0.6/tika-app/src/main/java" />
+    </SOURCES>
   </library>
 </component>

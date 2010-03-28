@@ -13,6 +13,9 @@
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="elasticsearch" />
     <orderEntry type="library" name="tika" level="project" />
+    <orderEntry type="library" scope="TEST" name="testng" level="project" />
+    <orderEntry type="library" scope="TEST" name="hamcrest" level="project" />
+    <orderEntry type="module" module-name="test-testng" scope="TEST" />
   </component>
 </module>
 

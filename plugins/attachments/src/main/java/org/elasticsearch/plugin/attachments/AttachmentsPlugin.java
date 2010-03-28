@@ -19,7 +19,12 @@
 
 package org.elasticsearch.plugin.attachments;
 
+import com.google.inject.Module;
 import org.elasticsearch.plugins.AbstractPlugin;
+
+import java.util.Collection;
+
+import static com.google.common.collect.Lists.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -28,5 +33,15 @@ public class AttachmentsPlugin extends AbstractPlugin {
 
     @Override public String name() {
         return "attachments";
+    }
+
+    @Override public String description() {
+        return "Adds the attachment type allowing to parse difference attachment formats";
+    }
+
+    @Override public Collection<Class<? extends Module>> indexModules() {
+        Collection<Class<? extends Module>> modules = newArrayList();
+        modules.add(AttachmentsIndexModule.class);
+        return modules;
     }
 }

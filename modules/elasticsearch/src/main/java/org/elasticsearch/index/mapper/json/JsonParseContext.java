@@ -55,6 +55,10 @@ public class JsonParseContext {
 
     private boolean mappersAdded = false;
 
+    private boolean externalValueSet;
+
+    private Object externalValue;
+
     private AllEntries allEntries = new AllEntries();
 
     public JsonParseContext(JsonDocumentMapper docMapper, JsonPath path) {
@@ -142,6 +146,20 @@ public class JsonParseContext {
 
     public AllEntries allEntries() {
         return this.allEntries;
+    }
+
+    public void externalValue(Object externalValue) {
+        this.externalValueSet = true;
+        this.externalValue = externalValue;
+    }
+
+    public boolean externalValueSet() {
+        return this.externalValueSet;
+    }
+
+    public Object externalValue() {
+        externalValueSet = false;
+        return externalValue;
     }
 
     /**

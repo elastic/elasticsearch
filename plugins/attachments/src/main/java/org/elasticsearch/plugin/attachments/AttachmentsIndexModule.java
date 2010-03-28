@@ -17,32 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.plugin.attachments;
 
-import com.google.inject.Module;
-import org.elasticsearch.util.component.CloseableComponent;
-import org.elasticsearch.util.component.LifecycleComponent;
-
-import java.util.Collection;
+import com.google.inject.AbstractModule;
+import org.elasticsearch.plugin.attachments.index.mapper.JsonAttachmentMapperInjector;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface Plugin {
+public class AttachmentsIndexModule extends AbstractModule {
 
-    String name();
-
-    String description();
-
-    Collection<Class<? extends Module>> modules();
-
-    Collection<Class<? extends LifecycleComponent>> services();
-
-    Collection<Class<? extends Module>> indexModules();
-
-    Collection<Class<? extends CloseableComponent>> indexServices();
-
-    Collection<Class<? extends Module>> shardModules();
-
-    Collection<Class<? extends CloseableComponent>> shardServices();
+    @Override protected void configure() {
+        bind(JsonAttachmentMapperInjector.class).asEagerSingleton();
+    }
 }

@@ -20,6 +20,7 @@
       <entry name="?*.json" />
       <entry name="?*.yml" />
       <entry name="?*.txt" />
+      <entry name="?*.pdf" />
     </wildcardResourcePatterns>
     <annotationProcessing enabled="false" useClasspath="true" />
   </component>

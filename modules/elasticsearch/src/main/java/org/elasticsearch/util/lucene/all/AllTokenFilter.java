@@ -64,4 +64,8 @@ public class AllTokenFilter extends TokenFilter {
         }
         return true;
     }
+
+    @Override public String toString() {
+        return allEntries.toString();
+    }
 }

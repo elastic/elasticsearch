@@ -98,10 +98,17 @@ public class JsonStringFieldMapper extends JsonFieldMapper<String> implements Js
 
     @Override protected Field parseCreateField(JsonParseContext jsonContext) throws IOException {
         String value;
-        if (jsonContext.jp().getCurrentToken() == JsonToken.VALUE_NULL) {
-            value = nullValue;
+        if (jsonContext.externalValueSet()) {
+            value = (String) jsonContext.externalValue();
+            if (value == null) {
+                value = nullValue;
+            }
         } else {
-            value = jsonContext.jp().getText();
+            if (jsonContext.jp().getCurrentToken() == JsonToken.VALUE_NULL) {
+                value = nullValue;
+            } else {
+                value = jsonContext.jp().getText();
+            }
         }
         if (value == null) {
             return null;

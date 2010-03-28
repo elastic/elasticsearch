@@ -17,32 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.plugin.attachments.index.mapper;
 
-import com.google.inject.Module;
-import org.elasticsearch.util.component.CloseableComponent;
-import org.elasticsearch.util.component.LifecycleComponent;
-
-import java.util.Collection;
+import com.google.inject.Inject;
+import org.elasticsearch.index.AbstractIndexComponent;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.json.JsonDocumentMapperParser;
+import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface Plugin {
+public class JsonAttachmentMapperInjector extends AbstractIndexComponent {
 
-    String name();
+    @Inject public JsonAttachmentMapperInjector(Index index, @IndexSettings Settings indexSettings, MapperService mapperService) {
+        super(index, indexSettings);
 
-    String description();
-
-    Collection<Class<? extends Module>> modules();
-
-    Collection<Class<? extends LifecycleComponent>> services();
-
-    Collection<Class<? extends Module>> indexModules();
-
-    Collection<Class<? extends CloseableComponent>> indexServices();
-
-    Collection<Class<? extends Module>> shardModules();
-
-    Collection<Class<? extends CloseableComponent>> shardServices();
+        ((JsonDocumentMapperParser) mapperService.documentMapperParser()).putTypeParser("attachment", new JsonAttachmentTypeParser());
+    }
 }

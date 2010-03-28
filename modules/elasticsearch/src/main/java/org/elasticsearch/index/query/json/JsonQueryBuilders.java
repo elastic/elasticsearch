@@ -97,8 +97,7 @@ public abstract class JsonQueryBuilders {
      * version of {@link QueryStringJsonQueryBuilder} that simply runs against
      * a single field.
      *
-     * @param name  The name of the field
-     * @param query The query string
+     * @param name The name of the field
      */
     public static FieldJsonQueryBuilder fieldQuery(String name, String query) {
         return new FieldJsonQueryBuilder(name, query);

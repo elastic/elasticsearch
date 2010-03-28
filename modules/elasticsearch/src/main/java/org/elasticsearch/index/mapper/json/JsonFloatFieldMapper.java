@@ -127,24 +127,40 @@ public class JsonFloatFieldMapper extends JsonNumberFieldMapper<Float> {
 
     @Override protected Field parseCreateField(JsonParseContext jsonContext) throws IOException {
         float value;
-        if (jsonContext.jp().getCurrentToken() == JsonToken.VALUE_NULL) {
-            if (nullValue == null) {
-                return null;
+        if (jsonContext.externalValueSet()) {
+            Object externalValue = jsonContext.externalValue();
+            if (externalValue == null) {
+                if (nullValue == null) {
+                    return null;
+                }
+                value = nullValue;
+            } else {
+                value = ((Number) externalValue).floatValue();
             }
-            value = nullValue;
             if (includeInAll == null || includeInAll) {
-                jsonContext.allEntries().addText(names.fullName(), nullValueAsString, boost);
+                jsonContext.allEntries().addText(names.fullName(), Float.toString(value), boost);
             }
         } else {
-            if (jsonContext.jp().getCurrentToken() == JsonToken.VALUE_STRING) {
-                value = Float.parseFloat(jsonContext.jp().getText());
+            if (jsonContext.jp().getCurrentToken() == JsonToken.VALUE_NULL) {
+                if (nullValue == null) {
+                    return null;
+                }
+                value = nullValue;
+                if (nullValueAsString != null && (includeInAll == null || includeInAll)) {
+                    jsonContext.allEntries().addText(names.fullName(), nullValueAsString, boost);
+                }
             } else {
-                value = jsonContext.jp().getFloatValue();
-            }
-            if (includeInAll == null || includeInAll) {
-                jsonContext.allEntries().addText(names.fullName(), jsonContext.jp().getText(), boost);
+                if (jsonContext.jp().getCurrentToken() == JsonToken.VALUE_STRING) {
+                    value = Float.parseFloat(jsonContext.jp().getText());
+                } else {
+                    value = jsonContext.jp().getFloatValue();
+                }
+                if (includeInAll == null || includeInAll) {
+                    jsonContext.allEntries().addText(names.fullName(), jsonContext.jp().getText(), boost);
+                }
             }
         }
+
         Field field = null;
         if (stored()) {
             field = new Field(names.indexName(), Numbers.floatToBytes(value), store);

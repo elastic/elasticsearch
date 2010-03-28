@@ -17,32 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.plugin.attachments.tika;
 
-import com.google.inject.Module;
-import org.elasticsearch.util.component.CloseableComponent;
-import org.elasticsearch.util.component.LifecycleComponent;
-
-import java.util.Collection;
+import org.apache.tika.Tika;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface Plugin {
+public class TikaInstance {
 
-    String name();
+    private static final Tika tika = new Tika();
 
-    String description();
-
-    Collection<Class<? extends Module>> modules();
-
-    Collection<Class<? extends LifecycleComponent>> services();
-
-    Collection<Class<? extends Module>> indexModules();
-
-    Collection<Class<? extends CloseableComponent>> indexServices();
-
-    Collection<Class<? extends Module>> shardModules();
-
-    Collection<Class<? extends CloseableComponent>> shardServices();
+    public static Tika tika() {
+        return tika;
+    }
 }

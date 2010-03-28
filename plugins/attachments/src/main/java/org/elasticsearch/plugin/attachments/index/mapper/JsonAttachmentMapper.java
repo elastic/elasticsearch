@@ -21,6 +21,8 @@ package org.elasticsearch.plugin.attachments.index.mapper;
 
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
+import org.codehaus.jackson.Base64Variant;
+import org.codehaus.jackson.Base64Variants;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.index.mapper.FieldMapperListener;
@@ -166,6 +168,7 @@ public class JsonAttachmentMapper implements JsonMapper {
         byte[] content = null;
         String contentType = null;
         String name = null;
+        Base64Variant base64Variant = Base64Variants.getDefaultVariant();
 
         JsonParser jp = jsonContext.jp();
         JsonToken token = jp.getCurrentToken();
@@ -178,11 +181,20 @@ public class JsonAttachmentMapper implements JsonMapper {
                     currentFieldName = jp.getCurrentName();
                 } else if (token == JsonToken.VALUE_STRING) {
                     if ("content".equals(currentFieldName)) {
-                        content = jp.getBinaryValue();
+                        content = jp.getBinaryValue(base64Variant);
                     } else if ("_content_type".equals(currentFieldName)) {
                         contentType = jp.getText();
                     } else if ("_name".equals(currentFieldName)) {
                         name = jp.getText();
+                    } else if ("_base64".equals(currentFieldName)) {
+                        String variant = jp.getText();
+                        if ("mime".equals(variant)) {
+                            base64Variant = Base64Variants.MIME;
+                        } else if ("mime_no_linefeeds".equals(variant)) {
+                            base64Variant = Base64Variants.MIME_NO_LINEFEEDS;
+                        } else {
+                            throw new MapperParsingException("Can't handle base64 [" + variant + "]");
+                        }
                     }
                 }
             }

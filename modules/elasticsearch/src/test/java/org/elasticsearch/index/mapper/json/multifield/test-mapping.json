@@ -12,9 +12,9 @@
             "object1" : {
                 properties : {
                     "multi1" : {
-                        type : "multi-field",
+                        type : "multi_field",
                         "fields" : {
-                            "number" : {type: "int"},
+                            "number" : {type: "integer"},
                             "string" : {type: "string", index : "not_analyzed"}
                         }
                     }

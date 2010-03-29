@@ -21,10 +21,8 @@ package org.elasticsearch.plugin.attachments.index.mapper;
 
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
-import org.codehaus.jackson.Base64Variant;
-import org.codehaus.jackson.Base64Variants;
-import org.codehaus.jackson.JsonParser;
-import org.codehaus.jackson.JsonToken;
+import org.codehaus.jackson.*;
+import org.codehaus.jackson.node.ObjectNode;
 import org.elasticsearch.index.mapper.FieldMapperListener;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -33,8 +31,11 @@ import org.elasticsearch.util.io.FastByteArrayInputStream;
 import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
+import java.util.Iterator;
+import java.util.Map;
 
 import static org.elasticsearch.index.mapper.json.JsonMapperBuilders.*;
+import static org.elasticsearch.index.mapper.json.JsonTypeParsers.*;
 import static org.elasticsearch.plugin.attachments.tika.TikaInstance.*;
 
 /**
@@ -133,6 +134,63 @@ public class JsonAttachmentMapper implements JsonMapper {
         }
     }
 
+    /**
+     * <pre>
+     *  field1 : { type : "attachment" }
+     * </pre>
+     * Or:
+     * <pre>
+     *  field1 : {
+     *      type : "attachment",
+     *      fields : {
+     *          field1 : {type : "binary"},
+     *          title : {store : "yes"},
+     *          date : {store : "yes"}
+     *      }
+     * }
+     * </pre>
+     *
+     * @author kimchy (shay.banon)
+     */
+    public static class TypeParser implements JsonTypeParser {
+
+        @Override public JsonMapper.Builder parse(String name, JsonNode node, ParserContext parserContext) throws MapperParsingException {
+            ObjectNode attachmentNode = (ObjectNode) node;
+            JsonAttachmentMapper.Builder builder = new JsonAttachmentMapper.Builder(name);
+
+            for (Iterator<Map.Entry<String, JsonNode>> fieldsIt = attachmentNode.getFields(); fieldsIt.hasNext();) {
+                Map.Entry<String, JsonNode> entry = fieldsIt.next();
+                String fieldName = entry.getKey();
+                JsonNode fieldNode = entry.getValue();
+                if (fieldName.equals("pathType")) {
+                    builder.pathType(parsePathType(name, fieldNode.getValueAsText()));
+                } else if (fieldName.equals("fields")) {
+                    ObjectNode fieldsNode = (ObjectNode) fieldNode;
+                    for (Iterator<Map.Entry<String, JsonNode>> propsIt = fieldsNode.getFields(); propsIt.hasNext();) {
+                        Map.Entry<String, JsonNode> entry1 = propsIt.next();
+                        String propName = entry1.getKey();
+                        JsonNode propNode = entry1.getValue();
+
+                        if (name.equals(propName)) {
+                            // that is the content
+                            builder.content((JsonStringFieldMapper.Builder) parserContext.typeParser("string").parse(name, propNode, parserContext));
+                        } else if ("date".equals(propName)) {
+                            builder.date((JsonDateFieldMapper.Builder) parserContext.typeParser("date").parse("date", propNode, parserContext));
+                        } else if ("title".equals(propName)) {
+                            builder.title((JsonStringFieldMapper.Builder) parserContext.typeParser("string").parse("title", propNode, parserContext));
+                        } else if ("author".equals(propName)) {
+                            builder.author((JsonStringFieldMapper.Builder) parserContext.typeParser("string").parse("author", propNode, parserContext));
+                        } else if ("keywords".equals(propName)) {
+                            builder.keywords((JsonStringFieldMapper.Builder) parserContext.typeParser("string").parse("keywords", propNode, parserContext));
+                        }
+                    }
+                }
+            }
+
+
+            return builder;
+        }
+    }
 
     private final String name;
 

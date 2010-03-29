@@ -30,11 +30,11 @@ import org.elasticsearch.util.settings.Settings;
 /**
  * @author kimchy (shay.banon)
  */
-public class JsonAttachmentMapperInjector extends AbstractIndexComponent {
+public class JsonAttachmentMapperService extends AbstractIndexComponent {
 
-    @Inject public JsonAttachmentMapperInjector(Index index, @IndexSettings Settings indexSettings, MapperService mapperService) {
+    @Inject public JsonAttachmentMapperService(Index index, @IndexSettings Settings indexSettings, MapperService mapperService) {
         super(index, indexSettings);
 
-        ((JsonDocumentMapperParser) mapperService.documentMapperParser()).putTypeParser("attachment", new JsonAttachmentTypeParser());
+        ((JsonDocumentMapperParser) mapperService.documentMapperParser()).putTypeParser("attachment", new JsonAttachmentMapper.TypeParser());
     }
 }

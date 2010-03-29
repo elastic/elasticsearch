@@ -21,11 +21,19 @@ package org.elasticsearch.index.mapper.json;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.JsonToken;
+import org.codehaus.jackson.node.ObjectNode;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
+import java.util.Iterator;
+import java.util.Map;
+
+import static org.elasticsearch.index.mapper.json.JsonMapperBuilders.*;
+import static org.elasticsearch.index.mapper.json.JsonTypeParsers.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -66,6 +74,24 @@ public class JsonStringFieldMapper extends JsonFieldMapper<String> implements Js
             return fieldMapper;
         }
     }
+
+    public static class TypeParser implements JsonTypeParser {
+        @Override public JsonMapper.Builder parse(String name, JsonNode node, ParserContext parserContext) throws MapperParsingException {
+            ObjectNode stringNode = (ObjectNode) node;
+            JsonStringFieldMapper.Builder builder = stringField(name);
+            parseJsonField(builder, name, stringNode, parserContext);
+            for (Iterator<Map.Entry<String, JsonNode>> propsIt = stringNode.getFields(); propsIt.hasNext();) {
+                Map.Entry<String, JsonNode> entry = propsIt.next();
+                String propName = entry.getKey();
+                JsonNode propNode = entry.getValue();
+                if (propName.equals("nullValue")) {
+                    builder.nullValue(propNode.getValueAsText());
+                }
+            }
+            return builder;
+        }
+    }
+
 
     private final String nullValue;
 

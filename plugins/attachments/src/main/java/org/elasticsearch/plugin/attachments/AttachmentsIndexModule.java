@@ -20,7 +20,7 @@
 package org.elasticsearch.plugin.attachments;
 
 import com.google.inject.AbstractModule;
-import org.elasticsearch.plugin.attachments.index.mapper.JsonAttachmentMapperInjector;
+import org.elasticsearch.plugin.attachments.index.mapper.JsonAttachmentMapperService;
 
 /**
  * @author kimchy (shay.banon)
@@ -28,6 +28,6 @@ import org.elasticsearch.plugin.attachments.index.mapper.JsonAttachmentMapperInj
 public class AttachmentsIndexModule extends AbstractModule {
 
     @Override protected void configure() {
-        bind(JsonAttachmentMapperInjector.class).asEagerSingleton();
+        bind(JsonAttachmentMapperService.class).asEagerSingleton();
     }
 }

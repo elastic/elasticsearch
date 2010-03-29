@@ -23,13 +23,22 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.NumericUtils;
+import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.JsonToken;
+import org.codehaus.jackson.node.ObjectNode;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.util.Numbers;
 import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
+import java.util.Iterator;
+import java.util.Map;
+
+import static org.elasticsearch.index.mapper.json.JsonMapperBuilders.*;
+import static org.elasticsearch.index.mapper.json.JsonTypeParsers.*;
+import static org.elasticsearch.util.json.JacksonNodes.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -61,6 +70,23 @@ public class JsonShortFieldMapper extends JsonNumberFieldMapper<Short> {
                     precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions, nullValue);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
+        }
+    }
+
+    public static class TypeParser implements JsonTypeParser {
+        @Override public JsonMapper.Builder parse(String name, JsonNode node, ParserContext parserContext) throws MapperParsingException {
+            ObjectNode shortNode = (ObjectNode) node;
+            JsonShortFieldMapper.Builder builder = shortField(name);
+            parseNumberField(builder, name, shortNode, parserContext);
+            for (Iterator<Map.Entry<String, JsonNode>> propsIt = shortNode.getFields(); propsIt.hasNext();) {
+                Map.Entry<String, JsonNode> entry = propsIt.next();
+                String propName = entry.getKey();
+                JsonNode propNode = entry.getValue();
+                if (propName.equals("nullValue")) {
+                    builder.nullValue(nodeShortValue(propNode));
+                }
+            }
+            return builder;
         }
     }
 

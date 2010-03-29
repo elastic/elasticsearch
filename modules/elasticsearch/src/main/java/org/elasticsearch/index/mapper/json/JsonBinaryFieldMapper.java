@@ -21,10 +21,16 @@ package org.elasticsearch.index.mapper.json;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.JsonToken;
+import org.codehaus.jackson.node.ObjectNode;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
+
+import static org.elasticsearch.index.mapper.json.JsonMapperBuilders.*;
+import static org.elasticsearch.index.mapper.json.JsonTypeParsers.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -46,6 +52,15 @@ public class JsonBinaryFieldMapper extends JsonFieldMapper<byte[]> {
 
         @Override public JsonBinaryFieldMapper build(BuilderContext context) {
             return new JsonBinaryFieldMapper(buildNames(context));
+        }
+    }
+
+    public static class TypeParser implements JsonTypeParser {
+        @Override public JsonMapper.Builder parse(String name, JsonNode node, ParserContext parserContext) throws MapperParsingException {
+            ObjectNode binaryNode = (ObjectNode) node;
+            JsonBinaryFieldMapper.Builder builder = binaryField(name);
+            parseJsonField(builder, name, binaryNode, parserContext);
+            return builder;
         }
     }
 

@@ -42,7 +42,7 @@ public class SimpleAttachmentMapperTests {
 
     @BeforeTest public void setupMapperParser() {
         mapperParser = new JsonDocumentMapperParser(new AnalysisService(new Index("test")));
-        mapperParser.putTypeParser(JsonAttachmentMapper.JSON_TYPE, new JsonAttachmentTypeParser());
+        mapperParser.putTypeParser(JsonAttachmentMapper.JSON_TYPE, new JsonAttachmentMapper.TypeParser());
     }
 
     @Test public void testSimpleMappings() throws Exception {

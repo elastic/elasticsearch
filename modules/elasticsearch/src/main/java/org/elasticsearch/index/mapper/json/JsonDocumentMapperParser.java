@@ -48,7 +48,7 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
 
     private final AnalysisService analysisService;
 
-    private final JsonObjectTypeParser rootObjectTypeParser = new JsonObjectTypeParser();
+    private final JsonObjectMapper.TypeParser rootObjectTypeParser = new JsonObjectMapper.TypeParser();
 
     private final Object typeParsersMutex = new Object();
 
@@ -57,17 +57,17 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
     public JsonDocumentMapperParser(AnalysisService analysisService) {
         this.analysisService = analysisService;
         typeParsers = new MapBuilder<String, JsonTypeParser>()
-                .put(JsonShortFieldMapper.JSON_TYPE, new JsonShortTypeParser())
-                .put(JsonIntegerFieldMapper.JSON_TYPE, new JsonIntegerTypeParser())
-                .put(JsonLongFieldMapper.JSON_TYPE, new JsonLongTypeParser())
-                .put(JsonFloatFieldMapper.JSON_TYPE, new JsonFloatTypeParser())
-                .put(JsonDoubleFieldMapper.JSON_TYPE, new JsonDoubleTypeParser())
-                .put(JsonBooleanFieldMapper.JSON_TYPE, new JsonBooleanTypeParser())
-                .put(JsonBinaryFieldMapper.JSON_TYPE, new JsonBinaryTypeParser())
-                .put(JsonDateFieldMapper.JSON_TYPE, new JsonDateTypeParser())
-                .put(JsonStringFieldMapper.JSON_TYPE, new JsonStringTypeParser())
-                .put(JsonObjectMapper.JSON_TYPE, new JsonObjectTypeParser())
-                .put(JsonMultiFieldMapper.JSON_TYPE, new JsonMultiFieldTypeParser())
+                .put(JsonShortFieldMapper.JSON_TYPE, new JsonShortFieldMapper.TypeParser())
+                .put(JsonIntegerFieldMapper.JSON_TYPE, new JsonIntegerFieldMapper.TypeParser())
+                .put(JsonLongFieldMapper.JSON_TYPE, new JsonLongFieldMapper.TypeParser())
+                .put(JsonFloatFieldMapper.JSON_TYPE, new JsonFloatFieldMapper.TypeParser())
+                .put(JsonDoubleFieldMapper.JSON_TYPE, new JsonDoubleFieldMapper.TypeParser())
+                .put(JsonBooleanFieldMapper.JSON_TYPE, new JsonBooleanFieldMapper.TypeParser())
+                .put(JsonBinaryFieldMapper.JSON_TYPE, new JsonBinaryFieldMapper.TypeParser())
+                .put(JsonDateFieldMapper.JSON_TYPE, new JsonDateFieldMapper.TypeParser())
+                .put(JsonStringFieldMapper.JSON_TYPE, new JsonStringFieldMapper.TypeParser())
+                .put(JsonObjectMapper.JSON_TYPE, new JsonObjectMapper.TypeParser())
+                .put(JsonMultiFieldMapper.JSON_TYPE, new JsonMultiFieldMapper.TypeParser())
                 .immutableMap();
     }
 

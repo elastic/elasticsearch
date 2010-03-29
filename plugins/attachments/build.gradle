@@ -8,14 +8,26 @@ explodedDistDir = new File(distsDir, 'exploded')
 
 manifest.mainAttributes("Implementation-Title": "ElasticSearch::Plugins::Attachments", "Implementation-Version": rootProject.version, "Implementation-Date": buildTimeStr)
 
+configurations.compile.transitive = true
+configurations.testCompile.transitive = true
+
 // no need to use the resource dir
 sourceSets.main.resources.srcDir 'src/main/java'
 sourceSets.test.resources.srcDir 'src/test/java'
+
+configurations {
+    dists
+    distLib {
+        visible = false
+        transitive = false
+    }
+}
 
 dependencies {
     compile project(':elasticsearch')
 
     compile('org.apache.tika:tika-app:0.6') { transitive = false }
+    distLib('org.apache.tika:tika-app:0.6') { transitive = false }
 
 
     testCompile project(':test-testng')
@@ -37,7 +49,7 @@ task explodedDist(dependsOn: [jar], description: 'Builds the plugin zip file') <
     [explodedDistDir]*.mkdirs()
 
     copy {
-        from configurations.compile
+        from configurations.distLib
         into explodedDistDir
     }
 

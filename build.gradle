@@ -91,7 +91,7 @@ zip.doFirst {task ->
 }
 
 task release(dependsOn: [zip, ":plugins-attachments:release"]) << {
-    ant.delete(dir: explodedDistDir)
+//    ant.delete(dir: explodedDistDir)
 }
 
 task wrapper(type: Wrapper) {

@@ -54,7 +54,7 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
         MoreLikeThisRequest mltRequest = moreLikeThisRequest(request.param("index")).type(request.param("type")).id(request.param("id"));
         try {
-            mltRequest.fields(request.paramAsStringArray("fields", null));
+            mltRequest.fields(request.paramAsStringArray("mltFields", null));
             mltRequest.percentTermsToMatch(request.paramAsFloat("percentTermsToMatch", -1));
             mltRequest.minTermFrequency(request.paramAsInt("minTermFrequency", -1));
             mltRequest.maxQueryTerms(request.paramAsInt("maxQueryTerms", -1));

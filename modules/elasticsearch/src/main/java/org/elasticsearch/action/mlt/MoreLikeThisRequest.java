@@ -103,6 +103,10 @@ public class MoreLikeThisRequest implements ActionRequest {
         return type;
     }
 
+    void index(String index) {
+        this.index = index;
+    }
+
     /**
      * The type of document to load from which the "like" query will rutn with.
      */

@@ -33,6 +33,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.BaseAction;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.json.BoolJsonQueryBuilder;
 import org.elasticsearch.index.query.json.MoreLikeThisFieldJsonQueryBuilder;
@@ -64,17 +66,25 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
 
     private final IndicesService indicesService;
 
+    private final ClusterService clusterService;
+
     @Inject public TransportMoreLikeThisAction(Settings settings, TransportSearchAction searchAction, TransportGetAction getAction,
-                                               IndicesService indicesService, TransportService transportService) {
+                                               ClusterService clusterService, IndicesService indicesService, TransportService transportService) {
         super(settings);
         this.searchAction = searchAction;
         this.getAction = getAction;
         this.indicesService = indicesService;
+        this.clusterService = clusterService;
 
         transportService.registerHandler(TransportActions.MORE_LIKE_THIS, new TransportHandler());
     }
 
     @Override protected void doExecute(final MoreLikeThisRequest request, final ActionListener<SearchResponse> listener) {
+        // update to actual index name
+        ClusterState clusterState = clusterService.state();
+        // update to the concrete index
+        request.index(clusterState.metaData().concreteIndex(request.index()));
+
         Set<String> getFields = newHashSet();
         if (request.fields() != null) {
             Collections.addAll(getFields, request.fields());

@@ -26,23 +26,49 @@ import org.elasticsearch.util.component.LifecycleComponent;
 import java.util.Collection;
 
 /**
+ * An extension point allowing to plug in custom functionality.
+ *
  * @author kimchy (shay.banon)
  */
 public interface Plugin {
 
+    /**
+     * The name of the plugin.
+     */
     String name();
 
+    /**
+     * The description of the plugin.
+     */
     String description();
 
+    /**
+     * Server level modules.
+     */
     Collection<Class<? extends Module>> modules();
 
+    /**
+     * Server level services that will be automatically started/stopped/closed.
+     */
     Collection<Class<? extends LifecycleComponent>> services();
 
+    /**
+     * Per index modules.
+     */
     Collection<Class<? extends Module>> indexModules();
 
+    /**
+     * Per index services that will be automatically closed.
+     */
     Collection<Class<? extends CloseableComponent>> indexServices();
 
+    /**
+     * Per index shard module.
+     */
     Collection<Class<? extends Module>> shardModules();
 
+    /**
+     * Per index shard service that will be automatically closed.
+     */
     Collection<Class<? extends CloseableComponent>> shardServices();
 }

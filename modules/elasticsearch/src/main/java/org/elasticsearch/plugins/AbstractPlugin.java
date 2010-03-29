@@ -27,30 +27,50 @@ import org.elasticsearch.util.component.LifecycleComponent;
 import java.util.Collection;
 
 /**
+ * A base class for a plugin.
+ *
  * @author kimchy (shay.banon)
  */
 public abstract class AbstractPlugin implements Plugin {
 
+    /**
+     * Defaults to return an empty list.
+     */
     @Override public Collection<Class<? extends Module>> modules() {
         return ImmutableList.of();
     }
 
+    /**
+     * Defaults to return an empty list.
+     */
     @Override public Collection<Class<? extends LifecycleComponent>> services() {
         return ImmutableList.of();
     }
 
+    /**
+     * Defaults to return an empty list.
+     */
     @Override public Collection<Class<? extends Module>> indexModules() {
         return ImmutableList.of();
     }
 
+    /**
+     * Defaults to return an empty list.
+     */
     @Override public Collection<Class<? extends CloseableComponent>> indexServices() {
         return ImmutableList.of();
     }
 
+    /**
+     * Defaults to return an empty list.
+     */
     @Override public Collection<Class<? extends Module>> shardModules() {
         return ImmutableList.of();
     }
 
+    /**
+     * Defaults to return an empty list.
+     */
     @Override public Collection<Class<? extends CloseableComponent>> shardServices() {
         return ImmutableList.of();
     }

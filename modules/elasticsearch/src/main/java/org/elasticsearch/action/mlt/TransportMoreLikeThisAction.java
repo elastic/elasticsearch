@@ -151,6 +151,7 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
                     boolBuilder.mustNot(termQuery(uidTerm.field(), uidTerm.text()));
                 } catch (Exception e) {
                     listener.onFailure(e);
+                    return;
                 }
 
                 String[] searchIndices = request.searchIndices();

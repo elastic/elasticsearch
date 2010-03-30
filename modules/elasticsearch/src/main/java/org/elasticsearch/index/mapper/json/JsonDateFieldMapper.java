@@ -141,7 +141,11 @@ public class JsonDateFieldMapper extends JsonNumberFieldMapper<Long> {
     }
 
     @Override public String valueAsString(Fieldable field) {
-        return dateTimeFormatter.printer().print(value(field));
+        Long value = value(field);
+        if (value == null) {
+            return null;
+        }
+        return dateTimeFormatter.printer().print(value);
     }
 
     @Override public String indexedValue(String value) {

@@ -113,7 +113,7 @@ public class JsonDoubleFieldMapper extends JsonNumberFieldMapper<Double> {
     @Override public Double value(Fieldable field) {
         byte[] value = field.getBinaryValue();
         if (value == null) {
-            return Double.NaN;
+            return null;
         }
         return Numbers.bytesToDouble(value);
     }

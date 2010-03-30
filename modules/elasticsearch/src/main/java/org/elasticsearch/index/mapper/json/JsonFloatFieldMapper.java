@@ -111,7 +111,7 @@ public class JsonFloatFieldMapper extends JsonNumberFieldMapper<Float> {
     @Override public Float value(Fieldable field) {
         byte[] value = field.getBinaryValue();
         if (value == null) {
-            return Float.NaN;
+            return null;
         }
         return Numbers.bytesToFloat(value);
     }

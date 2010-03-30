@@ -26,23 +26,19 @@ import java.io.IOException;
 import java.io.Reader;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class NumericDateTokenizer extends NumericTokenizer {
 
-    private final DateTimeFormatter dateTimeFormatter;
-
     public NumericDateTokenizer(Reader reader, int precisionStep, DateTimeFormatter dateTimeFormatter) throws IOException {
-        super(reader, new NumericTokenStream(precisionStep));
-        this.dateTimeFormatter = dateTimeFormatter;
+        super(reader, new NumericTokenStream(precisionStep), dateTimeFormatter);
     }
 
     public NumericDateTokenizer(Reader reader, int precisionStep, char[] buffer, DateTimeFormatter dateTimeFormatter) throws IOException {
-        super(reader, new NumericTokenStream(precisionStep), buffer);
-        this.dateTimeFormatter = dateTimeFormatter;
+        super(reader, new NumericTokenStream(precisionStep), buffer, dateTimeFormatter);
     }
 
     @Override protected void setValue(NumericTokenStream tokenStream, String value) {
-        tokenStream.setLongValue(dateTimeFormatter.parseMillis(value));
+        tokenStream.setLongValue(((DateTimeFormatter) extra).parseMillis(value));
     }
 }

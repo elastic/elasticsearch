@@ -26,21 +26,25 @@ import java.io.IOException;
 import java.io.Reader;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class NumericTokenizer extends Tokenizer {
 
     private final NumericTokenStream numericTokenStream;
 
-    protected NumericTokenizer(Reader reader, NumericTokenStream numericTokenStream) throws IOException {
+    protected final Object extra;
+
+    protected NumericTokenizer(Reader reader, NumericTokenStream numericTokenStream, Object extra) throws IOException {
         super(numericTokenStream);
         this.numericTokenStream = numericTokenStream;
+        this.extra = extra;
         reset(reader);
     }
 
-    protected NumericTokenizer(Reader reader, NumericTokenStream numericTokenStream, char[] buffer) throws IOException {
+    protected NumericTokenizer(Reader reader, NumericTokenStream numericTokenStream, char[] buffer, Object extra) throws IOException {
         super(numericTokenStream);
         this.numericTokenStream = numericTokenStream;
+        this.extra = extra;
         reset(reader, buffer);
     }
 
@@ -51,7 +55,7 @@ public abstract class NumericTokenizer extends Tokenizer {
 
     public void reset(Reader input, char[] buffer) throws IOException {
         super.reset(input);
-        int len = super.input.read(buffer);
+        int len = input.read(buffer);
         String value = new String(buffer, 0, len);
         setValue(numericTokenStream, value);
         numericTokenStream.reset();

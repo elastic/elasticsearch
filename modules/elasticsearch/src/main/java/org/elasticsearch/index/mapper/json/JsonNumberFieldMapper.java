@@ -127,7 +127,8 @@ public abstract class JsonNumberFieldMapper<T extends Number> extends JsonFieldM
     }
 
     @Override public String valueAsString(Fieldable field) {
-        return value(field).toString();
+        Number num = value(field);
+        return num == null ? null : num.toString();
     }
 
     @Override public abstract Object valueFromTerm(String term);

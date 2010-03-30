@@ -25,16 +25,16 @@ import java.io.IOException;
 import java.io.Reader;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class NumericFloatTokenizer extends NumericTokenizer {
 
     public NumericFloatTokenizer(Reader reader, int precisionStep) throws IOException {
-        super(reader, new NumericTokenStream(precisionStep));
+        super(reader, new NumericTokenStream(precisionStep), null);
     }
 
     public NumericFloatTokenizer(Reader reader, int precisionStep, char[] buffer) throws IOException {
-        super(reader, new NumericTokenStream(precisionStep), buffer);
+        super(reader, new NumericTokenStream(precisionStep), buffer, null);
     }
 
     @Override protected void setValue(NumericTokenStream tokenStream, String value) {

@@ -111,7 +111,7 @@ public class JsonLongFieldMapper extends JsonNumberFieldMapper<Long> {
     @Override public Long value(Fieldable field) {
         byte[] value = field.getBinaryValue();
         if (value == null) {
-            return Long.MIN_VALUE;
+            return null;
         }
         return Numbers.bytesToLong(value);
     }

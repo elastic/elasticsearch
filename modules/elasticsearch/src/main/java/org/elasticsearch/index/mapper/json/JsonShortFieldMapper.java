@@ -111,7 +111,7 @@ public class JsonShortFieldMapper extends JsonNumberFieldMapper<Short> {
     @Override public Short value(Fieldable field) {
         byte[] value = field.getBinaryValue();
         if (value == null) {
-            return Short.MIN_VALUE;
+            return null;
         }
         return Numbers.bytesToShort(value);
     }

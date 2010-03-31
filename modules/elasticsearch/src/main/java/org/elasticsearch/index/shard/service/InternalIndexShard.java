@@ -324,7 +324,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
         Query query = queryParser.parse(querySource);
         // wrap it in filter, cache it, and constant score it
-        query = new ConstantScoreQuery(filterCache.cache(new QueryWrapperFilter(query)));
+        // Don't cache it, since it might be very different queries each time...
+//        query = new ConstantScoreQuery(filterCache.cache(new QueryWrapperFilter(query)));
         query = filterByTypesIfNeeded(query, types);
         Engine.Searcher searcher = engine.searcher();
         try {

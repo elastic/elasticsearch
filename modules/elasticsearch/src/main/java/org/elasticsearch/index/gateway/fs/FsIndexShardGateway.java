@@ -331,7 +331,7 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
         }
     }
 
-    private static long findLatestTranslogId(File location) {
+    private long findLatestTranslogId(File location) {
         File[] files = location.listFiles(new FilenameFilter() {
             @Override public boolean accept(File dir, String name) {
                 return name.startsWith("translog-");

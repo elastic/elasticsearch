@@ -66,7 +66,7 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
     }
 
     @Override public Filter cache(Filter filterToCache) {
-        return new SoftFilterCacheFilterWrapper(filterToCache);
+        return new FilterCacheFilterWrapper(filterToCache);
     }
 
     private class IndexReaderCleaner implements Runnable {
@@ -82,11 +82,11 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
 
     protected abstract ConcurrentMap<Filter, DocIdSet> buildMap();
 
-    private class SoftFilterCacheFilterWrapper extends Filter {
+    private class FilterCacheFilterWrapper extends Filter {
 
         private final Filter filter;
 
-        private SoftFilterCacheFilterWrapper(Filter filter) {
+        private FilterCacheFilterWrapper(Filter filter) {
             this.filter = filter;
         }
 
@@ -111,8 +111,8 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         }
 
         public boolean equals(Object o) {
-            if (!(o instanceof SoftFilterCacheFilterWrapper)) return false;
-            return this.filter.equals(((SoftFilterCacheFilterWrapper) o).filter);
+            if (!(o instanceof FilterCacheFilterWrapper)) return false;
+            return this.filter.equals(((FilterCacheFilterWrapper) o).filter);
         }
 
         public int hashCode() {

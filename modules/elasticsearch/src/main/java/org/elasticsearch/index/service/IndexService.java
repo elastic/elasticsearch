@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.routing.OperationRouting;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.util.component.CloseableIndexComponent;
 
 import java.util.Set;
 
@@ -37,9 +38,7 @@ import java.util.Set;
  * @author kimchy (Shay Banon)
  */
 @IndexLifecycle
-public interface IndexService extends IndexComponent, Iterable<IndexShard> {
-
-    void close();
+public interface IndexService extends IndexComponent, Iterable<IndexShard>, CloseableIndexComponent {
 
     Injector injector();
 

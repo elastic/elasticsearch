@@ -30,10 +30,11 @@ import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.Strings;
-import org.elasticsearch.util.io.FileSystemUtils;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.File;
+
+import static org.elasticsearch.util.io.FileSystemUtils.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -84,11 +85,15 @@ public class FsIndexGateway extends AbstractIndexComponent implements IndexGatew
         return FsIndexShardGateway.class;
     }
 
-    @Override public void delete() {
-        FileSystemUtils.deleteRecursively(indexGatewayHome, false);
-    }
-
-    @Override public void close() {
+    @Override public void close(boolean delete) {
+        try {
+            String[] files = indexGatewayHome.list();
+            if (files == null || files.length == 0) {
+                deleteRecursively(indexGatewayHome, true);
+            }
+        } catch (Exception e) {
+            // ignore
+        }
     }
 
     public File indexGatewayHome() {

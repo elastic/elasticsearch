@@ -44,9 +44,6 @@ public class NoneIndexGateway extends AbstractIndexComponent implements IndexGat
         return "none";
     }
 
-    @Override public void delete() {
-    }
-
-    @Override public void close() {
+    @Override public void close(boolean delete) {
     }
 }

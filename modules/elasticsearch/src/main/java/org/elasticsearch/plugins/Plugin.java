@@ -20,7 +20,7 @@
 package org.elasticsearch.plugins;
 
 import com.google.inject.Module;
-import org.elasticsearch.util.component.CloseableComponent;
+import org.elasticsearch.util.component.CloseableIndexComponent;
 import org.elasticsearch.util.component.LifecycleComponent;
 
 import java.util.Collection;
@@ -60,7 +60,7 @@ public interface Plugin {
     /**
      * Per index services that will be automatically closed.
      */
-    Collection<Class<? extends CloseableComponent>> indexServices();
+    Collection<Class<? extends CloseableIndexComponent>> indexServices();
 
     /**
      * Per index shard module.
@@ -70,5 +70,5 @@ public interface Plugin {
     /**
      * Per index shard service that will be automatically closed.
      */
-    Collection<Class<? extends CloseableComponent>> shardServices();
+    Collection<Class<? extends CloseableIndexComponent>> shardServices();
 }

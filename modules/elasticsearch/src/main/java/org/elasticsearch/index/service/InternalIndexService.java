@@ -49,7 +49,7 @@ import org.elasticsearch.index.store.StoreModule;
 import org.elasticsearch.index.translog.TranslogModule;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ShardsPluginsModule;
-import org.elasticsearch.util.component.CloseableComponent;
+import org.elasticsearch.util.component.CloseableIndexComponent;
 import org.elasticsearch.util.guice.Injectors;
 import org.elasticsearch.util.settings.Settings;
 
@@ -154,9 +154,9 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         return similarityService;
     }
 
-    @Override public synchronized void close() {
+    @Override public synchronized void close(boolean delete) {
         for (int shardId : shardIds()) {
-            deleteShard(shardId, true);
+            deleteShard(shardId, delete);
         }
     }
 
@@ -209,20 +209,20 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     }
 
     @Override public synchronized void deleteShard(int shardId) throws ElasticSearchException {
-        deleteShard(shardId, false);
+        deleteShard(shardId, true);
     }
 
-    private synchronized void deleteShard(int shardId, boolean close) throws ElasticSearchException {
+    private synchronized void deleteShard(int shardId, boolean delete) throws ElasticSearchException {
         Map<Integer, Injector> tmpShardInjectors = newHashMap(shardsInjectors);
         Injector shardInjector = tmpShardInjectors.remove(shardId);
         if (shardInjector == null) {
-            if (close) {
+            if (!delete) {
                 return;
             }
             throw new IndexShardMissingException(new ShardId(index, shardId));
         }
         shardsInjectors = ImmutableMap.copyOf(tmpShardInjectors);
-        if (!close) {
+        if (delete) {
             logger.debug("Deleting Shard Id [{}]", shardId);
         }
 
@@ -231,8 +231,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         shards = ImmutableMap.copyOf(tmpShardsMap);
 
 
-        for (Class<? extends CloseableComponent> closeable : pluginsService.shardServices()) {
-            shardInjector.getInstance(closeable).close();
+        for (Class<? extends CloseableIndexComponent> closeable : pluginsService.shardServices()) {
+            shardInjector.getInstance(closeable).close(delete);
         }
 
         // close shard actions
@@ -241,10 +241,9 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         RecoveryAction recoveryAction = shardInjector.getInstance(RecoveryAction.class);
         if (recoveryAction != null) recoveryAction.close();
 
-        shardInjector.getInstance(IndexShardGatewayService.class).close();
+        shardInjector.getInstance(IndexShardGatewayService.class).close(delete);
 
         indexShard.close();
-
 
         Engine engine = shardInjector.getInstance(Engine.class);
         engine.close();

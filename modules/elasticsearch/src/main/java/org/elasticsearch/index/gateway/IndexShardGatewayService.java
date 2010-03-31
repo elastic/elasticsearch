@@ -36,7 +36,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.StopWatch;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.component.CloseableComponent;
+import org.elasticsearch.util.component.CloseableIndexComponent;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
@@ -46,7 +46,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * @author kimchy (Shay Banon)
  */
-public class IndexShardGatewayService extends AbstractIndexShardComponent implements CloseableComponent {
+public class IndexShardGatewayService extends AbstractIndexShardComponent implements CloseableIndexComponent {
 
     private final boolean snapshotOnClose;
 
@@ -166,16 +166,20 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
         }
     }
 
-    public void close() {
+    public void close(boolean delete) {
         if (snapshotScheduleFuture != null) {
             snapshotScheduleFuture.cancel(true);
             snapshotScheduleFuture = null;
         }
-        if (snapshotOnClose) {
+        if (!delete && snapshotOnClose) {
             logger.debug("Snapshotting on close ...");
             snapshot();
         }
-        shardGateway.close();
+        // don't really delete the shard gateway if we are primary...
+        if (!indexShard.routingEntry().primary()) {
+            delete = false;
+        }
+        shardGateway.close(delete);
     }
 
     private synchronized void scheduleSnapshotIfNeeded() {

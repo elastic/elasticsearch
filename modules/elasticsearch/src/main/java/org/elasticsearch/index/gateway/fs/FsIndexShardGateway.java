@@ -93,7 +93,10 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
         return "fs[" + location + "]";
     }
 
-    @Override public void close() {
+    @Override public void close(boolean delete) {
+        if (delete) {
+            deleteRecursively(location, true);
+        }
     }
 
     @Override public RecoveryStatus recover() throws IndexShardGatewayRecoveryException {

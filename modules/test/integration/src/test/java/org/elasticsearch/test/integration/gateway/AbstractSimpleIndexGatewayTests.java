@@ -154,6 +154,9 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractServersTes
         logger.info("Getting #3 (not from the translog, but from the index)");
         getResponse = client("server1").get(getRequest("test").type("type1").id("3")).actionGet();
         assertThat(getResponse.sourceAsString(), equalTo(source("3", "test")));
+
+        logger.info("Deleting the index");
+        client("server1").admin().indices().delete(deleteIndexRequest("test")).actionGet();
     }
 
     private String mappingSource() {

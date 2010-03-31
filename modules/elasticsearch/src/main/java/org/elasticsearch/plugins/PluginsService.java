@@ -26,7 +26,7 @@ import com.google.inject.Inject;
 import com.google.inject.Module;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.component.CloseableComponent;
+import org.elasticsearch.util.component.CloseableIndexComponent;
 import org.elasticsearch.util.component.LifecycleComponent;
 import org.elasticsearch.util.io.Streams;
 import org.elasticsearch.util.settings.Settings;
@@ -93,8 +93,8 @@ public class PluginsService extends AbstractComponent {
         return modules;
     }
 
-    public Collection<Class<? extends CloseableComponent>> indexServices() {
-        List<Class<? extends CloseableComponent>> services = Lists.newArrayList();
+    public Collection<Class<? extends CloseableIndexComponent>> indexServices() {
+        List<Class<? extends CloseableIndexComponent>> services = Lists.newArrayList();
         for (Plugin plugin : plugins.values()) {
             services.addAll(plugin.indexServices());
         }
@@ -109,8 +109,8 @@ public class PluginsService extends AbstractComponent {
         return modules;
     }
 
-    public Collection<Class<? extends CloseableComponent>> shardServices() {
-        List<Class<? extends CloseableComponent>> services = Lists.newArrayList();
+    public Collection<Class<? extends CloseableIndexComponent>> shardServices() {
+        List<Class<? extends CloseableIndexComponent>> services = Lists.newArrayList();
         for (Plugin plugin : plugins.values()) {
             services.addAll(plugin.shardServices());
         }

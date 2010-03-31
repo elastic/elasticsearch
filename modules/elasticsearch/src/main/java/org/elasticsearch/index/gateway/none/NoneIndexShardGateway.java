@@ -58,6 +58,6 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
         return false;
     }
 
-    @Override public void close() {
+    @Override public void close(boolean delete) {
     }
 }

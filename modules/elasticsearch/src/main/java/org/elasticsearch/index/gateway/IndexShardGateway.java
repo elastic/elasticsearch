@@ -23,11 +23,12 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.util.component.CloseableIndexComponent;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public interface IndexShardGateway extends IndexShardComponent {
+public interface IndexShardGateway extends IndexShardComponent, CloseableIndexComponent {
 
     /**
      * Recovers the state of the shard from the gateway.
@@ -44,8 +45,6 @@ public interface IndexShardGateway extends IndexShardComponent {
      * operations.
      */
     boolean requiresSnapshotScheduling();
-
-    void close();
 
     public static class Snapshot {
         private final SnapshotIndexCommit indexCommit;

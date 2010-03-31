@@ -44,7 +44,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.plugins.IndicesPluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
-import org.elasticsearch.util.component.CloseableComponent;
+import org.elasticsearch.util.component.CloseableIndexComponent;
 import org.elasticsearch.util.concurrent.ThreadSafe;
 import org.elasticsearch.util.guice.Injectors;
 import org.elasticsearch.util.settings.Settings;
@@ -90,7 +90,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
     @Override protected void doStop() throws ElasticSearchException {
         clusterStateService.stop();
         for (String index : indices.keySet()) {
-            deleteIndex(index, true);
+            deleteIndex(index, false);
         }
     }
 
@@ -182,18 +182,18 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
     }
 
     public synchronized void deleteIndex(String index) throws ElasticSearchException {
-        deleteIndex(index, false);
+        deleteIndex(index, true);
     }
 
-    private synchronized void deleteIndex(String index, boolean internalClose) throws ElasticSearchException {
+    private synchronized void deleteIndex(String index, boolean delete) throws ElasticSearchException {
         Injector indexInjector = indicesInjectors.remove(index);
         if (indexInjector == null) {
-            if (internalClose) {
+            if (!delete) {
                 return;
             }
             throw new IndexMissingException(new Index(index));
         }
-        if (!internalClose) {
+        if (delete) {
             logger.debug("Deleting Index [{}]", index);
         }
 
@@ -201,20 +201,17 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         IndexService indexService = tmpMap.remove(index);
         indices = ImmutableMap.copyOf(tmpMap);
 
-        for (Class<? extends CloseableComponent> closeable : pluginsService.indexServices()) {
-            indexInjector.getInstance(closeable).close();
+        for (Class<? extends CloseableIndexComponent> closeable : pluginsService.indexServices()) {
+            indexInjector.getInstance(closeable).close(delete);
         }
 
-        indexService.close();
+        indexService.close(delete);
 
         indexInjector.getInstance(FilterCache.class).close();
         indexInjector.getInstance(AnalysisService.class).close();
         indexInjector.getInstance(IndexServiceManagement.class).close();
 
-        if (!internalClose) {
-            indexInjector.getInstance(IndexGateway.class).delete();
-        }
-        indexInjector.getInstance(IndexGateway.class).close();
+        indexInjector.getInstance(IndexGateway.class).close(delete);
 
         Injectors.close(injector);
     }

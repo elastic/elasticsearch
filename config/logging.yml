@@ -1,7 +1,6 @@
 rootLogger: INFO, console, file
 logger:
   jgroups: WARN
-  action: DEBUG
 
 appender:
   console:

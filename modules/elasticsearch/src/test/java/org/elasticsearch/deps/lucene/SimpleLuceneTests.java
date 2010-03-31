@@ -121,6 +121,9 @@ public class SimpleLuceneTests {
         indexWriter.close();
     }
 
+    /**
+     * Verify doc freqs update with refresh of readers.
+     */
     @Test public void testTermEnumDocFreq() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);

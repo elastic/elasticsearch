@@ -48,7 +48,6 @@ public class FsMetaDataGatewayTests extends AbstractServersTests {
     }
 
     @Test public void testIndexActions() throws Exception {
-
         buildServer("server1");
         ((InternalServer) server("server1")).injector().getInstance(Gateway.class).reset();
         server("server1").start();
@@ -67,7 +66,5 @@ public class FsMetaDataGatewayTests extends AbstractServersTests {
         } catch (IndexAlreadyExistsException e) {
             // all is well
         }
-
-        ((InternalServer) server("server1")).injector().getInstance(Gateway.class).reset();
     }
 }

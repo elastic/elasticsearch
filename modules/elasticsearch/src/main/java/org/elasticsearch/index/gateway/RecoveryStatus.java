@@ -44,12 +44,21 @@ public class RecoveryStatus {
     }
 
     public static class Translog {
+        private long translogId;
         private int numberOfOperations;
         private SizeValue totalSize;
 
-        public Translog(int numberOfOperations, SizeValue totalSize) {
+        public Translog(long translogId, int numberOfOperations, SizeValue totalSize) {
+            this.translogId = translogId;
             this.numberOfOperations = numberOfOperations;
             this.totalSize = totalSize;
+        }
+
+        /**
+         * The translog id recovered, <tt>-1</tt> indicating no translog.
+         */
+        public long translogId() {
+            return translogId;
         }
 
         public int numberOfOperations() {
@@ -62,12 +71,17 @@ public class RecoveryStatus {
     }
 
     public static class Index {
+        private long version;
         private int numberOfFiles;
         private SizeValue totalSize;
 
-        public Index(int numberOfFiles, SizeValue totalSize) {
+        public Index(long version, int numberOfFiles, SizeValue totalSize) {
             this.numberOfFiles = numberOfFiles;
             this.totalSize = totalSize;
+        }
+
+        public long version() {
+            return this.version;
         }
 
         public int numberOfFiles() {

@@ -27,6 +27,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.LocalNodeId;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.support.ForceSyncDirectory;
 import org.elasticsearch.util.lucene.store.SwitchDirectory;
 import org.elasticsearch.util.settings.Settings;
 
@@ -78,7 +79,7 @@ public class NioFsStore extends AbstractFsStore<Directory> {
         return suggestUseCompoundFile;
     }
 
-    private static class CustomNioFSDirectory extends NIOFSDirectory {
+    private static class CustomNioFSDirectory extends NIOFSDirectory implements ForceSyncDirectory {
 
         private final boolean syncToDisk;
 
@@ -91,6 +92,10 @@ public class NioFsStore extends AbstractFsStore<Directory> {
             if (!syncToDisk) {
                 return;
             }
+            super.sync(name);
+        }
+
+        @Override public void forceSync(String name) throws IOException {
             super.sync(name);
         }
     }

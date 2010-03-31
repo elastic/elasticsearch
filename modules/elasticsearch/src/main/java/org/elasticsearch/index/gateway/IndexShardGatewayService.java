@@ -110,14 +110,9 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             StopWatch stopWatch = new StopWatch().start();
             RecoveryStatus recoveryStatus = shardGateway.recover();
 
-            // update the last up to date values
-            indexShard.snapshot(new Engine.SnapshotHandler() {
-                @Override public void snapshot(SnapshotIndexCommit snapshotIndexCommit, Translog.Snapshot translogSnapshot) throws EngineException {
-                    lastIndexVersion = snapshotIndexCommit.getVersion();
-                    lastTranslogId = translogSnapshot.translogId();
-                    lastTranslogSize = translogSnapshot.size();
-                }
-            });
+            lastIndexVersion = recoveryStatus.index().version();
+            lastTranslogId = recoveryStatus.translog().translogId();
+            lastTranslogSize = recoveryStatus.translog().numberOfOperations();
 
             // start the shard if the gateway has not started it already
             if (indexShard.state() != IndexShardState.STARTED) {
@@ -127,8 +122,8 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             if (logger.isDebugEnabled()) {
                 StringBuilder sb = new StringBuilder();
                 sb.append("Recovery completed from ").append(shardGateway).append(", took [").append(stopWatch.totalTime()).append("]\n");
-                sb.append("    Index    : numberOfFiles      [").append(recoveryStatus.index().numberOfFiles()).append("] with totalSize [").append(recoveryStatus.index().totalSize()).append("]\n");
-                sb.append("    Translog : numberOfOperations [").append(recoveryStatus.translog().numberOfOperations()).append("] with totalSize [").append(recoveryStatus.translog().totalSize()).append("]");
+                sb.append("    Index    : numberOfFiles [").append(recoveryStatus.index().numberOfFiles()).append("] with totalSize [").append(recoveryStatus.index().totalSize()).append("]\n");
+                sb.append("    Translog : translogId [").append(recoveryStatus.translog().translogId()).append(", numberOfOperations [").append(recoveryStatus.translog().numberOfOperations()).append("] with totalSize [").append(recoveryStatus.translog().totalSize()).append("]");
                 logger.debug(sb.toString());
             }
             // refresh the shard
@@ -156,7 +151,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                 @Override public void snapshot(SnapshotIndexCommit snapshotIndexCommit, Translog.Snapshot translogSnapshot) throws EngineException {
                     if (lastIndexVersion != snapshotIndexCommit.getVersion() || lastTranslogId != translogSnapshot.translogId() || lastTranslogSize != translogSnapshot.size()) {
 
-                        shardGateway.snapshot(snapshotIndexCommit, translogSnapshot);
+                        shardGateway.snapshot(new IndexShardGateway.Snapshot(snapshotIndexCommit, translogSnapshot, lastIndexVersion, lastTranslogId, lastTranslogSize));
 
                         lastIndexVersion = snapshotIndexCommit.getVersion();
                         lastTranslogId = translogSnapshot.translogId();

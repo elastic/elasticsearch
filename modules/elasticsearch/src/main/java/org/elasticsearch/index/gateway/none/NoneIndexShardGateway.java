@@ -20,7 +20,6 @@
 package org.elasticsearch.index.gateway.none;
 
 import com.google.inject.Inject;
-import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
 import org.elasticsearch.index.gateway.RecoveryStatus;
@@ -29,7 +28,6 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.settings.Settings;
@@ -49,10 +47,10 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
     @Override public RecoveryStatus recover() throws IndexShardGatewayRecoveryException {
         // in the none case, we simply start the shard
         indexShard.start();
-        return new RecoveryStatus(new RecoveryStatus.Index(0, new SizeValue(0, SizeUnit.BYTES)), new RecoveryStatus.Translog(0, new SizeValue(0, SizeUnit.BYTES)));
+        return new RecoveryStatus(new RecoveryStatus.Index(-1, 0, new SizeValue(0, SizeUnit.BYTES)), new RecoveryStatus.Translog(-1, 0, new SizeValue(0, SizeUnit.BYTES)));
     }
 
-    @Override public void snapshot(SnapshotIndexCommit snapshotIndexCommit, Translog.Snapshot translogSnapshot) {
+    @Override public void snapshot(Snapshot snapshot) {
         // nothing to do here
     }
 

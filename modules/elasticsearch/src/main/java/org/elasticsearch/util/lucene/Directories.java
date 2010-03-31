@@ -22,6 +22,7 @@ package org.elasticsearch.util.lucene;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.store.*;
+import org.elasticsearch.index.store.support.ForceSyncDirectory;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.io.FileSystemUtils;
 
@@ -158,7 +159,11 @@ public class Directories {
         } else {
             copyToDirectory(new FileInputStream(copyFrom), dir.createOutput(fileName));
         }
-        dir.sync(fileName);
+        if (dir instanceof ForceSyncDirectory) {
+            ((ForceSyncDirectory) dir).forceSync(fileName);
+        } else {
+            dir.sync(fileName);
+        }
     }
 
     public static void copyToDirectory(InputStream is, IndexOutput io) throws IOException {

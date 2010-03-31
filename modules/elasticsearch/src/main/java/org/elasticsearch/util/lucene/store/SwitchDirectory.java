@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.index.store.support.ForceSyncDirectory;
 
 import java.io.IOException;
 import java.util.Set;
@@ -37,7 +38,7 @@ import java.util.Set;
  *
  * @author kimchy (shay.banon)
  */
-public class SwitchDirectory extends Directory {
+public class SwitchDirectory extends Directory implements ForceSyncDirectory {
 
     private final Directory secondaryDir;
 
@@ -139,6 +140,15 @@ public class SwitchDirectory extends Directory {
 
     @Override public void sync(String name) throws IOException {
         getDirectory(name).sync(name);
+    }
+
+    @Override public void forceSync(String name) throws IOException {
+        Directory dir = getDirectory(name);
+        if (dir instanceof ForceSyncDirectory) {
+            ((ForceSyncDirectory) dir).forceSync(name);
+        } else {
+            dir.sync(name);
+        }
     }
 
     @Override public IndexInput openInput(String name) throws IOException {

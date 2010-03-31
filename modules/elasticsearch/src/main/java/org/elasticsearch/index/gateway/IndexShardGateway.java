@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.gateway;
 
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.translog.Translog;
@@ -36,7 +37,7 @@ public interface IndexShardGateway extends IndexShardComponent {
     /**
      * Snapshots the given shard into the gateway.
      */
-    void snapshot(SnapshotIndexCommit snapshotIndexCommit, Translog.Snapshot translogSnapshot);
+    void snapshot(Snapshot snapshot);
 
     /**
      * Returns <tt>true</tt> if this gateway requires scheduling management for snapshot
@@ -45,4 +46,68 @@ public interface IndexShardGateway extends IndexShardComponent {
     boolean requiresSnapshotScheduling();
 
     void close();
+
+    public static class Snapshot {
+        private final SnapshotIndexCommit indexCommit;
+        private final Translog.Snapshot translogSnapshot;
+
+        private final long lastIndexVersion;
+        private final long lastTranslogId;
+        private final int lastTranslogSize;
+
+        public Snapshot(SnapshotIndexCommit indexCommit, Translog.Snapshot translogSnapshot, long lastIndexVersion, long lastTranslogId, int lastTranslogSize) {
+            this.indexCommit = indexCommit;
+            this.translogSnapshot = translogSnapshot;
+            this.lastIndexVersion = lastIndexVersion;
+            this.lastTranslogId = lastTranslogId;
+            this.lastTranslogSize = lastTranslogSize;
+        }
+
+        /**
+         * Indicates that the index has changed from the latest snapshot.
+         */
+        public boolean indexChanged() {
+            return lastIndexVersion != indexCommit.getVersion();
+        }
+
+        /**
+         * Indicates that a new transaction log has been created. Note check this <b>before</b> you
+         * check {@link #sameTranslogNewOperations()}.
+         */
+        public boolean newTranslogCreated() {
+            return translogSnapshot.translogId() != lastTranslogId;
+        }
+
+        /**
+         * Indicates that the same translog exists, but new operations have been appended to it. Throws
+         * {@link ElasticSearchIllegalStateException} if {@link #newTranslogCreated()} is <tt>true</tt>, so
+         * always check that first.
+         */
+        public boolean sameTranslogNewOperations() {
+            if (newTranslogCreated()) {
+                throw new ElasticSearchIllegalStateException("Should not be called when there is a new translog");
+            }
+            return translogSnapshot.size() > lastTranslogSize;
+        }
+
+        public SnapshotIndexCommit indexCommit() {
+            return indexCommit;
+        }
+
+        public Translog.Snapshot translogSnapshot() {
+            return translogSnapshot;
+        }
+
+        public long lastIndexVersion() {
+            return lastIndexVersion;
+        }
+
+        public long lastTranslogId() {
+            return lastTranslogId;
+        }
+
+        public int lastTranslogSize() {
+            return lastTranslogSize;
+        }
+    }
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.json.JsonIndexQueryParser;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
@@ -51,12 +52,13 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     private final Map<String, IndexQueryParser> indexQueryParsers;
 
     public IndexQueryParserService(Index index, MapperService mapperService, FilterCache filterCache, AnalysisService analysisService) {
-        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, mapperService, filterCache, analysisService, null);
+        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, mapperService, filterCache, analysisService, null, null);
     }
 
     @Inject public IndexQueryParserService(Index index, @IndexSettings Settings indexSettings,
                                            MapperService mapperService, FilterCache filterCache,
                                            AnalysisService analysisService,
+                                           @Nullable SimilarityService similarityService,
                                            @Nullable Map<String, IndexQueryParserFactory> indexQueryParsersFactories) {
         super(index, indexSettings);
         Map<String, Settings> queryParserGroupSettings;
@@ -74,7 +76,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
             }
         }
         if (!qparsers.containsKey(Defaults.DEFAULT)) {
-            IndexQueryParser defaultQueryParser = new JsonIndexQueryParser(index, indexSettings, mapperService, filterCache, analysisService, null, null, Defaults.DEFAULT, null);
+            IndexQueryParser defaultQueryParser = new JsonIndexQueryParser(index, indexSettings, mapperService, filterCache, analysisService, similarityService, null, null, Defaults.DEFAULT, null);
             qparsers.put(Defaults.DEFAULT, defaultQueryParser);
         }
 

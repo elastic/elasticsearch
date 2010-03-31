@@ -34,6 +34,7 @@ import org.elasticsearch.index.query.IndexQueryParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.io.FastCharArrayReader;
@@ -60,7 +61,7 @@ public class JsonIndexQueryParser extends AbstractIndexComponent implements Inde
 
     private ThreadLocal<ThreadLocals.CleanableValue<JsonQueryParseContext>> cache = new ThreadLocal<ThreadLocals.CleanableValue<JsonQueryParseContext>>() {
         @Override protected ThreadLocals.CleanableValue<JsonQueryParseContext> initialValue() {
-            return new ThreadLocals.CleanableValue<JsonQueryParseContext>(new JsonQueryParseContext(index, queryParserRegistry, mapperService, filterCache));
+            return new ThreadLocals.CleanableValue<JsonQueryParseContext>(new JsonQueryParseContext(index, queryParserRegistry, mapperService, similarityService, filterCache));
         }
     };
 
@@ -70,6 +71,8 @@ public class JsonIndexQueryParser extends AbstractIndexComponent implements Inde
 
     private final MapperService mapperService;
 
+    private final SimilarityService similarityService;
+
     private final FilterCache filterCache;
 
     private final JsonQueryParserRegistry queryParserRegistry;
@@ -77,13 +80,14 @@ public class JsonIndexQueryParser extends AbstractIndexComponent implements Inde
     @Inject public JsonIndexQueryParser(Index index,
                                         @IndexSettings Settings indexSettings,
                                         MapperService mapperService, FilterCache filterCache,
-                                        AnalysisService analysisService,
+                                        AnalysisService analysisService, @Nullable SimilarityService similarityService,
                                         @Nullable Map<String, JsonQueryParserFactory> jsonQueryParsers,
                                         @Nullable Map<String, JsonFilterParserFactory> jsonFilterParsers,
                                         @Assisted String name, @Assisted @Nullable Settings settings) {
         super(index, indexSettings);
         this.name = name;
         this.mapperService = mapperService;
+        this.similarityService = similarityService;
         this.filterCache = filterCache;
 
         List<JsonQueryParser> queryParsers = newArrayList();

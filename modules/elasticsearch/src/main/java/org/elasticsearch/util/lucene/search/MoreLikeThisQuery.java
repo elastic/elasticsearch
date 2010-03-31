@@ -21,9 +21,7 @@ package org.elasticsearch.util.lucene.search;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.similar.MoreLikeThis;
 import org.elasticsearch.util.io.FastStringReader;
 
@@ -36,6 +34,8 @@ import java.util.Set;
 public class MoreLikeThisQuery extends Query {
 
     public static final float DEFAULT_PERCENT_TERMS_TO_MATCH = 0.3f;
+
+    private Similarity similarity;
 
     private String likeText;
     private String[] moreLikeFields;
@@ -63,7 +63,7 @@ public class MoreLikeThisQuery extends Query {
     }
 
     @Override public Query rewrite(IndexReader reader) throws IOException {
-        MoreLikeThis mlt = new MoreLikeThis(reader);
+        MoreLikeThis mlt = new MoreLikeThis(reader, similarity == null ? new DefaultSimilarity() : similarity);
 
         mlt.setFieldNames(moreLikeFields);
         mlt.setAnalyzer(analyzer);
@@ -101,6 +101,14 @@ public class MoreLikeThisQuery extends Query {
 
     public void setMoreLikeFields(String[] moreLikeFields) {
         this.moreLikeFields = moreLikeFields;
+    }
+
+    public Similarity getSimilarity() {
+        return similarity;
+    }
+
+    public void setSimilarity(Similarity similarity) {
+        this.similarity = similarity;
     }
 
     public Analyzer getAnalyzer() {

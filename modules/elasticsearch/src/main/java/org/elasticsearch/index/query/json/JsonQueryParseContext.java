@@ -21,6 +21,7 @@ package org.elasticsearch.index.query.json;
 
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Similarity;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.index.Index;
@@ -29,6 +30,8 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.util.Nullable;
 
 import java.io.IOException;
 
@@ -41,6 +44,8 @@ public class JsonQueryParseContext {
 
     private final MapperService mapperService;
 
+    private final SimilarityService similarityService;
+
     private final FilterCache filterCache;
 
     private final JsonQueryParserRegistry queryParserRegistry;
@@ -48,10 +53,11 @@ public class JsonQueryParseContext {
     private JsonParser jp;
 
     public JsonQueryParseContext(Index index, JsonQueryParserRegistry queryParserRegistry,
-                                 MapperService mapperService, FilterCache filterCache) {
+                                 MapperService mapperService, SimilarityService similarityService, FilterCache filterCache) {
         this.index = index;
         this.queryParserRegistry = queryParserRegistry;
         this.mapperService = mapperService;
+        this.similarityService = similarityService;
         this.filterCache = filterCache;
     }
 
@@ -65,6 +71,14 @@ public class JsonQueryParseContext {
 
     public MapperService mapperService() {
         return mapperService;
+    }
+
+    @Nullable public SimilarityService similarityService() {
+        return this.similarityService;
+    }
+
+    public Similarity searchSimilarity() {
+        return similarityService != null ? similarityService.defaultSearchSimilarity() : null;
     }
 
     public FilterCache filterCache() {

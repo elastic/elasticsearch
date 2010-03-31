@@ -58,6 +58,7 @@ public class MoreLikeThisJsonQueryParser extends AbstractIndexComponent implemen
 
         MoreLikeThisQuery mltQuery = new MoreLikeThisQuery();
         mltQuery.setMoreLikeFields(new String[]{AllFieldMapper.NAME});
+        mltQuery.setSimilarity(parseContext.searchSimilarity());
 
         JsonToken token;
         String currentFieldName = null;

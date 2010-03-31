@@ -757,7 +757,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     private JsonIndexQueryParser newQueryParser() throws IOException {
         return new JsonIndexQueryParser(new Index("test"), EMPTY_SETTINGS,
-                newMapperService(), new NoneFilterCache(index, EMPTY_SETTINGS), new AnalysisService(index), null, null, "test", null);
+                newMapperService(), new NoneFilterCache(index, EMPTY_SETTINGS), new AnalysisService(index), null, null, null, "test", null);
     }
 
     private MapperService newMapperService() throws IOException {

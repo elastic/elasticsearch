@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.json.JsonIndexQueryParser;
 import org.elasticsearch.index.query.json.JsonQueryParserRegistry;
 import org.elasticsearch.index.settings.IndexSettingsModule;
+import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.util.settings.Settings;
 import org.testng.annotations.Test;
 
@@ -56,6 +57,7 @@ public class IndexQueryParserModuleTests {
                 new IndexSettingsModule(settings),
                 new FilterCacheModule(settings),
                 new AnalysisModule(settings),
+                new SimilarityModule(settings),
                 new IndexQueryParserModule(settings),
                 new IndexNameModule(index)
         );

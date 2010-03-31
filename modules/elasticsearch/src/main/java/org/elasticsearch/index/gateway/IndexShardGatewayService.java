@@ -175,7 +175,8 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             logger.debug("Snapshotting on close ...");
             snapshot();
         }
-        // don't really delete the shard gateway if we are primary...
+        // don't really delete the shard gateway if we are *not* primary,
+        // the primary will close it
         if (!indexShard.routingEntry().primary()) {
             delete = false;
         }

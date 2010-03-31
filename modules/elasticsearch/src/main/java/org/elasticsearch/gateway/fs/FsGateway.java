@@ -71,6 +71,7 @@ public class FsGateway extends AbstractLifecycleComponent<Gateway> implements Ga
         }
 
         this.currentIndex = findLatestIndex(gatewayHome);
+        logger.debug("Latest metadata found at index [" + currentIndex + "]");
     }
 
     @Override protected void doStart() throws ElasticSearchException {
@@ -84,25 +85,6 @@ public class FsGateway extends AbstractLifecycleComponent<Gateway> implements Ga
 
     public File gatewayHome() {
         return gatewayHome;
-    }
-
-    private static int findLatestIndex(File gatewayHome) {
-        File[] files = gatewayHome.listFiles(new FilenameFilter() {
-            @Override public boolean accept(File dir, String name) {
-                return name.startsWith("metadata-");
-            }
-        });
-
-        int index = -1;
-        for (File file : files) {
-            String name = file.getName();
-            int fileIndex = Integer.parseInt(name.substring(name.indexOf('-') + 1));
-            if (fileIndex >= index) {
-                index = fileIndex;
-            }
-        }
-
-        return index;
     }
 
     private static File createGatewayHome(String location, Environment environment, ClusterName clusterName) {
@@ -180,17 +162,7 @@ public class FsGateway extends AbstractLifecycleComponent<Gateway> implements Ga
             if (!file.exists()) {
                 throw new GatewayException("can't find current metadata file");
             }
-
-            FileInputStream fileStream = new FileInputStream(file);
-
-            JsonParser jp = Jackson.defaultJsonFactory().createJsonParser(fileStream);
-            MetaData metaData = MetaData.Builder.fromJson(jp, settings);
-            jp.close();
-
-            fileStream.close();
-
-            return metaData;
-
+            return readMetaData(file);
         } catch (GatewayException e) {
             throw e;
         } catch (Exception e) {
@@ -205,5 +177,55 @@ public class FsGateway extends AbstractLifecycleComponent<Gateway> implements Ga
     @Override public void reset() {
         FileSystemUtils.deleteRecursively(gatewayHome, false);
         currentIndex = -1;
+    }
+
+    private int findLatestIndex(File gatewayHome) {
+        File[] files = gatewayHome.listFiles(new FilenameFilter() {
+            @Override public boolean accept(File dir, String name) {
+                return name.startsWith("metadata-");
+            }
+        });
+
+        int index = -1;
+        for (File file : files) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("[findLatestMetadata]: Processing file [" + file + "]");
+            }
+            String name = file.getName();
+            int fileIndex = Integer.parseInt(name.substring(name.indexOf('-') + 1));
+            if (fileIndex >= index) {
+                // try and read the meta data
+                try {
+                    readMetaData(file);
+                    index = fileIndex;
+                } catch (IOException e) {
+                    logger.warn("[findLatestMetadata]: Failed to read metadata from [" + file + "], ignoring...", e);
+                }
+            }
+        }
+
+        return index;
+    }
+
+    private MetaData readMetaData(File file) throws IOException {
+        FileInputStream fileStream = new FileInputStream(file);
+        JsonParser jp = null;
+        try {
+            jp = Jackson.defaultJsonFactory().createJsonParser(fileStream);
+            return MetaData.Builder.fromJson(jp, settings);
+        } finally {
+            if (jp != null) {
+                try {
+                    jp.close();
+                } catch (Exception e) {
+                    // ignore
+                }
+            }
+            try {
+                fileStream.close();
+            } catch (Exception e) {
+                // ignore
+            }
+        }
     }
 }

@@ -40,6 +40,10 @@ public class WeakFilterCache extends AbstractConcurrentMapFilterCache {
         super(index, indexSettings, threadPool);
     }
 
+    @Override public String type() {
+        return "weak";
+    }
+
     @Override protected ConcurrentMap<Filter, DocIdSet> buildMap() {
         return new MapMaker().weakValues().makeMap();
     }

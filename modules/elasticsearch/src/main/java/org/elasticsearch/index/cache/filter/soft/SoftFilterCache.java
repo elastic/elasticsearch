@@ -40,6 +40,10 @@ public class SoftFilterCache extends AbstractConcurrentMapFilterCache {
         super(index, indexSettings, threadPool);
     }
 
+    @Override public String type() {
+        return "soft";
+    }
+
     @Override protected ConcurrentMap<Filter, DocIdSet> buildMap() {
         return new MapMaker().softValues().makeMap();
     }

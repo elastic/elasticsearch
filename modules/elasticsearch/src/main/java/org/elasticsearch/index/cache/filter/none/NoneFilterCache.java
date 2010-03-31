@@ -37,6 +37,10 @@ public class NoneFilterCache extends AbstractIndexComponent implements FilterCac
         logger.debug("Using no filter cache");
     }
 
+    @Override public String type() {
+        return "none";
+    }
+
     @Override public void close() {
         // nothing to do here
     }

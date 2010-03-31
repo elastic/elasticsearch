@@ -24,9 +24,11 @@ import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.util.component.CloseableComponent;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public interface FilterCache extends IndexComponent, CloseableComponent {
+
+    String type();
 
     Filter cache(Filter filterToCache);
 }

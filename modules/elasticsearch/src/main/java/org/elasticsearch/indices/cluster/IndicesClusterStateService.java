@@ -171,7 +171,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
         // go over and delete either all indices or specific shards
         for (final String index : indicesService.indices()) {
-            if (metaData.index(index) == null) {
+            if (!metaData.hasIndex(index)) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("Index [{}]: Deleting", index);
                 }

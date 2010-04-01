@@ -211,15 +211,15 @@ public class QueryStringJsonQueryParser extends AbstractIndexComponent implement
         MapperQueryParser queryParser;
         if (fields != null) {
             if (fields.size() == 1) {
-                queryParser = new MapperQueryParser(fields.get(0), analyzer, parseContext.mapperService(), parseContext.filterCache());
+                queryParser = new MapperQueryParser(fields.get(0), analyzer, parseContext.mapperService(), parseContext.indexCache());
             } else {
-                MultiFieldMapperQueryParser mQueryParser = new MultiFieldMapperQueryParser(fields, boosts, analyzer, parseContext.mapperService(), parseContext.filterCache());
+                MultiFieldMapperQueryParser mQueryParser = new MultiFieldMapperQueryParser(fields, boosts, analyzer, parseContext.mapperService(), parseContext.indexCache());
                 mQueryParser.setTieBreaker(tieBreaker);
                 mQueryParser.setUseDisMax(useDisMax);
                 queryParser = mQueryParser;
             }
         } else {
-            queryParser = new MapperQueryParser(defaultField, analyzer, parseContext.mapperService(), parseContext.filterCache());
+            queryParser = new MapperQueryParser(defaultField, analyzer, parseContext.mapperService(), parseContext.indexCache());
         }
         queryParser.setEnablePositionIncrements(enablePositionIncrements);
         queryParser.setLowercaseExpandedTerms(lowercaseExpandedTerms);

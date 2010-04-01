@@ -46,6 +46,7 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
 
     protected BroadcastOperationRequest(String[] indices, @Nullable String queryHint) {
         this.indices = indices;
+        this.queryHint = queryHint;
     }
 
     public String[] indices() {

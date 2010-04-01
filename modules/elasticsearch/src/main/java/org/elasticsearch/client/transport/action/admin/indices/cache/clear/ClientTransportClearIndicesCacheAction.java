@@ -17,39 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.filter.none;
+package org.elasticsearch.client.transport.action.admin.indices.cache.clear;
 
 import com.google.inject.Inject;
-import org.apache.lucene.search.Filter;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.cache.filter.FilterCache;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.action.TransportActions;
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
+import org.elasticsearch.client.transport.action.support.BaseClientTransportAction;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.settings.Settings;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class NoneFilterCache extends AbstractIndexComponent implements FilterCache {
+public class ClientTransportClearIndicesCacheAction extends BaseClientTransportAction<ClearIndicesCacheRequest, ClearIndicesCacheResponse> {
 
-    @Inject public NoneFilterCache(Index index, @IndexSettings Settings indexSettings) {
-        super(index, indexSettings);
-        logger.debug("Using no filter cache");
+    @Inject public ClientTransportClearIndicesCacheAction(Settings settings, TransportService transportService) {
+        super(settings, transportService, ClearIndicesCacheResponse.class);
     }
 
-    @Override public String type() {
-        return "none";
-    }
-
-    @Override public void close() {
-        // nothing to do here
-    }
-
-    @Override public Filter cache(Filter filterToCache) {
-        return filterToCache;
-    }
-
-    @Override public void clear() {
-        // nothing to do here
+    @Override protected String action() {
+        return TransportActions.Admin.Indices.Cache.CLEAR;
     }
 }

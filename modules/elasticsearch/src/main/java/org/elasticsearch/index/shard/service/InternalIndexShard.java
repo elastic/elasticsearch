@@ -27,7 +27,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.index.cache.filter.FilterCache;
+import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.ScheduledRefreshableEngine;
@@ -69,7 +69,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private final IndexQueryParserService queryParserService;
 
-    private final FilterCache filterCache;
+    private final IndexCache indexCache;
 
     private final Store store;
 
@@ -86,7 +86,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private volatile ShardRouting shardRouting;
 
     @Inject public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, Store store, Engine engine, Translog translog,
-                                      ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, FilterCache filterCache) {
+                                      ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache) {
         super(shardId, indexSettings);
         this.store = store;
         this.engine = engine;
@@ -94,7 +94,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         this.threadPool = threadPool;
         this.mapperService = mapperService;
         this.queryParserService = queryParserService;
-        this.filterCache = filterCache;
+        this.indexCache = indexCache;
         state = IndexShardState.CREATED;
         logger.debug("Moved to state [CREATED]");
     }
@@ -491,7 +491,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     throw new TypeMissingException(shardId.index(), type);
                 }
                 Filter typeFilter = new TermFilter(docMapper.typeMapper().term(docMapper.type()));
-                typeFilter = filterCache.cache(typeFilter);
+                typeFilter = indexCache.filter().cache(typeFilter);
                 query = new FilteredQuery(query, typeFilter);
             } else {
                 BooleanFilter booleanFilter = new BooleanFilter();
@@ -501,7 +501,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                         throw new TypeMissingException(shardId.index(), type);
                     }
                     Filter typeFilter = new TermFilter(docMapper.typeMapper().term(docMapper.type()));
-                    typeFilter = filterCache.cache(typeFilter);
+                    typeFilter = indexCache.filter().cache(typeFilter);
                     booleanFilter.add(new FilterClause(typeFilter, BooleanClause.Occur.SHOULD));
                 }
                 query = new FilteredQuery(query, booleanFilter);

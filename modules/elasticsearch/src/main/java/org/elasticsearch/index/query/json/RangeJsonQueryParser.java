@@ -122,6 +122,6 @@ public class RangeJsonQueryParser extends AbstractIndexComponent implements Json
             query = new TermRangeQuery(fieldName, from, to, includeLower, includeUpper);
         }
         query.setBoost(boost);
-        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext.filterCache());
+        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext.indexCache());
     }
 }

@@ -21,8 +21,7 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.cache.filter.FilterCache;
-import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
+import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
@@ -65,8 +64,8 @@ public class SimpleIndexShardTests {
         ShardId shardId = new ShardId("test", 1);
         AnalysisService analysisService = new AnalysisService(shardId.index());
         MapperService mapperService = new MapperService(shardId.index(), settings, environment, analysisService);
-        IndexQueryParserService queryParserService = new IndexQueryParserService(shardId.index(), mapperService, new NoneFilterCache(shardId.index(), EMPTY_SETTINGS), analysisService);
-        FilterCache filterCache = new NoneFilterCache(shardId.index(), settings);
+        IndexQueryParserService queryParserService = new IndexQueryParserService(shardId.index(), mapperService, new IndexCache(shardId.index()), analysisService);
+        IndexCache indexCache = new IndexCache(shardId.index());
 
         SnapshotDeletionPolicy policy = new SnapshotDeletionPolicy(new KeepOnlyLastDeletionPolicy(shardId, settings));
         Store store = new RamStore(shardId, settings);
@@ -77,7 +76,7 @@ public class SimpleIndexShardTests {
 
         threadPool = new ScalingThreadPool();
 
-        indexShard = new InternalIndexShard(shardId, EMPTY_SETTINGS, store, engine, translog, threadPool, mapperService, queryParserService, filterCache).start();
+        indexShard = new InternalIndexShard(shardId, EMPTY_SETTINGS, store, engine, translog, threadPool, mapperService, queryParserService, indexCache).start();
     }
 
     @AfterMethod public void tearDown() {

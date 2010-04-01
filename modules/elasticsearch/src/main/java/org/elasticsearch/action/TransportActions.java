@@ -60,6 +60,10 @@ public class TransportActions {
             public static class Mapping {
                 public static final String PUT = "indices/mapping/put";
             }
+
+            public static class Cache {
+                public static final String CLEAR = "indices/cache/clear";
+            }
         }
 
         public static class Cluster {

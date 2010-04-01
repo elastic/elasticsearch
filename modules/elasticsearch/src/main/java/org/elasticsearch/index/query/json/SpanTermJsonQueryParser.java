@@ -102,6 +102,6 @@ public class SpanTermJsonQueryParser extends AbstractIndexComponent implements J
 
         SpanTermQuery query = new SpanTermQuery(new Term(fieldName, value));
         query.setBoost(boost);
-        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext.filterCache());
+        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext.indexCache());
     }
 }

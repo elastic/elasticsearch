@@ -104,6 +104,6 @@ public class PrefixJsonQueryParser extends AbstractIndexComponent implements Jso
         PrefixQuery query = new PrefixQuery(new Term(fieldName, value));
         query.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT);
         query.setBoost(boost);
-        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext.filterCache());
+        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext.indexCache());
     }
 }

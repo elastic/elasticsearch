@@ -1,0 +1,117 @@
+/*
+ * Licensed to Elastic Search and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Elastic Search licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.action.admin.indices.cache.clear;
+
+import com.google.inject.Inject;
+import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.TransportActions;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.index.cache.IndexCache;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.util.settings.Settings;
+
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReferenceArray;
+
+import static com.google.common.collect.Lists.*;
+
+/**
+ * Indices clear cache action.
+ *
+ * @author kimchy (shay.banon)
+ */
+public class TransportClearIndicesCacheAction extends TransportBroadcastOperationAction<ClearIndicesCacheRequest, ClearIndicesCacheResponse, ShardClearIndicesCacheRequest, ShardClearIndicesCacheResponse> {
+
+    @Inject public TransportClearIndicesCacheAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                                    TransportService transportService, IndicesService indicesService) {
+        super(settings, threadPool, clusterService, transportService, indicesService);
+    }
+
+    @Override protected String transportAction() {
+        return TransportActions.Admin.Indices.Cache.CLEAR;
+    }
+
+    @Override protected String transportShardAction() {
+        return "indices/cache/clear/shard";
+    }
+
+
+    @Override protected ClearIndicesCacheRequest newRequest() {
+        return new ClearIndicesCacheRequest();
+    }
+
+    @Override protected ClearIndicesCacheResponse newResponse(ClearIndicesCacheRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
+        int successfulShards = 0;
+        int failedShards = 0;
+        List<ShardOperationFailedException> shardFailures = null;
+        for (int i = 0; i < shardsResponses.length(); i++) {
+            Object shardResponse = shardsResponses.get(i);
+            if (shardResponse == null) {
+                failedShards++;
+            } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
+                failedShards++;
+                if (shardFailures == null) {
+                    shardFailures = newArrayList();
+                }
+                shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
+            } else {
+                successfulShards++;
+            }
+        }
+        return new ClearIndicesCacheResponse(successfulShards, failedShards, shardFailures);
+    }
+
+    @Override protected ShardClearIndicesCacheRequest newShardRequest() {
+        return new ShardClearIndicesCacheRequest();
+    }
+
+    @Override protected ShardClearIndicesCacheRequest newShardRequest(ShardRouting shard, ClearIndicesCacheRequest request) {
+        return new ShardClearIndicesCacheRequest(shard.index(), shard.id(), request);
+    }
+
+    @Override protected ShardClearIndicesCacheResponse newShardResponse() {
+        return new ShardClearIndicesCacheResponse();
+    }
+
+    @Override protected ShardClearIndicesCacheResponse shardOperation(ShardClearIndicesCacheRequest request) throws ElasticSearchException {
+        // TODO we can optimize to go to a single node where the index exists
+        IndexCache cache = indicesService.indexServiceSafe(request.index()).cache();
+        if (request.filterCache()) {
+            cache.filter().clear();
+        }
+        return new ShardClearIndicesCacheResponse(request.index(), request.shardId());
+    }
+
+    /**
+     * The refresh request works against *all* shards.
+     */
+    @Override protected GroupShardsIterator shards(ClearIndicesCacheRequest request, ClusterState clusterState) {
+        return clusterState.routingTable().allShardsGrouped(request.indices());
+    }
+}

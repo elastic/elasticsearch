@@ -17,39 +17,35 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.filter.none;
+package org.elasticsearch.index.cache;
 
 import com.google.inject.Inject;
-import org.apache.lucene.search.Filter;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.FilterCache;
+import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.settings.Settings;
 
+import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
+
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class NoneFilterCache extends AbstractIndexComponent implements FilterCache {
+public class IndexCache extends AbstractIndexComponent {
 
-    @Inject public NoneFilterCache(Index index, @IndexSettings Settings indexSettings) {
+    private final FilterCache filterCache;
+
+    public IndexCache(Index index) {
+        this(index, EMPTY_SETTINGS, new NoneFilterCache(index, EMPTY_SETTINGS));
+    }
+
+    @Inject public IndexCache(Index index, @IndexSettings Settings indexSettings, FilterCache filterCache) {
         super(index, indexSettings);
-        logger.debug("Using no filter cache");
+        this.filterCache = filterCache;
     }
 
-    @Override public String type() {
-        return "none";
-    }
-
-    @Override public void close() {
-        // nothing to do here
-    }
-
-    @Override public Filter cache(Filter filterToCache) {
-        return filterToCache;
-    }
-
-    @Override public void clear() {
-        // nothing to do here
+    public FilterCache filter() {
+        return filterCache;
     }
 }

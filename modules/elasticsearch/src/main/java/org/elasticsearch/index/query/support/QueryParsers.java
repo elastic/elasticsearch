@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query.support;
 
 import org.apache.lucene.search.*;
-import org.elasticsearch.index.cache.filter.FilterCache;
+import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.util.Nullable;
@@ -36,7 +36,7 @@ public final class QueryParsers {
     }
 
     public static Query wrapSmartNameQuery(Query query, @Nullable MapperService.SmartNameFieldMappers smartFieldMappers,
-                                           @Nullable FilterCache filterCache) {
+                                           @Nullable IndexCache indexCache) {
         if (smartFieldMappers == null) {
             return query;
         }
@@ -45,14 +45,14 @@ public final class QueryParsers {
         }
         DocumentMapper docMapper = smartFieldMappers.docMapper();
         Filter typeFilter = new TermFilter(docMapper.typeMapper().term(docMapper.type()));
-        if (filterCache != null) {
-            typeFilter = filterCache.cache(typeFilter);
+        if (indexCache != null) {
+            typeFilter = indexCache.filter().cache(typeFilter);
         }
         return new FilteredQuery(query, typeFilter);
     }
 
     public static Filter wrapSmartNameFilter(Filter filter, @Nullable MapperService.SmartNameFieldMappers smartFieldMappers,
-                                             @Nullable FilterCache filterCache) {
+                                             @Nullable IndexCache indexCache) {
         if (smartFieldMappers == null) {
             return filter;
         }
@@ -62,15 +62,15 @@ public final class QueryParsers {
         DocumentMapper docMapper = smartFieldMappers.docMapper();
         BooleanFilter booleanFilter = new BooleanFilter();
         Filter typeFilter = new TermFilter(docMapper.typeMapper().term(docMapper.type()));
-        if (filterCache != null) {
-            typeFilter = filterCache.cache(typeFilter);
+        if (indexCache != null) {
+            typeFilter = indexCache.filter().cache(typeFilter);
         }
         booleanFilter.add(new FilterClause(typeFilter, BooleanClause.Occur.MUST));
         booleanFilter.add(new FilterClause(filter, BooleanClause.Occur.MUST));
 
         Filter result = booleanFilter;
-        if (filterCache != null) {
-            result = filterCache.cache(result);
+        if (indexCache != null) {
+            result = indexCache.filter().cache(result);
         }
         return result;
     }

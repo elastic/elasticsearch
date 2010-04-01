@@ -25,7 +25,7 @@ import org.apache.lucene.search.Similarity;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.cache.filter.FilterCache;
+import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
@@ -46,19 +46,19 @@ public class JsonQueryParseContext {
 
     private final SimilarityService similarityService;
 
-    private final FilterCache filterCache;
+    private final IndexCache indexCache;
 
     private final JsonQueryParserRegistry queryParserRegistry;
 
     private JsonParser jp;
 
     public JsonQueryParseContext(Index index, JsonQueryParserRegistry queryParserRegistry,
-                                 MapperService mapperService, SimilarityService similarityService, FilterCache filterCache) {
+                                 MapperService mapperService, SimilarityService similarityService, IndexCache indexCache) {
         this.index = index;
         this.queryParserRegistry = queryParserRegistry;
         this.mapperService = mapperService;
         this.similarityService = similarityService;
-        this.filterCache = filterCache;
+        this.indexCache = indexCache;
     }
 
     public void reset(JsonParser jp) {
@@ -81,15 +81,12 @@ public class JsonQueryParseContext {
         return similarityService != null ? similarityService.defaultSearchSimilarity() : null;
     }
 
-    public FilterCache filterCache() {
-        return filterCache;
+    public IndexCache indexCache() {
+        return indexCache;
     }
 
     public Filter cacheFilterIfPossible(Filter filter) {
-        if (filterCache == null) {
-            return filter;
-        }
-        return filterCache.cache(filter);
+        return indexCache.filter().cache(filter);
     }
 
     public Query parseInnerQuery() throws IOException, QueryParsingException {

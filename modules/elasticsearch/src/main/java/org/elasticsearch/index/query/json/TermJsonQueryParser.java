@@ -100,6 +100,6 @@ public class TermJsonQueryParser extends AbstractIndexComponent implements JsonQ
             query = new TermQuery(new Term(fieldName, value));
         }
         query.setBoost(boost);
-        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext.filterCache());
+        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext.indexCache());
     }
 }

@@ -88,6 +88,6 @@ public class TermsJsonFilterParser extends AbstractIndexComponent implements Jso
 
 
         Filter filter = parseContext.cacheFilterIfPossible(termsFilter);
-        return wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext.filterCache());
+        return wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext.indexCache());
     }
 }

@@ -26,7 +26,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
+import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParser;
 import org.elasticsearch.util.lucene.search.MoreLikeThisQuery;
@@ -757,7 +757,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     private JsonIndexQueryParser newQueryParser() throws IOException {
         return new JsonIndexQueryParser(new Index("test"), EMPTY_SETTINGS,
-                newMapperService(), new NoneFilterCache(index, EMPTY_SETTINGS), new AnalysisService(index), null, null, null, "test", null);
+                newMapperService(), new IndexCache(index), new AnalysisService(index), null, null, null, "test", null);
     }
 
     private MapperService newMapperService() throws IOException {

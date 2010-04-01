@@ -27,7 +27,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.index.cache.filter.FilterCache;
+import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
@@ -51,16 +51,16 @@ public class MapperQueryParser extends QueryParser {
 
     private final MapperService mapperService;
 
-    private final FilterCache filterCache;
+    private final IndexCache indexCache;
 
     private FieldMapper currentMapper;
 
     public MapperQueryParser(String defaultField, Analyzer analyzer,
                              @Nullable MapperService mapperService,
-                             @Nullable FilterCache filterCache) {
+                             @Nullable IndexCache indexCache) {
         super(Version.LUCENE_CURRENT, defaultField, analyzer);
         this.mapperService = mapperService;
-        this.filterCache = filterCache;
+        this.indexCache = indexCache;
         setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT);
     }
 
@@ -87,7 +87,7 @@ public class MapperQueryParser extends QueryParser {
                     } else {
                         query = super.getFieldQuery(currentMapper.names().indexName(), queryText);
                     }
-                    return wrapSmartNameQuery(query, fieldMappers, filterCache);
+                    return wrapSmartNameQuery(query, fieldMappers, indexCache);
                 }
             }
         }
@@ -108,7 +108,7 @@ public class MapperQueryParser extends QueryParser {
                 currentMapper = fieldMappers.fieldMappers().mapper();
                 if (currentMapper != null) {
                     Query rangeQuery = currentMapper.rangeQuery(part1, part2, inclusive, inclusive);
-                    return wrapSmartNameQuery(rangeQuery, fieldMappers, filterCache);
+                    return wrapSmartNameQuery(rangeQuery, fieldMappers, indexCache);
                 }
             }
         }
@@ -125,7 +125,7 @@ public class MapperQueryParser extends QueryParser {
                 if (currentMapper != null) {
                     indexedNameField = currentMapper.names().indexName();
                 }
-                return wrapSmartNameQuery(super.getPrefixQuery(indexedNameField, termStr), fieldMappers, filterCache);
+                return wrapSmartNameQuery(super.getPrefixQuery(indexedNameField, termStr), fieldMappers, indexCache);
             }
         }
         return super.getPrefixQuery(indexedNameField, termStr);
@@ -141,7 +141,7 @@ public class MapperQueryParser extends QueryParser {
                 if (currentMapper != null) {
                     indexedNameField = currentMapper.names().indexName();
                 }
-                return wrapSmartNameQuery(super.getFuzzyQuery(indexedNameField, termStr, minSimilarity), fieldMappers, filterCache);
+                return wrapSmartNameQuery(super.getFuzzyQuery(indexedNameField, termStr, minSimilarity), fieldMappers, indexCache);
             }
         }
         return super.getFuzzyQuery(indexedNameField, termStr, minSimilarity);
@@ -157,7 +157,7 @@ public class MapperQueryParser extends QueryParser {
                 if (currentMapper != null) {
                     indexedNameField = currentMapper.names().indexName();
                 }
-                return wrapSmartNameQuery(super.getWildcardQuery(indexedNameField, termStr), fieldMappers, filterCache);
+                return wrapSmartNameQuery(super.getWildcardQuery(indexedNameField, termStr), fieldMappers, indexCache);
             }
         }
         return super.getWildcardQuery(indexedNameField, termStr);

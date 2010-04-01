@@ -24,7 +24,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.IndexLifecycle;
 import org.elasticsearch.index.IndexShardMissingException;
-import org.elasticsearch.index.cache.filter.FilterCache;
+import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.routing.OperationRouting;
@@ -42,7 +42,7 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard>, Clos
 
     Injector injector();
 
-    FilterCache filterCache();
+    IndexCache cache();
 
     OperationRouting operationRouting();
 

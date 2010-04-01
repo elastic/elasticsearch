@@ -173,7 +173,7 @@ public class FieldJsonQueryParser extends AbstractIndexComponent implements Json
             throw new QueryParsingException(index, "No value specified for term query");
         }
 
-        MapperQueryParser queryParser = new MapperQueryParser(fieldName, analyzer, parseContext.mapperService(), parseContext.filterCache());
+        MapperQueryParser queryParser = new MapperQueryParser(fieldName, analyzer, parseContext.mapperService(), parseContext.indexCache());
         queryParser.setEnablePositionIncrements(enablePositionIncrements);
         queryParser.setLowercaseExpandedTerms(lowercaseExpandedTerms);
         queryParser.setPhraseSlop(phraseSlop);

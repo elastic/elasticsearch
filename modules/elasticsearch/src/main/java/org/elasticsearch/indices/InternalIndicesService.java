@@ -30,8 +30,8 @@ import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.index.*;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.cache.filter.FilterCache;
-import org.elasticsearch.index.cache.filter.FilterCacheModule;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.gateway.IndexGatewayModule;
 import org.elasticsearch.index.mapper.MapperServiceModule;
@@ -165,7 +165,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
                 new IndicesPluginsModule(indexSettings, pluginsService),
                 new AnalysisModule(indexSettings),
                 new SimilarityModule(indexSettings),
-                new FilterCacheModule(indexSettings),
+                new IndexCacheModule(indexSettings),
                 new IndexQueryParserModule(indexSettings),
                 new MapperServiceModule(),
                 new IndexGatewayModule(indexSettings, injector.getInstance(Gateway.class)),

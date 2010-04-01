@@ -24,7 +24,7 @@ import com.google.inject.Inject;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.cache.filter.FilterCache;
+import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.json.JsonIndexQueryParser;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -51,12 +51,12 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     private final Map<String, IndexQueryParser> indexQueryParsers;
 
-    public IndexQueryParserService(Index index, MapperService mapperService, FilterCache filterCache, AnalysisService analysisService) {
-        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, mapperService, filterCache, analysisService, null, null);
+    public IndexQueryParserService(Index index, MapperService mapperService, IndexCache indexCache, AnalysisService analysisService) {
+        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, mapperService, indexCache, analysisService, null, null);
     }
 
     @Inject public IndexQueryParserService(Index index, @IndexSettings Settings indexSettings,
-                                           MapperService mapperService, FilterCache filterCache,
+                                           MapperService mapperService, IndexCache indexCache,
                                            AnalysisService analysisService,
                                            @Nullable SimilarityService similarityService,
                                            @Nullable Map<String, IndexQueryParserFactory> indexQueryParsersFactories) {
@@ -76,7 +76,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
             }
         }
         if (!qparsers.containsKey(Defaults.DEFAULT)) {
-            IndexQueryParser defaultQueryParser = new JsonIndexQueryParser(index, indexSettings, mapperService, filterCache, analysisService, similarityService, null, null, Defaults.DEFAULT, null);
+            IndexQueryParser defaultQueryParser = new JsonIndexQueryParser(index, indexSettings, mapperService, indexCache, analysisService, similarityService, null, null, Defaults.DEFAULT, null);
             qparsers.put(Defaults.DEFAULT, defaultQueryParser);
         }
 

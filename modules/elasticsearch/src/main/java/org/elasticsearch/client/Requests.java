@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingRe
 import org.elasticsearch.action.admin.cluster.ping.single.SinglePingRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -248,12 +249,22 @@ public class Requests {
     /**
      * Creates a gateway snapshot indices request.
      *
-     * @param indices The indices the delete by query against. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @param indices The indices the gateway wil be performed ont. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
      * @return The gateway snapshot request
      * @see org.elasticsearch.client.IndicesAdminClient#gatewaySnapshot(org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequest)
      */
     public static GatewaySnapshotRequest gatewaySnapshotRequest(String... indices) {
         return new GatewaySnapshotRequest(indices);
+    }
+
+    /**
+     * Creates a clean indices cache request.
+     *
+     * @param indices The indices the gateway wil be performed ont. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @return The request
+     */
+    public static ClearIndicesCacheRequest clearIndicesCache(String... indices) {
+        return new ClearIndicesCacheRequest(indices);
     }
 
     /**

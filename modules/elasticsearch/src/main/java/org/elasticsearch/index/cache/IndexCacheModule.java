@@ -17,20 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.filter;
+package org.elasticsearch.index.cache;
 
-import org.apache.lucene.search.Filter;
-import org.elasticsearch.index.IndexComponent;
-import org.elasticsearch.util.component.CloseableComponent;
+import com.google.inject.AbstractModule;
+import org.elasticsearch.index.cache.filter.FilterCacheModule;
+import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface FilterCache extends IndexComponent, CloseableComponent {
+public class IndexCacheModule extends AbstractModule {
 
-    String type();
+    private final Settings settings;
 
-    Filter cache(Filter filterToCache);
+    public IndexCacheModule(Settings settings) {
+        this.settings = settings;
+    }
 
-    void clear();
+    @Override protected void configure() {
+        new FilterCacheModule(settings).configure(binder());
+
+        bind(IndexCache.class).asEagerSingleton();
+    }
 }

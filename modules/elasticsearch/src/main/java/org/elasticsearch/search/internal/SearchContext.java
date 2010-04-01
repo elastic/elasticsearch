@@ -205,7 +205,7 @@ public class SearchContext implements Releasable {
     }
 
     public FilterCache filterCache() {
-        return indexService.filterCache();
+        return indexService.cache().filter();
     }
 
     public TimeValue timeout() {

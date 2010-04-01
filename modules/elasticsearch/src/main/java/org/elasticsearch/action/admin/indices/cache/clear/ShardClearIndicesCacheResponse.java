@@ -17,20 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.filter;
+package org.elasticsearch.action.admin.indices.cache.clear;
 
-import org.apache.lucene.search.Filter;
-import org.elasticsearch.index.IndexComponent;
-import org.elasticsearch.util.component.CloseableComponent;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface FilterCache extends IndexComponent, CloseableComponent {
+class ShardClearIndicesCacheResponse extends BroadcastShardOperationResponse {
 
-    String type();
+    ShardClearIndicesCacheResponse() {
+    }
 
-    Filter cache(Filter filterToCache);
+    public ShardClearIndicesCacheResponse(String index, int shardId) {
+        super(index, shardId);
+    }
 
-    void clear();
+    @Override public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+    }
+
+    @Override public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+    }
 }

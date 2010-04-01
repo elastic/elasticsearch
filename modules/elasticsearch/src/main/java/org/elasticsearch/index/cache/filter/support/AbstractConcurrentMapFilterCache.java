@@ -65,6 +65,10 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         cache.clear();
     }
 
+    @Override public void clear() {
+        cache.clear();
+    }
+
     @Override public Filter cache(Filter filterToCache) {
         return new FilterCacheFilterWrapper(filterToCache);
     }

@@ -21,6 +21,7 @@ package org.elasticsearch.test.integration.document;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -99,6 +100,11 @@ public class DocumentActionsTests extends AbstractServersTests {
         RefreshResponse refreshResponse = client1.admin().indices().refresh(refreshRequest("test")).actionGet();
         assertThat(refreshResponse.successfulShards(), equalTo(10));
         assertThat(refreshResponse.failedShards(), equalTo(0));
+
+        logger.info("Clearing cache");
+        ClearIndicesCacheResponse clearIndicesCacheResponse = client1.admin().indices().clearCache(clearIndicesCache("test")).actionGet();
+        assertThat(clearIndicesCacheResponse.successfulShards(), equalTo(10));
+        assertThat(clearIndicesCacheResponse.failedShards(), equalTo(0));
 
         logger.info("Optimizing");
         OptimizeResponse optimizeResponse = client1.admin().indices().optimize(optimizeRequest("test")).actionGet();

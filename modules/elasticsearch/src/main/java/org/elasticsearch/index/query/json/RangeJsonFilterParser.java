@@ -118,6 +118,6 @@ public class RangeJsonFilterParser extends AbstractIndexComponent implements Jso
         if (filter == null) {
             filter = new TermRangeFilter(fieldName, from, to, includeLower, includeUpper);
         }
-        return wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext.filterCache());
+        return wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext.indexCache());
     }
 }

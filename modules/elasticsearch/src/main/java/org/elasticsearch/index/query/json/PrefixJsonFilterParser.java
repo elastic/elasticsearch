@@ -75,6 +75,6 @@ public class PrefixJsonFilterParser extends AbstractIndexComponent implements Js
 
         Filter prefixFilter = new PrefixFilter(new Term(fieldName, value));
         prefixFilter = parseContext.cacheFilterIfPossible(prefixFilter);
-        return wrapSmartNameFilter(prefixFilter, smartNameFieldMappers, parseContext.filterCache());
+        return wrapSmartNameFilter(prefixFilter, smartNameFieldMappers, parseContext.indexCache());
     }
 }

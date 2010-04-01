@@ -23,6 +23,8 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -199,7 +201,7 @@ public interface IndicesAdminClient {
      * @return The result future
      * @see Requests#indexAliasesRequest()
      */
-    ActionFuture<IndicesAliasesResponse> indicesAliases(IndicesAliasesRequest request);
+    ActionFuture<IndicesAliasesResponse> aliases(IndicesAliasesRequest request);
 
     /**
      * Allows to add/remove aliases from indices.
@@ -209,4 +211,22 @@ public interface IndicesAdminClient {
      * @see Requests#indexAliasesRequest()
      */
     void aliases(IndicesAliasesRequest request, ActionListener<IndicesAliasesResponse> listener);
+
+    /**
+     * Clear indices cache.
+     *
+     * @param request The clear indices cache request
+     * @return The result future
+     * @see Requests#clearIndicesCache(String...)
+     */
+    ActionFuture<ClearIndicesCacheResponse> clearCache(ClearIndicesCacheRequest request);
+
+    /**
+     * Clear indices cache.
+     *
+     * @param request  The clear indices cache request
+     * @param listener A listener to be notified with a result
+     * @see Requests#clearIndicesCache(String...)
+     */
+    void clearCache(ClearIndicesCacheRequest request, ActionListener<ClearIndicesCacheResponse> listener);
 }

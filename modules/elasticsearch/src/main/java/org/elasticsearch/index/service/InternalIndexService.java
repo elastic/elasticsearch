@@ -25,7 +25,7 @@ import com.google.inject.Inject;
 import com.google.inject.Injector;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.index.*;
-import org.elasticsearch.index.cache.filter.FilterCache;
+import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineModule;
@@ -79,7 +79,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     private final SimilarityService similarityService;
 
-    private final FilterCache filterCache;
+    private final IndexCache indexCache;
 
     private final OperationRouting operationRouting;
 
@@ -89,14 +89,14 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     @Inject public InternalIndexService(Injector injector, Index index, @IndexSettings Settings indexSettings,
                                         MapperService mapperService, IndexQueryParserService queryParserService, SimilarityService similarityService,
-                                        FilterCache filterCache, OperationRouting operationRouting) {
+                                        IndexCache indexCache, OperationRouting operationRouting) {
         super(index, indexSettings);
         this.injector = injector;
         this.indexSettings = indexSettings;
         this.mapperService = mapperService;
         this.queryParserService = queryParserService;
         this.similarityService = similarityService;
-        this.filterCache = filterCache;
+        this.indexCache = indexCache;
         this.operationRouting = operationRouting;
 
         this.pluginsService = injector.getInstance(PluginsService.class);
@@ -134,8 +134,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         return injector;
     }
 
-    @Override public FilterCache filterCache() {
-        return filterCache;
+    @Override public IndexCache cache() {
+        return indexCache;
     }
 
     @Override public OperationRouting operationRouting() {

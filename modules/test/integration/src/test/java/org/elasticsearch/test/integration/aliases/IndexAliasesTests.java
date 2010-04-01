@@ -83,7 +83,7 @@ public class IndexAliasesTests extends AbstractServersTests {
         }
 
         logger.info("Aliasing index [test] with [alias1]");
-        client1.admin().indices().indicesAliases(indexAliasesRequest().addAlias("test", "alias1")).actionGet();
+        client1.admin().indices().aliases(indexAliasesRequest().addAlias("test", "alias1")).actionGet();
         Thread.sleep(300);
 
         logger.info("Indexing against [alias1], should work now");
@@ -100,7 +100,7 @@ public class IndexAliasesTests extends AbstractServersTests {
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Remove [alias1], Aliasing index [test_x] with [alias1]");
-        client1.admin().indices().indicesAliases(indexAliasesRequest().removeAlias("test", "alias1").addAlias("test_x", "alias1")).actionGet();
+        client1.admin().indices().aliases(indexAliasesRequest().removeAlias("test", "alias1").addAlias("test_x", "alias1")).actionGet();
         Thread.sleep(300);
 
         logger.info("Indexing against [alias1], should work against [test_x]");

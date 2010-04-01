@@ -79,6 +79,6 @@ public class TermJsonFilterParser extends AbstractIndexComponent implements Json
             filter = new TermFilter(new Term(fieldName, value));
         }
         filter = parseContext.cacheFilterIfPossible(filter);
-        return wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext.filterCache());
+        return wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext.indexCache());
     }
 }

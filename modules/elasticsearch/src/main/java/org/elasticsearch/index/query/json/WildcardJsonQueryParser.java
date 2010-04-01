@@ -101,6 +101,6 @@ public class WildcardJsonQueryParser extends AbstractIndexComponent implements J
         WildcardQuery query = new WildcardQuery(new Term(fieldName, value));
         query.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT);
         query.setBoost(boost);
-        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext.filterCache());
+        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext.indexCache());
     }
 }

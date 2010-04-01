@@ -28,7 +28,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.cache.filter.FilterCache;
+import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -61,7 +61,7 @@ public class JsonIndexQueryParser extends AbstractIndexComponent implements Inde
 
     private ThreadLocal<ThreadLocals.CleanableValue<JsonQueryParseContext>> cache = new ThreadLocal<ThreadLocals.CleanableValue<JsonQueryParseContext>>() {
         @Override protected ThreadLocals.CleanableValue<JsonQueryParseContext> initialValue() {
-            return new ThreadLocals.CleanableValue<JsonQueryParseContext>(new JsonQueryParseContext(index, queryParserRegistry, mapperService, similarityService, filterCache));
+            return new ThreadLocals.CleanableValue<JsonQueryParseContext>(new JsonQueryParseContext(index, queryParserRegistry, mapperService, similarityService, indexCache));
         }
     };
 
@@ -73,13 +73,13 @@ public class JsonIndexQueryParser extends AbstractIndexComponent implements Inde
 
     private final SimilarityService similarityService;
 
-    private final FilterCache filterCache;
+    private final IndexCache indexCache;
 
     private final JsonQueryParserRegistry queryParserRegistry;
 
     @Inject public JsonIndexQueryParser(Index index,
                                         @IndexSettings Settings indexSettings,
-                                        MapperService mapperService, FilterCache filterCache,
+                                        MapperService mapperService, IndexCache indexCache,
                                         AnalysisService analysisService, @Nullable SimilarityService similarityService,
                                         @Nullable Map<String, JsonQueryParserFactory> jsonQueryParsers,
                                         @Nullable Map<String, JsonFilterParserFactory> jsonFilterParsers,
@@ -88,7 +88,7 @@ public class JsonIndexQueryParser extends AbstractIndexComponent implements Inde
         this.name = name;
         this.mapperService = mapperService;
         this.similarityService = similarityService;
-        this.filterCache = filterCache;
+        this.indexCache = indexCache;
 
         List<JsonQueryParser> queryParsers = newArrayList();
         if (jsonQueryParsers != null) {

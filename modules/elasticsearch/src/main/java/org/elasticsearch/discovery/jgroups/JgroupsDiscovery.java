@@ -250,6 +250,11 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
                 BytesStreamInput is = new BytesStreamInput(msg.getBuffer());
                 final Node newNode = Node.readNode(is);
                 is.close();
+
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Received node information from [{}], node [{}]", msg.getSrc(), newNode);
+                }
+
                 clusterService.submitStateUpdateTask("jgroups-disco-receive(from node[" + newNode + "])", new ClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
                         if (currentState.nodes().nodeExists(newNode.id())) {
@@ -261,7 +266,7 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
                     }
                 });
             } catch (Exception e) {
-                logger.warn("Can't read address from cluster member, message [" + msg.getClass().getName() + "/" + msg + "]", e);
+                logger.warn("Can't read address from cluster member [" + msg.getSrc() + "] message [" + msg.getClass().getName() + "/" + msg + "]", e);
             }
 
             return;

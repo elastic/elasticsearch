@@ -244,7 +244,7 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
             return;
         }
 
-        // direct message from a member that indicate his state has changed.
+        // direct message from a member indicating it has joined the jgroups cluster and provides us its node information
         if (isMaster()) {
             try {
                 BytesStreamInput is = new BytesStreamInput(msg.getBuffer());

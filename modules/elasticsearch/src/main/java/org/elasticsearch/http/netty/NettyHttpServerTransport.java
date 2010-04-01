@@ -271,7 +271,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
                 return;
             }
             if (!NetworkExceptionHelper.isCloseConnectionException(e.getCause())) {
-                logger.warn("Caught exception while handling client http trafic", e.getCause());
+                logger.warn("Caught exception while handling client http traffic", e.getCause());
             }
         }
     }

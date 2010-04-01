@@ -163,9 +163,6 @@ public class MoreLikeThisJsonQueryBuilder extends BaseJsonQueryBuilder {
 
     @Override protected void doJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject(MoreLikeThisJsonQueryParser.NAME);
-        if (fields == null || fields.length == 0) {
-            throw new QueryBuilderException("moreLikeThis requires 'fields' to be provided");
-        }
         if (fields != null) {
             builder.startArray("fields");
             for (String field : fields) {

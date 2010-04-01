@@ -161,19 +161,25 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             });
         } catch (IllegalIndexShardStateException e) {
             // ignore, that's fine
+        } catch (IndexShardGatewaySnapshotFailedException e) {
+            throw e;
         } catch (Exception e) {
-            logger.warn("Failed to snapshot on close", e);
+            throw new IndexShardGatewaySnapshotFailedException(shardId, "Failed to snapshot", e);
         }
     }
 
-    public void close(boolean delete) {
+    public synchronized void close(boolean delete) {
         if (snapshotScheduleFuture != null) {
             snapshotScheduleFuture.cancel(true);
             snapshotScheduleFuture = null;
         }
         if (!delete && snapshotOnClose) {
             logger.debug("Snapshotting on close ...");
-            snapshot();
+            try {
+                snapshot();
+            } catch (Exception e) {
+                logger.warn("Failed to snapshot on close", e);
+            }
         }
         // don't really delete the shard gateway if we are *not* primary,
         // the primary will close it
@@ -213,7 +219,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             try {
                 snapshot();
             } catch (Exception e) {
-                logger.warn("Failed to snapshot", e);
+                logger.warn("Failed to snapshot (scheduled)", e);
             }
         }
     }

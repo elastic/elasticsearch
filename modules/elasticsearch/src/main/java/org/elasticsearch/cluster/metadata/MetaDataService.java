@@ -138,7 +138,7 @@ public class MetaDataService extends AbstractComponent {
         return new IndicesAliasesResult();
     }
 
-    public synchronized CreateIndexResult createIndex(final String index, final Settings indexSettings, Map<String, String> mappings, TimeValue timeout) throws IndexAlreadyExistsException {
+    public synchronized CreateIndexResult createIndex(final String cause, final String index, final Settings indexSettings, Map<String, String> mappings, TimeValue timeout) throws IndexAlreadyExistsException {
         ClusterState clusterState = clusterService.state();
 
         if (clusterState.routingTable().hasIndex(index)) {
@@ -202,7 +202,7 @@ public class MetaDataService extends AbstractComponent {
             }
         };
         nodeIndexCreatedAction.add(nodeCreatedListener);
-        clusterService.submitStateUpdateTask("create-index [" + index + "]", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("create-index [" + index + "], cause [" + cause + "]", new ClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
                 RoutingTable.Builder routingTableBuilder = new RoutingTable.Builder();
                 for (IndexRoutingTable indexRoutingTable : currentState.routingTable().indicesRouting().values()) {
@@ -230,7 +230,7 @@ public class MetaDataService extends AbstractComponent {
                         .initializeEmpty(newMetaData.index(index));
                 routingTableBuilder.add(indexRoutingBuilder);
 
-                logger.info("Creating Index [{}], shards [{}]/[{}], mappings {}", new Object[]{index, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), fMappings.keySet()});
+                logger.info("Creating Index [{}], cause [{}], shards [{}]/[{}], mappings {}", new Object[]{index, cause, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), fMappings.keySet()});
                 RoutingTable newRoutingTable = shardsRoutingStrategy.reroute(newClusterStateBuilder().state(currentState).routingTable(routingTableBuilder).metaData(newMetaData).build());
                 return newClusterStateBuilder().state(currentState).routingTable(newRoutingTable).metaData(newMetaData).build();
             }

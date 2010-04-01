@@ -140,7 +140,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                             threadPool.execute(new Runnable() {
                                 @Override public void run() {
                                     try {
-                                        metaDataService.createIndex(indexMetaData.index(), indexMetaData.settings(), indexMetaData.mappings(), timeValueMillis(10));
+                                        metaDataService.createIndex("gateway", indexMetaData.index(), indexMetaData.settings(), indexMetaData.mappings(), timeValueMillis(10));
                                     } catch (Exception e) {
                                         logger.error("Failed to create index [" + indexMetaData.index() + "]", e);
                                     }

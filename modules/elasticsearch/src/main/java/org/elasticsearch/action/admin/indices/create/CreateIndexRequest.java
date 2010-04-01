@@ -50,6 +50,8 @@ import static org.elasticsearch.util.settings.ImmutableSettings.*;
  */
 public class CreateIndexRequest extends MasterNodeOperationRequest {
 
+    private String cause = "";
+
     private String index;
 
     private Settings settings = EMPTY_SETTINGS;
@@ -99,6 +101,13 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
     }
 
     /**
+     * The cause for this index creation.
+     */
+    String cause() {
+        return cause;
+    }
+
+    /**
      * The settings to created the index with.
      */
     public CreateIndexRequest settings(Settings settings) {
@@ -122,6 +131,14 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
      */
     public CreateIndexRequest mapping(String type, String source) {
         mappings.put(type, source);
+        return this;
+    }
+
+    /**
+     * The cause for this index creation.
+     */
+    public CreateIndexRequest cause(String cause) {
+        this.cause = cause;
         return this;
     }
 
@@ -162,6 +179,7 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
+        cause = in.readUTF();
         index = in.readUTF();
         settings = readSettingsFromStream(in);
         timeout = readTimeValue(in);
@@ -172,6 +190,7 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
+        out.writeUTF(cause);
         out.writeUTF(index);
         writeSettingsToStream(settings, out);
         timeout.writeTo(out);

@@ -82,7 +82,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
             }
         }
         if (autoCreateIndex && !clusterService.state().metaData().hasConcreteIndex(indexRequest.index())) {
-            createIndexAction.execute(new CreateIndexRequest(indexRequest.index()), new ActionListener<CreateIndexResponse>() {
+            createIndexAction.execute(new CreateIndexRequest(indexRequest.index()).cause("auto(index api)"), new ActionListener<CreateIndexResponse>() {
                 @Override public void onResponse(CreateIndexResponse result) {
                     TransportIndexAction.super.doExecute(indexRequest, listener);
                 }

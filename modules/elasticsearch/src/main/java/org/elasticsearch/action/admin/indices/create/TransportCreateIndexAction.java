@@ -57,7 +57,11 @@ public class TransportCreateIndexAction extends TransportMasterNodeOperationActi
     }
 
     @Override protected CreateIndexResponse masterOperation(CreateIndexRequest request) throws ElasticSearchException {
-        MetaDataService.CreateIndexResult createIndexResult = metaDataService.createIndex(request.index(), request.settings(), request.mappings(), request.timeout());
+        String cause = request.cause();
+        if (cause.length() == 0) {
+            cause = "api";
+        }
+        MetaDataService.CreateIndexResult createIndexResult = metaDataService.createIndex(cause, request.index(), request.settings(), request.mappings(), request.timeout());
         return new CreateIndexResponse(createIndexResult.acknowledged());
     }
 }

@@ -15,6 +15,10 @@ configurations.testCompile.transitive = true
 sourceSets.main.resources.srcDir 'src/main/java'
 sourceSets.test.resources.srcDir 'src/test/java'
 
+jar {
+    from sourceSets.main.allJava
+}
+
 configurations {
     dists
     distLib {

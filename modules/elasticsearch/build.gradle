@@ -1,5 +1,3 @@
-import java.text.SimpleDateFormat
-
 dependsOn(':test-testng')
 
 usePlugin 'java'
@@ -25,6 +23,10 @@ manifest.mainAttributes("Implementation-Title": "ElasticSearch", "Implementation
 // no need to use the resource dir
 sourceSets.main.resources.srcDirs 'src/main/java', rootProject.file('config')
 sourceSets.test.resources.srcDir 'src/test/java'
+
+jar {
+    from sourceSets.main.allJava
+}
 
 dependencies {
     compile('jline:jline:0.9.94') { transitive = false }

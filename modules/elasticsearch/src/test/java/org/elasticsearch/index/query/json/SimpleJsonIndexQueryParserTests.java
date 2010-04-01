@@ -732,6 +732,36 @@ public class SimpleJsonIndexQueryParserTests {
         assertThat(mltQuery.getMaxQueryTerms(), equalTo(12));
     }
 
+    @Test public void testFuzzyLikeThisBuilder() throws Exception {
+        IndexQueryParser queryParser = newQueryParser();
+        Query parsedQuery = queryParser.parse(fuzzyLikeThisQuery("name.first", "name.last").likeText("something").maxNumTerms(12));
+        assertThat(parsedQuery, instanceOf(FuzzyLikeThisQuery.class));
+//        FuzzyLikeThisQuery fuzzyLikeThisQuery = (FuzzyLikeThisQuery) parsedQuery;
+    }
+
+    @Test public void testFuzzyLikeThis() throws Exception {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/json/fuzzyLikeThis.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FuzzyLikeThisQuery.class));
+//        FuzzyLikeThisQuery fuzzyLikeThisQuery = (FuzzyLikeThisQuery) parsedQuery;
+    }
+
+    @Test public void testFuzzyLikeFieldThisBuilder() throws Exception {
+        IndexQueryParser queryParser = newQueryParser();
+        Query parsedQuery = queryParser.parse(fuzzyLikeThisFieldQuery("name.first").likeText("something").maxNumTerms(12));
+        assertThat(parsedQuery, instanceOf(FuzzyLikeThisQuery.class));
+//        FuzzyLikeThisQuery fuzzyLikeThisQuery = (FuzzyLikeThisQuery) parsedQuery;
+    }
+
+    @Test public void testFuzzyLikeThisField() throws Exception {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/json/fuzzyLikeThisField.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FuzzyLikeThisQuery.class));
+//        FuzzyLikeThisQuery fuzzyLikeThisQuery = (FuzzyLikeThisQuery) parsedQuery;
+    }
+
     @Test public void testMoreLikeThisFieldBuilder() throws Exception {
         IndexQueryParser queryParser = newQueryParser();
         Query parsedQuery = queryParser.parse(moreLikeThisFieldQuery("name.first").likeText("something").minTermFrequency(1).maxQueryTerms(12));

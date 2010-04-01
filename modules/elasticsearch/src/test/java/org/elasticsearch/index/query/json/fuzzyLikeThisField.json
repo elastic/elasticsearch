@@ -1,0 +1,8 @@
+{
+    fuzzyLikeThisField : {
+        "name.first" : {
+            likeText : "something",
+            maxNumTerms : 12
+        }
+    }
+}

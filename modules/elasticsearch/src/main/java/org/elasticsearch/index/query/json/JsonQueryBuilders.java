@@ -280,6 +280,31 @@ public abstract class JsonQueryBuilders {
     }
 
     /**
+     * A fuzzy like this query that finds documents that are "like" the provided {@link FuzzyLikeThisJsonQueryBuilder#likeText(String)}
+     * which is checked against the fields the query is constructed with.
+     *
+     * @param fields The fields to run the query against
+     */
+    public static FuzzyLikeThisJsonQueryBuilder fuzzyLikeThisQuery(String... fields) {
+        return new FuzzyLikeThisJsonQueryBuilder(fields);
+    }
+
+    /**
+     * A fuzzy like this query that finds documents that are "like" the provided {@link FuzzyLikeThisJsonQueryBuilder#likeText(String)}
+     * which is checked against the "_all" field.
+     */
+    public static FuzzyLikeThisJsonQueryBuilder fuzzyLikeThisQuery() {
+        return new FuzzyLikeThisJsonQueryBuilder();
+    }
+
+    /**
+     * A fuzzy like this query that finds documents that are "like" the provided {@link FuzzyLikeThisFieldJsonQueryBuilder#likeText(String)}.
+     */
+    public static FuzzyLikeThisFieldJsonQueryBuilder fuzzyLikeThisFieldQuery(String name) {
+        return new FuzzyLikeThisFieldJsonQueryBuilder(name);
+    }
+
+    /**
      * A more like this query that runs against a specific field.
      *
      * @param name The field name

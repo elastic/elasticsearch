@@ -118,13 +118,16 @@ public class FuzzyLikeThisFieldJsonQueryParser extends AbstractIndexComponent im
             throw new QueryParsingException(index, "fuzzyLikeThisField requires 'likeText' to be specified");
         }
 
-        Analyzer analyzer = parseContext.mapperService().searchAnalyzer();
+        Analyzer analyzer = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
                 fieldName = smartNameFieldMappers.mapper().names().indexName();
                 analyzer = smartNameFieldMappers.mapper().searchAnalyzer();
             }
+        }
+        if (analyzer == null) {
+            analyzer = parseContext.mapperService().searchAnalyzer();
         }
 
         FuzzyLikeThisQuery query = new FuzzyLikeThisQuery(maxNumTerms, analyzer);

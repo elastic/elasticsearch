@@ -79,10 +79,26 @@ task release(dependsOn: [zip]) << {
     }
 }
 
+configurations {
+    deployerJars
+}
+
+dependencies {
+    deployerJars "org.apache.maven.wagon:wagon-http:1.0-beta-2"
+}
+
 uploadArchives {
     repositories.mavenDeployer {
-        repository(url: "file://localhost/" + rootProject.projectDir.absolutePath + "/build/maven/repository")
-        snapshotRepository(url: "file://localhost/" + rootProject.projectDir.absolutePath + "/build/maven/snapshotRepository")
+//        repository(url: "file://localhost/" + rootProject.projectDir.absolutePath + "/build/maven/repository")
+//        snapshotRepository(url: "file://localhost/" + rootProject.projectDir.absolutePath + "/build/maven/snapshotRepository")
+
+        configuration = configurations.deployerJars
+        repository(url: "http://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+            authentication(userName: "kimchy", password: System.getenv("REPO_PASS"))
+        }
+        snapshotRepository(url: "http://oss.sonatype.org/content/repositories/snapshots") {
+            authentication(userName: "kimchy", password: System.getenv("REPO_PASS"))
+        }
 
         pom.project {
             inceptionYear '2009'

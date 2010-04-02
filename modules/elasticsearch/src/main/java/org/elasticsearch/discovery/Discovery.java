@@ -23,7 +23,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.util.component.LifecycleComponent;
 
 /**
- * @author kimchy (Shay Banon)
+ * A pluggable module allowing to implement discovery of other nodes, publishing of the cluster
+ * state to all nodes, electing a master of the cluster that raises cluster state change
+ * events.
+ *
+ * @author kimchy (shay.banon)
  */
 public interface Discovery extends LifecycleComponent<Discovery> {
 
@@ -33,6 +37,9 @@ public interface Discovery extends LifecycleComponent<Discovery> {
 
     String nodeDescription();
 
+    /**
+     * Is the discovery of this node caused this node to be the first master in the cluster.
+     */
     boolean firstMaster();
 
     /**

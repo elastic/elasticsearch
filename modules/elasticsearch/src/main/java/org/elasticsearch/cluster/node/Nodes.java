@@ -61,9 +61,21 @@ public class Nodes implements Iterable<Node> {
     }
 
     /**
+     * Is this a valid nodes that has the minimal information set. The minimal set is defined
+     * by the localNodeId being set.
+     */
+    public boolean valid() {
+        return localNodeId != null;
+    }
+
+    /**
      * Returns <tt>true</tt> if the local node is the master node.
      */
     public boolean localNodeMaster() {
+        if (localNodeId == null) {
+            // we don't know yet the local node id, return false
+            return false;
+        }
         return localNodeId.equals(masterNodeId);
     }
 

@@ -27,17 +27,17 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
-import org.elasticsearch.util.concurrent.DynamicExecutors;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static java.util.concurrent.Executors.*;
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.metadata.MetaData.*;
 import static org.elasticsearch.util.TimeValue.*;
+import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -67,7 +67,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
 
     @Override protected void doStart() throws ElasticSearchException {
         gateway.start();
-        this.executor = Executors.newSingleThreadExecutor(DynamicExecutors.daemonThreadFactory(settings, "gateway"));
+        this.executor = newSingleThreadExecutor(daemonThreadFactory(settings, "gateway"));
         clusterService.add(this);
     }
 

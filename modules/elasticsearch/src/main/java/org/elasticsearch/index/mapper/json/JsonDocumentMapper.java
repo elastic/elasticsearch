@@ -35,7 +35,6 @@ import org.elasticsearch.util.json.StringJsonBuilder;
 import org.elasticsearch.util.json.ToJson;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
 import static com.google.common.collect.Lists.*;
@@ -204,11 +203,12 @@ public class
             rootObjectMapper.putMapper(boostFieldMapper);
         }
 
-        final List<FieldMapper> tempFieldMappers = new ArrayList<FieldMapper>();
+        final List<FieldMapper> tempFieldMappers = newArrayList();
         // add the basic ones
         tempFieldMappers.add(typeFieldMapper);
         tempFieldMappers.add(sourceFieldMapper);
         tempFieldMappers.add(uidFieldMapper);
+        tempFieldMappers.add(allFieldMapper);
         if (boostFieldMapper != null) {
             tempFieldMappers.add(boostFieldMapper);
         }

@@ -68,15 +68,26 @@ test {
     systemProperties["es.test.log.conf"] = System.getProperty("es.test.log.conf", "log4j-gradle.properties")
 }
 
-configure(install.repositories.mavenInstaller) {
-//    pom.name = "ElasticSearch"
-//    pom.description = "Open Source, Distributed, RESTful, Search Engine"
-//    pom.url = "http://www.elasticsearch.org"
-}
-
 uploadArchives {
     repositories.mavenDeployer {
-//        repository(url: "file://localhost/" + rootProject.projectDir.absolutePath + "/build/maven/repository")
-//        snapshotRepository(url: "file://localhost/" + rootProject.projectDir.absolutePath + "/build/maven/snapshotRepository")
+        repository(url: "file://localhost/" + rootProject.projectDir.absolutePath + "/build/maven/repository")
+        snapshotRepository(url: "file://localhost/" + rootProject.projectDir.absolutePath + "/build/maven/snapshotRepository")
+        pom.project {
+            inceptionYear '2009'
+            name 'elasticsearch'
+            description 'Open Source, Distributed, RESTful Search Engine'
+            licenses {
+                license {
+                    name 'The Apache Software License, Version 2.0'
+                    url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                    distribution 'repo'
+                }
+            }
+            scm {
+                connection 'git://github.com/elasticsearch/elasticsearch.git'
+                developerConnection 'git@github.com:elasticsearch/elasticsearch.git'
+                url 'http://github.com/elasticsearch/elasticsearch'
+            }
+        }
     }
 }

@@ -73,35 +73,15 @@ task zip(type: Zip, dependsOn: ['explodedDist']) {
     zipRootFolder = "$archivesBaseName-${-> version}"
     from(explodedDistDir) {
         into zipRootFolder
-        exclude 'bin/*'
+        exclude 'bin/elasticsearch'
     }
     from(explodedDistDir) {
         into zipRootFolder
-        include 'bin/*'
-        exclude 'bin/*.*'
-        fileMode: '775'
-    }
-    from(explodedDistDir) {
-        into zipRootFolder
-        include 'bin/*.*'
+        include 'bin/elasticsearch'
+        fileMode = 0755
     }
 }
 
-//zip.doFirst {task ->
-//    task.configure {
-//        zipFileSet(dir: explodedDistDir, prefix: zipRootFolder) {
-//            exclude 'bin/*'
-//        }
-//        zipFileSet(dir: explodedDistDir, prefix: zipRootFolder, fileMode: '775') {
-//            include 'bin/*'
-//            exclude 'bin/*.*'
-//        }
-//        zipFileSet(dir: explodedDistDir, prefix: zipRootFolder) {
-//            include 'bin/*.*'
-//        }
-//    }
-//}
-//
 task release(dependsOn: [zip, ":plugins-attachments:release"]) << {
     ant.delete(dir: explodedDistDir)
 }

@@ -46,7 +46,7 @@ h3. Indexing
 Lets try and index some twitter like information. First, lets create a twitter user, and add some tweets (the @twitter@ index will be created automatically):
 
 <pre>
-curl -XPUT 'http://localhost:9200/twitter/user/kimchy' -d '{ name: "Shay Banon" }'
+curl -XPUT 'http://localhost:9200/twitter/user/kimchy' -d '{ "name" : "Shay Banon" }'
 
 curl -XPUT 'http://localhost:9200/twitter/tweet/1' -d '
 { 
@@ -126,7 +126,7 @@ ElasticSearch support multiple indices, as well as multiple types per index. In 
 Another way to define our simple twitter system is to have a different index per user. Here is the indexing curl's in this case:
 
 <pre>
-curl -XPUT 'http://localhost:9200/kimchy/info/1' -d '{ name: "Shay Banon" }'
+curl -XPUT 'http://localhost:9200/kimchy/info/1' -d '{ "name" : "Shay Banon" }'
 
 curl -XPUT 'http://localhost:9200/kimchy/tweet/1' -d '
 { 

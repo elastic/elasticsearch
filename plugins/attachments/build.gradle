@@ -1,6 +1,7 @@
 dependsOn(':elasticsearch')
 
 apply plugin: 'java'
+apply plugin: 'maven'
 
 archivesBaseName = "elasticsearch-attachments"
 
@@ -78,3 +79,31 @@ task release(dependsOn: [zip]) << {
     }
 }
 
+uploadArchives {
+    repositories.mavenDeployer {
+        repository(url: "file://localhost/" + rootProject.projectDir.absolutePath + "/build/maven/repository")
+        snapshotRepository(url: "file://localhost/" + rootProject.projectDir.absolutePath + "/build/maven/snapshotRepository")
+
+        pom.project {
+            inceptionYear '2009'
+            name 'elasticsearch-plugins-attachments'
+            description 'Attachments Plugin for ElasticSearch'
+            licenses {
+                license {
+                    name 'The Apache Software License, Version 2.0'
+                    url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                    distribution 'repo'
+                }
+            }
+            scm {
+                connection 'git://github.com/elasticsearch/elasticsearch.git'
+                developerConnection 'git@github.com:elasticsearch/elasticsearch.git'
+                url 'http://github.com/elasticsearch/elasticsearch'
+            }
+        }
+
+        pom.whenConfigured {pom ->
+            pom.dependencies = pom.dependencies.findAll {dep -> dep.scope != 'test' } // removes the test scoped ones
+        }
+    }
+}

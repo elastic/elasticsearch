@@ -22,11 +22,9 @@ package org.elasticsearch.http.netty;
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.http.*;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.transport.BoundTransportAddress;
@@ -40,20 +38,16 @@ import org.jboss.netty.handler.codec.http.HttpChunkAggregator;
 import org.jboss.netty.handler.codec.http.HttpRequestDecoder;
 import org.jboss.netty.handler.codec.http.HttpResponseEncoder;
 import org.jboss.netty.handler.timeout.ReadTimeoutException;
-import org.jboss.netty.handler.timeout.ReadTimeoutHandler;
 import org.jboss.netty.logging.InternalLogger;
 import org.jboss.netty.logging.InternalLoggerFactory;
 import org.jboss.netty.logging.Slf4JLoggerFactory;
-import org.jboss.netty.util.HashedWheelTimer;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.util.TimeValue.*;
 import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
 import static org.elasticsearch.util.io.HostResolver.*;
 
@@ -69,8 +63,6 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
             }
         });
     }
-
-    private final ThreadPool threadPool;
 
     private final SizeValue maxContentLength;
 
@@ -92,10 +84,6 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     private final SizeValue tcpReceiveBufferSize;
 
-    private final TimeValue httpKeepAlive;
-
-    private final TimeValue httpKeepAliveTickDuration;
-
     private volatile ServerBootstrap serverBootstrap;
 
     private volatile BoundTransportAddress boundAddress;
@@ -106,11 +94,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     private volatile HttpServerAdapter httpServerAdapter;
 
-    private HashedWheelTimer keepAliveTimer;
-
-    @Inject public NettyHttpServerTransport(Settings settings, ThreadPool threadPool) {
+    @Inject public NettyHttpServerTransport(Settings settings) {
         super(settings);
-        this.threadPool = threadPool;
         SizeValue maxContentLength = componentSettings.getAsSize("maxContentLength", new SizeValue(100, SizeUnit.MB));
         this.workerCount = componentSettings.getAsInt("workerCount", Runtime.getRuntime().availableProcessors());
         this.port = componentSettings.get("port", "9200-9300");
@@ -121,12 +106,6 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         this.reuseAddress = componentSettings.getAsBoolean("reuseAddress", true);
         this.tcpSendBufferSize = componentSettings.getAsSize("tcpSendBufferSize", null);
         this.tcpReceiveBufferSize = componentSettings.getAsSize("tcpReceiveBufferSize", null);
-        this.httpKeepAlive = componentSettings.getAsTime("httpKeepAlive", timeValueSeconds(30));
-        this.httpKeepAliveTickDuration = componentSettings.getAsTime("httpKeepAliveTickDuration", timeValueMillis(500));
-
-        if ((httpKeepAliveTickDuration.millis() * 10) > httpKeepAlive.millis()) {
-            logger.warn("Suspicious keep alive settings, httpKeepAlive set to [{}], while httpKeepAliveTickDuration is set to [{}]", httpKeepAlive, httpKeepAliveTickDuration);
-        }
 
         // validate max content length
         if (maxContentLength.bytes() > Integer.MAX_VALUE) {
@@ -148,14 +127,12 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
                 Executors.newCachedThreadPool(daemonThreadFactory(settings, "httpIoWorker")),
                 workerCount));
 
-        keepAliveTimer = new HashedWheelTimer(daemonThreadFactory(settings, "keepAliveTimer"), httpKeepAliveTickDuration.millis(), TimeUnit.MILLISECONDS);
         final HttpRequestHandler requestHandler = new HttpRequestHandler(this);
 
         ChannelPipelineFactory pipelineFactory = new ChannelPipelineFactory() {
             @Override public ChannelPipeline getPipeline() throws Exception {
                 ChannelPipeline pipeline = Channels.pipeline();
                 pipeline.addLast("openChannels", serverOpenChannels);
-                pipeline.addLast("keepAliveTimeout", new ReadTimeoutHandler(keepAliveTimer, httpKeepAlive.millis(), TimeUnit.MILLISECONDS));
                 pipeline.addLast("decoder", new HttpRequestDecoder());
                 pipeline.addLast("aggregator", new HttpChunkAggregator((int) maxContentLength.bytes()));
                 pipeline.addLast("encoder", new HttpResponseEncoder());
@@ -239,8 +216,6 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
             serverOpenChannels.close();
             serverOpenChannels = null;
         }
-
-        keepAliveTimer.stop();
 
         if (serverBootstrap != null) {
             serverBootstrap.releaseExternalResources();

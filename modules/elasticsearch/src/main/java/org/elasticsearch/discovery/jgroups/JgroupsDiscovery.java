@@ -145,6 +145,7 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
             this.localNode = new Node(settings.get("name"), settings.getAsBoolean("node.data", true), channel.getAddress().toString(), transportService.boundAddress().publishAddress());
 
             if (isMaster()) {
+                firstMaster = true;
                 clusterService.submitStateUpdateTask("jgroups-disco-initialconnect(master)", new ProcessedClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
                         Nodes.Builder builder = new Nodes.Builder()
@@ -159,7 +160,6 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
                         sendInitialStateEventIfNeeded();
                     }
                 });
-                firstMaster = true;
                 addressSet = true;
             } else {
                 clusterService.submitStateUpdateTask("jgroups-disco-initialconnect", new ClusterStateUpdateTask() {

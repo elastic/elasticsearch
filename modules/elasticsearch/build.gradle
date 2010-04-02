@@ -1,7 +1,7 @@
 dependsOn(':test-testng')
 
-usePlugin 'java'
-usePlugin 'maven'
+apply plugin: 'java'
+apply plugin: 'maven'
 
 archivesBaseName = "$project.archivesBaseName"
 
@@ -63,9 +63,9 @@ dependencies {
 test {
     useTestNG()
     jmvArgs = ["-ea", "-Xmx1024m"]
-    options.suiteName = project.name
-    options.listeners = ["org.elasticsearch.util.testng.Listeners"]
-    options.systemProperties = ["es.test.log.conf": System.getProperty("es.test.log.conf", "log4j-gradle.properties")]
+    suiteName = project.name
+    listeners = ["org.elasticsearch.util.testng.Listeners"]
+    systemProperties["es.test.log.conf"] = System.getProperty("es.test.log.conf", "log4j-gradle.properties")
 }
 
 configure(install.repositories.mavenInstaller) {

@@ -1,4 +1,4 @@
-usePlugin 'java'
+apply plugin: 'java'
 
 archivesBaseName = "$rootProject.archivesBaseName-$project.archivesBaseName"
 
@@ -18,5 +18,5 @@ dependencies {
 
 test {
     useTestNG()
-    options.systemProperties = ["es.test.log.conf": "log4j-gradle.properties"]
+    systemProperties['es.test.log.conf'] = 'log4j-gradle.properties'
 }

@@ -10,6 +10,8 @@
 GRADLE_OPTS="$GRADLE_OPTS -Xmx512m"
 # JAVA_OPTS="$JAVA_OPTS -Xmx512"
 
+GRADLE_APP_NAME=Gradle
+
 warn ( ) {
     echo "${PROGNAME}: $*"
 }
@@ -60,7 +62,7 @@ if $cygwin ; then
     [ -n "$JAVA_HOME" ] && JAVA_HOME=`cygpath --unix "$JAVA_HOME"`
 fi
 
-STARTER_MAIN_CLASS=org.gradle.wrapper.WrapperMain
+STARTER_MAIN_CLASS=org.gradle.wrapper.GradleWrapperMain
 CLASSPATH=`dirname "$0"`/gradle/gradle-wrapper.jar
 WRAPPER_PROPERTIES=`dirname "$0"`/gradle/gradle-wrapper.properties
 # Determine the Java command to use to start the JVM.
@@ -83,10 +85,15 @@ if [ -z "$JAVA_HOME" ] ; then
     warn "JAVA_HOME environment variable is not set"
 fi
 
+# For Darwin, add GRADLE_APP_NAME to the JAVA_OPTS as -Xdock:name
+if $darwin; then
+    JAVA_OPTS="$JAVA_OPTS -Xdock:name=$GRADLE_APP_NAME"
+# we may also want to set -Xdock:image
+fi
+
 # For Cygwin, switch paths to Windows format before running java
 if $cygwin ; then
     JAVA_HOME=`cygpath --path --mixed "$JAVA_HOME"`
-    TOOLS_JAR=`cygpath --path --mixed "$TOOLS_JAR"`
     CLASSPATH=`cygpath --path --mixed "$CLASSPATH"`
 
     # We build the pattern for arguments to be converted via cygpath
@@ -130,7 +137,6 @@ fi
 
 "$JAVACMD" $JAVA_OPTS $GRADLE_OPTS \
         -classpath "$CLASSPATH" \
-        -Dtools.jar="$TOOLS_JAR" \
         -Dorg.gradle.wrapper.properties="$WRAPPER_PROPERTIES" \
         $STARTER_MAIN_CLASS \
         "$@"

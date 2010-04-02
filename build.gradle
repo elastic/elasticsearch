@@ -2,7 +2,7 @@ import java.text.SimpleDateFormat
 
 defaultTasks "clean", "release"
 
-usePlugin BasePlugin
+apply plugin: 'base'
 
 archivesBaseName = 'elasticsearch'
 
@@ -69,32 +69,44 @@ task explodedDist(dependsOn: [configurations.distLib], description: 'Builds a mi
     ant.chmod(dir: "$explodedDistDir/bin", perm: "ugo+rx", includes: "**/*")
 }
 
-task zip(type: Zip) {
-    dependsOn explodedDist
-//    classifier = 'all'
-}
-
-zip.doFirst {task ->
+task zip(type: Zip, dependsOn: ['explodedDist']) {
     zipRootFolder = "$archivesBaseName-${-> version}"
-    task.configure {
-        zipFileSet(dir: explodedDistDir, prefix: zipRootFolder) {
-            exclude 'bin/*'
-        }
-        zipFileSet(dir: explodedDistDir, prefix: zipRootFolder, fileMode: '775') {
-            include 'bin/*'
-            exclude 'bin/*.*'
-        }
-        zipFileSet(dir: explodedDistDir, prefix: zipRootFolder) {
-            include 'bin/*.*'
-        }
+    from(explodedDistDir) {
+        into zipRootFolder
+        exclude 'bin/*'
+    }
+    from(explodedDistDir) {
+        into zipRootFolder
+        include 'bin/*'
+        exclude 'bin/*.*'
+        fileMode: '775'
+    }
+    from(explodedDistDir) {
+        into zipRootFolder
+        include 'bin/*.*'
     }
 }
 
+//zip.doFirst {task ->
+//    task.configure {
+//        zipFileSet(dir: explodedDistDir, prefix: zipRootFolder) {
+//            exclude 'bin/*'
+//        }
+//        zipFileSet(dir: explodedDistDir, prefix: zipRootFolder, fileMode: '775') {
+//            include 'bin/*'
+//            exclude 'bin/*.*'
+//        }
+//        zipFileSet(dir: explodedDistDir, prefix: zipRootFolder) {
+//            include 'bin/*.*'
+//        }
+//    }
+//}
+//
 task release(dependsOn: [zip, ":plugins-attachments:release"]) << {
     ant.delete(dir: explodedDistDir)
 }
 
 task wrapper(type: Wrapper) {
-    gradleVersion = '0.8'
+    gradleVersion = '0.9-preview-1'
     jarPath = 'gradle'
 }

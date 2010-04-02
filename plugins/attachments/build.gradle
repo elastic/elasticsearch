@@ -1,6 +1,6 @@
 dependsOn(':elasticsearch')
 
-usePlugin 'java'
+apply plugin: 'java'
 
 archivesBaseName = "elasticsearch-attachments"
 
@@ -43,11 +43,9 @@ dependencies {
 test {
     useTestNG()
     jmvArgs = ["-ea", "-Xmx1024m"]
-    options.suiteName = project.name
-    options.listeners = ["org.elasticsearch.util.testng.Listeners"]
-    options.systemProperties = [
-            "es.test.log.conf": System.getProperty("es.test.log.conf", "log4j-gradle.properties")
-    ]
+    suiteName = project.name
+    listeners = ["org.elasticsearch.util.testng.Listeners"]
+    systemProperties["es.test.log.conf"] = System.getProperty("es.test.log.conf", "log4j-gradle.properties")
 }
 
 task explodedDist(dependsOn: [jar], description: 'Builds the plugin zip file') << {
@@ -67,17 +65,8 @@ task explodedDist(dependsOn: [jar], description: 'Builds the plugin zip file') <
     }
 }
 
-task zip(type: Zip) {
-    dependsOn explodedDist
-//    classifier = 'all'
-}
-
-zip.doFirst {task ->
-    zipRootFolder = "" // its the plugin, don't create it under a specific name
-    task.configure {
-        zipFileSet(dir: explodedDistDir, prefix: zipRootFolder) {
-            // just copy over everything
-        }
+task zip(type: Zip, dependsOn: ['explodedDist']) {
+    from(explodedDistDir) {
     }
 }
 

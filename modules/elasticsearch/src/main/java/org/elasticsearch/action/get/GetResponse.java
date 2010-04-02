@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.get;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.util.Unicode;
@@ -66,6 +67,9 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
         this.exists = exists;
         this.source = source;
         this.fields = fields;
+        if (this.fields == null) {
+            this.fields = ImmutableMap.of();
+        }
     }
 
     /**
@@ -155,7 +159,9 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
                 in.readFully(source);
             }
             size = in.readVInt();
-            if (size > 0) {
+            if (size == 0) {
+                fields = ImmutableMap.of();
+            } else {
                 fields = newHashMapWithExpectedSize(size);
                 for (int i = 0; i < size; i++) {
                     GetField field = readGetField(in);

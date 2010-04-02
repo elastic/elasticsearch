@@ -59,13 +59,14 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
     }
 
     @SuppressWarnings({"unchecked"}) @Override public T start() throws ElasticSearchException {
-        if (!lifecycle.moveToStarted()) {
+        if (!lifecycle.canMoveToStarted()) {
             return (T) this;
         }
         for (LifecycleListener listener : listeners) {
             listener.beforeStart();
         }
         doStart();
+        lifecycle.moveToStarted();
         for (LifecycleListener listener : listeners) {
             listener.afterStart();
         }
@@ -75,12 +76,13 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
     protected abstract void doStart() throws ElasticSearchException;
 
     @SuppressWarnings({"unchecked"}) @Override public T stop() throws ElasticSearchException {
-        if (!lifecycle.moveToStopped()) {
+        if (!lifecycle.canMoveToStopped()) {
             return (T) this;
         }
         for (LifecycleListener listener : listeners) {
             listener.beforeStop();
         }
+        lifecycle.moveToStopped();
         doStop();
         for (LifecycleListener listener : listeners) {
             listener.afterStop();
@@ -94,12 +96,13 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
         if (lifecycle.started()) {
             stop();
         }
-        if (!lifecycle.moveToClosed()) {
+        if (!lifecycle.canMoveToClosed()) {
             return;
         }
         for (LifecycleListener listener : listeners) {
             listener.beforeClose();
         }
+        lifecycle.moveToClosed();
         doClose();
         for (LifecycleListener listener : listeners) {
             listener.afterClose();

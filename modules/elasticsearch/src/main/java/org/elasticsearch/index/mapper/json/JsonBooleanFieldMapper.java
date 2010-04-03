@@ -103,7 +103,7 @@ public class JsonBooleanFieldMapper extends JsonFieldMapper<Boolean> {
                 Map.Entry<String, JsonNode> entry = propsIt.next();
                 String propName = entry.getKey();
                 JsonNode propNode = entry.getValue();
-                if (propName.equals("nullValue")) {
+                if (propName.equals("nullValue") || propName.equals("null_value")) {
                     builder.nullValue(nodeBooleanValue(propNode));
                 }
             }

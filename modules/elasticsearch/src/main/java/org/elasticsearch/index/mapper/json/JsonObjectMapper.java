@@ -169,7 +169,7 @@ public class JsonObjectMapper implements JsonMapper, JsonIncludeInAllMapper {
                     if (!type.equals("object")) {
                         throw new MapperParsingException("Trying to parse an object but has a different type [" + type + "] for [" + name + "]");
                     }
-                } else if (fieldName.equals("dateFormats")) {
+                } else if (fieldName.equals("dateFormats") || fieldName.equals("date_formats")) {
                     List<FormatDateTimeFormatter> dateTimeFormatters = newArrayList();
                     if (fieldNode.isArray()) {
                         for (JsonNode node1 : (ArrayNode) fieldNode) {
@@ -187,11 +187,11 @@ public class JsonObjectMapper implements JsonMapper, JsonIncludeInAllMapper {
                     }
                 } else if (fieldName.equals("enabled")) {
                     builder.enabled(nodeBooleanValue(fieldNode));
-                } else if (fieldName.equals("pathType")) {
+                } else if (fieldName.equals("pathType") || fieldName.equals("path_type")) {
                     builder.pathType(parsePathType(name, fieldNode.getValueAsText()));
                 } else if (fieldName.equals("properties")) {
                     parseProperties(builder, (ObjectNode) fieldNode, parserContext);
-                } else if (fieldName.equals("includeInAll")) {
+                } else if (fieldName.equals("includeInAll") || fieldName.equals("include_in_all")) {
                     builder.includeInAll(nodeBooleanValue(fieldNode));
                 }
             }

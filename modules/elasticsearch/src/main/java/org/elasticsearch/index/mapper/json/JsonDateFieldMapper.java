@@ -92,7 +92,7 @@ public class JsonDateFieldMapper extends JsonNumberFieldMapper<Long> {
                 Map.Entry<String, JsonNode> entry = propsIt.next();
                 String propName = entry.getKey();
                 JsonNode propNode = entry.getValue();
-                if (propName.equals("nullValue")) {
+                if (propName.equals("nullValue") || propName.equals("null_value")) {
                     builder.nullValue(propNode.getValueAsText());
                 } else if (propName.equals("format")) {
                     builder.dateTimeFormatter(parseDateTimeFormatter(propName, propNode));

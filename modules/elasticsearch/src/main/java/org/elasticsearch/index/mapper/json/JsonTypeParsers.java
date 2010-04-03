@@ -42,7 +42,7 @@ public class JsonTypeParsers {
             Map.Entry<String, JsonNode> entry = propsIt.next();
             String propName = entry.getKey();
             JsonNode propNode = entry.getValue();
-            if (propName.equals("precisionStep")) {
+            if (propName.equals("precisionStep") || propName.equals("precision_step")) {
                 builder.precisionStep(nodeIntegerValue(propNode));
             }
         }
@@ -53,28 +53,28 @@ public class JsonTypeParsers {
             Map.Entry<String, JsonNode> entry = propsIt.next();
             String propName = entry.getKey();
             JsonNode propNode = entry.getValue();
-            if (propName.equals("indexName")) {
+            if (propName.equals("indexName") || propName.equals("index_name")) {
                 builder.indexName(propNode.getTextValue());
             } else if (propName.equals("store")) {
                 builder.store(parseStore(name, propNode.getTextValue()));
             } else if (propName.equals("index")) {
                 builder.index(parseIndex(name, propNode.getTextValue()));
-            } else if (propName.equals("termVector")) {
+            } else if (propName.equals("termVector") || propName.equals("term_vector")) {
                 builder.termVector(parseTermVector(name, propNode.getTextValue()));
             } else if (propName.equals("boost")) {
                 builder.boost(nodeFloatValue(propNode));
-            } else if (propName.equals("omitNorms")) {
+            } else if (propName.equals("omitNorms") || propName.equals("omit_norms")) {
                 builder.omitNorms(nodeBooleanValue(propNode));
-            } else if (propName.equals("omitTermFreqAndPositions")) {
+            } else if (propName.equals("omitTermFreqAndPositions") || propName.equals("omit_termFreq_and_positions")) {
                 builder.omitTermFreqAndPositions(nodeBooleanValue(propNode));
-            } else if (propName.equals("indexAnalyzer")) {
+            } else if (propName.equals("indexAnalyzer") || propName.equals("index_analyzer")) {
                 builder.indexAnalyzer(parserContext.analysisService().analyzer(propNode.getTextValue()));
-            } else if (propName.equals("searchAnalyzer")) {
+            } else if (propName.equals("searchAnalyzer") || propName.equals("search_analyzer")) {
                 builder.searchAnalyzer(parserContext.analysisService().analyzer(propNode.getTextValue()));
             } else if (propName.equals("analyzer")) {
                 builder.indexAnalyzer(parserContext.analysisService().analyzer(propNode.getTextValue()));
                 builder.searchAnalyzer(parserContext.analysisService().analyzer(propNode.getTextValue()));
-            } else if (propName.equals("includeInAll")) {
+            } else if (propName.equals("includeInAll") || propName.equals("include_in_all")) {
                 builder.includeInAll(nodeBooleanValue(propNode));
             }
         }

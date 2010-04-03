@@ -159,7 +159,6 @@ public final class InternalServer implements Server {
         }
 
         injector.getInstance(IndicesService.class).start();
-        injector.getInstance(GatewayService.class).start();
         injector.getInstance(ClusterService.class).start();
         injector.getInstance(RoutingService.class).start();
         injector.getInstance(SearchService.class).start();
@@ -167,6 +166,10 @@ public final class InternalServer implements Server {
         injector.getInstance(RestController.class).start();
         injector.getInstance(TransportService.class).start();
         DiscoveryService discoService = injector.getInstance(DiscoveryService.class).start();
+
+        // gateway should start after disco, so it can try and recovery from gateway on "start"
+        injector.getInstance(GatewayService.class).start();
+
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).start();
         }

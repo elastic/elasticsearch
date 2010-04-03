@@ -19,6 +19,8 @@
 
 package org.elasticsearch.test.integration.gateway;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -86,10 +88,14 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractServersTes
 
         logger.info("Closing the server");
         closeServer("server1");
-        Thread.sleep(500);
         logger.info("Starting the server, should recover from the gateway (only translog should be populated)");
         startServer("server1");
-        Thread.sleep(1000);
+
+        logger.info("Running Cluster Health (wait for the shards to startup)");
+        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForYellowStatus()).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
 
         // verify that mapping is there
         clusterState = client("server1").admin().cluster().state(clusterState()).actionGet();
@@ -115,10 +121,14 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractServersTes
 
         logger.info("Closing the server");
         closeServer("server1");
-        Thread.sleep(500);
         logger.info("Starting the server, should recover from the gateway (both index and translog)");
         startServer("server1");
-        Thread.sleep(1000);
+
+        logger.info("Running Cluster Health (wait for the shards to startup)");
+        clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForYellowStatus()).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
 
         logger.info("Getting #1, should not exists");
         getResponse = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
@@ -140,10 +150,14 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractServersTes
 
         logger.info("Closing the server");
         closeServer("server1");
-        Thread.sleep(500);
         logger.info("Starting the server, should recover from the gateway (just from the index, nothing in the translog)");
         startServer("server1");
-        Thread.sleep(1000);
+
+        logger.info("Running Cluster Health (wait for the shards to startup)");
+        clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForYellowStatus()).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
 
         logger.info("Getting #1, should not exists");
         getResponse = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();

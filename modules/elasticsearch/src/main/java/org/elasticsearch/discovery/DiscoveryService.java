@@ -38,6 +38,8 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
 
     private final Discovery discovery;
 
+    private volatile boolean initialStateReceived;
+
     @Inject public DiscoveryService(Settings settings, Discovery discovery) {
         super(settings);
         this.discovery = discovery;
@@ -58,7 +60,9 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
                 logger.trace("Waiting for {} for the initial state to be set by the discovery", initialStateTimeout);
                 if (latch.await(initialStateTimeout.millis(), TimeUnit.MILLISECONDS)) {
                     logger.trace("Initial state set from discovery");
+                    initialStateReceived = true;
                 } else {
+                    initialStateReceived = false;
                     logger.warn("Waited for {} and no initial state was set by the discovery", initialStateTimeout);
                 }
             } catch (InterruptedException e) {
@@ -76,6 +80,14 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
 
     @Override protected void doClose() throws ElasticSearchException {
         discovery.close();
+    }
+
+    /**
+     * Returns <tt>true</tt> if the initial state was received within the timeout waiting for it
+     * on {@link #doStart()}.
+     */
+    public boolean initialStateReceived() {
+        return initialStateReceived;
     }
 
     public String nodeDescription() {

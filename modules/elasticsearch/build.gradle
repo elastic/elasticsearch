@@ -60,6 +60,10 @@ dependencies {
     testCompile 'org.hamcrest:hamcrest-all:1.1'
 }
 
+javadoc {
+    maxMemory = "1g"
+}
+
 test {
     useTestNG()
     jmvArgs = ["-ea", "-Xmx1024m"]

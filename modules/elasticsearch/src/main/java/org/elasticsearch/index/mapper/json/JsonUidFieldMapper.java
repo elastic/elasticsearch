@@ -36,7 +36,7 @@ import java.io.IOException;
  */
 public class JsonUidFieldMapper extends JsonFieldMapper<Uid> implements UidFieldMapper {
 
-    public static final String JSON_TYPE = "uidField";
+    public static final String JSON_TYPE = "_uid";
 
     public static class Defaults extends JsonFieldMapper.Defaults {
         public static final String NAME = UidFieldMapper.NAME;

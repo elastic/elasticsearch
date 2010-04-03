@@ -42,7 +42,7 @@ import static org.elasticsearch.util.lucene.all.AllTokenFilter.*;
  */
 public class JsonAllFieldMapper extends JsonFieldMapper<Void> implements AllFieldMapper {
 
-    public static final String JSON_TYPE = "allField";
+    public static final String JSON_TYPE = "_all";
 
     public static class Defaults extends JsonFieldMapper.Defaults {
         public static final String NAME = AllFieldMapper.NAME;

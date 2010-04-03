@@ -120,17 +120,17 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
             String fieldName = entry.getKey();
             JsonNode fieldNode = entry.getValue();
 
-            if (JsonSourceFieldMapper.JSON_TYPE.equals(fieldName)) {
+            if (JsonSourceFieldMapper.JSON_TYPE.equals(fieldName) || "sourceField".equals(fieldName)) {
                 docBuilder.sourceField(parseSourceField((ObjectNode) fieldNode, parserContext));
-            } else if (JsonIdFieldMapper.JSON_TYPE.equals(fieldName)) {
+            } else if (JsonIdFieldMapper.JSON_TYPE.equals(fieldName) || "idField".equals(fieldName)) {
                 docBuilder.idField(parseIdField((ObjectNode) fieldNode, parserContext));
-            } else if (JsonTypeFieldMapper.JSON_TYPE.equals(fieldName)) {
+            } else if (JsonTypeFieldMapper.JSON_TYPE.equals(fieldName) || "typeField".equals(fieldName)) {
                 docBuilder.typeField(parseTypeField((ObjectNode) fieldNode, parserContext));
-            } else if (JsonUidFieldMapper.JSON_TYPE.equals(fieldName)) {
+            } else if (JsonUidFieldMapper.JSON_TYPE.equals(fieldName) || "uidField".equals(fieldName)) {
                 docBuilder.uidField(parseUidField((ObjectNode) fieldNode, parserContext));
-            } else if (JsonBoostFieldMapper.JSON_TYPE.equals(fieldName)) {
+            } else if (JsonBoostFieldMapper.JSON_TYPE.equals(fieldName) || "boostField".equals(fieldName)) {
                 docBuilder.boostField(parseBoostField((ObjectNode) fieldNode, parserContext));
-            } else if (JsonAllFieldMapper.JSON_TYPE.equals(fieldName)) {
+            } else if (JsonAllFieldMapper.JSON_TYPE.equals(fieldName) || "allField".equals(fieldName)) {
                 docBuilder.allField(parseAllField((ObjectNode) fieldNode, parserContext));
             } else if ("indexAnalyzer".equals(fieldName)) {
                 docBuilder.indexAnalyzer(analysisService.analyzer(fieldNode.getTextValue()));

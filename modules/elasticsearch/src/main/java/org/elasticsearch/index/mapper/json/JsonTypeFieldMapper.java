@@ -35,7 +35,7 @@ import java.io.IOException;
  */
 public class JsonTypeFieldMapper extends JsonFieldMapper<String> implements TypeFieldMapper {
 
-    public static final String JSON_TYPE = "typeField";
+    public static final String JSON_TYPE = "_type";
 
     public static class Defaults extends JsonFieldMapper.Defaults {
         public static final String NAME = TypeFieldMapper.NAME;
@@ -107,7 +107,9 @@ public class JsonTypeFieldMapper extends JsonFieldMapper<String> implements Type
     }
 
     @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
-        // for now, don't output it at all
+        builder.startObject(JSON_TYPE);
+        builder.field("store", store.name().toLowerCase());
+        builder.endObject();
     }
 
     @Override public void merge(JsonMapper mergeWith, JsonMergeContext mergeContext) throws MergeMappingException {

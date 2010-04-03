@@ -109,7 +109,7 @@ public class HighlightSearchTests extends AbstractServersTests {
 
     public JsonBuilder mapping() throws IOException {
         return binaryJsonBuilder().startObject().startObject("type1")
-                .startObject("allField").field("store", "yes").field("termVector", "with_positions_offsets").endObject()
+                .startObject("_all").field("store", "yes").field("termVector", "with_positions_offsets").endObject()
                 .endObject().endObject();
     }
 

@@ -38,7 +38,7 @@ import java.io.IOException;
  */
 public class JsonBoostFieldMapper extends JsonNumberFieldMapper<Float> implements BoostFieldMapper {
 
-    public static final String JSON_TYPE = "boostField";
+    public static final String JSON_TYPE = "_boost";
 
     public static class Defaults extends JsonNumberFieldMapper.Defaults {
         public static final String NAME = "_boost";

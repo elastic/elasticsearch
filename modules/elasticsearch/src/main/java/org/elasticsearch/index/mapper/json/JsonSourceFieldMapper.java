@@ -32,7 +32,7 @@ import java.io.IOException;
  */
 public class JsonSourceFieldMapper extends JsonFieldMapper<byte[]> implements SourceFieldMapper {
 
-    public static final String JSON_TYPE = "sourceField";
+    public static final String JSON_TYPE = "_source";
 
     public static class Defaults extends JsonFieldMapper.Defaults {
         public static final String NAME = SourceFieldMapper.NAME;

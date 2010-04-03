@@ -1,6 +1,6 @@
 {
     person : {
-        allField : {enabled : true},
+        _all : {enabled : true},
         properties : {
             name : {
                 type : "object",

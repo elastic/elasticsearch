@@ -124,17 +124,25 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
                     latch.countDown();
                     continue;
                 }
+                IndexInput indexInput = null;
                 try {
-                    IndexInput indexInput = snapshotIndexCommit.getDirectory().openInput(fileName);
+                    indexInput = snapshotIndexCommit.getDirectory().openInput(fileName);
                     File snapshotFile = new File(locationIndex, fileName);
                     if (snapshotFile.exists() && (snapshotFile.length() == indexInput.length())) {
                         // we assume its the same one, no need to copy
                         latch.countDown();
                         continue;
                     }
-                    indexInput.close();
                 } catch (Exception e) {
                     logger.debug("Failed to verify file equality based on length, copying...", e);
+                } finally {
+                    if (indexInput != null) {
+                        try {
+                            indexInput.close();
+                        } catch (IOException e) {
+                            // ignore
+                        }
+                    }
                 }
                 threadPool.execute(new Runnable() {
                     @Override public void run() {
@@ -230,12 +238,12 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
                 syncFile(translogFile);
             }
         } catch (Exception e) {
-            try {
-                if (translogRaf != null) {
+            if (translogRaf != null) {
+                try {
                     translogRaf.close();
+                } catch (Exception e1) {
+                    // ignore
                 }
-            } catch (Exception e1) {
-                // ignore
             }
             throw new IndexShardGatewaySnapshotFailedException(shardId(), "Failed to finalize snapshot into [" + translogFile + "]", e);
         }
@@ -343,12 +351,16 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
                 return name.startsWith("translog-");
             }
         });
+        if (files == null) {
+            return -1;
+        }
 
         long index = -1;
         for (File file : files) {
             String name = file.getName();
+            RandomAccessFile raf = null;
             try {
-                RandomAccessFile raf = new RandomAccessFile(file, "r");
+                raf = new RandomAccessFile(file, "r");
                 // if header is -1, then its not properly written, ignore it
                 if (raf.readInt() == -1) {
                     continue;
@@ -356,6 +368,12 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
             } catch (Exception e) {
                 // broken file, continue
                 continue;
+            } finally {
+                try {
+                    raf.close();
+                } catch (IOException e) {
+                    // ignore
+                }
             }
             long fileIndex = Long.parseLong(name.substring(name.indexOf('-') + 1));
             if (fileIndex >= index) {

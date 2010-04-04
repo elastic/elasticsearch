@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.index;
 
+import com.google.common.collect.ImmutableList;
 import com.google.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
@@ -43,6 +44,14 @@ public class RestIndexAction extends BaseRestHandler {
         super(settings, client);
         controller.registerHandler(POST, "/{index}/{type}", this); // auto id creation
         controller.registerHandler(PUT, "/{index}/{type}/{id}", this);
+        controller.registerHandler(PUT, "/{index}/{type}/{id}/_create", new CreateHandler());
+    }
+
+    final class CreateHandler implements RestHandler {
+        @Override public void handleRequest(RestRequest request, RestChannel channel) {
+            request.params().put("op_type", ImmutableList.of("create"));
+            RestIndexAction.this.handleRequest(request, channel);
+        }
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {

@@ -45,8 +45,6 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
 
     @Inject public RestMoreLikeThisAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
-        controller.registerHandler(GET, "/{index}/{type}/{id}/_moreLikeThis", this);
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_moreLikeThis", this);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_mlt", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_mlt", this);
     }

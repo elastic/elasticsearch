@@ -103,6 +103,34 @@ public class RangeJsonQueryParser extends AbstractIndexComponent implements Json
                     } else {
                         boost = jp.getFloatValue();
                     }
+                } else if ("gt".equals(currentFieldName)) {
+                    if (jp.getCurrentToken() == JsonToken.VALUE_NULL) {
+                        from = null;
+                    } else {
+                        from = jp.getText();
+                    }
+                    includeLower = false;
+                } else if ("gte".equals(currentFieldName)) {
+                    if (jp.getCurrentToken() == JsonToken.VALUE_NULL) {
+                        from = null;
+                    } else {
+                        from = jp.getText();
+                    }
+                    includeLower = true;
+                } else if ("lt".equals(currentFieldName)) {
+                    if (jp.getCurrentToken() == JsonToken.VALUE_NULL) {
+                        to = null;
+                    } else {
+                        to = jp.getText();
+                    }
+                    includeUpper = false;
+                } else if ("lte".equals(currentFieldName)) {
+                    if (jp.getCurrentToken() == JsonToken.VALUE_NULL) {
+                        to = null;
+                    } else {
+                        to = jp.getText();
+                    }
+                    includeUpper = true;
                 }
             }
         }

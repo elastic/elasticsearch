@@ -379,6 +379,20 @@ public class SimpleJsonIndexQueryParserTests {
         assertThat(rangeQuery.includesMax(), equalTo(false));
     }
 
+    @Test public void testRange2Query() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/json/range2.json");
+        Query parsedQuery = queryParser.parse(query);
+        // since age is automatically registered in data, we encode it as numeric
+        assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
+        NumericRangeQuery rangeQuery = (NumericRangeQuery) parsedQuery;
+        assertThat(rangeQuery.getField(), equalTo("age"));
+        assertThat(rangeQuery.getMin().intValue(), equalTo(23));
+        assertThat(rangeQuery.getMax().intValue(), equalTo(54));
+        assertThat(rangeQuery.includesMin(), equalTo(true));
+        assertThat(rangeQuery.includesMax(), equalTo(false));
+    }
+
     @Test public void testRangeFilteredQueryBuilder() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
         Query parsedQuery = queryParser.parse(filtered(termQuery("name.first", "shay"), rangeFilter("age").from(23).to(54).includeLower(true).includeUpper(false)));

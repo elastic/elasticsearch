@@ -57,7 +57,7 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
 
     private TimeValue timeout = new TimeValue(10, TimeUnit.SECONDS);
 
-    private boolean ignoreConflicts = true;
+    private boolean ignoreConflicts = false;
 
     PutMappingRequest() {
     }

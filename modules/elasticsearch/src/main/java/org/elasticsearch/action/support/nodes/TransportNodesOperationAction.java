@@ -105,7 +105,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
             this.listener = listener;
             clusterState = clusterService.state();
             String[] nodesIds = request.nodesIds();
-            if (nodesIds == null || nodesIds.length == 0) {
+            if (nodesIds == null || nodesIds.length == 0 || (nodesIds.length == 1 && nodesIds[0].equals("_al"))) {
                 int index = 0;
                 nodesIds = new String[clusterState.nodes().size()];
                 for (Node node : clusterState.nodes()) {

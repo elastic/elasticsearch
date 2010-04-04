@@ -187,7 +187,7 @@ public class JsonObjectMapper implements JsonMapper, JsonIncludeInAllMapper {
                     }
                 } else if (fieldName.equals("enabled")) {
                     builder.enabled(nodeBooleanValue(fieldNode));
-                } else if (fieldName.equals("pathType") || fieldName.equals("path_type")) {
+                } else if (fieldName.equals("path")) {
                     builder.pathType(parsePathType(name, fieldNode.getValueAsText()));
                 } else if (fieldName.equals("properties")) {
                     parseProperties(builder, (ObjectNode) fieldNode, parserContext);
@@ -496,7 +496,7 @@ public class JsonObjectMapper implements JsonMapper, JsonIncludeInAllMapper {
         builder.field("type", JSON_TYPE);
         builder.field("dynamic", dynamic);
         builder.field("enabled", enabled);
-        builder.field("pathType", pathType.name().toLowerCase());
+        builder.field("path", pathType.name().toLowerCase());
         if (includeInAll != null) {
             builder.field("includeInAll", includeInAll);
         }

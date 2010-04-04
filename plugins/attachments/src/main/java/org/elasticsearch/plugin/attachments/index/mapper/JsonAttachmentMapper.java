@@ -162,7 +162,7 @@ public class JsonAttachmentMapper implements JsonMapper {
                 Map.Entry<String, JsonNode> entry = fieldsIt.next();
                 String fieldName = entry.getKey();
                 JsonNode fieldNode = entry.getValue();
-                if (fieldName.equals("pathType")) {
+                if (fieldName.equals("path")) {
                     builder.pathType(parsePathType(name, fieldNode.getValueAsText()));
                 } else if (fieldName.equals("fields")) {
                     ObjectNode fieldsNode = (ObjectNode) fieldNode;
@@ -304,7 +304,7 @@ public class JsonAttachmentMapper implements JsonMapper {
     @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field("type", JSON_TYPE);
-        builder.field("pathType", pathType.name().toLowerCase());
+        builder.field("path", pathType.name().toLowerCase());
 
         builder.startObject("fields");
         contentMapper.toJson(builder, params);

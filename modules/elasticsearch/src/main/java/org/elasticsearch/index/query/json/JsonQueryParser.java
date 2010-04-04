@@ -30,7 +30,7 @@ import java.io.IOException;
  */
 public interface JsonQueryParser extends IndexComponent {
 
-    String name();
+    String[] names();
 
     /**
      * Parses the into a query from the current json parser location. Will be at "START_OBJECT" location,

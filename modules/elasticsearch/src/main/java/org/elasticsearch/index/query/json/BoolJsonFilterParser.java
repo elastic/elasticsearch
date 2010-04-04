@@ -46,8 +46,8 @@ public class BoolJsonFilterParser extends AbstractIndexComponent implements Json
         super(index, settings);
     }
 
-    @Override public String name() {
-        return "bool";
+    @Override public String[] names() {
+        return new String[]{"bool"};
     }
 
     @Override public Filter parse(JsonQueryParseContext parseContext) throws IOException, QueryParsingException {

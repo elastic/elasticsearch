@@ -47,8 +47,8 @@ public class BoolJsonQueryParser extends AbstractIndexComponent implements JsonQ
         super(index, settings);
     }
 
-    @Override public String name() {
-        return "bool";
+    @Override public String[] names() {
+        return new String[]{"bool"};
     }
 
     @Override public Query parse(JsonQueryParseContext parseContext) throws IOException, QueryParsingException {

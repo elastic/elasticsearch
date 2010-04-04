@@ -47,8 +47,8 @@ public class PrefixJsonFilterParser extends AbstractIndexComponent implements Js
         super(index, settings);
     }
 
-    @Override public String name() {
-        return NAME;
+    @Override public String[] names() {
+        return new String[]{NAME};
     }
 
     @Override public Filter parse(JsonQueryParseContext parseContext) throws IOException, QueryParsingException {

@@ -47,8 +47,8 @@ public class SpanTermJsonQueryParser extends AbstractIndexComponent implements J
         super(index, settings);
     }
 
-    @Override public String name() {
-        return NAME;
+    @Override public String[] names() {
+        return new String[]{NAME};
     }
 
     @Override public Query parse(JsonQueryParseContext parseContext) throws IOException, QueryParsingException {

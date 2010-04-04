@@ -30,7 +30,7 @@ import java.io.IOException;
  */
 public interface JsonFilterParser extends IndexComponent {
 
-    String name();
+    String[] names();
 
     /**
      * Parses the into a filter from the current json parser location. Will be at "START_OBJECT" location,

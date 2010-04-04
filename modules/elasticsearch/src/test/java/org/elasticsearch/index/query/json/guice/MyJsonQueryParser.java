@@ -47,8 +47,8 @@ public class MyJsonQueryParser extends AbstractIndexComponent implements JsonQue
         this.settings = settings;
     }
 
-    @Override public String name() {
-        return this.name;
+    @Override public String[] names() {
+        return new String[]{this.name};
     }
 
     @Override public Query parse(JsonQueryParseContext parseContext) throws IOException, QueryParsingException {

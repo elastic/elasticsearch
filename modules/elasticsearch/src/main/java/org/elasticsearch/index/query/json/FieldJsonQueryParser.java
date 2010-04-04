@@ -54,8 +54,8 @@ public class FieldJsonQueryParser extends AbstractIndexComponent implements Json
         this.analysisService = analysisService;
     }
 
-    @Override public String name() {
-        return NAME;
+    @Override public String[] names() {
+        return new String[]{NAME};
     }
 
     @Override public Query parse(JsonQueryParseContext parseContext) throws IOException, QueryParsingException {

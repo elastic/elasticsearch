@@ -47,8 +47,8 @@ public class MyJsonFilterParser extends AbstractIndexComponent implements JsonFi
         this.settings = settings;
     }
 
-    @Override public String name() {
-        return this.name;
+    @Override public String[] names() {
+        return new String[]{this.name};
     }
 
     @Override public Filter parse(JsonQueryParseContext parseContext) throws IOException, QueryParsingException {

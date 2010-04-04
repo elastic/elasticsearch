@@ -102,10 +102,14 @@ public class JsonQueryParserRegistry {
     }
 
     private void add(Map<String, JsonFilterParser> map, JsonFilterParser filterParser) {
-        map.put(filterParser.name(), filterParser);
+        for (String name : filterParser.names()) {
+            map.put(name, filterParser);
+        }
     }
 
     private void add(Map<String, JsonQueryParser> map, JsonQueryParser jsonQueryParser) {
-        map.put(jsonQueryParser.name(), jsonQueryParser);
+        for (String name : jsonQueryParser.names()) {
+            map.put(name, jsonQueryParser);
+        }
     }
 }

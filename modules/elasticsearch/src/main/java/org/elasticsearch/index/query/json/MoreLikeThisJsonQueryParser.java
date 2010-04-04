@@ -42,14 +42,14 @@ import static com.google.common.collect.Lists.*;
  */
 public class MoreLikeThisJsonQueryParser extends AbstractIndexComponent implements JsonQueryParser {
 
-    public static final String NAME = "more_like_this";
+    public static final String NAME = "mlt";
 
     public MoreLikeThisJsonQueryParser(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
     }
 
-    @Override public String name() {
-        return NAME;
+    @Override public String[] names() {
+        return new String[]{NAME, "more_like_this"};
     }
 
     @Override public Query parse(JsonQueryParseContext parseContext) throws IOException, QueryParsingException {

@@ -51,14 +51,14 @@ import java.util.List;
  */
 public class FuzzyLikeThisJsonQueryParser extends AbstractIndexComponent implements JsonQueryParser {
 
-    public static final String NAME = "fuzzy_like_this";
+    public static final String NAME = "flt";
 
     public FuzzyLikeThisJsonQueryParser(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
     }
 
-    @Override public String name() {
-        return NAME;
+    @Override public String[] names() {
+        return new String[]{NAME, "fuzzy_like_this"};
     }
 
     @Override public Query parse(JsonQueryParseContext parseContext) throws IOException, QueryParsingException {

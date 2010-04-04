@@ -52,14 +52,14 @@ import static org.elasticsearch.index.query.support.QueryParsers.*;
  */
 public class FuzzyLikeThisFieldJsonQueryParser extends AbstractIndexComponent implements JsonQueryParser {
 
-    public static final String NAME = "fuzzy_like_this_field";
+    public static final String NAME = "flt_field";
 
     public FuzzyLikeThisFieldJsonQueryParser(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
     }
 
-    @Override public String name() {
-        return NAME;
+    @Override public String[] names() {
+        return new String[]{NAME, "fuzzy_like_this_field"};
     }
 
     @Override public Query parse(JsonQueryParseContext parseContext) throws IOException, QueryParsingException {

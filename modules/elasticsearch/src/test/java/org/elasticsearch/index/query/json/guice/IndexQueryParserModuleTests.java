@@ -68,11 +68,11 @@ public class IndexQueryParserModuleTests {
 
         MyJsonQueryParser myJsonQueryParser = (MyJsonQueryParser) parserRegistry.queryParser("my");
 
-        assertThat(myJsonQueryParser.name(), equalTo("my"));
+        assertThat(myJsonQueryParser.names()[0], equalTo("my"));
         assertThat(myJsonQueryParser.settings().get("param1"), equalTo("value1"));
 
         MyJsonFilterParser myJsonFilterParser = (MyJsonFilterParser) parserRegistry.filterParser("my");
-        assertThat(myJsonFilterParser.name(), equalTo("my"));
+        assertThat(myJsonFilterParser.names()[0], equalTo("my"));
         assertThat(myJsonFilterParser.settings().get("param2"), equalTo("value2"));
     }
 }

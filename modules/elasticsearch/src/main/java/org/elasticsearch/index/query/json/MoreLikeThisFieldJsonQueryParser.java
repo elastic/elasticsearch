@@ -28,7 +28,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.Booleans;
 import org.elasticsearch.util.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.util.settings.Settings;
 
@@ -87,8 +86,7 @@ public class MoreLikeThisFieldJsonQueryParser extends AbstractIndexComponent imp
                 } else if ("max_word_len".equals(currentFieldName)) {
                     mltQuery.setMaxWordLen(Integer.parseInt(jp.getText()));
                 } else if ("boost_terms".equals(currentFieldName)) {
-                    mltQuery.setBoostTerms(Booleans.parseBoolean(jp.getText(), false));
-                } else if ("boost_terms_factor".equals(currentFieldName)) {
+                    mltQuery.setBoostTerms(true);
                     mltQuery.setBoostTermsFactor(Float.parseFloat(jp.getText()));
                 } else if ("percent_terms_to_match".equals(currentFieldName)) {
                     mltQuery.setPercentTermsToMatch(Float.parseFloat(jp.getText()));
@@ -106,9 +104,8 @@ public class MoreLikeThisFieldJsonQueryParser extends AbstractIndexComponent imp
                     mltQuery.setMinWordLen(jp.getIntValue());
                 } else if ("max_word_len".equals(currentFieldName)) {
                     mltQuery.setMaxWordLen(jp.getIntValue());
-                } else if ("boost_terms".equals(currentFieldName)) {
-                    mltQuery.setBoostTerms(jp.getIntValue() != 0);
-                } else if ("boost_term_factor".equals(currentFieldName)) {
+                } else if ("boost_term".equals(currentFieldName)) {
+                    mltQuery.setBoostTerms(true);
                     mltQuery.setBoostTermsFactor(jp.getIntValue());
                 } else if ("percent_terms_to_match".equals(currentFieldName)) {
                     mltQuery.setPercentTermsToMatch(jp.getIntValue());
@@ -116,7 +113,8 @@ public class MoreLikeThisFieldJsonQueryParser extends AbstractIndexComponent imp
                     mltQuery.setBoost(jp.getIntValue());
                 }
             } else if (token == JsonToken.VALUE_NUMBER_FLOAT) {
-                if ("boost_terms_factor".equals(currentFieldName)) {
+                if ("boost_terms".equals(currentFieldName)) {
+                    mltQuery.setBoostTerms(true);
                     mltQuery.setBoostTermsFactor(jp.getFloatValue());
                 } else if ("percent_terms_to_match".equals(currentFieldName)) {
                     mltQuery.setPercentTermsToMatch(jp.getFloatValue());

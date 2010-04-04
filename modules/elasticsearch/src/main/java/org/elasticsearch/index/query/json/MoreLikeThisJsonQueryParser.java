@@ -28,7 +28,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.Booleans;
 import org.elasticsearch.util.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.util.settings.Settings;
 
@@ -81,8 +80,7 @@ public class MoreLikeThisJsonQueryParser extends AbstractIndexComponent implemen
                 } else if ("max_word_len".equals(currentFieldName)) {
                     mltQuery.setMaxWordLen(Integer.parseInt(jp.getText()));
                 } else if ("boost_terms".equals(currentFieldName)) {
-                    mltQuery.setBoostTerms(Booleans.parseBoolean(jp.getText(), false));
-                } else if ("boost_terms_factor".equals(currentFieldName)) {
+                    mltQuery.setBoostTerms(true);
                     mltQuery.setBoostTermsFactor(Float.parseFloat(jp.getText()));
                 } else if ("percent_terms_to_match".equals(currentFieldName)) {
                     mltQuery.setPercentTermsToMatch(Float.parseFloat(jp.getText()));
@@ -101,8 +99,7 @@ public class MoreLikeThisJsonQueryParser extends AbstractIndexComponent implemen
                 } else if ("max_word_len".equals(currentFieldName)) {
                     mltQuery.setMaxWordLen(jp.getIntValue());
                 } else if ("boost_terms".equals(currentFieldName)) {
-                    mltQuery.setBoostTerms(jp.getIntValue() != 0);
-                } else if ("boost_terms_factor".equals(currentFieldName)) {
+                    mltQuery.setBoostTerms(true);
                     mltQuery.setBoostTermsFactor(jp.getIntValue());
                 } else if ("percent_terms_to_match".equals(currentFieldName)) {
                     mltQuery.setPercentTermsToMatch(jp.getIntValue());
@@ -110,7 +107,8 @@ public class MoreLikeThisJsonQueryParser extends AbstractIndexComponent implemen
                     mltQuery.setBoost(jp.getIntValue());
                 }
             } else if (token == JsonToken.VALUE_NUMBER_FLOAT) {
-                if ("boost_terms_factor".equals(currentFieldName)) {
+                if ("boost_terms".equals(currentFieldName)) {
+                    mltQuery.setBoostTerms(true);
                     mltQuery.setBoostTermsFactor(jp.getFloatValue());
                 } else if ("percent_terms_to_match".equals(currentFieldName)) {
                     mltQuery.setPercentTermsToMatch(jp.getFloatValue());

@@ -65,8 +65,7 @@ public class MoreLikeThisRequest implements ActionRequest {
     private int maxDocFreq = -1;
     private int minWordLen = -1;
     private int maxWordLen = -1;
-    private Boolean boostTerms = null;
-    private float boostTermsFactor = -1;
+    private float boostTerms = -1;
 
     private SearchType searchType = SearchType.DEFAULT;
     private String searchQueryHint;
@@ -282,33 +281,18 @@ public class MoreLikeThisRequest implements ActionRequest {
     }
 
     /**
-     * Whether to boost terms in query based on "score" or not. Defaults to <tt>false</tt>.
+     * The boost factor to use when boosting terms. Defaults to <tt>1</tt>.
      */
-    public MoreLikeThisRequest boostTerms(Boolean boostTerms) {
+    public MoreLikeThisRequest boostTerms(float boostTerms) {
         this.boostTerms = boostTerms;
         return this;
     }
 
     /**
-     * Whether to boost terms in query based on "score" or not. Defaults to <tt>false</tt>.
+     * The boost factor to use when boosting terms. Defaults to <tt>1</tt>.
      */
-    public Boolean boostTerms() {
+    public float boostTerms() {
         return this.boostTerms;
-    }
-
-    /**
-     * The boost factor to use when boosting terms. Defaults to <tt>1</tt>.
-     */
-    public MoreLikeThisRequest boostTermsFactor(float boostTermsFactor) {
-        this.boostTermsFactor = boostTermsFactor;
-        return this;
-    }
-
-    /**
-     * The boost factor to use when boosting terms. Defaults to <tt>1</tt>.
-     */
-    public float boostTermsFactor() {
-        return this.boostTermsFactor;
     }
 
     /**
@@ -483,10 +467,7 @@ public class MoreLikeThisRequest implements ActionRequest {
         maxDocFreq = in.readVInt();
         minWordLen = in.readVInt();
         maxWordLen = in.readVInt();
-        if (in.readBoolean()) {
-            boostTerms = in.readBoolean();
-        }
-        boostTermsFactor = in.readFloat();
+        boostTerms = in.readFloat();
         searchType = SearchType.fromId(in.readByte());
         if (in.readBoolean()) {
             searchQueryHint = in.readUTF();
@@ -553,13 +534,7 @@ public class MoreLikeThisRequest implements ActionRequest {
         out.writeVInt(maxDocFreq);
         out.writeVInt(minWordLen);
         out.writeVInt(maxWordLen);
-        if (boostTerms == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeBoolean(boostTerms);
-        }
-        out.writeFloat(boostTermsFactor);
+        out.writeFloat(boostTerms);
 
         out.writeByte(searchType.id());
         if (searchQueryHint == null) {

@@ -61,8 +61,7 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
             mltRequest.maxDocFreq(request.paramAsInt("max_doc_freq", -1));
             mltRequest.minWordLen(request.paramAsInt("min_word_len", -1));
             mltRequest.maxWordLen(request.paramAsInt("max_word_len", -1));
-            mltRequest.boostTerms(request.paramAsBoolean("boost_terms", null));
-            mltRequest.boostTermsFactor(request.paramAsFloat("boost_terms_factor", -1));
+            mltRequest.boostTerms(request.paramAsFloat("boost_terms", -1));
 
             mltRequest.searchType(parseSearchType(request.param("search_type")));
             mltRequest.searchIndices(request.paramAsStringArray("search_indices", null));

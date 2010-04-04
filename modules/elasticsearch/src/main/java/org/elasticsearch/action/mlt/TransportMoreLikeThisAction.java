@@ -222,7 +222,6 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
                 .likeText(likeText)
                 .percentTermsToMatch(request.percentTermsToMatch())
                 .boostTerms(request.boostTerms())
-                .boostTermsFactor(request.boostTermsFactor())
                 .minDocFreq(request.minDocFreq())
                 .maxDocFreq(request.maxDocFreq())
                 .minWordLen(request.minWordLen())

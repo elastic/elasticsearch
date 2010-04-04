@@ -42,8 +42,7 @@ public class MoreLikeThisFieldJsonQueryBuilder extends BaseJsonQueryBuilder {
     private int maxDocFreq = -1;
     private int minWordLen = -1;
     private int maxWordLen = -1;
-    private Boolean boostTerms = null;
-    private float boostTermsFactor = -1;
+    private float boostTerms = -1;
     private float boost = -1;
 
     /**
@@ -138,19 +137,10 @@ public class MoreLikeThisFieldJsonQueryBuilder extends BaseJsonQueryBuilder {
     }
 
     /**
-     * Sets whether to boost terms in query based on "score" or not. Defaults to
-     * <tt>false</tt>.
-     */
-    public MoreLikeThisFieldJsonQueryBuilder boostTerms(Boolean boostTerms) {
-        this.boostTerms = boostTerms;
-        return this;
-    }
-
-    /**
      * Sets the boost factor to use when boosting terms. Defaults to <tt>1</tt>.
      */
-    public MoreLikeThisFieldJsonQueryBuilder boostTermsFactor(float boostTermsFactor) {
-        this.boostTermsFactor = boostTermsFactor;
+    public MoreLikeThisFieldJsonQueryBuilder boostTerms(float boostTerms) {
+        this.boostTerms = boostTerms;
         return this;
     }
 
@@ -194,11 +184,8 @@ public class MoreLikeThisFieldJsonQueryBuilder extends BaseJsonQueryBuilder {
         if (maxWordLen != -1) {
             builder.field("max_word_len", maxWordLen);
         }
-        if (boostTerms != null) {
+        if (boostTerms != -1) {
             builder.field("boost_terms", boostTerms);
-        }
-        if (boostTermsFactor != -1) {
-            builder.field("boost_terms_factor", boostTermsFactor);
         }
         if (boost != -1) {
             builder.field("boost", boost);

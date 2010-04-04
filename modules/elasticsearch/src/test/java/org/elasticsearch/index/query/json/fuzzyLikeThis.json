@@ -2,6 +2,6 @@
     fuzzy_like_this : {
         fields : ["name.first", "name.last"],
         like_text : "something",
-        max_num_terms : 12
+        max_query_terms : 12
     }
 }

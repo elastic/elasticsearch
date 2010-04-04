@@ -64,7 +64,7 @@ public class FuzzyLikeThisJsonQueryParser extends AbstractIndexComponent impleme
     @Override public Query parse(JsonQueryParseContext parseContext) throws IOException, QueryParsingException {
         JsonParser jp = parseContext.jp();
 
-        int maxNumTerms = 100;
+        int maxNumTerms = 25;
         float boost = 1.0f;
         List<String> fields = null;
         String likeText = null;
@@ -80,7 +80,7 @@ public class FuzzyLikeThisJsonQueryParser extends AbstractIndexComponent impleme
             } else if (token == JsonToken.VALUE_STRING) {
                 if ("like_text".equals(currentFieldName)) {
                     likeText = jp.getText();
-                } else if ("max_numT_terms".equals(currentFieldName)) {
+                } else if ("max_query_terms".equals(currentFieldName)) {
                     maxNumTerms = Integer.parseInt(jp.getText());
                 } else if ("boost".equals(currentFieldName)) {
                     boost = Float.parseFloat(jp.getText());
@@ -88,7 +88,7 @@ public class FuzzyLikeThisJsonQueryParser extends AbstractIndexComponent impleme
                     ignoreTF = Booleans.parseBoolean(jp.getText(), false);
                 }
             } else if (token == JsonToken.VALUE_NUMBER_INT) {
-                if ("max_num_terms".equals(currentFieldName)) {
+                if ("max_query_terms".equals(currentFieldName)) {
                     maxNumTerms = jp.getIntValue();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = jp.getIntValue();

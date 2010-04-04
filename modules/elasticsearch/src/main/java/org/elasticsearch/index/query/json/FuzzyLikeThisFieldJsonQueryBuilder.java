@@ -36,7 +36,7 @@ public class FuzzyLikeThisFieldJsonQueryBuilder extends BaseJsonQueryBuilder {
     private String likeText = null;
     private Float minSimilarity;
     private Integer prefixLength;
-    private Integer maxNumTerms;
+    private Integer maxQueryTerms;
     private Boolean ignoreTF;
 
     /**
@@ -66,8 +66,8 @@ public class FuzzyLikeThisFieldJsonQueryBuilder extends BaseJsonQueryBuilder {
         return this;
     }
 
-    public FuzzyLikeThisFieldJsonQueryBuilder maxNumTerms(int maxNumTerms) {
-        this.maxNumTerms = maxNumTerms;
+    public FuzzyLikeThisFieldJsonQueryBuilder maxQueryTerms(int maxQueryTerms) {
+        this.maxQueryTerms = maxQueryTerms;
         return this;
     }
 
@@ -88,8 +88,8 @@ public class FuzzyLikeThisFieldJsonQueryBuilder extends BaseJsonQueryBuilder {
             throw new QueryBuilderException("fuzzyLikeThis requires 'likeText' to be provided");
         }
         builder.field("like_text", likeText);
-        if (maxNumTerms != null) {
-            builder.field("max_num_terms", maxNumTerms);
+        if (maxQueryTerms != null) {
+            builder.field("max_query_terms", maxQueryTerms);
         }
         if (minSimilarity != null) {
             builder.field("min_similarity", minSimilarity);

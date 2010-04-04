@@ -748,7 +748,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testFuzzyLikeThisBuilder() throws Exception {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(fuzzyLikeThisQuery("name.first", "name.last").likeText("something").maxNumTerms(12));
+        Query parsedQuery = queryParser.parse(fuzzyLikeThisQuery("name.first", "name.last").likeText("something").maxQueryTerms(12));
         assertThat(parsedQuery, instanceOf(FuzzyLikeThisQuery.class));
 //        FuzzyLikeThisQuery fuzzyLikeThisQuery = (FuzzyLikeThisQuery) parsedQuery;
     }
@@ -763,7 +763,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testFuzzyLikeFieldThisBuilder() throws Exception {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(fuzzyLikeThisFieldQuery("name.first").likeText("something").maxNumTerms(12));
+        Query parsedQuery = queryParser.parse(fuzzyLikeThisFieldQuery("name.first").likeText("something").maxQueryTerms(12));
         assertThat(parsedQuery, instanceOf(FuzzyLikeThisQuery.class));
 //        FuzzyLikeThisQuery fuzzyLikeThisQuery = (FuzzyLikeThisQuery) parsedQuery;
     }

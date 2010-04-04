@@ -2,7 +2,7 @@
     fuzzy_like_this_field : {
         "name.first" : {
             like_text : "something",
-            max_num_terms : 12
+            max_query_terms : 12
         }
     }
 }

@@ -19,10 +19,8 @@
 
 package org.elasticsearch.util.io;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InterruptedIOException;
-import java.io.RandomAccessFile;
+import java.io.*;
+import java.nio.channels.FileChannel;
 
 /**
  * @author kimchy (Shay Banon)
@@ -87,6 +85,33 @@ public class FileSystemUtils {
                 } catch (InterruptedException ie) {
                     throw new InterruptedIOException(ie.getMessage());
                 }
+            }
+        }
+    }
+
+    public static void copyFile(File sourceFile, File destinationFile) throws IOException {
+        FileInputStream sourceIs = null;
+        FileChannel source = null;
+        FileOutputStream destinationOs = null;
+        FileChannel destination = null;
+        try {
+            sourceIs = new FileInputStream(sourceFile);
+            source = sourceIs.getChannel();
+            destinationOs = new FileOutputStream(destinationFile);
+            destination = destinationOs.getChannel();
+            destination.transferFrom(source, 0, source.size());
+        } finally {
+            if (source != null) {
+                source.close();
+            }
+            if (sourceIs != null) {
+                sourceIs.close();
+            }
+            if (destination != null) {
+                destination.close();
+            }
+            if (destinationOs != null) {
+                destinationOs.close();
             }
         }
     }

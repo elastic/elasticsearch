@@ -24,11 +24,11 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.store.*;
 import org.elasticsearch.index.store.support.ForceSyncDirectory;
 import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.io.FileSystemUtils;
 
 import java.io.*;
-import java.nio.channels.FileChannel;
 import java.util.Collection;
+
+import static org.elasticsearch.util.io.FileSystemUtils.*;
 
 /**
  * A set of utilities for Lucene {@link Directory}.
@@ -85,25 +85,12 @@ public class Directories {
             if (!copyTo.exists()) {
                 copyTo.createNewFile();
             }
-            FileChannel source = null;
-            FileChannel destination = null;
-            try {
-                source = new FileInputStream(new File(((FSDirectory) dir).getFile(), fileName)).getChannel();
-                destination = new FileOutputStream(copyTo).getChannel();
-                destination.transferFrom(source, 0, source.size());
-            } finally {
-                if (source != null) {
-                    source.close();
-                }
-                if (destination != null) {
-                    destination.close();
-                }
-            }
+            copyFile(new File(((FSDirectory) dir).getFile(), fileName), copyTo);
         } else {
             copyFromDirectory(dir.openInput(fileName), new FileOutputStream(copyTo));
         }
         // sync the file
-        FileSystemUtils.syncFile(copyTo);
+        syncFile(copyTo);
     }
 
     public static void copyFromDirectory(IndexInput ii, OutputStream os) throws IOException {
@@ -142,20 +129,7 @@ public class Directories {
             if (!destinationFile.exists()) {
                 destinationFile.createNewFile();
             }
-            FileChannel source = null;
-            FileChannel destination = null;
-            try {
-                source = new FileInputStream(copyFrom).getChannel();
-                destination = new FileOutputStream(destinationFile).getChannel();
-                destination.transferFrom(source, 0, source.size());
-            } finally {
-                if (source != null) {
-                    source.close();
-                }
-                if (destination != null) {
-                    destination.close();
-                }
-            }
+            copyFile(copyFrom, destinationFile);
         } else {
             copyToDirectory(new FileInputStream(copyFrom), dir.createOutput(fileName));
         }

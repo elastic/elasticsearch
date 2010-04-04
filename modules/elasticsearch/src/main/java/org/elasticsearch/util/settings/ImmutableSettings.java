@@ -37,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 
 import static com.google.common.collect.Lists.*;
 import static org.elasticsearch.util.SizeValue.*;
+import static org.elasticsearch.util.Strings.*;
 import static org.elasticsearch.util.TimeValue.*;
 
 /**
@@ -99,7 +100,12 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override public String get(String setting) {
-        return settings.get(setting);
+        String retVal = settings.get(setting);
+        if (retVal != null) {
+            return retVal;
+        }
+        // try camel case version
+        return settings.get(toCamelCase(setting));
     }
 
     @Override public String get(String setting, String defaultValue) {
@@ -189,11 +195,11 @@ public class ImmutableSettings implements Settings {
         try {
             return (Class<? extends T>) getClassLoader().loadClass(fullClassName);
         } catch (ClassNotFoundException e) {
-            fullClassName = prefixPackage + Strings.capitalize(sValue) + suffixClassName;
+            fullClassName = prefixPackage + Strings.capitalize(toCamelCase(sValue)) + suffixClassName;
             try {
                 return (Class<? extends T>) getClassLoader().loadClass(fullClassName);
             } catch (ClassNotFoundException e1) {
-                fullClassName = prefixPackage + sValue + "." + Strings.capitalize(sValue) + suffixClassName;
+                fullClassName = prefixPackage + sValue + "." + Strings.capitalize(toCamelCase(sValue)) + suffixClassName;
                 try {
                     return (Class<? extends T>) getClassLoader().loadClass(fullClassName);
                 } catch (ClassNotFoundException e2) {

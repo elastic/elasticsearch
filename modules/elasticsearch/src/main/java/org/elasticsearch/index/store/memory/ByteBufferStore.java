@@ -45,12 +45,12 @@ public class ByteBufferStore extends AbstractStore<ByteBufferDirectory> {
     @Inject public ByteBufferStore(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
 
-        this.bufferSize = componentSettings.getAsSize("bufferSize", new SizeValue(100, SizeUnit.KB));
-        this.cacheSize = componentSettings.getAsSize("cacheSize", new SizeValue(20, SizeUnit.MB));
+        this.bufferSize = componentSettings.getAsSize("buffer_size", new SizeValue(100, SizeUnit.KB));
+        this.cacheSize = componentSettings.getAsSize("cache_size", new SizeValue(20, SizeUnit.MB));
         this.direct = componentSettings.getAsBoolean("direct", true);
-        this.warmCache = componentSettings.getAsBoolean("warmCache", true);
+        this.warmCache = componentSettings.getAsBoolean("warm_cache", true);
         this.directory = new ByteBufferDirectory((int) bufferSize.bytes(), (int) cacheSize.bytes(), direct, warmCache);
-        logger.debug("Using [ByteBuffer] Store with bufferSize[{}], cacheSize[{}], direct[{}], warmCache[{}]",
+        logger.debug("Using [ByteBuffer] Store with buffer_size[{}], cache_size[{}], direct[{}], warm_cache[{}]",
                 new Object[]{bufferSize, cacheSize, directory.isDirect(), warmCache});
     }
 

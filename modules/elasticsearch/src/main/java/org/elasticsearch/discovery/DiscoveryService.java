@@ -43,7 +43,7 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
     @Inject public DiscoveryService(Settings settings, Discovery discovery) {
         super(settings);
         this.discovery = discovery;
-        this.initialStateTimeout = componentSettings.getAsTime("initialStateTimeout", TimeValue.timeValueSeconds(30));
+        this.initialStateTimeout = componentSettings.getAsTime("initial_state_timeout", TimeValue.timeValueSeconds(30));
     }
 
     @Override protected void doStart() throws ElasticSearchException {

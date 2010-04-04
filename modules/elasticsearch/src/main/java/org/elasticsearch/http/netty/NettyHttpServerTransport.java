@@ -96,16 +96,16 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     @Inject public NettyHttpServerTransport(Settings settings) {
         super(settings);
-        SizeValue maxContentLength = componentSettings.getAsSize("maxContentLength", new SizeValue(100, SizeUnit.MB));
-        this.workerCount = componentSettings.getAsInt("workerCount", Runtime.getRuntime().availableProcessors());
+        SizeValue maxContentLength = componentSettings.getAsSize("max_content_length", new SizeValue(100, SizeUnit.MB));
+        this.workerCount = componentSettings.getAsInt("worker_count", Runtime.getRuntime().availableProcessors());
         this.port = componentSettings.get("port", "9200-9300");
-        this.bindHost = componentSettings.get("bindHost");
-        this.publishHost = componentSettings.get("publishHost");
-        this.tcpNoDelay = componentSettings.getAsBoolean("tcpNoDelay", true);
-        this.tcpKeepAlive = componentSettings.getAsBoolean("tcpKeepAlive", null);
-        this.reuseAddress = componentSettings.getAsBoolean("reuseAddress", true);
-        this.tcpSendBufferSize = componentSettings.getAsSize("tcpSendBufferSize", null);
-        this.tcpReceiveBufferSize = componentSettings.getAsSize("tcpReceiveBufferSize", null);
+        this.bindHost = componentSettings.get("bind_host");
+        this.publishHost = componentSettings.get("publish_host");
+        this.tcpNoDelay = componentSettings.getAsBoolean("tcp_no_delay", true);
+        this.tcpKeepAlive = componentSettings.getAsBoolean("tcp_keep_alive", null);
+        this.reuseAddress = componentSettings.getAsBoolean("reuse_address", true);
+        this.tcpSendBufferSize = componentSettings.getAsSize("tcp_send_buffer_size", null);
+        this.tcpReceiveBufferSize = componentSettings.getAsSize("tcp_receive_buffer_size", null);
 
         // validate max content length
         if (maxContentLength.bytes() > Integer.MAX_VALUE) {

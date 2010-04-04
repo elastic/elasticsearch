@@ -1,9 +1,9 @@
 {
-    moreLikeThisField : {
+    more_like_this_field : {
         "name.first" : {
-            likeText : "something",
-            minTermFrequency : 1,
-            maxQueryTerms : 12
+            like_text : "something",
+            min_term_freq : 1,
+            max_query_terms : 12
         }
     }
 }

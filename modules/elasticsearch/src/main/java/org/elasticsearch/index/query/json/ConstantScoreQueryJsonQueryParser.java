@@ -38,7 +38,7 @@ import java.io.IOException;
  */
 public class ConstantScoreQueryJsonQueryParser extends AbstractIndexComponent implements JsonQueryParser {
 
-    public static final String NAME = "constantScore";
+    public static final String NAME = "constant_score";
 
     @Inject public ConstantScoreQueryJsonQueryParser(Index index, @IndexSettings Settings settings) {
         super(index, settings);

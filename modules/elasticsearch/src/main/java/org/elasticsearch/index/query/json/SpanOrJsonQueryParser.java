@@ -41,7 +41,7 @@ import static com.google.common.collect.Lists.*;
  */
 public class SpanOrJsonQueryParser extends AbstractIndexComponent implements JsonQueryParser {
 
-    public static final String NAME = "spanOr";
+    public static final String NAME = "span_or";
 
     @Inject public SpanOrJsonQueryParser(Index index, @IndexSettings Settings settings) {
         super(index, settings);

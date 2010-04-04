@@ -45,7 +45,9 @@ import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * A main entry point when starting from the command line.
+ *
+ * @author kimchy (shay.banon)
  */
 public class Bootstrap {
 

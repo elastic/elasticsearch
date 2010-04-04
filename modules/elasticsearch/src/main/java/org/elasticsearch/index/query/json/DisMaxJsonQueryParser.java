@@ -40,12 +40,14 @@ import static com.google.common.collect.Lists.*;
  */
 public class DisMaxJsonQueryParser extends AbstractIndexComponent implements JsonQueryParser {
 
+    public static final String NAME = "dis_max";
+
     @Inject public DisMaxJsonQueryParser(Index index, @IndexSettings Settings settings) {
         super(index, settings);
     }
 
     @Override public String name() {
-        return "disMax";
+        return NAME;
     }
 
     @Override public Query parse(JsonQueryParseContext parseContext) throws IOException, QueryParsingException {
@@ -79,7 +81,7 @@ public class DisMaxJsonQueryParser extends AbstractIndexComponent implements Jso
                     } else {
                         boost = jp.getFloatValue();
                     }
-                } else if ("tieBreaker".equals(currentFieldName)) {
+                } else if ("tie_breaker".equals(currentFieldName)) {
                     if (token == JsonToken.VALUE_STRING) {
                         tieBreaker = Float.parseFloat(jp.getText());
                     } else {

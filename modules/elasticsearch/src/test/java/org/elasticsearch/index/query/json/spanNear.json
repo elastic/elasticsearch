@@ -1,18 +1,18 @@
 {
-    spanNear : {
+    span_near : {
         clauses : [
             {
-                spanTerm : { age : 34 }
+                span_term : { age : 34 }
             },
             {
-                spanTerm : { age : 35 }
+                span_term : { age : 35 }
             },
             {
-                spanTerm : { age : 36 }
+                span_term : { age : 36 }
             }
         ],
         slop : 12,
-        inOrder : false,
-        collectPayloads : false
+        in_order : false,
+        collect_payloads : false
     }
 }

@@ -47,7 +47,7 @@ import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 /**
- * @author kimchy
+ * @author kimchy (shay.banon)
  */
 @Test
 public class SimpleJsonIndexQueryParserTests {
@@ -710,7 +710,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testMoreLikeThisBuilder() throws Exception {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(moreLikeThisQuery("name.first", "name.last").likeText("something").minTermFrequency(1).maxQueryTerms(12));
+        Query parsedQuery = queryParser.parse(moreLikeThisQuery("name.first", "name.last").likeText("something").minTermFreq(1).maxQueryTerms(12));
         assertThat(parsedQuery, instanceOf(MoreLikeThisQuery.class));
         MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) parsedQuery;
         assertThat(mltQuery.getMoreLikeFields()[0], equalTo("name.first"));
@@ -764,7 +764,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testMoreLikeThisFieldBuilder() throws Exception {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(moreLikeThisFieldQuery("name.first").likeText("something").minTermFrequency(1).maxQueryTerms(12));
+        Query parsedQuery = queryParser.parse(moreLikeThisFieldQuery("name.first").likeText("something").minTermFreq(1).maxQueryTerms(12));
         assertThat(parsedQuery, instanceOf(MoreLikeThisQuery.class));
         MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) parsedQuery;
         assertThat(mltQuery.getMoreLikeFields()[0], equalTo("name.first"));

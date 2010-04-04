@@ -103,7 +103,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         this.queryPhase = queryPhase;
         this.fetchPhase = fetchPhase;
 
-        this.defaultKeepAlive = componentSettings.getAsTime("defaultKeepAlive", timeValueMinutes(2));
+        this.defaultKeepAlive = componentSettings.getAsTime("default_keep_alive", timeValueMinutes(2));
 
         Map<String, SearchParseElement> elementParsers = new HashMap<String, SearchParseElement>();
         elementParsers.putAll(dfsPhase.parseElements());

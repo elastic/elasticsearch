@@ -35,10 +35,6 @@ public class JgroupsDiscoveryModule extends AbstractModule {
     }
 
     @Override protected void configure() {
-        if (settings.getAsBoolean("discovery.client", false)) {
-            bind(Discovery.class).to(JgroupsClientDiscovery.class).asEagerSingleton();
-        } else {
-            bind(Discovery.class).to(JgroupsDiscovery.class).asEagerSingleton();
-        }
+        bind(Discovery.class).to(JgroupsDiscovery.class).asEagerSingleton();
     }
 }

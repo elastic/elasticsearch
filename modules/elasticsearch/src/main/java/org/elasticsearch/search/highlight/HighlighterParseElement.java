@@ -33,13 +33,13 @@ import static com.google.common.collect.Lists.*;
 /**
  * <pre>
  * highlight : {
- *  tagsSchema : "styled",
- *  preTags : ["tag1", "tag2"],
- *  postTags : ["tag1", "tag2"],
+ *  tags_schema : "styled",
+ *  pre_Tags : ["tag1", "tag2"],
+ *  post_tags : ["tag1", "tag2"],
  *  order : "score",
  *  fields : {
  *      field1 : {  }
- *      field2 : { fragmentSize : 100, numOfFragments : 2 }
+ *      field2 : { fragment_size : 100, num_of_fragments : 2 }
  *  }
  * }
  * </pre>
@@ -71,13 +71,13 @@ public class HighlighterParseElement implements SearchParseElement {
             if (token == JsonToken.FIELD_NAME) {
                 topLevelFieldName = jp.getCurrentName();
             } else if (token == JsonToken.START_ARRAY) {
-                if ("preTags".equals(topLevelFieldName)) {
+                if ("pre_tags".equals(topLevelFieldName)) {
                     List<String> preTagsList = Lists.newArrayList();
                     while ((token = jp.nextToken()) != JsonToken.END_ARRAY) {
                         preTagsList.add(jp.getText());
                     }
                     preTags = preTagsList.toArray(new String[preTagsList.size()]);
-                } else if ("postTags".equals(topLevelFieldName)) {
+                } else if ("post_tags".equals(topLevelFieldName)) {
                     List<String> postTagsList = Lists.newArrayList();
                     while ((token = jp.nextToken()) != JsonToken.END_ARRAY) {
                         postTagsList.add(jp.getText());
@@ -91,7 +91,7 @@ public class HighlighterParseElement implements SearchParseElement {
                     } else {
                         scoreOrdered = false;
                     }
-                } else if ("tagsSchema".equals(topLevelFieldName)) {
+                } else if ("tags_schema".equals(topLevelFieldName)) {
                     String schema = jp.getText();
                     if ("styled".equals(schema)) {
                         preTags = STYLED_PRE_TAG;
@@ -112,15 +112,15 @@ public class HighlighterParseElement implements SearchParseElement {
                                 if (token == JsonToken.FIELD_NAME) {
                                     fieldName = jp.getCurrentName();
                                 } else if (token == JsonToken.VALUE_STRING) {
-                                    if ("fragmentSize".equals(fieldName)) {
+                                    if ("fragment_size".equals(fieldName)) {
                                         fragmentSize = Integer.parseInt(jp.getText());
-                                    } else if ("numberOfFragments".equals(fieldName)) {
+                                    } else if ("number_of_fragments".equals(fieldName)) {
                                         numOfFragments = Integer.parseInt(jp.getText());
                                     }
                                 } else if (token == JsonToken.VALUE_NUMBER_INT) {
-                                    if ("fragmentSize".equals(fieldName)) {
+                                    if ("fragment_size".equals(fieldName)) {
                                         fragmentSize = jp.getIntValue();
-                                    } else if ("numberOfFragments".equals(fieldName)) {
+                                    } else if ("number_of_fragments".equals(fieldName)) {
                                         numOfFragments = jp.getIntValue();
                                     }
                                 }

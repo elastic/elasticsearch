@@ -2,27 +2,27 @@
     bool : {
         must : [
             {
-                queryString : {
-                    defaultField : "content",
+                query_string : {
+                    default_field : "content",
                     query : "test1"
                 }
             },
             {
-                queryString : {
-                    defaultField : "content",
+                query_string : {
+                    default_field : "content",
                     query : "test4"
                 }
             }
         ],
-        mustNot: {
-            queryString : {
-                defaultField : "content",
+        must_not: {
+            query_string : {
+                default_field : "content",
                 query : "test2"
             }
         },
         should: {
-            queryString : {
-                defaultField : "content",
+            query_string : {
+                default_field : "content",
                 query : "test3"
             }
         }

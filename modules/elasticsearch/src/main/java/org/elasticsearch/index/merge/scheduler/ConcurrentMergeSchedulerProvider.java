@@ -39,8 +39,8 @@ public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponen
     @Inject public ConcurrentMergeSchedulerProvider(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
 
-        this.maxThreadCount = componentSettings.getAsInt("maxThreadCount", 1);
-        logger.debug("Using [concurrent] merge scheduler with maxThreadCount[{}]", maxThreadCount);
+        this.maxThreadCount = componentSettings.getAsInt("max_thread_count", 1);
+        logger.debug("Using [concurrent] merge scheduler with max_thread_count[{}]", maxThreadCount);
     }
 
     @Override public MergeScheduler newMergeScheduler() {

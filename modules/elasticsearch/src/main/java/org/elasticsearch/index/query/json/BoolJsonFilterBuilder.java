@@ -67,7 +67,7 @@ public class BoolJsonFilterBuilder extends BaseJsonQueryBuilder {
                 builder.field("must");
                 clause.filterBuilder.toJson(builder, params);
             } else if (clause.occur == BooleanClause.Occur.MUST_NOT) {
-                builder.field("mustNot");
+                builder.field("must_not");
                 clause.filterBuilder.toJson(builder, params);
             } else if (clause.occur == BooleanClause.Occur.SHOULD) {
                 builder.field("should");

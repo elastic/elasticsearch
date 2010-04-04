@@ -50,7 +50,7 @@ import static org.elasticsearch.util.lucene.search.Queries.*;
  */
 public class QueryStringJsonQueryParser extends AbstractIndexComponent implements JsonQueryParser {
 
-    public static final String NAME = "queryString";
+    public static final String NAME = "query_string";
 
     private final AnalysisService analysisService;
 
@@ -123,9 +123,9 @@ public class QueryStringJsonQueryParser extends AbstractIndexComponent implement
             } else if (token == JsonToken.VALUE_STRING) {
                 if ("query".equals(currentFieldName)) {
                     queryString = jp.getText();
-                } else if ("defaultField".equals(currentFieldName)) {
+                } else if ("default_field".equals(currentFieldName)) {
                     defaultField = parseContext.indexName(jp.getText());
-                } else if ("defaultOperator".equals(currentFieldName)) {
+                } else if ("default_operator".equals(currentFieldName)) {
                     String op = jp.getText();
                     if ("or".equalsIgnoreCase(op)) {
                         defaultOperator = QueryParser.Operator.OR;
@@ -136,73 +136,73 @@ public class QueryStringJsonQueryParser extends AbstractIndexComponent implement
                     }
                 } else if ("analyzer".equals(currentFieldName)) {
                     analyzer = analysisService.analyzer(jp.getText());
-                } else if ("allowLeadingWildcard".equals(currentFieldName)) {
+                } else if ("allow_leading_wildcard".equals(currentFieldName)) {
                     allowLeadingWildcard = Booleans.parseBoolean(jp.getText(), false);
-                } else if ("lowercaseExpandedTerms".equals(currentFieldName)) {
+                } else if ("lowercase_expanded_terms".equals(currentFieldName)) {
                     lowercaseExpandedTerms = Booleans.parseBoolean(jp.getText(), false);
-                } else if ("enablePositionIncrements".equals(currentFieldName)) {
+                } else if ("enable_position_increments".equals(currentFieldName)) {
                     enablePositionIncrements = Booleans.parseBoolean(jp.getText(), false);
                 } else if ("escape".equals(currentFieldName)) {
                     escape = Booleans.parseBoolean(jp.getText(), false);
-                } else if ("useDisMax".equals(currentFieldName)) {
+                } else if ("use_dis_max".equals(currentFieldName)) {
                     useDisMax = Booleans.parseBoolean(jp.getText(), false);
-                } else if ("fuzzyPrefixLength".equals(currentFieldName)) {
+                } else if ("fuzzy_prefix_length".equals(currentFieldName)) {
                     fuzzyPrefixLength = Integer.parseInt(jp.getText());
-                } else if ("phraseSlop".equals(currentFieldName)) {
+                } else if ("phrase_slop".equals(currentFieldName)) {
                     phraseSlop = Integer.parseInt(jp.getText());
-                } else if ("fuzzyMinSim".equals(currentFieldName)) {
+                } else if ("fuzzy_min_sim".equals(currentFieldName)) {
                     fuzzyMinSim = Float.parseFloat(jp.getText());
                 } else if ("boost".equals(currentFieldName)) {
                     boost = Float.parseFloat(jp.getText());
-                } else if ("tieBreaker".equals(currentFieldName)) {
+                } else if ("tie_breaker".equals(currentFieldName)) {
                     tieBreaker = Float.parseFloat(jp.getText());
                 }
             } else if (token == JsonToken.VALUE_FALSE || token == JsonToken.VALUE_TRUE) {
-                if ("allowLeadingWildcard".equals(currentFieldName)) {
+                if ("allow_leading_wildcard".equals(currentFieldName)) {
                     allowLeadingWildcard = token == JsonToken.VALUE_TRUE;
-                } else if ("lowercaseExpandedTerms".equals(currentFieldName)) {
+                } else if ("lowercase_expanded_terms".equals(currentFieldName)) {
                     lowercaseExpandedTerms = token == JsonToken.VALUE_TRUE;
-                } else if ("enablePositionIncrements".equals(currentFieldName)) {
+                } else if ("enable_position_increments".equals(currentFieldName)) {
                     enablePositionIncrements = token == JsonToken.VALUE_TRUE;
                 } else if ("escape".equals(currentFieldName)) {
                     escape = token == JsonToken.VALUE_TRUE;
-                } else if ("useDisMax".equals(currentFieldName)) {
+                } else if ("use_dis_max".equals(currentFieldName)) {
                     useDisMax = token == JsonToken.VALUE_TRUE;
                 }
             } else if (token == JsonToken.VALUE_NUMBER_FLOAT) {
-                if ("fuzzyMinSim".equals(currentFieldName)) {
+                if ("fuzzy_min_sim".equals(currentFieldName)) {
                     fuzzyMinSim = jp.getFloatValue();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = jp.getFloatValue();
-                } else if ("tieBreaker".equals(currentFieldName)) {
+                } else if ("tie_breaker".equals(currentFieldName)) {
                     tieBreaker = jp.getFloatValue();
                 }
             } else if (token == JsonToken.VALUE_NUMBER_INT) {
-                if ("fuzzyPrefixLength".equals(currentFieldName)) {
+                if ("fuzzy_prefix_length".equals(currentFieldName)) {
                     fuzzyPrefixLength = jp.getIntValue();
-                } else if ("phraseSlop".equals(currentFieldName)) {
+                } else if ("phrase_slop".equals(currentFieldName)) {
                     phraseSlop = jp.getIntValue();
-                } else if ("fuzzyMinSim".equals(currentFieldName)) {
+                } else if ("fuzzy_min_sim".equals(currentFieldName)) {
                     fuzzyMinSim = jp.getFloatValue();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = jp.getFloatValue();
-                } else if ("allowLeadingWildcard".equals(currentFieldName)) {
+                } else if ("allow_leading_wildcard".equals(currentFieldName)) {
                     allowLeadingWildcard = jp.getIntValue() != 0;
-                } else if ("lowercaseExpandedTerms".equals(currentFieldName)) {
+                } else if ("lowercase_expanded_terms".equals(currentFieldName)) {
                     lowercaseExpandedTerms = jp.getIntValue() != 0;
-                } else if ("enablePositionIncrements".equals(currentFieldName)) {
+                } else if ("enable_position_increments".equals(currentFieldName)) {
                     enablePositionIncrements = jp.getIntValue() != 0;
                 } else if ("escape".equals(currentFieldName)) {
                     escape = jp.getIntValue() != 0;
-                } else if ("useDisMax".equals(currentFieldName)) {
+                } else if ("use_dis_max".equals(currentFieldName)) {
                     useDisMax = jp.getIntValue() != 0;
-                } else if ("tieBreaker".equals(currentFieldName)) {
+                } else if ("tie_breaker".equals(currentFieldName)) {
                     tieBreaker = jp.getFloatValue();
                 }
             }
         }
         if (queryString == null) {
-            throw new QueryParsingException(index, "QueryString must be provided with a [query]");
+            throw new QueryParsingException(index, "query_string must be provided with a [query]");
         }
         if (analyzer == null) {
             analyzer = parseContext.mapperService().searchAnalyzer();

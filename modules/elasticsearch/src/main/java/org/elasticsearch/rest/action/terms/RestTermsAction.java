@@ -64,7 +64,7 @@ public class RestTermsAction extends BaseRestHandler {
         // we just send back a response, no need to fork a listener
         termsRequest.listenerThreaded(false);
         try {
-            BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operationThreading"), BroadcastOperationThreading.SINGLE_THREAD);
+            BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
             if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
                 // since we don't spawn, don't allow no_threads, but change it to a single thread
                 operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
@@ -88,11 +88,11 @@ public class RestTermsAction extends BaseRestHandler {
 
             termsRequest.from(request.param("from"));
             termsRequest.to(request.param("to"));
-            termsRequest.fromInclusive(request.paramAsBoolean("fromInclusive", termsRequest.fromInclusive()));
-            termsRequest.toInclusive(request.paramAsBoolean("toInclusive", termsRequest.toInclusive()));
+            termsRequest.fromInclusive(request.paramAsBoolean("from_inclusive", termsRequest.fromInclusive()));
+            termsRequest.toInclusive(request.paramAsBoolean("to_inclusive", termsRequest.toInclusive()));
             termsRequest.exact(request.paramAsBoolean("exact", termsRequest.exact()));
-            termsRequest.minFreq(request.paramAsInt("minFreq", termsRequest.minFreq()));
-            termsRequest.maxFreq(request.paramAsInt("maxFreq", termsRequest.maxFreq()));
+            termsRequest.minFreq(request.paramAsInt("min_freq", termsRequest.minFreq()));
+            termsRequest.maxFreq(request.paramAsInt("max_freq", termsRequest.maxFreq()));
             termsRequest.size(request.paramAsInt("size", termsRequest.size()));
             termsRequest.prefix(request.param("prefix"));
             termsRequest.regexp(request.param("regexp"));
@@ -107,7 +107,7 @@ public class RestTermsAction extends BaseRestHandler {
             return;
         }
 
-        final boolean termsAsArray = request.paramAsBoolean("termsAsArray", true);
+        final boolean termsAsArray = request.paramAsBoolean("terms_as_array", true);
         client.terms(termsRequest, new ActionListener<TermsResponse>() {
             @Override public void onResponse(TermsResponse response) {
                 try {
@@ -117,9 +117,9 @@ public class RestTermsAction extends BaseRestHandler {
                     buildBroadcastShardsHeader(builder, response);
 
                     builder.startObject("docs");
-                    builder.field("numDocs", response.numDocs());
-                    builder.field("maxDoc", response.maxDoc());
-                    builder.field("deletedDocs", response.deletedDocs());
+                    builder.field("num_docs", response.numDocs());
+                    builder.field("max_doc", response.maxDoc());
+                    builder.field("deleted_docs", response.deletedDocs());
                     builder.endObject();
 
                     builder.startObject("fields");
@@ -130,7 +130,7 @@ public class RestTermsAction extends BaseRestHandler {
                             builder.startObject("terms");
                             for (TermFreq termFreq : fieldTermsFreq.termsFreqs()) {
                                 builder.startObject(termFreq.termAsString());
-                                builder.field("docFreq", termFreq.docFreq());
+                                builder.field("doc_freq", termFreq.docFreq());
                                 builder.endObject();
                             }
                             builder.endObject();
@@ -139,7 +139,7 @@ public class RestTermsAction extends BaseRestHandler {
                             for (TermFreq termFreq : fieldTermsFreq.termsFreqs()) {
                                 builder.startObject();
                                 builder.field("term", termFreq.term());
-                                builder.field("docFreq", termFreq.docFreq());
+                                builder.field("doc_freq", termFreq.docFreq());
                                 builder.endObject();
                             }
                             builder.endArray();

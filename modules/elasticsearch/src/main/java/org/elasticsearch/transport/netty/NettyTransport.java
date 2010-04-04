@@ -133,18 +133,18 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         super(settings);
         this.threadPool = threadPool;
 
-        this.workerCount = componentSettings.getAsInt("workerCount", Runtime.getRuntime().availableProcessors());
+        this.workerCount = componentSettings.getAsInt("worker_count", Runtime.getRuntime().availableProcessors());
         this.port = componentSettings.get("port", "9300-9400");
-        this.bindHost = componentSettings.get("bindHost");
-        this.connectionsPerNode = componentSettings.getAsInt("connectionsPerNode", 5);
-        this.publishHost = componentSettings.get("publishHost");
-        this.connectTimeout = componentSettings.getAsTime("connectTimeout", timeValueSeconds(1));
-        this.connectRetries = componentSettings.getAsInt("connectRetries", 2);
-        this.tcpNoDelay = componentSettings.getAsBoolean("tcpNoDelay", true);
-        this.tcpKeepAlive = componentSettings.getAsBoolean("tcpKeepAlive", null);
-        this.reuseAddress = componentSettings.getAsBoolean("reuseAddress", true);
-        this.tcpSendBufferSize = componentSettings.getAsSize("tcpSendBufferSize", null);
-        this.tcpReceiveBufferSize = componentSettings.getAsSize("tcpReceiveBufferSize", null);
+        this.bindHost = componentSettings.get("bind_host");
+        this.connectionsPerNode = componentSettings.getAsInt("connections_per_node", 5);
+        this.publishHost = componentSettings.get("publish_host");
+        this.connectTimeout = componentSettings.getAsTime("connect_timeout", timeValueSeconds(1));
+        this.connectRetries = componentSettings.getAsInt("connect_retries", 2);
+        this.tcpNoDelay = componentSettings.getAsBoolean("tcp_no_delay", true);
+        this.tcpKeepAlive = componentSettings.getAsBoolean("tcp_keep_alive", null);
+        this.reuseAddress = componentSettings.getAsBoolean("reuse_address", true);
+        this.tcpSendBufferSize = componentSettings.getAsSize("tcp_send_buffer_size", null);
+        this.tcpReceiveBufferSize = componentSettings.getAsSize("tcp_receive_buffer_size", null);
     }
 
     public Settings settings() {

@@ -58,7 +58,7 @@ public class MoreLikeThisRequest implements ActionRequest {
     private String[] fields;
 
     private float percentTermsToMatch = -1;
-    private int minTermFrequency = -1;
+    private int minTermFreq = -1;
     private int maxQueryTerms = -1;
     private String[] stopWords = null;
     private int minDocFreq = -1;
@@ -165,16 +165,16 @@ public class MoreLikeThisRequest implements ActionRequest {
     /**
      * The frequency below which terms will be ignored in the source doc. Defaults to <tt>2</tt>.
      */
-    public MoreLikeThisRequest minTermFrequency(int minTermFrequency) {
-        this.minTermFrequency = minTermFrequency;
+    public MoreLikeThisRequest minTermFreq(int minTermFreq) {
+        this.minTermFreq = minTermFreq;
         return this;
     }
 
     /**
      * The frequency below which terms will be ignored in the source doc. Defaults to <tt>2</tt>.
      */
-    public int minTermFrequency() {
-        return this.minTermFrequency;
+    public int minTermFreq() {
+        return this.minTermFreq;
     }
 
     /**
@@ -470,7 +470,7 @@ public class MoreLikeThisRequest implements ActionRequest {
         }
 
         percentTermsToMatch = in.readFloat();
-        minTermFrequency = in.readVInt();
+        minTermFreq = in.readVInt();
         maxQueryTerms = in.readVInt();
         size = in.readVInt();
         if (size > 0) {
@@ -539,7 +539,7 @@ public class MoreLikeThisRequest implements ActionRequest {
         }
 
         out.writeFloat(percentTermsToMatch);
-        out.writeVInt(minTermFrequency);
+        out.writeVInt(minTermFreq);
         out.writeVInt(maxQueryTerms);
         if (stopWords == null) {
             out.writeVInt(0);

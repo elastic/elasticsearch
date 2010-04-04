@@ -498,11 +498,11 @@ public class JsonObjectMapper implements JsonMapper, JsonIncludeInAllMapper {
         builder.field("enabled", enabled);
         builder.field("path", pathType.name().toLowerCase());
         if (includeInAll != null) {
-            builder.field("includeInAll", includeInAll);
+            builder.field("include_in_all", includeInAll);
         }
 
         if (dateTimeFormatters.length > 0) {
-            builder.startArray("dateFormats");
+            builder.startArray("date_formats");
             for (FormatDateTimeFormatter dateTimeFormatter : dateTimeFormatters) {
                 builder.value(dateTimeFormatter.format());
             }

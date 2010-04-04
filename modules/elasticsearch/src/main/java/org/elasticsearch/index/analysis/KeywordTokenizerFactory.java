@@ -38,7 +38,7 @@ public class KeywordTokenizerFactory extends AbstractTokenizerFactory {
 
     @Inject public KeywordTokenizerFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name);
-        bufferSize = settings.getAsInt("bufferSize", 256);
+        bufferSize = settings.getAsInt("buffer_size", 256);
     }
 
     @Override public Tokenizer create(Reader reader) {

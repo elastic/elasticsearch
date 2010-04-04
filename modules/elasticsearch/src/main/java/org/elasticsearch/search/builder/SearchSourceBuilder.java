@@ -240,7 +240,7 @@ public class SearchSourceBuilder {
                 builder.field("size", size);
             }
             if (queryParserName != null) {
-                builder.field("queryParserName", queryParserName);
+                builder.field("query_parser_name", queryParserName);
             }
 
             if (queryBuilder != null) {
@@ -282,7 +282,7 @@ public class SearchSourceBuilder {
             }
 
             if (indexBoost != null) {
-                builder.startObject("indicesBoost");
+                builder.startObject("indices_boost");
                 for (TObjectFloatIterator<String> it = indexBoost.iterator(); it.hasNext();) {
                     it.advance();
                     builder.field(it.key(), it.value());

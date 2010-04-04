@@ -43,7 +43,7 @@ import static com.google.common.collect.Lists.*;
  */
 public class MoreLikeThisJsonQueryParser extends AbstractIndexComponent implements JsonQueryParser {
 
-    public static final String NAME = "moreLikeThis";
+    public static final String NAME = "more_like_this";
 
     public MoreLikeThisJsonQueryParser(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
@@ -66,55 +66,59 @@ public class MoreLikeThisJsonQueryParser extends AbstractIndexComponent implemen
             if (token == JsonToken.FIELD_NAME) {
                 currentFieldName = jp.getCurrentName();
             } else if (token == JsonToken.VALUE_STRING) {
-                if ("likeText".equals(currentFieldName)) {
+                if ("like_text".equals(currentFieldName)) {
                     mltQuery.setLikeText(jp.getText());
-                } else if ("minTermFrequency".equals(currentFieldName)) {
+                } else if ("min_term_freq".equals(currentFieldName)) {
                     mltQuery.setMinTermFrequency(Integer.parseInt(jp.getText()));
-                } else if ("maxQueryTerms".equals(currentFieldName)) {
+                } else if ("max_query_terms".equals(currentFieldName)) {
                     mltQuery.setMaxQueryTerms(Integer.parseInt(jp.getText()));
-                } else if ("minDocFreq".equals(currentFieldName)) {
+                } else if ("min_doc_freq".equals(currentFieldName)) {
                     mltQuery.setMinDocFreq(Integer.parseInt(jp.getText()));
-                } else if ("maxDocFreq".equals(currentFieldName)) {
+                } else if ("max_doc_freq".equals(currentFieldName)) {
                     mltQuery.setMaxDocFreq(Integer.parseInt(jp.getText()));
-                } else if ("minWordLen".equals(currentFieldName)) {
+                } else if ("min_word_len".equals(currentFieldName)) {
                     mltQuery.setMinWordLen(Integer.parseInt(jp.getText()));
-                } else if ("maxWordLen".equals(currentFieldName)) {
+                } else if ("max_word_len".equals(currentFieldName)) {
                     mltQuery.setMaxWordLen(Integer.parseInt(jp.getText()));
-                } else if ("boostTerms".equals(currentFieldName)) {
+                } else if ("boost_terms".equals(currentFieldName)) {
                     mltQuery.setBoostTerms(Booleans.parseBoolean(jp.getText(), false));
-                } else if ("boostTermsFactor".equals(currentFieldName)) {
+                } else if ("boost_terms_factor".equals(currentFieldName)) {
                     mltQuery.setBoostTermsFactor(Float.parseFloat(jp.getText()));
-                } else if ("percentTermsToMatch".equals(currentFieldName)) {
+                } else if ("percent_terms_to_match".equals(currentFieldName)) {
                     mltQuery.setPercentTermsToMatch(Float.parseFloat(jp.getText()));
                 }
             } else if (token == JsonToken.VALUE_NUMBER_INT) {
-                if ("minTermFrequency".equals(currentFieldName)) {
+                if ("min_term_freq".equals(currentFieldName)) {
                     mltQuery.setMinTermFrequency(jp.getIntValue());
-                } else if ("maxQueryTerms".equals(currentFieldName)) {
+                } else if ("max_query_terms".equals(currentFieldName)) {
                     mltQuery.setMaxQueryTerms(jp.getIntValue());
-                } else if ("minDocFreq".equals(currentFieldName)) {
+                } else if ("min_doc_freq".equals(currentFieldName)) {
                     mltQuery.setMinDocFreq(jp.getIntValue());
-                } else if ("maxDocFreq".equals(currentFieldName)) {
+                } else if ("max_doc_freq".equals(currentFieldName)) {
                     mltQuery.setMaxDocFreq(jp.getIntValue());
-                } else if ("minWordLen".equals(currentFieldName)) {
+                } else if ("min_word_len".equals(currentFieldName)) {
                     mltQuery.setMinWordLen(jp.getIntValue());
-                } else if ("maxWordLen".equals(currentFieldName)) {
+                } else if ("max_word_len".equals(currentFieldName)) {
                     mltQuery.setMaxWordLen(jp.getIntValue());
-                } else if ("boostTerms".equals(currentFieldName)) {
+                } else if ("boost_terms".equals(currentFieldName)) {
                     mltQuery.setBoostTerms(jp.getIntValue() != 0);
-                } else if ("boostTermsFactor".equals(currentFieldName)) {
+                } else if ("boost_terms_factor".equals(currentFieldName)) {
                     mltQuery.setBoostTermsFactor(jp.getIntValue());
-                } else if ("percentTermsToMatch".equals(currentFieldName)) {
+                } else if ("percent_terms_to_match".equals(currentFieldName)) {
                     mltQuery.setPercentTermsToMatch(jp.getIntValue());
+                } else if ("boost".equals(currentFieldName)) {
+                    mltQuery.setBoost(jp.getIntValue());
                 }
             } else if (token == JsonToken.VALUE_NUMBER_FLOAT) {
-                if ("boostTermsFactor".equals(currentFieldName)) {
+                if ("boost_terms_factor".equals(currentFieldName)) {
                     mltQuery.setBoostTermsFactor(jp.getFloatValue());
-                } else if ("percentTermsToMatch".equals(currentFieldName)) {
+                } else if ("percent_terms_to_match".equals(currentFieldName)) {
                     mltQuery.setPercentTermsToMatch(jp.getFloatValue());
+                } else if ("boost".equals(currentFieldName)) {
+                    mltQuery.setBoost(jp.getFloatValue());
                 }
             } else if (token == JsonToken.START_ARRAY) {
-                if ("stopWords".equals(currentFieldName)) {
+                if ("stop_words".equals(currentFieldName)) {
                     Set<String> stopWords = Sets.newHashSet();
                     while ((token = jp.nextToken()) != JsonToken.END_ARRAY) {
                         stopWords.add(jp.getText());
@@ -131,10 +135,10 @@ public class MoreLikeThisJsonQueryParser extends AbstractIndexComponent implemen
         }
 
         if (mltQuery.getLikeText() == null) {
-            throw new QueryParsingException(index, "moreLikeThis requires 'likeText' to be specified");
+            throw new QueryParsingException(index, "more_like_this requires 'like_text' to be specified");
         }
         if (mltQuery.getMoreLikeFields() == null || mltQuery.getMoreLikeFields().length == 0) {
-            throw new QueryParsingException(index, "moreLikeThis requires 'fields' to be specified");
+            throw new QueryParsingException(index, "more_like_this requires 'fields' to be specified");
         }
 
         // move to the next end object, to close the field name

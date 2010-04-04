@@ -238,31 +238,31 @@ public class FieldJsonQueryBuilder extends BaseJsonQueryBuilder {
             builder.startObject(name);
             builder.field("query", query);
             if (defaultOperator != null) {
-                builder.field("defaultOperator", defaultOperator.name().toLowerCase());
+                builder.field("default_operator", defaultOperator.name().toLowerCase());
             }
             if (analyzer != null) {
                 builder.field("analyzer", analyzer);
             }
             if (allowLeadingWildcard != null) {
-                builder.field("allowLeadingWildcard", allowLeadingWildcard);
+                builder.field("allow_leading_wildcard", allowLeadingWildcard);
             }
             if (lowercaseExpandedTerms != null) {
-                builder.field("lowercaseExpandedTerms", lowercaseExpandedTerms);
+                builder.field("lowercase_expanded_terms", lowercaseExpandedTerms);
             }
             if (enablePositionIncrements != null) {
-                builder.field("enablePositionIncrements", enablePositionIncrements);
+                builder.field("enable_position_increments", enablePositionIncrements);
             }
             if (fuzzyMinSim != -1) {
-                builder.field("fuzzyMinSim", fuzzyMinSim);
+                builder.field("fuzzy_min_sim", fuzzyMinSim);
             }
             if (boost != -1) {
                 builder.field("boost", boost);
             }
             if (fuzzyPrefixLength != -1) {
-                builder.field("fuzzyPrefixLength", fuzzyPrefixLength);
+                builder.field("fuzzy_prefix_length", fuzzyPrefixLength);
             }
             if (phraseSlop != -1) {
-                builder.field("phraseSlop", phraseSlop);
+                builder.field("phrase_slop", phraseSlop);
             }
             builder.endObject();
         }

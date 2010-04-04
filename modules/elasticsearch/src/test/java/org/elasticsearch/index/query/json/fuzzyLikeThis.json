@@ -1,7 +1,7 @@
 {
-    fuzzyLikeThis : {
+    fuzzy_like_this : {
         fields : ["name.first", "name.last"],
-        likeText : "something",
-        maxNumTerms : 12
+        like_text : "something",
+        max_num_terms : 12
     }
 }

@@ -41,8 +41,8 @@ public class KeepLastNDeletionPolicy extends AbstractIndexShardComponent impleme
 
     @Inject public KeepLastNDeletionPolicy(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
-        this.numToKeep = componentSettings.getAsInt("numToKeep", 5);
-        logger.debug("Using [KeepLastN] deletion policy with numToKeep [{}]", numToKeep);
+        this.numToKeep = componentSettings.getAsInt("num_to_keep", 5);
+        logger.debug("Using [KeepLastN] deletion policy with num_to_keep [{}]", numToKeep);
     }
 
     public void onInit(List<? extends IndexCommit> commits) throws IOException {

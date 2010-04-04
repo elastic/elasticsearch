@@ -52,7 +52,7 @@ public class SimpleFsStore extends AbstractFsStore<Directory> {
     @Inject public SimpleFsStore(ShardId shardId, @IndexSettings Settings indexSettings, Environment environment, @LocalNodeId String localNodeId) throws IOException {
         super(shardId, indexSettings);
         // by default, we don't need to sync to disk, since we use the gateway
-        this.syncToDisk = componentSettings.getAsBoolean("syncToDisk", false);
+        this.syncToDisk = componentSettings.getAsBoolean("sync_to_disk", false);
         this.fsDirectory = new CustomSimpleFSDirectory(createStoreFilePath(environment.workWithClusterFile(), localNodeId, shardId, MAIN_INDEX_SUFFIX), syncToDisk);
 
         SwitchDirectory switchDirectory = buildSwitchDirectoryIfNeeded(fsDirectory);

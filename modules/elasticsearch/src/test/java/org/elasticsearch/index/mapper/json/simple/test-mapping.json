@@ -1,12 +1,12 @@
 {
     person : {
-        dateFormats : ["yyyy-MM-dd", "dd-MM-yyyy"],
+        date_formats : ["yyyy-MM-dd", "dd-MM-yyyy"],
         dynamic : false,
         enabled : true,
-        _id : {name : "_id", indexName : "_id"},
+        _id : {name : "_id", index_name : "_id"},
         _source : {name : "_source"},
         _type : {name : "_type"},
-        _boost : {name : "_boost", nullValue : 2.0},
+        _boost : {name : "_boost", null_value : 2.0},
         properties : {
             name : {
                 type : "object",
@@ -21,7 +21,7 @@
                 properties : {
                     first : {
                         properties : {
-                            location : {type : "string", store : "yes", indexName : "firstLocation"}
+                            location : {type : "string", store : "yes", index_name : "firstLocation"}
                         }
                     },
                     last : {
@@ -31,10 +31,10 @@
                     }
                 }
             },
-            age : {type : "integer", nullValue : 0},
+            age : {type : "integer", null_value : 0},
             birthdate : {type : "date", format : "yyyy-MM-dd"},
             nerd : {type : "boolean"},
-            dogs : {type : "string", indexName : "dog"},
+            dogs : {type : "string", index_name : "dog"},
             complex : {
                 type : "object",
                 properties : {

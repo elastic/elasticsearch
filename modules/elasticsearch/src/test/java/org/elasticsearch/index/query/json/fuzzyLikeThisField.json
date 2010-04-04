@@ -1,8 +1,8 @@
 {
-    fuzzyLikeThisField : {
+    fuzzy_like_this_field : {
         "name.first" : {
-            likeText : "something",
-            maxNumTerms : 12
+            like_text : "something",
+            max_num_terms : 12
         }
     }
 }

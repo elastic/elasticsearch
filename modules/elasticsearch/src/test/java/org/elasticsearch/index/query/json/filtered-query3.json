@@ -2,7 +2,7 @@
     filtered : {
         filter : {
             range : {
-                age : { from : "23", to : "54", includeLower : true, includeUpper: false}
+                age : { from : "23", to : "54", include_lower : true, include_upper: false}
             }
         },
         query : {

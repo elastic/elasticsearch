@@ -84,7 +84,11 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
         this.transportService = transportService;
         this.threadPool = threadPool;
 
-        this.nodesSamplerInterval = componentSettings.getAsTime("nodesSamplerInterval", timeValueSeconds(1));
+        this.nodesSamplerInterval = componentSettings.getAsTime("nodes_sampler_interval", timeValueSeconds(1));
+
+        if (logger.isDebugEnabled()) {
+            logger.debug("node_sampler_interval[" + nodesSamplerInterval + "]");
+        }
 
         this.nodesSamplerFuture = threadPool.scheduleWithFixedDelay(nodesSampler, nodesSamplerInterval);
 

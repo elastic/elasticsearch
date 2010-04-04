@@ -51,8 +51,8 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
         } else {
             this.stopWords = ImmutableSet.copyOf((Iterable<? extends String>) StopAnalyzer.ENGLISH_STOP_WORDS_SET);
         }
-        this.enablePositionIncrements = settings.getAsBoolean("enablePositionIncrements", true);
-        this.ignoreCase = settings.getAsBoolean("ignoreCase", false);
+        this.enablePositionIncrements = settings.getAsBoolean("enable_position_increments", true);
+        this.ignoreCase = settings.getAsBoolean("ignore_case", false);
     }
 
     @Override public TokenStream create(TokenStream tokenStream) {

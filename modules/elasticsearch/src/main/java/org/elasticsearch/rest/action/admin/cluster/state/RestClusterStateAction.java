@@ -59,7 +59,7 @@ public class RestClusterStateAction extends BaseRestHandler {
 
                     // meta data
                     builder.startObject("metadata");
-                    builder.field("maxNumberOfShardsPerNode", state.metaData().maxNumberOfShardsPerNode());
+                    builder.field("max_number_of_shards_per_node", state.metaData().maxNumberOfShardsPerNode());
                     builder.startObject("indices");
                     for (IndexMetaData indexMetaData : state.metaData()) {
                         builder.startObject(indexMetaData.index());
@@ -82,7 +82,7 @@ public class RestClusterStateAction extends BaseRestHandler {
                     builder.endObject();
 
                     // routing table
-                    builder.startObject("routingTable");
+                    builder.startObject("routing_table");
                     builder.startObject("indices");
                     for (IndexRoutingTable indexRoutingTable : state.routingTable()) {
                         builder.startObject(indexRoutingTable.index());
@@ -101,7 +101,7 @@ public class RestClusterStateAction extends BaseRestHandler {
                     builder.endObject();
 
                     // routing nodes
-                    builder.startObject("routingNodes");
+                    builder.startObject("routing_nodes");
                     builder.startArray("unassigned");
                     for (ShardRouting shardRouting : state.readOnlyRoutingNodes().unassigned()) {
                         jsonShardRouting(builder, shardRouting);
@@ -129,9 +129,9 @@ public class RestClusterStateAction extends BaseRestHandler {
                 builder.startObject()
                         .field("state", shardRouting.state())
                         .field("primary", shardRouting.primary())
-                        .field("nodeId", shardRouting.currentNodeId())
-                        .field("relocatingNodeId", shardRouting.relocatingNodeId())
-                        .field("shardId", shardRouting.shardId().id())
+                        .field("node", shardRouting.currentNodeId())
+                        .field("relocating_node", shardRouting.relocatingNodeId())
+                        .field("shard", shardRouting.shardId().id())
                         .field("index", shardRouting.shardId().index().name())
                         .endObject();
             }

@@ -56,15 +56,15 @@ public class RestNodesInfoAction extends BaseRestHandler {
                 try {
                     JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
                     builder.startObject();
-                    builder.field("clusterName", result.clusterName().value());
+                    builder.field("cluster_name", result.clusterName().value());
 
                     builder.startObject("nodes");
                     for (NodeInfo nodeInfo : result) {
                         builder.startObject(nodeInfo.node().id());
 
                         builder.field("name", nodeInfo.node().name());
-                        builder.field("transportAddress", nodeInfo.node().address().toString());
-                        builder.field("dataNode", nodeInfo.node().dataNode());
+                        builder.field("transport_address", nodeInfo.node().address().toString());
+                        builder.field("data_node", nodeInfo.node().dataNode());
 
                         for (Map.Entry<String, String> nodeAttribute : nodeInfo.attributes().entrySet()) {
                             builder.field(nodeAttribute.getKey(), nodeAttribute.getValue());

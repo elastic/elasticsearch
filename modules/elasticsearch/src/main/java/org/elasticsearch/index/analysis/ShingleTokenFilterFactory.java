@@ -38,8 +38,8 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Inject public ShingleTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name);
-        maxShingleSize = settings.getAsInt("maxShingleSize", ShingleFilter.DEFAULT_MAX_SHINGLE_SIZE);
-        outputUnigrams = settings.getAsBoolean("outputUnigrams", true);
+        maxShingleSize = settings.getAsInt("max_shingle_size", ShingleFilter.DEFAULT_MAX_SHINGLE_SIZE);
+        outputUnigrams = settings.getAsBoolean("output_unigrams", true);
     }
 
     @Override public TokenStream create(TokenStream tokenStream) {

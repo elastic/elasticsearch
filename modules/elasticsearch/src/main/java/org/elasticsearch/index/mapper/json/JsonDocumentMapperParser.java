@@ -132,9 +132,9 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
                 docBuilder.boostField(parseBoostField((ObjectNode) fieldNode, parserContext));
             } else if (JsonAllFieldMapper.JSON_TYPE.equals(fieldName) || "allField".equals(fieldName)) {
                 docBuilder.allField(parseAllField((ObjectNode) fieldNode, parserContext));
-            } else if ("indexAnalyzer".equals(fieldName)) {
+            } else if ("index_analyzer".equals(fieldName)) {
                 docBuilder.indexAnalyzer(analysisService.analyzer(fieldNode.getTextValue()));
-            } else if ("searchAnalyzer".equals(fieldName)) {
+            } else if ("search_analyzer".equals(fieldName)) {
                 docBuilder.searchAnalyzer(analysisService.analyzer(fieldNode.getTextValue()));
             } else if ("analyzer".equals(fieldName)) {
                 docBuilder.indexAnalyzer(analysisService.analyzer(fieldNode.getTextValue()));
@@ -180,7 +180,7 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
             Map.Entry<String, JsonNode> entry = propsIt.next();
             String propName = entry.getKey();
             JsonNode propNode = entry.getValue();
-            if (propName.equals("nullValue")) {
+            if (propName.equals("null_value")) {
                 builder.nullValue(nodeFloatValue(propNode));
             }
         }

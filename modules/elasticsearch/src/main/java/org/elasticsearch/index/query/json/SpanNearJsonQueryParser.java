@@ -42,7 +42,7 @@ import static com.google.common.collect.Lists.*;
  */
 public class SpanNearJsonQueryParser extends AbstractIndexComponent implements JsonQueryParser {
 
-    public static final String NAME = "spanNear";
+    public static final String NAME = "span_near";
 
     @Inject public SpanNearJsonQueryParser(Index index, @IndexSettings Settings settings) {
         super(index, settings);
@@ -78,9 +78,9 @@ public class SpanNearJsonQueryParser extends AbstractIndexComponent implements J
                     }
                 }
             } else if (token == JsonToken.VALUE_STRING) {
-                if ("inOrder".equals(currentFieldName)) {
+                if ("in_order".equals(currentFieldName)) {
                     inOrder = Booleans.parseBoolean(jp.getText(), inOrder);
-                } else if ("collectPayloads".equals(currentFieldName)) {
+                } else if ("collect_payloads".equals(currentFieldName)) {
                     collectPayloads = Booleans.parseBoolean(jp.getText(), collectPayloads);
                 } else if ("slop".equals(currentFieldName)) {
                     slop = Integer.parseInt(jp.getText());
@@ -88,15 +88,15 @@ public class SpanNearJsonQueryParser extends AbstractIndexComponent implements J
                     boost = Float.parseFloat(jp.getText());
                 }
             } else if (token == JsonToken.VALUE_FALSE || token == JsonToken.VALUE_TRUE) {
-                if ("inOrder".equals(currentFieldName)) {
+                if ("in_order".equals(currentFieldName)) {
                     inOrder = token == JsonToken.VALUE_TRUE;
-                } else if ("collectPayloads".equals(currentFieldName)) {
+                } else if ("collect_payloads".equals(currentFieldName)) {
                     collectPayloads = token == JsonToken.VALUE_TRUE;
                 }
             } else if (token == JsonToken.VALUE_NUMBER_INT) {
-                if ("inOrder".equals(currentFieldName)) {
+                if ("in_order".equals(currentFieldName)) {
                     inOrder = jp.getIntValue() != 0;
-                } else if ("collectPayloads".equals(currentFieldName)) {
+                } else if ("collect_payloads".equals(currentFieldName)) {
                     collectPayloads = jp.getIntValue() != 0;
                 } else if ("slop".equals(currentFieldName)) {
                     slop = jp.getIntValue();
@@ -110,10 +110,10 @@ public class SpanNearJsonQueryParser extends AbstractIndexComponent implements J
             }
         }
         if (clauses.isEmpty()) {
-            throw new QueryParsingException(index, "spanNear must include [clauses]");
+            throw new QueryParsingException(index, "span_near must include [clauses]");
         }
         if (slop == -1) {
-            throw new QueryParsingException(index, "spanNear must include [slop]");
+            throw new QueryParsingException(index, "span_near must include [slop]");
         }
 
         SpanNearQuery query = new SpanNearQuery(clauses.toArray(new SpanQuery[clauses.size()]), slop, inOrder, collectPayloads);

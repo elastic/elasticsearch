@@ -51,7 +51,7 @@ public class FrenchAnalyzerProvider extends AbstractAnalyzerProvider<FrenchAnaly
             this.stopWords = FrenchAnalyzer.getDefaultStopSet();
         }
 
-        String[] stemExclusion = settings.getAsArray("stemExclusion");
+        String[] stemExclusion = settings.getAsArray("stem_exclusion");
         if (stemExclusion.length > 0) {
             this.stemExclusion = ImmutableSet.copyOf(Iterators.forArray(stemExclusion));
         } else {

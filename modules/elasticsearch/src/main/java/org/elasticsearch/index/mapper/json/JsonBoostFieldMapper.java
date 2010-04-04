@@ -192,7 +192,7 @@ public class JsonBoostFieldMapper extends JsonNumberFieldMapper<Float> implement
         builder.startObject(jsonType());
         builder.field("name", name());
         if (nullValue != null) {
-            builder.field("nullValue", nullValue);
+            builder.field("null_value", nullValue);
         }
         builder.endObject();
     }

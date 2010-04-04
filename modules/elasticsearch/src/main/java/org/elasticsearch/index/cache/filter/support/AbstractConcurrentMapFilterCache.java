@@ -52,7 +52,7 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
     protected AbstractConcurrentMapFilterCache(Index index, @IndexSettings Settings indexSettings, ThreadPool threadPool) {
         super(index, indexSettings);
 
-        this.readerCleanerSchedule = componentSettings.getAsTime("readerCleanerSchedule", TimeValue.timeValueMinutes(1));
+        this.readerCleanerSchedule = componentSettings.getAsTime("reader_cleaner_schedule", TimeValue.timeValueMinutes(1));
 
         logger.debug("Using [" + type() + "] filter cache with readerCleanerSchedule [{}]", readerCleanerSchedule);
 

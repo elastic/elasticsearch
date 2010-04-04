@@ -57,7 +57,7 @@ public class TimerService extends AbstractComponent {
         this.timeEstimator = new TimeEstimator();
         this.timeEstimatorFuture = threadPool.scheduleWithFixedDelay(timeEstimator, 50, 50, TimeUnit.MILLISECONDS);
 
-        this.tickDuration = componentSettings.getAsTime("tickDuration", timeValueMillis(100));
+        this.tickDuration = componentSettings.getAsTime("tick_duration", timeValueMillis(100));
 
         this.timer = new HashedWheelTimer(logger, daemonThreadFactory(settings, "timer"), tickDuration.millis(), TimeUnit.MILLISECONDS);
     }

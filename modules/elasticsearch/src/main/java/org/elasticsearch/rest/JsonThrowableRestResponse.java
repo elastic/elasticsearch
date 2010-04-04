@@ -42,8 +42,8 @@ public class JsonThrowableRestResponse extends JsonRestResponse {
     private static JsonBuilder convert(RestRequest request, Throwable t) throws IOException {
         JsonBuilder builder = binaryJsonBuilder().prettyPrint()
                 .startObject().field("error", detailedMessage(t));
-        if (t != null && request.paramAsBoolean("errorTrace", false)) {
-            builder.startObject("errorTrace");
+        if (t != null && request.paramAsBoolean("error_trace", false)) {
+            builder.startObject("error_trace");
             boolean first = true;
             while (t != null) {
                 if (!first) {
@@ -66,13 +66,13 @@ public class JsonThrowableRestResponse extends JsonRestResponse {
         builder.field("message", t.getMessage());
         for (StackTraceElement stElement : t.getStackTrace()) {
             builder.startObject("at")
-                    .field("className", stElement.getClassName())
-                    .field("methodName", stElement.getMethodName());
+                    .field("class", stElement.getClassName())
+                    .field("method", stElement.getMethodName());
             if (stElement.getFileName() != null) {
-                builder.field("fileName", stElement.getFileName());
+                builder.field("file", stElement.getFileName());
             }
             if (stElement.getLineNumber() >= 0) {
-                builder.field("lineNumber", stElement.getLineNumber());
+                builder.field("line", stElement.getLineNumber());
             }
             builder.endObject();
         }

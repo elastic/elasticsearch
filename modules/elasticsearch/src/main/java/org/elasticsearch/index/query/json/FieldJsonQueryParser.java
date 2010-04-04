@@ -86,15 +86,15 @@ public class FieldJsonQueryParser extends AbstractIndexComponent implements Json
                         queryString = jp.getText();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = Float.parseFloat(jp.getText());
-                    } else if ("enablePositionIncrements".equals(currentFieldName)) {
+                    } else if ("enable_position_increments".equals(currentFieldName)) {
                         enablePositionIncrements = Booleans.parseBoolean(jp.getText(), true);
-                    } else if ("lowercaseExpandedTerms".equals(currentFieldName)) {
+                    } else if ("lowercase_expanded_terms".equals(currentFieldName)) {
                         lowercaseExpandedTerms = Booleans.parseBoolean(jp.getText(), true);
-                    } else if ("phraseSlop".equals(currentFieldName)) {
+                    } else if ("phrase_slop".equals(currentFieldName)) {
                         phraseSlop = Integer.parseInt(jp.getText());
                     } else if ("analyzer".equals(currentFieldName)) {
                         analyzer = analysisService.analyzer(jp.getText());
-                    } else if ("defaultOperator".equals(currentFieldName)) {
+                    } else if ("default_operator".equals(currentFieldName)) {
                         String op = jp.getText();
                         if ("or".equalsIgnoreCase(op)) {
                             defaultOperator = QueryParser.Operator.OR;
@@ -103,9 +103,9 @@ public class FieldJsonQueryParser extends AbstractIndexComponent implements Json
                         } else {
                             throw new QueryParsingException(index, "Query default operator [" + op + "] is not allowed");
                         }
-                    } else if ("fuzzyMinSim".equals(currentFieldName)) {
+                    } else if ("fuzzy_min_sim".equals(currentFieldName)) {
                         fuzzyMinSim = Float.parseFloat(jp.getText());
-                    } else if ("fuzzyPrefixLength".equals(currentFieldName)) {
+                    } else if ("fuzzy_prefix_length".equals(currentFieldName)) {
                         fuzzyPrefixLength = Integer.parseInt(jp.getText());
                     } else if ("escape".equals(currentFieldName)) {
                         escape = Booleans.parseBoolean(jp.getText(), false);
@@ -115,15 +115,15 @@ public class FieldJsonQueryParser extends AbstractIndexComponent implements Json
                         queryString = jp.getText();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = jp.getIntValue();
-                    } else if ("enablePositionIncrements".equals(currentFieldName)) {
+                    } else if ("enable_position_increments".equals(currentFieldName)) {
                         enablePositionIncrements = jp.getIntValue() != 0;
-                    } else if ("lowercaseExpandedTerms".equals(currentFieldName)) {
+                    } else if ("lowercase_expanded_terms".equals(currentFieldName)) {
                         lowercaseExpandedTerms = jp.getIntValue() != 0;
-                    } else if ("phraseSlop".equals(currentFieldName)) {
+                    } else if ("phrase_slop".equals(currentFieldName)) {
                         phraseSlop = jp.getIntValue();
-                    } else if ("fuzzyMinSim".equals(currentFieldName)) {
+                    } else if ("fuzzy_min_sim".equals(currentFieldName)) {
                         fuzzyMinSim = jp.getIntValue();
-                    } else if ("fuzzyPrefixLength".equals(currentFieldName)) {
+                    } else if ("fuzzy_prefix_length".equals(currentFieldName)) {
                         fuzzyPrefixLength = jp.getIntValue();
                     } else if ("escape".equals(currentFieldName)) {
                         escape = jp.getIntValue() != 0;
@@ -133,15 +133,15 @@ public class FieldJsonQueryParser extends AbstractIndexComponent implements Json
                         queryString = jp.getText();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = jp.getFloatValue();
-                    } else if ("fuzzyPrefixLength".equals(currentFieldName)) {
+                    } else if ("fuzzy_prefix_length".equals(currentFieldName)) {
                         fuzzyPrefixLength = jp.getIntValue();
                     }
                 } else if (token == JsonToken.VALUE_TRUE) {
                     if ("query".equals(currentFieldName)) {
                         queryString = jp.getText();
-                    } else if ("enablePositionIncrements".equals(currentFieldName)) {
+                    } else if ("enable_position_increments".equals(currentFieldName)) {
                         enablePositionIncrements = true;
-                    } else if ("lowercaseExpandedTerms".equals(currentFieldName)) {
+                    } else if ("lowercase_expanded_terms".equals(currentFieldName)) {
                         lowercaseExpandedTerms = true;
                     } else if ("escape".equals(currentFieldName)) {
                         escape = true;
@@ -149,9 +149,9 @@ public class FieldJsonQueryParser extends AbstractIndexComponent implements Json
                 } else if (token == JsonToken.VALUE_FALSE) {
                     if ("query".equals(currentFieldName)) {
                         queryString = jp.getText();
-                    } else if ("enablePositionIncrements".equals(currentFieldName)) {
+                    } else if ("enable_position_increments".equals(currentFieldName)) {
                         enablePositionIncrements = false;
-                    } else if ("lowercaseExpandedTerms".equals(currentFieldName)) {
+                    } else if ("lowercase_expanded_terms".equals(currentFieldName)) {
                         lowercaseExpandedTerms = false;
                     } else if ("escape".equals(currentFieldName)) {
                         escape = false;

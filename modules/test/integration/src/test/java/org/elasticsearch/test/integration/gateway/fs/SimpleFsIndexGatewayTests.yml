@@ -4,5 +4,5 @@ cluster:
 gateway:
   type: fs
 index:
-  numberOfShards: 1
-  numberOfReplicas: 1
+  number_of_shards: 1
+  number_of_replicas: 1

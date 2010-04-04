@@ -177,8 +177,8 @@ public class RangeJsonQueryBuilder extends BaseJsonQueryBuilder {
         builder.startObject(name);
         builder.field("from", from);
         builder.field("to", to);
-        builder.field("includeLower", includeLower);
-        builder.field("includeUpper", includeUpper);
+        builder.field("include_lower", includeLower);
+        builder.field("include_upper", includeUpper);
         if (boost != -1) {
             builder.field("boost", boost);
         }

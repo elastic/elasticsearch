@@ -39,7 +39,8 @@ import static org.elasticsearch.util.TimeValue.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class AlphaMemoryMonitor extends AbstractLifecycleComponent<MemoryMonitor> implements MemoryMonitor {
+public class
+        AlphaMemoryMonitor extends AbstractLifecycleComponent<MemoryMonitor> implements MemoryMonitor {
 
     private final double upperMemoryThreshold;
 
@@ -75,15 +76,15 @@ public class AlphaMemoryMonitor extends AbstractLifecycleComponent<MemoryMonitor
         this.threadPool = threadPool;
         this.indicesMemoryCleaner = indicesMemoryCleaner;
 
-        this.upperMemoryThreshold = componentSettings.getAsDouble("upperMemoryThreshold", 0.8);
-        this.lowerMemoryThreshold = componentSettings.getAsDouble("lowerMemoryThreshold", 0.5);
+        this.upperMemoryThreshold = componentSettings.getAsDouble("upper_memory_threshold", 0.8);
+        this.lowerMemoryThreshold = componentSettings.getAsDouble("lower_memory_threshold", 0.5);
         this.interval = componentSettings.getAsTime("interval", timeValueMillis(500));
-        this.gcThreshold = componentSettings.getAsInt("gcThreshold", 5);
-        this.cleanThreshold = componentSettings.getAsInt("cleanThreshold", 10);
-        this.minimumFlushableSizeToClean = componentSettings.getAsSize("minimumFlushableSizeToClean", new SizeValue(5, SizeUnit.MB));
-        this.translogNumberOfOperationsThreshold = componentSettings.getAsInt("translogNumberOfOperationsThreshold", 5000);
+        this.gcThreshold = componentSettings.getAsInt("gc_threshold", 5);
+        this.cleanThreshold = componentSettings.getAsInt("clean_threshold", 10);
+        this.minimumFlushableSizeToClean = componentSettings.getAsSize("minimum_flushable_size_to_clean", new SizeValue(5, SizeUnit.MB));
+        this.translogNumberOfOperationsThreshold = componentSettings.getAsInt("translog_number_of_operations_threshold", 5000);
 
-        logger.debug("Interval[" + interval + "], upperMemoryThreshold[" + upperMemoryThreshold + "], lowerMemoryThreshold[" + lowerMemoryThreshold + "], translogNumberOfOperationsThreshold[" + translogNumberOfOperationsThreshold + "]");
+        logger.debug("interval[" + interval + "], upper_memory_threshold[" + upperMemoryThreshold + "], lower_memory_threshold[" + lowerMemoryThreshold + "], translog_number_of_operations_threshold[" + translogNumberOfOperationsThreshold + "]");
 
         this.runtime = Runtime.getRuntime();
         this.maxMemory = new SizeValue(runtime.maxMemory());

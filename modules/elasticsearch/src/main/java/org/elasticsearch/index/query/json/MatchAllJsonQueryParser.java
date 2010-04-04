@@ -33,11 +33,11 @@ import org.elasticsearch.util.settings.Settings;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class MatchAllJsonQueryParser extends AbstractIndexComponent implements JsonQueryParser {
 
-    public static final String NAME = "matchAll";
+    public static final String NAME = "match_all";
 
     @Inject public MatchAllJsonQueryParser(Index index, @IndexSettings Settings settings) {
         super(index, settings);
@@ -61,7 +61,7 @@ public class MatchAllJsonQueryParser extends AbstractIndexComponent implements J
             } else if (token == JsonToken.VALUE_STRING) {
                 if ("boost".equals(currentFieldName)) {
                     boost = Float.parseFloat(jp.getText());
-                } else if ("normsField".equals(currentFieldName)) {
+                } else if ("norms_field".equals(currentFieldName)) {
                     normsField = parseContext.indexName(jp.getText());
                 }
             } else {

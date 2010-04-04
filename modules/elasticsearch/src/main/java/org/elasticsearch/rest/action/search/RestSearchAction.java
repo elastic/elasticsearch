@@ -74,7 +74,7 @@ public class RestSearchAction extends BaseRestHandler {
         try {
             searchRequest = parseSearchRequest(request);
             searchRequest.listenerThreaded(false);
-            SearchOperationThreading operationThreading = SearchOperationThreading.fromString(request.param("operationThreading"), SearchOperationThreading.SINGLE_THREAD);
+            SearchOperationThreading operationThreading = SearchOperationThreading.fromString(request.param("operation_threading"), SearchOperationThreading.SINGLE_THREAD);
             if (operationThreading == SearchOperationThreading.NO_THREADS) {
                 // since we don't spawn, don't allow no_threads, but change it to a single thread
                 operationThreading = SearchOperationThreading.SINGLE_THREAD;
@@ -122,7 +122,7 @@ public class RestSearchAction extends BaseRestHandler {
         // add extra source based on the request parameters
         searchRequest.extraSource(parseSearchSource(request));
 
-        searchRequest.searchType(parseSearchType(request.param("searchType")));
+        searchRequest.searchType(parseSearchType(request.param("search_type")));
 
         String scroll = request.param("scroll");
         if (scroll != null) {
@@ -136,7 +136,7 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.types(RestActions.splitTypes(typesParam));
         }
 
-        searchRequest.queryHint(request.param("queryHint"));
+        searchRequest.queryHint(request.param("query_hint"));
 
         return searchRequest;
     }
@@ -148,7 +148,7 @@ public class RestSearchAction extends BaseRestHandler {
             QueryStringJsonQueryBuilder queryBuilder = JsonQueryBuilders.queryString(queryString);
             queryBuilder.defaultField(request.param("df"));
             queryBuilder.analyzer(request.param("analyzer"));
-            String defaultOperator = request.param("defaultOperator");
+            String defaultOperator = request.param("default_operator");
             if (defaultOperator != null) {
                 if ("OR".equals(defaultOperator)) {
                     queryBuilder.defaultOperator(QueryStringJsonQueryBuilder.Operator.OR);
@@ -171,7 +171,7 @@ public class RestSearchAction extends BaseRestHandler {
         }
 
 
-        searchSourceBuilder.queryParserName(request.param("queryParserName"));
+        searchSourceBuilder.queryParserName(request.param("query_parser_name"));
         searchSourceBuilder.explain(request.paramAsBoolean("explain", null));
 
         List<String> fields = request.params("field");
@@ -202,7 +202,7 @@ public class RestSearchAction extends BaseRestHandler {
             }
         }
 
-        String sIndicesBoost = request.param("indicesBoost");
+        String sIndicesBoost = request.param("indices_boost");
         if (sIndicesBoost != null) {
             String[] indicesBoost = indicesBoostPattern.split(sIndicesBoost);
             for (String indexBoost : indicesBoost) {

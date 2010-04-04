@@ -130,13 +130,13 @@ public class SearchSourceHighlightBuilder implements ToJson {
     @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject("highlight");
         if (tagsSchema != null) {
-            builder.field("tagsSchema", tagsSchema);
+            builder.field("tags_schema", tagsSchema);
         }
         if (preTags != null) {
-            builder.array("preTags", preTags);
+            builder.array("pre_tags", preTags);
         }
         if (postTags != null) {
-            builder.array("postTags", postTags);
+            builder.array("post_tags", postTags);
         }
         if (order != null) {
             builder.field("order", order);
@@ -146,10 +146,10 @@ public class SearchSourceHighlightBuilder implements ToJson {
             for (Field field : fields) {
                 builder.startObject(field.name());
                 if (field.fragmentSize() != -1) {
-                    builder.field("fragmentSize", field.fragmentSize());
+                    builder.field("fragment_size", field.fragmentSize());
                 }
                 if (field.numOfFragments() != -1) {
-                    builder.field("numberOfFragments", field.numOfFragments());
+                    builder.field("number_of_fragments", field.numOfFragments());
                 }
                 builder.endObject();
             }

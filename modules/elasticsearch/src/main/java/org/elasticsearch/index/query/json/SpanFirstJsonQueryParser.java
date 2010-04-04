@@ -38,7 +38,7 @@ import java.io.IOException;
  */
 public class SpanFirstJsonQueryParser extends AbstractIndexComponent implements JsonQueryParser {
 
-    public static final String NAME = "spanFirst";
+    public static final String NAME = "span_first";
 
     @Inject public SpanFirstJsonQueryParser(Index index, @IndexSettings Settings settings) {
         super(index, settings);

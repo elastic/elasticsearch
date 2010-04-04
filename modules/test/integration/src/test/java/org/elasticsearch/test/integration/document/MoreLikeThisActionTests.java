@@ -78,7 +78,7 @@ public class MoreLikeThisActionTests extends AbstractServersTests {
         client1.admin().indices().refresh(refreshRequest()).actionGet();
 
         logger.info("Running moreLikeThis");
-        SearchResponse mltResponse = client1.moreLikeThis(moreLikeThisRequest("test").type("type1").id("1").minTermFrequency(1).minDocFreq(1)).actionGet();
+        SearchResponse mltResponse = client1.moreLikeThis(moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1)).actionGet();
         assertThat(mltResponse.successfulShards(), equalTo(5));
         assertThat(mltResponse.failedShards(), equalTo(0));
         assertThat(mltResponse.hits().totalHits(), equalTo(1l));

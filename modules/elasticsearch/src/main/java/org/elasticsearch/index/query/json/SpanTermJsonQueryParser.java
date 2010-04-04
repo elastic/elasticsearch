@@ -41,7 +41,7 @@ import static org.elasticsearch.index.query.support.QueryParsers.*;
  */
 public class SpanTermJsonQueryParser extends AbstractIndexComponent implements JsonQueryParser {
 
-    public static final String NAME = "spanTerm";
+    public static final String NAME = "span_term";
 
     @Inject public SpanTermJsonQueryParser(Index index, @IndexSettings Settings settings) {
         super(index, settings);

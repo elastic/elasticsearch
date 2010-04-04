@@ -53,29 +53,27 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
                                          TransportCreateIndexAction createIndexAction) {
         super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
         this.createIndexAction = createIndexAction;
-        this.autoCreateIndex = componentSettings.getAsBoolean("autoCreateIndex", true);
+        this.autoCreateIndex = settings.getAsBoolean("action.auto_create_index", true);
     }
 
     @Override protected void doExecute(final DeleteRequest deleteRequest, final ActionListener<DeleteResponse> listener) {
-        if (autoCreateIndex) {
-            if (!clusterService.state().metaData().hasConcreteIndex(deleteRequest.index())) {
-                createIndexAction.execute(new CreateIndexRequest(deleteRequest.index()), new ActionListener<CreateIndexResponse>() {
-                    @Override public void onResponse(CreateIndexResponse result) {
-                        TransportDeleteAction.super.doExecute(deleteRequest, listener);
-                    }
+        if (autoCreateIndex && !clusterService.state().metaData().hasConcreteIndex(deleteRequest.index())) {
+            createIndexAction.execute(new CreateIndexRequest(deleteRequest.index()), new ActionListener<CreateIndexResponse>() {
+                @Override public void onResponse(CreateIndexResponse result) {
+                    TransportDeleteAction.super.doExecute(deleteRequest, listener);
+                }
 
-                    @Override public void onFailure(Throwable e) {
-                        if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {
-                            // we have the index, do it
-                            TransportDeleteAction.super.doExecute(deleteRequest, listener);
-                        } else {
-                            listener.onFailure(e);
-                        }
+                @Override public void onFailure(Throwable e) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {
+                        // we have the index, do it
+                        TransportDeleteAction.super.doExecute(deleteRequest, listener);
+                    } else {
+                        listener.onFailure(e);
                     }
-                });
-            } else {
-                super.doExecute(deleteRequest, listener);
-            }
+                }
+            });
+        } else {
+            super.doExecute(deleteRequest, listener);
         }
     }
 

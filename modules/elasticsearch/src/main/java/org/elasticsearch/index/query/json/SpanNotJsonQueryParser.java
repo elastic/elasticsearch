@@ -38,7 +38,7 @@ import java.io.IOException;
  */
 public class SpanNotJsonQueryParser extends AbstractIndexComponent implements JsonQueryParser {
 
-    public static final String NAME = "spanNot";
+    public static final String NAME = "span_not";
 
     @Inject public SpanNotJsonQueryParser(Index index, @IndexSettings Settings settings) {
         super(index, settings);

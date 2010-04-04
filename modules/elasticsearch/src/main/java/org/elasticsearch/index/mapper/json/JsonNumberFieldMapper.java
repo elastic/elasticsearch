@@ -144,7 +144,7 @@ public abstract class JsonNumberFieldMapper<T extends Number> extends JsonFieldM
 
     @Override protected void doJsonBody(JsonBuilder builder) throws IOException {
         super.doJsonBody(builder);
-        builder.field("precisionStep", precisionStep);
+        builder.field("precision_step", precisionStep);
     }
 
     @Override public abstract int sortType();

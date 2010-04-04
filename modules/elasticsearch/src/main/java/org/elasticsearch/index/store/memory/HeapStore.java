@@ -43,12 +43,12 @@ public class HeapStore extends AbstractStore<HeapDirectory> {
     @Inject public HeapStore(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
 
-        this.bufferSize = componentSettings.getAsSize("bufferSize", new SizeValue(100, SizeUnit.KB));
-        this.cacheSize = componentSettings.getAsSize("cacheSize", new SizeValue(20, SizeUnit.MB));
-        this.warmCache = componentSettings.getAsBoolean("warmCache", true);
+        this.bufferSize = componentSettings.getAsSize("buffer_size", new SizeValue(100, SizeUnit.KB));
+        this.cacheSize = componentSettings.getAsSize("cache_size", new SizeValue(20, SizeUnit.MB));
+        this.warmCache = componentSettings.getAsBoolean("warm_cache", true);
 
         this.directory = new HeapDirectory(bufferSize, cacheSize, warmCache);
-        logger.debug("Using [Memory] Store with bufferSize[{}], cacheSize[{}], warmCache[{}]",
+        logger.debug("Using [Memory] Store with buffer_size[{}], cache_size[{}], warm_cache[{}]",
                 new Object[]{directory.bufferSize(), directory.cacheSize(), warmCache});
     }
 

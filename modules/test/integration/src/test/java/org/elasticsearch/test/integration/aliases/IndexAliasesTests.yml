@@ -2,7 +2,7 @@ cluster:
   routing:
     schedule: 100ms
 index:
-  numberOfShards: 5
-  numberOfReplicas: 1
+  number_of_shards: 5
+  number_of_replicas: 1
 action:
-  autoCreateIndex: false
+  auto_create_index: false

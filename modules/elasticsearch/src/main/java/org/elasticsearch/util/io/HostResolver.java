@@ -33,8 +33,8 @@ import java.util.Enumeration;
  */
 public abstract class HostResolver {
 
-    public static final String GLOBAL_NETWORK_BINDHOST_SETTING = "network.bindHost";
-    public static final String GLOBAL_NETWORK_PUBLISHHOST_SETTING = "network.publishHost";
+    public static final String GLOBAL_NETWORK_BINDHOST_SETTING = "network.bind_host";
+    public static final String GLOBAL_NETWORK_PUBLISHHOST_SETTING = "network.publish_host";
 
     public static final String LOCAL_IP = "#local:ip#";
     public static final String LOCAL_HOST = "#local:host#";

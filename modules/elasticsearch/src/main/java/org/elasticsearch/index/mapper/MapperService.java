@@ -92,7 +92,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         this.indexClassLoader = indexSettings.getClassLoader();
 
         this.dynamic = componentSettings.getAsBoolean("dynamic", true);
-        String dynamicMappingLocation = componentSettings.get("dynamicMappingLocation");
+        String dynamicMappingLocation = componentSettings.get("dynamic_mapping_location");
         URL dynamicMappingUrl;
         if (dynamicMappingLocation == null) {
             try {

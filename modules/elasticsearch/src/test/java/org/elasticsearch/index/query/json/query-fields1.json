@@ -1,7 +1,7 @@
 {
-    queryString : {
+    query_string : {
         fields : ["content", "name"],
-        useDisMax : false,
+        use_dis_max : false,
         query: "test"
     }
 }

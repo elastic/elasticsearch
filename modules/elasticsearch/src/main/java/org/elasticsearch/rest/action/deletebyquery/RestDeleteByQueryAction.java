@@ -55,7 +55,7 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
         deleteByQueryRequest.listenerThreaded(false);
         try {
             deleteByQueryRequest.querySource(RestActions.parseQuerySource(request));
-            deleteByQueryRequest.queryParserName(request.param("queryParserName"));
+            deleteByQueryRequest.queryParserName(request.param("query_parser_name"));
             String typesParam = request.param("type");
             if (typesParam != null) {
                 deleteByQueryRequest.types(RestActions.splitTypes(typesParam));

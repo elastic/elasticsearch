@@ -1,7 +1,7 @@
 {
-    queryString : {
-        defaultField : "content",
-        phraseSlop : 1,
+    query_string : {
+        default_field : "content",
+        phrase_slop : 1,
         query: "test"
     }
 }

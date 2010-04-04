@@ -65,7 +65,7 @@ public class JsonTypeParsers {
                 builder.boost(nodeFloatValue(propNode));
             } else if (propName.equals("omitNorms") || propName.equals("omit_norms")) {
                 builder.omitNorms(nodeBooleanValue(propNode));
-            } else if (propName.equals("omitTermFreqAndPositions") || propName.equals("omit_termFreq_and_positions")) {
+            } else if (propName.equals("omitTermFreqAndPositions") || propName.equals("omit_term_freq_and_positions")) {
                 builder.omitTermFreqAndPositions(nodeBooleanValue(propNode));
             } else if (propName.equals("indexAnalyzer") || propName.equals("index_analyzer")) {
                 builder.indexAnalyzer(parserContext.analysisService().analyzer(propNode.getTextValue()));

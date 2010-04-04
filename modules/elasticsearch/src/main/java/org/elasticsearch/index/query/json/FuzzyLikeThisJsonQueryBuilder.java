@@ -100,18 +100,18 @@ public class FuzzyLikeThisJsonQueryBuilder extends BaseJsonQueryBuilder {
         if (likeText == null) {
             throw new QueryBuilderException("fuzzyLikeThis requires 'likeText' to be provided");
         }
-        builder.field("likeText", likeText);
+        builder.field("like_text", likeText);
         if (maxNumTerms != null) {
-            builder.field("maxNumTerms", maxNumTerms);
+            builder.field("max_num_terms", maxNumTerms);
         }
         if (minSimilarity != null) {
-            builder.field("minSimilarity", minSimilarity);
+            builder.field("min_similarity", minSimilarity);
         }
         if (prefixLength != null) {
-            builder.field("prefixLength", prefixLength);
+            builder.field("prefix_length", prefixLength);
         }
         if (ignoreTF != null) {
-            builder.field("ignoreTF", ignoreTF);
+            builder.field("ignore_tf", ignoreTF);
         }
         if (boost != null) {
             builder.field("boost", boost);

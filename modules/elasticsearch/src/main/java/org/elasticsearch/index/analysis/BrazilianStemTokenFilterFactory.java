@@ -40,7 +40,7 @@ public class BrazilianStemTokenFilterFactory extends AbstractTokenFilterFactory 
 
     @Inject public BrazilianStemTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name);
-        String[] stemExclusion = settings.getAsArray("stemExclusion");
+        String[] stemExclusion = settings.getAsArray("stem_exclusion");
         if (stemExclusion.length > 0) {
             this.exclusions = ImmutableSet.copyOf(Iterators.forArray(stemExclusion));
         } else {

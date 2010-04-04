@@ -80,10 +80,10 @@ public class SpanNearJsonQueryBuilder extends BaseJsonQueryBuilder implements Js
         builder.endArray();
         builder.field("slop", slop);
         if (inOrder != null) {
-            builder.field("inOrder", inOrder);
+            builder.field("in_order", inOrder);
         }
         if (collectPayloads != null) {
-            builder.field("collectPayloads", collectPayloads);
+            builder.field("collect_payloads", collectPayloads);
         }
         if (boost != -1) {
             builder.field("boost", boost);

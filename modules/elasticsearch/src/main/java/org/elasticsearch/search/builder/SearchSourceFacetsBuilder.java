@@ -86,7 +86,7 @@ public class SearchSourceFacetsBuilder implements ToJson {
         builder.startObject();
 
         if (queryExecution != null) {
-            builder.field("queryExecution", queryExecution);
+            builder.field("query_execution", queryExecution);
         }
         if (queryFacets != null) {
             for (FacetQuery facetQuery : queryFacets) {

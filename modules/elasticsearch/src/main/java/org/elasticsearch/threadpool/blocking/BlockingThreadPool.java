@@ -53,13 +53,13 @@ public class BlockingThreadPool extends AbstractThreadPool {
 
     @Inject public BlockingThreadPool(Settings settings) {
         super(settings);
+        this.scheduledSize = componentSettings.getAsInt("scheduled_size", 20);
         this.min = componentSettings.getAsInt("min", 1);
         this.max = componentSettings.getAsInt("max", 100);
         this.capacity = (int) componentSettings.getAsSize("capacity", new SizeValue(1, SizeUnit.KB)).bytes();
-        this.waitTime = componentSettings.getAsTime("waitTime", timeValueSeconds(60));
-        this.keepAlive = componentSettings.getAsTime("keepAlive", timeValueSeconds(60));
-        this.scheduledSize = componentSettings.getAsInt("scheduledSize", 20);
-        logger.debug("Initializing {} thread pool with min[{}], max[{}], keepAlive[{}], capacity[{}], waitTime[{}], scheduledSize[{}]", new Object[]{getType(), min, max, keepAlive, capacity, waitTime, scheduledSize});
+        this.waitTime = componentSettings.getAsTime("wait_time", timeValueSeconds(60));
+        this.keepAlive = componentSettings.getAsTime("keep_alive", timeValueSeconds(60));
+        logger.debug("Initializing {} thread pool with min[{}], max[{}], keep_alive[{}], capacity[{}], wait_time[{}], scheduled_size[{}]", new Object[]{getType(), min, max, keepAlive, capacity, waitTime, scheduledSize});
         executorService = DynamicExecutors.newBlockingThreadPool(min, max, keepAlive.millis(), capacity, waitTime.millis(), DynamicExecutors.daemonThreadFactory(settings, "[tp]"));
         scheduledExecutorService = Executors.newScheduledThreadPool(scheduledSize, DynamicExecutors.daemonThreadFactory(settings, "[sc]"));
         started = true;

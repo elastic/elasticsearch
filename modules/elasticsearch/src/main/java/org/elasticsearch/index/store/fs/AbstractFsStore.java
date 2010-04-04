@@ -60,10 +60,10 @@ public abstract class AbstractFsStore<T extends Directory> extends AbstractStore
         if (!cache) {
             return null;
         }
-        SizeValue bufferSize = componentSettings.getAsSize("cache.bufferSize", new SizeValue(100, SizeUnit.KB));
-        SizeValue cacheSize = componentSettings.getAsSize("cache.cacheSize", new SizeValue(20, SizeUnit.MB));
+        SizeValue bufferSize = componentSettings.getAsSize("cache.buffer_size", new SizeValue(100, SizeUnit.KB));
+        SizeValue cacheSize = componentSettings.getAsSize("cache.cache_size", new SizeValue(20, SizeUnit.MB));
         boolean direct = componentSettings.getAsBoolean("cache.direct", true);
-        boolean warmCache = componentSettings.getAsBoolean("cache.warmCache", true);
+        boolean warmCache = componentSettings.getAsBoolean("cache.warm_cache", true);
 
         Directory memDir;
         if (direct) {

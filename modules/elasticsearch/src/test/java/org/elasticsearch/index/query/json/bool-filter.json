@@ -13,7 +13,7 @@
                         term : { "name.first" : "shay4" }
                     }
                 ],
-                mustNot: {
+                must_not: {
                     term : { "name.first" : "shay2" }
                 },
                 should: {

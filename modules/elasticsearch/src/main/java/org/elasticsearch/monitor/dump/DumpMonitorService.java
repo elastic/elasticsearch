@@ -64,7 +64,7 @@ public class DumpMonitorService extends AbstractComponent {
         contSettings = settings.getGroups("monitor.dump");
         workFile = environment.workWithClusterFile();
 
-        this.dumpLocation = settings.get("dumpLocation");
+        this.dumpLocation = settings.get("dump_location");
 
         File dumpLocationFile;
         if (dumpLocation != null) {

@@ -1165,6 +1165,33 @@ public class Strings {
         }
     }
 
+    public static String toCamelCase(String value) {
+        StringBuilder sb = new StringBuilder();
+        char[] values = value.toCharArray();
+        for (int i = 0; i < values.length; i++) {
+            if (values[i] == '_') {
+                sb.append(Character.toUpperCase(values[++i]));
+            } else {
+                sb.append(values[i]);
+            }
+        }
+        return sb.toString();
+    }
+
+    public static String toUnderscoreCase(String value) {
+        StringBuilder sb = new StringBuilder();
+        char[] values = value.toCharArray();
+        for (int i = 0; i < values.length; i++) {
+            if (Character.isUpperCase(values[i])) {
+                sb.append('_');
+                sb.append(Character.toLowerCase(values[i]));
+            } else {
+                sb.append(values[i]);
+            }
+        }
+        return sb.toString();
+    }
+
     /**
      * Determine whether the given array is empty:
      * i.e. <code>null</code> or of zero length.

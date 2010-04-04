@@ -107,9 +107,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         Preconditions.checkNotNull(deletionPolicy, "Snapshot deletion policy must be provided to the engine");
         Preconditions.checkNotNull(translog, "Translog must be provided to the engine");
 
-        this.ramBufferSize = componentSettings.getAsSize("ramBufferSize", new SizeValue(64, SizeUnit.MB));
-        this.refreshInterval = componentSettings.getAsTime("refreshInterval", timeValueSeconds(1));
-        this.termIndexInterval = componentSettings.getAsInt("termIndexInterval", IndexWriter.DEFAULT_TERM_INDEX_INTERVAL);
+        this.ramBufferSize = componentSettings.getAsSize("ram_buffer_size", new SizeValue(64, SizeUnit.MB));
+        this.refreshInterval = componentSettings.getAsTime("refresh_interval", timeValueSeconds(1));
+        this.termIndexInterval = componentSettings.getAsInt("term_index_interval", IndexWriter.DEFAULT_TERM_INDEX_INTERVAL);
 
         this.store = store;
         this.deletionPolicy = deletionPolicy;
@@ -125,7 +125,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             throw new EngineAlreadyStartedException(shardId);
         }
         if (logger.isDebugEnabled()) {
-            logger.debug("Starting engine with ramBufferSize [" + ramBufferSize + "], refreshInterval [" + refreshInterval + "]");
+            logger.debug("Starting engine with ram_buffer_size [" + ramBufferSize + "], refresh_interval [" + refreshInterval + "]");
         }
         IndexWriter indexWriter = null;
         try {

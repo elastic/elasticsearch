@@ -168,12 +168,12 @@ public class JsonAllFieldMapper extends JsonFieldMapper<Void> implements AllFiel
         builder.startObject(JSON_TYPE);
         builder.field("enabled", enabled);
         builder.field("store", store.name().toLowerCase());
-        builder.field("termVector", termVector.name().toLowerCase());
+        builder.field("term_vector", termVector.name().toLowerCase());
         if (indexAnalyzer != null && !indexAnalyzer.name().startsWith("_")) {
-            builder.field("indexAnalyzer", indexAnalyzer.name());
+            builder.field("index_analyzer", indexAnalyzer.name());
         }
         if (searchAnalyzer != null && !searchAnalyzer.name().startsWith("_")) {
-            builder.field("searchAnalyzer", searchAnalyzer.name());
+            builder.field("search_analyzer", searchAnalyzer.name());
         }
         builder.endObject();
     }

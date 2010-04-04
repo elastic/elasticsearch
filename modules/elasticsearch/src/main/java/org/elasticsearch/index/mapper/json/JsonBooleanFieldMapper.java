@@ -26,6 +26,7 @@ import org.codehaus.jackson.JsonToken;
 import org.codehaus.jackson.node.ObjectNode;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.util.Booleans;
+import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.lucene.Lucene;
 
 import java.io.IOException;
@@ -181,5 +182,12 @@ public class JsonBooleanFieldMapper extends JsonFieldMapper<Boolean> {
 
     @Override protected String jsonType() {
         return JSON_TYPE;
+    }
+
+    @Override protected void doJsonBody(JsonBuilder builder) throws IOException {
+        super.doJsonBody(builder);
+        if (nullValue != null) {
+            builder.field("null_value", nullValue);
+        }
     }
 }

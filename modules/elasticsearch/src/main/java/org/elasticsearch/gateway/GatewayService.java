@@ -72,7 +72,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         this.discoveryService = discoveryService;
         this.threadPool = threadPool;
         this.metaDataService = metaDataService;
-        this.initialStateTimeout = componentSettings.getAsTime("initialStateTimeout", TimeValue.timeValueSeconds(30));
+        this.initialStateTimeout = componentSettings.getAsTime("initial_state_timeout", TimeValue.timeValueSeconds(30));
     }
 
     @Override protected void doStart() throws ElasticSearchException {

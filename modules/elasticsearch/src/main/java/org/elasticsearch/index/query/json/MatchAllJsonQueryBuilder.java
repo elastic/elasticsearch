@@ -57,7 +57,7 @@ public class MatchAllJsonQueryBuilder extends BaseJsonQueryBuilder {
             builder.field("boost", boost);
         }
         if (normsField != null) {
-            builder.field("normsField", normsField);
+            builder.field("norms_field", normsField);
         }
         builder.endObject();
     }

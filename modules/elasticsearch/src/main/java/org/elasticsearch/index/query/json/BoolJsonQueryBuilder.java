@@ -118,7 +118,7 @@ public class BoolJsonQueryBuilder extends BaseJsonQueryBuilder {
                 builder.field("must");
                 clause.queryBuilder.toJson(builder, params);
             } else if (clause.occur == BooleanClause.Occur.MUST_NOT) {
-                builder.field("mustNot");
+                builder.field("must_not");
                 clause.queryBuilder.toJson(builder, params);
             } else if (clause.occur == BooleanClause.Occur.SHOULD) {
                 builder.field("should");
@@ -129,10 +129,10 @@ public class BoolJsonQueryBuilder extends BaseJsonQueryBuilder {
             builder.field("boost", boost);
         }
         if (disableCoord != null) {
-            builder.field("disableCoord", disableCoord);
+            builder.field("disable_coord", disableCoord);
         }
         if (minimumNumberShouldMatch != -1) {
-            builder.field("minimumNumberShouldMatch", minimumNumberShouldMatch);
+            builder.field("minimum_number_should_match", minimumNumberShouldMatch);
         }
         builder.endObject();
     }

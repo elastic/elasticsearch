@@ -81,7 +81,7 @@ public class RangeJsonQueryParser extends AbstractIndexComponent implements Json
                     } else {
                         to = jp.getText();
                     }
-                } else if ("includeLower".equals(currentFieldName)) {
+                } else if ("include_lower".equals(currentFieldName)) {
                     if (token == JsonToken.VALUE_NUMBER_INT) {
                         includeLower = jp.getIntValue() != 0;
                     } else if (token == JsonToken.VALUE_STRING) {
@@ -89,7 +89,7 @@ public class RangeJsonQueryParser extends AbstractIndexComponent implements Json
                     } else {
                         includeLower = token == JsonToken.VALUE_TRUE;
                     }
-                } else if ("includeUpper".equals(currentFieldName)) {
+                } else if ("include_upper".equals(currentFieldName)) {
                     if (token == JsonToken.VALUE_NUMBER_INT) {
                         includeUpper = jp.getIntValue() != 0;
                     } else if (token == JsonToken.VALUE_STRING) {

@@ -155,10 +155,10 @@ public class JsonStringFieldMapper extends JsonFieldMapper<String> implements Js
     @Override protected void doJsonBody(JsonBuilder builder) throws IOException {
         super.doJsonBody(builder);
         if (nullValue != null) {
-            builder.field("nullValue", nullValue);
+            builder.field("null_value", nullValue);
         }
         if (includeInAll != null) {
-            builder.field("includeInAll", includeInAll);
+            builder.field("include_in_all", includeInAll);
         }
     }
 }

@@ -51,7 +51,7 @@ public class RestIndicesStatusAction extends BaseRestHandler {
         IndicesStatusRequest indicesStatusRequest = new IndicesStatusRequest(splitIndices(request.param("index")));
         // we just send back a response, no need to fork a listener
         indicesStatusRequest.listenerThreaded(false);
-        BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operationThreading"), BroadcastOperationThreading.SINGLE_THREAD);
+        BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
         if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
             // since we don't spawn, don't allow no_threads, but change it to a single thread
             operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
@@ -79,25 +79,25 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                         builder.endObject();
 
                         if (indexStatus.storeSize() == null) {
-                            builder.nullField("storeSize");
-                            builder.nullField("storeSizeInBytes");
+                            builder.nullField("store_size");
+                            builder.nullField("store_size_in_bytes");
                         } else {
-                            builder.field("storeSize", indexStatus.storeSize().toString());
-                            builder.field("storeSizeInBytes", indexStatus.storeSize().bytes());
+                            builder.field("store_size", indexStatus.storeSize().toString());
+                            builder.field("store_size_in_bytes", indexStatus.storeSize().bytes());
                         }
                         if (indexStatus.estimatedFlushableMemorySize() == null) {
-                            builder.nullField("estimatedFlushableMemorySize");
-                            builder.nullField("estimatedFlushableMemorySizeInBytes");
+                            builder.nullField("estimated_flushable_memory_size");
+                            builder.nullField("estimated_flushable_Memory_size_in_bytes");
                         } else {
-                            builder.field("estimatedFlushableMemorySize", indexStatus.estimatedFlushableMemorySize().toString());
-                            builder.field("estimatedFlushableMemorySizeInBytes", indexStatus.estimatedFlushableMemorySize().bytes());
+                            builder.field("estimated_flushable_memory_size", indexStatus.estimatedFlushableMemorySize().toString());
+                            builder.field("estimated_flushable_Memory_size_in_bytes", indexStatus.estimatedFlushableMemorySize().bytes());
                         }
-                        builder.field("translogOperations", indexStatus.translogOperations());
+                        builder.field("translog_operations", indexStatus.translogOperations());
 
                         builder.startObject("docs");
-                        builder.field("numDocs", indexStatus.docs().numDocs());
-                        builder.field("maxDoc", indexStatus.docs().maxDoc());
-                        builder.field("deletedDocs", indexStatus.docs().deletedDocs());
+                        builder.field("num_docs", indexStatus.docs().numDocs());
+                        builder.field("max_doc", indexStatus.docs().maxDoc());
+                        builder.field("deleted_docs", indexStatus.docs().deletedDocs());
                         builder.endObject();
 
                         builder.startObject("shards");
@@ -109,33 +109,34 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                                 builder.startObject("routing")
                                         .field("state", shardStatus.shardRouting().state())
                                         .field("primary", shardStatus.shardRouting().primary())
-                                        .field("nodeId", shardStatus.shardRouting().currentNodeId())
-                                        .field("relocatingNodeId", shardStatus.shardRouting().relocatingNodeId())
-                                        .field("shardId", shardStatus.shardRouting().shardId().id())
+                                        .field("node", shardStatus.shardRouting().currentNodeId())
+                                        .field("relocating_node", shardStatus.shardRouting().relocatingNodeId())
+                                        .field("shard", shardStatus.shardRouting().shardId().id())
                                         .field("index", shardStatus.shardRouting().shardId().index().name())
                                         .endObject();
 
                                 builder.field("state", shardStatus.state());
                                 if (shardStatus.storeSize() == null) {
-                                    builder.nullField("storeSize");
-                                    builder.nullField("storeSizeInBytes");
+                                    builder.nullField("store_size");
+                                    builder.nullField("store_size_in_bytes");
                                 } else {
-                                    builder.field("storeSize", shardStatus.storeSize().toString());
-                                    builder.field("storeSizeInBytes", shardStatus.storeSize().bytes());
+                                    builder.field("store_size", shardStatus.storeSize().toString());
+                                    builder.field("store_size_in_bytes", shardStatus.storeSize().bytes());
                                 }
                                 if (shardStatus.estimatedFlushableMemorySize() == null) {
-                                    builder.nullField("estimatedFlushableMemorySize");
-                                    builder.nullField("estimatedFlushableMemorySizeInBytes");
+                                    builder.nullField("estimated_flushable_memory_size");
+                                    builder.nullField("estimated_flushable_memory_size_in_bytes");
                                 } else {
-                                    builder.field("estimatedFlushableMemorySize", shardStatus.estimatedFlushableMemorySize().toString());
-                                    builder.field("estimatedFlushableMemorySizeInBytes", shardStatus.estimatedFlushableMemorySize().bytes());
+                                    builder.field("estimated_flushable_memory_size", shardStatus.estimatedFlushableMemorySize().toString());
+                                    builder.field("estimated_flushable_memory_size_in_bytes", shardStatus.estimatedFlushableMemorySize().bytes());
                                 }
-                                builder.field("translogId", shardStatus.translogId());
-                                builder.field("translogOperations", shardStatus.translogOperations());
+                                builder.field("translog_id", shardStatus.translogId());
+                                builder.field("translog_operations", shardStatus.translogOperations());
+
                                 builder.startObject("docs");
-                                builder.field("numDocs", shardStatus.docs().numDocs());
-                                builder.field("maxDoc", shardStatus.docs().maxDoc());
-                                builder.field("deletedDocs", shardStatus.docs().deletedDocs());
+                                builder.field("num_docs", shardStatus.docs().numDocs());
+                                builder.field("max_doc", shardStatus.docs().maxDoc());
+                                builder.field("deleted_docs", shardStatus.docs().deletedDocs());
                                 builder.endObject();
 
                                 builder.endObject();

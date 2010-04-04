@@ -50,9 +50,9 @@ public class CachedThreadPool extends AbstractThreadPool {
 
     @Inject public CachedThreadPool(Settings settings) {
         super(settings);
-        this.scheduledSize = componentSettings.getAsInt("scheduledSize", 20);
-        this.keepAlive = componentSettings.getAsTime("keepAlive", timeValueSeconds(60));
-        logger.debug("Initializing {} thread pool with keepAlive[{}], scheduledSize[{}]", new Object[]{getType(), keepAlive, scheduledSize});
+        this.scheduledSize = componentSettings.getAsInt("scheduled_size", 20);
+        this.keepAlive = componentSettings.getAsTime("keep_alive", timeValueSeconds(60));
+        logger.debug("Initializing {} thread pool with keep_alive[{}], scheduled_size[{}]", new Object[]{getType(), keepAlive, scheduledSize});
         executorService = new ThreadPoolExecutor(0, Integer.MAX_VALUE,
                 keepAlive.millis(), TimeUnit.MILLISECONDS,
                 new SynchronousQueue<Runnable>(),

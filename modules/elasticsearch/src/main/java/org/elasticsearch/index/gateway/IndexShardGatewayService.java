@@ -80,8 +80,8 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
         this.shardGateway = shardGateway;
         this.store = store;
 
-        this.snapshotOnClose = componentSettings.getAsBoolean("snapshotOnClose", true);
-        this.snapshotInterval = componentSettings.getAsTime("snapshotInterval", TimeValue.timeValueSeconds(10));
+        this.snapshotOnClose = componentSettings.getAsBoolean("snapshot_on_close", true);
+        this.snapshotInterval = componentSettings.getAsTime("snapshot_interval", TimeValue.timeValueSeconds(10));
     }
 
     /**

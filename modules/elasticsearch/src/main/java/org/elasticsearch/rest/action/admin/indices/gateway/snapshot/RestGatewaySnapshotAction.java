@@ -62,9 +62,11 @@ public class RestGatewaySnapshotAction extends BaseRestHandler {
                     for (IndexGatewaySnapshotResponse indexResponse : result.indices().values()) {
                         builder.startObject(indexResponse.index())
                                 .field("ok", true)
-                                .field("totalShards", indexResponse.totalShards())
-                                .field("successfulShards", indexResponse.successfulShards())
-                                .field("failedShards", indexResponse.failedShards())
+                                .startObject("_shards")
+                                .field("total", indexResponse.totalShards())
+                                .field("successful", indexResponse.successfulShards())
+                                .field("failed", indexResponse.failedShards())
+                                .endObject()
                                 .endObject();
                     }
                     builder.endObject();

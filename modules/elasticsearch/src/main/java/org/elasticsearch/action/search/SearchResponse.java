@@ -126,7 +126,7 @@ public class SearchResponse implements ActionResponse, ToJson {
                 builder.startObject();
                 if (shardFailure.shard() != null) {
                     builder.field("index", shardFailure.shard().index());
-                    builder.field("shardId", shardFailure.shard().shardId());
+                    builder.field("shard", shardFailure.shard().shardId());
                 }
                 builder.field("reason", shardFailure.reason());
                 builder.endObject();

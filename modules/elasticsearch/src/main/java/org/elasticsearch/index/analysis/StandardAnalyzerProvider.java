@@ -51,7 +51,7 @@ public class StandardAnalyzerProvider extends AbstractAnalyzerProvider<StandardA
         } else {
             this.stopWords = ImmutableSet.copyOf((Iterable<? extends String>) StopAnalyzer.ENGLISH_STOP_WORDS_SET);
         }
-        maxTokenLength = settings.getAsInt("maxTokenLength", StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
+        maxTokenLength = settings.getAsInt("max_token_length", StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
         standardAnalyzer = new StandardAnalyzer(Version.LUCENE_CURRENT, this.stopWords);
         standardAnalyzer.setMaxTokenLength(maxTokenLength);
     }

@@ -19,12 +19,26 @@
 
 package org.elasticsearch.util;
 
+import org.testng.annotations.Test;
+
+import static org.elasticsearch.util.Strings.*;
+import static org.hamcrest.MatcherAssert.*;
+import static org.hamcrest.Matchers.*;
+
 /**
  * Tests for {@link Strings}.
  *
  * @author kimchy (Shay Banon)
  */
 public class StringsTests {
+
+    @Test public void testCamelCase() {
+        assertThat(toCamelCase("test_value"), equalTo("testValue"));
+    }
+
+    @Test public void testUnderscoreCase() {
+        assertThat(toUnderscoreCase("testValue"), equalTo("test_value"));
+    }
 
 //    @Test public void testHasTextBlank() throws Exception {
 //        String blank = "          ";

@@ -54,7 +54,7 @@ public class RestNodesShutdownAction extends BaseRestHandler {
                 try {
                     JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
                     builder.startObject();
-                    builder.field("clusterName", result.clusterName().value());
+                    builder.field("cluster_name", result.clusterName().value());
 
                     builder.startObject("nodes");
                     for (NodesShutdownResponse.NodeShutdownResponse nodeInfo : result) {

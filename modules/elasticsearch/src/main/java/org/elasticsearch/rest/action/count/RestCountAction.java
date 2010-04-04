@@ -58,16 +58,16 @@ public class RestCountAction extends BaseRestHandler {
         // we just send back a response, no need to fork a listener
         countRequest.listenerThreaded(false);
         try {
-            BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operationThreading"), BroadcastOperationThreading.SINGLE_THREAD);
+            BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
             if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
                 // since we don't spawn, don't allow no_threads, but change it to a single thread
                 operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
             }
             countRequest.operationThreading(operationThreading);
             countRequest.querySource(RestActions.parseQuerySource(request));
-            countRequest.queryParserName(request.param("queryParserName"));
-            countRequest.queryHint(request.param("queryHint"));
-            countRequest.minScore(request.paramAsFloat("minScore", DEFAULT_MIN_SCORE));
+            countRequest.queryParserName(request.param("query_parser_name"));
+            countRequest.queryHint(request.param("query_hint"));
+            countRequest.minScore(request.paramAsFloat("min_score", DEFAULT_MIN_SCORE));
             String typesParam = request.param("type");
             if (typesParam != null) {
                 countRequest.types(splitTypes(typesParam));

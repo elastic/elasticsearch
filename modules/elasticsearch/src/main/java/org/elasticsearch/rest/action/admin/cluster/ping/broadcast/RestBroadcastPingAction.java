@@ -49,8 +49,8 @@ public class RestBroadcastPingAction extends BaseRestHandler {
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
         BroadcastPingRequest broadcastPingRequest = new BroadcastPingRequest(RestActions.splitIndices(request.param("index")));
-        broadcastPingRequest.queryHint(request.param("queryHint"));
-        BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operationThreading"), BroadcastOperationThreading.SINGLE_THREAD);
+        broadcastPingRequest.queryHint(request.param("query_hint"));
+        BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
         if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
             // since we don't spawn, don't allow no_threads, but change it to a single thread
             operationThreading = BroadcastOperationThreading.SINGLE_THREAD;

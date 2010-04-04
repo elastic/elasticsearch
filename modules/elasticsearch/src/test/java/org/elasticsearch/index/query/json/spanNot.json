@@ -1,10 +1,10 @@
 {
-    spanNot : {
+    span_not : {
         include : {
-            spanTerm : { age : 34 }
+            span_term : { age : 34 }
         },
         exclude : {
-            spanTerm : { age : 35 }
+            span_term : { age : 35 }
         }
     }
 }

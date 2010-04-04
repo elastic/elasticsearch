@@ -150,8 +150,8 @@ public class RangeJsonFilterBuilder extends BaseJsonFilterBuilder {
         builder.startObject(name);
         builder.field("from", from);
         builder.field("to", to);
-        builder.field("includeLower", includeLower);
-        builder.field("includeUpper", includeUpper);
+        builder.field("include_lower", includeLower);
+        builder.field("include_upper", includeUpper);
         builder.endObject();
         builder.endObject();
     }

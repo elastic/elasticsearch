@@ -46,8 +46,8 @@ public class QueryPhase implements SearchPhase {
     @Override public Map<String, ? extends SearchParseElement> parseElements() {
         ImmutableMap.Builder<String, SearchParseElement> parseElements = ImmutableMap.builder();
         parseElements.put("from", new FromParseElement()).put("size", new SizeParseElement())
-                .put("queryParserName", new QueryParserNameParseElement())
-                .put("indicesBoost", new IndicesBoostParseElement())
+                .put("query_parser_name", new QueryParserNameParseElement())
+                .put("indices_boost", new IndicesBoostParseElement())
                 .put("query", new QueryParseElement())
                 .put("sort", new SortParseElement())
                 .putAll(facetsPhase.parseElements());

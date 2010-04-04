@@ -34,7 +34,7 @@ import java.util.List;
 /**
  * <pre>
  * facets : {
- *  queryExecution : "collect|idset",
+ *  query_execution : "collect|idset",
  *  facet1: {
  *      query : { ... },
  *      global : false
@@ -55,7 +55,7 @@ public class FacetsParseElement implements SearchParseElement {
             if (token == JsonToken.FIELD_NAME) {
                 topLevelFieldName = jp.getCurrentName();
             } else if (token == JsonToken.VALUE_STRING) {
-                if ("queryExecution".equals(topLevelFieldName)) {
+                if ("query_execution".equals(topLevelFieldName)) {
                     String text = jp.getText();
                     if ("collect".equals(text)) {
                         queryExecutionType = SearchContextFacets.QueryExecutionType.COLLECT;

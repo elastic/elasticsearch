@@ -51,11 +51,11 @@ public class RestClusterHealthAction extends BaseRestHandler {
         int level = 0;
         try {
             clusterHealthRequest.timeout(request.paramAsTime("timeout", clusterHealthRequest.timeout()));
-            String waitForStatus = request.param("waitForStatus");
+            String waitForStatus = request.param("wait_for_status");
             if (waitForStatus != null) {
                 clusterHealthRequest.waitForStatus(ClusterHealthStatus.valueOf(waitForStatus.toUpperCase()));
             }
-            clusterHealthRequest.waitForRelocatingShards(request.paramAsInt("waitForRelocatingShards", clusterHealthRequest.waitForRelocatingShards()));
+            clusterHealthRequest.waitForRelocatingShards(request.paramAsInt("wait_for_relocating_shards", clusterHealthRequest.waitForRelocatingShards()));
             String sLevel = request.param("level");
             if (sLevel != null) {
                 if ("cluster".equals("sLevel")) {
@@ -83,13 +83,13 @@ public class RestClusterHealthAction extends BaseRestHandler {
                     builder.startObject();
 
                     builder.field("status", response.status().name().toLowerCase());
-                    builder.field("timedOut", response.timedOut());
-                    builder.field("activePrimaryShards", response.activePrimaryShards());
-                    builder.field("activeShards", response.activeShards());
-                    builder.field("relocatingShards", response.relocatingShards());
+                    builder.field("timed_out", response.timedOut());
+                    builder.field("active_primary_shards", response.activePrimaryShards());
+                    builder.field("active_shards", response.activeShards());
+                    builder.field("relocating_shards", response.relocatingShards());
 
                     if (!response.validationFailures().isEmpty()) {
-                        builder.startArray("validationFailures");
+                        builder.startArray("validation_failures");
                         for (String validationFailure : response.validationFailures()) {
                             builder.value(validationFailure);
                         }
@@ -100,7 +100,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
                                 builder.startObject(indexHealth.index());
 
                                 if (!indexHealth.validationFailures().isEmpty()) {
-                                    builder.startArray("validationFailures");
+                                    builder.startArray("validation_failures");
                                     for (String validationFailure : indexHealth.validationFailures()) {
                                         builder.value(validationFailure);
                                     }
@@ -119,14 +119,14 @@ public class RestClusterHealthAction extends BaseRestHandler {
                             builder.startObject(indexHealth.index());
 
                             builder.field("status", indexHealth.status().name().toLowerCase());
-                            builder.field("numberOfShards", indexHealth.numberOfShards());
-                            builder.field("numberOfReplicas", indexHealth.numberOfReplicas());
-                            builder.field("activePrimaryShards", indexHealth.activePrimaryShards());
-                            builder.field("activeShards", indexHealth.activeShards());
-                            builder.field("relocatingShards", indexHealth.relocatingShards());
+                            builder.field("number_of_shards", indexHealth.numberOfShards());
+                            builder.field("number_of_replicas", indexHealth.numberOfReplicas());
+                            builder.field("active_primary_shards", indexHealth.activePrimaryShards());
+                            builder.field("active_shards", indexHealth.activeShards());
+                            builder.field("relocating_shards", indexHealth.relocatingShards());
 
                             if (!indexHealth.validationFailures().isEmpty()) {
-                                builder.startArray("validationFailures");
+                                builder.startArray("validation_failures");
                                 for (String validationFailure : indexHealth.validationFailures()) {
                                     builder.value(validationFailure);
                                 }
@@ -140,9 +140,9 @@ public class RestClusterHealthAction extends BaseRestHandler {
                                     builder.startObject(Integer.toString(shardHealth.id()));
 
                                     builder.field("status", shardHealth.status().name().toLowerCase());
-                                    builder.field("primaryActive", shardHealth.primaryActive());
-                                    builder.field("activeShards", shardHealth.activeShards());
-                                    builder.field("relocatingShards", shardHealth.relocatingShards());
+                                    builder.field("primary_active", shardHealth.primaryActive());
+                                    builder.field("active_shards", shardHealth.activeShards());
+                                    builder.field("relocating_shards", shardHealth.relocatingShards());
 
                                     builder.endObject();
                                 }

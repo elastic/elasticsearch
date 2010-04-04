@@ -54,7 +54,7 @@ public class RestActions {
                     builder.field("index", shardFailure.index());
                 }
                 if (shardFailure.shardId() != -1) {
-                    builder.field("shardId", shardFailure.shardId());
+                    builder.field("shard", shardFailure.shardId());
                 }
                 builder.field("reason", shardFailure.reason());
                 builder.endObject();
@@ -92,7 +92,7 @@ public class RestActions {
         QueryStringJsonQueryBuilder queryBuilder = JsonQueryBuilders.queryString(queryString);
         queryBuilder.defaultField(request.param("df"));
         queryBuilder.analyzer(request.param("analyzer"));
-        String defaultOperator = request.param("defaultOperator");
+        String defaultOperator = request.param("default_operator");
         if (defaultOperator != null) {
             if ("OR".equals(defaultOperator)) {
                 queryBuilder.defaultOperator(QueryStringJsonQueryBuilder.Operator.OR);

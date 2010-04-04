@@ -52,14 +52,14 @@ public class RestSearchScrollAction extends BaseRestHandler {
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
-        SearchScrollRequest searchScrollRequest = new SearchScrollRequest(request.param("scrollId"));
+        SearchScrollRequest searchScrollRequest = new SearchScrollRequest(request.param("scroll_id"));
         try {
             String scroll = request.param("scroll");
             if (scroll != null) {
                 searchScrollRequest.scroll(new Scroll(parseTimeValue(scroll, null)));
             }
             searchScrollRequest.listenerThreaded(false);
-            SearchOperationThreading operationThreading = SearchOperationThreading.fromString(request.param("operationThreading"), SearchOperationThreading.SINGLE_THREAD);
+            SearchOperationThreading operationThreading = SearchOperationThreading.fromString(request.param("operation_threading"), SearchOperationThreading.SINGLE_THREAD);
             if (operationThreading == SearchOperationThreading.NO_THREADS) {
                 // since we don't spawn, don't allow no_threads, but change it to a single thread
                 operationThreading = SearchOperationThreading.SINGLE_THREAD;

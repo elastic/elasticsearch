@@ -365,18 +365,18 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
 
     protected void doJsonBody(JsonBuilder builder) throws IOException {
         builder.field("type", jsonType());
-        builder.field("indexName", names.indexNameClean());
+        builder.field("index_name", names.indexNameClean());
         builder.field("index", index.name().toLowerCase());
         builder.field("store", store.name().toLowerCase());
-        builder.field("termVector", termVector.name().toLowerCase());
+        builder.field("term_vector", termVector.name().toLowerCase());
         builder.field("boost", boost);
-        builder.field("omitNorms", omitNorms);
-        builder.field("omitTermFreqAndPositions", omitTermFreqAndPositions);
+        builder.field("omit_norms", omitNorms);
+        builder.field("omit_term_freq_and_positions", omitTermFreqAndPositions);
         if (indexAnalyzer != null && !indexAnalyzer.name().startsWith("_")) {
-            builder.field("indexAnalyzer", indexAnalyzer.name());
+            builder.field("index_analyzer", indexAnalyzer.name());
         }
         if (searchAnalyzer != null && !searchAnalyzer.name().startsWith("_")) {
-            builder.field("searchAnalyzer", searchAnalyzer.name());
+            builder.field("search_analyzer", searchAnalyzer.name());
         }
     }
 

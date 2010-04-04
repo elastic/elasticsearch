@@ -54,23 +54,23 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
         MoreLikeThisRequest mltRequest = moreLikeThisRequest(request.param("index")).type(request.param("type")).id(request.param("id"));
         try {
-            mltRequest.fields(request.paramAsStringArray("mltFields", null));
-            mltRequest.percentTermsToMatch(request.paramAsFloat("percentTermsToMatch", -1));
-            mltRequest.minTermFrequency(request.paramAsInt("minTermFrequency", -1));
-            mltRequest.maxQueryTerms(request.paramAsInt("maxQueryTerms", -1));
-            mltRequest.stopWords(request.paramAsStringArray("stopWords", null));
-            mltRequest.minDocFreq(request.paramAsInt("minDocFreq", -1));
-            mltRequest.maxDocFreq(request.paramAsInt("maxDocFreq", -1));
-            mltRequest.minWordLen(request.paramAsInt("minWordLen", -1));
-            mltRequest.maxWordLen(request.paramAsInt("maxWordLen", -1));
-            mltRequest.boostTerms(request.paramAsBoolean("boostTerms", null));
-            mltRequest.boostTermsFactor(request.paramAsFloat("boostTermsFactor", -1));
+            mltRequest.fields(request.paramAsStringArray("mlt_fields", null));
+            mltRequest.percentTermsToMatch(request.paramAsFloat("percent_terms_to_match", -1));
+            mltRequest.minTermFreq(request.paramAsInt("min_term_freq", -1));
+            mltRequest.maxQueryTerms(request.paramAsInt("max_query_terms", -1));
+            mltRequest.stopWords(request.paramAsStringArray("stop_words", null));
+            mltRequest.minDocFreq(request.paramAsInt("min_doc_freq", -1));
+            mltRequest.maxDocFreq(request.paramAsInt("max_doc_freq", -1));
+            mltRequest.minWordLen(request.paramAsInt("min_word_len", -1));
+            mltRequest.maxWordLen(request.paramAsInt("max_word_len", -1));
+            mltRequest.boostTerms(request.paramAsBoolean("boost_terms", null));
+            mltRequest.boostTermsFactor(request.paramAsFloat("boost_terms_factor", -1));
 
-            mltRequest.searchType(parseSearchType(request.param("searchType")));
-            mltRequest.searchIndices(request.paramAsStringArray("searchIndices", null));
-            mltRequest.searchTypes(request.paramAsStringArray("searchTypes", null));
-            mltRequest.searchQueryHint(request.param("searchQueryHint"));
-            String searchScroll = request.param("searchScroll");
+            mltRequest.searchType(parseSearchType(request.param("search_type")));
+            mltRequest.searchIndices(request.paramAsStringArray("search_indices", null));
+            mltRequest.searchTypes(request.paramAsStringArray("search_types", null));
+            mltRequest.searchQueryHint(request.param("search_query_hint"));
+            String searchScroll = request.param("search_scroll");
             if (searchScroll != null) {
                 mltRequest.searchScroll(new Scroll(parseTimeValue(searchScroll, null)));
             }

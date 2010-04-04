@@ -42,7 +42,7 @@ import static org.elasticsearch.transport.Transport.Helper.*;
 import static org.elasticsearch.util.concurrent.ConcurrentMaps.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class LocalTransport extends AbstractLifecycleComponent<Transport> implements Transport {
 

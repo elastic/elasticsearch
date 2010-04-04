@@ -100,7 +100,7 @@ public class JsonBinaryFieldMapper extends JsonFieldMapper<byte[]> {
     @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject(names.name());
         builder.field("type", jsonType());
-        builder.field("indexName", names.indexNameClean());
+        builder.field("index_name", names.indexNameClean());
         builder.endObject();
     }
 }

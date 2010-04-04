@@ -35,7 +35,7 @@ public class MoreLikeThisFieldJsonQueryBuilder extends BaseJsonQueryBuilder {
 
     private String likeText;
     private float percentTermsToMatch = -1;
-    private int minTermFrequency = -1;
+    private int minTermFreq = -1;
     private int maxQueryTerms = -1;
     private String[] stopWords = null;
     private int minDocFreq = -1;
@@ -44,6 +44,7 @@ public class MoreLikeThisFieldJsonQueryBuilder extends BaseJsonQueryBuilder {
     private int maxWordLen = -1;
     private Boolean boostTerms = null;
     private float boostTermsFactor = -1;
+    private float boost = -1;
 
     /**
      * A more like this query that runs against a specific field.
@@ -74,8 +75,8 @@ public class MoreLikeThisFieldJsonQueryBuilder extends BaseJsonQueryBuilder {
      * The frequency below which terms will be ignored in the source doc. The default
      * frequency is <tt>2</tt>.
      */
-    public MoreLikeThisFieldJsonQueryBuilder minTermFrequency(int minTermFrequency) {
-        this.minTermFrequency = minTermFrequency;
+    public MoreLikeThisFieldJsonQueryBuilder minTermFreq(int minTermFreqy) {
+        this.minTermFreq = minTermFreqy;
         return this;
     }
 
@@ -153,46 +154,54 @@ public class MoreLikeThisFieldJsonQueryBuilder extends BaseJsonQueryBuilder {
         return this;
     }
 
+    public MoreLikeThisFieldJsonQueryBuilder boost(float boost) {
+        this.boost = boost;
+        return this;
+    }
+
     @Override protected void doJson(JsonBuilder builder, Params params) throws IOException {
         builder.startObject(MoreLikeThisFieldJsonQueryParser.NAME);
         builder.startObject(name);
         if (likeText == null) {
-            throw new QueryBuilderException("moreLikeThisField requires 'likeText' to be provided");
+            throw new QueryBuilderException("moreLikeThisField requires 'like_text' to be provided");
         }
-        builder.field("likeText", likeText);
+        builder.field("like_text", likeText);
         if (percentTermsToMatch != -1) {
-            builder.field("percentTermsToMatch", percentTermsToMatch);
+            builder.field("percent_terms_to_match", percentTermsToMatch);
         }
-        if (minTermFrequency != -1) {
-            builder.field("minTermFrequency", minTermFrequency);
+        if (minTermFreq != -1) {
+            builder.field("min_term_freq", minTermFreq);
         }
         if (maxQueryTerms != -1) {
-            builder.field("maxQueryTerms", maxQueryTerms);
+            builder.field("max_query_terms", maxQueryTerms);
         }
         if (stopWords != null && stopWords.length > 0) {
-            builder.startArray("stopWords");
+            builder.startArray("stop_words");
             for (String stopWord : stopWords) {
                 builder.value(stopWord);
             }
             builder.endArray();
         }
         if (minDocFreq != -1) {
-            builder.field("minDocFreq", minDocFreq);
+            builder.field("min_doc_freq", minDocFreq);
         }
         if (maxDocFreq != -1) {
-            builder.field("maxDocFreq", maxDocFreq);
+            builder.field("max_doc_freq", maxDocFreq);
         }
         if (minWordLen != -1) {
-            builder.field("minWordLen", minWordLen);
+            builder.field("min_word_len", minWordLen);
         }
         if (maxWordLen != -1) {
-            builder.field("maxWordLen", maxWordLen);
+            builder.field("max_word_len", maxWordLen);
         }
         if (boostTerms != null) {
-            builder.field("boostTerms", boostTerms);
+            builder.field("boost_terms", boostTerms);
         }
         if (boostTermsFactor != -1) {
-            builder.field("boostTermsFactor", boostTermsFactor);
+            builder.field("boost_terms_factor", boostTermsFactor);
+        }
+        if (boost != -1) {
+            builder.field("boost", boost);
         }
         builder.endObject();
         builder.endObject();

@@ -6,17 +6,17 @@
                 type : "object",
                 dynamic : false,
                 properties : {
-                    first : {type : "string", store : "yes", includeInAll : false},
+                    first : {type : "string", store : "yes", include_in_all : false},
                     last : {type : "string", index : "not_analyzed"}
                 }
             },
             address : {
                 type : "object",
-                includeInAll : false,
+                include_in_all : false,
                 properties : {
                     first : {
                         properties : {
-                            location : {type : "string", store : "yes", indexName : "firstLocation"}
+                            location : {type : "string", store : "yes", index_name : "firstLocation"}
                         }
                     },
                     last : {
@@ -26,8 +26,8 @@
                     }
                 }
             },
-            simple1 : {type : "long", includeInAll : true},
-            simple2 : {type : "long", includeInAll : false}
+            simple1 : {type : "long", include_in_all : true},
+            simple2 : {type : "long", include_in_all : false}
         }
     }
 }

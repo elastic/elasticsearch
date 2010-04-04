@@ -2,9 +2,9 @@ cluster:
   routing:
     schedule: 100ms
 index:
-  numberOfShards: 5
-  numberOfReplicas: 1
+  number_of_shards: 5
+  number_of_replicas: 1
   shard:
     recovery:
-      fileChunkSize: 3b
+      file_chunk_size: 3b
       

@@ -1,7 +1,7 @@
 {
-    spanFirst : {
+    span_first : {
         match : {
-            spanTerm : { age : 34 }
+            span_term : { age : 34 }
         },
         end : 12
     }

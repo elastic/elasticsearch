@@ -145,7 +145,7 @@ public class IndicesMemoryCleaner extends AbstractComponent {
         }
 
         @Override public String toString() {
-            return "cleaned[" + cleaned + "], cleanedShards[" + cleanedShards + "], totalShards[" + totalShards + "]";
+            return "cleaned[" + cleaned + "], cleaned_shards[" + cleanedShards + "], total_shards[" + totalShards + "]";
         }
     }
 
@@ -179,7 +179,7 @@ public class IndicesMemoryCleaner extends AbstractComponent {
         }
 
         @Override public String toString() {
-            return "cleaned[" + cleaned + "], estimatedFlushableSize[" + estimatedFlushableSize + "], cleanedShards[" + cleanedShards + "], totalShards[" + totalShards + "]";
+            return "cleaned[" + cleaned + "], estimated_flushable_size[" + estimatedFlushableSize + "], cleaned_shards[" + cleanedShards + "], total_shards[" + totalShards + "]";
         }
     }
 }

@@ -40,8 +40,8 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
 
     @Inject public NGramTokenizerFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name);
-        this.minGram = settings.getAsInt("minGram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
-        this.maxGram = settings.getAsInt("maxGram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
+        this.minGram = settings.getAsInt("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
+        this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
     }
 
     @Override public Tokenizer create(Reader reader) {

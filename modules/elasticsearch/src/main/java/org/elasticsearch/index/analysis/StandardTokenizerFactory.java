@@ -40,7 +40,7 @@ public class StandardTokenizerFactory extends AbstractTokenizerFactory {
 
     @Inject public StandardTokenizerFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name);
-        maxTokenLength = settings.getAsInt("maxTokenLength", StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
+        maxTokenLength = settings.getAsInt("max_token_length", StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
     }
 
     @Override public Tokenizer create(Reader reader) {

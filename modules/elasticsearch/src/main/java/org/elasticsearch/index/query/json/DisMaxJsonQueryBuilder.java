@@ -70,9 +70,9 @@ public class DisMaxJsonQueryBuilder extends BaseJsonQueryBuilder {
     }
 
     @Override protected void doJson(JsonBuilder builder, Params params) throws IOException {
-        builder.startObject("disMax");
+        builder.startObject(DisMaxJsonQueryParser.NAME);
         if (tieBreaker != -1) {
-            builder.field("tieBreaker", tieBreaker);
+            builder.field("tie_breaker", tieBreaker);
         }
         if (boost != -1) {
             builder.field("boost", boost);

@@ -46,13 +46,13 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
         super(store.shardId(), store.indexSettings());
         Preconditions.checkNotNull(store, "Store must be provided to merge policy");
 
-        this.minMergeSize = componentSettings.getAsSize("minMergeSize", new SizeValue((long) LogByteSizeMergePolicy.DEFAULT_MIN_MERGE_MB * 1024 * 1024, SizeUnit.BYTES));
-        this.maxMergeSize = componentSettings.getAsSize("maxMergeSize", new SizeValue((long) LogByteSizeMergePolicy.DEFAULT_MAX_MERGE_MB, SizeUnit.MB));
-        this.mergeFactor = componentSettings.getAsInt("mergeFactor", LogByteSizeMergePolicy.DEFAULT_MERGE_FACTOR);
-        this.maxMergeDocs = componentSettings.getAsInt("maxMergeDocs", LogByteSizeMergePolicy.DEFAULT_MAX_MERGE_DOCS);
-        this.calibrateSizeByDeletes = componentSettings.getAsBoolean("calibrateSizeByDeletes", false);
-        this.useCompoundFile = componentSettings.getAsBoolean("useCompoundFile", store == null || store.suggestUseCompoundFile());
-        logger.debug("Using [LogByteSize] merge policy with mergeFactor[{}], minMergeSize[{}], maxMergeSize[{}], maxMergeDocs[{}] useCompoundFile[{}], calibrateSizeByDeletes[{}]",
+        this.minMergeSize = componentSettings.getAsSize("min_merge_size", new SizeValue((long) LogByteSizeMergePolicy.DEFAULT_MIN_MERGE_MB * 1024 * 1024, SizeUnit.BYTES));
+        this.maxMergeSize = componentSettings.getAsSize("max_merge_size", new SizeValue((long) LogByteSizeMergePolicy.DEFAULT_MAX_MERGE_MB, SizeUnit.MB));
+        this.mergeFactor = componentSettings.getAsInt("merge_factor", LogByteSizeMergePolicy.DEFAULT_MERGE_FACTOR);
+        this.maxMergeDocs = componentSettings.getAsInt("max_merge_docs", LogByteSizeMergePolicy.DEFAULT_MAX_MERGE_DOCS);
+        this.calibrateSizeByDeletes = componentSettings.getAsBoolean("calibrate_size_by_deletes", false);
+        this.useCompoundFile = componentSettings.getAsBoolean("use_compound_file", store == null || store.suggestUseCompoundFile());
+        logger.debug("Using [LogByteSize] merge policy with merge_factor[{}], min_merge_size[{}], max_merge_size[{}], max_merge_docs[{}] use_compound_file[{}], calibrate_size_by_deletes[{}]",
                 new Object[]{mergeFactor, minMergeSize, maxMergeSize, maxMergeDocs, useCompoundFile, calibrateSizeByDeletes});
     }
 

@@ -227,7 +227,7 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
                 .maxDocFreq(request.maxDocFreq())
                 .minWordLen(request.minWordLen())
                 .maxWordLen(request.maxWordLen())
-                .minTermFrequency(request.minTermFrequency())
+                .minTermFreq(request.minTermFreq())
                 .maxQueryTerms(request.maxQueryTerms())
                 .stopWords(request.stopWords());
         boolBuilder.should(mlt);

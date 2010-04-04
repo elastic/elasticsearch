@@ -38,7 +38,7 @@ import java.util.List;
 /**
  * <pre>
  * {
- *  fuzzyLikeThis : {
+ *  fuzzy_like_this : {
  *      maxNumTerms : 12,
  *      boost : 1.1,
  *      fields : ["field1", "field2"]
@@ -51,7 +51,7 @@ import java.util.List;
  */
 public class FuzzyLikeThisJsonQueryParser extends AbstractIndexComponent implements JsonQueryParser {
 
-    public static final String NAME = "fuzzyLikeThis";
+    public static final String NAME = "fuzzy_like_this";
 
     public FuzzyLikeThisJsonQueryParser(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
@@ -78,25 +78,25 @@ public class FuzzyLikeThisJsonQueryParser extends AbstractIndexComponent impleme
             if (token == JsonToken.FIELD_NAME) {
                 currentFieldName = jp.getCurrentName();
             } else if (token == JsonToken.VALUE_STRING) {
-                if ("likeText".equals(currentFieldName)) {
+                if ("like_text".equals(currentFieldName)) {
                     likeText = jp.getText();
-                } else if ("maxNumTerms".equals(currentFieldName)) {
+                } else if ("max_numT_terms".equals(currentFieldName)) {
                     maxNumTerms = Integer.parseInt(jp.getText());
                 } else if ("boost".equals(currentFieldName)) {
                     boost = Float.parseFloat(jp.getText());
-                } else if ("ignoreTF".equals(currentFieldName)) {
+                } else if ("ignore_tf".equals(currentFieldName)) {
                     ignoreTF = Booleans.parseBoolean(jp.getText(), false);
                 }
             } else if (token == JsonToken.VALUE_NUMBER_INT) {
-                if ("maxNumTerms".equals(currentFieldName)) {
+                if ("max_num_terms".equals(currentFieldName)) {
                     maxNumTerms = jp.getIntValue();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = jp.getIntValue();
-                } else if ("ignoreTF".equals(currentFieldName)) {
+                } else if ("ignore_tf".equals(currentFieldName)) {
                     ignoreTF = jp.getIntValue() != 0;
                 }
             } else if (token == JsonToken.VALUE_TRUE) {
-                if ("ignoreTF".equals(currentFieldName)) {
+                if ("ignore_tf".equals(currentFieldName)) {
                     ignoreTF = true;
                 }
             } else if (token == JsonToken.VALUE_NUMBER_FLOAT) {
@@ -114,7 +114,7 @@ public class FuzzyLikeThisJsonQueryParser extends AbstractIndexComponent impleme
         }
 
         if (likeText == null) {
-            throw new QueryParsingException(index, "fuzzyLikeThis requires 'likeText' to be specified");
+            throw new QueryParsingException(index, "fuzzy_like_this requires 'likeText' to be specified");
         }
 
         FuzzyLikeThisQuery query = new FuzzyLikeThisQuery(maxNumTerms, parseContext.mapperService().searchAnalyzer());

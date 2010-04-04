@@ -168,7 +168,7 @@ public class TermsRequest extends BroadcastOperationRequest {
     }
 
     /**
-     * The lower bound (lex) term from which the iteration will start.  Defaults to start from the
+     * The lower bound term from which the iteration will start.  Defaults to start from the
      * first.
      */
     public String from() {
@@ -176,7 +176,7 @@ public class TermsRequest extends BroadcastOperationRequest {
     }
 
     /**
-     * The lower bound (lex) term from which the iteration will start.  Defaults to start from the
+     * The lower bound term from which the iteration will start.  Defaults to start from the
      * first.
      */
     public TermsRequest from(Object from) {
@@ -185,6 +185,42 @@ public class TermsRequest extends BroadcastOperationRequest {
         } else {
             this.from = from.toString();
         }
+        return this;
+    }
+
+    /**
+     * Greater than (like setting from with fromIInclusive set to <tt>false</tt>).
+     */
+    public TermsRequest gt(Object from) {
+        from(from);
+        fromInclusive(false);
+        return this;
+    }
+
+    /**
+     * Greater/equal than  (like setting from with fromInclusive set to <tt>true</tt>).
+     */
+    public TermsRequest gte(Object from) {
+        from(from);
+        fromInclusive(true);
+        return this;
+    }
+
+    /**
+     * Lower then (like setting to with toInclusive set to <tt>false</tt>)
+     */
+    public TermsRequest lt(Object to) {
+        to(to);
+        toInclusive(false);
+        return this;
+    }
+
+    /**
+     * Lower/equal then (like setting to with toInclusive set to <tt>false</tt>)
+     */
+    public TermsRequest lte(Object to) {
+        to(to);
+        toInclusive(true);
         return this;
     }
 

@@ -90,6 +90,26 @@ public class RestTermsAction extends BaseRestHandler {
             termsRequest.to(request.param("to"));
             termsRequest.fromInclusive(request.paramAsBoolean("from_inclusive", termsRequest.fromInclusive()));
             termsRequest.toInclusive(request.paramAsBoolean("to_inclusive", termsRequest.toInclusive()));
+
+            Object temp = request.param("gt");
+            if (temp != null) {
+                termsRequest.gt(temp);
+            } else {
+                temp = request.param("gte");
+                if (temp != null) {
+                    termsRequest.gte(temp);
+                }
+            }
+            temp = request.param("lt");
+            if (temp != null) {
+                termsRequest.lt(temp);
+            } else {
+                temp = request.param("lte");
+                if (temp != null) {
+                    termsRequest.lte(temp);
+                }
+            }
+
             termsRequest.exact(request.paramAsBoolean("exact", termsRequest.exact()));
             termsRequest.minFreq(request.paramAsInt("min_freq", termsRequest.minFreq()));
             termsRequest.maxFreq(request.paramAsInt("max_freq", termsRequest.maxFreq()));

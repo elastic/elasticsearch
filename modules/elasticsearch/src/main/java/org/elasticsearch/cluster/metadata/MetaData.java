@@ -260,7 +260,7 @@ public class MetaData implements Iterable<IndexMetaData> {
 
         public static void toJson(MetaData metaData, JsonBuilder builder, ToJson.Params params) throws IOException {
             builder.startObject("meta-data");
-            builder.field("maxNumberOfShardsPerNode", metaData.maxNumberOfShardsPerNode());
+            builder.field("max_number_of_shards_per_node", metaData.maxNumberOfShardsPerNode());
 
             builder.startObject("indices");
             for (IndexMetaData indexMetaData : metaData) {
@@ -286,7 +286,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                         }
                     }
                 } else if (token == JsonToken.VALUE_NUMBER_INT) {
-                    if ("maxNumberOfShardsPerNode".equals(currentFieldName)) {
+                    if ("max_number_of_shards_per_node".equals(currentFieldName)) {
                         builder.maxNumberOfShardsPerNode(jp.getIntValue());
                     }
                 }

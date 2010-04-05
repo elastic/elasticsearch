@@ -32,8 +32,8 @@ configurations {
 dependencies {
     compile project(':elasticsearch')
 
-    compile('org.apache.tika:tika-app:0.6') { transitive = false }
-    distLib('org.apache.tika:tika-app:0.6') { transitive = false }
+    compile('org.apache.tika:tika-app:0.7') { transitive = false }
+    distLib('org.apache.tika:tika-app:0.7') { transitive = false }
 
 
     testCompile project(':test-testng')

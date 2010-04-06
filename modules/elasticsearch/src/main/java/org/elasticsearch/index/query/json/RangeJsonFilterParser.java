@@ -100,6 +100,13 @@ public class RangeJsonFilterParser extends AbstractIndexComponent implements Jso
                     } else {
                         includeUpper = token == JsonToken.VALUE_TRUE;
                     }
+                } else if ("gt".equals(currentFieldName)) {
+                    if (jp.getCurrentToken() == JsonToken.VALUE_NULL) {
+                        from = null;
+                    } else {
+                        from = jp.getText();
+                    }
+                    includeLower = false;
                 } else if ("gte".equals(currentFieldName)) {
                     if (jp.getCurrentToken() == JsonToken.VALUE_NULL) {
                         from = null;

@@ -201,6 +201,6 @@ public class CountRequest extends BroadcastOperationRequest {
     }
 
     @Override public String toString() {
-        return "[" + Arrays.toString(indices) + "][" + Arrays.toString(types) + "], querySource[" + Unicode.fromBytes(querySource) + "]";
+        return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", querySource[" + Unicode.fromBytes(querySource) + "]";
     }
 }

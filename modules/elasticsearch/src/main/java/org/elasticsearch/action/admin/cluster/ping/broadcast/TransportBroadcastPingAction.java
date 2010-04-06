@@ -83,7 +83,7 @@ public class TransportBroadcastPingAction extends TransportBroadcastOperationAct
                 successfulShards++;
             }
         }
-        return new BroadcastPingResponse(successfulShards, failedShards, shardFailures);
+        return new BroadcastPingResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures);
     }
 
     @Override protected BroadcastShardPingRequest newShardRequest() {

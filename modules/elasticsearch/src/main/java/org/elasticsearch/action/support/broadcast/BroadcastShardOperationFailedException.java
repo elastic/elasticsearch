@@ -26,7 +26,7 @@ import org.elasticsearch.index.shard.ShardId;
 /**
  * An exception indicating that a failure occurred performing an operation on the shard.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class BroadcastShardOperationFailedException extends IndexShardException implements ElasticSearchWrapperException {
 

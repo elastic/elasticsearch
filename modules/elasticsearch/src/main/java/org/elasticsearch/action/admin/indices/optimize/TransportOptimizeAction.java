@@ -66,6 +66,10 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
         return new OptimizeRequest();
     }
 
+    @Override protected boolean ignoreNonActiveExceptions() {
+        return true;
+    }
+
     @Override protected OptimizeResponse newResponse(OptimizeRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
@@ -73,7 +77,7 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
         for (int i = 0; i < shardsResponses.length(); i++) {
             Object shardResponse = shardsResponses.get(i);
             if (shardResponse == null) {
-                failedShards++;
+                // a non active shard, ignore...
             } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
                 failedShards++;
                 if (shardFailures == null) {
@@ -84,7 +88,7 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
                 successfulShards++;
             }
         }
-        return new OptimizeResponse(successfulShards, failedShards, shardFailures);
+        return new OptimizeResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures);
     }
 
     @Override protected ShardOptimizeRequest newShardRequest() {

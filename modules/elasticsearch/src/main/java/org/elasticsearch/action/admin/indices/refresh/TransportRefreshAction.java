@@ -66,6 +66,10 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
         return new RefreshRequest();
     }
 
+    @Override protected boolean ignoreNonActiveExceptions() {
+        return true;
+    }
+
     @Override protected RefreshResponse newResponse(RefreshRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
@@ -73,7 +77,7 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
         for (int i = 0; i < shardsResponses.length(); i++) {
             Object shardResponse = shardsResponses.get(i);
             if (shardResponse == null) {
-                failedShards++;
+                // non active shard, ignore
             } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
                 failedShards++;
                 if (shardFailures == null) {
@@ -84,7 +88,7 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
                 successfulShards++;
             }
         }
-        return new RefreshResponse(successfulShards, failedShards, shardFailures);
+        return new RefreshResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures);
     }
 
     @Override protected ShardRefreshRequest newShardRequest() {

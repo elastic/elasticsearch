@@ -38,8 +38,8 @@ public class OptimizeResponse extends BroadcastOperationResponse {
 
     }
 
-    OptimizeResponse(int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
-        super(successfulShards, failedShards, shardFailures);
+    OptimizeResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+        super(totalShards, successfulShards, failedShards, shardFailures);
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {

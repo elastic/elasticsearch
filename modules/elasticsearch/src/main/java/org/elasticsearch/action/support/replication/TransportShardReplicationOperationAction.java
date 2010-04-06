@@ -330,6 +330,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 // still in recovery, retry (we know that its not UNASSIGNED OR INITIALIZING since we are checking it in the calling method)
                 retryPrimary(fromDiscoveryListener, shard);
             } catch (Exception e) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug(shard.shortSummary() + ": Failed to execute [" + request + "]", e);
+                }
                 listener.onFailure(new ReplicationShardOperationFailedException(shards.shardId(), e));
             }
         }

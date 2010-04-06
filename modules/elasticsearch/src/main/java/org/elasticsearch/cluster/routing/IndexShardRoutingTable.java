@@ -106,7 +106,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
      * <p>The class can be used from different threads, though not designed to be used concurrently
      * from different threads.
      */
-    private class IndexShardsIterator implements ShardsIterator, Iterator<ShardRouting> {
+    class IndexShardsIterator implements ShardsIterator, Iterator<ShardRouting> {
 
         private final int origIndex;
 
@@ -130,15 +130,45 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
 
         @Override public boolean hasNext() {
-            return counter != size();
+            return counter < size();
         }
 
-        @Override public ShardRouting next() {
+        @Override public ShardRouting next() throws NoSuchElementException {
             if (!hasNext()) {
-                throw new NoSuchElementException();
+                throw new NoSuchElementException("No shard found");
             }
             counter++;
             return shardModulo(index++);
+        }
+
+        @Override public boolean hasNextActive() {
+            int counter = this.counter;
+            int index = this.index;
+            while (counter++ < size()) {
+                ShardRouting shardRouting = shardModulo(index++);
+                if (shardRouting.active()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override public ShardRouting nextActive() throws NoSuchElementException {
+            ShardRouting shardRouting = nextActiveOrNull();
+            if (shardRouting == null) {
+                throw new NoSuchElementException("No active shard found");
+            }
+            return shardRouting;
+        }
+
+        @Override public ShardRouting nextActiveOrNull() throws NoSuchElementException {
+            while (counter++ < size()) {
+                ShardRouting shardRouting = shardModulo(index++);
+                if (shardRouting.active()) {
+                    return shardRouting;
+                }
+            }
+            return null;
         }
 
         @Override public void remove() {
@@ -147,6 +177,16 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
         @Override public int size() {
             return IndexShardRoutingTable.this.size();
+        }
+
+        @Override public int sizeActive() {
+            int shardsActive = 0;
+            for (ShardRouting shardRouting : IndexShardRoutingTable.this.shards()) {
+                if (shardRouting.active()) {
+                    shardsActive++;
+                }
+            }
+            return shardsActive;
         }
 
         @Override public ShardId shardId() {

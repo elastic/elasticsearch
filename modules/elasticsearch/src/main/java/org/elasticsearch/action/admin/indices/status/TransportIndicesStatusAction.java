@@ -45,7 +45,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import static com.google.common.collect.Lists.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TransportIndicesStatusAction extends TransportBroadcastOperationAction<IndicesStatusRequest, IndicesStatusResponse, TransportIndicesStatusAction.IndexShardStatusRequest, ShardStatus> {
 
@@ -65,6 +65,10 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
         return new IndicesStatusRequest();
     }
 
+    @Override protected boolean ignoreNonActiveExceptions() {
+        return true;
+    }
+
     @Override protected IndicesStatusResponse newResponse(IndicesStatusRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
@@ -73,7 +77,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
         for (int i = 0; i < shardsResponses.length(); i++) {
             Object shardResponse = shardsResponses.get(i);
             if (shardResponse == null) {
-                failedShards++;
+                // simply ignore non active shards
             } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
                 failedShards++;
                 if (shardFailures == null) {
@@ -85,7 +89,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
                 successfulShards++;
             }
         }
-        return new IndicesStatusResponse(shards.toArray(new ShardStatus[shards.size()]), clusterState, successfulShards, failedShards, shardFailures);
+        return new IndicesStatusResponse(shards.toArray(new ShardStatus[shards.size()]), clusterState, shardsResponses.length(), successfulShards, failedShards, shardFailures);
     }
 
     @Override protected IndexShardStatusRequest newShardRequest() {

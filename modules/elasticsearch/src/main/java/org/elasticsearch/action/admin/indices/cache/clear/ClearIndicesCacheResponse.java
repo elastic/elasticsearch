@@ -38,8 +38,8 @@ public class ClearIndicesCacheResponse extends BroadcastOperationResponse {
 
     }
 
-    ClearIndicesCacheResponse(int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
-        super(successfulShards, failedShards, shardFailures);
+    ClearIndicesCacheResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+        super(totalShards, successfulShards, failedShards, shardFailures);
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {

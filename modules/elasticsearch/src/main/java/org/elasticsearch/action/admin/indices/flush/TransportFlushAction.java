@@ -65,6 +65,10 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
         return new FlushRequest();
     }
 
+    @Override protected boolean ignoreNonActiveExceptions() {
+        return true;
+    }
+
     @Override protected FlushResponse newResponse(FlushRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
@@ -72,7 +76,7 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
         for (int i = 0; i < shardsResponses.length(); i++) {
             Object shardResponse = shardsResponses.get(i);
             if (shardResponse == null) {
-                failedShards++;
+                // a non active shard, ignore
             } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
                 failedShards++;
                 if (shardFailures == null) {
@@ -83,7 +87,7 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
                 successfulShards++;
             }
         }
-        return new FlushResponse(successfulShards, failedShards, shardFailures);
+        return new FlushResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures);
     }
 
     @Override protected ShardFlushRequest newShardRequest() {

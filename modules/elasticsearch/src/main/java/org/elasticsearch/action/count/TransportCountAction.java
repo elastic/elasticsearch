@@ -98,7 +98,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
                 successfulShards++;
             }
         }
-        return new CountResponse(count, successfulShards, failedShards, shardFailures);
+        return new CountResponse(count, shardsResponses.length(), successfulShards, failedShards, shardFailures);
     }
 
     @Override protected ShardCountResponse shardOperation(ShardCountRequest request) throws ElasticSearchException {

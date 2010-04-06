@@ -36,8 +36,8 @@ public class BroadcastPingResponse extends BroadcastOperationResponse {
 
     }
 
-    public BroadcastPingResponse(int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
-        super(successfulShards, failedShards, shardFailures);
+    public BroadcastPingResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+        super(totalShards, successfulShards, failedShards, shardFailures);
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {

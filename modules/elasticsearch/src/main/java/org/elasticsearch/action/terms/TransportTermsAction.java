@@ -140,7 +140,7 @@ public class TransportTermsAction extends TransportBroadcastOperationAction<Term
             TermFreq[] freqs = entry.getValue().toArray(new TermFreq[entry.getValue().size()]);
             resultFreqs[index++] = new FieldTermsFreq(entry.getKey(), freqs);
         }
-        return new TermsResponse(successfulShards, failedShards, shardFailures, resultFreqs, numDocs, maxDoc, numDeletedDocs);
+        return new TermsResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures, resultFreqs, numDocs, maxDoc, numDeletedDocs);
     }
 
     @Override protected ShardTermsResponse shardOperation(ShardTermsRequest request) throws ElasticSearchException {

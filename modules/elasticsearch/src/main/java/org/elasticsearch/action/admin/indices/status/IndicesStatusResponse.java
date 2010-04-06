@@ -37,7 +37,7 @@ import static org.elasticsearch.action.admin.indices.status.ShardStatus.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class IndicesStatusResponse extends BroadcastOperationResponse {
 
@@ -50,8 +50,8 @@ public class IndicesStatusResponse extends BroadcastOperationResponse {
     IndicesStatusResponse() {
     }
 
-    IndicesStatusResponse(ShardStatus[] shards, ClusterState clusterState, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
-        super(successfulShards, failedShards, shardFailures);
+    IndicesStatusResponse(ShardStatus[] shards, ClusterState clusterState, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+        super(totalShards, successfulShards, failedShards, shardFailures);
         this.shards = shards;
         indicesSettings = newHashMap();
         for (ShardStatus shard : shards) {

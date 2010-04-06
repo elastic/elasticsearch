@@ -110,7 +110,7 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
      * A groups shards iterator where each groups is a single {@link ShardRouting} and a group
      * is created for each shard routing.
      *
-     * <p>This basically means that components that use the {@link GroupShardsIterator} will itearte
+     * <p>This basically means that components that use the {@link GroupShardsIterator} will iterate
      * over *all* the shards (all the replicas) within the index.
      */
     public GroupShardsIterator groupByAllIt() {

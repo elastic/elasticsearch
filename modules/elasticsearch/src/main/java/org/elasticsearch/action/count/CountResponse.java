@@ -40,8 +40,8 @@ public class CountResponse extends BroadcastOperationResponse {
 
     }
 
-    CountResponse(long count, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
-        super(successfulShards, failedShards, shardFailures);
+    CountResponse(long count, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+        super(totalShards, successfulShards, failedShards, shardFailures);
         this.count = count;
     }
 

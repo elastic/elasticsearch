@@ -19,6 +19,10 @@
 
 package org.elasticsearch.test.integration.recovery;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.test.integration.AbstractServersTests;
 import org.testng.annotations.AfterMethod;
@@ -29,7 +33,7 @@ import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class SimpleRecoveryTests extends AbstractServersTests {
 
@@ -42,14 +46,30 @@ public class SimpleRecoveryTests extends AbstractServersTests {
 
         client("server1").admin().indices().create(createIndexRequest("test")).actionGet(5000);
 
+        logger.info("Running Cluster Health");
+        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForYellowStatus()).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
+
         client("server1").index(indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
-        client("server1").admin().indices().flush(flushRequest("test")).actionGet();
+        FlushResponse flushResponse = client("server1").admin().indices().flush(flushRequest("test")).actionGet();
+        assertThat(flushResponse.totalShards(), equalTo(10));
+        assertThat(flushResponse.successfulShards(), equalTo(5));
+        assertThat(flushResponse.failedShards(), equalTo(0));
         client("server1").index(indexRequest("test").type("type1").id("2").source(source("2", "test"))).actionGet();
-        client("server1").admin().indices().refresh(refreshRequest("test")).actionGet();
+        RefreshResponse refreshResponse = client("server1").admin().indices().refresh(refreshRequest("test")).actionGet();
+        assertThat(refreshResponse.totalShards(), equalTo(10));
+        assertThat(refreshResponse.successfulShards(), equalTo(5));
+        assertThat(refreshResponse.failedShards(), equalTo(0));
 
         startServer("server2");
-        // sleep so we recover properly
-        Thread.sleep(5000);
+
+        logger.info("Running Cluster Health");
+        clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForGreenStatus()).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
 
         GetResponse getResult;
 
@@ -66,7 +86,12 @@ public class SimpleRecoveryTests extends AbstractServersTests {
 
         // now start another one so we move some primaries
         startServer("server3");
-        Thread.sleep(5000);
+        Thread.sleep(1000);
+        logger.info("Running Cluster Health");
+        clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForGreenStatus()).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
 
         for (int i = 0; i < 5; i++) {
             getResult = client("server1").get(getRequest("test").type("type1").id("1")).actionGet(1000);

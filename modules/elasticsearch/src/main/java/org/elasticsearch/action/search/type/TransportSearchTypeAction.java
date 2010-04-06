@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
@@ -39,7 +40,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.action.search.type.TransportSearchHelper.*;
@@ -106,15 +106,15 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
 
             shardsIts = indicesService.searchShards(clusterState, request.indices(), request.queryHint());
             expectedSuccessfulOps = shardsIts.size();
-            expectedTotalOps = shardsIts.totalSize();
+            expectedTotalOps = shardsIts.totalSizeActive();
         }
 
         public void start() {
             // count the local operations, and perform the non local ones
             int localOperations = 0;
             for (final ShardsIterator shardIt : shardsIts) {
-                final ShardRouting shard = shardIt.next();
-                if (shard.active()) {
+                final ShardRouting shard = shardIt.nextActiveOrNull();
+                if (shard != null) {
                     if (shard.currentNodeId().equals(nodes.localNodeId())) {
                         localOperations++;
                     } else {
@@ -122,7 +122,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                         performFirstPhase(shardIt.reset());
                     }
                 } else {
-                    // as if we have a "problem", so we iterate to the next one and maintain counts
+                    // really, no shards active in this group
                     onFirstPhaseResult(shard, shardIt, null);
                 }
             }
@@ -132,8 +132,8 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                     threadPool.execute(new Runnable() {
                         @Override public void run() {
                             for (final ShardsIterator shardIt : shardsIts) {
-                                final ShardRouting shard = shardIt.reset().next();
-                                if (shard.active()) {
+                                final ShardRouting shard = shardIt.reset().nextActiveOrNull();
+                                if (shard != null) {
                                     if (shard.currentNodeId().equals(nodes.localNodeId())) {
                                         performFirstPhase(shardIt.reset());
                                     }
@@ -144,8 +144,8 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                 } else {
                     boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
                     for (final ShardsIterator shardIt : shardsIts) {
-                        final ShardRouting shard = shardIt.reset().next();
-                        if (shard.active()) {
+                        final ShardRouting shard = shardIt.reset().nextActiveOrNull();
+                        if (shard != null) {
                             if (shard.currentNodeId().equals(nodes.localNodeId())) {
                                 if (localAsync) {
                                     threadPool.execute(new Runnable() {
@@ -163,10 +163,10 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             }
         }
 
-        private void performFirstPhase(final Iterator<ShardRouting> shardIt) {
-            final ShardRouting shard = shardIt.next();
-            if (!shard.active()) {
-                // as if we have a "problem", so we iterate to the next one and maintain counts
+        private void performFirstPhase(final ShardsIterator shardIt) {
+            final ShardRouting shard = shardIt.nextActiveOrNull();
+            if (shard == null) {
+                // no more active shards... (we should not really get here, but just for safety)
                 onFirstPhaseResult(shard, shardIt, null);
             } else {
                 Node node = nodes.get(shard.currentNodeId());
@@ -182,13 +182,13 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             }
         }
 
-        private void onFirstPhaseResult(ShardRouting shard, FirstResult result, Iterator<ShardRouting> shardIt) {
+        private void onFirstPhaseResult(ShardRouting shard, FirstResult result, ShardsIterator shardIt) {
             processFirstPhaseResult(shard, result);
             // increment all the "future" shards to update the total ops since we some may work and some may not...
             // and when that happens, we break on total ops, so we must maintain them
-            while (shardIt.hasNext()) {
+            while (shardIt.hasNextActive()) {
                 totalOps.incrementAndGet();
-                shardIt.next();
+                shardIt.nextActive();
             }
             if (successulOps.incrementAndGet() == expectedSuccessfulOps ||
                     totalOps.incrementAndGet() == expectedTotalOps) {
@@ -200,15 +200,25 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             }
         }
 
-        private void onFirstPhaseResult(ShardRouting shard, final Iterator<ShardRouting> shardIt, Throwable t) {
-            if (logger.isDebugEnabled()) {
-                if (t != null) {
-                    logger.debug(shard.shortSummary() + ": Failed to search [" + request + "]", t);
-                }
-            }
+        private void onFirstPhaseResult(ShardRouting shard, final ShardsIterator shardIt, Throwable t) {
             if (totalOps.incrementAndGet() == expectedTotalOps) {
+                // e is null when there is no next active....
+                if (logger.isDebugEnabled()) {
+                    if (t != null) {
+                        if (shard != null) {
+                            logger.debug(shard.shortSummary() + ": Failed to execute [" + request + "]", t);
+                        } else {
+                            logger.debug(shardIt.shardId() + ": Failed to execute [" + request + "]", t);
+                        }
+                    }
+                }
                 // no more shards, add a failure
-                shardFailures.add(new ShardSearchFailure(t));
+                if (t == null) {
+                    // no active shards
+                    shardFailures.add(new ShardSearchFailure("No active shards", new SearchShardTarget(null, shardIt.shardId().index().name(), shardIt.shardId().id())));
+                } else {
+                    shardFailures.add(new ShardSearchFailure(t));
+                }
                 if (successulOps.get() == 0) {
                     // no successful ops, raise an exception
                     invokeListener(new SearchPhaseExecutionException(firstPhaseName(), "total failure", buildShardFailures()));
@@ -220,11 +230,36 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                     }
                 }
             } else {
-                if (shardIt.hasNext()) {
+                if (shardIt.hasNextActive()) {
+                    // trace log this exception
+                    if (logger.isTraceEnabled()) {
+                        if (t != null) {
+                            if (shard != null) {
+                                logger.trace(shard.shortSummary() + ": Failed to execute [" + request + "]", t);
+                            } else {
+                                logger.trace(shardIt.shardId() + ": Failed to execute [" + request + "]", t);
+                            }
+                        }
+                    }
                     performFirstPhase(shardIt);
                 } else {
-                    // no more shards, add a failure
-                    shardFailures.add(new ShardSearchFailure(t));
+                    // no more shards active, add a failure
+                    // e is null when there is no next active....
+                    if (logger.isDebugEnabled()) {
+                        if (t != null) {
+                            if (shard != null) {
+                                logger.debug(shard.shortSummary() + ": Failed to execute [" + request + "]", t);
+                            } else {
+                                logger.debug(shardIt.shardId() + ": Failed to execute [" + request + "]", t);
+                            }
+                        }
+                    }
+                    if (t == null) {
+                        // no active shards
+                        shardFailures.add(new ShardSearchFailure("No active shards", new SearchShardTarget(null, shardIt.shardId().index().name(), shardIt.shardId().id())));
+                    } else {
+                        shardFailures.add(new ShardSearchFailure(t));
+                    }
                 }
             }
         }

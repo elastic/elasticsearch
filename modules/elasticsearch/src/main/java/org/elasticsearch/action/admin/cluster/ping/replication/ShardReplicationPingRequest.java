@@ -58,4 +58,8 @@ public class ShardReplicationPingRequest extends ShardReplicationOperationReques
         super.writeTo(out);
         out.writeVInt(shardId);
     }
+
+    @Override public String toString() {
+        return "[" + index + "][" + shardId + "]";
+    }
 }

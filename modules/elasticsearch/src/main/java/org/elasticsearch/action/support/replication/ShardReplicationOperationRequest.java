@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.action.Actions.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class ShardReplicationOperationRequest implements ActionRequest {
 

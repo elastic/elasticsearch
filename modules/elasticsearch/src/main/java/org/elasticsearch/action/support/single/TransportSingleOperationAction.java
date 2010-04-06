@@ -39,10 +39,9 @@ import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
-import java.util.Iterator;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class TransportSingleOperationAction<Request extends SingleOperationRequest, Response extends ActionResponse> extends BaseAction<Request, Response> {
 
@@ -83,9 +82,7 @@ public abstract class TransportSingleOperationAction<Request extends SingleOpera
 
         private final ActionListener<Response> listener;
 
-        private final ShardsIterator shards;
-
-        private Iterator<ShardRouting> shardsIt;
+        private final ShardsIterator shardsIt;
 
         private final Request request;
 
@@ -102,18 +99,17 @@ public abstract class TransportSingleOperationAction<Request extends SingleOpera
             // update to the concrete shard to use
             request.index(clusterState.metaData().concreteIndex(request.index()));
 
-            this.shards = indicesService.indexServiceSafe(request.index()).operationRouting()
+            this.shardsIt = indicesService.indexServiceSafe(request.index()).operationRouting()
                     .getShards(clusterState, request.type(), request.id());
-            this.shardsIt = shards.iterator();
         }
 
         public void start() {
             performFirst();
         }
 
-        public void onFailure(ShardRouting shardRouting, Exception e) {
-            if (logger.isDebugEnabled()) {
-                logger.debug(shardRouting.shortSummary() + ": Failed to get [" + request.type() + "#" + request.id() + "]", e);
+        private void onFailure(ShardRouting shardRouting, Exception e) {
+            if (logger.isTraceEnabled() && e != null) {
+                logger.trace(shardRouting.shortSummary() + ": Failed to get [" + request.type() + "#" + request.id() + "]", e);
             }
             perform(e);
         }
@@ -122,11 +118,8 @@ public abstract class TransportSingleOperationAction<Request extends SingleOpera
          * First get should try and use a shard that exists on a local node for better performance
          */
         private void performFirst() {
-            while (shardsIt.hasNext()) {
-                final ShardRouting shard = shardsIt.next();
-                if (!shard.active()) {
-                    continue;
-                }
+            while (shardsIt.hasNextActive()) {
+                final ShardRouting shard = shardsIt.nextActive();
                 if (shard.currentNodeId().equals(nodes.localNodeId())) {
                     if (request.operationThreaded()) {
                         threadPool.execute(new Runnable() {
@@ -159,19 +152,16 @@ public abstract class TransportSingleOperationAction<Request extends SingleOpera
                     }
                 }
             }
-            if (!shardsIt.hasNext()) {
+            if (!shardsIt.hasNextActive()) {
                 // no local node get, go remote
-                shardsIt = shards.reset().iterator();
+                shardsIt.reset();
                 perform(null);
             }
         }
 
         private void perform(final Exception lastException) {
-            while (shardsIt.hasNext()) {
-                final ShardRouting shard = shardsIt.next();
-                if (!shard.active()) {
-                    continue;
-                }
+            while (shardsIt.hasNextActive()) {
+                final ShardRouting shard = shardsIt.nextActive();
                 // no need to check for local nodes, we tried them already in performFirstGet
                 if (!shard.currentNodeId().equals(nodes.localNodeId())) {
                     Node node = nodes.get(shard.currentNodeId());
@@ -204,12 +194,20 @@ public abstract class TransportSingleOperationAction<Request extends SingleOpera
                     return;
                 }
             }
-            if (!shardsIt.hasNext()) {
-                final NoShardAvailableActionException failure = new NoShardAvailableActionException(shards.shardId(), "No shard available for [" + request.type() + "#" + request.id() + "]", lastException);
+            if (!shardsIt.hasNextActive()) {
+                Exception failure = lastException;
+                if (failure == null) {
+                    failure = new NoShardAvailableActionException(shardsIt.shardId(), "No shard available for [" + request.type() + "#" + request.id() + "]");
+                } else {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug(shardsIt.shardId() + ": Failed to get [" + request.type() + "#" + request.id() + "]", failure);
+                    }
+                }
                 if (request.listenerThreaded()) {
+                    final Exception fFailure = failure;
                     threadPool.execute(new Runnable() {
                         @Override public void run() {
-                            listener.onFailure(failure);
+                            listener.onFailure(fFailure);
                         }
                     });
                 } else {

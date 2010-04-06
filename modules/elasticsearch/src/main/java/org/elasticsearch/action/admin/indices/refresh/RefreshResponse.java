@@ -38,8 +38,8 @@ public class RefreshResponse extends BroadcastOperationResponse {
 
     }
 
-    RefreshResponse(int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
-        super(successfulShards, failedShards, shardFailures);
+    RefreshResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+        super(totalShards, successfulShards, failedShards, shardFailures);
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {

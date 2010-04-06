@@ -54,9 +54,9 @@ public class TermsResponse extends BroadcastOperationResponse implements Iterabl
     TermsResponse() {
     }
 
-    TermsResponse(int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, FieldTermsFreq[] fieldsTermsFreq,
+    TermsResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, FieldTermsFreq[] fieldsTermsFreq,
                   long numDocs, long maxDoc, long numDeletedDocs) {
-        super(successfulShards, failedShards, shardFailures);
+        super(totalShards, successfulShards, failedShards, shardFailures);
         this.fieldsTermsFreq = fieldsTermsFreq;
         this.numDocs = numDocs;
         this.maxDoc = maxDoc;

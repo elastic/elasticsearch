@@ -271,7 +271,10 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
     @Test public void testFailedSearchWithWrongQuery() throws Exception {
         logger.info("Start Testing failed search with wrong query");
         try {
-            client.search(searchRequest("test").source(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
+            SearchResponse searchResponse = client.search(searchRequest("test").source(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
+            assertThat(searchResponse.totalShards(), equalTo(3));
+            assertThat(searchResponse.successfulShards(), equalTo(0));
+            assertThat(searchResponse.failedShards(), equalTo(3));
             assert false : "search should fail";
         } catch (ElasticSearchException e) {
             assertThat(e.unwrapCause(), instanceOf(SearchPhaseExecutionException.class));
@@ -287,6 +290,9 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
                 .from(1000).size(20).explain(true);
         SearchResponse response = client.search(searchRequest("test").searchType(DFS_QUERY_AND_FETCH).source(source)).actionGet();
         assertThat(response.hits().hits().length, equalTo(0));
+        assertThat(response.totalShards(), equalTo(3));
+        assertThat(response.successfulShards(), equalTo(3));
+        assertThat(response.failedShards(), equalTo(0));
 
         response = client.search(searchRequest("test").searchType(QUERY_THEN_FETCH).source(source)).actionGet();
         assertThat(response.shardFailures().length, equalTo(0));

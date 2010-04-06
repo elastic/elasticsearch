@@ -29,7 +29,7 @@ import java.io.Serializable;
 /**
  * The target that the search request was executed on.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class SearchShardTarget implements Streamable, Serializable {
 

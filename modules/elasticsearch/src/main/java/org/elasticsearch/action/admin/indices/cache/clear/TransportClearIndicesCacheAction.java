@@ -66,6 +66,10 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
         return new ClearIndicesCacheRequest();
     }
 
+    @Override protected boolean ignoreNonActiveExceptions() {
+        return true;
+    }
+
     @Override protected ClearIndicesCacheResponse newResponse(ClearIndicesCacheRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
@@ -73,7 +77,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
         for (int i = 0; i < shardsResponses.length(); i++) {
             Object shardResponse = shardsResponses.get(i);
             if (shardResponse == null) {
-                failedShards++;
+                // simply ignore non active shards
             } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
                 failedShards++;
                 if (shardFailures == null) {
@@ -84,7 +88,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
                 successfulShards++;
             }
         }
-        return new ClearIndicesCacheResponse(successfulShards, failedShards, shardFailures);
+        return new ClearIndicesCacheResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures);
     }
 
     @Override protected ShardClearIndicesCacheRequest newShardRequest() {

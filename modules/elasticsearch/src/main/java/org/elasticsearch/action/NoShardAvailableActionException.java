@@ -27,6 +27,10 @@ import org.elasticsearch.index.shard.ShardId;
  */
 public class NoShardAvailableActionException extends IndexShardException {
 
+    public NoShardAvailableActionException(ShardId shardId, String msg) {
+        super(shardId, msg);
+    }
+
     public NoShardAvailableActionException(ShardId shardId, String msg, Throwable cause) {
         super(shardId, msg, cause);
     }

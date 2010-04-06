@@ -38,6 +38,8 @@ import static org.elasticsearch.action.support.DefaultShardOperationFailedExcept
  */
 public abstract class BroadcastOperationResponse implements ActionResponse {
 
+    private int totalShards;
+
     private int successfulShards;
 
     private int failedShards;
@@ -47,7 +49,8 @@ public abstract class BroadcastOperationResponse implements ActionResponse {
     protected BroadcastOperationResponse() {
     }
 
-    protected BroadcastOperationResponse(int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+    protected BroadcastOperationResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+        this.totalShards = totalShards;
         this.successfulShards = successfulShards;
         this.failedShards = failedShards;
         this.shardFailures = shardFailures;
@@ -60,7 +63,7 @@ public abstract class BroadcastOperationResponse implements ActionResponse {
      * The total shards this request ran against.
      */
     public int totalShards() {
-        return successfulShards + failedShards;
+        return totalShards;
     }
 
     /**
@@ -88,6 +91,7 @@ public abstract class BroadcastOperationResponse implements ActionResponse {
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
+        totalShards = in.readVInt();
         successfulShards = in.readVInt();
         failedShards = in.readVInt();
         int size = in.readVInt();
@@ -100,6 +104,7 @@ public abstract class BroadcastOperationResponse implements ActionResponse {
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
         out.writeVInt(failedShards);
         out.writeVInt(shardFailures.size());

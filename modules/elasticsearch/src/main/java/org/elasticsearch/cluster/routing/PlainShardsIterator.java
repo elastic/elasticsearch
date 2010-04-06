@@ -23,9 +23,10 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class PlainShardsIterator implements ShardsIterator {
 
@@ -33,21 +34,30 @@ public class PlainShardsIterator implements ShardsIterator {
 
     private final List<ShardRouting> shards;
 
-    private Iterator<ShardRouting> iterator;
+    private volatile int counter = 0;
 
     public PlainShardsIterator(ShardId shardId, List<ShardRouting> shards) {
         this.shardId = shardId;
         this.shards = shards;
-        this.iterator = shards.iterator();
     }
 
     @Override public ShardsIterator reset() {
-        this.iterator = shards.iterator();
+        this.counter = 0;
         return this;
     }
 
     @Override public int size() {
         return shards.size();
+    }
+
+    @Override public int sizeActive() {
+        int sizeActive = 0;
+        for (ShardRouting shardRouting : shards) {
+            if (shardRouting.active()) {
+                sizeActive++;
+            }
+        }
+        return sizeActive;
     }
 
     @Override public ShardId shardId() {
@@ -59,11 +69,42 @@ public class PlainShardsIterator implements ShardsIterator {
     }
 
     @Override public boolean hasNext() {
-        return iterator.hasNext();
+        return counter < shards.size();
     }
 
     @Override public ShardRouting next() {
-        return iterator.next();
+        if (!hasNext()) {
+            throw new NoSuchElementException("No shard found");
+        }
+        return shards.get(counter++);
+    }
+
+    @Override public boolean hasNextActive() {
+        int counter = this.counter;
+        while (counter < shards.size()) {
+            if (shards.get(counter++).active()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override public ShardRouting nextActive() throws NoSuchElementException {
+        ShardRouting shardRouting = nextActiveOrNull();
+        if (shardRouting == null) {
+            throw new NoSuchElementException("No active shard found");
+        }
+        return shardRouting;
+    }
+
+    @Override public ShardRouting nextActiveOrNull() throws NoSuchElementException {
+        while (counter < shards.size()) {
+            ShardRouting shardRouting = shards.get(counter++);
+            if (shardRouting.active()) {
+                return shardRouting;
+            }
+        }
+        return null;
     }
 
     @Override public void remove() {

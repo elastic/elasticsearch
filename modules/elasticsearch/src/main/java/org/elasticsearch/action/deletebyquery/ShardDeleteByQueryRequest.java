@@ -23,10 +23,12 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.Strings;
+import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.elasticsearch.action.Actions.*;
 
@@ -114,5 +116,9 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
         for (String type : types) {
             out.writeUTF(type);
         }
+    }
+
+    @Override public String toString() {
+        return "[" + index + "]" + Arrays.toString(types) + ", query [" + Unicode.fromBytes(querySource) + "]";
     }
 }

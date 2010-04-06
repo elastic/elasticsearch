@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 /**
  * @author kimchy (Shay Banon)
@@ -35,5 +36,13 @@ public interface ShardsIterator extends Iterable<ShardRouting>, Iterator<ShardRo
 
     int size();
 
+    int sizeActive();
+
     ShardId shardId();
+
+    boolean hasNextActive();
+
+    ShardRouting nextActive() throws NoSuchElementException;
+
+    ShardRouting nextActiveOrNull();
 }

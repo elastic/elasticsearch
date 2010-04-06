@@ -1,0 +1,124 @@
+/*
+ * Licensed to Elastic Search and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Elastic Search licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.test.integration.search;
+
+import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Requests;
+import org.elasticsearch.test.integration.AbstractServersTests;
+import org.elasticsearch.util.Unicode;
+import org.elasticsearch.util.json.JsonBuilder;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.Test;
+
+import java.io.IOException;
+
+import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.util.json.JsonBuilder.*;
+import static org.hamcrest.MatcherAssert.*;
+import static org.hamcrest.Matchers.*;
+
+/**
+ * @author kimchy (shay.banon)
+ */
+public class TransportSearchFailuresTests extends AbstractServersTests {
+
+    @AfterMethod public void closeServers() {
+        closeAllServers();
+    }
+
+    @Test public void testFailedSearchWithWrongQuery() throws Exception {
+        logger.info("Start Testing failed search with wrong query");
+        startServer("server1");
+        client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
+
+        for (int i = 0; i < 100; i++) {
+            index(client("server1"), Integer.toString(i), "test", i);
+        }
+        RefreshResponse refreshResponse = client("server1").admin().indices().refresh(refreshRequest("test")).actionGet();
+        assertThat(refreshResponse.totalShards(), equalTo(9));
+        assertThat(refreshResponse.successfulShards(), equalTo(3));
+        assertThat(refreshResponse.failedShards(), equalTo(0));
+        for (int i = 0; i < 5; i++) {
+            try {
+                SearchResponse searchResponse = client("server1").search(searchRequest("test").source(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
+                assertThat(searchResponse.totalShards(), equalTo(3));
+                assertThat(searchResponse.successfulShards(), equalTo(0));
+                assertThat(searchResponse.failedShards(), equalTo(3));
+                assert false : "search should fail";
+            } catch (ElasticSearchException e) {
+                assertThat(e.unwrapCause(), instanceOf(SearchPhaseExecutionException.class));
+                // all is well
+            }
+        }
+
+        startServer("server2");
+        Thread.sleep(300);
+
+        logger.info("Running Cluster Health");
+        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealth("test").waitForYellowStatus().waitForRelocatingShards(0)).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
+
+        refreshResponse = client("server1").admin().indices().refresh(refreshRequest("test")).actionGet();
+        assertThat(refreshResponse.totalShards(), equalTo(9));
+        assertThat(refreshResponse.successfulShards(), equalTo(6));
+        assertThat(refreshResponse.failedShards(), equalTo(0));
+
+        for (int i = 0; i < 5; i++) {
+            try {
+                SearchResponse searchResponse = client("server1").search(searchRequest("test").source(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
+                assertThat(searchResponse.totalShards(), equalTo(3));
+                assertThat(searchResponse.successfulShards(), equalTo(0));
+                assertThat(searchResponse.failedShards(), equalTo(3));
+                assert false : "search should fail";
+            } catch (ElasticSearchException e) {
+                assertThat(e.unwrapCause(), instanceOf(SearchPhaseExecutionException.class));
+                // all is well
+            }
+        }
+
+        logger.info("Done Testing failed search");
+    }
+
+    private void index(Client client, String id, String nameValue, int age) throws IOException {
+        client.index(Requests.indexRequest("test").type("type1").id(id).source(source(id, nameValue, age))).actionGet();
+    }
+
+    private JsonBuilder source(String id, String nameValue, int age) throws IOException {
+        StringBuilder multi = new StringBuilder().append(nameValue);
+        for (int i = 0; i < age; i++) {
+            multi.append(" ").append(nameValue);
+        }
+        return binaryJsonBuilder().startObject()
+                .field("id", id)
+                .field("name", nameValue + id)
+                .field("age", age)
+                .field("multi", multi.toString())
+                .field("_boost", age * 10)
+                .endObject();
+    }
+}

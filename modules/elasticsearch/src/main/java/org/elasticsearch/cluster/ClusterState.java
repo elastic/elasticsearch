@@ -78,7 +78,7 @@ public class ClusterState {
 
     /**
      * Returns a built (on demand) routing nodes view of the routing table. <b>NOTE, the routing nodes
-     * are immutable, use them just for read operations</b>
+     * are mutable, use them just for read operations</b>
      */
     public RoutingNodes readOnlyRoutingNodes() {
         if (routingNodes != null) {

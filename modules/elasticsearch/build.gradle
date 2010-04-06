@@ -80,6 +80,21 @@ dependencies {
     deployerJars "org.apache.maven.wagon:wagon-http:1.0-beta-2"
 }
 
+task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    from javadoc.destinationDir
+}
+
+artifacts {
+    archives sourcesJar
+    archives javadocJar
+}
+
 uploadArchives {
     repositories.mavenDeployer {
 //        repository(url: "file://localhost/" + rootProject.projectDir.absolutePath + "/build/maven/repository")

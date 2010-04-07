@@ -309,7 +309,7 @@ public class
                 // now move to the actual content, which is the start object
                 token = jp.nextToken();
                 if (token != JsonToken.START_OBJECT) {
-                    throw new MapperException("Malformed json, after type is must start with an object");
+                    throw new MapperException("Malformed json, a field with the same name as the type much be an object json with the properties/fields within it");
                 }
             }
 

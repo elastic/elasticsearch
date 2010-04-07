@@ -28,7 +28,7 @@ import org.slf4j.Logger;
 import static org.elasticsearch.index.shard.IndexShardManagement.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class AbstractIndexShardComponent implements IndexShardComponent {
 
@@ -44,6 +44,14 @@ public abstract class AbstractIndexShardComponent implements IndexShardComponent
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.componentSettings = indexSettings.getComponentSettings(getClass());
+
+        this.logger = Loggers.getLogger(getClass(), indexSettings, shardId);
+    }
+
+    protected AbstractIndexShardComponent(ShardId shardId, @IndexSettings Settings indexSettings, String prefixSettings) {
+        this.shardId = shardId;
+        this.indexSettings = indexSettings;
+        this.componentSettings = indexSettings.getComponentSettings(prefixSettings, getClass());
 
         this.logger = Loggers.getLogger(getClass(), indexSettings, shardId);
     }

@@ -48,6 +48,14 @@ public abstract class AbstractIndexComponent implements IndexComponent {
         this.logger = Loggers.getLogger(getClass(), indexSettings, index);
     }
 
+    protected AbstractIndexComponent(Index index, @IndexSettings Settings indexSettings, String prefixSettings) {
+        this.index = index;
+        this.indexSettings = indexSettings;
+        this.componentSettings = indexSettings.getComponentSettings(prefixSettings, getClass());
+
+        this.logger = Loggers.getLogger(getClass(), indexSettings, index);
+    }
+
     @Override public Index index() {
         return this.index;
     }

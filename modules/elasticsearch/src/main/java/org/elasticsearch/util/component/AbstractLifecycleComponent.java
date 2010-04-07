@@ -46,6 +46,18 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
         super(settings, loggerClass, componentClass);
     }
 
+    protected AbstractLifecycleComponent(Settings settings, String prefixSettings) {
+        super(settings, prefixSettings);
+    }
+
+    protected AbstractLifecycleComponent(Settings settings, String prefixSettings, Class customClass) {
+        super(settings, prefixSettings, customClass);
+    }
+
+    protected AbstractLifecycleComponent(Settings settings, String prefixSettings, Class loggerClass, Class componentClass) {
+        super(settings, prefixSettings, loggerClass, componentClass);
+    }
+
     @Override public Lifecycle.State lifecycleState() {
         return this.lifecycle.state();
     }

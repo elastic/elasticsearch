@@ -40,16 +40,34 @@ public class AbstractComponent {
         this.componentSettings = settings.getComponentSettings(getClass());
     }
 
+    public AbstractComponent(Settings settings, String prefixSettings) {
+        this.logger = Loggers.getLogger(getClass(), settings);
+        this.settings = settings;
+        this.componentSettings = settings.getComponentSettings(prefixSettings, getClass());
+    }
+
     public AbstractComponent(Settings settings, Class customClass) {
         this.logger = Loggers.getLogger(customClass, settings);
         this.settings = settings;
         this.componentSettings = settings.getComponentSettings(customClass);
     }
 
+    public AbstractComponent(Settings settings, String prefixSettings, Class customClass) {
+        this.logger = Loggers.getLogger(customClass, settings);
+        this.settings = settings;
+        this.componentSettings = settings.getComponentSettings(prefixSettings, customClass);
+    }
+
     public AbstractComponent(Settings settings, Class loggerClass, Class componentClass) {
         this.logger = Loggers.getLogger(loggerClass, settings);
         this.settings = settings;
         this.componentSettings = settings.getComponentSettings(componentClass);
+    }
+
+    public AbstractComponent(Settings settings, String prefixSettings, Class loggerClass, Class componentClass) {
+        this.logger = Loggers.getLogger(loggerClass, settings);
+        this.settings = settings;
+        this.componentSettings = settings.getComponentSettings(prefixSettings, componentClass);
     }
 
     public String nodeName() {

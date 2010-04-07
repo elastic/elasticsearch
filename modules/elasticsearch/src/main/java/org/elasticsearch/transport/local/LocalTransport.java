@@ -67,6 +67,10 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         this.threadPool = threadPool;
     }
 
+    @Override public boolean addressSupported(Class<? extends TransportAddress> address) {
+        return LocalTransportAddress.class.equals(address);
+    }
+
     @Override protected void doStart() throws ElasticSearchException {
         localAddress = new LocalTransportAddress(Long.toString(transportAddressIdGenerator.incrementAndGet()));
         transports.put(localAddress, this);

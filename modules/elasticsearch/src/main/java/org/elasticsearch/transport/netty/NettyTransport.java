@@ -328,6 +328,10 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     @Override protected void doClose() throws ElasticSearchException {
     }
 
+    @Override public boolean addressSupported(Class<? extends TransportAddress> address) {
+        return InetSocketTransportAddress.class.equals(address);
+    }
+
     @Override public BoundTransportAddress boundAddress() {
         return this.boundAddress;
     }

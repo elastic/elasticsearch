@@ -28,6 +28,7 @@ import org.elasticsearch.util.concurrent.highscalelib.NonBlockingHashMapLong;
 import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.transport.BoundTransportAddress;
+import org.elasticsearch.util.transport.TransportAddress;
 
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -85,6 +86,10 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     @Override protected void doClose() throws ElasticSearchException {
         transport.close();
+    }
+
+    public boolean addressSupported(Class<? extends TransportAddress> address) {
+        return transport.addressSupported(address);
     }
 
     public BoundTransportAddress boundAddress() {

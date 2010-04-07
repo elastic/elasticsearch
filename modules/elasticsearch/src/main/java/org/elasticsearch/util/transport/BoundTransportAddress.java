@@ -24,7 +24,7 @@ package org.elasticsearch.util.transport;
  * the address the transport is bounded on, the the published one represents the one clients should
  * communicate on.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class BoundTransportAddress {
 

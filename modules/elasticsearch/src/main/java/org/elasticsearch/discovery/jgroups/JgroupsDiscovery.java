@@ -173,7 +173,7 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
                 try {
                     channel.send(new Message(channel.getView().getCreator(), channel.getAddress(), nodeMessagePayload()));
                     addressSet = true;
-                    logger.debug("Sent address [{}] to master [{}]", transportService.boundAddress().publishAddress(), channel.getView().getCreator());
+                    logger.debug("Sent (initial) node information to master [{}], node [{}]", channel.getView().getCreator(), localNode);
                 } catch (Exception e) {
                     logger.warn("Can't send address to master [" + channel.getView().getCreator() + "] will try again later...", e);
                 }
@@ -255,16 +255,21 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
                     logger.debug("Received node information from [{}], node [{}]", msg.getSrc(), newNode);
                 }
 
-                clusterService.submitStateUpdateTask("jgroups-disco-receive(from node[" + newNode + "])", new ClusterStateUpdateTask() {
-                    @Override public ClusterState execute(ClusterState currentState) {
-                        if (currentState.nodes().nodeExists(newNode.id())) {
-                            // no change, the node already exists in the cluster
-                            logger.warn("Received an address [{}] for an existing node [{}]", newNode.address(), newNode);
-                            return currentState;
+                if (!transportService.addressSupported(newNode.address().getClass())) {
+                    // TODO, what should we do now? Maybe inform that node that its crap?
+                    logger.warn("Received a wrong address type from [" + msg.getSrc() + "], ignoring... (received_address[" + newNode.address() + ")");
+                } else {
+                    clusterService.submitStateUpdateTask("jgroups-disco-receive(from node[" + newNode + "])", new ClusterStateUpdateTask() {
+                        @Override public ClusterState execute(ClusterState currentState) {
+                            if (currentState.nodes().nodeExists(newNode.id())) {
+                                // no change, the node already exists in the cluster
+                                logger.warn("Received an address [{}] for an existing node [{}]", newNode.address(), newNode);
+                                return currentState;
+                            }
+                            return newClusterStateBuilder().state(currentState).nodes(currentState.nodes().newNode(newNode)).build();
                         }
-                        return newClusterStateBuilder().state(currentState).nodes(currentState.nodes().newNode(newNode)).build();
-                    }
-                });
+                    });
+                }
             } catch (Exception e) {
                 logger.warn("Can't read address from cluster member [" + msg.getSrc() + "] message [" + msg.getClass().getName() + "/" + msg + "]", e);
             }
@@ -290,7 +295,7 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
         if (!addressSet) {
             try {
                 channel.send(new Message(newView.getCreator(), channel.getAddress(), nodeMessagePayload()));
-                logger.debug("Sent address [{}] to master [{}]", localNode.address(), newView.getCreator());
+                logger.debug("Sent (view) node information to master [{}], node [{}]", newView.getCreator(), localNode);
                 addressSet = true;
             } catch (Exception e) {
                 logger.warn("Can't send address to master [" + newView.getCreator() + "] will try again later...", e);
@@ -331,7 +336,7 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
             }
 
             if (!foundMe) {
-                logger.warn("Disconnected from cluster, resending address [{}] to master [{}]", localNode.address(), newView.getCreator());
+                logger.warn("Disconnected from cluster, resending to master [{}], node [{}]", newView.getCreator(), localNode);
                 try {
                     channel.send(new Message(newView.getCreator(), channel.getAddress(), nodeMessagePayload()));
                     addressSet = true;

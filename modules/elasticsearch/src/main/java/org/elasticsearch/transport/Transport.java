@@ -23,11 +23,12 @@ import org.elasticsearch.cluster.node.Node;
 import org.elasticsearch.util.component.LifecycleComponent;
 import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.transport.BoundTransportAddress;
+import org.elasticsearch.util.transport.TransportAddress;
 
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public interface Transport extends LifecycleComponent<Transport> {
 
@@ -63,6 +64,11 @@ public interface Transport extends LifecycleComponent<Transport> {
     void transportServiceAdapter(TransportServiceAdapter service);
 
     BoundTransportAddress boundAddress();
+
+    /**
+     * Is the address type supported.
+     */
+    boolean addressSupported(Class<? extends TransportAddress> address);
 
     void nodesAdded(Iterable<Node> nodes);
 

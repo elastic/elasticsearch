@@ -28,9 +28,8 @@ import org.slf4j.Logger;
 import static org.elasticsearch.index.IndexServiceManagement.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-@IndexLifecycle
 public abstract class AbstractIndexComponent implements IndexComponent {
 
     protected final Logger logger;

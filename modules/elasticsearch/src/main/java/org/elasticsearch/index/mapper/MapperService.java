@@ -28,7 +28,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.FailedToResolveConfigException;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexLifecycle;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.json.JsonDocumentMapperParser;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -49,7 +48,6 @@ import static org.elasticsearch.util.MapBuilder.*;
 /**
  * @author kimchy (Shay Banon)
  */
-@IndexLifecycle
 @ThreadSafe
 public class MapperService extends AbstractIndexComponent implements Iterable<DocumentMapper> {
 

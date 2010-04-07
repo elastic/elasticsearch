@@ -24,7 +24,6 @@ import org.elasticsearch.util.settings.Settings;
 /**
  * @author kimchy (Shay Banon)
  */
-@IndexShardLifecycle
 public interface IndexShardComponent {
 
     ShardId shardId();

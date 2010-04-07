@@ -20,7 +20,6 @@
 package org.elasticsearch.index.merge.policy;
 
 import com.google.inject.BindingAnnotation;
-import org.elasticsearch.index.shard.IndexShardLifecycle;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
@@ -38,6 +37,5 @@ import static java.lang.annotation.RetentionPolicy.*;
 @Target({FIELD, PARAMETER})
 @Retention(RUNTIME)
 @Documented
-@IndexShardLifecycle
 public @interface MergeFactor {
 }

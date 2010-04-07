@@ -22,7 +22,6 @@ package org.elasticsearch.index.service;
 import com.google.inject.Injector;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.index.IndexComponent;
-import org.elasticsearch.index.IndexLifecycle;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.mapper.MapperService;
@@ -37,7 +36,6 @@ import java.util.Set;
 /**
  * @author kimchy (Shay Banon)
  */
-@IndexLifecycle
 public interface IndexService extends IndexComponent, Iterable<IndexShard>, CloseableIndexComponent {
 
     Injector injector();

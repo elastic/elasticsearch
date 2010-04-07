@@ -20,7 +20,6 @@
 package org.elasticsearch.index.settings;
 
 import com.google.inject.BindingAnnotation;
-import org.elasticsearch.index.IndexLifecycle;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
@@ -37,6 +36,5 @@ import static java.lang.annotation.RetentionPolicy.*;
 @Target({FIELD, PARAMETER})
 @Retention(RUNTIME)
 @Documented
-@IndexLifecycle
 public @interface IndexSettings {
 }

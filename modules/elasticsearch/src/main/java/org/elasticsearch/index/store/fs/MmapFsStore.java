@@ -26,7 +26,6 @@ import org.apache.lucene.store.MMapDirectory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.LocalNodeId;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.IndexShardLifecycle;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.support.ForceSyncDirectory;
 import org.elasticsearch.util.lucene.store.SwitchDirectory;
@@ -38,9 +37,8 @@ import java.io.IOException;
 import static org.elasticsearch.index.store.fs.FsStores.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-@IndexShardLifecycle
 public class MmapFsStore extends AbstractFsStore<Directory> {
 
     private final boolean syncToDisk;

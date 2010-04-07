@@ -21,13 +21,11 @@ package org.elasticsearch.index.merge.policy;
 
 import com.google.inject.AbstractModule;
 import org.apache.lucene.index.LogMergePolicy;
-import org.elasticsearch.index.shard.IndexShardLifecycle;
 import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)
  */
-@IndexShardLifecycle
 public class MergePolicyModule extends AbstractModule {
 
     private final Settings settings;

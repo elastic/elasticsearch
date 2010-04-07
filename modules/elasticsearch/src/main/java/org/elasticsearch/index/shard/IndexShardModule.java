@@ -25,9 +25,8 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-@IndexShardLifecycle
 public class IndexShardModule extends AbstractModule {
 
     private final ShardId shardId;

@@ -24,7 +24,10 @@ import com.google.common.collect.UnmodifiableIterator;
 import com.google.inject.Inject;
 import com.google.inject.Injector;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.index.*;
+import org.elasticsearch.index.AbstractIndexComponent;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexShardAlreadyExistsException;
+import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
 import org.elasticsearch.index.engine.Engine;
@@ -64,7 +67,6 @@ import static org.elasticsearch.util.MapBuilder.*;
 /**
  * @author kimchy (Shay Banon)
  */
-@IndexLifecycle
 public class InternalIndexService extends AbstractIndexComponent implements IndexService {
 
     private final Injector injector;

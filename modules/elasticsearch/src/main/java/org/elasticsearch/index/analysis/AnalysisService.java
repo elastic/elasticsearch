@@ -24,7 +24,6 @@ import com.google.inject.Inject;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexLifecycle;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.component.CloseableComponent;
@@ -38,7 +37,6 @@ import static com.google.common.collect.Maps.*;
 /**
  * @author kimchy (Shay Banon)
  */
-@IndexLifecycle
 public class AnalysisService extends AbstractIndexComponent implements CloseableComponent {
 
     private final ImmutableMap<String, AnalyzerProvider> analyzerProviders;

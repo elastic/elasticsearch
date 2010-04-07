@@ -24,7 +24,6 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.IndexShardLifecycle;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.util.settings.Settings;
 
@@ -32,9 +31,8 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-@IndexShardLifecycle
 public class KeepLastNDeletionPolicy extends AbstractIndexShardComponent implements IndexDeletionPolicy {
 
     private final int numToKeep;

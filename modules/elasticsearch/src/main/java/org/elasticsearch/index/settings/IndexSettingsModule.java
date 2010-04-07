@@ -20,13 +20,11 @@
 package org.elasticsearch.index.settings;
 
 import com.google.inject.AbstractModule;
-import org.elasticsearch.index.IndexLifecycle;
 import org.elasticsearch.util.settings.Settings;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-@IndexLifecycle
 public class IndexSettingsModule extends AbstractModule {
 
     private final Settings settings;

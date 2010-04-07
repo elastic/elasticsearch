@@ -23,14 +23,12 @@ import com.google.inject.Inject;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LogDocMergePolicy;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.IndexShardLifecycle;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.util.Preconditions;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-@IndexShardLifecycle
 public class LogDocMergePolicyProvider extends AbstractIndexShardComponent implements MergePolicyProvider<LogDocMergePolicy> {
 
     private final int minMergeDocs;

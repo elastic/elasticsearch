@@ -21,14 +21,12 @@ package org.elasticsearch.index.cache.filter;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Scopes;
-import org.elasticsearch.index.IndexLifecycle;
 import org.elasticsearch.index.cache.filter.soft.SoftFilterCache;
 import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)
  */
-@IndexLifecycle
 public class FilterCacheModule extends AbstractModule {
 
     public static final class FilterCacheSettings {

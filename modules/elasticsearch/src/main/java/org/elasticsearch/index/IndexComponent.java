@@ -20,9 +20,8 @@
 package org.elasticsearch.index;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-@IndexLifecycle
 public interface IndexComponent {
 
     Index index();

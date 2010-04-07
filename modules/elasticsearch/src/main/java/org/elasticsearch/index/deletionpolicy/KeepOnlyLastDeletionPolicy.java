@@ -24,7 +24,6 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.IndexShardLifecycle;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.util.settings.Settings;
 
@@ -36,7 +35,6 @@ import java.util.List;
  * all prior commits after a new commit is done.  This is
  * the default deletion policy.
  */
-@IndexShardLifecycle
 public class KeepOnlyLastDeletionPolicy extends AbstractIndexShardComponent implements IndexDeletionPolicy {
 
     @Inject public KeepOnlyLastDeletionPolicy(ShardId shardId, @IndexSettings Settings indexSettings) {

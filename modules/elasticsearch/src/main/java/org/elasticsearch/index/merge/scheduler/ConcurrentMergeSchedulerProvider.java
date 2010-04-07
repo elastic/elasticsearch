@@ -24,14 +24,12 @@ import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.MergeScheduler;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.IndexShardLifecycle;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)
  */
-@IndexShardLifecycle
 public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponent implements MergeSchedulerProvider {
 
     private final int maxThreadCount;

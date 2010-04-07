@@ -28,7 +28,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.shard.IndexShardComponent;
-import org.elasticsearch.index.shard.IndexShardLifecycle;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.SizeValue;
@@ -37,10 +36,9 @@ import org.elasticsearch.util.concurrent.ThreadSafe;
 import org.elasticsearch.util.lease.Releasable;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 @ThreadSafe
-@IndexShardLifecycle
 public interface Engine extends IndexShardComponent, CloseableComponent {
 
     /**

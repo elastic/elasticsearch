@@ -20,15 +20,13 @@
 package org.elasticsearch.index.merge.scheduler;
 
 import com.google.inject.AbstractModule;
-import org.elasticsearch.index.shard.IndexShardLifecycle;
 import org.elasticsearch.util.settings.Settings;
 
 import static org.elasticsearch.index.merge.scheduler.MergeSchedulerModule.MergeSchedulerSettings.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-@IndexShardLifecycle
 public class MergeSchedulerModule extends AbstractModule {
 
     public static class MergeSchedulerSettings {

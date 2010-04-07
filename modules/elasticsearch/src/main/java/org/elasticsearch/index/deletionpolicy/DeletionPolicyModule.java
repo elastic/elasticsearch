@@ -22,15 +22,13 @@ package org.elasticsearch.index.deletionpolicy;
 import com.google.inject.AbstractModule;
 import com.google.inject.name.Names;
 import org.apache.lucene.index.IndexDeletionPolicy;
-import org.elasticsearch.index.shard.IndexShardLifecycle;
 import org.elasticsearch.util.settings.Settings;
 
 import static org.elasticsearch.index.deletionpolicy.DeletionPolicyModule.DeletionPolicySettings.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-@IndexShardLifecycle
 public class DeletionPolicyModule extends AbstractModule {
 
     public static class DeletionPolicySettings {

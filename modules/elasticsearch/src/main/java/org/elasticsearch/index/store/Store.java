@@ -21,15 +21,13 @@ package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.shard.IndexShardComponent;
-import org.elasticsearch.index.shard.IndexShardLifecycle;
 import org.elasticsearch.util.SizeValue;
 
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-@IndexShardLifecycle
 public interface Store<T extends Directory> extends IndexShardComponent {
 
     /**

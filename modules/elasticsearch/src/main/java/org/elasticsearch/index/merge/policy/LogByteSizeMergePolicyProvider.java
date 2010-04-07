@@ -23,16 +23,14 @@ import com.google.inject.Inject;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.IndexShardLifecycle;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.util.Preconditions;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-@IndexShardLifecycle
 public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent implements MergePolicyProvider<LogByteSizeMergePolicy> {
 
     private final SizeValue minMergeSize;

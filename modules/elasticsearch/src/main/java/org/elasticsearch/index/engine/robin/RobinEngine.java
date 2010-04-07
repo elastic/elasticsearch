@@ -33,7 +33,6 @@ import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.IndexShardLifecycle;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
@@ -57,9 +56,8 @@ import static org.elasticsearch.util.concurrent.resource.AcquirableResourceFacto
 import static org.elasticsearch.util.lucene.Lucene.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-@IndexShardLifecycle
 public class RobinEngine extends AbstractIndexShardComponent implements Engine, ScheduledRefreshableEngine {
 
     private final SizeValue ramBufferSize;

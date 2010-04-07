@@ -25,7 +25,6 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardComponent;
-import org.elasticsearch.index.shard.IndexShardLifecycle;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,9 +38,8 @@ import java.util.concurrent.ConcurrentMap;
  * and if the deletion policy is used with all open index writers (JVM level) then the snapshot
  * state will not be deleted until it will be released.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-@IndexShardLifecycle
 public class SnapshotDeletionPolicy extends AbstractIndexShardComponent implements IndexDeletionPolicy {
 
     private final IndexDeletionPolicy primary;

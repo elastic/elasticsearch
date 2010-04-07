@@ -24,7 +24,7 @@ import org.elasticsearch.util.settings.Settings;
 import org.slf4j.Logger;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class AbstractComponent {
 

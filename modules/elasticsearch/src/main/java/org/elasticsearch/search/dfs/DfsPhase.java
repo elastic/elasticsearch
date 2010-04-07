@@ -29,7 +29,7 @@ import org.elasticsearch.util.gnu.trove.THashSet;
 import java.util.Map;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class DfsPhase implements SearchPhase {
 

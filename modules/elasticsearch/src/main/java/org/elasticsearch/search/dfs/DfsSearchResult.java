@@ -30,7 +30,7 @@ import java.io.IOException;
 import static org.elasticsearch.search.SearchShardTarget.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class DfsSearchResult implements SearchPhaseResult {
 

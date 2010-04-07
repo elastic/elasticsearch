@@ -44,7 +44,7 @@ import org.elasticsearch.util.timer.Timeout;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class SearchContext implements Releasable {
 

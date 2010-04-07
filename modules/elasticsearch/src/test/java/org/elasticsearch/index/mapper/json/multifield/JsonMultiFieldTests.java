@@ -61,6 +61,13 @@ public class JsonMultiFieldTests {
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.isStored(), equalTo(true));
         assertThat(f.isIndexed(), equalTo(false));
+
+        f = doc.getField("object1.multi1");
+        assertThat(f.name(), equalTo("object1.multi1"));
+
+        f = doc.getField("object1.multi1.string");
+        assertThat(f.name(), equalTo("object1.multi1.string"));
+        assertThat(f.stringValue(), equalTo("2010-01-01"));
     }
 
     @Test public void testBuildThenParse() throws Exception {

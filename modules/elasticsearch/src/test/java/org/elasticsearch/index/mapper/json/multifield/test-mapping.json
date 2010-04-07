@@ -14,7 +14,7 @@
                     "multi1" : {
                         type : "multi_field",
                         "fields" : {
-                            "number" : {type: "integer"},
+                            "multi1" : {type : "date"},
                             "string" : {type: "string", index : "not_analyzed"}
                         }
                     }

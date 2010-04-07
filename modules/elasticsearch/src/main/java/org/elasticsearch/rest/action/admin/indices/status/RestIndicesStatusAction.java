@@ -87,10 +87,10 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                         }
                         if (indexStatus.estimatedFlushableMemorySize() == null) {
                             builder.nullField("estimated_flushable_memory_size");
-                            builder.nullField("estimated_flushable_Memory_size_in_bytes");
+                            builder.nullField("estimated_flushable_memory_size_in_bytes");
                         } else {
                             builder.field("estimated_flushable_memory_size", indexStatus.estimatedFlushableMemorySize().toString());
-                            builder.field("estimated_flushable_Memory_size_in_bytes", indexStatus.estimatedFlushableMemorySize().bytes());
+                            builder.field("estimated_flushable_memory_size_in_bytes", indexStatus.estimatedFlushableMemorySize().bytes());
                         }
                         builder.field("translog_operations", indexStatus.translogOperations());
 

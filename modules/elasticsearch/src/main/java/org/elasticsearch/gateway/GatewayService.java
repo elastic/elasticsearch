@@ -158,7 +158,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         }
         if (metaData == null) {
             logger.debug("No state read from gateway");
-            return false;
+            return true;
         }
         final MetaData fMetaData = metaData;
         final CountDownLatch latch = new CountDownLatch(fMetaData.indices().size());

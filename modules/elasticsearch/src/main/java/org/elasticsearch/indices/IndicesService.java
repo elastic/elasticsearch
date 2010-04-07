@@ -42,6 +42,8 @@ public interface IndicesService extends Iterable<IndexService>, LifecycleCompone
 
     boolean hasIndex(String index);
 
+    IndicesLifecycle indicesLifecycle();
+
     Set<String> indices();
 
     IndexService indexService(String index);

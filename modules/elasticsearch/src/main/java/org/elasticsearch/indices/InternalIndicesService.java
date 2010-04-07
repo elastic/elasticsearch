@@ -67,6 +67,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     private final IndicesClusterStateService clusterStateService;
 
+    private final InternalIndicesLifecycle indicesLifecycle;
+
     private final Injector injector;
 
     private final PluginsService pluginsService;
@@ -75,9 +77,10 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     private volatile ImmutableMap<String, IndexService> indices = ImmutableMap.of();
 
-    @Inject public InternalIndicesService(Settings settings, IndicesClusterStateService clusterStateService, Injector injector) {
+    @Inject public InternalIndicesService(Settings settings, IndicesClusterStateService clusterStateService, IndicesLifecycle indicesLifecycle, Injector injector) {
         super(settings);
         this.clusterStateService = clusterStateService;
+        this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.injector = injector;
 
         this.pluginsService = injector.getInstance(PluginsService.class);
@@ -96,6 +99,10 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     @Override protected void doClose() throws ElasticSearchException {
         clusterStateService.close();
+    }
+
+    @Override public IndicesLifecycle indicesLifecycle() {
+        return this.indicesLifecycle;
     }
 
     /**
@@ -148,6 +155,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
             throw new IndexAlreadyExistsException(index);
         }
 
+        indicesLifecycle.beforeIndexCreated(index);
+
         logger.debug("Creating Index [{}], shards [{}]/[{}]", new Object[]{sIndexName, settings.get(SETTING_NUMBER_OF_SHARDS), settings.get(SETTING_NUMBER_OF_REPLICAS)});
 
         Settings indexSettings = settingsBuilder()
@@ -176,6 +185,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
         IndexService indexService = indexInjector.getInstance(IndexService.class);
 
+        indicesLifecycle.afterIndexCreated(indexService);
+
         indices = newMapBuilder(indices).put(index.name(), indexService).immutableMap();
 
         return indexService;
@@ -201,6 +212,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         IndexService indexService = tmpMap.remove(index);
         indices = ImmutableMap.copyOf(tmpMap);
 
+        indicesLifecycle.beforeIndexClosed(indexService, delete);
+
         for (Class<? extends CloseableIndexComponent> closeable : pluginsService.indexServices()) {
             indexInjector.getInstance(closeable).close(delete);
         }
@@ -214,5 +227,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         indexInjector.getInstance(IndexGateway.class).close(delete);
 
         Injectors.close(injector);
+
+        indicesLifecycle.afterIndexClosed(indexService.index(), delete);
     }
 }

@@ -50,6 +50,8 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreModule;
 import org.elasticsearch.index.translog.TranslogModule;
+import org.elasticsearch.indices.IndicesLifecycle;
+import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ShardsPluginsModule;
 import org.elasticsearch.util.component.CloseableIndexComponent;
@@ -65,7 +67,7 @@ import static com.google.common.collect.Sets.*;
 import static org.elasticsearch.util.MapBuilder.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class InternalIndexService extends AbstractIndexComponent implements IndexService {
 
@@ -74,6 +76,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     private final Settings indexSettings;
 
     private final PluginsService pluginsService;
+
+    private final InternalIndicesLifecycle indicesLifecycle;
 
     private final MapperService mapperService;
 
@@ -102,6 +106,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         this.operationRouting = operationRouting;
 
         this.pluginsService = injector.getInstance(PluginsService.class);
+        this.indicesLifecycle = (InternalIndicesLifecycle) injector.getInstance(IndicesLifecycle.class);
     }
 
     @Override public int numberOfShards() {
@@ -180,6 +185,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
             throw new IndexShardAlreadyExistsException(shardId + " already exists");
         }
 
+        indicesLifecycle.beforeIndexShardCreated(shardId);
+
         logger.debug("Creating Shard Id [{}]", shardId.id());
 
         Injector shardInjector = injector.createChildInjector(
@@ -204,6 +211,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         } catch (IOException e) {
             logger.warn("Failed to clean store on shard creation", e);
         }
+
+        indicesLifecycle.afterIndexShardCreated(indexShard);
 
         shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
 
@@ -232,6 +241,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         IndexShard indexShard = tmpShardsMap.remove(shardId);
         shards = ImmutableMap.copyOf(tmpShardsMap);
 
+        indicesLifecycle.beforeIndexShardClosed(indexShard, delete);
 
         for (Class<? extends CloseableIndexComponent> closeable : pluginsService.shardServices()) {
             shardInjector.getInstance(closeable).close(delete);
@@ -263,6 +273,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         }
 
         Injectors.close(injector);
+
+        indicesLifecycle.afterIndexShardClosed(indexShard.shardId(), delete);
     }
 
 }

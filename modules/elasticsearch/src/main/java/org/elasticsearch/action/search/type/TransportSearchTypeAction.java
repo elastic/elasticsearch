@@ -281,7 +281,10 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                                                        Map<SearchShardTarget, ExtTIntArrayList> docIdsToLoad) {
             for (Map.Entry<SearchShardTarget, QuerySearchResultProvider> entry : queryResults.entrySet()) {
                 if (!docIdsToLoad.containsKey(entry.getKey())) {
-                    searchService.sendFreeContext(nodes.get(entry.getKey().nodeId()), entry.getValue().id());
+                    Node node = nodes.get(entry.getKey().nodeId());
+                    if (node != null) { // should not happen (==null) but safeguard anyhow
+                        searchService.sendFreeContext(node, entry.getValue().id());
+                    }
                 }
             }
         }

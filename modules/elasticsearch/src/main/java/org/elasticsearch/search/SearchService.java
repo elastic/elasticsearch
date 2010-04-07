@@ -32,6 +32,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.dfs.DfsPhase;
@@ -91,6 +92,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private final AtomicLong idGenerator = new AtomicLong();
 
+    private final CleanContextOnIndicesLifecycleListener indicesLifecycleListener = new CleanContextOnIndicesLifecycleListener();
+
     private final NonBlockingHashMapLong<SearchContext> activeContexts = new NonBlockingHashMapLong<SearchContext>();
 
     private final ImmutableMap<String, SearchParseElement> elementParsers;
@@ -105,13 +108,15 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         this.queryPhase = queryPhase;
         this.fetchPhase = fetchPhase;
 
-        this.defaultKeepAlive = componentSettings.getAsTime("default_keep_alive", timeValueMinutes(2));
+        // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
+        this.defaultKeepAlive = componentSettings.getAsTime("default_keep_alive", timeValueMinutes(5));
 
         Map<String, SearchParseElement> elementParsers = new HashMap<String, SearchParseElement>();
         elementParsers.putAll(dfsPhase.parseElements());
         elementParsers.putAll(queryPhase.parseElements());
         elementParsers.putAll(fetchPhase.parseElements());
         this.elementParsers = ImmutableMap.copyOf(elementParsers);
+        indicesService.indicesLifecycle().addListener(indicesLifecycleListener);
     }
 
     @Override protected void doStart() throws ElasticSearchException {
@@ -125,6 +130,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     }
 
     @Override protected void doClose() throws ElasticSearchException {
+        indicesService.indicesLifecycle().removeListener(indicesLifecycleListener);
     }
 
     public void releaseContextsForIndex(Index index) {
@@ -390,7 +396,18 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
-    private class KeepAliveTimerTask implements TimerTask {
+    class CleanContextOnIndicesLifecycleListener extends IndicesLifecycle.Listener {
+
+        @Override public void beforeIndexClosed(IndexService indexService, boolean delete) {
+            releaseContextsForIndex(indexService.index());
+        }
+
+        @Override public void beforeIndexShardClosed(IndexShard indexShard, boolean delete) {
+            releaseContextsForShard(indexShard.shardId());
+        }
+    }
+
+    class KeepAliveTimerTask implements TimerTask {
 
         private final SearchContext context;
 

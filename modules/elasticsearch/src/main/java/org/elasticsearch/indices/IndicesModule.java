@@ -35,6 +35,7 @@ public class IndicesModule extends AbstractModule {
     }
 
     @Override protected void configure() {
+        bind(IndicesLifecycle.class).to(InternalIndicesLifecycle.class).asEagerSingleton();
         bind(IndicesService.class).to(InternalIndicesService.class).asEagerSingleton();
         bind(IndicesClusterStateService.class).asEagerSingleton();
         bind(IndicesMemoryCleaner.class).asEagerSingleton();

@@ -36,16 +36,19 @@ import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.controller.ShardDoc;
 import org.elasticsearch.search.internal.InternalSearchRequest;
+import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.trove.ExtTIntArrayList;
 
 import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.action.search.type.TransportSearchHelper.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest, SearchResponse> {
 
@@ -269,6 +272,18 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
          */
         protected ShardSearchFailure[] buildShardFailures() {
             return TransportSearchHelper.buildShardFailures(shardFailures, searchCache);
+        }
+
+        /**
+         * Releases shard targets that are not used in the docsIdsToLoad.
+         */
+        protected void releaseIrrelevantSearchContexts(Map<SearchShardTarget, QuerySearchResultProvider> queryResults,
+                                                       Map<SearchShardTarget, ExtTIntArrayList> docIdsToLoad) {
+            for (Map.Entry<SearchShardTarget, QuerySearchResultProvider> entry : queryResults.entrySet()) {
+                if (!docIdsToLoad.containsKey(entry.getKey())) {
+                    searchService.sendFreeContext(nodes.get(entry.getKey().nodeId()), entry.getValue().id());
+                }
+            }
         }
 
         protected void invokeListener(final SearchResponse response) {

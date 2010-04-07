@@ -39,6 +39,7 @@
       <w>nanos</w>
       <w>newcount</w>
       <w>ngram</w>
+      <w>nospawn</w>
       <w>param</w>
       <w>params</w>
       <w>pluggable</w>

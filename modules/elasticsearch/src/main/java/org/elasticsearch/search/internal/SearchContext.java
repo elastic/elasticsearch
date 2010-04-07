@@ -21,6 +21,7 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.engine.Engine;
@@ -122,6 +123,8 @@ public class SearchContext implements Releasable {
             searcher.close();
         } catch (IOException e) {
             // ignore this exception
+        } catch (AlreadyClosedException e) {
+            // ignore this as well
         }
         engineSearcher.release();
         if (!keepAliveTimeout.isCancelled()) {

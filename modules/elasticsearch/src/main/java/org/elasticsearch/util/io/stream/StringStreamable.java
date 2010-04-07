@@ -17,24 +17,37 @@
  * under the License.
  */
 
-package org.elasticsearch.util.io;
-
-import org.elasticsearch.util.io.stream.StreamInput;
-import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.io.stream.Streamable;
+package org.elasticsearch.util.io.stream;
 
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class VoidStreamable implements Streamable {
+public class StringStreamable implements Streamable {
 
-    public static final VoidStreamable INSTANCE = new VoidStreamable();
+    private String value;
+
+    public StringStreamable() {
+    }
+
+    public StringStreamable(String value) {
+        this.value = value;
+    }
+
+    public void set(String newValue) {
+        value = newValue;
+    }
+
+    public String get() {
+        return this.value;
+    }
 
     @Override public void readFrom(StreamInput in) throws IOException {
+        value = in.readUTF();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
+        out.writeUTF(value);
     }
 }

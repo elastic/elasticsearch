@@ -44,7 +44,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TransportSearchQueryThenFetchAction extends TransportSearchTypeAction {
 
@@ -85,6 +85,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
             final Map<SearchShardTarget, ExtTIntArrayList> docIdsToLoad = searchPhaseController.docIdsToLoad(sortedShardList);
 
             if (docIdsToLoad.isEmpty()) {
+                releaseIrrelevantSearchContexts(queryResults, docIdsToLoad);
                 finishHim();
             }
 
@@ -133,6 +134,8 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
                     }
                 }
             }
+
+            releaseIrrelevantSearchContexts(queryResults, docIdsToLoad);
         }
 
         private void executeFetch(final AtomicInteger counter, FetchSearchRequest fetchSearchRequest, Node node) {

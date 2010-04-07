@@ -29,8 +29,8 @@ import org.elasticsearch.transport.FutureTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.io.StringStreamable;
-import org.elasticsearch.util.io.VoidStreamable;
+import org.elasticsearch.util.io.stream.StringStreamable;
+import org.elasticsearch.util.io.stream.VoidStreamable;
 import org.elasticsearch.util.settings.Settings;
 
 /**

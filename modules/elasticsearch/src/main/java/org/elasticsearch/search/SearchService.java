@@ -27,8 +27,10 @@ import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.dfs.CachedDfSource;
@@ -125,25 +127,56 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     @Override protected void doClose() throws ElasticSearchException {
     }
 
+    public void releaseContextsForIndex(Index index) {
+        for (SearchContext context : activeContexts.values()) {
+            if (context.shardTarget().index().equals(index.name())) {
+                freeContext(context);
+            }
+        }
+    }
+
+    public void releaseContextsForShard(ShardId shardId) {
+        for (SearchContext context : activeContexts.values()) {
+            if (context.shardTarget().index().equals(shardId.index().name()) && context.shardTarget().shardId() == shardId.id()) {
+                freeContext(context);
+            }
+        }
+    }
+
     public DfsSearchResult executeDfsPhase(InternalSearchRequest request) throws ElasticSearchException {
         SearchContext context = createContext(request);
         activeContexts.put(context.id(), context);
-        dfsPhase.execute(context);
-        return context.dfsResult();
+        try {
+            dfsPhase.execute(context);
+            return context.dfsResult();
+        } catch (RuntimeException e) {
+            freeContext(context);
+            throw e;
+        }
     }
 
     public QuerySearchResult executeQueryPhase(InternalSearchRequest request) throws ElasticSearchException {
         SearchContext context = createContext(request);
         activeContexts.put(context.id(), context);
-        queryPhase.execute(context);
-        return context.queryResult();
+        try {
+            queryPhase.execute(context);
+            return context.queryResult();
+        } catch (RuntimeException e) {
+            freeContext(context);
+            throw e;
+        }
     }
 
     public QuerySearchResult executeQueryPhase(InternalScrollSearchRequest request) throws ElasticSearchException {
         SearchContext context = findContext(request.id());
-        processScroll(request, context);
-        queryPhase.execute(context);
-        return context.queryResult();
+        try {
+            processScroll(request, context);
+            queryPhase.execute(context);
+            return context.queryResult();
+        } catch (RuntimeException e) {
+            freeContext(context);
+            throw e;
+        }
     }
 
     public QuerySearchResult executeQueryPhase(QuerySearchRequest request) throws ElasticSearchException {
@@ -151,21 +184,32 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         try {
             context.searcher().dfSource(new CachedDfSource(request.dfs(), context.similarityService().defaultSearchSimilarity()));
         } catch (IOException e) {
+            freeContext(context);
             throw new QueryPhaseExecutionException(context, "Failed to set aggregated df", e);
         }
-        queryPhase.execute(context);
-        return context.queryResult();
+        try {
+            queryPhase.execute(context);
+            return context.queryResult();
+        } catch (RuntimeException e) {
+            freeContext(context);
+            throw e;
+        }
     }
 
     public QueryFetchSearchResult executeFetchPhase(InternalSearchRequest request) throws ElasticSearchException {
         SearchContext context = createContext(request);
-        queryPhase.execute(context);
-        shortcutDocIdsToLoad(context);
-        fetchPhase.execute(context);
-        if (context.scroll() != null) {
-            activeContexts.put(context.id(), context);
+        try {
+            queryPhase.execute(context);
+            shortcutDocIdsToLoad(context);
+            fetchPhase.execute(context);
+            if (context.scroll() != null) {
+                activeContexts.put(context.id(), context);
+            }
+            return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
+        } catch (RuntimeException e) {
+            freeContext(context);
+            throw e;
         }
-        return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
     }
 
     public QueryFetchSearchResult executeFetchPhase(QuerySearchRequest request) throws ElasticSearchException {
@@ -173,37 +217,53 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         try {
             context.searcher().dfSource(new CachedDfSource(request.dfs(), context.similarityService().defaultSearchSimilarity()));
         } catch (IOException e) {
+            freeContext(context);
             throw new QueryPhaseExecutionException(context, "Failed to set aggregated df", e);
         }
-        queryPhase.execute(context);
-        shortcutDocIdsToLoad(context);
-        fetchPhase.execute(context);
-        if (context.scroll() != null) {
-            activeContexts.put(context.id(), context);
+        try {
+            queryPhase.execute(context);
+            shortcutDocIdsToLoad(context);
+            fetchPhase.execute(context);
+            if (context.scroll() != null) {
+                activeContexts.put(context.id(), context);
+            }
+            return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
+        } catch (RuntimeException e) {
+            freeContext(context);
+            throw e;
         }
-        return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
     }
 
     public QueryFetchSearchResult executeFetchPhase(InternalScrollSearchRequest request) throws ElasticSearchException {
         SearchContext context = findContext(request.id());
-        processScroll(request, context);
-        queryPhase.execute(context);
-        shortcutDocIdsToLoad(context);
-        fetchPhase.execute(context);
-        if (context.scroll() == null) {
-            freeContext(request.id());
+        try {
+            processScroll(request, context);
+            queryPhase.execute(context);
+            shortcutDocIdsToLoad(context);
+            fetchPhase.execute(context);
+            if (context.scroll() == null) {
+                freeContext(request.id());
+            }
+            return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
+        } catch (RuntimeException e) {
+            freeContext(context);
+            throw e;
         }
-        return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
     }
 
     public FetchSearchResult executeFetchPhase(FetchSearchRequest request) throws ElasticSearchException {
         SearchContext context = findContext(request.id());
-        context.docIdsToLoad(request.docIds());
-        fetchPhase.execute(context);
-        if (context.scroll() == null) {
-            freeContext(request.id());
+        try {
+            context.docIdsToLoad(request.docIds());
+            fetchPhase.execute(context);
+            if (context.scroll() == null) {
+                freeContext(request.id());
+            }
+            return context.fetchResult();
+        } catch (RuntimeException e) {
+            freeContext(context);
+            throw e;
         }
-        return context.fetchResult();
     }
 
     private SearchContext findContext(long id) throws SearchContextMissingException {
@@ -255,7 +315,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         return context;
     }
 
-    private void freeContext(long id) {
+    public void freeContext(long id) {
         SearchContext context = activeContexts.remove(id);
         if (context == null) {
             return;
@@ -264,6 +324,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     }
 
     private void freeContext(SearchContext context) {
+        activeContexts.remove(context.id());
         context.release();
     }
 

@@ -171,6 +171,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             final Map<SearchShardTarget, ExtTIntArrayList> docIdsToLoad = searchPhaseController.docIdsToLoad(sortedShardList);
 
             if (docIdsToLoad.isEmpty()) {
+                releaseIrrelevantSearchContexts(queryResults, docIdsToLoad);
                 finishHim();
             }
 
@@ -218,6 +219,8 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                     }
                 }
             }
+
+            releaseIrrelevantSearchContexts(queryResults, docIdsToLoad);
         }
 
         private void executeFetch(final AtomicInteger counter, FetchSearchRequest fetchSearchRequest, Node node) {

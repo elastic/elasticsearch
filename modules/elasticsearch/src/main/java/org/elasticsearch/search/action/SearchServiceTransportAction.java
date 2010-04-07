@@ -32,6 +32,8 @@ import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.*;
+import org.elasticsearch.util.io.stream.LongStreamable;
+import org.elasticsearch.util.io.stream.VoidStreamable;
 
 /**
  * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
@@ -52,6 +54,7 @@ public class SearchServiceTransportAction {
         this.clusterService = clusterService;
         this.searchService = searchService;
 
+        transportService.registerHandler(SearchFreeContextTransportHandler.ACTION, new SearchFreeContextTransportHandler());
         transportService.registerHandler(SearchDfsTransportHandler.ACTION, new SearchDfsTransportHandler());
         transportService.registerHandler(SearchQueryTransportHandler.ACTION, new SearchQueryTransportHandler());
         transportService.registerHandler(SearchQueryByIdTransportHandler.ACTION, new SearchQueryByIdTransportHandler());
@@ -60,6 +63,14 @@ public class SearchServiceTransportAction {
         transportService.registerHandler(SearchQueryQueryFetchTransportHandler.ACTION, new SearchQueryQueryFetchTransportHandler());
         transportService.registerHandler(SearchQueryFetchScrollTransportHandler.ACTION, new SearchQueryFetchScrollTransportHandler());
         transportService.registerHandler(SearchFetchByIdTransportHandler.ACTION, new SearchFetchByIdTransportHandler());
+    }
+
+    public void sendFreeContext(Node node, final long contextId) {
+        if (clusterService.state().nodes().localNodeId().equals(node.id())) {
+            searchService.freeContext(contextId);
+        } else {
+            transportService.sendRequest(node, SearchFreeContextTransportHandler.ACTION, new LongStreamable(contextId), VoidTransportResponseHandler.INSTANCE_NOSPAWN);
+        }
     }
 
     public void sendExecuteDfs(Node node, final InternalSearchRequest request, final SearchServiceListener<DfsSearchResult> listener) {
@@ -299,6 +310,20 @@ public class SearchServiceTransportAction {
                     return false;
                 }
             });
+        }
+    }
+
+    private class SearchFreeContextTransportHandler extends BaseTransportRequestHandler<LongStreamable> {
+
+        static final String ACTION = "search/freeContext";
+
+        @Override public LongStreamable newInstance() {
+            return new LongStreamable();
+        }
+
+        @Override public void messageReceived(LongStreamable request, TransportChannel channel) throws Exception {
+            searchService.freeContext(request.get());
+            channel.sendResponse(VoidStreamable.INSTANCE);
         }
     }
 

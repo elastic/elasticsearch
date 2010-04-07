@@ -36,7 +36,7 @@ import org.elasticsearch.util.settings.Settings;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class AbstractFsStore<T extends Directory> extends AbstractStore<T> {
 
@@ -56,14 +56,14 @@ public abstract class AbstractFsStore<T extends Directory> extends AbstractStore
     public abstract FSDirectory fsDirectory();
 
     protected SwitchDirectory buildSwitchDirectoryIfNeeded(Directory fsDirectory) {
-        boolean cache = componentSettings.getAsBoolean("cache.enabled", false);
+        boolean cache = componentSettings.getAsBoolean("memory.enabled", false);
         if (!cache) {
             return null;
         }
-        SizeValue bufferSize = componentSettings.getAsSize("cache.buffer_size", new SizeValue(100, SizeUnit.KB));
-        SizeValue cacheSize = componentSettings.getAsSize("cache.cache_size", new SizeValue(20, SizeUnit.MB));
-        boolean direct = componentSettings.getAsBoolean("cache.direct", true);
-        boolean warmCache = componentSettings.getAsBoolean("cache.warm_cache", true);
+        SizeValue bufferSize = componentSettings.getAsSize("memory.buffer_size", new SizeValue(100, SizeUnit.KB));
+        SizeValue cacheSize = componentSettings.getAsSize("memory.cache_size", new SizeValue(20, SizeUnit.MB));
+        boolean direct = componentSettings.getAsBoolean("memory.direct", true);
+        boolean warmCache = componentSettings.getAsBoolean("memory.warm_cache", true);
 
         Directory memDir;
         if (direct) {
@@ -72,7 +72,7 @@ public abstract class AbstractFsStore<T extends Directory> extends AbstractStore
             memDir = new HeapDirectory(bufferSize, cacheSize, warmCache);
         }
         // see http://lucene.apache.org/java/3_0_1/fileformats.html
-        String[] primaryExtensions = componentSettings.getAsArray("cache.extensions", new String[]{"", "del", "gen"});
+        String[] primaryExtensions = componentSettings.getAsArray("memory.extensions", new String[]{"", "del", "gen"});
         return new SwitchDirectory(ImmutableSet.of(primaryExtensions), memDir, fsDirectory, true);
     }
 }

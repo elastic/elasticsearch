@@ -249,6 +249,9 @@ public class JsonMultiFieldMapper implements JsonMapper, JsonIncludeInAllMapper 
     }
 
     @Override public void traverse(FieldMapperListener fieldMapperListener) {
+        if (defaultMapper != null) {
+            defaultMapper.traverse(fieldMapperListener);
+        }
         for (JsonMapper mapper : mappers.values()) {
             mapper.traverse(fieldMapperListener);
         }

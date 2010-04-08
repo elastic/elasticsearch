@@ -22,7 +22,6 @@ package org.elasticsearch.index.gateway.none;
 import com.google.inject.Inject;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
-import org.elasticsearch.index.gateway.RecoveryStatus;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -33,7 +32,7 @@ import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.settings.Settings;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class NoneIndexShardGateway extends AbstractIndexShardComponent implements IndexShardGateway {
 
@@ -50,8 +49,8 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
         return new RecoveryStatus(new RecoveryStatus.Index(-1, 0, new SizeValue(0, SizeUnit.BYTES)), new RecoveryStatus.Translog(-1, 0, new SizeValue(0, SizeUnit.BYTES)));
     }
 
-    @Override public void snapshot(Snapshot snapshot) {
-        // nothing to do here
+    @Override public SnapshotStatus snapshot(Snapshot snapshot) {
+        return SnapshotStatus.NA;
     }
 
     @Override public boolean requiresSnapshotScheduling() {

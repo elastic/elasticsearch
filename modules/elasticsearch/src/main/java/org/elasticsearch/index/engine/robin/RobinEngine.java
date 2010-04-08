@@ -330,7 +330,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         }
     }
 
-    @Override public void snapshot(SnapshotHandler snapshotHandler) throws EngineException {
+    @Override public <T> T snapshot(SnapshotHandler<T> snapshotHandler) throws EngineException {
         SnapshotIndexCommit snapshotIndexCommit = null;
         Translog.Snapshot traslogSnapshot = null;
         rwl.readLock().lock();
@@ -345,7 +345,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         }
 
         try {
-            snapshotHandler.snapshot(snapshotIndexCommit, traslogSnapshot);
+            return snapshotHandler.snapshot(snapshotIndexCommit, traslogSnapshot);
         } finally {
             snapshotIndexCommit.release();
             traslogSnapshot.release();

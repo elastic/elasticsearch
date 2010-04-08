@@ -268,8 +268,8 @@ public abstract class AbstractSimpleEngineTests {
 
         final ExecutorService executorService = Executors.newCachedThreadPool();
 
-        engine.snapshot(new Engine.SnapshotHandler() {
-            @Override public void snapshot(final SnapshotIndexCommit snapshotIndexCommit1, final Translog.Snapshot translogSnapshot1) {
+        engine.snapshot(new Engine.SnapshotHandler<Void>() {
+            @Override public Void snapshot(final SnapshotIndexCommit snapshotIndexCommit1, final Translog.Snapshot translogSnapshot1) {
                 assertThat(snapshotIndexCommit1, snapshotIndexCommitExists());
                 assertThat(translogSnapshot1, translogSize(1));
                 Translog.Create create1 = (Translog.Create) translogSnapshot1.iterator().next();
@@ -294,16 +294,18 @@ public abstract class AbstractSimpleEngineTests {
 
                 assertThat(snapshotIndexCommit1, snapshotIndexCommitExists());
 
-                engine.snapshot(new Engine.SnapshotHandler() {
-                    @Override public void snapshot(SnapshotIndexCommit snapshotIndexCommit2, Translog.Snapshot translogSnapshot2) throws EngineException {
+                engine.snapshot(new Engine.SnapshotHandler<Void>() {
+                    @Override public Void snapshot(SnapshotIndexCommit snapshotIndexCommit2, Translog.Snapshot translogSnapshot2) throws EngineException {
                         assertThat(snapshotIndexCommit1, snapshotIndexCommitExists());
                         assertThat(snapshotIndexCommit2, snapshotIndexCommitExists());
                         assertThat(snapshotIndexCommit2.getSegmentsFileName(), not(equalTo(snapshotIndexCommit1.getSegmentsFileName())));
                         assertThat(translogSnapshot2, translogSize(1));
                         Translog.Create create3 = (Translog.Create) translogSnapshot2.iterator().next();
                         assertThat(create3.source(), equalTo(B_3));
+                        return null;
                     }
                 });
+                return null;
             }
         });
 

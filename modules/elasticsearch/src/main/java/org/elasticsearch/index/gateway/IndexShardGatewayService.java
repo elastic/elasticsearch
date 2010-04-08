@@ -44,7 +44,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class IndexShardGatewayService extends AbstractIndexShardComponent implements CloseableIndexComponent {
 
@@ -108,7 +108,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             indexShard.recovering();
             logger.debug("Starting recovery from {}", shardGateway);
             StopWatch stopWatch = new StopWatch().start();
-            RecoveryStatus recoveryStatus = shardGateway.recover();
+            IndexShardGateway.RecoveryStatus recoveryStatus = shardGateway.recover();
 
             lastIndexVersion = recoveryStatus.index().version();
             lastTranslogId = recoveryStatus.translog().translogId();
@@ -121,9 +121,9 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             stopWatch.stop();
             if (logger.isDebugEnabled()) {
                 StringBuilder sb = new StringBuilder();
-                sb.append("Recovery completed from ").append(shardGateway).append(", took [").append(stopWatch.totalTime()).append("]\n");
-                sb.append("    Index    : numberOfFiles [").append(recoveryStatus.index().numberOfFiles()).append("] with totalSize [").append(recoveryStatus.index().totalSize()).append("]\n");
-                sb.append("    Translog : translogId [").append(recoveryStatus.translog().translogId()).append(", numberOfOperations [").append(recoveryStatus.translog().numberOfOperations()).append("] with totalSize [").append(recoveryStatus.translog().totalSize()).append("]");
+                sb.append("Recovery completed from ").append(shardGateway).append(", took[").append(stopWatch.totalTime()).append("]\n");
+                sb.append("    Index    : number_of_files[").append(recoveryStatus.index().numberOfFiles()).append("] with total_size[").append(recoveryStatus.index().totalSize()).append("]\n");
+                sb.append("    Translog : translog_id[").append(recoveryStatus.translog().translogId()).append("], number_of_operations[").append(recoveryStatus.translog().numberOfOperations()).append("] with total_size[").append(recoveryStatus.translog().totalSize()).append("]");
                 logger.debug(sb.toString());
             }
             // refresh the shard
@@ -147,18 +147,30 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             return;
         }
         try {
-            indexShard.snapshot(new Engine.SnapshotHandler() {
-                @Override public void snapshot(SnapshotIndexCommit snapshotIndexCommit, Translog.Snapshot translogSnapshot) throws EngineException {
+            IndexShardGateway.SnapshotStatus snapshotStatus = indexShard.snapshot(new Engine.SnapshotHandler<IndexShardGateway.SnapshotStatus>() {
+                @Override public IndexShardGateway.SnapshotStatus snapshot(SnapshotIndexCommit snapshotIndexCommit, Translog.Snapshot translogSnapshot) throws EngineException {
                     if (lastIndexVersion != snapshotIndexCommit.getVersion() || lastTranslogId != translogSnapshot.translogId() || lastTranslogSize != translogSnapshot.size()) {
 
-                        shardGateway.snapshot(new IndexShardGateway.Snapshot(snapshotIndexCommit, translogSnapshot, lastIndexVersion, lastTranslogId, lastTranslogSize));
+                        IndexShardGateway.SnapshotStatus snapshotStatus =
+                                shardGateway.snapshot(new IndexShardGateway.Snapshot(snapshotIndexCommit, translogSnapshot, lastIndexVersion, lastTranslogId, lastTranslogSize));
 
                         lastIndexVersion = snapshotIndexCommit.getVersion();
                         lastTranslogId = translogSnapshot.translogId();
                         lastTranslogSize = translogSnapshot.size();
+                        return snapshotStatus;
                     }
+                    return IndexShardGateway.SnapshotStatus.NA;
                 }
             });
+            if (snapshotStatus != IndexShardGateway.SnapshotStatus.NA) {
+                if (logger.isDebugEnabled()) {
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("Snapshot completed to ").append(shardGateway).append(", took[").append(snapshotStatus.totalTime()).append("]\n");
+                    sb.append("    Index    : number_of_files[").append(snapshotStatus.index().numberOfFiles()).append("] with total_size[").append(snapshotStatus.index().totalSize()).append("], took[").append(snapshotStatus.index().time()).append("]\n");
+                    sb.append("    Translog : number_of_operations[").append(snapshotStatus.translog().numberOfOperations()).append("], took[").append(snapshotStatus.translog().time()).append("]");
+                    logger.debug(sb.toString());
+                }
+            }
         } catch (IllegalIndexShardStateException e) {
             // ignore, that's fine
         } catch (IndexShardGatewaySnapshotFailedException e) {

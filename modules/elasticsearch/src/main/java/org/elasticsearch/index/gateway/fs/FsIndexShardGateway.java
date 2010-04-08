@@ -26,7 +26,6 @@ import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
 import org.elasticsearch.index.gateway.IndexShardGatewaySnapshotFailedException;
-import org.elasticsearch.index.gateway.RecoveryStatus;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -37,6 +36,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
+import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.io.stream.DataInputStreamInput;
 import org.elasticsearch.util.io.stream.DataOutputStreamOutput;
 import org.elasticsearch.util.io.stream.StreamOutput;
@@ -105,14 +105,19 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
         return new RecoveryStatus(recoveryStatusIndex, recoveryStatusTranslog);
     }
 
-    @Override public void snapshot(Snapshot snapshot) {
+    @Override public SnapshotStatus snapshot(Snapshot snapshot) {
+        long totalTimeStart = System.currentTimeMillis();
         boolean indexDirty = false;
         boolean translogDirty = false;
 
         final SnapshotIndexCommit snapshotIndexCommit = snapshot.indexCommit();
         final Translog.Snapshot translogSnapshot = snapshot.translogSnapshot();
 
+        int indexNumberOfFiles = 0;
+        long indexTotalFilesSize = 0;
+        long indexTime = 0;
         if (snapshot.indexChanged()) {
+            long time = System.currentTimeMillis();
             indexDirty = true;
             // snapshot into the index
             final CountDownLatch latch = new CountDownLatch(snapshotIndexCommit.getFiles().length);
@@ -144,6 +149,12 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
                         }
                     }
                 }
+                indexNumberOfFiles++;
+                try {
+                    indexTotalFilesSize += snapshotIndexCommit.getDirectory().fileLength(fileName);
+                } catch (IOException e) {
+                    // ignore...
+                }
                 threadPool.execute(new Runnable() {
                     @Override public void run() {
                         try {
@@ -164,6 +175,7 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
             if (lastException.get() != null) {
                 throw new IndexShardGatewaySnapshotFailedException(shardId(), "Failed to perform snapshot (index files)", lastException.get());
             }
+            indexTime = System.currentTimeMillis() - time;
         }
         // we reopen the RAF each snapshot and not keep an open one since we want to make sure we
         // can sync it to disk later on (close it as well) 
@@ -172,15 +184,20 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
 
         // if we have a different trnaslogId we want to flush the full translog to a new file (based on the translogId).
         // If we still work on existing translog, just append the latest translog operations
+        int translogNumberOfOperations = 0;
+        long translogTime = 0;
         if (snapshot.newTranslogCreated()) {
             translogDirty = true;
             try {
+                long time = System.currentTimeMillis();
                 translogRaf = new RandomAccessFile(translogFile, "rw");
                 StreamOutput out = new DataOutputStreamOutput(translogRaf);
                 out.writeInt(-1); // write the number of operations header with -1 currently
                 for (Translog.Operation operation : translogSnapshot) {
+                    translogNumberOfOperations++;
                     writeTranslogOperation(out, operation);
                 }
+                translogTime = System.currentTimeMillis() - time;
             } catch (Exception e) {
                 try {
                     translogRaf.close();
@@ -192,13 +209,16 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
         } else if (snapshot.sameTranslogNewOperations()) {
             translogDirty = true;
             try {
+                long time = System.currentTimeMillis();
                 translogRaf = new RandomAccessFile(translogFile, "rw");
                 // seek to the end, since we append
                 translogRaf.seek(translogRaf.length());
                 StreamOutput out = new DataOutputStreamOutput(translogRaf);
                 for (Translog.Operation operation : translogSnapshot.skipTo(snapshot.lastTranslogSize())) {
+                    translogNumberOfOperations++;
                     writeTranslogOperation(out, operation);
                 }
+                translogTime = System.currentTimeMillis() - time;
             } catch (Exception e) {
                 try {
                     if (translogRaf != null) {
@@ -214,8 +234,12 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
         // now write the segments file and update the translog header
         try {
             if (indexDirty) {
+                indexNumberOfFiles++;
+                indexTotalFilesSize += snapshotIndexCommit.getDirectory().fileLength(snapshotIndexCommit.getSegmentsFileName());
+                long time = System.currentTimeMillis();
                 copyFromDirectory(snapshotIndexCommit.getDirectory(), snapshotIndexCommit.getSegmentsFileName(),
                         new File(locationIndex, snapshotIndexCommit.getSegmentsFileName()));
+                indexTime += (System.currentTimeMillis() - time);
             }
         } catch (Exception e) {
             try {
@@ -269,6 +293,10 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
                 }
             }
         }
+
+        return new SnapshotStatus(new TimeValue(System.currentTimeMillis() - totalTimeStart),
+                new SnapshotStatus.Index(indexNumberOfFiles, new SizeValue(indexTotalFilesSize), new TimeValue(indexTime)),
+                new SnapshotStatus.Translog(translogNumberOfOperations, new TimeValue(translogTime)));
     }
 
     private RecoveryStatus.Index recoverIndex() throws IndexShardGatewayRecoveryException {

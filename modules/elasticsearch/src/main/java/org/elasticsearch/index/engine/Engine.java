@@ -73,7 +73,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
     void optimize(Optimize optimize) throws EngineException;
 
-    void snapshot(SnapshotHandler snapshotHandler) throws EngineException;
+    <T> T snapshot(SnapshotHandler<T> snapshotHandler) throws EngineException;
 
     void recover(RecoveryHandler recoveryHandler) throws EngineException;
 
@@ -105,9 +105,9 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
     /**
      */
-    static interface SnapshotHandler {
+    static interface SnapshotHandler<T> {
 
-        void snapshot(SnapshotIndexCommit snapshotIndexCommit, Translog.Snapshot translogSnapshot) throws EngineException;
+        T snapshot(SnapshotIndexCommit snapshotIndexCommit, Translog.Snapshot translogSnapshot) throws EngineException;
     }
 
     static interface Searcher extends Releasable {

@@ -364,9 +364,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         engine.optimize(optimize);
     }
 
-    public void snapshot(Engine.SnapshotHandler snapshotHandler) throws EngineException {
+    public <T> T snapshot(Engine.SnapshotHandler<T> snapshotHandler) throws EngineException {
         readAllowed();
-        engine.snapshot(snapshotHandler);
+        return engine.snapshot(snapshotHandler);
     }
 
     public void recover(Engine.RecoveryHandler recoveryHandler) throws EngineException {

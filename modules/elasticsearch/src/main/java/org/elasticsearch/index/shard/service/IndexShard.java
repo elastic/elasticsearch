@@ -67,7 +67,7 @@ public interface IndexShard extends IndexShardComponent, CloseableComponent {
 
     void optimize(Engine.Optimize optimize) throws ElasticSearchException;
 
-    void snapshot(Engine.SnapshotHandler snapshotHandler) throws EngineException;
+    <T> T snapshot(Engine.SnapshotHandler<T> snapshotHandler) throws EngineException;
 
     void recover(Engine.RecoveryHandler recoveryHandler) throws EngineException;
 

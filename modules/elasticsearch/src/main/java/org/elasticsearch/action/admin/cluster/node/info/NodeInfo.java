@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.node.info;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.support.nodes.NodeOperationResponse;
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.settings.ImmutableSettings;
@@ -42,11 +42,11 @@ public class NodeInfo extends NodeOperationResponse {
     NodeInfo() {
     }
 
-    public NodeInfo(Node node, Map<String, String> attributes, Settings settings) {
+    public NodeInfo(DiscoveryNode node, Map<String, String> attributes, Settings settings) {
         this(node, ImmutableMap.copyOf(attributes), settings);
     }
 
-    public NodeInfo(Node node, ImmutableMap<String, String> attributes, Settings settings) {
+    public NodeInfo(DiscoveryNode node, ImmutableMap<String, String> attributes, Settings settings) {
         super(node);
         this.attributes = attributes;
         this.settings = settings;

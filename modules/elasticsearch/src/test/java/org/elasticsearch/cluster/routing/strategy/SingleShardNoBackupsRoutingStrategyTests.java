@@ -21,8 +21,8 @@ package org.elasticsearch.cluster.routing.strategy;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.Node;
-import org.elasticsearch.cluster.node.Nodes;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -40,7 +40,7 @@ import static com.google.common.collect.Sets.*;
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.cluster.metadata.MetaData.*;
-import static org.elasticsearch.cluster.node.Nodes.*;
+import static org.elasticsearch.cluster.node.DiscoveryNodes.*;
 import static org.elasticsearch.cluster.routing.RoutingBuilders.*;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.hamcrest.MatcherAssert.*;
@@ -231,8 +231,8 @@ public class SingleShardNoBackupsRoutingStrategyTests {
         }
 
         logger.info("Adding " + (numberOfIndices / 2) + " nodes");
-        Nodes.Builder nodesBuilder = newNodesBuilder();
-        List<Node> nodes = newArrayList();
+        DiscoveryNodes.Builder nodesBuilder = newNodesBuilder();
+        List<DiscoveryNode> nodes = newArrayList();
         for (int i = 0; i < (numberOfIndices / 2); i++) {
             nodesBuilder.put(newNode("node" + i));
         }
@@ -436,7 +436,7 @@ public class SingleShardNoBackupsRoutingStrategyTests {
         }
     }
 
-    private Node newNode(String nodeId) {
-        return new Node(nodeId, DummyTransportAddress.INSTANCE);
+    private DiscoveryNode newNode(String nodeId) {
+        return new DiscoveryNode(nodeId, DummyTransportAddress.INSTANCE);
     }
 }

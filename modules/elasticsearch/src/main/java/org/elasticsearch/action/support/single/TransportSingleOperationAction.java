@@ -26,8 +26,8 @@ import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.Node;
-import org.elasticsearch.cluster.node.Nodes;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.indices.IndicesService;
@@ -86,7 +86,7 @@ public abstract class TransportSingleOperationAction<Request extends SingleOpera
 
         private final Request request;
 
-        private final Nodes nodes;
+        private final DiscoveryNodes nodes;
 
         private AsyncSingleAction(Request request, ActionListener<Response> listener) {
             this.request = request;
@@ -164,7 +164,7 @@ public abstract class TransportSingleOperationAction<Request extends SingleOpera
                 final ShardRouting shard = shardsIt.nextActive();
                 // no need to check for local nodes, we tried them already in performFirstGet
                 if (!shard.currentNodeId().equals(nodes.localNodeId())) {
-                    Node node = nodes.get(shard.currentNodeId());
+                    DiscoveryNode node = nodes.get(shard.currentNodeId());
                     transportService.sendRequest(node, transportShardAction(), new ShardSingleOperationRequest(request, shard.id()), new BaseTransportResponseHandler<Response>() {
                         @Override public Response newInstance() {
                             return newResponse();

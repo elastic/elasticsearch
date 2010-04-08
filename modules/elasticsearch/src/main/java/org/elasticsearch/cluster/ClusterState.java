@@ -20,8 +20,8 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.Node;
-import org.elasticsearch.cluster.node.Nodes;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.util.Nullable;
@@ -42,14 +42,14 @@ public class ClusterState {
 
     private final RoutingTable routingTable;
 
-    private final Nodes nodes;
+    private final DiscoveryNodes nodes;
 
     private final MetaData metaData;
 
     // built on demand
     private volatile RoutingNodes routingNodes;
 
-    public ClusterState(long version, MetaData metaData, RoutingTable routingTable, Nodes nodes) {
+    public ClusterState(long version, MetaData metaData, RoutingTable routingTable, DiscoveryNodes nodes) {
         this.version = version;
         this.metaData = metaData;
         this.routingTable = routingTable;
@@ -60,7 +60,7 @@ public class ClusterState {
         return this.version;
     }
 
-    public Nodes nodes() {
+    public DiscoveryNodes nodes() {
         return this.nodes;
     }
 
@@ -100,13 +100,13 @@ public class ClusterState {
 
         private RoutingTable routingTable = RoutingTable.EMPTY_ROUTING_TABLE;
 
-        private Nodes nodes = Nodes.EMPTY_NODES;
+        private DiscoveryNodes nodes = DiscoveryNodes.EMPTY_NODES;
 
-        public Builder nodes(Nodes.Builder nodesBuilder) {
+        public Builder nodes(DiscoveryNodes.Builder nodesBuilder) {
             return nodes(nodesBuilder.build());
         }
 
-        public Builder nodes(Nodes nodes) {
+        public Builder nodes(DiscoveryNodes nodes) {
             this.nodes = nodes;
             return this;
         }
@@ -147,7 +147,7 @@ public class ClusterState {
             return os.copiedByteArray();
         }
 
-        public static ClusterState fromBytes(byte[] data, Settings globalSettings, Node localNode) throws IOException {
+        public static ClusterState fromBytes(byte[] data, Settings globalSettings, DiscoveryNode localNode) throws IOException {
             return readFrom(new BytesStreamInput(data), globalSettings, localNode);
         }
 
@@ -155,15 +155,15 @@ public class ClusterState {
             out.writeLong(state.version());
             MetaData.Builder.writeTo(state.metaData(), out);
             RoutingTable.Builder.writeTo(state.routingTable(), out);
-            Nodes.Builder.writeTo(state.nodes(), out);
+            DiscoveryNodes.Builder.writeTo(state.nodes(), out);
         }
 
-        public static ClusterState readFrom(StreamInput in, @Nullable Settings globalSettings, @Nullable Node localNode) throws IOException {
+        public static ClusterState readFrom(StreamInput in, @Nullable Settings globalSettings, @Nullable DiscoveryNode localNode) throws IOException {
             Builder builder = new Builder();
             builder.version = in.readLong();
             builder.metaData = MetaData.Builder.readFrom(in, globalSettings);
             builder.routingTable = RoutingTable.Builder.readFrom(in);
-            builder.nodes = Nodes.Builder.readFrom(in, localNode);
+            builder.nodes = DiscoveryNodes.Builder.readFrom(in, localNode);
             return builder.build();
         }
     }

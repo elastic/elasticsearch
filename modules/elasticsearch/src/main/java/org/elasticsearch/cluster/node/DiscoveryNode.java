@@ -33,9 +33,9 @@ import java.io.Serializable;
 /**
  * @author kimchy (Shay Banon)
  */
-public class Node implements Streamable, Serializable {
+public class DiscoveryNode implements Streamable, Serializable {
 
-    public static final ImmutableList<Node> EMPTY_LIST = ImmutableList.of();
+    public static final ImmutableList<DiscoveryNode> EMPTY_LIST = ImmutableList.of();
 
     private String nodeName = StringHelper.intern("");
 
@@ -45,14 +45,14 @@ public class Node implements Streamable, Serializable {
 
     private boolean dataNode = true;
 
-    private Node() {
+    private DiscoveryNode() {
     }
 
-    public Node(String nodeId, TransportAddress address) {
+    public DiscoveryNode(String nodeId, TransportAddress address) {
         this("", true, nodeId, address);
     }
 
-    public Node(String nodeName, boolean dataNode, String nodeId, TransportAddress address) {
+    public DiscoveryNode(String nodeName, boolean dataNode, String nodeId, TransportAddress address) {
         if (nodeName == null) {
             this.nodeName = StringHelper.intern("");
         } else {
@@ -91,8 +91,8 @@ public class Node implements Streamable, Serializable {
         return dataNode;
     }
 
-    public static Node readNode(StreamInput in) throws IOException {
-        Node node = new Node();
+    public static DiscoveryNode readNode(StreamInput in) throws IOException {
+        DiscoveryNode node = new DiscoveryNode();
         node.readFrom(in);
         return node;
     }
@@ -112,10 +112,10 @@ public class Node implements Streamable, Serializable {
     }
 
     @Override public boolean equals(Object obj) {
-        if (!(obj instanceof Node))
+        if (!(obj instanceof DiscoveryNode))
             return false;
 
-        Node other = (Node) obj;
+        DiscoveryNode other = (DiscoveryNode) obj;
         return this.nodeId.equals(other.nodeId);
     }
 

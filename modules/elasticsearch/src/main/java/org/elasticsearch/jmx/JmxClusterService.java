@@ -22,7 +22,7 @@ package org.elasticsearch.jmx;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.jmx.action.GetJmxServiceUrlAction;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.settings.Settings;
@@ -60,7 +60,7 @@ public class JmxClusterService extends AbstractComponent {
 
         if (jmxService.publishUrl() != null) {
             clusterService.add(new JmxClusterEventListener());
-            for (final Node node : clusterService.state().nodes()) {
+            for (final DiscoveryNode node : clusterService.state().nodes()) {
                 clusterNodesJmxUpdater.execute(new Runnable() {
                     @Override public void run() {
                         String nodeServiceUrl = getJmxServiceUrlAction.obtainPublishUrl(node);
@@ -77,7 +77,7 @@ public class JmxClusterService extends AbstractComponent {
         }
     }
 
-    private void registerNode(Node node, String nodeServiceUrl) {
+    private void registerNode(DiscoveryNode node, String nodeServiceUrl) {
         try {
             JMXServiceURL jmxServiceURL = new JMXServiceURL(nodeServiceUrl);
             JMXConnector jmxConnector = JMXConnectorFactory.connect(jmxServiceURL, null);
@@ -103,7 +103,7 @@ public class JmxClusterService extends AbstractComponent {
             if (!event.nodesChanged()) {
                 return;
             }
-            for (final Node node : event.nodesDelta().addedNodes()) {
+            for (final DiscoveryNode node : event.nodesDelta().addedNodes()) {
                 clusterNodesJmxUpdater.execute(new Runnable() {
                     @Override public void run() {
                         String nodeServiceUrl = getJmxServiceUrlAction.obtainPublishUrl(node);

@@ -21,7 +21,7 @@ package org.elasticsearch.transport.local;
 
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.util.Nullable;
@@ -92,13 +92,13 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         return boundAddress;
     }
 
-    @Override public void nodesAdded(Iterable<Node> nodes) {
+    @Override public void nodesAdded(Iterable<DiscoveryNode> nodes) {
     }
 
-    @Override public void nodesRemoved(Iterable<Node> nodes) {
+    @Override public void nodesRemoved(Iterable<DiscoveryNode> nodes) {
     }
 
-    @Override public <T extends Streamable> void sendRequest(final Node node, final long requestId, final String action,
+    @Override public <T extends Streamable> void sendRequest(final DiscoveryNode node, final long requestId, final String action,
                                                              final Streamable message, final TransportResponseHandler<T> handler) throws IOException, TransportException {
         HandlesStreamOutput stream = BytesStreamOutput.Cached.cachedHandles();
 

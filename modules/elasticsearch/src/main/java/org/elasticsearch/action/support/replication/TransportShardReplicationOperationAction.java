@@ -29,8 +29,8 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.TimeoutClusterStateListener;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.node.Node;
-import org.elasticsearch.cluster.node.Nodes;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.index.IndexShardMissingException;
@@ -201,7 +201,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         private final Request request;
 
-        private Nodes nodes;
+        private DiscoveryNodes nodes;
 
         private ShardsIterator shards;
 
@@ -255,7 +255,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                             performOnPrimary(shard.id(), fromClusterEvent, false, shard);
                         }
                     } else {
-                        Node node = nodes.get(shard.currentNodeId());
+                        DiscoveryNode node = nodes.get(shard.currentNodeId());
                         transportService.sendRequest(node, transportAction(), request, new BaseTransportResponseHandler<Response>() {
 
                             @Override public Response newInstance() {
@@ -399,7 +399,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         private void performOnBackup(final Response response, final AtomicInteger counter, final ShardRouting shard, String nodeId) {
             final ShardOperationRequest shardRequest = new ShardOperationRequest(shards.shardId().id(), request);
             if (!nodeId.equals(nodes.localNodeId())) {
-                Node node = nodes.get(nodeId);
+                DiscoveryNode node = nodes.get(nodeId);
                 transportService.sendRequest(node, transportBackupAction(), shardRequest, new VoidTransportResponseHandler() {
                     @Override public void handleResponse(VoidStreamable vResponse) {
                         finishIfPossible();

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.cluster.node.Nodes;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 
 /**
  * @author kimchy (Shay Banon)
@@ -34,7 +34,7 @@ public class ClusterChangedEvent {
 
     private final boolean firstMaster;
 
-    private final Nodes.Delta nodesDelta;
+    private final DiscoveryNodes.Delta nodesDelta;
 
     public ClusterChangedEvent(String source, ClusterState state, ClusterState previousState, boolean firstMaster) {
         this.source = source;
@@ -75,7 +75,7 @@ public class ClusterChangedEvent {
         return firstMaster;
     }
 
-    public Nodes.Delta nodesDelta() {
+    public DiscoveryNodes.Delta nodesDelta() {
         return this.nodesDelta;
     }
 

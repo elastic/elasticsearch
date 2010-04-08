@@ -23,8 +23,8 @@ import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.*;
-import org.elasticsearch.cluster.node.Node;
-import org.elasticsearch.cluster.node.Nodes;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryException;
 import org.elasticsearch.discovery.InitialStateDiscoveryListener;
@@ -70,7 +70,7 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
 
     private volatile boolean addressSet = false;
 
-    private Node localNode;
+    private DiscoveryNode localNode;
 
     private volatile boolean firstMaster = false;
 
@@ -142,13 +142,13 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
             channel.connect(clusterName.value());
             channel.setReceiver(this);
             logger.debug("Connected to cluster [{}], address [{}]", channel.getClusterName(), channel.getAddress());
-            this.localNode = new Node(settings.get("name"), settings.getAsBoolean("node.data", true), channel.getAddress().toString(), transportService.boundAddress().publishAddress());
+            this.localNode = new DiscoveryNode(settings.get("name"), settings.getAsBoolean("node.data", true), channel.getAddress().toString(), transportService.boundAddress().publishAddress());
 
             if (isMaster()) {
                 firstMaster = true;
                 clusterService.submitStateUpdateTask("jgroups-disco-initialconnect(master)", new ProcessedClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
-                        Nodes.Builder builder = new Nodes.Builder()
+                        DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder()
                                 .localNodeId(localNode.id())
                                 .masterNodeId(localNode.id())
                                         // put our local node
@@ -164,7 +164,7 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
             } else {
                 clusterService.submitStateUpdateTask("jgroups-disco-initialconnect", new ClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
-                        Nodes.Builder builder = new Nodes.Builder()
+                        DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder()
                                 .localNodeId(localNode.id())
                                 .put(localNode);
                         return newClusterStateBuilder().state(currentState).nodes(builder).build();
@@ -248,7 +248,7 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
         if (isMaster()) {
             try {
                 BytesStreamInput is = new BytesStreamInput(msg.getBuffer());
-                final Node newNode = Node.readNode(is);
+                final DiscoveryNode newNode = DiscoveryNode.readNode(is);
                 is.close();
 
                 if (logger.isDebugEnabled()) {
@@ -310,8 +310,8 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
 
             clusterService.submitStateUpdateTask("jgroups-disco-view", new ClusterStateUpdateTask() {
                 @Override public ClusterState execute(ClusterState currentState) {
-                    Nodes newNodes = currentState.nodes().removeDeadMembers(newMembers, newView.getCreator().toString());
-                    Nodes.Delta delta = newNodes.delta(currentState.nodes());
+                    DiscoveryNodes newNodes = currentState.nodes().removeDeadMembers(newMembers, newView.getCreator().toString());
+                    DiscoveryNodes.Delta delta = newNodes.delta(currentState.nodes());
                     if (delta.added()) {
                         logger.warn("No new nodes should be created when a new discovery view is accepted");
                     }
@@ -328,7 +328,7 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
             // check whether I have been removed due to temporary disconnect
             final String me = channel.getAddress().toString();
             boolean foundMe = false;
-            for (Node node : clusterService.state().nodes()) {
+            for (DiscoveryNode node : clusterService.state().nodes()) {
                 if (node.id().equals(me)) {
                     foundMe = true;
                     break;

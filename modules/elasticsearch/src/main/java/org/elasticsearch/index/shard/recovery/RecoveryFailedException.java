@@ -20,7 +20,7 @@
 package org.elasticsearch.index.shard.recovery;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.index.shard.ShardId;
 
 /**
@@ -28,7 +28,7 @@ import org.elasticsearch.index.shard.ShardId;
  */
 public class RecoveryFailedException extends ElasticSearchException {
 
-    public RecoveryFailedException(ShardId shardId, Node node, Node targetNode, Throwable cause) {
+    public RecoveryFailedException(ShardId shardId, DiscoveryNode node, DiscoveryNode targetNode, Throwable cause) {
         super(shardId + ": Recovery failed from " + targetNode + " into " + node, cause);
     }
 }

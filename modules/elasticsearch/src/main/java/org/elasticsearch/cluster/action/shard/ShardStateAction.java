@@ -24,7 +24,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.node.Nodes;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -75,7 +75,7 @@ public class ShardStateAction extends AbstractComponent {
 
     public void shardFailed(final ShardRouting shardRouting, final String reason) throws ElasticSearchException {
         logger.warn("Sending failed shard for {}, reason [{}]", shardRouting, reason);
-        Nodes nodes = clusterService.state().nodes();
+        DiscoveryNodes nodes = clusterService.state().nodes();
         if (nodes.localNodeMaster()) {
             threadPool.execute(new Runnable() {
                 @Override public void run() {
@@ -92,7 +92,7 @@ public class ShardStateAction extends AbstractComponent {
         if (logger.isDebugEnabled()) {
             logger.debug("Sending shard started for {}, reason [{}]", shardRouting, reason);
         }
-        Nodes nodes = clusterService.state().nodes();
+        DiscoveryNodes nodes = clusterService.state().nodes();
         if (nodes.localNodeMaster()) {
             threadPool.execute(new Runnable() {
                 @Override public void run() {

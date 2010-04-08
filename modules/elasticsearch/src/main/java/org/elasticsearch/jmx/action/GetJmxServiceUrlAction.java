@@ -22,7 +22,7 @@ package org.elasticsearch.jmx.action;
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.jmx.JmxService;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.FutureTransportResponseHandler;
@@ -54,7 +54,7 @@ public class GetJmxServiceUrlAction extends AbstractComponent {
         transportService.registerHandler(GetJmxServiceUrlTransportHandler.ACTION, new GetJmxServiceUrlTransportHandler());
     }
 
-    public String obtainPublishUrl(final Node node) throws ElasticSearchException {
+    public String obtainPublishUrl(final DiscoveryNode node) throws ElasticSearchException {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             return jmxService.publishUrl();
         } else {

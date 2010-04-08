@@ -21,8 +21,8 @@ package org.elasticsearch.cluster.serialization;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.Node;
-import org.elasticsearch.cluster.node.Nodes;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.strategy.DefaultShardsRoutingStrategy;
 import org.elasticsearch.util.io.stream.BytesStreamInput;
@@ -52,7 +52,7 @@ public class ClusterSerializationTests {
                 .add(indexRoutingTable("test").initializeEmpty(metaData.index("test")))
                 .build();
 
-        Nodes nodes = Nodes.newNodesBuilder().put(newNode("node1")).put(newNode("node2")).put(newNode("node3")).localNodeId("node1").masterNodeId("node2").build();
+        DiscoveryNodes nodes = DiscoveryNodes.newNodesBuilder().put(newNode("node1")).put(newNode("node2")).put(newNode("node3")).localNodeId("node1").masterNodeId("node2").build();
 
         ClusterState clusterState = newClusterStateBuilder().nodes(nodes).metaData(metaData).routingTable(routingTable).build();
 
@@ -74,7 +74,7 @@ public class ClusterSerializationTests {
                 .add(indexRoutingTable("test").initializeEmpty(metaData.index("test")))
                 .build();
 
-        Nodes nodes = Nodes.newNodesBuilder().put(newNode("node1")).put(newNode("node2")).put(newNode("node3")).build();
+        DiscoveryNodes nodes = DiscoveryNodes.newNodesBuilder().put(newNode("node1")).put(newNode("node2")).put(newNode("node3")).build();
 
         ClusterState clusterState = newClusterStateBuilder().nodes(nodes).metaData(metaData).routingTable(routingTable).build();
 
@@ -89,7 +89,7 @@ public class ClusterSerializationTests {
         assertThat(target.prettyPrint(), equalTo(source.prettyPrint()));
     }
 
-    private Node newNode(String nodeId) {
-        return new Node(nodeId, DummyTransportAddress.INSTANCE);
+    private DiscoveryNode newNode(String nodeId) {
+        return new DiscoveryNode(nodeId, DummyTransportAddress.INSTANCE);
     }
 }

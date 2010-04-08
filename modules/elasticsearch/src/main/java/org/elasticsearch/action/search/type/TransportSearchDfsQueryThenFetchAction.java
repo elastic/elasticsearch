@@ -23,7 +23,7 @@ import com.google.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -78,7 +78,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             return "dfs";
         }
 
-        @Override protected void sendExecuteFirstPhase(Node node, InternalSearchRequest request, SearchServiceListener<DfsSearchResult> listener) {
+        @Override protected void sendExecuteFirstPhase(DiscoveryNode node, InternalSearchRequest request, SearchServiceListener<DfsSearchResult> listener) {
             searchService.sendExecuteDfs(node, request, listener);
         }
 
@@ -93,7 +93,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
 
             int localOperations = 0;
             for (DfsSearchResult dfsResult : dfsResults) {
-                Node node = nodes.get(dfsResult.shardTarget().nodeId());
+                DiscoveryNode node = nodes.get(dfsResult.shardTarget().nodeId());
                 if (node.id().equals(nodes.localNodeId())) {
                     localOperations++;
                 } else {
@@ -107,7 +107,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                     threadPool.execute(new Runnable() {
                         @Override public void run() {
                             for (DfsSearchResult dfsResult : dfsResults) {
-                                Node node = nodes.get(dfsResult.shardTarget().nodeId());
+                                DiscoveryNode node = nodes.get(dfsResult.shardTarget().nodeId());
                                 if (node.id().equals(nodes.localNodeId())) {
                                     QuerySearchRequest querySearchRequest = new QuerySearchRequest(dfsResult.id(), dfs);
                                     executeQuery(counter, querySearchRequest, node);
@@ -118,7 +118,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                 } else {
                     boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
                     for (DfsSearchResult dfsResult : dfsResults) {
-                        final Node node = nodes.get(dfsResult.shardTarget().nodeId());
+                        final DiscoveryNode node = nodes.get(dfsResult.shardTarget().nodeId());
                         if (node.id().equals(nodes.localNodeId())) {
                             final QuerySearchRequest querySearchRequest = new QuerySearchRequest(dfsResult.id(), dfs);
                             if (localAsync) {
@@ -136,7 +136,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             }
         }
 
-        private void executeQuery(final AtomicInteger counter, QuerySearchRequest querySearchRequest, Node node) {
+        private void executeQuery(final AtomicInteger counter, QuerySearchRequest querySearchRequest, DiscoveryNode node) {
             searchService.sendExecuteQuery(node, querySearchRequest, new SearchServiceListener<QuerySearchResult>() {
                 @Override public void onResult(QuerySearchResult result) {
                     queryResults.put(result.shardTarget(), result);
@@ -178,7 +178,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             final AtomicInteger counter = new AtomicInteger(docIdsToLoad.size());
             int localOperations = 0;
             for (Map.Entry<SearchShardTarget, ExtTIntArrayList> entry : docIdsToLoad.entrySet()) {
-                Node node = nodes.get(entry.getKey().nodeId());
+                DiscoveryNode node = nodes.get(entry.getKey().nodeId());
                 if (node.id().equals(nodes.localNodeId())) {
                     localOperations++;
                 } else {
@@ -192,7 +192,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                     threadPool.execute(new Runnable() {
                         @Override public void run() {
                             for (Map.Entry<SearchShardTarget, ExtTIntArrayList> entry : docIdsToLoad.entrySet()) {
-                                Node node = nodes.get(entry.getKey().nodeId());
+                                DiscoveryNode node = nodes.get(entry.getKey().nodeId());
                                 if (node.id().equals(nodes.localNodeId())) {
                                     FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(queryResults.get(entry.getKey()).id(), entry.getValue());
                                     executeFetch(counter, fetchSearchRequest, node);
@@ -203,7 +203,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                 } else {
                     boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
                     for (Map.Entry<SearchShardTarget, ExtTIntArrayList> entry : docIdsToLoad.entrySet()) {
-                        final Node node = nodes.get(entry.getKey().nodeId());
+                        final DiscoveryNode node = nodes.get(entry.getKey().nodeId());
                         if (node.id().equals(nodes.localNodeId())) {
                             final FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(queryResults.get(entry.getKey()).id(), entry.getValue());
                             if (localAsync) {
@@ -223,7 +223,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             releaseIrrelevantSearchContexts(queryResults, docIdsToLoad);
         }
 
-        private void executeFetch(final AtomicInteger counter, FetchSearchRequest fetchSearchRequest, Node node) {
+        private void executeFetch(final AtomicInteger counter, FetchSearchRequest fetchSearchRequest, DiscoveryNode node) {
             searchService.sendExecuteFetch(node, fetchSearchRequest, new SearchServiceListener<FetchSearchResult>() {
                 @Override public void onResult(FetchSearchResult result) {
                     fetchResults.put(result.shardTarget(), result);

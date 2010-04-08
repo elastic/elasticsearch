@@ -28,7 +28,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.transport.action.ClientTransportAction;
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
@@ -59,14 +59,14 @@ public abstract class BaseClientTransportAction<Request extends ActionRequest, R
         responseConstructor.setAccessible(true);
     }
 
-    @Override public ActionFuture<Response> execute(Node node, Request request) throws ElasticSearchException {
+    @Override public ActionFuture<Response> execute(DiscoveryNode node, Request request) throws ElasticSearchException {
         PlainActionFuture<Response> future = newFuture();
         request.listenerThreaded(false);
         execute(node, request, future);
         return future;
     }
 
-    @Override public void execute(Node node, final Request request, final ActionListener<Response> listener) {
+    @Override public void execute(DiscoveryNode node, final Request request, final ActionListener<Response> listener) {
         transportService.sendRequest(node, action(), request, new BaseTransportResponseHandler<Response>() {
             @Override public Response newInstance() {
                 return BaseClientTransportAction.this.newInstance();

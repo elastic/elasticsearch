@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.action.index;
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.node.Nodes;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
@@ -69,7 +69,7 @@ public class NodeIndexDeletedAction extends AbstractComponent {
     }
 
     public void nodeIndexDeleted(final String index, final String nodeId) throws ElasticSearchException {
-        Nodes nodes = clusterService.state().nodes();
+        DiscoveryNodes nodes = clusterService.state().nodes();
         if (nodes.localNodeMaster()) {
             threadPool.execute(new Runnable() {
                 @Override public void run() {

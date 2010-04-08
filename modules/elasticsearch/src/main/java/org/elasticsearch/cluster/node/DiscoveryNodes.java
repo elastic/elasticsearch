@@ -37,26 +37,26 @@ import static com.google.common.collect.Maps.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class Nodes implements Iterable<Node> {
+public class DiscoveryNodes implements Iterable<DiscoveryNode> {
 
-    public static Nodes EMPTY_NODES = newNodesBuilder().build();
+    public static DiscoveryNodes EMPTY_NODES = newNodesBuilder().build();
 
-    private final ImmutableMap<String, Node> nodes;
+    private final ImmutableMap<String, DiscoveryNode> nodes;
 
-    private final ImmutableMap<String, Node> dataNodes;
+    private final ImmutableMap<String, DiscoveryNode> dataNodes;
 
     private final String masterNodeId;
 
     private final String localNodeId;
 
-    private Nodes(ImmutableMap<String, Node> nodes, ImmutableMap<String, Node> dataNodes, String masterNodeId, String localNodeId) {
+    private DiscoveryNodes(ImmutableMap<String, DiscoveryNode> nodes, ImmutableMap<String, DiscoveryNode> dataNodes, String masterNodeId, String localNodeId) {
         this.nodes = nodes;
         this.dataNodes = dataNodes;
         this.masterNodeId = masterNodeId;
         this.localNodeId = localNodeId;
     }
 
-    @Override public UnmodifiableIterator<Node> iterator() {
+    @Override public UnmodifiableIterator<DiscoveryNode> iterator() {
         return nodes.values().iterator();
     }
 
@@ -83,15 +83,15 @@ public class Nodes implements Iterable<Node> {
         return nodes.size();
     }
 
-    public ImmutableMap<String, Node> nodes() {
+    public ImmutableMap<String, DiscoveryNode> nodes() {
         return this.nodes;
     }
 
-    public ImmutableMap<String, Node> dataNodes() {
+    public ImmutableMap<String, DiscoveryNode> dataNodes() {
         return this.dataNodes;
     }
 
-    public Node get(String nodeId) {
+    public DiscoveryNode get(String nodeId) {
         return nodes.get(nodeId);
     }
 
@@ -107,17 +107,17 @@ public class Nodes implements Iterable<Node> {
         return this.localNodeId;
     }
 
-    public Node localNode() {
+    public DiscoveryNode localNode() {
         return nodes.get(localNodeId);
     }
 
-    public Node masterNode() {
+    public DiscoveryNode masterNode() {
         return nodes.get(masterNodeId);
     }
 
-    public Nodes removeDeadMembers(Set<String> newNodes, String masterNodeId) {
+    public DiscoveryNodes removeDeadMembers(Set<String> newNodes, String masterNodeId) {
         Builder builder = new Builder().masterNodeId(masterNodeId).localNodeId(localNodeId);
-        for (Node node : this) {
+        for (DiscoveryNode node : this) {
             if (newNodes.contains(node.id())) {
                 builder.put(node);
             }
@@ -125,28 +125,28 @@ public class Nodes implements Iterable<Node> {
         return builder.build();
     }
 
-    public Nodes newNode(Node node) {
+    public DiscoveryNodes newNode(DiscoveryNode node) {
         return new Builder().putAll(this).put(node).build();
     }
 
     /**
      * Returns the changes comparing this nodes to the provided nodes.
      */
-    public Delta delta(Nodes other) {
-        List<Node> removed = newArrayList();
-        List<Node> added = newArrayList();
-        for (Node node : other) {
+    public Delta delta(DiscoveryNodes other) {
+        List<DiscoveryNode> removed = newArrayList();
+        List<DiscoveryNode> added = newArrayList();
+        for (DiscoveryNode node : other) {
             if (!this.nodeExists(node.id())) {
                 removed.add(node);
             }
         }
-        for (Node node : this) {
+        for (DiscoveryNode node : this) {
             if (!other.nodeExists(node.id())) {
                 added.add(node);
             }
         }
-        Node previousMasterNode = null;
-        Node newMasterNode = null;
+        DiscoveryNode previousMasterNode = null;
+        DiscoveryNode newMasterNode = null;
         if (masterNodeId != null) {
             if (other.masterNodeId == null || !other.masterNodeId.equals(masterNodeId)) {
                 previousMasterNode = other.masterNode();
@@ -159,7 +159,7 @@ public class Nodes implements Iterable<Node> {
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder();
         sb.append("Nodes: \n");
-        for (Node node : this) {
+        for (DiscoveryNode node : this) {
             sb.append("   ").append(node);
             if (node == localNode()) {
                 sb.append(", local");
@@ -173,23 +173,23 @@ public class Nodes implements Iterable<Node> {
     }
 
     public Delta emptyDelta() {
-        return new Delta(null, null, localNodeId, Node.EMPTY_LIST, Node.EMPTY_LIST);
+        return new Delta(null, null, localNodeId, DiscoveryNode.EMPTY_LIST, DiscoveryNode.EMPTY_LIST);
     }
 
     public static class Delta {
 
         private final String localNodeId;
-        private final Node previousMasterNode;
-        private final Node newMasterNode;
-        private final ImmutableList<Node> removed;
-        private final ImmutableList<Node> added;
+        private final DiscoveryNode previousMasterNode;
+        private final DiscoveryNode newMasterNode;
+        private final ImmutableList<DiscoveryNode> removed;
+        private final ImmutableList<DiscoveryNode> added;
 
 
-        public Delta(String localNodeId, ImmutableList<Node> removed, ImmutableList<Node> added) {
+        public Delta(String localNodeId, ImmutableList<DiscoveryNode> removed, ImmutableList<DiscoveryNode> added) {
             this(null, null, localNodeId, removed, added);
         }
 
-        public Delta(@Nullable Node previousMasterNode, @Nullable Node newMasterNode, String localNodeId, ImmutableList<Node> removed, ImmutableList<Node> added) {
+        public Delta(@Nullable DiscoveryNode previousMasterNode, @Nullable DiscoveryNode newMasterNode, String localNodeId, ImmutableList<DiscoveryNode> removed, ImmutableList<DiscoveryNode> added) {
             this.previousMasterNode = previousMasterNode;
             this.newMasterNode = newMasterNode;
             this.localNodeId = localNodeId;
@@ -205,11 +205,11 @@ public class Nodes implements Iterable<Node> {
             return newMasterNode != null;
         }
 
-        public Node previousMasterNode() {
+        public DiscoveryNode previousMasterNode() {
             return previousMasterNode;
         }
 
-        public Node newMasterNode() {
+        public DiscoveryNode newMasterNode() {
             return newMasterNode;
         }
 
@@ -217,7 +217,7 @@ public class Nodes implements Iterable<Node> {
             return !removed.isEmpty();
         }
 
-        public ImmutableList<Node> removedNodes() {
+        public ImmutableList<DiscoveryNode> removedNodes() {
             return removed;
         }
 
@@ -225,7 +225,7 @@ public class Nodes implements Iterable<Node> {
             return !added.isEmpty();
         }
 
-        public ImmutableList<Node> addedNodes() {
+        public ImmutableList<DiscoveryNode> addedNodes() {
             return added;
         }
 
@@ -252,7 +252,7 @@ public class Nodes implements Iterable<Node> {
                         sb.append(", ");
                     }
                     sb.append("Removed {");
-                    for (Node node : removedNodes()) {
+                    for (DiscoveryNode node : removedNodes()) {
                         sb.append(node).append(',');
                     }
                     sb.append("}");
@@ -265,7 +265,7 @@ public class Nodes implements Iterable<Node> {
                         sb.append(", ");
                     }
                     sb.append("Added {");
-                    for (Node node : addedNodes()) {
+                    for (DiscoveryNode node : addedNodes()) {
                         if (!node.id().equals(localNodeId)) {
                             // don't print ourself
                             sb.append(node).append(',');
@@ -284,28 +284,28 @@ public class Nodes implements Iterable<Node> {
 
     public static class Builder {
 
-        private Map<String, Node> nodes = newHashMap();
+        private Map<String, DiscoveryNode> nodes = newHashMap();
 
         private String masterNodeId;
 
         private String localNodeId;
 
-        public Builder putAll(Nodes nodes) {
+        public Builder putAll(DiscoveryNodes nodes) {
             this.masterNodeId = nodes.masterNodeId();
             this.localNodeId = nodes.localNodeId();
-            for (Node node : nodes) {
+            for (DiscoveryNode node : nodes) {
                 put(node);
             }
             return this;
         }
 
-        public Builder put(Node node) {
+        public Builder put(DiscoveryNode node) {
             nodes.put(node.id(), node);
             return this;
         }
 
-        public Builder putAll(Iterable<Node> nodes) {
-            for (Node node : nodes) {
+        public Builder putAll(Iterable<DiscoveryNode> nodes) {
+            for (DiscoveryNode node : nodes) {
                 put(node);
             }
             return this;
@@ -326,25 +326,25 @@ public class Nodes implements Iterable<Node> {
             return this;
         }
 
-        public Nodes build() {
-            ImmutableMap.Builder<String, Node> dataNodesBuilder = ImmutableMap.builder();
-            for (Map.Entry<String, Node> nodeEntry : nodes.entrySet()) {
+        public DiscoveryNodes build() {
+            ImmutableMap.Builder<String, DiscoveryNode> dataNodesBuilder = ImmutableMap.builder();
+            for (Map.Entry<String, DiscoveryNode> nodeEntry : nodes.entrySet()) {
                 if (nodeEntry.getValue().dataNode()) {
                     dataNodesBuilder.put(nodeEntry.getKey(), nodeEntry.getValue());
                 }
             }
-            return new Nodes(ImmutableMap.copyOf(nodes), dataNodesBuilder.build(), masterNodeId, localNodeId);
+            return new DiscoveryNodes(ImmutableMap.copyOf(nodes), dataNodesBuilder.build(), masterNodeId, localNodeId);
         }
 
-        public static void writeTo(Nodes nodes, StreamOutput out) throws IOException {
+        public static void writeTo(DiscoveryNodes nodes, StreamOutput out) throws IOException {
             out.writeUTF(nodes.masterNodeId);
             out.writeVInt(nodes.size());
-            for (Node node : nodes) {
+            for (DiscoveryNode node : nodes) {
                 node.writeTo(out);
             }
         }
 
-        public static Nodes readFrom(StreamInput in, @Nullable Node localNode) throws IOException {
+        public static DiscoveryNodes readFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {
             Builder builder = new Builder();
             builder.masterNodeId(in.readUTF());
             if (localNode != null) {
@@ -352,7 +352,7 @@ public class Nodes implements Iterable<Node> {
             }
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
-                Node node = Node.readNode(in);
+                DiscoveryNode node = DiscoveryNode.readNode(in);
                 if (localNode != null && node.id().equals(localNode.id())) {
                     // reuse the same instance of our address and local node id for faster equality
                     node = localNode;

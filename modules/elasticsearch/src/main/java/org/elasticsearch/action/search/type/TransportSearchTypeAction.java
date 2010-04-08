@@ -24,8 +24,8 @@ import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.Node;
-import org.elasticsearch.cluster.node.Nodes;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
@@ -83,7 +83,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
 
         protected final SearchRequest request;
 
-        protected final Nodes nodes;
+        protected final DiscoveryNodes nodes;
 
         protected final int expectedSuccessfulOps;
 
@@ -172,7 +172,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                 // no more active shards... (we should not really get here, but just for safety)
                 onFirstPhaseResult(shard, shardIt, null);
             } else {
-                Node node = nodes.get(shard.currentNodeId());
+                DiscoveryNode node = nodes.get(shard.currentNodeId());
                 sendExecuteFirstPhase(node, internalSearchRequest(shard, request), new SearchServiceListener<FirstResult>() {
                     @Override public void onResult(FirstResult result) {
                         onFirstPhaseResult(shard, result, shardIt);
@@ -281,7 +281,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                                                        Map<SearchShardTarget, ExtTIntArrayList> docIdsToLoad) {
             for (Map.Entry<SearchShardTarget, QuerySearchResultProvider> entry : queryResults.entrySet()) {
                 if (!docIdsToLoad.containsKey(entry.getKey())) {
-                    Node node = nodes.get(entry.getKey().nodeId());
+                    DiscoveryNode node = nodes.get(entry.getKey().nodeId());
                     if (node != null) { // should not happen (==null) but safeguard anyhow
                         searchService.sendFreeContext(node, entry.getValue().id());
                     }
@@ -313,7 +313,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             }
         }
 
-        protected abstract void sendExecuteFirstPhase(Node node, InternalSearchRequest request, SearchServiceListener<FirstResult> listener);
+        protected abstract void sendExecuteFirstPhase(DiscoveryNode node, InternalSearchRequest request, SearchServiceListener<FirstResult> listener);
 
         protected abstract void processFirstPhaseResult(ShardRouting shard, FirstResult result);
 

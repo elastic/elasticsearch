@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport.local;
 
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.scaling.ScalingThreadPool;
 import org.elasticsearch.transport.*;
@@ -41,17 +41,17 @@ public class SimpleLocalTransportTests {
 
     private TransportService serviceA;
     private TransportService serviceB;
-    private Node serviceANode;
-    private Node serviceBNode;
+    private DiscoveryNode serviceANode;
+    private DiscoveryNode serviceBNode;
 
     @BeforeClass public void setUp() {
         threadPool = new ScalingThreadPool();
 
         serviceA = new TransportService(new LocalTransport(threadPool), threadPool).start();
-        serviceANode = new Node("A", serviceA.boundAddress().publishAddress());
+        serviceANode = new DiscoveryNode("A", serviceA.boundAddress().publishAddress());
 
         serviceB = new TransportService(new LocalTransport(threadPool), threadPool).start();
-        serviceBNode = new Node("B", serviceB.boundAddress().publishAddress());
+        serviceBNode = new DiscoveryNode("B", serviceB.boundAddress().publishAddress());
     }
 
     @AfterClass public void tearDown() {

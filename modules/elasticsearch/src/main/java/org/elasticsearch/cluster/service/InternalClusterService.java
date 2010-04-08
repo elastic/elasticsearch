@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.service;
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.*;
-import org.elasticsearch.cluster.node.Nodes;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -172,7 +172,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
                     ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent(source, clusterState, previousClusterState, discoveryService.firstMaster());
                     // new cluster state, notify all listeners
-                    final Nodes.Delta nodesDelta = clusterChangedEvent.nodesDelta();
+                    final DiscoveryNodes.Delta nodesDelta = clusterChangedEvent.nodesDelta();
                     if (nodesDelta.hasChanges() && logger.isInfoEnabled()) {
                         String summary = nodesDelta.shortSummary();
                         if (summary.length() > 0) {

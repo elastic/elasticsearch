@@ -28,8 +28,8 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.node.Node;
-import org.elasticsearch.cluster.node.Nodes;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -65,9 +65,9 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
 
     private final Object transportMutex = new Object();
 
-    private volatile ImmutableList<Node> nodes = ImmutableList.of();
+    private volatile ImmutableList<DiscoveryNode> nodes = ImmutableList.of();
 
-    private volatile Nodes discoveredNodes;
+    private volatile DiscoveryNodes discoveredNodes;
 
     private final AtomicInteger tempNodeIdGenerator = new AtomicInteger();
 
@@ -100,7 +100,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
         return this.transportAddresses;
     }
 
-    public ImmutableList<Node> connectedNodes() {
+    public ImmutableList<DiscoveryNode> connectedNodes() {
         return this.nodes;
     }
 
@@ -128,13 +128,13 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
     }
 
     public <T> T execute(NodeCallback<T> callback) throws ElasticSearchException {
-        ImmutableList<Node> nodes = this.nodes;
+        ImmutableList<DiscoveryNode> nodes = this.nodes;
         if (nodes.isEmpty()) {
             throw new NoNodeAvailableException();
         }
         int index = randomNodeGenerator.incrementAndGet();
         for (int i = 0; i < nodes.size(); i++) {
-            Node node = nodes.get((index + i) % nodes.size());
+            DiscoveryNode node = nodes.get((index + i) % nodes.size());
             try {
                 return callback.doWithNode(node);
             } catch (ConnectTransportException e) {
@@ -151,9 +151,9 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
     @Override public void clusterChanged(ClusterChangedEvent event) {
         transportService.nodesAdded(event.nodesDelta().addedNodes());
         this.discoveredNodes = event.state().nodes();
-        HashSet<Node> newNodes = new HashSet<Node>(nodes);
+        HashSet<DiscoveryNode> newNodes = new HashSet<DiscoveryNode>(nodes);
         newNodes.addAll(discoveredNodes.nodes().values());
-        nodes = new ImmutableList.Builder<Node>().addAll(newNodes).build();
+        nodes = new ImmutableList.Builder<DiscoveryNode>().addAll(newNodes).build();
         transportService.nodesRemoved(event.nodesDelta().removedNodes());
     }
 
@@ -163,11 +163,11 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
             ImmutableList<TransportAddress> transportAddresses = TransportClientNodesService.this.transportAddresses;
             final CountDownLatch latch = new CountDownLatch(transportAddresses.size());
             final CopyOnWriteArrayList<NodesInfoResponse> nodesInfoResponses = new CopyOnWriteArrayList<NodesInfoResponse>();
-            final CopyOnWriteArrayList<Node> tempNodes = new CopyOnWriteArrayList<Node>();
+            final CopyOnWriteArrayList<DiscoveryNode> tempNodes = new CopyOnWriteArrayList<DiscoveryNode>();
             for (final TransportAddress transportAddress : transportAddresses) {
                 threadPool.execute(new Runnable() {
                     @Override public void run() {
-                        Node tempNode = new Node("#temp#-" + tempNodeIdGenerator.incrementAndGet(), transportAddress);
+                        DiscoveryNode tempNode = new DiscoveryNode("#temp#-" + tempNodeIdGenerator.incrementAndGet(), transportAddress);
                         tempNodes.add(tempNode);
                         try {
                             transportService.nodesAdded(ImmutableList.of(tempNode));
@@ -201,10 +201,10 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
                 return;
             }
 
-            HashSet<Node> newNodes = new HashSet<Node>();
+            HashSet<DiscoveryNode> newNodes = new HashSet<DiscoveryNode>();
             for (NodesInfoResponse nodesInfoResponse : nodesInfoResponses) {
                 if (nodesInfoResponse.nodes().length > 0) {
-                    Node node = nodesInfoResponse.nodes()[0].node();
+                    DiscoveryNode node = nodesInfoResponse.nodes()[0].node();
                     if (!clusterName.equals(nodesInfoResponse.clusterName())) {
                         logger.warn("Node {} not part of the cluster {}, ignoring...", node, clusterName);
                     } else {
@@ -218,7 +218,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
             if (discoveredNodes != null) {
                 newNodes.addAll(discoveredNodes.nodes().values());
             }
-            nodes = new ImmutableList.Builder<Node>().addAll(newNodes).build();
+            nodes = new ImmutableList.Builder<DiscoveryNode>().addAll(newNodes).build();
 
             transportService.nodesRemoved(tempNodes);
         }
@@ -226,6 +226,6 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
 
     public static interface NodeCallback<T> {
 
-        T doWithNode(Node node) throws ElasticSearchException;
+        T doWithNode(DiscoveryNode node) throws ElasticSearchException;
     }
 }

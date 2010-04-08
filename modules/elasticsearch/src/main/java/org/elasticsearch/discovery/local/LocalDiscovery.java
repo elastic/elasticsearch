@@ -23,8 +23,8 @@ import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.*;
-import org.elasticsearch.cluster.node.Node;
-import org.elasticsearch.cluster.node.Nodes;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.transport.TransportService;
@@ -54,7 +54,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
     private final ClusterName clusterName;
 
-    private Node localNode;
+    private DiscoveryNode localNode;
 
     private volatile boolean master = false;
 
@@ -84,7 +84,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 clusterGroups.put(clusterName, clusterGroup);
             }
             logger.debug("Connected to cluster [{}]", clusterName);
-            this.localNode = new Node(settings.get("name"), settings.getAsBoolean("node.data", true), Long.toString(nodeIdGenerator.incrementAndGet()), transportService.boundAddress().publishAddress());
+            this.localNode = new DiscoveryNode(settings.get("name"), settings.getAsBoolean("node.data", true), Long.toString(nodeIdGenerator.incrementAndGet()), transportService.boundAddress().publishAddress());
 
             clusterGroup.members().add(this);
             if (clusterGroup.members().size() == 1) {
@@ -93,7 +93,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 firstMaster = true;
                 clusterService.submitStateUpdateTask("local-disco-initialconnect(master)", new ProcessedClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
-                        Nodes.Builder builder = new Nodes.Builder()
+                        DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder()
                                 .localNodeId(localNode.id())
                                 .masterNodeId(localNode.id())
                                         // put our local node
@@ -153,8 +153,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
             masterDiscovery.clusterService.submitStateUpdateTask("local-disco-update", new ClusterStateUpdateTask() {
                 @Override public ClusterState execute(ClusterState currentState) {
-                    Nodes newNodes = currentState.nodes().removeDeadMembers(newMembers, masterDiscovery.localNode.id());
-                    Nodes.Delta delta = newNodes.delta(currentState.nodes());
+                    DiscoveryNodes newNodes = currentState.nodes().removeDeadMembers(newMembers, masterDiscovery.localNode.id());
+                    DiscoveryNodes.Delta delta = newNodes.delta(currentState.nodes());
                     if (delta.added()) {
                         logger.warn("No new nodes should be created when a new discovery view is accepted");
                     }

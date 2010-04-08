@@ -21,7 +21,7 @@ package org.elasticsearch.transport;
 
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.concurrent.highscalelib.NonBlockingHashMapLong;
@@ -96,7 +96,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         return transport.boundAddress();
     }
 
-    public void nodesAdded(Iterable<Node> nodes) {
+    public void nodesAdded(Iterable<DiscoveryNode> nodes) {
         try {
             transport.nodesAdded(nodes);
         } catch (Exception e) {
@@ -104,7 +104,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
     }
 
-    public void nodesRemoved(Iterable<Node> nodes) {
+    public void nodesRemoved(Iterable<DiscoveryNode> nodes) {
         try {
             transport.nodesRemoved(nodes);
         } catch (Exception e) {
@@ -123,14 +123,14 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         this.throwConnectException = throwConnectException;
     }
 
-    public <T extends Streamable> TransportFuture<T> submitRequest(Node node, String action, Streamable message,
+    public <T extends Streamable> TransportFuture<T> submitRequest(DiscoveryNode node, String action, Streamable message,
                                                                    TransportResponseHandler<T> handler) throws TransportException {
         PlainTransportFuture<T> futureHandler = new PlainTransportFuture<T>(handler);
         sendRequest(node, action, message, futureHandler);
         return futureHandler;
     }
 
-    public <T extends Streamable> void sendRequest(final Node node, final String action, final Streamable message,
+    public <T extends Streamable> void sendRequest(final DiscoveryNode node, final String action, final Streamable message,
                                                    final TransportResponseHandler<T> handler) throws TransportException {
         final long requestId = newRequestId();
         try {

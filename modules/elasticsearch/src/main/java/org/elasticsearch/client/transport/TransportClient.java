@@ -47,7 +47,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.action.ClientTransportActionModule;
 import org.elasticsearch.client.transport.support.InternalTransportClient;
 import org.elasticsearch.cluster.ClusterNameModule;
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.server.internal.InternalSettingsPerparer;
@@ -166,7 +166,7 @@ public class TransportClient implements Client {
      * <p>The nodes include all the nodes that are currently alive based on the transport
      * addresses provided.
      */
-    public ImmutableList<Node> connectedNodes() {
+    public ImmutableList<DiscoveryNode> connectedNodes() {
         return nodesService.connectedNodes();
     }
 

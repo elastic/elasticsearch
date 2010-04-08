@@ -19,25 +19,25 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 
 /**
  * @author kimchy (Shay Banon)
  */
 public class ConnectTransportException extends TransportException {
 
-    private final Node node;
+    private final DiscoveryNode node;
 
-    public ConnectTransportException(Node node, String msg) {
+    public ConnectTransportException(DiscoveryNode node, String msg) {
         this(node, msg, null);
     }
 
-    public ConnectTransportException(Node node, String msg, Throwable cause) {
+    public ConnectTransportException(DiscoveryNode node, String msg, Throwable cause) {
         super(node + ": " + msg, cause);
         this.node = node;
     }
 
-    public Node node() {
+    public DiscoveryNode node() {
         return node;
     }
 }

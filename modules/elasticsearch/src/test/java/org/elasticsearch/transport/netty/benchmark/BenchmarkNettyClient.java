@@ -20,7 +20,7 @@
 package org.elasticsearch.transport.netty.benchmark;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.cached.CachedThreadPool;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
@@ -60,7 +60,7 @@ public class BenchmarkNettyClient {
         final ThreadPool threadPool = new CachedThreadPool();
         final TransportService transportService = new TransportService(new NettyTransport(settings, threadPool), threadPool).start();
 
-        final Node node = new Node("server", new InetSocketTransportAddress("localhost", 9999));
+        final DiscoveryNode node = new DiscoveryNode("server", new InetSocketTransportAddress("localhost", 9999));
 
         transportService.nodesAdded(Lists.newArrayList(node));
 

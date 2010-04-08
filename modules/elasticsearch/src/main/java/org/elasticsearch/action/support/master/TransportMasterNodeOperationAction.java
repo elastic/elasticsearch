@@ -24,7 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.node.Nodes;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.util.settings.Settings;
@@ -60,7 +60,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
     protected abstract Response masterOperation(Request request) throws ElasticSearchException;
 
     @Override protected void doExecute(final Request request, final ActionListener<Response> listener) {
-        Nodes nodes = clusterService.state().nodes();
+        DiscoveryNodes nodes = clusterService.state().nodes();
         if (nodes.localNodeMaster()) {
             threadPool.execute(new Runnable() {
                 @Override public void run() {

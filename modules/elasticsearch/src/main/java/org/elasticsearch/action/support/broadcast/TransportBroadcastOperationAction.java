@@ -25,8 +25,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.Node;
-import org.elasticsearch.cluster.node.Nodes;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
@@ -111,7 +111,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
         private final ClusterState clusterState;
 
-        private final Nodes nodes;
+        private final DiscoveryNodes nodes;
 
         private final GroupShardsIterator shardsIts;
 
@@ -216,7 +216,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                         }
                     }
                 } else {
-                    Node node = nodes.get(shard.currentNodeId());
+                    DiscoveryNode node = nodes.get(shard.currentNodeId());
                     transportService.sendRequest(node, transportShardAction(), shardRequest, new BaseTransportResponseHandler<ShardResponse>() {
                         @Override public ShardResponse newInstance() {
                             return newShardResponse();

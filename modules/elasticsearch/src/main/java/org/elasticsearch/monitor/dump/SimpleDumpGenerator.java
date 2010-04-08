@@ -20,7 +20,7 @@
 package org.elasticsearch.monitor.dump;
 
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.util.Nullable;
 
 import java.io.File;
@@ -50,7 +50,7 @@ public class SimpleDumpGenerator implements DumpGenerator {
         long timestamp = System.currentTimeMillis();
         String fileName = "";
         if (context.containsKey("localNode")) {
-            Node localNode = (Node) context.get("localNode");
+            DiscoveryNode localNode = (DiscoveryNode) context.get("localNode");
             if (localNode.name() != null) {
                 fileName += localNode.name() + "-";
             }

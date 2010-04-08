@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.nodes;
 
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
@@ -31,21 +31,21 @@ import java.io.IOException;
  */
 public abstract class NodeOperationResponse implements Streamable {
 
-    private Node node;
+    private DiscoveryNode node;
 
     protected NodeOperationResponse() {
     }
 
-    protected NodeOperationResponse(Node node) {
+    protected NodeOperationResponse(DiscoveryNode node) {
         this.node = node;
     }
 
-    public Node node() {
+    public DiscoveryNode node() {
         return node;
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
-        node = Node.readNode(in);
+        node = DiscoveryNode.readNode(in);
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {

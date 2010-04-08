@@ -21,7 +21,7 @@ package org.elasticsearch.search.action;
 
 import com.google.inject.Inject;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchRequest;
@@ -65,7 +65,7 @@ public class SearchServiceTransportAction {
         transportService.registerHandler(SearchFetchByIdTransportHandler.ACTION, new SearchFetchByIdTransportHandler());
     }
 
-    public void sendFreeContext(Node node, final long contextId) {
+    public void sendFreeContext(DiscoveryNode node, final long contextId) {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             searchService.freeContext(contextId);
         } else {
@@ -73,7 +73,7 @@ public class SearchServiceTransportAction {
         }
     }
 
-    public void sendExecuteDfs(Node node, final InternalSearchRequest request, final SearchServiceListener<DfsSearchResult> listener) {
+    public void sendExecuteDfs(DiscoveryNode node, final InternalSearchRequest request, final SearchServiceListener<DfsSearchResult> listener) {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             try {
                 DfsSearchResult result = searchService.executeDfsPhase(request);
@@ -103,7 +103,7 @@ public class SearchServiceTransportAction {
         }
     }
 
-    public void sendExecuteQuery(Node node, final InternalSearchRequest request, final SearchServiceListener<QuerySearchResult> listener) {
+    public void sendExecuteQuery(DiscoveryNode node, final InternalSearchRequest request, final SearchServiceListener<QuerySearchResult> listener) {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             try {
                 QuerySearchResult result = searchService.executeQueryPhase(request);
@@ -133,7 +133,7 @@ public class SearchServiceTransportAction {
         }
     }
 
-    public void sendExecuteQuery(Node node, final QuerySearchRequest request, final SearchServiceListener<QuerySearchResult> listener) {
+    public void sendExecuteQuery(DiscoveryNode node, final QuerySearchRequest request, final SearchServiceListener<QuerySearchResult> listener) {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             try {
                 QuerySearchResult result = searchService.executeQueryPhase(request);
@@ -163,7 +163,7 @@ public class SearchServiceTransportAction {
         }
     }
 
-    public void sendExecuteQuery(Node node, final InternalScrollSearchRequest request, final SearchServiceListener<QuerySearchResult> listener) {
+    public void sendExecuteQuery(DiscoveryNode node, final InternalScrollSearchRequest request, final SearchServiceListener<QuerySearchResult> listener) {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             try {
                 QuerySearchResult result = searchService.executeQueryPhase(request);
@@ -193,7 +193,7 @@ public class SearchServiceTransportAction {
         }
     }
 
-    public void sendExecuteFetch(Node node, final InternalSearchRequest request, final SearchServiceListener<QueryFetchSearchResult> listener) {
+    public void sendExecuteFetch(DiscoveryNode node, final InternalSearchRequest request, final SearchServiceListener<QueryFetchSearchResult> listener) {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             try {
                 QueryFetchSearchResult result = searchService.executeFetchPhase(request);
@@ -223,7 +223,7 @@ public class SearchServiceTransportAction {
         }
     }
 
-    public void sendExecuteFetch(Node node, final QuerySearchRequest request, final SearchServiceListener<QueryFetchSearchResult> listener) {
+    public void sendExecuteFetch(DiscoveryNode node, final QuerySearchRequest request, final SearchServiceListener<QueryFetchSearchResult> listener) {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             try {
                 QueryFetchSearchResult result = searchService.executeFetchPhase(request);
@@ -253,7 +253,7 @@ public class SearchServiceTransportAction {
         }
     }
 
-    public void sendExecuteFetch(Node node, final InternalScrollSearchRequest request, final SearchServiceListener<QueryFetchSearchResult> listener) {
+    public void sendExecuteFetch(DiscoveryNode node, final InternalScrollSearchRequest request, final SearchServiceListener<QueryFetchSearchResult> listener) {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             try {
                 QueryFetchSearchResult result = searchService.executeFetchPhase(request);
@@ -283,7 +283,7 @@ public class SearchServiceTransportAction {
         }
     }
 
-    public void sendExecuteFetch(Node node, final FetchSearchRequest request, final SearchServiceListener<FetchSearchResult> listener) {
+    public void sendExecuteFetch(DiscoveryNode node, final FetchSearchRequest request, final SearchServiceListener<FetchSearchResult> listener) {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             try {
                 FetchSearchResult result = searchService.executeFetchPhase(request);

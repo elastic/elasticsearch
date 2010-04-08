@@ -28,7 +28,7 @@ import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.util.settings.Settings;
@@ -108,7 +108,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
             if (nodesIds == null || nodesIds.length == 0 || (nodesIds.length == 1 && nodesIds[0].equals("_all"))) {
                 int index = 0;
                 nodesIds = new String[clusterState.nodes().size()];
-                for (Node node : clusterState.nodes()) {
+                for (DiscoveryNode node : clusterState.nodes()) {
                     nodesIds[index++] = node.id();
                 }
             }
@@ -118,7 +118,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
 
         private void start() {
             for (final String nodeId : nodesIds) {
-                final Node node = clusterState.nodes().nodes().get(nodeId);
+                final DiscoveryNode node = clusterState.nodes().nodes().get(nodeId);
                 if (nodeId.equals("_local") || nodeId.equals(clusterState.nodes().localNodeId())) {
                     threadPool.execute(new Runnable() {
                         @Override public void run() {

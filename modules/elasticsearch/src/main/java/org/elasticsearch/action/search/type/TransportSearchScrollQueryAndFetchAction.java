@@ -23,8 +23,8 @@ import com.google.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.node.Node;
-import org.elasticsearch.cluster.node.Nodes;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
@@ -81,7 +81,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
 
         private final ParsedScrollId scrollId;
 
-        private final Nodes nodes;
+        private final DiscoveryNodes nodes;
 
         protected final Collection<ShardSearchFailure> shardFailures = searchCache.obtainShardFailures();
 
@@ -107,7 +107,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
 
             int localOperations = 0;
             for (Tuple<String, Long> target : scrollId.values()) {
-                Node node = nodes.get(target.v1());
+                DiscoveryNode node = nodes.get(target.v1());
                 if (node != null) {
                     if (nodes.localNodeId().equals(node.id())) {
                         localOperations++;
@@ -130,7 +130,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
                     threadPool.execute(new Runnable() {
                         @Override public void run() {
                             for (Tuple<String, Long> target : scrollId.values()) {
-                                Node node = nodes.get(target.v1());
+                                DiscoveryNode node = nodes.get(target.v1());
                                 if (node != null && nodes.localNodeId().equals(node.id())) {
                                     executePhase(node, target.v2());
                                 }
@@ -140,7 +140,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
                 } else {
                     boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
                     for (final Tuple<String, Long> target : scrollId.values()) {
-                        final Node node = nodes.get(target.v1());
+                        final DiscoveryNode node = nodes.get(target.v1());
                         if (node != null && nodes.localNodeId().equals(node.id())) {
                             if (localAsync) {
                                 threadPool.execute(new Runnable() {
@@ -157,7 +157,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
             }
 
             for (Tuple<String, Long> target : scrollId.values()) {
-                Node node = nodes.get(target.v1());
+                DiscoveryNode node = nodes.get(target.v1());
                 if (node == null) {
                     if (logger.isDebugEnabled()) {
                         logger.debug("Node [" + target.v1() + "] not available for scroll request [" + scrollId.source() + "]");
@@ -171,7 +171,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
             }
         }
 
-        private void executePhase(Node node, long searchId) {
+        private void executePhase(DiscoveryNode node, long searchId) {
             searchService.sendExecuteFetch(node, internalScrollSearchRequest(searchId, request), new SearchServiceListener<QueryFetchSearchResult>() {
                 @Override public void onResult(QueryFetchSearchResult result) {
                     queryFetchResults.put(result.shardTarget(), result);

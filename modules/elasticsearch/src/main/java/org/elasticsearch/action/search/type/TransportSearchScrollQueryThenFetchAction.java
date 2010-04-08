@@ -23,8 +23,8 @@ import com.google.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.node.Node;
-import org.elasticsearch.cluster.node.Nodes;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
@@ -85,7 +85,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
 
         private final ParsedScrollId scrollId;
 
-        private final Nodes nodes;
+        private final DiscoveryNodes nodes;
 
         protected final Collection<ShardSearchFailure> shardFailures = searchCache.obtainShardFailures();
 
@@ -113,7 +113,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
 
             int localOperations = 0;
             for (Tuple<String, Long> target : scrollId.values()) {
-                Node node = nodes.get(target.v1());
+                DiscoveryNode node = nodes.get(target.v1());
                 if (node != null) {
                     if (nodes.localNodeId().equals(node.id())) {
                         localOperations++;
@@ -136,7 +136,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
                     threadPool.execute(new Runnable() {
                         @Override public void run() {
                             for (Tuple<String, Long> target : scrollId.values()) {
-                                Node node = nodes.get(target.v1());
+                                DiscoveryNode node = nodes.get(target.v1());
                                 if (node != null && nodes.localNodeId().equals(node.id())) {
                                     executeQueryPhase(counter, node, target.v2());
                                 }
@@ -146,7 +146,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
                 } else {
                     boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
                     for (final Tuple<String, Long> target : scrollId.values()) {
-                        final Node node = nodes.get(target.v1());
+                        final DiscoveryNode node = nodes.get(target.v1());
                         if (node != null && nodes.localNodeId().equals(node.id())) {
                             if (localAsync) {
                                 threadPool.execute(new Runnable() {
@@ -163,7 +163,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
             }
         }
 
-        private void executeQueryPhase(final AtomicInteger counter, Node node, long searchId) {
+        private void executeQueryPhase(final AtomicInteger counter, DiscoveryNode node, long searchId) {
             searchService.sendExecuteQuery(node, internalScrollSearchRequest(searchId, request), new SearchServiceListener<QuerySearchResult>() {
                 @Override public void onResult(QuerySearchResult result) {
                     queryResults.put(result.shardTarget(), result);
@@ -199,7 +199,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
                 SearchShardTarget shardTarget = entry.getKey();
                 ExtTIntArrayList docIds = entry.getValue();
                 FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(queryResults.get(shardTarget).id(), docIds);
-                Node node = nodes.get(shardTarget.nodeId());
+                DiscoveryNode node = nodes.get(shardTarget.nodeId());
                 searchService.sendExecuteFetch(node, fetchSearchRequest, new SearchServiceListener<FetchSearchResult>() {
                     @Override public void onResult(FetchSearchResult result) {
                         fetchResults.put(result.shardTarget(), result);

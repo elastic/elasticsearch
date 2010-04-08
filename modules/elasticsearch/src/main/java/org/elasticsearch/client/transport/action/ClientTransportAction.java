@@ -24,14 +24,14 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 
 /**
  * @author kimchy (Shay Banon)
  */
 public interface ClientTransportAction<Request extends ActionRequest, Response extends ActionResponse> {
 
-    ActionFuture<Response> execute(Node node, Request request) throws ElasticSearchException;
+    ActionFuture<Response> execute(DiscoveryNode node, Request request) throws ElasticSearchException;
 
-    void execute(Node node, Request request, ActionListener<Response> listener);
+    void execute(DiscoveryNode node, Request request, ActionListener<Response> listener);
 }

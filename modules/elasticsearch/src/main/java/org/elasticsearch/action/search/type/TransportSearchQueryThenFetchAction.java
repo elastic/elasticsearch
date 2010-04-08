@@ -23,7 +23,7 @@ import com.google.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -72,7 +72,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
             return "query";
         }
 
-        @Override protected void sendExecuteFirstPhase(Node node, InternalSearchRequest request, SearchServiceListener<QuerySearchResult> listener) {
+        @Override protected void sendExecuteFirstPhase(DiscoveryNode node, InternalSearchRequest request, SearchServiceListener<QuerySearchResult> listener) {
             searchService.sendExecuteQuery(node, request, listener);
         }
 
@@ -93,7 +93,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
 
             int localOperations = 0;
             for (Map.Entry<SearchShardTarget, ExtTIntArrayList> entry : docIdsToLoad.entrySet()) {
-                Node node = nodes.get(entry.getKey().nodeId());
+                DiscoveryNode node = nodes.get(entry.getKey().nodeId());
                 if (node.id().equals(nodes.localNodeId())) {
                     localOperations++;
                 } else {
@@ -107,7 +107,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
                     threadPool.execute(new Runnable() {
                         @Override public void run() {
                             for (Map.Entry<SearchShardTarget, ExtTIntArrayList> entry : docIdsToLoad.entrySet()) {
-                                Node node = nodes.get(entry.getKey().nodeId());
+                                DiscoveryNode node = nodes.get(entry.getKey().nodeId());
                                 if (node.id().equals(nodes.localNodeId())) {
                                     FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(queryResults.get(entry.getKey()).id(), entry.getValue());
                                     executeFetch(counter, fetchSearchRequest, node);
@@ -118,7 +118,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
                 } else {
                     boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
                     for (Map.Entry<SearchShardTarget, ExtTIntArrayList> entry : docIdsToLoad.entrySet()) {
-                        final Node node = nodes.get(entry.getKey().nodeId());
+                        final DiscoveryNode node = nodes.get(entry.getKey().nodeId());
                         if (node.id().equals(nodes.localNodeId())) {
                             final FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(queryResults.get(entry.getKey()).id(), entry.getValue());
                             if (localAsync) {
@@ -138,7 +138,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
             releaseIrrelevantSearchContexts(queryResults, docIdsToLoad);
         }
 
-        private void executeFetch(final AtomicInteger counter, FetchSearchRequest fetchSearchRequest, Node node) {
+        private void executeFetch(final AtomicInteger counter, FetchSearchRequest fetchSearchRequest, DiscoveryNode node) {
             searchService.sendExecuteFetch(node, fetchSearchRequest, new SearchServiceListener<FetchSearchResult>() {
                 @Override public void onResult(FetchSearchResult result) {
                     fetchResults.put(result.shardTarget(), result);

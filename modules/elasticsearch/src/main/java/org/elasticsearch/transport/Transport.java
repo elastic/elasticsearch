@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.util.component.LifecycleComponent;
 import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.transport.BoundTransportAddress;
@@ -70,10 +70,10 @@ public interface Transport extends LifecycleComponent<Transport> {
      */
     boolean addressSupported(Class<? extends TransportAddress> address);
 
-    void nodesAdded(Iterable<Node> nodes);
+    void nodesAdded(Iterable<DiscoveryNode> nodes);
 
-    void nodesRemoved(Iterable<Node> nodes);
+    void nodesRemoved(Iterable<DiscoveryNode> nodes);
 
-    <T extends Streamable> void sendRequest(Node node, long requestId, String action,
+    <T extends Streamable> void sendRequest(DiscoveryNode node, long requestId, String action,
                                             Streamable message, TransportResponseHandler<T> handler) throws IOException, TransportException;
 }

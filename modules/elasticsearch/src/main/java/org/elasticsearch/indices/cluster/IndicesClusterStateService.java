@@ -30,8 +30,8 @@ import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.node.Node;
-import org.elasticsearch.cluster.node.Nodes;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -228,7 +228,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         if (routingNodes == null) {
             return;
         }
-        Nodes nodes = event.state().nodes();
+        DiscoveryNodes nodes = event.state().nodes();
 
 
         for (final ShardRouting shardRouting : routingNodes) {
@@ -257,7 +257,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
     }
 
-    private void applyInitializingShard(final RoutingTable routingTable, final Nodes nodes, final ShardRouting shardRouting) throws ElasticSearchException {
+    private void applyInitializingShard(final RoutingTable routingTable, final DiscoveryNodes nodes, final ShardRouting shardRouting) throws ElasticSearchException {
         final IndexService indexService = indicesService.indexServiceSafe(shardRouting.index());
         final int shardId = shardRouting.id();
 
@@ -322,7 +322,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                         for (ShardRouting entry : shardRoutingTable) {
                             if (entry.primary() && entry.started()) {
                                 // only recover from started primary, if we can't find one, we will do it next round
-                                Node node = nodes.get(entry.currentNodeId());
+                                DiscoveryNode node = nodes.get(entry.currentNodeId());
                                 try {
                                     // we are recovering a backup from a primary, so no need to mark it as relocated
                                     recoveryAction.startRecovery(nodes.localNode(), node, false);
@@ -346,7 +346,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                             }
                         } else {
                             // relocating primaries, recovery from the relocating shard
-                            Node node = nodes.get(shardRouting.relocatingNodeId());
+                            DiscoveryNode node = nodes.get(shardRouting.relocatingNodeId());
                             try {
                                 // we mark the primary we are going to recover from as relocated at the end of phase 3
                                 // so operations will start moving to the new primary

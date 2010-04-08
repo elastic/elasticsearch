@@ -23,7 +23,7 @@ import com.google.common.collect.Lists;
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.util.SizeValue;
@@ -355,7 +355,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
 
-    @Override public <T extends Streamable> void sendRequest(Node node, long requestId, String action,
+    @Override public <T extends Streamable> void sendRequest(DiscoveryNode node, long requestId, String action,
                                                              Streamable streamable, final TransportResponseHandler<T> handler) throws IOException, TransportException {
 
         Channel targetChannel = nodeChannel(node);
@@ -391,11 +391,11 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 //        });
     }
 
-    @Override public void nodesAdded(Iterable<Node> nodes) {
+    @Override public void nodesAdded(Iterable<DiscoveryNode> nodes) {
         if (!lifecycle.started()) {
             throw new ElasticSearchIllegalStateException("Can't add nodes to a stopped transport");
         }
-        for (Node node : nodes) {
+        for (DiscoveryNode node : nodes) {
             try {
                 nodeChannel(node);
             } catch (Exception e) {
@@ -404,8 +404,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
     }
 
-    @Override public void nodesRemoved(Iterable<Node> nodes) {
-        for (Node node : nodes) {
+    @Override public void nodesRemoved(Iterable<DiscoveryNode> nodes) {
+        for (DiscoveryNode node : nodes) {
             NodeConnections nodeConnections = clientChannels.remove(node.id());
             if (nodeConnections != null) {
                 nodeConnections.close();
@@ -413,7 +413,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
     }
 
-    private Channel nodeChannel(Node node) throws ConnectTransportException {
+    private Channel nodeChannel(DiscoveryNode node) throws ConnectTransportException {
         if (node == null) {
             throw new ConnectTransportException(node, "Can't connect to a null node");
         }

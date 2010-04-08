@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.routing.strategy;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
 
 import java.util.Iterator;
@@ -54,7 +54,7 @@ public class DefaultShardsRoutingStrategy implements ShardsRoutingStrategy {
     @Override public RoutingTable reroute(ClusterState clusterState) {
         RoutingNodes routingNodes = clusterState.routingNodes();
 
-        Iterable<Node> dataNodes = clusterState.nodes().dataNodes().values();
+        Iterable<DiscoveryNode> dataNodes = clusterState.nodes().dataNodes().values();
 
         boolean changed = false;
         // first, clear from the shards any node id they used to belong to that is now dead
@@ -212,8 +212,8 @@ public class DefaultShardsRoutingStrategy implements ShardsRoutingStrategy {
      *
      * @param liveNodes currently live nodes.
      */
-    private void applyNewNodes(RoutingNodes routingNodes, Iterable<Node> liveNodes) {
-        for (Node node : liveNodes) {
+    private void applyNewNodes(RoutingNodes routingNodes, Iterable<DiscoveryNode> liveNodes) {
+        for (DiscoveryNode node : liveNodes) {
             if (!routingNodes.nodesToShards().containsKey(node.id())) {
                 RoutingNode routingNode = new RoutingNode(node.id());
                 routingNodes.nodesToShards().put(node.id(), routingNode);
@@ -221,10 +221,10 @@ public class DefaultShardsRoutingStrategy implements ShardsRoutingStrategy {
         }
     }
 
-    private boolean deassociateDeadNodes(RoutingNodes routingNodes, Iterable<Node> liveNodes) {
+    private boolean deassociateDeadNodes(RoutingNodes routingNodes, Iterable<DiscoveryNode> liveNodes) {
         boolean changed = false;
         Set<String> liveNodeIds = newHashSet();
-        for (Node liveNode : liveNodes) {
+        for (DiscoveryNode liveNode : liveNodes) {
             liveNodeIds.add(liveNode.id());
         }
         Set<String> nodeIdsToRemove = newHashSet();

@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.node.shutdown;
 import org.elasticsearch.action.support.nodes.NodeOperationResponse;
 import org.elasticsearch.action.support.nodes.NodesOperationResponse;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 
@@ -61,7 +61,7 @@ public class NodesShutdownResponse extends NodesOperationResponse<NodesShutdownR
         NodeShutdownResponse() {
         }
 
-        public NodeShutdownResponse(Node node) {
+        public NodeShutdownResponse(DiscoveryNode node) {
             super(node);
         }
 

@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.routing.strategy;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.util.logging.Loggers;
@@ -32,7 +32,7 @@ import org.testng.annotations.Test;
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.cluster.metadata.MetaData.*;
-import static org.elasticsearch.cluster.node.Nodes.*;
+import static org.elasticsearch.cluster.node.DiscoveryNodes.*;
 import static org.elasticsearch.cluster.routing.RoutingBuilders.*;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.hamcrest.MatcherAssert.*;
@@ -182,7 +182,7 @@ public class TenShardsOneBackupRoutingTests {
         assertThat(routingNodes.node("node3").numberOfShardsWithState(STARTED), equalTo(6));
     }
 
-    private Node newNode(String nodeId) {
-        return new Node(nodeId, DummyTransportAddress.INSTANCE);
+    private DiscoveryNode newNode(String nodeId) {
+        return new DiscoveryNode(nodeId, DummyTransportAddress.INSTANCE);
     }
 }

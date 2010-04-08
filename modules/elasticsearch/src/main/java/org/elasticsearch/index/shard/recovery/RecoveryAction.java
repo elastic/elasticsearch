@@ -25,7 +25,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchInterruptedException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
@@ -135,7 +135,7 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
         }
     }
 
-    public synchronized void startRecovery(Node node, Node targetNode, boolean markAsRelocated) throws ElasticSearchException {
+    public synchronized void startRecovery(DiscoveryNode node, DiscoveryNode targetNode, boolean markAsRelocated) throws ElasticSearchException {
         sendStartRecoveryThread = Thread.currentThread();
         try {
             // mark the shard as recovering
@@ -224,20 +224,20 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
 
     private static class StartRecoveryRequest implements Streamable {
 
-        private Node node;
+        private DiscoveryNode node;
 
         private boolean markAsRelocated;
 
         private StartRecoveryRequest() {
         }
 
-        private StartRecoveryRequest(Node node, boolean markAsRelocated) {
+        private StartRecoveryRequest(DiscoveryNode node, boolean markAsRelocated) {
             this.node = node;
             this.markAsRelocated = markAsRelocated;
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {
-            node = Node.readNode(in);
+            node = DiscoveryNode.readNode(in);
             markAsRelocated = in.readBoolean();
         }
 
@@ -255,7 +255,7 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
 
         @Override public void messageReceived(final StartRecoveryRequest startRecoveryRequest, final TransportChannel channel) throws Exception {
             logger.trace("Starting recovery to {}, markAsRelocated {}", startRecoveryRequest.node, startRecoveryRequest.markAsRelocated);
-            final Node node = startRecoveryRequest.node;
+            final DiscoveryNode node = startRecoveryRequest.node;
             cleanOpenIndex();
             final RecoveryStatus recoveryStatus = new RecoveryStatus();
             indexShard.recover(new Engine.RecoveryHandler() {

@@ -23,7 +23,7 @@ import com.google.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -74,7 +74,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
             return "dfs";
         }
 
-        @Override protected void sendExecuteFirstPhase(Node node, InternalSearchRequest request, SearchServiceListener<DfsSearchResult> listener) {
+        @Override protected void sendExecuteFirstPhase(DiscoveryNode node, InternalSearchRequest request, SearchServiceListener<DfsSearchResult> listener) {
             searchService.sendExecuteDfs(node, request, listener);
         }
 
@@ -88,7 +88,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
 
             int localOperations = 0;
             for (DfsSearchResult dfsResult : dfsResults) {
-                Node node = nodes.get(dfsResult.shardTarget().nodeId());
+                DiscoveryNode node = nodes.get(dfsResult.shardTarget().nodeId());
                 if (node.id().equals(nodes.localNodeId())) {
                     localOperations++;
                 } else {
@@ -101,7 +101,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
                     threadPool.execute(new Runnable() {
                         @Override public void run() {
                             for (DfsSearchResult dfsResult : dfsResults) {
-                                Node node = nodes.get(dfsResult.shardTarget().nodeId());
+                                DiscoveryNode node = nodes.get(dfsResult.shardTarget().nodeId());
                                 if (node.id().equals(nodes.localNodeId())) {
                                     QuerySearchRequest querySearchRequest = new QuerySearchRequest(dfsResult.id(), dfs);
                                     executeSecondPhase(counter, node, querySearchRequest);
@@ -112,7 +112,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
                 } else {
                     boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
                     for (DfsSearchResult dfsResult : dfsResults) {
-                        final Node node = nodes.get(dfsResult.shardTarget().nodeId());
+                        final DiscoveryNode node = nodes.get(dfsResult.shardTarget().nodeId());
                         if (node.id().equals(nodes.localNodeId())) {
                             final QuerySearchRequest querySearchRequest = new QuerySearchRequest(dfsResult.id(), dfs);
                             if (localAsync) {
@@ -130,7 +130,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
             }
         }
 
-        private void executeSecondPhase(final AtomicInteger counter, Node node, QuerySearchRequest querySearchRequest) {
+        private void executeSecondPhase(final AtomicInteger counter, DiscoveryNode node, QuerySearchRequest querySearchRequest) {
             searchService.sendExecuteFetch(node, querySearchRequest, new SearchServiceListener<QueryFetchSearchResult>() {
                 @Override public void onResult(QueryFetchSearchResult result) {
                     queryFetchResults.put(result.shardTarget(), result);

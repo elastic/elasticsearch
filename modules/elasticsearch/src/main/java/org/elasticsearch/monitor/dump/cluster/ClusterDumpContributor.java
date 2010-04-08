@@ -23,7 +23,7 @@ import com.google.inject.Inject;
 import com.google.inject.assistedinject.Assisted;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.Nodes;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.monitor.dump.Dump;
 import org.elasticsearch.monitor.dump.DumpContributionFailedException;
@@ -54,7 +54,7 @@ public class ClusterDumpContributor implements DumpContributor {
 
     @Override public void contribute(Dump dump) throws DumpContributionFailedException {
         ClusterState clusterState = clusterService.state();
-        Nodes nodes = clusterState.nodes();
+        DiscoveryNodes nodes = clusterState.nodes();
         RoutingTable routingTable = clusterState.routingTable();
 
         PrintWriter writer = new PrintWriter(dump.createFileWriter("cluster.txt"));

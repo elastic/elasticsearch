@@ -19,14 +19,14 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.cluster.node.Node;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class SendRequestTransportException extends RemoteTransportException {
 
-    public SendRequestTransportException(Node node, String action, Throwable cause) {
+    public SendRequestTransportException(DiscoveryNode node, String action, Throwable cause) {
         super(node.name(), node.address(), action, cause);
     }
 

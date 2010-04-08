@@ -171,8 +171,8 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             final Map<SearchShardTarget, ExtTIntArrayList> docIdsToLoad = searchPhaseController.docIdsToLoad(sortedShardList);
 
             if (docIdsToLoad.isEmpty()) {
-                finishHim();
                 releaseIrrelevantSearchContexts(queryResults, docIdsToLoad);
+                finishHim();
             }
 
             final AtomicInteger counter = new AtomicInteger(docIdsToLoad.size());

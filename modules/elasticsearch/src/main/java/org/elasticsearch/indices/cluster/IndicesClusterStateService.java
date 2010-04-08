@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.IndexShardAlreadyExistsException;
+import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.gateway.IgnoreGatewayRecoveryException;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -290,6 +291,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 logger.warn("Failed to create shard for index [" + indexService.index().name() + "] and shard id [" + shardRouting.id() + "]", e);
                 try {
                     indexService.deleteShard(shardId);
+                } catch (IndexShardMissingException e1) {
+                    // ignore
                 } catch (Exception e1) {
                     logger.warn("Failed to delete shard after failed creation for index [" + indexService.index().name() + "] and shard id [" + shardRouting.id() + "]", e1);
                 }

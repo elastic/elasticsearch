@@ -39,7 +39,7 @@ public class KeepOnlyLastDeletionPolicy extends AbstractIndexShardComponent impl
 
     @Inject public KeepOnlyLastDeletionPolicy(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
-        logger.debug("Using [KeepOnlyLast] deletion policy");
+        logger.debug("Using [keep_only_last] deletion policy");
     }
 
     /**

@@ -50,7 +50,7 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
         this.maxMergeDocs = componentSettings.getAsInt("max_merge_docs", LogByteSizeMergePolicy.DEFAULT_MAX_MERGE_DOCS);
         this.calibrateSizeByDeletes = componentSettings.getAsBoolean("calibrate_size_by_deletes", false);
         this.useCompoundFile = componentSettings.getAsBoolean("use_compound_file", store == null || store.suggestUseCompoundFile());
-        logger.debug("Using [LogByteSize] merge policy with merge_factor[{}], min_merge_size[{}], max_merge_size[{}], max_merge_docs[{}] use_compound_file[{}], calibrate_size_by_deletes[{}]",
+        logger.debug("Using [log_bytes_size] merge policy with merge_factor[{}], min_merge_size[{}], max_merge_size[{}], max_merge_docs[{}] use_compound_file[{}], calibrate_size_by_deletes[{}]",
                 new Object[]{mergeFactor, minMergeSize, maxMergeSize, maxMergeDocs, useCompoundFile, calibrateSizeByDeletes});
     }
 

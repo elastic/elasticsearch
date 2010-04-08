@@ -40,7 +40,7 @@ public class RamStore extends AbstractStore<RAMDirectory> {
     @Inject public RamStore(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
         this.directory = new RAMDirectory();
-        logger.debug("Using [RAM] Store");
+        logger.debug("Using [ram] Store");
     }
 
     @Override public RAMDirectory directory() {

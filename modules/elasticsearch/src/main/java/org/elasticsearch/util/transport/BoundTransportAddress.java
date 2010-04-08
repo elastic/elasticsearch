@@ -46,6 +46,6 @@ public class BoundTransportAddress {
     }
 
     @Override public String toString() {
-        return "boundAddress [" + boundAddress + "], publishAddress [" + publishAddress + "]";
+        return "bound_address[" + boundAddress + "], publish_address[" + publishAddress + "]";
     }
 }

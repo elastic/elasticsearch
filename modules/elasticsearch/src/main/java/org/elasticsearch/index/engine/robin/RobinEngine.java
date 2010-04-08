@@ -123,7 +123,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             throw new EngineAlreadyStartedException(shardId);
         }
         if (logger.isDebugEnabled()) {
-            logger.debug("Starting engine with ram_buffer_size [" + ramBufferSize + "], refresh_interval [" + refreshInterval + "]");
+            logger.debug("Starting engine with ram_buffer_size[" + ramBufferSize + "], refresh_interval[" + refreshInterval + "]");
         }
         IndexWriter indexWriter = null;
         try {

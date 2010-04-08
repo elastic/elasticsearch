@@ -186,6 +186,7 @@ public class ImmutableSettings implements Settings {
         }
     }
 
+    @SuppressWarnings({"unchecked"})
     @Override public <T> Class<? extends T> getAsClass(String setting, Class<? extends T> defaultClazz, String prefixPackage, String suffixClassName) throws NoClassSettingsException {
         String sValue = get(setting);
         if (sValue == null) {
@@ -199,11 +200,16 @@ public class ImmutableSettings implements Settings {
             try {
                 return (Class<? extends T>) getClassLoader().loadClass(fullClassName);
             } catch (ClassNotFoundException e1) {
-                fullClassName = prefixPackage + sValue + "." + Strings.capitalize(toCamelCase(sValue)) + suffixClassName;
+                fullClassName = prefixPackage + toCamelCase(sValue) + "." + Strings.capitalize(toCamelCase(sValue)) + suffixClassName;
                 try {
                     return (Class<? extends T>) getClassLoader().loadClass(fullClassName);
                 } catch (ClassNotFoundException e2) {
-                    throw new NoClassSettingsException("Failed to load class setting [" + setting + "] with value [" + sValue + "]", e);
+                    fullClassName = prefixPackage + toCamelCase(sValue).toLowerCase() + "." + Strings.capitalize(toCamelCase(sValue)) + suffixClassName;
+                    try {
+                        return (Class<? extends T>) getClassLoader().loadClass(fullClassName);
+                    } catch (ClassNotFoundException e3) {
+                        throw new NoClassSettingsException("Failed to load class setting [" + setting + "] with value [" + sValue + "]", e);
+                    }
                 }
             }
         }

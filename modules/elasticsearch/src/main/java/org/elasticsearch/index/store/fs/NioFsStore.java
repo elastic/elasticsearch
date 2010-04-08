@@ -58,12 +58,12 @@ public class NioFsStore extends AbstractFsStore<Directory> {
         SwitchDirectory switchDirectory = buildSwitchDirectoryIfNeeded(fsDirectory);
         if (switchDirectory != null) {
             suggestUseCompoundFile = false;
-            logger.debug("Using [NioFs] Store with path [{}], cache [true] with extensions [{}]", new Object[]{fsDirectory.getFile(), switchDirectory.primaryExtensions()});
+            logger.debug("Using [nio_fs] Store with path [{}], cache [true] with extensions [{}]", new Object[]{fsDirectory.getFile(), switchDirectory.primaryExtensions()});
             directory = switchDirectory;
         } else {
             suggestUseCompoundFile = true;
             directory = fsDirectory;
-            logger.debug("Using [NioFs] Store with path [{}]", fsDirectory.getFile());
+            logger.debug("Using [nio_fs] Store with path [{}]", fsDirectory.getFile());
         }
     }
 

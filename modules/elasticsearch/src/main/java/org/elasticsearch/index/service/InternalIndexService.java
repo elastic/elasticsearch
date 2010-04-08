@@ -187,7 +187,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
         indicesLifecycle.beforeIndexShardCreated(shardId);
 
-        logger.debug("Creating Shard Id [{}]", shardId.id());
+        logger.debug("Creating shard_id[{}]", shardId.id());
 
         Injector shardInjector = injector.createChildInjector(
                 new ShardsPluginsModule(indexSettings, pluginsService),
@@ -234,7 +234,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         }
         shardsInjectors = ImmutableMap.copyOf(tmpShardInjectors);
         if (delete) {
-            logger.debug("Deleting Shard Id [{}]", shardId);
+            logger.debug("Deleting shard_id[{}]", shardId);
         }
 
         Map<Integer, IndexShard> tmpShardsMap = newHashMap(shards);

@@ -168,7 +168,7 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
                 stopWatch.stop();
                 if (logger.isDebugEnabled()) {
                     StringBuilder sb = new StringBuilder();
-                    sb.append("Recovery completed from ").append(targetNode).append(", took [").append(stopWatch.totalTime()).append("]\n");
+                    sb.append("Recovery completed from ").append(targetNode).append(", took[").append(stopWatch.totalTime()).append("]\n");
                     sb.append("   Phase1: recovered [").append(recoveryStatus.phase1FileNames.size()).append("]")
                             .append(" files with total size of [").append(new SizeValue(recoveryStatus.phase1TotalSize)).append("]")
                             .append(", took [").append(new TimeValue(recoveryStatus.phase1Time, MILLISECONDS)).append("]")

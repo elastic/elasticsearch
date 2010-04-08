@@ -54,7 +54,7 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
 
         this.readerCleanerSchedule = componentSettings.getAsTime("reader_cleaner_schedule", TimeValue.timeValueMinutes(1));
 
-        logger.debug("Using [" + type() + "] filter cache with readerCleanerSchedule [{}]", readerCleanerSchedule);
+        logger.debug("Using [" + type() + "] filter cache with reader_cleaner_schedule[{}]", readerCleanerSchedule);
 
         this.cache = newConcurrentMap();
         this.scheduleFuture = threadPool.scheduleWithFixedDelay(new IndexReaderCleaner(), readerCleanerSchedule);

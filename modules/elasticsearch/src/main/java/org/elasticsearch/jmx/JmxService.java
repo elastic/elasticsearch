@@ -128,7 +128,7 @@ public class JmxService {
             if (!success) {
                 throw new JmxConnectorCreationException("Failed to bind to [" + port + "]", lastException.get());
             }
-            logger.info("boundAddress [{}], publishAddress [{}]", serviceUrl, publishUrl);
+            logger.info("bound_address[{}], publish_address[{}]", serviceUrl, publishUrl);
         }
 
         for (ResourceDMBean resource : constructionMBeans) {

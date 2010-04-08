@@ -127,7 +127,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         } else {
             dynamicMappingSource = null;
         }
-        logger.debug("Using dynamic [{}] with location [{}] and source [{}]", new Object[]{dynamic, dynamicMappingLocation, dynamicMappingSource});
+        logger.debug("Using dynamic[{}] with location[{}] and source[{}]", new Object[]{dynamic, dynamicMappingLocation, dynamicMappingSource});
     }
 
     @Override public UnmodifiableIterator<DocumentMapper> iterator() {

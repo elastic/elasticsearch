@@ -48,7 +48,7 @@ public class HeapStore extends AbstractStore<HeapDirectory> {
         this.warmCache = componentSettings.getAsBoolean("warm_cache", true);
 
         this.directory = new HeapDirectory(bufferSize, cacheSize, warmCache);
-        logger.debug("Using [Memory] Store with buffer_size[{}], cache_size[{}], warm_cache[{}]",
+        logger.debug("Using [heap] Store with buffer_size[{}], cache_size[{}], warm_cache[{}]",
                 new Object[]{directory.bufferSize(), directory.cacheSize(), warmCache});
     }
 

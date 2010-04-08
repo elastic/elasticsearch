@@ -482,7 +482,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 throw new ConnectTransportException(node, "connectTimeout[" + connectTimeout + "], connectRetries[" + connectRetries + "], reason unknown");
             }
             if (logger.isDebugEnabled()) {
-                logger.debug("Connected to node [{}], numberOfConnections [{}]", node, channels.size());
+                logger.debug("Connected to node[{}], number_of_connections[{}]", node, channels.size());
             }
             clientChannels.put(node.id(), new NodeConnections(channels.toArray(new Channel[channels.size()])));
         }

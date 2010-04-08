@@ -55,7 +55,7 @@ public class BalancedSegmentMergePolicyProvider extends AbstractIndexShardCompon
 
         this.useCompoundFile = componentSettings.getAsBoolean("use_compound_file", store == null || store.suggestUseCompoundFile());
 
-        logger.debug("Using [Balanced] merge policy with merge_factor[{}], min_merge_size[{}], max_merge_size[{}], max_merge_docs[{}] use_compound_file[{}]",
+        logger.debug("Using [balanced] merge policy with merge_factor[{}], min_merge_size[{}], max_merge_size[{}], max_merge_docs[{}] use_compound_file[{}]",
                 new Object[]{mergeFactor, minMergeSize, maxMergeSize, maxMergeDocs, useCompoundFile});
     }
 

@@ -58,12 +58,12 @@ public class SimpleFsStore extends AbstractFsStore<Directory> {
         SwitchDirectory switchDirectory = buildSwitchDirectoryIfNeeded(fsDirectory);
         if (switchDirectory != null) {
             suggestUseCompoundFile = false;
-            logger.debug("Using [SimpleFs] Store with path [{}], cache [true] with extensions [{}]", new Object[]{fsDirectory.getFile(), switchDirectory.primaryExtensions()});
+            logger.debug("Using [simple_fs] Store with path [{}], cache [true] with extensions [{}]", new Object[]{fsDirectory.getFile(), switchDirectory.primaryExtensions()});
             directory = switchDirectory;
         } else {
             suggestUseCompoundFile = true;
             directory = fsDirectory;
-            logger.debug("Using [SimpleFs] Store with path [{}]", fsDirectory.getFile());
+            logger.debug("Using [simple_fs] Store with path [{}]", fsDirectory.getFile());
         }
     }
 

@@ -53,11 +53,11 @@ public class StoreModule extends AbstractModule {
             storeModule = MemoryStoreModule.class;
         } else if ("fs".equalsIgnoreCase(storeType)) {
             // nothing to set here ... (we default to fs)
-        } else if ("simplefs".equalsIgnoreCase(storeType)) {
+        } else if ("simplefs".equalsIgnoreCase(storeType) || "simple_fs".equals(storeType)) {
             storeModule = SimpleFsStoreModule.class;
-        } else if ("niofs".equalsIgnoreCase(storeType)) {
+        } else if ("niofs".equalsIgnoreCase(storeType) || "nio_fs".equalsIgnoreCase(storeType)) {
             storeModule = NioFsStoreModule.class;
-        } else if ("mmapfs".equalsIgnoreCase(storeType)) {
+        } else if ("mmapfs".equalsIgnoreCase(storeType) || "mmap_fs".equalsIgnoreCase(storeType)) {
             storeModule = MmapFsStoreModule.class;
         } else if (storeType != null) {
             storeModule = settings.getAsClass("index.store.type", storeModule, "org.elasticsearch.index.store.", "StoreModule");

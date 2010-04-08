@@ -21,8 +21,8 @@ package org.elasticsearch.test.integration.nodesinfo;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.server.internal.InternalServer;
-import org.elasticsearch.test.integration.AbstractServersTests;
+import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
@@ -33,17 +33,17 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class SimpleNodesInfoTests extends AbstractServersTests {
+public class SimpleNodesInfoTests extends AbstractNodesTests {
 
-    @AfterMethod public void closeServers() {
-        closeAllServers();
+    @AfterMethod public void closeNodes() {
+        closeAllNodes();
     }
 
     @Test public void testNodesInfos() {
-        startServer("server1");
-        startServer("server2");
-        String server1NodeId = ((InternalServer) server("server1")).injector().getInstance(ClusterService.class).state().nodes().localNodeId();
-        String server2NodeId = ((InternalServer) server("server2")).injector().getInstance(ClusterService.class).state().nodes().localNodeId();
+        startNode("server1");
+        startNode("server2");
+        String server1NodeId = ((InternalNode) node("server1")).injector().getInstance(ClusterService.class).state().nodes().localNodeId();
+        String server2NodeId = ((InternalNode) node("server2")).injector().getInstance(ClusterService.class).state().nodes().localNodeId();
 
         NodesInfoResponse response = client("server1").admin().cluster().nodesInfo(nodesInfo()).actionGet();
         assertThat(response.nodes().length, equalTo(2));

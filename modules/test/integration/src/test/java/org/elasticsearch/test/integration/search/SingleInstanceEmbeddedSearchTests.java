@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.search;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchService;
@@ -35,8 +36,7 @@ import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.server.internal.InternalServer;
-import org.elasticsearch.test.integration.AbstractServersTests;
+import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.trove.ExtTIntArrayList;
 import org.testng.annotations.AfterClass;
@@ -55,14 +55,14 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class SingleInstanceEmbeddedSearchTests extends AbstractServersTests {
+public class SingleInstanceEmbeddedSearchTests extends AbstractNodesTests {
 
     private SearchService searchService;
 
     private SearchPhaseController searchPhaseController;
 
-    @BeforeClass public void createServerAndInitWithData() throws Exception {
-        startServer("server1");
+    @BeforeClass public void createNodeAndInitWithData() throws Exception {
+        startNode("server1");
 
         client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
         index(client("server1"), "1", "test1", 1);
@@ -72,12 +72,12 @@ public class SingleInstanceEmbeddedSearchTests extends AbstractServersTests {
         index(client("server1"), "5", "test5", 2);
         client("server1").admin().indices().refresh(refreshRequest("test")).actionGet();
 
-        searchService = ((InternalServer) server("server1")).injector().getInstance(SearchService.class);
-        searchPhaseController = ((InternalServer) server("server1")).injector().getInstance(SearchPhaseController.class);
+        searchService = ((InternalNode) node("server1")).injector().getInstance(SearchService.class);
+        searchPhaseController = ((InternalNode) node("server1")).injector().getInstance(SearchPhaseController.class);
     }
 
-    @AfterClass public void closeServer() {
-        closeAllServers();
+    @AfterClass public void closeNode() {
+        closeAllNodes();
     }
 
     @Test public void testDirectDfs() throws Exception {

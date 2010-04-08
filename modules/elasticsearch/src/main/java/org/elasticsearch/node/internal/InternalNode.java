@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.server.internal;
+package org.elasticsearch.node.internal;
 
 import com.google.inject.Guice;
 import com.google.inject.Injector;
@@ -26,7 +26,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.TransportActionModule;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.server.ServerClientModule;
+import org.elasticsearch.client.node.NodeClientModule;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.ClusterService;
@@ -46,13 +46,13 @@ import org.elasticsearch.jmx.JmxModule;
 import org.elasticsearch.jmx.JmxService;
 import org.elasticsearch.monitor.MonitorModule;
 import org.elasticsearch.monitor.MonitorService;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.server.Server;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.timer.TimerModule;
@@ -79,7 +79,7 @@ import static org.elasticsearch.util.settings.ImmutableSettings.*;
 /**
  * @author kimchy (shay.banon)
  */
-public final class InternalServer implements Server {
+public final class InternalNode implements Node {
 
     private final Lifecycle lifecycle = new Lifecycle();
 
@@ -93,14 +93,14 @@ public final class InternalServer implements Server {
 
     private final Client client;
 
-    public InternalServer() throws ElasticSearchException {
+    public InternalNode() throws ElasticSearchException {
         this(Builder.EMPTY_SETTINGS, true);
     }
 
-    public InternalServer(Settings pSettings, boolean loadConfigSettings) throws ElasticSearchException {
+    public InternalNode(Settings pSettings, boolean loadConfigSettings) throws ElasticSearchException {
         Tuple<Settings, Environment> tuple = InternalSettingsPerparer.prepareSettings(pSettings, loadConfigSettings);
 
-        Logger logger = Loggers.getLogger(Server.class, tuple.v1().get("name"));
+        Logger logger = Loggers.getLogger(Node.class, tuple.v1().get("name"));
         logger.info("{{}}: Initializing ...", Version.full());
 
         this.pluginsService = new PluginsService(tuple.v1(), tuple.v2());
@@ -109,7 +109,7 @@ public final class InternalServer implements Server {
 
         ArrayList<Module> modules = new ArrayList<Module>();
         modules.add(new PluginsModule(settings, pluginsService));
-        modules.add(new ServerModule(this));
+        modules.add(new NodeModule(this));
         modules.add(new JmxModule(settings));
         modules.add(new EnvironmentModule(environment));
         modules.add(new ClusterNameModule(settings));
@@ -128,7 +128,7 @@ public final class InternalServer implements Server {
         modules.add(new TransportActionModule());
         modules.add(new MonitorModule(settings));
         modules.add(new GatewayModule(settings));
-        modules.add(new ServerClientModule());
+        modules.add(new NodeClientModule());
 
 
         injector = Guice.createInjector(modules);
@@ -146,12 +146,12 @@ public final class InternalServer implements Server {
         return client;
     }
 
-    public Server start() {
+    public Node start() {
         if (!lifecycle.moveToStarted()) {
             return this;
         }
 
-        Logger logger = Loggers.getLogger(Server.class, settings.get("name"));
+        Logger logger = Loggers.getLogger(Node.class, settings.get("name"));
         logger.info("{{}}: Starting ...", Version.full());
 
         for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
@@ -180,11 +180,11 @@ public final class InternalServer implements Server {
         return this;
     }
 
-    @Override public Server stop() {
+    @Override public Node stop() {
         if (!lifecycle.moveToStopped()) {
             return this;
         }
-        Logger logger = Loggers.getLogger(Server.class, settings.get("name"));
+        Logger logger = Loggers.getLogger(Node.class, settings.get("name"));
         logger.info("{{}}: Stopping ...", Version.full());
 
         if (settings.getAsBoolean("http.enabled", true)) {
@@ -228,7 +228,7 @@ public final class InternalServer implements Server {
             return;
         }
 
-        Logger logger = Loggers.getLogger(Server.class, settings.get("name"));
+        Logger logger = Loggers.getLogger(Node.class, settings.get("name"));
         logger.info("{{}}: Closing ...", Version.full());
 
         if (settings.getAsBoolean("http.enabled", true)) {
@@ -272,11 +272,11 @@ public final class InternalServer implements Server {
     }
 
     public static void main(String[] args) throws Exception {
-        final InternalServer server = new InternalServer();
-        server.start();
+        final InternalNode node = new InternalNode();
+        node.start();
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override public void run() {
-                server.close();
+                node.close();
             }
         });
     }

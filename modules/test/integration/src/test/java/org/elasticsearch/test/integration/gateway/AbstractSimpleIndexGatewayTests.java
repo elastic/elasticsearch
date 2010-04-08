@@ -26,8 +26,8 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.gateway.Gateway;
-import org.elasticsearch.server.internal.InternalServer;
-import org.elasticsearch.test.integration.AbstractServersTests;
+import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -39,23 +39,23 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public abstract class AbstractSimpleIndexGatewayTests extends AbstractServersTests {
+public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests {
 
-    @AfterMethod public void closeServers() {
-        server("server1").stop();
+    @AfterMethod public void closeNodes() {
+        node("server1").stop();
         // since we store (by default) the index snapshot under the gateway, resetting it will reset the index data as well
-        ((InternalServer) server("server1")).injector().getInstance(Gateway.class).reset();
-        closeAllServers();
+        ((InternalNode) node("server1")).injector().getInstance(Gateway.class).reset();
+        closeAllNodes();
     }
 
-    @BeforeMethod public void buildServer1() {
-        buildServer("server1");
+    @BeforeMethod public void buildNode1() {
+        buildNode("server1");
         // since we store (by default) the index snapshot under the gateway, resetting it will reset the index data as well
-        ((InternalServer) server("server1")).injector().getInstance(Gateway.class).reset();
+        ((InternalNode) node("server1")).injector().getInstance(Gateway.class).reset();
     }
 
     @Test public void testSnapshotOperations() throws Exception {
-        server("server1").start();
+        node("server1").start();
 
         // Translog tests
 
@@ -87,9 +87,9 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractServersTes
         client("server1").admin().indices().gatewaySnapshot(gatewaySnapshotRequest("test")).actionGet();
 
         logger.info("Closing the server");
-        closeServer("server1");
+        closeNode("server1");
         logger.info("Starting the server, should recover from the gateway (only translog should be populated)");
-        startServer("server1");
+        startNode("server1");
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
         ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForYellowStatus()).actionGet();
@@ -120,9 +120,9 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractServersTes
         client("server1").admin().indices().gatewaySnapshot(gatewaySnapshotRequest("test")).actionGet();
 
         logger.info("Closing the server");
-        closeServer("server1");
+        closeNode("server1");
         logger.info("Starting the server, should recover from the gateway (both index and translog)");
-        startServer("server1");
+        startNode("server1");
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
         clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForYellowStatus()).actionGet();
@@ -149,9 +149,9 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractServersTes
         client("server1").admin().indices().gatewaySnapshot(gatewaySnapshotRequest("test")).actionGet();
 
         logger.info("Closing the server");
-        closeServer("server1");
+        closeNode("server1");
         logger.info("Starting the server, should recover from the gateway (just from the index, nothing in the translog)");
-        startServer("server1");
+        startNode("server1");
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
         clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForYellowStatus()).actionGet();

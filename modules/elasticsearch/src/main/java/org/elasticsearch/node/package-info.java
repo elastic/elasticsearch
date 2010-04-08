@@ -18,6 +18,6 @@
  */
 
 /**
- * Allow to build a {@link Server} using {@link ServerBuilder} which is a node within the cluster.
+ * Allow to build a {@link Node} using {@link NodeBuilder} which is a node within the cluster.
  */
-package org.elasticsearch.server;
+package org.elasticsearch.node;

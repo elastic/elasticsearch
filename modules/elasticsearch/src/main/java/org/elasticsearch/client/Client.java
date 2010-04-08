@@ -45,11 +45,11 @@ import org.elasticsearch.action.terms.TermsResponse;
  * simply returns an {@link org.elasticsearch.action.ActionFuture}, while the second accepts an
  * {@link org.elasticsearch.action.ActionListener}.
  *
- * <p>A client can either be retrieved from a {@link org.elasticsearch.server.Server} started, or connected remotely
+ * <p>A client can either be retrieved from a {@link org.elasticsearch.node.Node} started, or connected remotely
  * to one or more nodes using {@link org.elasticsearch.client.transport.TransportClient}.
  *
  * @author kimchy (shay.banon)
- * @see org.elasticsearch.server.Server#client()
+ * @see org.elasticsearch.node.Node#client()
  * @see org.elasticsearch.client.transport.TransportClient
  */
 public interface Client {

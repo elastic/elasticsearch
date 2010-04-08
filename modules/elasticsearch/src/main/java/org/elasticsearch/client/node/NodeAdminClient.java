@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.server;
+package org.elasticsearch.client.node;
 
 import com.google.inject.Inject;
 import org.elasticsearch.client.AdminClient;
@@ -27,15 +27,15 @@ import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.settings.Settings;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class ServerAdminClient extends AbstractComponent implements AdminClient {
+public class NodeAdminClient extends AbstractComponent implements AdminClient {
 
-    private final ServerIndicesAdminClient indicesAdminClient;
+    private final NodeIndicesAdminClient indicesAdminClient;
 
-    private final ServerClusterAdminClient clusterAdminClient;
+    private final NodeClusterAdminClient clusterAdminClient;
 
-    @Inject public ServerAdminClient(Settings settings, ServerClusterAdminClient clusterAdminClient, ServerIndicesAdminClient indicesAdminClient) {
+    @Inject public NodeAdminClient(Settings settings, NodeClusterAdminClient clusterAdminClient, NodeIndicesAdminClient indicesAdminClient) {
         super(settings);
         this.indicesAdminClient = indicesAdminClient;
         this.clusterAdminClient = clusterAdminClient;

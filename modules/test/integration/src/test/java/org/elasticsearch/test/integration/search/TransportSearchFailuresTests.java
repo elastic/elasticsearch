@@ -27,7 +27,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.test.integration.AbstractServersTests;
+import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.testng.annotations.AfterMethod;
@@ -43,15 +43,15 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class TransportSearchFailuresTests extends AbstractServersTests {
+public class TransportSearchFailuresTests extends AbstractNodesTests {
 
-    @AfterMethod public void closeServers() {
-        closeAllServers();
+    @AfterMethod public void closeNodes() {
+        closeAllNodes();
     }
 
     @Test public void testFailedSearchWithWrongQuery() throws Exception {
         logger.info("Start Testing failed search with wrong query");
-        startServer("server1");
+        startNode("server1");
         client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
 
         for (int i = 0; i < 100; i++) {
@@ -74,8 +74,8 @@ public class TransportSearchFailuresTests extends AbstractServersTests {
             }
         }
 
-        startServer("server2");
-        Thread.sleep(300);
+        startNode("server2");
+        Thread.sleep(500);
 
         logger.info("Running Cluster Health");
         ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealth("test").waitForYellowStatus().waitForRelocatingShards(0)).actionGet();

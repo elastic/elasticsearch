@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.server;
+package org.elasticsearch.client.node;
 
 import com.google.inject.Inject;
 import org.elasticsearch.action.ActionFuture;
@@ -51,9 +51,9 @@ import org.elasticsearch.util.settings.Settings;
 /**
  * @author kimchy (shay.banon)
  */
-public class ServerClient extends AbstractComponent implements Client {
+public class NodeClient extends AbstractComponent implements Client {
 
-    private final ServerAdminClient admin;
+    private final NodeAdminClient admin;
 
     private final TransportIndexAction indexAction;
 
@@ -73,11 +73,11 @@ public class ServerClient extends AbstractComponent implements Client {
 
     private final TransportMoreLikeThisAction moreLikeThisAction;
 
-    @Inject public ServerClient(Settings settings, ServerAdminClient admin,
-                                TransportIndexAction indexAction, TransportDeleteAction deleteAction,
-                                TransportDeleteByQueryAction deleteByQueryAction, TransportGetAction getAction, TransportCountAction countAction,
-                                TransportSearchAction searchAction, TransportSearchScrollAction searchScrollAction,
-                                TransportTermsAction termsAction, TransportMoreLikeThisAction moreLikeThisAction) {
+    @Inject public NodeClient(Settings settings, NodeAdminClient admin,
+                              TransportIndexAction indexAction, TransportDeleteAction deleteAction,
+                              TransportDeleteByQueryAction deleteByQueryAction, TransportGetAction getAction, TransportCountAction countAction,
+                              TransportSearchAction searchAction, TransportSearchScrollAction searchScrollAction,
+                              TransportTermsAction termsAction, TransportMoreLikeThisAction moreLikeThisAction) {
         super(settings);
         this.admin = admin;
         this.indexAction = indexAction;

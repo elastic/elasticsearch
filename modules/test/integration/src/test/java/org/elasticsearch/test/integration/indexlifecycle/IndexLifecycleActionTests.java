@@ -26,8 +26,8 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.server.internal.InternalServer;
-import org.elasticsearch.test.integration.AbstractServersTests;
+import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.util.logging.Loggers;
 import org.elasticsearch.util.settings.Settings;
 import org.slf4j.Logger;
@@ -44,12 +44,12 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class IndexLifecycleActionTests extends AbstractServersTests {
+public class IndexLifecycleActionTests extends AbstractNodesTests {
 
     private final Logger logger = Loggers.getLogger(IndexLifecycleActionTests.class);
 
-    @AfterMethod public void closeServers() {
-        closeAllServers();
+    @AfterMethod public void closeNodes() {
+        closeAllNodes();
     }
 
     @Test public void testIndexLifecycleActionsWith11Shards1Backup() throws Exception {
@@ -60,9 +60,9 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
 
         // start one server
         logger.info("Starting sever1");
-        startServer("server1", settings);
+        startNode("server1", settings);
 
-        ClusterService clusterService1 = ((InternalServer) server("server1")).injector().getInstance(ClusterService.class);
+        ClusterService clusterService1 = ((InternalNode) node("server1")).injector().getInstance(ClusterService.class);
 
         logger.info("Creating index [test]");
         CreateIndexResponse createIndexResponse = client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
@@ -88,10 +88,10 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
 
         logger.info("Starting server2");
         // start another server
-        startServer("server2", settings);
+        startNode("server2", settings);
         Thread.sleep(200);
 
-        ClusterService clusterService2 = ((InternalServer) server("server2")).injector().getInstance(ClusterService.class);
+        ClusterService clusterService2 = ((InternalNode) node("server2")).injector().getInstance(ClusterService.class);
 
         logger.info("Running Cluster Health");
         clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForGreenStatus()).actionGet();
@@ -112,10 +112,10 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
 
         logger.info("Starting server3");
         // start another server
-        startServer("server3", settings);
+        startNode("server3", settings);
         Thread.sleep(200);
 
-        ClusterService clusterService3 = ((InternalServer) server("server3")).injector().getInstance(ClusterService.class);
+        ClusterService clusterService3 = ((InternalNode) node("server3")).injector().getInstance(ClusterService.class);
 
         logger.info("Running Cluster Health");
         clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForGreenStatus().waitForRelocatingShards(0)).actionGet();
@@ -145,7 +145,7 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
 
         logger.info("Closing server1");
         // kill the first server
-        closeServer("server1");
+        closeNode("server1");
         // wait a bit so it will be discovered as removed
         Thread.sleep(200);
         // verify health
@@ -195,9 +195,9 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
 
         // start one server
         logger.info("Starting server1");
-        startServer("server1", settings);
+        startNode("server1", settings);
 
-        ClusterService clusterService1 = ((InternalServer) server("server1")).injector().getInstance(ClusterService.class);
+        ClusterService clusterService1 = ((InternalNode) node("server1")).injector().getInstance(ClusterService.class);
 
         logger.info("Creating index [test]");
         CreateIndexResponse createIndexResponse = client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
@@ -218,7 +218,7 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
 
         // start another server
         logger.info("Starting server2");
-        startServer("server2", settings);
+        startNode("server2", settings);
         // wait a bit
         Thread.sleep(200);
 
@@ -234,7 +234,7 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
         // sleep till the cluster state gets published, since we check the master
         Thread.sleep(200);
 
-        ClusterService clusterService2 = ((InternalServer) server("server2")).injector().getInstance(ClusterService.class);
+        ClusterService clusterService2 = ((InternalNode) node("server2")).injector().getInstance(ClusterService.class);
 
         clusterState1 = clusterService1.state();
         routingNodeEntry1 = clusterState1.readOnlyRoutingNodes().nodesToShards().get(clusterState1.nodes().localNodeId());
@@ -246,11 +246,11 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
 
         // start another server
         logger.info("Starting server3");
-        startServer("server3");
+        startNode("server3");
         // wait a bit so assignment will start
         Thread.sleep(200);
 
-        ClusterService clusterService3 = ((InternalServer) server("server3")).injector().getInstance(ClusterService.class);
+        ClusterService clusterService3 = ((InternalNode) node("server3")).injector().getInstance(ClusterService.class);
 
         logger.info("Running Cluster Health");
         clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForGreenStatus().waitForRelocatingShards(0)).actionGet();
@@ -280,7 +280,7 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
 
         logger.info("Closing server1");
         // kill the first server
-        closeServer("server1");
+        closeNode("server1");
         // wait a bit so it will be discovered as removed
         Thread.sleep(200);
 
@@ -328,7 +328,7 @@ public class IndexLifecycleActionTests extends AbstractServersTests {
                 .build();
 
         // start one server
-        startServer("server1", settings);
+        startNode("server1", settings);
         client("server1").admin().indices().create(createIndexRequest("test1")).actionGet();
         client("server1").admin().indices().create(createIndexRequest("test2")).actionGet();
     }

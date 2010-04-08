@@ -17,23 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.client.server;
+package org.elasticsearch.node.internal;
 
 import com.google.inject.AbstractModule;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.node.Node;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class ServerClientModule extends AbstractModule {
+public class NodeModule extends AbstractModule {
+
+    private final Node node;
+
+    public NodeModule(Node node) {
+        this.node = node;
+    }
 
     @Override protected void configure() {
-        bind(ClusterAdminClient.class).to(ServerClusterAdminClient.class).asEagerSingleton();
-        bind(IndicesAdminClient.class).to(ServerIndicesAdminClient.class).asEagerSingleton();
-        bind(AdminClient.class).to(ServerAdminClient.class).asEagerSingleton();
-        bind(Client.class).to(ServerClient.class).asEagerSingleton();
+        bind(Node.class).toInstance(node);
     }
 }

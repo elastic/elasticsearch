@@ -32,6 +32,7 @@ import org.elasticsearch.index.routing.OperationRouting;
 import org.elasticsearch.index.routing.plain.PlainOperationRouting;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.*;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.controller.SearchPhaseController;
@@ -47,8 +48,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
-import org.elasticsearch.server.internal.InternalServer;
-import org.elasticsearch.test.integration.AbstractServersTests;
+import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.trove.ExtTIntArrayList;
@@ -72,7 +72,7 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class TwoInstanceUnbalancedShardsEmbeddedSearchTests extends AbstractServersTests {
+public class TwoInstanceUnbalancedShardsEmbeddedSearchTests extends AbstractNodesTests {
 
     private IndicesService indicesService;
 
@@ -82,12 +82,12 @@ public class TwoInstanceUnbalancedShardsEmbeddedSearchTests extends AbstractServ
 
     private SearchPhaseController searchPhaseController;
 
-    @BeforeClass public void createServerAndInitWithData() throws Exception {
-        startServer("server1");
-        startServer("server2");
+    @BeforeClass public void createNodeAndInitWithData() throws Exception {
+        startNode("server1");
+        startNode("server2");
 
-        clusterService = ((InternalServer) server("server1")).injector().getInstance(ClusterService.class);
-        indicesService = ((InternalServer) server("server1")).injector().getInstance(IndicesService.class);
+        clusterService = ((InternalNode) node("server1")).injector().getInstance(ClusterService.class);
+        indicesService = ((InternalNode) node("server1")).injector().getInstance(IndicesService.class);
 
         client("server1").admin().indices().create(Requests.createIndexRequest("test")).actionGet();
 
@@ -96,19 +96,19 @@ public class TwoInstanceUnbalancedShardsEmbeddedSearchTests extends AbstractServ
         }
         client("server1").admin().indices().refresh(refreshRequest("test")).actionGet();
 
-        SearchService searchService1 = ((InternalServer) server("server1")).injector().getInstance(SearchService.class);
-        SearchService searchService2 = ((InternalServer) server("server2")).injector().getInstance(SearchService.class);
+        SearchService searchService1 = ((InternalNode) node("server1")).injector().getInstance(SearchService.class);
+        SearchService searchService2 = ((InternalNode) node("server2")).injector().getInstance(SearchService.class);
 
         nodeToSearchService = ImmutableMap.<String, SearchService>builder()
-                .put(((InternalServer) server("server1")).injector().getInstance(ClusterService.class).state().nodes().localNodeId(), searchService1)
-                .put(((InternalServer) server("server2")).injector().getInstance(ClusterService.class).state().nodes().localNodeId(), searchService2)
+                .put(((InternalNode) node("server1")).injector().getInstance(ClusterService.class).state().nodes().localNodeId(), searchService1)
+                .put(((InternalNode) node("server2")).injector().getInstance(ClusterService.class).state().nodes().localNodeId(), searchService2)
                 .build();
 
-        searchPhaseController = ((InternalServer) server("server1")).injector().getInstance(SearchPhaseController.class);
+        searchPhaseController = ((InternalNode) node("server1")).injector().getInstance(SearchPhaseController.class);
     }
 
-    @AfterClass public void closeServers() {
-        closeAllServers();
+    @AfterClass public void closeNodes() {
+        closeAllNodes();
     }
 
     @Test public void testDfsQueryFetch() throws Exception {

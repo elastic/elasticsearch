@@ -27,7 +27,7 @@ import org.elasticsearch.action.support.nodes.NodeOperationRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.server.Server;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.TimeValue;
@@ -48,15 +48,15 @@ import static org.elasticsearch.util.TimeValue.*;
  */
 public class TransportNodesShutdown extends TransportNodesOperationAction<NodesShutdownRequest, NodesShutdownResponse, TransportNodesShutdown.NodeShutdownRequest, NodesShutdownResponse.NodeShutdownResponse> {
 
-    private final Server server;
+    private final Node node;
 
     private final boolean disabled;
 
     @Inject public TransportNodesShutdown(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                           ClusterService clusterService, TransportService transportService,
-                                          Server server) {
+                                          Node node) {
         super(settings, clusterName, threadPool, clusterService, transportService);
-        this.server = server;
+        this.node = node;
         disabled = componentSettings.getAsBoolean("disabled", false);
     }
 
@@ -102,7 +102,7 @@ public class TransportNodesShutdown extends TransportNodesOperationAction<NodesS
         logger.info("Shutting down in [{}]", request.delay);
         threadPool.schedule(new Runnable() {
             @Override public void run() {
-                server.close();
+                node.close();
             }
         }, request.delay.millis(), TimeUnit.MILLISECONDS);
         return new NodesShutdownResponse.NodeShutdownResponse(clusterService.state().nodes().localNode());

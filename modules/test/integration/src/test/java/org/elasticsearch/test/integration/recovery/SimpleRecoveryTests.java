@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.test.integration.AbstractServersTests;
+import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
@@ -35,14 +35,14 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class SimpleRecoveryTests extends AbstractServersTests {
+public class SimpleRecoveryTests extends AbstractNodesTests {
 
-    @AfterMethod public void closeServers() {
-        closeAllServers();
+    @AfterMethod public void closeNodes() {
+        closeAllNodes();
     }
 
     @Test public void testSimpleRecovery() throws Exception {
-        startServer("server1");
+        startNode("server1");
 
         client("server1").admin().indices().create(createIndexRequest("test")).actionGet(5000);
 
@@ -63,7 +63,7 @@ public class SimpleRecoveryTests extends AbstractServersTests {
         assertThat(refreshResponse.successfulShards(), equalTo(5));
         assertThat(refreshResponse.failedShards(), equalTo(0));
 
-        startServer("server2");
+        startNode("server2");
 
         logger.info("Running Cluster Health");
         clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForGreenStatus()).actionGet();
@@ -85,7 +85,7 @@ public class SimpleRecoveryTests extends AbstractServersTests {
         }
 
         // now start another one so we move some primaries
-        startServer("server3");
+        startNode("server3");
         Thread.sleep(1000);
         logger.info("Running Cluster Health");
         clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForGreenStatus()).actionGet();

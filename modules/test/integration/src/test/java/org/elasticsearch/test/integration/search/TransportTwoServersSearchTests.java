@@ -28,7 +28,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.integration.AbstractServersTests;
+import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.testng.annotations.AfterClass;
@@ -51,13 +51,13 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class TransportTwoServersSearchTests extends AbstractServersTests {
+public class TransportTwoServersSearchTests extends AbstractNodesTests {
 
     private Client client;
 
-    @BeforeClass public void createServers() throws Exception {
-        startServer("server1");
-        startServer("server2");
+    @BeforeClass public void createNodes() throws Exception {
+        startNode("server1");
+        startNode("server2");
         client = getClient();
 
         client.admin().indices().create(createIndexRequest("test")).actionGet();
@@ -70,7 +70,7 @@ public class TransportTwoServersSearchTests extends AbstractServersTests {
 
     @AfterClass public void closeServers() {
         client.close();
-        closeAllServers();
+        closeAllNodes();
     }
 
     protected Client getClient() {

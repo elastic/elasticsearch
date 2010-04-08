@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.server;
+package org.elasticsearch.client.node;
 
 import com.google.inject.Inject;
 import org.elasticsearch.action.ActionFuture;
@@ -48,9 +48,9 @@ import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.settings.Settings;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class ServerClusterAdminClient extends AbstractComponent implements ClusterAdminClient {
+public class NodeClusterAdminClient extends AbstractComponent implements ClusterAdminClient {
 
     private final TransportClusterHealthAction clusterHealthAction;
 
@@ -66,10 +66,10 @@ public class ServerClusterAdminClient extends AbstractComponent implements Clust
 
     private final TransportNodesShutdown nodesShutdown;
 
-    @Inject public ServerClusterAdminClient(Settings settings,
-                                            TransportClusterHealthAction clusterHealthAction, TransportClusterStateAction clusterStateAction,
-                                            TransportSinglePingAction singlePingAction, TransportBroadcastPingAction broadcastPingAction, TransportReplicationPingAction replicationPingAction,
-                                            TransportNodesInfo nodesInfo, TransportNodesShutdown nodesShutdown) {
+    @Inject public NodeClusterAdminClient(Settings settings,
+                                          TransportClusterHealthAction clusterHealthAction, TransportClusterStateAction clusterStateAction,
+                                          TransportSinglePingAction singlePingAction, TransportBroadcastPingAction broadcastPingAction, TransportReplicationPingAction replicationPingAction,
+                                          TransportNodesInfo nodesInfo, TransportNodesShutdown nodesShutdown) {
         super(settings);
         this.clusterHealthAction = clusterHealthAction;
         this.clusterStateAction = clusterStateAction;

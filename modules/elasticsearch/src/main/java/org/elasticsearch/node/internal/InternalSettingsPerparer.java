@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.server.internal;
+package org.elasticsearch.node.internal;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.env.Environment;

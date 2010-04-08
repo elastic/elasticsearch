@@ -26,7 +26,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
-import org.elasticsearch.test.integration.AbstractServersTests;
+import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.testng.annotations.AfterMethod;
@@ -43,14 +43,14 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class BroadcastActionsTests extends AbstractServersTests {
+public class BroadcastActionsTests extends AbstractNodesTests {
 
     @AfterMethod public void closeServers() {
-        closeAllServers();
+        closeAllNodes();
     }
 
     @Test public void testBroadcastOperations() throws IOException {
-        startServer("server1");
+        startNode("server1");
 
         client("server1").admin().indices().create(createIndexRequest("test")).actionGet(5000);
 

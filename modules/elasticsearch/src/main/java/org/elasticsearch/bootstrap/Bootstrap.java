@@ -25,9 +25,9 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jmx.JmxService;
-import org.elasticsearch.server.Server;
-import org.elasticsearch.server.ServerBuilder;
-import org.elasticsearch.server.internal.InternalSettingsPerparer;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeBuilder;
+import org.elasticsearch.node.internal.InternalSettingsPerparer;
 import org.elasticsearch.util.Classes;
 import org.elasticsearch.util.Tuple;
 import org.elasticsearch.util.jline.ANSI;
@@ -51,17 +51,17 @@ import static org.elasticsearch.util.settings.ImmutableSettings.*;
  */
 public class Bootstrap {
 
-    private Server server;
+    private Node node;
 
     private void setup(boolean addShutdownHook, Tuple<Settings, Environment> tuple) throws Exception {
         tuple = setupJmx(tuple);
 
-        ServerBuilder serverBuilder = ServerBuilder.serverBuilder().settings(tuple.v1()).loadConfigSettings(false);
-        server = serverBuilder.build();
+        NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(tuple.v1()).loadConfigSettings(false);
+        node = nodeBuilder.build();
         if (addShutdownHook) {
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override public void run() {
-                    server.close();
+                    node.close();
                 }
             });
         }
@@ -107,14 +107,14 @@ public class Bootstrap {
      * hook for JSVC
      */
     public void start() {
-        server.start();
+        node.start();
     }
 
     /**
      * hook for JSVC
      */
     public void stop() {
-        server.stop();
+        node.stop();
     }
 
 
@@ -122,7 +122,7 @@ public class Bootstrap {
      * hook for JSVC
      */
     public void destroy() {
-        server.close();
+        node.close();
     }
 
 
@@ -163,8 +163,8 @@ public class Bootstrap {
             }
         } catch (Throwable e) {
             Logger logger = Loggers.getLogger(Bootstrap.class);
-            if (bootstrap.server != null) {
-                logger = Loggers.getLogger(Bootstrap.class, bootstrap.server.settings().get("name"));
+            if (bootstrap.node != null) {
+                logger = Loggers.getLogger(Bootstrap.class, bootstrap.node.settings().get("name"));
             }
             String errorMessage = buildErrorMessage(stage, e);
             if (foreground) {

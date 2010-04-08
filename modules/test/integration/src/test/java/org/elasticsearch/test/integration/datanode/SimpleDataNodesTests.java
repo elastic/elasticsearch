@@ -22,7 +22,7 @@ package org.elasticsearch.test.integration.datanode;
 import org.elasticsearch.action.PrimaryNotStartedActionException;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.test.integration.AbstractServersTests;
+import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
@@ -35,14 +35,14 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class SimpleDataNodesTests extends AbstractServersTests {
+public class SimpleDataNodesTests extends AbstractNodesTests {
 
-    @AfterMethod public void closeServers() {
-        closeAllServers();
+    @AfterMethod public void closeNodes() {
+        closeAllNodes();
     }
 
     @Test public void testDataNodes() throws Exception {
-        startServer("nonData1", settingsBuilder().put("node.data", false).build());
+        startNode("nonData1", settingsBuilder().put("node.data", false).build());
         client("nonData1").admin().indices().create(createIndexRequest("test")).actionGet();
         try {
             client("nonData1").index(Requests.indexRequest("test").type("type1").id("1").source(source("1", "test")).timeout(timeValueSeconds(1))).actionGet();
@@ -51,7 +51,7 @@ public class SimpleDataNodesTests extends AbstractServersTests {
             // all is well
         }
 
-        startServer("nonData2", settingsBuilder().put("node.data", false).build());
+        startNode("nonData2", settingsBuilder().put("node.data", false).build());
         Thread.sleep(500);
 
         // still no shard should be allocated
@@ -63,7 +63,7 @@ public class SimpleDataNodesTests extends AbstractServersTests {
         }
 
         // now, start a node data, and see that it gets with shards
-        startServer("data1", settingsBuilder().put("node.data", true).build());
+        startNode("data1", settingsBuilder().put("node.data", true).build());
         Thread.sleep(500);
 
         IndexResponse indexResponse = client("nonData2").index(Requests.indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();

@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.test.integration.AbstractServersTests;
+import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -37,22 +37,22 @@ import static org.hamcrest.Matchers.*;
  * @author kimchy (shay.banon)
  */
 @Test
-public class IndexAliasesTests extends AbstractServersTests {
+public class IndexAliasesTests extends AbstractNodesTests {
 
     protected Client client1;
     protected Client client2;
 
-    @BeforeMethod public void startServers() {
-        startServer("server1");
-        startServer("server2");
+    @BeforeMethod public void startNodes() {
+        startNode("server1");
+        startNode("server2");
         client1 = getClient1();
         client2 = getClient2();
     }
 
-    @AfterMethod public void closeServers() {
+    @AfterMethod public void closeNodes() {
         client1.close();
         client2.close();
-        closeAllServers();
+        closeAllNodes();
     }
 
     protected Client getClient1() {

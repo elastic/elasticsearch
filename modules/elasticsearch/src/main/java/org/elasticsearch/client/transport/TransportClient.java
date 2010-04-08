@@ -50,7 +50,7 @@ import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
-import org.elasticsearch.server.internal.InternalSettingsPerparer;
+import org.elasticsearch.node.internal.InternalSettingsPerparer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.timer.TimerModule;
@@ -120,7 +120,7 @@ public class TransportClient implements Client {
         Tuple<Settings, Environment> tuple = InternalSettingsPerparer.prepareSettings(pSettings, loadConfigSettings);
         this.settings = settingsBuilder().put(tuple.v1())
                 .put("network.server", false)
-                .put("discovery.client", true)
+                .put("node.client", true)
                 .build();
         this.environment = tuple.v2();
 

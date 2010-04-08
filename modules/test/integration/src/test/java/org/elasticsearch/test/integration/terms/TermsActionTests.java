@@ -26,7 +26,7 @@ import org.elasticsearch.action.admin.indices.status.IndexStatus;
 import org.elasticsearch.action.terms.TermsRequest;
 import org.elasticsearch.action.terms.TermsResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.test.integration.AbstractServersTests;
+import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -42,13 +42,13 @@ import static org.hamcrest.Matchers.*;
  * @author kimchy (shay.banon)
  */
 @Test
-public class TermsActionTests extends AbstractServersTests {
+public class TermsActionTests extends AbstractNodesTests {
 
     private Client client;
 
-    @BeforeMethod public void createServersAndClient() throws Exception {
-        startServer("server1");
-        startServer("server2");
+    @BeforeMethod public void createNodesAndClient() throws Exception {
+        startNode("server1");
+        startNode("server2");
         client = getClient();
 
         logger.info("Creating index test");
@@ -60,9 +60,9 @@ public class TermsActionTests extends AbstractServersTests {
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
     }
 
-    @AfterMethod public void closeServers() {
+    @AfterMethod public void closeNodes() {
         client.close();
-        closeAllServers();
+        closeAllNodes();
     }
 
     protected Client getClient() {

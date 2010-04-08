@@ -23,7 +23,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.test.integration.AbstractServersTests;
+import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -36,14 +36,14 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class MoreLikeThisActionTests extends AbstractServersTests {
+public class MoreLikeThisActionTests extends AbstractNodesTests {
 
     private Client client1;
     private Client client2;
 
     @BeforeMethod public void startServers() {
-        startServer("server1");
-        startServer("server2");
+        startNode("server1");
+        startNode("server2");
         client1 = getClient1();
         client2 = getClient2();
     }
@@ -51,7 +51,7 @@ public class MoreLikeThisActionTests extends AbstractServersTests {
     @AfterMethod public void closeServers() {
         client1.close();
         client2.close();
-        closeAllServers();
+        closeAllNodes();
     }
 
     protected Client getClient1() {

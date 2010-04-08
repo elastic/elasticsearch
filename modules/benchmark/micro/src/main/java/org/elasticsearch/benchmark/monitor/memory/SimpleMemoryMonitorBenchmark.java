@@ -21,7 +21,7 @@ package org.elasticsearch.benchmark.monitor.memory;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.server.Server;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.util.StopWatch;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
-import static org.elasticsearch.server.ServerBuilder.*;
+import static org.elasticsearch.node.NodeBuilder.*;
 import static org.elasticsearch.util.json.JsonBuilder.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.*;
 
@@ -51,10 +51,10 @@ public class SimpleMemoryMonitorBenchmark {
                 .put(SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();
 
-        Server server1 = serverBuilder().settings(settingsBuilder().put(settings).put("name", "server1")).server();
-        Server server2 = serverBuilder().settings(settingsBuilder().put(settings).put("name", "server2")).server();
+        Node node1 = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "server1")).node();
+        Node node2 = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "server2")).node();
 
-        Client client1 = server1.client();
+        Client client1 = node1.client();
 
         Thread.sleep(1000);
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
@@ -78,8 +78,8 @@ public class SimpleMemoryMonitorBenchmark {
         }
         System.out.println("Indexing took " + stopWatch.stop().totalTime());
 
-        server1.close();
-        server2.close();
+        node1.close();
+        node2.close();
     }
 
     private static JsonBuilder source(String id, String nameValue) throws IOException {

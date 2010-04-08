@@ -17,24 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.server;
+package org.elasticsearch.node;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.util.settings.Settings;
 
 /**
- * A server represent a node within a cluster (<tt>cluster.name</tt>). The {@link #client()} can be used
+ * A node represent a node within a cluster (<tt>cluster.name</tt>). The {@link #client()} can be used
  * in order to use a {@link Client} to perform actions/operations against the cluster.
  *
- * <p>In order to create a server, the {@link ServerBuilder} can be used. When done with it, make sure to
+ * <p>In order to create a node, the {@link NodeBuilder} can be used. When done with it, make sure to
  * call {@link #close()} on it.
  *
  * @author kimchy (shay.banon)
  */
-public interface Server {
+public interface Node {
 
     /**
-     * The settings that were used to create the server.
+     * The settings that were used to create the node.
      */
     Settings settings();
 
@@ -44,17 +44,17 @@ public interface Server {
     Client client();
 
     /**
-     * Start the server. If the server is already started, this method is noop.
+     * Start the node. If the node is already started, this method is no-op.
      */
-    Server start();
+    Node start();
 
     /**
-     * Stops the server. If the server is already started, this method is noop.
+     * Stops the node. If the node is already started, this method is no-op.
      */
-    Server stop();
+    Node stop();
 
     /**
-     * Closes the server (and {@link #stop}s if its running).
+     * Closes the node (and {@link #stop}s if its running).
      */
     void close();
 }

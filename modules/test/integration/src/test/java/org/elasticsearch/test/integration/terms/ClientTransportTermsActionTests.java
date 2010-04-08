@@ -21,19 +21,19 @@ package org.elasticsearch.test.integration.terms;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.server.internal.InternalServer;
+import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.transport.TransportAddress;
 import org.testng.annotations.Test;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 @Test
 public class ClientTransportTermsActionTests extends TermsActionTests {
 
     @Override protected Client getClient() {
-        TransportAddress server1Address = ((InternalServer) server("server1")).injector().getInstance(TransportService.class).boundAddress().publishAddress();
+        TransportAddress server1Address = ((InternalNode) node("server1")).injector().getInstance(TransportService.class).boundAddress().publishAddress();
         TransportClient client = new TransportClient();
         client.addTransportAddress(server1Address);
         return client;

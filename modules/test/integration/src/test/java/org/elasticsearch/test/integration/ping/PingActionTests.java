@@ -22,7 +22,7 @@ package org.elasticsearch.test.integration.ping;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingResponse;
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingResponse;
 import org.elasticsearch.action.admin.cluster.ping.single.SinglePingResponse;
-import org.elasticsearch.test.integration.AbstractServersTests;
+import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.util.logging.Loggers;
 import org.slf4j.Logger;
 import org.testng.annotations.AfterMethod;
@@ -36,17 +36,17 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class PingActionTests extends AbstractServersTests {
+public class PingActionTests extends AbstractNodesTests {
 
     private final Logger logger = Loggers.getLogger(PingActionTests.class);
 
-    @BeforeMethod public void startServers() {
-        startServer("server1");
-        startServer("server2");
+    @BeforeMethod public void startNodes() {
+        startNode("server1");
+        startNode("server2");
     }
 
-    @AfterMethod public void closeServers() {
-        closeAllServers();
+    @AfterMethod public void closeNodes() {
+        closeAllNodes();
     }
 
     @Test public void testIndexActions() throws Exception {

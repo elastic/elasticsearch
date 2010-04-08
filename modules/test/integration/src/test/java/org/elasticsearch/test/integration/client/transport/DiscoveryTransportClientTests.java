@@ -20,7 +20,7 @@
 package org.elasticsearch.test.integration.client.transport;
 
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.test.integration.AbstractServersTests;
+import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.testng.annotations.AfterMethod;
 
@@ -29,7 +29,7 @@ import static org.elasticsearch.client.Requests.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class DiscoveryTransportClientTests extends AbstractServersTests {
+public class DiscoveryTransportClientTests extends AbstractNodesTests {
 
     private TransportClient client;
 
@@ -37,13 +37,13 @@ public class DiscoveryTransportClientTests extends AbstractServersTests {
         if (client != null) {
             client.close();
         }
-        closeAllServers();
+        closeAllNodes();
     }
 
     /*@Test*/
 
     public void testWithDiscovery() throws Exception {
-        startServer("server1");
+        startNode("server1");
         client = new TransportClient(ImmutableSettings.settingsBuilder().put("discovery.enabled", true).build());
         // wait a bit so nodes will be discovered
         Thread.sleep(1000);
@@ -51,13 +51,13 @@ public class DiscoveryTransportClientTests extends AbstractServersTests {
         Thread.sleep(500);
 
         client.admin().cluster().ping(pingSingleRequest("test").type("person").id("1")).actionGet();
-        startServer("server2");
+        startNode("server2");
         Thread.sleep(1000);
         client.admin().cluster().ping(pingSingleRequest("test").type("person").id("1")).actionGet();
-        closeServer("server1");
+        closeNode("server1");
         Thread.sleep(10000);
         client.admin().cluster().ping(pingSingleRequest("test").type("person").id("1")).actionGet();
-        closeServer("server2");
+        closeNode("server2");
         client.admin().cluster().ping(pingSingleRequest("test").type("person").id("1")).actionGet();
     }
 

@@ -20,7 +20,7 @@
 package org.elasticsearch.test.integration;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.server.Server;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.util.logging.Loggers;
 import org.elasticsearch.util.settings.Settings;
 import org.slf4j.Logger;
@@ -28,72 +28,72 @@ import org.slf4j.Logger;
 import java.util.Map;
 
 import static com.google.common.collect.Maps.*;
-import static org.elasticsearch.server.ServerBuilder.*;
+import static org.elasticsearch.node.NodeBuilder.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.*;
 
-public abstract class AbstractServersTests {
+public abstract class AbstractNodesTests {
 
     protected final Logger logger = Loggers.getLogger(getClass());
 
-    private Map<String, Server> servers = newHashMap();
+    private Map<String, Node> nodes = newHashMap();
 
     private Map<String, Client> clients = newHashMap();
 
-    public Server startServer(String id) {
-        return buildServer(id).start();
+    public Node startNode(String id) {
+        return buildNode(id).start();
     }
 
-    public Server startServer(String id, Settings settings) {
-        return buildServer(id, settings).start();
+    public Node startNode(String id, Settings settings) {
+        return buildNode(id, settings).start();
     }
 
-    public Server buildServer(String id) {
-        return buildServer(id, EMPTY_SETTINGS);
+    public Node buildNode(String id) {
+        return buildNode(id, EMPTY_SETTINGS);
     }
 
-    public Server buildServer(String id, Settings settings) {
+    public Node buildNode(String id, Settings settings) {
         String settingsSource = getClass().getName().replace('.', '/') + ".yml";
         Settings finalSettings = settingsBuilder()
                 .loadFromClasspath(settingsSource)
                 .put(settings)
                 .put("name", id)
                 .build();
-        Server server = serverBuilder()
+        Node node = nodeBuilder()
                 .settings(finalSettings)
                 .build();
-        servers.put(id, server);
-        clients.put(id, server.client());
-        return server;
+        nodes.put(id, node);
+        clients.put(id, node.client());
+        return node;
     }
 
-    public void closeServer(String id) {
+    public void closeNode(String id) {
         Client client = clients.remove(id);
         if (client != null) {
             client.close();
         }
-        Server server = servers.remove(id);
-        if (server != null) {
-            server.close();
+        Node node = nodes.remove(id);
+        if (node != null) {
+            node.close();
         }
     }
 
-    public Server server(String id) {
-        return servers.get(id);
+    public Node node(String id) {
+        return nodes.get(id);
     }
 
     public Client client(String id) {
         return clients.get(id);
     }
 
-    public void closeAllServers() {
+    public void closeAllNodes() {
         for (Client client : clients.values()) {
             client.close();
         }
         clients.clear();
-        for (Server server : servers.values()) {
-            server.close();
+        for (Node node : nodes.values()) {
+            node.close();
         }
-        servers.clear();
+        nodes.clear();
     }
 }

@@ -43,12 +43,12 @@ public interface Plugin {
     String description();
 
     /**
-     * Server level modules.
+     * Node level modules.
      */
     Collection<Class<? extends Module>> modules();
 
     /**
-     * Server level services that will be automatically started/stopped/closed.
+     * Node level services that will be automatically started/stopped/closed.
      */
     Collection<Class<? extends LifecycleComponent>> services();
 

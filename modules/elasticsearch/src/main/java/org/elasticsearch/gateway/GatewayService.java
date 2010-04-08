@@ -79,7 +79,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         gateway.start();
         this.executor = newSingleThreadExecutor(daemonThreadFactory(settings, "gateway"));
         // if we received initial state, see if we can recover within the start phase, so we hold the
-        // server from starting until we recovered properly
+        // node from starting until we recovered properly
         if (discoveryService.initialStateReceived()) {
             if (discoveryService.firstMaster()) {
                 if (firstMasterRead.compareAndSet(false, true)) {

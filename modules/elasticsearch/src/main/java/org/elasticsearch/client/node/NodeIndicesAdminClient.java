@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.server;
+package org.elasticsearch.client.node;
 
 import com.google.inject.Inject;
 import org.elasticsearch.action.ActionFuture;
@@ -57,9 +57,9 @@ import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.settings.Settings;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class ServerIndicesAdminClient extends AbstractComponent implements IndicesAdminClient {
+public class NodeIndicesAdminClient extends AbstractComponent implements IndicesAdminClient {
 
     private final TransportIndicesStatusAction indicesStatusAction;
 
@@ -81,11 +81,11 @@ public class ServerIndicesAdminClient extends AbstractComponent implements Indic
 
     private final TransportClearIndicesCacheAction clearIndicesCacheAction;
 
-    @Inject public ServerIndicesAdminClient(Settings settings, TransportIndicesStatusAction indicesStatusAction,
-                                            TransportCreateIndexAction createIndexAction, TransportDeleteIndexAction deleteIndexAction,
-                                            TransportRefreshAction refreshAction, TransportFlushAction flushAction, TransportOptimizeAction optimizeAction,
-                                            TransportPutMappingAction putMappingAction, TransportGatewaySnapshotAction gatewaySnapshotAction,
-                                            TransportIndicesAliasesAction indicesAliasesAction, TransportClearIndicesCacheAction clearIndicesCacheAction) {
+    @Inject public NodeIndicesAdminClient(Settings settings, TransportIndicesStatusAction indicesStatusAction,
+                                          TransportCreateIndexAction createIndexAction, TransportDeleteIndexAction deleteIndexAction,
+                                          TransportRefreshAction refreshAction, TransportFlushAction flushAction, TransportOptimizeAction optimizeAction,
+                                          TransportPutMappingAction putMappingAction, TransportGatewaySnapshotAction gatewaySnapshotAction,
+                                          TransportIndicesAliasesAction indicesAliasesAction, TransportClearIndicesCacheAction clearIndicesCacheAction) {
         super(settings);
         this.indicesStatusAction = indicesStatusAction;
         this.createIndexAction = createIndexAction;

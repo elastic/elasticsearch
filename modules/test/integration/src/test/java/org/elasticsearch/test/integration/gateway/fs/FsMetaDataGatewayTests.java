@@ -21,8 +21,8 @@ package org.elasticsearch.test.integration.gateway.fs;
 
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
-import org.elasticsearch.server.internal.InternalServer;
-import org.elasticsearch.test.integration.AbstractServersTests;
+import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -32,31 +32,31 @@ import static org.elasticsearch.client.Requests.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class FsMetaDataGatewayTests extends AbstractServersTests {
+public class FsMetaDataGatewayTests extends AbstractNodesTests {
 
-    @AfterMethod void closeServers() {
-        server("server1").stop();
+    @AfterMethod void closeNodes() {
+        node("server1").stop();
         // since we store (by default) the index snapshot under the gateway, resetting it will reset the index data as well
-        ((InternalServer) server("server1")).injector().getInstance(Gateway.class).reset();
-        closeAllServers();
+        ((InternalNode) node("server1")).injector().getInstance(Gateway.class).reset();
+        closeAllNodes();
     }
 
-    @BeforeMethod void buildServer1() {
-        buildServer("server1");
+    @BeforeMethod void buildNode1() {
+        buildNode("server1");
         // since we store (by default) the index snapshot under the gateway, resetting it will reset the index data as well
-        ((InternalServer) server("server1")).injector().getInstance(Gateway.class).reset();
+        ((InternalNode) node("server1")).injector().getInstance(Gateway.class).reset();
     }
 
     @Test public void testIndexActions() throws Exception {
-        buildServer("server1");
-        ((InternalServer) server("server1")).injector().getInstance(Gateway.class).reset();
-        server("server1").start();
+        buildNode("server1");
+        ((InternalNode) node("server1")).injector().getInstance(Gateway.class).reset();
+        node("server1").start();
 
         client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
 
-        closeServer("server1");
+        closeNode("server1");
 
-        startServer("server1");
+        startNode("server1");
         try {
             client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
             assert false : "index should exists";

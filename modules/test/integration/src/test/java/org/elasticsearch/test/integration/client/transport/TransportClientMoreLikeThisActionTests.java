@@ -21,7 +21,7 @@ package org.elasticsearch.test.integration.client.transport;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.server.internal.InternalServer;
+import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.document.MoreLikeThisActionTests;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.transport.TransportAddress;
@@ -34,14 +34,14 @@ import static org.elasticsearch.util.settings.ImmutableSettings.*;
 public class TransportClientMoreLikeThisActionTests extends MoreLikeThisActionTests {
 
     @Override protected Client getClient1() {
-        TransportAddress server1Address = ((InternalServer) server("server1")).injector().getInstance(TransportService.class).boundAddress().publishAddress();
+        TransportAddress server1Address = ((InternalNode) node("server1")).injector().getInstance(TransportService.class).boundAddress().publishAddress();
         TransportClient client = new TransportClient(settingsBuilder().put("discovery.enabled", false).build());
         client.addTransportAddress(server1Address);
         return client;
     }
 
     @Override protected Client getClient2() {
-        TransportAddress server1Address = ((InternalServer) server("server2")).injector().getInstance(TransportService.class).boundAddress().publishAddress();
+        TransportAddress server1Address = ((InternalNode) node("server2")).injector().getInstance(TransportService.class).boundAddress().publishAddress();
         TransportClient client = new TransportClient(settingsBuilder().put("discovery.enabled", false).build());
         client.addTransportAddress(server1Address);
         return client;

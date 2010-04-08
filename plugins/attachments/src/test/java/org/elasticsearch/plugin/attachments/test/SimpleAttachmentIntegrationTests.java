@@ -22,14 +22,14 @@ package org.elasticsearch.plugin.attachments.test;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.count.CountResponse;
-import org.elasticsearch.server.Server;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.util.logging.Loggers;
 import org.slf4j.Logger;
 import org.testng.annotations.*;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.index.query.json.JsonQueryBuilders.*;
-import static org.elasticsearch.server.ServerBuilder.*;
+import static org.elasticsearch.node.NodeBuilder.*;
 import static org.elasticsearch.util.io.Streams.*;
 import static org.elasticsearch.util.json.JsonBuilder.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.*;
@@ -44,21 +44,21 @@ public class SimpleAttachmentIntegrationTests {
 
     private final Logger logger = Loggers.getLogger(getClass());
 
-    private Server server;
+    private Node node;
 
     @BeforeClass public void setupServer() {
-        server = serverBuilder().settings(settingsBuilder().put("node.local", true)).server();
+        node = nodeBuilder().settings(settingsBuilder().put("node.local", true)).node();
     }
 
     @AfterClass public void closeServer() {
-        server.close();
+        node.close();
     }
 
     @BeforeMethod public void createIndex() {
         logger.info("creating index [test]");
-        server.client().admin().indices().create(createIndexRequest("test").settings(settingsBuilder().put("index.numberOfReplicas", 0))).actionGet();
+        node.client().admin().indices().create(createIndexRequest("test").settings(settingsBuilder().put("index.numberOfReplicas", 0))).actionGet();
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = server.client().admin().cluster().health(clusterHealth().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = node.client().admin().cluster().health(clusterHealth().waitForGreenStatus()).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
@@ -66,22 +66,22 @@ public class SimpleAttachmentIntegrationTests {
 
     @AfterMethod public void deleteIndex() {
         logger.info("deleting index [test]");
-        server.client().admin().indices().delete(deleteIndexRequest("test")).actionGet();
+        node.client().admin().indices().delete(deleteIndexRequest("test")).actionGet();
     }
 
     @Test public void testSimpleAttachment() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/plugin/attachments/index/mapper/test-mapping.json");
 
-        server.client().admin().indices().putMapping(putMappingRequest("test").mappingSource(mapping)).actionGet();
+        node.client().admin().indices().putMapping(putMappingRequest("test").mappingSource(mapping)).actionGet();
 
-        server.client().index(indexRequest("test").type("person")
+        node.client().index(indexRequest("test").type("person")
                 .source(jsonBuilder().startObject().field("file", copyToBytesFromClasspath("/org/elasticsearch/plugin/attachments/index/mapper/testXHTML.html")).endObject())).actionGet();
-        server.client().admin().indices().refresh(refreshRequest()).actionGet();
+        node.client().admin().indices().refresh(refreshRequest()).actionGet();
 
-        CountResponse countResponse = server.client().count(countRequest("test").querySource(fieldQuery("file.title", "test document"))).actionGet();
+        CountResponse countResponse = node.client().count(countRequest("test").querySource(fieldQuery("file.title", "test document"))).actionGet();
         assertThat(countResponse.count(), equalTo(1l));
 
-        countResponse = server.client().count(countRequest("test").querySource(fieldQuery("file", "tests the ability"))).actionGet();
+        countResponse = node.client().count(countRequest("test").querySource(fieldQuery("file", "tests the ability"))).actionGet();
         assertThat(countResponse.count(), equalTo(1l));
     }
 }

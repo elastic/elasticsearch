@@ -19,7 +19,7 @@
 
 package org.elasticsearch.util;
 
-import org.elasticsearch.util.concurrent.ThreadLocalRandom;
+import org.elasticsearch.util.concurrent.jsr166y.ThreadLocalRandom;
 
 import java.io.BufferedReader;
 import java.io.IOException;

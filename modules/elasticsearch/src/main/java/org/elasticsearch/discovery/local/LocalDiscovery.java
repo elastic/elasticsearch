@@ -29,12 +29,12 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
+import org.elasticsearch.util.concurrent.jsr166y.LinkedTransferQueue;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -229,7 +229,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
     private class ClusterGroup {
 
-        private ConcurrentLinkedQueue<LocalDiscovery> members = new ConcurrentLinkedQueue<LocalDiscovery>();
+        private Queue<LocalDiscovery> members = new LinkedTransferQueue<LocalDiscovery>();
 
         Queue<LocalDiscovery> members() {
             return members;

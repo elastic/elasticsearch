@@ -28,7 +28,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestJsonBuilder;
 import org.elasticsearch.util.Classes;
-import org.elasticsearch.util.concurrent.ThreadLocalRandom;
+import org.elasticsearch.util.concurrent.jsr166y.ThreadLocalRandom;
 import org.elasticsearch.util.json.Jackson;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;

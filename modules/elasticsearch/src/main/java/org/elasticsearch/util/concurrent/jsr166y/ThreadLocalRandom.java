@@ -23,9 +23,7 @@
  * http://creativecommons.org/licenses/publicdomain
  */
 
-package org.elasticsearch.util.concurrent;
-
-import org.elasticsearch.util.ThreadLocals;
+package org.elasticsearch.util.concurrent.jsr166y;
 
 import java.util.Random;
 
@@ -38,7 +36,8 @@ import java.util.Random;
  * than shared {@code Random} objects in concurrent programs will
  * typically encounter much less overhead and contention.  Use of
  * {@code ThreadLocalRandom} is particularly appropriate when multiple
- * tasks use random numbers in parallel in thread pools.
+ * tasks (for example, each a {@link ForkJoinTask}) use random numbers
+ * in parallel in thread pools.
  *
  * <p>Usages of this class should typically be of the form:
  * {@code ThreadLocalRandom.current().nextX(...)} (where
@@ -79,10 +78,10 @@ public class ThreadLocalRandom extends Random {
     /**
      * The actual ThreadLocal
      */
-    private static final ThreadLocal<ThreadLocals.CleanableValue<ThreadLocalRandom>> localRandom =
-            new ThreadLocal<ThreadLocals.CleanableValue<ThreadLocalRandom>>() {
-                protected ThreadLocals.CleanableValue<ThreadLocalRandom> initialValue() {
-                    return new ThreadLocals.CleanableValue<ThreadLocalRandom>(new ThreadLocalRandom());
+    private static final ThreadLocal<ThreadLocalRandom> localRandom =
+            new ThreadLocal<ThreadLocalRandom>() {
+                protected ThreadLocalRandom initialValue() {
+                    return new ThreadLocalRandom();
                 }
             };
 
@@ -102,7 +101,7 @@ public class ThreadLocalRandom extends Random {
      * @return the current thread's {@code ThreadLocalRandom}
      */
     public static ThreadLocalRandom current() {
-        return localRandom.get().get();
+        return localRandom.get();
     }
 
     /**

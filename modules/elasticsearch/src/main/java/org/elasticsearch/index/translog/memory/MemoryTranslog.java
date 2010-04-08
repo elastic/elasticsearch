@@ -28,10 +28,11 @@ import org.elasticsearch.index.translog.TranslogException;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.concurrent.ThreadSafe;
+import org.elasticsearch.util.concurrent.jsr166y.LinkedTransferQueue;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.ArrayList;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.Queue;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -48,7 +49,7 @@ public class MemoryTranslog extends AbstractIndexShardComponent implements Trans
 
     private volatile long id;
 
-    private final ConcurrentLinkedQueue<Operation> operations = new ConcurrentLinkedQueue<Operation>();
+    private final Queue<Operation> operations = new LinkedTransferQueue<Operation>();
 
     @Inject public MemoryTranslog(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);

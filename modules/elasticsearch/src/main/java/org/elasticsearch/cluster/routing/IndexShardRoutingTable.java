@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.routing;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.util.concurrent.ThreadLocalRandom;
+import org.elasticsearch.util.concurrent.jsr166y.ThreadLocalRandom;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 

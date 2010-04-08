@@ -25,33 +25,33 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
+import org.elasticsearch.util.concurrent.jsr166y.LinkedTransferQueue;
 
 import java.util.Collection;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TransportSearchCache {
 
-    private final Queue<Collection<ShardSearchFailure>> cacheShardFailures = new ConcurrentLinkedQueue<Collection<ShardSearchFailure>>();
+    private final Queue<Collection<ShardSearchFailure>> cacheShardFailures = new LinkedTransferQueue<Collection<ShardSearchFailure>>();
 
-    private final Queue<Collection<DfsSearchResult>> cacheDfsResults = new ConcurrentLinkedQueue<Collection<DfsSearchResult>>();
+    private final Queue<Collection<DfsSearchResult>> cacheDfsResults = new LinkedTransferQueue<Collection<DfsSearchResult>>();
 
-    private final Queue<Map<SearchShardTarget, QuerySearchResultProvider>> cacheQueryResults = new ConcurrentLinkedQueue<Map<SearchShardTarget, QuerySearchResultProvider>>();
+    private final Queue<Map<SearchShardTarget, QuerySearchResultProvider>> cacheQueryResults = new LinkedTransferQueue<Map<SearchShardTarget, QuerySearchResultProvider>>();
 
-    private final Queue<Map<SearchShardTarget, FetchSearchResult>> cacheFetchResults = new ConcurrentLinkedQueue<Map<SearchShardTarget, FetchSearchResult>>();
+    private final Queue<Map<SearchShardTarget, FetchSearchResult>> cacheFetchResults = new LinkedTransferQueue<Map<SearchShardTarget, FetchSearchResult>>();
 
-    private final Queue<Map<SearchShardTarget, QueryFetchSearchResult>> cacheQueryFetchResults = new ConcurrentLinkedQueue<Map<SearchShardTarget, QueryFetchSearchResult>>();
+    private final Queue<Map<SearchShardTarget, QueryFetchSearchResult>> cacheQueryFetchResults = new LinkedTransferQueue<Map<SearchShardTarget, QueryFetchSearchResult>>();
 
 
     public Collection<ShardSearchFailure> obtainShardFailures() {
         Collection<ShardSearchFailure> shardFailures;
         while ((shardFailures = cacheShardFailures.poll()) == null) {
-            cacheShardFailures.offer(new ConcurrentLinkedQueue<ShardSearchFailure>());
+            cacheShardFailures.offer(new LinkedTransferQueue<ShardSearchFailure>());
         }
         shardFailures.clear();
         return shardFailures;
@@ -65,7 +65,7 @@ public class TransportSearchCache {
     public Collection<DfsSearchResult> obtainDfsResults() {
         Collection<DfsSearchResult> dfsSearchResults;
         while ((dfsSearchResults = cacheDfsResults.poll()) == null) {
-            cacheDfsResults.offer(new ConcurrentLinkedQueue<DfsSearchResult>());
+            cacheDfsResults.offer(new LinkedTransferQueue<DfsSearchResult>());
         }
         dfsSearchResults.clear();
         return dfsSearchResults;

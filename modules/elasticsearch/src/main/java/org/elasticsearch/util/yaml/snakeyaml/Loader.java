@@ -23,7 +23,7 @@ import org.elasticsearch.util.yaml.snakeyaml.constructor.BaseConstructor;
 import org.elasticsearch.util.yaml.snakeyaml.constructor.Constructor;
 import org.elasticsearch.util.yaml.snakeyaml.error.YAMLException;
 import org.elasticsearch.util.yaml.snakeyaml.events.Event;
-import org.elasticsearch.util.yaml.snakeyaml.nodes.Node;
+import org.elasticsearch.util.yaml.snakeyaml.nodes.YamlNode;
 import org.elasticsearch.util.yaml.snakeyaml.parser.Parser;
 import org.elasticsearch.util.yaml.snakeyaml.parser.ParserImpl;
 import org.elasticsearch.util.yaml.snakeyaml.reader.StreamReader;
@@ -81,7 +81,7 @@ public class Loader {
      * @param yaml YAML document
      * @return parsed root Node for the specified YAML document
      */
-    public Node compose(Reader yaml) {
+    public YamlNode compose(Reader yaml) {
         Composer composer = new Composer(new ParserImpl(new StreamReader(yaml)), resolver);
         this.constructor.setComposer(composer);
         return composer.getSingleNode();
@@ -94,15 +94,15 @@ public class Loader {
      * @param yaml stream of YAML documents
      * @return parsed root Nodes for all the specified YAML documents
      */
-    public Iterable<Node> composeAll(Reader yaml) {
+    public Iterable<YamlNode> composeAll(Reader yaml) {
         final Composer composer = new Composer(new ParserImpl(new StreamReader(yaml)), resolver);
         this.constructor.setComposer(composer);
-        Iterator<Node> result = new Iterator<Node>() {
+        Iterator<YamlNode> result = new Iterator<YamlNode>() {
             public boolean hasNext() {
                 return composer.checkNode();
             }
 
-            public Node next() {
+            public YamlNode next() {
                 return composer.getNode();
             }
 
@@ -113,14 +113,14 @@ public class Loader {
         return new NodeIterable(result);
     }
 
-    private class NodeIterable implements Iterable<Node> {
-        private Iterator<Node> iterator;
+    private class NodeIterable implements Iterable<YamlNode> {
+        private Iterator<YamlNode> iterator;
 
-        public NodeIterable(Iterator<Node> iterator) {
+        public NodeIterable(Iterator<YamlNode> iterator) {
             this.iterator = iterator;
         }
 
-        public Iterator<Node> iterator() {
+        public Iterator<YamlNode> iterator() {
             return iterator;
         }
 

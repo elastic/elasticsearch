@@ -19,7 +19,7 @@
 package org.elasticsearch.util.yaml.snakeyaml.constructor;
 
 import org.elasticsearch.util.yaml.snakeyaml.error.YAMLException;
-import org.elasticsearch.util.yaml.snakeyaml.nodes.Node;
+import org.elasticsearch.util.yaml.snakeyaml.nodes.YamlNode;
 
 /**
  * Because recursive structures are not very common we provide a way to save
@@ -31,10 +31,10 @@ public abstract class AbstractConstruct implements Construct {
      * Fail with a reminder to provide the seconds step for a recursive
      * structure
      *
-     * @see org.elasticsearch.util.yaml.snakeyaml.constructor.Construct#construct2ndStep(org.elasticsearch.util.yaml.snakeyaml.nodes.Node,
+     * @see org.elasticsearch.util.yaml.snakeyaml.constructor.Construct#construct2ndStep(org.elasticsearch.util.yaml.snakeyaml.nodes.YamlNode ,
      *      java.lang.Object)
      */
-    public void construct2ndStep(Node node, Object data) {
+    public void construct2ndStep(YamlNode node, Object data) {
         if (node.isTwoStepsConstruction()) {
             throw new IllegalStateException("Not Implemented in " + getClass().getName());
         } else {

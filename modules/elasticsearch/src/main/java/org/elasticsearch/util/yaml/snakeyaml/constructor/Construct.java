@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.util.yaml.snakeyaml.constructor;
 
-import org.elasticsearch.util.yaml.snakeyaml.nodes.Node;
+import org.elasticsearch.util.yaml.snakeyaml.nodes.YamlNode;
 
 /**
  * Provide a way to construct a Java instance out of the composed Node. Support
@@ -35,7 +35,7 @@ public interface Construct {
      * @param node composed Node
      * @return a complete Java instance
      */
-    public Object construct(Node node);
+    public Object construct(YamlNode node);
 
     /**
      * Apply the second step when constructing recursive structures. Because the
@@ -45,5 +45,5 @@ public interface Construct {
      * @param object the instance constructed earlier by
      *               <code>construct(Node node)</code> for the provided Node
      */
-    public void construct2ndStep(Node node, Object object);
+    public void construct2ndStep(YamlNode node, Object object);
 }

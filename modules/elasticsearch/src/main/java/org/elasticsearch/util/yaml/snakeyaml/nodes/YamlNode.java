@@ -33,7 +33,7 @@ import org.elasticsearch.util.yaml.snakeyaml.error.Mark;
  * {@link org.elasticsearch.util.yaml.snakeyaml.constructor} package.
  * </p>
  */
-public abstract class Node {
+public abstract class YamlNode {
     private Tag tag;
     private Mark startMark;
     protected Mark endMark;
@@ -45,7 +45,7 @@ public abstract class Node {
     protected boolean resolved;
     protected Boolean useClassConstructor;
 
-    public Node(Tag tag, Mark startMark, Mark endMark) {
+    public YamlNode(Tag tag, Mark startMark, Mark endMark) {
         setTag(tag);
         this.startMark = startMark;
         this.endMark = endMark;

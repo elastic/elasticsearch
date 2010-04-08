@@ -50,16 +50,16 @@ public abstract class BaseConstructor {
     protected final Map<String, Construct> yamlMultiConstructors = new HashMap<String, Construct>();
 
     private Composer composer;
-    private final Map<Node, Object> constructedObjects;
-    private final Set<Node> recursiveObjects;
+    private final Map<YamlNode, Object> constructedObjects;
+    private final Set<YamlNode> recursiveObjects;
     private final ArrayList<RecursiveTuple<Map<Object, Object>, RecursiveTuple<Object, Object>>> maps2fill;
     private final ArrayList<RecursiveTuple<Set<Object>, Object>> sets2fill;
 
     protected Tag rootTag;
 
     public BaseConstructor() {
-        constructedObjects = new HashMap<Node, Object>();
-        recursiveObjects = new HashSet<Node>();
+        constructedObjects = new HashMap<YamlNode, Object>();
+        recursiveObjects = new HashSet<YamlNode>();
         maps2fill = new ArrayList<RecursiveTuple<Map<Object, Object>, RecursiveTuple<Object, Object>>>();
         sets2fill = new ArrayList<RecursiveTuple<Set<Object>, Object>>();
         rootTag = null;
@@ -87,7 +87,7 @@ public abstract class BaseConstructor {
     public Object getData() {
         // Construct and return the next document.
         composer.checkNode();
-        Node node = composer.getNode();
+        YamlNode node = composer.getNode();
         if (rootTag != null) {
             node.setTag(rootTag);
         }
@@ -102,7 +102,7 @@ public abstract class BaseConstructor {
      */
     public Object getSingleData() {
         // Ensure that the stream contains a single document and construct it
-        Node node = composer.getSingleNode();
+        YamlNode node = composer.getSingleNode();
         if (node != null) {
             if (rootTag != null) {
                 node.setTag(rootTag);
@@ -119,7 +119,7 @@ public abstract class BaseConstructor {
      * @param node root Node
      * @return Java instance
      */
-    private Object constructDocument(Node node) {
+    private Object constructDocument(YamlNode node) {
         Object data = constructObject(node);
         fillRecursive();
         constructedObjects.clear();
@@ -150,7 +150,7 @@ public abstract class BaseConstructor {
      * @param node Node to be constructed
      * @return Java instance
      */
-    protected Object constructObject(Node node) {
+    protected Object constructObject(YamlNode node) {
         if (constructedObjects.containsKey(node)) {
             return constructedObjects.get(node);
         }
@@ -177,7 +177,7 @@ public abstract class BaseConstructor {
      * @param node Node to be constructed
      * @return Construct implementation for the specified node
      */
-    protected Construct getConstructor(Node node) {
+    protected Construct getConstructor(YamlNode node) {
         if (node.useClassConstructor()) {
             return yamlClassConstructors.get(node.getNodeId());
         } else {
@@ -220,7 +220,7 @@ public abstract class BaseConstructor {
     }
 
     protected void constructSequenceStep2(SequenceNode node, List<Object> list) {
-        for (Node child : node.getValue()) {
+        for (YamlNode child : node.getValue()) {
             list.add(constructObject(child));
         }
     }
@@ -250,8 +250,8 @@ public abstract class BaseConstructor {
     protected void constructMapping2ndStep(MappingNode node, Map<Object, Object> mapping) {
         List<NodeTuple> nodeValue = (List<NodeTuple>) node.getValue();
         for (NodeTuple tuple : nodeValue) {
-            Node keyNode = tuple.getKeyNode();
-            Node valueNode = tuple.getValueNode();
+            YamlNode keyNode = tuple.getKeyNode();
+            YamlNode valueNode = tuple.getValueNode();
             Object key = constructObject(keyNode);
             if (key != null) {
                 try {
@@ -282,7 +282,7 @@ public abstract class BaseConstructor {
     protected void constructSet2ndStep(MappingNode node, Set<Object> set) {
         List<NodeTuple> nodeValue = (List<NodeTuple>) node.getValue();
         for (NodeTuple tuple : nodeValue) {
-            Node keyNode = tuple.getKeyNode();
+            YamlNode keyNode = tuple.getKeyNode();
             Object key = constructObject(keyNode);
             if (key != null) {
                 try {

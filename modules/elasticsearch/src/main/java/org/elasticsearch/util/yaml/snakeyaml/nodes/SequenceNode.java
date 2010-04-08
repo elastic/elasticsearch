@@ -30,9 +30,9 @@ import java.util.List;
  */
 public class SequenceNode extends CollectionNode {
     private Class<? extends Object> listType;
-    private List<Node> value;
+    private List<YamlNode> value;
 
-    public SequenceNode(Tag tag, boolean resolved, List<Node> value, Mark startMark, Mark endMark,
+    public SequenceNode(Tag tag, boolean resolved, List<YamlNode> value, Mark startMark, Mark endMark,
                         Boolean flowStyle) {
         super(tag, startMark, endMark, flowStyle);
         if (value == null) {
@@ -43,7 +43,7 @@ public class SequenceNode extends CollectionNode {
         this.resolved = resolved;
     }
 
-    public SequenceNode(Tag tag, List<Node> value, Boolean flowStyle) {
+    public SequenceNode(Tag tag, List<YamlNode> value, Boolean flowStyle) {
         this(tag, true, value, null, null, flowStyle);
     }
 
@@ -57,8 +57,8 @@ public class SequenceNode extends CollectionNode {
      *
      * @return Nodes in the specified order.
      */
-    public List<Node> getValue() {
-        for (Node node : value) {
+    public List<YamlNode> getValue() {
+        for (YamlNode node : value) {
             node.setType(listType);
         }
         return value;

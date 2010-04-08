@@ -125,7 +125,7 @@ public class Constructor extends SafeConstructor {
          *             <code>String</code>s) and values are objects to be created
          * @return constructed JavaBean
          */
-        public Object construct(Node node) {
+        public Object construct(YamlNode node) {
             MappingNode mnode = (MappingNode) node;
             if (Properties.class.isAssignableFrom(node.getType())) {
                 Properties properties = new Properties();
@@ -169,7 +169,7 @@ public class Constructor extends SafeConstructor {
         }
 
         @SuppressWarnings("unchecked")
-        public void construct2ndStep(Node node, Object object) {
+        public void construct2ndStep(YamlNode node, Object object) {
             if (Map.class.isAssignableFrom(node.getType())) {
                 constructMapping2ndStep((MappingNode) node, (Map<Object, Object>) object);
             } else if (Set.class.isAssignableFrom(node.getType())) {
@@ -213,7 +213,7 @@ public class Constructor extends SafeConstructor {
                 } else {
                     throw new YAMLException("Keys must be scalars but found: " + tuple.getKeyNode());
                 }
-                Node valueNode = tuple.getValueNode();
+                YamlNode valueNode = tuple.getValueNode();
                 // keys can only be Strings
                 keyNode.setType(String.class);
                 String key = (String) constructObject(keyNode);
@@ -338,7 +338,7 @@ public class Constructor extends SafeConstructor {
     private class ConstructYamlObject implements Construct {
 
         @SuppressWarnings("unchecked")
-        private Construct getConstructor(Node node) {
+        private Construct getConstructor(YamlNode node) {
             Class cl = getClassForNode(node);
             node.setType(cl);
             // call the constructor as if the runtime class is defined
@@ -346,7 +346,7 @@ public class Constructor extends SafeConstructor {
             return constructor;
         }
 
-        public Object construct(Node node) {
+        public Object construct(YamlNode node) {
             Object result = null;
             try {
                 result = getConstructor(node).construct(node);
@@ -357,7 +357,7 @@ public class Constructor extends SafeConstructor {
             return result;
         }
 
-        public void construct2ndStep(Node node, Object object) {
+        public void construct2ndStep(YamlNode node, Object object) {
             try {
                 getConstructor(node).construct2ndStep(node, object);
             } catch (Exception e) {
@@ -374,7 +374,7 @@ public class Constructor extends SafeConstructor {
      */
     protected class ConstructScalar extends AbstractConstruct {
         @SuppressWarnings("unchecked")
-        public Object construct(Node nnode) {
+        public Object construct(YamlNode nnode) {
             ScalarNode node = (ScalarNode) nnode;
             Class type = node.getType();
             Object result;
@@ -516,7 +516,7 @@ public class Constructor extends SafeConstructor {
      */
     private class ConstructSequence implements Construct {
         @SuppressWarnings("unchecked")
-        public Object construct(Node node) {
+        public Object construct(YamlNode node) {
             SequenceNode snode = (SequenceNode) node;
             if (List.class.isAssignableFrom(node.getType()) || node.getType().isArray()) {
                 if (node.isTwoStepsConstruction()) {
@@ -543,7 +543,7 @@ public class Constructor extends SafeConstructor {
                     argumentList = new ArrayList<Object>(snode.getValue().size());
                     java.lang.reflect.Constructor c = possibleConstructors.get(0);
                     int index = 0;
-                    for (Node argumentNode : snode.getValue()) {
+                    for (YamlNode argumentNode : snode.getValue()) {
                         Class type = c.getParameterTypes()[index];
                         // set runtime classes for arguments
                         argumentNode.setType(type);
@@ -574,7 +574,7 @@ public class Constructor extends SafeConstructor {
         }
 
         @SuppressWarnings("unchecked")
-        public void construct2ndStep(Node node, Object object) {
+        public void construct2ndStep(YamlNode node, Object object) {
             SequenceNode snode = (SequenceNode) node;
             List<Object> list = (List<Object>) object;
             if (List.class.isAssignableFrom(node.getType())) {
@@ -585,7 +585,7 @@ public class Constructor extends SafeConstructor {
         }
     }
 
-    protected Class<?> getClassForNode(Node node) {
+    protected Class<?> getClassForNode(YamlNode node) {
         Class<? extends Object> classForTag = typeTags.get(node.getTag());
         if (classForTag == null) {
             String name = node.getTag().getClassName();

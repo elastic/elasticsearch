@@ -26,7 +26,7 @@ import org.elasticsearch.util.yaml.snakeyaml.error.Mark;
  * Scalar nodes form the leaves in the node graph.
  * </p>
  */
-public class ScalarNode extends Node {
+public class ScalarNode extends YamlNode {
     private Character style;
     private String value;
 

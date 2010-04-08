@@ -24,7 +24,7 @@ import org.elasticsearch.util.yaml.snakeyaml.error.Mark;
  * Base class for the two collection types {@link MappingNode mapping} and
  * {@link SequenceNode collection}.
  */
-public abstract class CollectionNode extends Node {
+public abstract class CollectionNode extends YamlNode {
     private Boolean flowStyle;
 
     public CollectionNode(Tag tag, Mark startMark, Mark endMark, Boolean flowStyle) {

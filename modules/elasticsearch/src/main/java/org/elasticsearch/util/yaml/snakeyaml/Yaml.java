@@ -19,7 +19,7 @@
 package org.elasticsearch.util.yaml.snakeyaml;
 
 import org.elasticsearch.util.yaml.snakeyaml.events.Event;
-import org.elasticsearch.util.yaml.snakeyaml.nodes.Node;
+import org.elasticsearch.util.yaml.snakeyaml.nodes.YamlNode;
 import org.elasticsearch.util.yaml.snakeyaml.reader.UnicodeReader;
 import org.elasticsearch.util.yaml.snakeyaml.resolver.Resolver;
 
@@ -130,7 +130,7 @@ public class Yaml {
      * @param io stream of a YAML document
      * @return parsed root Node for the specified YAML document
      */
-    public Node compose(Reader io) {
+    public YamlNode compose(Reader io) {
         return loader.compose(io);
     }
 
@@ -141,7 +141,7 @@ public class Yaml {
      * @param io stream of YAML documents
      * @return parsed root Nodes for all the specified YAML documents
      */
-    public Iterable<Node> composeAll(Reader io) {
+    public Iterable<YamlNode> composeAll(Reader io) {
         return loader.composeAll(io);
     }
 

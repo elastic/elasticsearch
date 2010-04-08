@@ -23,10 +23,10 @@ package org.elasticsearch.util.yaml.snakeyaml.nodes;
  */
 public class NodeTuple {
 
-    private final Node keyNode;
-    private final Node valueNode;
+    private final YamlNode keyNode;
+    private final YamlNode valueNode;
 
-    public NodeTuple(Node keyNode, Node valueNode) {
+    public NodeTuple(YamlNode keyNode, YamlNode valueNode) {
         if (keyNode == null || valueNode == null) {
             throw new NullPointerException("Nodes must be provided.");
         }
@@ -37,7 +37,7 @@ public class NodeTuple {
     /**
      * Key node.
      */
-    public Node getKeyNode() {
+    public YamlNode getKeyNode() {
         return keyNode;
     }
 
@@ -46,7 +46,7 @@ public class NodeTuple {
      *
      * @return value
      */
-    public Node getValueNode() {
+    public YamlNode getValueNode() {
         return valueNode;
     }
 

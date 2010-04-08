@@ -35,14 +35,14 @@ import java.util.*;
 public class Composer {
     private final Parser parser;
     private final Resolver resolver;
-    private final Map<String, Node> anchors;
-    private final Set<Node> recursiveNodes;
+    private final Map<String, YamlNode> anchors;
+    private final Set<YamlNode> recursiveNodes;
 
     public Composer(Parser parser, Resolver resolver) {
         this.parser = parser;
         this.resolver = resolver;
-        this.anchors = new HashMap<String, Node>();
-        this.recursiveNodes = new HashSet<Node>();
+        this.anchors = new HashMap<String, YamlNode>();
+        this.recursiveNodes = new HashSet<YamlNode>();
     }
 
     /**
@@ -65,12 +65,12 @@ public class Composer {
      * @return The root node of the document or <code>null</code> if no more
      *         documents are available.
      */
-    public Node getNode() {
+    public YamlNode getNode() {
         // Get the root node of the next document.
         if (!parser.checkEvent(Event.ID.StreamEnd)) {
             return composeDocument();
         } else {
-            return (Node) null;
+            return (YamlNode) null;
         }
     }
 
@@ -83,11 +83,11 @@ public class Composer {
      * @return The root node of the document or <code>null</code> if no document
      *         is available.
      */
-    public Node getSingleNode() {
+    public YamlNode getSingleNode() {
         // Drop the STREAM-START event.
         parser.getEvent();
         // Compose a document if the stream is not empty.
-        Node document = null;
+        YamlNode document = null;
         if (!parser.checkEvent(Event.ID.StreamEnd)) {
             document = composeDocument();
         }
@@ -102,11 +102,11 @@ public class Composer {
         return document;
     }
 
-    private Node composeDocument() {
+    private YamlNode composeDocument() {
         // Drop the DOCUMENT-START event.
         parser.getEvent();
         // Compose the root node.
-        Node node = composeNode(null, null);
+        YamlNode node = composeNode(null, null);
         // Drop the DOCUMENT-END event.
         parser.getEvent();
         this.anchors.clear();
@@ -114,7 +114,7 @@ public class Composer {
         return node;
     }
 
-    private Node composeNode(Node parent, Object index) {
+    private YamlNode composeNode(YamlNode parent, Object index) {
         recursiveNodes.add(parent);
         if (parser.checkEvent(Event.ID.Alias)) {
             AliasEvent event = (AliasEvent) parser.getEvent();
@@ -123,7 +123,7 @@ public class Composer {
                 throw new ComposerException(null, null, "found undefined alias " + anchor, event
                         .getStartMark());
             }
-            Node result = (Node) anchors.get(anchor);
+            YamlNode result = (YamlNode) anchors.get(anchor);
             if (recursiveNodes.remove(result)) {
                 result.setTwoStepsConstruction(true);
             }
@@ -138,7 +138,7 @@ public class Composer {
                             .getStartMark());
         }
         // resolver.descendResolver(parent, index);
-        Node node = null;
+        YamlNode node = null;
         if (parser.checkEvent(Event.ID.Scalar)) {
             node = composeScalarNode(anchor);
         } else if (parser.checkEvent(Event.ID.SequenceStart)) {
@@ -151,7 +151,7 @@ public class Composer {
         return node;
     }
 
-    private Node composeScalarNode(String anchor) {
+    private YamlNode composeScalarNode(String anchor) {
         ScalarEvent ev = (ScalarEvent) parser.getEvent();
         String tag = ev.getTag();
         boolean resolved = false;
@@ -162,7 +162,7 @@ public class Composer {
         } else {
             nodeTag = new Tag(tag);
         }
-        Node node = new ScalarNode(nodeTag, resolved, ev.getValue(), ev.getStartMark(), ev
+        YamlNode node = new ScalarNode(nodeTag, resolved, ev.getValue(), ev.getStartMark(), ev
                 .getEndMark(), ev.getStyle());
         if (anchor != null) {
             anchors.put(anchor, node);
@@ -170,7 +170,7 @@ public class Composer {
         return node;
     }
 
-    private Node composeSequenceNode(String anchor) {
+    private YamlNode composeSequenceNode(String anchor) {
         SequenceStartEvent startEvent = (SequenceStartEvent) parser.getEvent();
         String tag = startEvent.getTag();
         Tag nodeTag;
@@ -181,7 +181,7 @@ public class Composer {
         } else {
             nodeTag = new Tag(tag);
         }
-        SequenceNode node = new SequenceNode(nodeTag, resolved, new ArrayList<Node>(), startEvent
+        SequenceNode node = new SequenceNode(nodeTag, resolved, new ArrayList<YamlNode>(), startEvent
                 .getStartMark(), null, startEvent.getFlowStyle());
         if (anchor != null) {
             anchors.put(anchor, node);
@@ -196,7 +196,7 @@ public class Composer {
         return node;
     }
 
-    private Node composeMappingNode(String anchor) {
+    private YamlNode composeMappingNode(String anchor) {
         MappingStartEvent startEvent = (MappingStartEvent) parser.getEvent();
         String tag = startEvent.getTag();
         Tag nodeTag;
@@ -213,8 +213,8 @@ public class Composer {
             anchors.put(anchor, node);
         }
         while (!parser.checkEvent(Event.ID.MappingEnd)) {
-            Node itemKey = composeNode(node, null);
-            Node itemValue = composeNode(node, itemKey);
+            YamlNode itemKey = composeNode(node, null);
+            YamlNode itemValue = composeNode(node, itemKey);
             node.getValue().add(new NodeTuple(itemKey, itemValue));
         }
         Event endEvent = parser.getEvent();

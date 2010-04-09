@@ -8,6 +8,7 @@
       <w>birthdate</w>
       <w>bool</w>
       <w>booleans</w>
+      <w>camelcase</w>
       <w>checksum</w>
       <w>closeable</w>
       <w>commitable</w>

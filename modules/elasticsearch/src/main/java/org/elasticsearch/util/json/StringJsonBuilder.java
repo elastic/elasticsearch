@@ -44,7 +44,9 @@ public class StringJsonBuilder extends JsonBuilder<StringJsonBuilder> {
         private static final ThreadLocal<ThreadLocals.CleanableValue<StringJsonBuilder>> cache = new ThreadLocal<ThreadLocals.CleanableValue<StringJsonBuilder>>() {
             @Override protected ThreadLocals.CleanableValue<StringJsonBuilder> initialValue() {
                 try {
-                    return new ThreadLocals.CleanableValue<StringJsonBuilder>(new StringJsonBuilder());
+                    StringJsonBuilder builder = new StringJsonBuilder();
+                    builder.cachedStringBuilder = new StringBuilder();
+                    return new ThreadLocals.CleanableValue<StringJsonBuilder>(builder);
                 } catch (IOException e) {
                     throw new ElasticSearchException("Failed to create json generator", e);
                 }
@@ -67,6 +69,8 @@ public class StringJsonBuilder extends JsonBuilder<StringJsonBuilder> {
 
     final UnicodeUtil.UTF8Result utf8Result = new UnicodeUtil.UTF8Result();
 
+    private StringBuilder cachedStringBuilder;
+
     public StringJsonBuilder() throws IOException {
         this(Jackson.defaultJsonFactory());
     }
@@ -85,6 +89,10 @@ public class StringJsonBuilder extends JsonBuilder<StringJsonBuilder> {
         this.builder = this;
     }
 
+    @Override protected StringBuilder cachedStringBuilder() {
+        return cachedStringBuilder;
+    }
+
     @Override public StringJsonBuilder raw(byte[] json) throws IOException {
         flush();
         Unicode.UTF16Result result = Unicode.unsafeFromBytesAsUtf16(json);
@@ -93,6 +101,7 @@ public class StringJsonBuilder extends JsonBuilder<StringJsonBuilder> {
     }
 
     public StringJsonBuilder reset() throws IOException {
+        fieldCaseConversion = globalFieldCaseConversion;
         writer.reset();
         generator = factory.createJsonGenerator(writer);
         return this;

@@ -33,6 +33,7 @@ import java.util.Date;
 import java.util.Map;
 
 import static org.elasticsearch.util.json.Jackson.*;
+import static org.elasticsearch.util.json.JsonBuilder.FieldCaseConversion.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -99,5 +100,15 @@ public class JsonBuilderTests {
                 .put("dateTime", dateTime)
                 .map();
         System.out.println("Data: " + defaultObjectMapper().writeValueAsString(data));
+    }
+
+    @Test public void testFieldCaseConversion() throws Exception {
+        StringJsonBuilder builder = JsonBuilder.stringJsonBuilder().fieldCaseConversion(CAMELCASE);
+        builder.startObject().field("test_name", "value").endObject();
+        assertThat(builder.string(), equalTo("{\"testName\":\"value\"}"));
+
+        builder = JsonBuilder.stringJsonBuilder().fieldCaseConversion(UNDERSCORE);
+        builder.startObject().field("testName", "value").endObject();
+        assertThat(builder.string(), equalTo("{\"test_name\":\"value\"}"));
     }
 }

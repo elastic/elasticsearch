@@ -19,6 +19,7 @@
 
 package org.elasticsearch.util.json;
 
+import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.concurrent.NotThreadSafe;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
@@ -39,11 +40,34 @@ import java.util.Date;
 @NotThreadSafe
 public abstract class JsonBuilder<T extends JsonBuilder> {
 
+    public static enum FieldCaseConversion {
+        /**
+         * No came conversion will occur.
+         */
+        NONE,
+        /**
+         * Camel Case will be converted to Underscore casing.
+         */
+        UNDERSCORE,
+        /**
+         * Underscore will be converted to Camel case conversion.
+         */
+        CAMELCASE
+    }
+
     private final static DateTimeFormatter defaultDatePrinter = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
+
+    protected static FieldCaseConversion globalFieldCaseConversion = FieldCaseConversion.CAMELCASE;
+
+    public static void globalFieldCaseConversion(FieldCaseConversion globalFieldCaseConversion) {
+        JsonBuilder.globalFieldCaseConversion = globalFieldCaseConversion;
+    }
 
     protected org.codehaus.jackson.JsonGenerator generator;
 
     protected T builder;
+
+    protected FieldCaseConversion fieldCaseConversion = globalFieldCaseConversion;
 
     public static StringJsonBuilder stringJsonBuilder() throws IOException {
         return StringJsonBuilder.Cached.cached();
@@ -55,6 +79,11 @@ public abstract class JsonBuilder<T extends JsonBuilder> {
 
     public static BinaryJsonBuilder binaryJsonBuilder() throws IOException {
         return BinaryJsonBuilder.Cached.cached();
+    }
+
+    public T fieldCaseConversion(FieldCaseConversion fieldCaseConversion) {
+        this.fieldCaseConversion = fieldCaseConversion;
+        return builder;
     }
 
     public T prettyPrint() {
@@ -113,6 +142,11 @@ public abstract class JsonBuilder<T extends JsonBuilder> {
     }
 
     public T field(String name) throws IOException {
+        if (fieldCaseConversion == FieldCaseConversion.UNDERSCORE) {
+            name = Strings.toUnderscoreCase(name);
+        } else if (fieldCaseConversion == FieldCaseConversion.CAMELCASE) {
+            name = Strings.toCamelCase(name);
+        }
         generator.writeFieldName(name);
         return builder;
     }
@@ -368,6 +402,10 @@ public abstract class JsonBuilder<T extends JsonBuilder> {
     public abstract byte[] copiedBytes() throws IOException;
 
     public abstract String string() throws IOException;
+
+    protected StringBuilder cachedStringBuilder() {
+        return null;
+    }
 
     public void close() {
         try {

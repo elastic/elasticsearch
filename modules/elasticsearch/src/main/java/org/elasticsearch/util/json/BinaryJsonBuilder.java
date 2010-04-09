@@ -42,7 +42,9 @@ public class BinaryJsonBuilder extends JsonBuilder<BinaryJsonBuilder> {
         private static final ThreadLocal<ThreadLocals.CleanableValue<BinaryJsonBuilder>> cache = new ThreadLocal<ThreadLocals.CleanableValue<BinaryJsonBuilder>>() {
             @Override protected ThreadLocals.CleanableValue<BinaryJsonBuilder> initialValue() {
                 try {
-                    return new ThreadLocals.CleanableValue<BinaryJsonBuilder>(new BinaryJsonBuilder());
+                    BinaryJsonBuilder builder = new BinaryJsonBuilder();
+                    builder.cachedStringBuilder = new StringBuilder();
+                    return new ThreadLocals.CleanableValue<BinaryJsonBuilder>(builder);
                 } catch (IOException e) {
                     throw new ElasticSearchException("Failed to create json generator", e);
                 }
@@ -63,6 +65,8 @@ public class BinaryJsonBuilder extends JsonBuilder<BinaryJsonBuilder> {
 
     private final JsonFactory factory;
 
+    private StringBuilder cachedStringBuilder;
+
     public BinaryJsonBuilder() throws IOException {
         this(Jackson.defaultJsonFactory());
     }
@@ -81,6 +85,10 @@ public class BinaryJsonBuilder extends JsonBuilder<BinaryJsonBuilder> {
         this.builder = this;
     }
 
+    @Override protected StringBuilder cachedStringBuilder() {
+        return cachedStringBuilder;
+    }
+
     @Override public BinaryJsonBuilder raw(byte[] json) throws IOException {
         flush();
         bos.write(json);
@@ -88,6 +96,7 @@ public class BinaryJsonBuilder extends JsonBuilder<BinaryJsonBuilder> {
     }
 
     @Override public BinaryJsonBuilder reset() throws IOException {
+        fieldCaseConversion = globalFieldCaseConversion;
         bos.reset();
         generator = factory.createJsonGenerator(bos, JsonEncoding.UTF8);
         return this;

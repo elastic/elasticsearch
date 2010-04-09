@@ -57,7 +57,7 @@ public abstract class JsonBuilder<T extends JsonBuilder> {
 
     private final static DateTimeFormatter defaultDatePrinter = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
 
-    protected static FieldCaseConversion globalFieldCaseConversion = FieldCaseConversion.CAMELCASE;
+    protected static FieldCaseConversion globalFieldCaseConversion = FieldCaseConversion.NONE;
 
     public static void globalFieldCaseConversion(FieldCaseConversion globalFieldCaseConversion) {
         JsonBuilder.globalFieldCaseConversion = globalFieldCaseConversion;

@@ -1,4 +1,4 @@
-h1. ElasticSearch
+h1. ElasticSearch 0.6
 
 h2. A Distributed RESTful Search Engine
 

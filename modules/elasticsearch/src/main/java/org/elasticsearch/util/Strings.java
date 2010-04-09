@@ -1166,12 +1166,20 @@ public class Strings {
     }
 
     public static String toCamelCase(String value) {
-        StringBuilder sb = new StringBuilder();
+        return toCamelCase(value, null);
+    }
+
+    public static String toCamelCase(String value, StringBuilder sb) {
         boolean changed = false;
         for (int i = 0; i < value.length(); i++) {
             char c = value.charAt(i);
             if (c == '_') {
                 if (!changed) {
+                    if (sb != null) {
+                        sb.setLength(0);
+                    } else {
+                        sb = new StringBuilder();
+                    }
                     // copy it over here
                     for (int j = 0; j < i; j++) {
                         sb.append(value.charAt(j));
@@ -1192,12 +1200,20 @@ public class Strings {
     }
 
     public static String toUnderscoreCase(String value) {
-        StringBuilder sb = new StringBuilder();
+        return toUnderscoreCase(value, null);
+    }
+
+    public static String toUnderscoreCase(String value, StringBuilder sb) {
         boolean changed = false;
         for (int i = 0; i < value.length(); i++) {
             char c = value.charAt(i);
             if (Character.isUpperCase(c)) {
                 if (!changed) {
+                    if (sb != null) {
+                        sb.setLength(0);
+                    } else {
+                        sb = new StringBuilder();
+                    }
                     // copy it over here
                     for (int j = 0; j < i; j++) {
                         sb.append(value.charAt(j));

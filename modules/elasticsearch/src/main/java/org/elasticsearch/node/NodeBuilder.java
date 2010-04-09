@@ -117,6 +117,18 @@ public class NodeBuilder {
     }
 
     /**
+     * Is the node a local node. A local node is a node that uses a local (JVM level) discovery and
+     * transport. Other (local) nodes started within the same JVM (actually, class-loader) will be
+     * discovered and communicated with. Nodes outside of the JVM will not be discovered.
+     *
+     * @param local Should the node be local or not
+     */
+    public NodeBuilder local(boolean local) {
+        settings.put("node.local", true);
+        return this;
+    }
+
+    /**
      * The cluster name this node is part of (maps to the <tt>cluster.name</tt> setting). Defaults
      * to <tt>elasticsearch</tt>.
      *

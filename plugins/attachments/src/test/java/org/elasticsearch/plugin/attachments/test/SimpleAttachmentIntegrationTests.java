@@ -47,7 +47,7 @@ public class SimpleAttachmentIntegrationTests {
     private Node node;
 
     @BeforeClass public void setupServer() {
-        node = nodeBuilder().settings(settingsBuilder().put("node.local", true)).node();
+        node = nodeBuilder().local(true).node();
     }
 
     @AfterClass public void closeServer() {

@@ -34,10 +34,16 @@ public class StringsTests {
 
     @Test public void testCamelCase() {
         assertThat(toCamelCase("test_value"), equalTo("testValue"));
+        String testValue = "testValue";
+        assertThat(toCamelCase(testValue), equalTo(testValue));
+        assertThat(toCamelCase(testValue), sameInstance(testValue));
     }
 
     @Test public void testUnderscoreCase() {
         assertThat(toUnderscoreCase("testValue"), equalTo("test_value"));
+        String testValue = "test_value";
+        assertThat(toUnderscoreCase(testValue), equalTo(testValue));
+        assertThat(toUnderscoreCase(testValue), sameInstance(testValue));
     }
 
 //    @Test public void testHasTextBlank() throws Exception {

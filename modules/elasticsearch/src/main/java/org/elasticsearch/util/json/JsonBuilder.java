@@ -118,7 +118,7 @@ public abstract class JsonBuilder<T extends JsonBuilder> {
     }
 
     public T field(String name, char[] value, int offset, int length) throws IOException {
-        generator.writeFieldName(name);
+        field(name);
         if (value == null) {
             generator.writeNull();
         } else {
@@ -128,7 +128,7 @@ public abstract class JsonBuilder<T extends JsonBuilder> {
     }
 
     public T field(String name, String value) throws IOException {
-        generator.writeFieldName(name);
+        field(name);
         if (value == null) {
             generator.writeNull();
         } else {
@@ -142,7 +142,7 @@ public abstract class JsonBuilder<T extends JsonBuilder> {
     }
 
     public T field(String name, int value) throws IOException {
-        generator.writeFieldName(name);
+        field(name);
         generator.writeNumber(value);
         return builder;
     }
@@ -152,7 +152,7 @@ public abstract class JsonBuilder<T extends JsonBuilder> {
     }
 
     public T field(String name, long value) throws IOException {
-        generator.writeFieldName(name);
+        field(name);
         generator.writeNumber(value);
         return builder;
     }
@@ -162,7 +162,7 @@ public abstract class JsonBuilder<T extends JsonBuilder> {
     }
 
     public T field(String name, float value) throws IOException {
-        generator.writeFieldName(name);
+        field(name);
         generator.writeNumber(value);
         return builder;
     }
@@ -173,7 +173,7 @@ public abstract class JsonBuilder<T extends JsonBuilder> {
     }
 
     public T field(String name, double value) throws IOException {
-        generator.writeFieldName(name);
+        field(name);
         generator.writeNumber(value);
         return builder;
     }
@@ -209,34 +209,34 @@ public abstract class JsonBuilder<T extends JsonBuilder> {
     }
 
     public T field(String name, boolean value) throws IOException {
-        generator.writeFieldName(name);
+        field(name);
         generator.writeBoolean(value);
         return builder;
     }
 
     public T field(String name, byte[] value) throws IOException {
-        generator.writeFieldName(name);
+        field(name);
         generator.writeBinary(value);
         return builder;
     }
 
     public T field(String name, ReadableInstant date) throws IOException {
-        generator.writeFieldName(name);
+        field(name);
         return value(date);
     }
 
     public T field(String name, ReadableInstant date, DateTimeFormatter formatter) throws IOException {
-        generator.writeFieldName(name);
+        field(name);
         return value(date, formatter);
     }
 
     public T field(String name, Date date) throws IOException {
-        generator.writeFieldName(name);
+        field(name);
         return value(date);
     }
 
     public T field(String name, Date date, DateTimeFormatter formatter) throws IOException {
-        generator.writeFieldName(name);
+        field(name);
         return value(date, formatter);
     }
 

@@ -1167,27 +1167,53 @@ public class Strings {
 
     public static String toCamelCase(String value) {
         StringBuilder sb = new StringBuilder();
-        char[] values = value.toCharArray();
-        for (int i = 0; i < values.length; i++) {
-            if (values[i] == '_') {
-                sb.append(Character.toUpperCase(values[++i]));
+        boolean changed = false;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c == '_') {
+                if (!changed) {
+                    // copy it over here
+                    for (int j = 0; j < i; j++) {
+                        sb.append(value.charAt(j));
+                    }
+                    changed = true;
+                }
+                sb.append(Character.toUpperCase(value.charAt(++i)));
             } else {
-                sb.append(values[i]);
+                if (changed) {
+                    sb.append(c);
+                }
             }
+        }
+        if (!changed) {
+            return value;
         }
         return sb.toString();
     }
 
     public static String toUnderscoreCase(String value) {
         StringBuilder sb = new StringBuilder();
-        char[] values = value.toCharArray();
-        for (int i = 0; i < values.length; i++) {
-            if (Character.isUpperCase(values[i])) {
+        boolean changed = false;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (Character.isUpperCase(c)) {
+                if (!changed) {
+                    // copy it over here
+                    for (int j = 0; j < i; j++) {
+                        sb.append(value.charAt(j));
+                    }
+                    changed = true;
+                }
                 sb.append('_');
-                sb.append(Character.toLowerCase(values[i]));
+                sb.append(Character.toLowerCase(c));
             } else {
-                sb.append(values[i]);
+                if (changed) {
+                    sb.append(c);
+                }
             }
+        }
+        if (!changed) {
+            return value;
         }
         return sb.toString();
     }

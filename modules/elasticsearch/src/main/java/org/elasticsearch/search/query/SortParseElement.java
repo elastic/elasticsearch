@@ -85,25 +85,43 @@ public class SortParseElement implements SearchParseElement {
                 boolean reverse = false;
                 String innerJsonName = null;
                 int type = -1;
-                while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
-                    if (token == JsonToken.FIELD_NAME) {
-                        innerJsonName = jp.getCurrentName();
-                    } else if (token == JsonToken.VALUE_STRING) {
-                        if ("type".equals(innerJsonName)) {
-                            type = sortFieldTypesMapper.get(jp.getText());
-                            if (type == -1) {
-                                throw new SearchParseException(context, "No sort type for [" + jp.getText() + "] with field [" + fieldName + "]");
-                            }
-                        } else if ("reverse".equals(innerJsonName)) {
-                            reverse = Booleans.parseBoolean(jp.getText(), reverse);
-                        }
-                    } else if (token == JsonToken.VALUE_NUMBER_INT) {
-                        if ("reverse".equals(innerJsonName)) {
-                            reverse = jp.getIntValue() != 0;
-                        }
-                    } else if (token == JsonToken.VALUE_TRUE) {
-                        if ("reverse".equals(innerJsonName)) {
+                token = jp.nextToken();
+                if (token == JsonToken.VALUE_STRING) {
+                    String direction = jp.getText();
+                    if (direction.equals("asc")) {
+                        if ("score".equals(fieldName)) {
                             reverse = true;
+                        } else {
+                            reverse = false;
+                        }
+                    } else if (direction.equals("desc")) {
+                        if ("score".equals(fieldName)) {
+                            reverse = false;
+                        } else {
+                            reverse = true;
+                        }
+                    }
+                } else {
+                    while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
+                        if (token == JsonToken.FIELD_NAME) {
+                            innerJsonName = jp.getCurrentName();
+                        } else if (token == JsonToken.VALUE_STRING) {
+                            if ("type".equals(innerJsonName)) {
+                                type = sortFieldTypesMapper.get(jp.getText());
+                                if (type == -1) {
+                                    throw new SearchParseException(context, "No sort type for [" + jp.getText() + "] with field [" + fieldName + "]");
+                                }
+                            } else if ("reverse".equals(innerJsonName)) {
+                                reverse = Booleans.parseBoolean(jp.getText(), reverse);
+                            }
+                        } else if (token == JsonToken.VALUE_NUMBER_INT) {
+                            if ("reverse".equals(innerJsonName)) {
+                                reverse = jp.getIntValue() != 0;
+                            }
+                        } else if (token == JsonToken.VALUE_TRUE) {
+                            if ("reverse".equals(innerJsonName)) {
+                                reverse = true;
+                            }
                         }
                     }
                 }

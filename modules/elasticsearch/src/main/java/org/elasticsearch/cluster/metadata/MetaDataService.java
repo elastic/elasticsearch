@@ -177,20 +177,16 @@ public class MetaDataService extends AbstractComponent {
         }
         File mappingsDir = new File(environment.configFile(), "mappings");
         if (mappingsDir.exists() && mappingsDir.isDirectory()) {
-            File[] mappingsFiles = mappingsDir.listFiles();
-            for (File mappingFile : mappingsFiles) {
-                String fileNameNoSuffix = mappingFile.getName().substring(0, mappingFile.getName().lastIndexOf('.'));
-                if (mappings.containsKey(fileNameNoSuffix)) {
-                    // if we have the mapping defined, ignore it
-                    continue;
-                }
-                try {
-                    mappings.put(fileNameNoSuffix, Streams.copyToString(new FileReader(mappingFile)));
-                } catch (IOException e) {
-                    logger.warn("Failed to read mapping [" + fileNameNoSuffix + "] from location [" + mappingFile + "], ignoring...", e);
-                }
+            File defaultMappingsDir = new File(mappingsDir, "_default");
+            if (mappingsDir.exists() && mappingsDir.isDirectory()) {
+                addMappings(mappings, defaultMappingsDir);
+            }
+            File indexMappingsDir = new File(mappingsDir, index);
+            if (mappingsDir.exists() && mappingsDir.isDirectory()) {
+                addMappings(mappings, indexMappingsDir);
             }
         }
+
         final Map<String, String> fMappings = mappings;
 
         final CountDownLatch latch = new CountDownLatch(clusterService.state().nodes().size());
@@ -245,6 +241,22 @@ public class MetaDataService extends AbstractComponent {
             nodeIndexCreatedAction.remove(nodeCreatedListener);
         }
         return new CreateIndexResult(acknowledged);
+    }
+
+    private void addMappings(Map<String, String> mappings, File mappingsDir) {
+        File[] mappingsFiles = mappingsDir.listFiles();
+        for (File mappingFile : mappingsFiles) {
+            String fileNameNoSuffix = mappingFile.getName().substring(0, mappingFile.getName().lastIndexOf('.'));
+            if (mappings.containsKey(fileNameNoSuffix)) {
+                // if we have the mapping defined, ignore it
+                continue;
+            }
+            try {
+                mappings.put(fileNameNoSuffix, Streams.copyToString(new FileReader(mappingFile)));
+            } catch (IOException e) {
+                logger.warn("Failed to read mapping [" + fileNameNoSuffix + "] from location [" + mappingFile + "], ignoring...", e);
+            }
+        }
     }
 
     public synchronized DeleteIndexResult deleteIndex(final String index, TimeValue timeout) throws IndexMissingException {

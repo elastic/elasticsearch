@@ -27,7 +27,7 @@ import org.elasticsearch.util.trove.ExtTIntArrayList;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class FetchSearchRequest implements Streamable {
 
@@ -35,7 +35,7 @@ public class FetchSearchRequest implements Streamable {
 
     private int[] docIds;
 
-    private transient int size;
+    private int size;
 
     public FetchSearchRequest() {
     }
@@ -60,11 +60,15 @@ public class FetchSearchRequest implements Streamable {
         return docIds;
     }
 
+    public int docIdsSize() {
+        return size;
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         id = in.readLong();
         size = in.readVInt();
         docIds = new int[size];
-        for (int i = 0; i < docIds.length; i++) {
+        for (int i = 0; i < size; i++) {
             docIds[i] = in.readVInt();
         }
     }

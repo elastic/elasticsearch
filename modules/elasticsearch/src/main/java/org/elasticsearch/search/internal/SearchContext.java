@@ -90,6 +90,10 @@ public class SearchContext implements Releasable {
 
     private int[] docIdsToLoad;
 
+    private int docsIdsToLoadFrom;
+
+    private int docsIdsToLoadSize;
+
     private SearchContextFacets facets;
 
     private SearchContextHighlight highlight;
@@ -295,8 +299,18 @@ public class SearchContext implements Releasable {
         return docIdsToLoad;
     }
 
-    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
+    public int docIdsToLoadFrom() {
+        return docsIdsToLoadFrom;
+    }
+
+    public int docIdsToLoadSize() {
+        return docsIdsToLoadSize;
+    }
+
+    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadFrom, int docsIdsToLoadSize) {
         this.docIdsToLoad = docIdsToLoad;
+        this.docsIdsToLoadFrom = docsIdsToLoadFrom;
+        this.docsIdsToLoadSize = docsIdsToLoadSize;
         return this;
     }
 

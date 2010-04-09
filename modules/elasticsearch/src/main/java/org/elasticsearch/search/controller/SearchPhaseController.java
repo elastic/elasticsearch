@@ -139,7 +139,7 @@ public class SearchPhaseController {
         for (ShardDoc shardDoc : shardDocs) {
             ExtTIntArrayList list = result.get(shardDoc.shardTarget());
             if (list == null) {
-                list = new ExtTIntArrayList();
+                list = new ExtTIntArrayList(); // can't be shared!, uses unsafe on it later on
                 result.put(shardDoc.shardTarget(), list);
             }
             list.add(shardDoc.docId());

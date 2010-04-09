@@ -66,6 +66,9 @@ task explodedDist(dependsOn: [configurations.distLib], description: 'Builds a mi
         include 'README.textile'
     }
 
+    ant.delete { fileset(dir: explodedDistLibDir, includes: "$archivesBaseName-*-javadoc.jar") }
+    ant.delete { fileset(dir: explodedDistLibDir, includes: "$archivesBaseName-*-sources.jar") }
+
     ant.chmod(dir: "$explodedDistDir/bin", perm: "ugo+rx", includes: "**/*")
 }
 

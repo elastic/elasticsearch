@@ -59,7 +59,6 @@ import org.elasticsearch.util.timer.Timeout;
 import org.elasticsearch.util.timer.TimerTask;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -260,7 +259,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     public FetchSearchResult executeFetchPhase(FetchSearchRequest request) throws ElasticSearchException {
         SearchContext context = findContext(request.id());
         try {
-            context.docIdsToLoad(request.docIds());
+            context.docIdsToLoad(request.docIds(), 0, request.docIdsSize());
             fetchPhase.execute(context);
             if (context.scroll() == null) {
                 freeContext(request.id());
@@ -366,7 +365,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         TopDocs topDocs = context.queryResult().topDocs();
         if (topDocs.scoreDocs.length < context.from()) {
             // no more docs...
-            context.docIdsToLoad(EMPTY_DOC_IDS);
+            context.docIdsToLoad(EMPTY_DOC_IDS, 0, 0);
             return;
         }
         int totalSize = context.from() + context.size();
@@ -380,10 +379,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             }
             counter++;
         }
-        if (counter < context.size()) {
-            docIdsToLoad = Arrays.copyOfRange(docIdsToLoad, 0, counter);
-        }
-        context.docIdsToLoad(docIdsToLoad);
+        context.docIdsToLoad(docIdsToLoad, 0, counter);
     }
 
     private void processScroll(InternalScrollSearchRequest request, SearchContext context) {

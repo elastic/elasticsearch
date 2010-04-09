@@ -64,6 +64,9 @@ task explodedDist(dependsOn: [jar], description: 'Builds the plugin zip file') <
         from libsDir
         into explodedDistDir
     }
+
+    ant.delete { fileset(dir: explodedDistDir, includes: "elasticsearch-*-javadoc.jar") }
+    ant.delete { fileset(dir: explodedDistDir, includes: "elasticsearch-*-sources.jar") }
 }
 
 task zip(type: Zip, dependsOn: ['explodedDist']) {

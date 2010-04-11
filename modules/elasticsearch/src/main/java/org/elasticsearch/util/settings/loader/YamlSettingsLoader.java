@@ -19,6 +19,7 @@
 
 package org.elasticsearch.util.settings.loader;
 
+import org.elasticsearch.util.io.FastByteArrayInputStream;
 import org.elasticsearch.util.yaml.snakeyaml.Yaml;
 
 import java.io.IOException;
@@ -32,7 +33,7 @@ import static com.google.common.collect.Maps.*;
  * Settings loader that loads (parses) the settings in a yaml format by flattening them
  * into a map.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class YamlSettingsLoader implements SettingsLoader {
 
@@ -41,6 +42,19 @@ public class YamlSettingsLoader implements SettingsLoader {
         source = source.replace("\t", "  ");
         Yaml yaml = new Yaml();
         Map<Object, Object> yamlMap = (Map<Object, Object>) yaml.load(source);
+        StringBuilder sb = new StringBuilder();
+        Map<String, String> settings = newHashMap();
+        if (yamlMap == null) {
+            return settings;
+        }
+        List<String> path = newArrayList();
+        serializeMap(settings, sb, path, yamlMap);
+        return settings;
+    }
+
+    @Override public Map<String, String> load(byte[] source) throws IOException {
+        Yaml yaml = new Yaml();
+        Map<Object, Object> yamlMap = (Map<Object, Object>) yaml.load(new FastByteArrayInputStream(source));
         StringBuilder sb = new StringBuilder();
         Map<String, String> settings = newHashMap();
         if (yamlMap == null) {

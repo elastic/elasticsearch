@@ -22,6 +22,7 @@ package org.elasticsearch.util.settings.loader;
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
+import org.elasticsearch.util.io.FastByteArrayInputStream;
 import org.elasticsearch.util.io.FastStringReader;
 import org.elasticsearch.util.json.Jackson;
 
@@ -44,6 +45,15 @@ public class JsonSettingsLoader implements SettingsLoader {
 
     @Override public Map<String, String> load(String source) throws IOException {
         JsonParser jp = jsonFactory.createJsonParser(new FastStringReader(source));
+        try {
+            return load(jp);
+        } finally {
+            jp.close();
+        }
+    }
+
+    @Override public Map<String, String> load(byte[] source) throws IOException {
+        JsonParser jp = jsonFactory.createJsonParser(new FastByteArrayInputStream(source));
         try {
             return load(jp);
         } finally {

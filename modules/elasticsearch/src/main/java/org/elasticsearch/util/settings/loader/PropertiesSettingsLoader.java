@@ -19,6 +19,7 @@
 
 package org.elasticsearch.util.settings.loader;
 
+import org.elasticsearch.util.io.FastByteArrayInputStream;
 import org.elasticsearch.util.io.FastStringReader;
 
 import java.io.IOException;
@@ -37,6 +38,16 @@ public class PropertiesSettingsLoader implements SettingsLoader {
     @Override public Map<String, String> load(String source) throws IOException {
         Properties props = new Properties();
         props.load(new FastStringReader(source));
+        Map<String, String> result = newHashMap();
+        for (Map.Entry entry : props.entrySet()) {
+            result.put((String) entry.getKey(), (String) entry.getValue());
+        }
+        return result;
+    }
+
+    @Override public Map<String, String> load(byte[] source) throws IOException {
+        Properties props = new Properties();
+        props.load(new FastByteArrayInputStream(source));
         Map<String, String> result = newHashMap();
         for (Map.Entry entry : props.entrySet()) {
             result.put((String) entry.getKey(), (String) entry.getValue());

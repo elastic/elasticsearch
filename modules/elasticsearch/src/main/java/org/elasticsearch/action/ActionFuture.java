@@ -43,6 +43,13 @@ public interface ActionFuture<T> extends Future<T> {
      * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just wrapping the {@link InterruptedException} with
      * {@link org.elasticsearch.ElasticSearchInterruptedException}, and throwing the actual
      * cause of the {@link java.util.concurrent.ExecutionException}.
+     */
+    T actionGet(String timeout) throws ElasticSearchException;
+
+    /**
+     * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just wrapping the {@link InterruptedException} with
+     * {@link org.elasticsearch.ElasticSearchInterruptedException}, and throwing the actual
+     * cause of the {@link java.util.concurrent.ExecutionException}.
      *
      * @param timeoutMillis Timeout in millis
      */

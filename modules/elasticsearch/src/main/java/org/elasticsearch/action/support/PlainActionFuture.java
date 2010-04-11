@@ -111,6 +111,10 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
         }
     }
 
+    @Override public T actionGet(String timeout) throws ElasticSearchException {
+        return actionGet(TimeValue.parseTimeValue(timeout, null));
+    }
+
     @Override public T actionGet(long timeoutMillis) throws ElasticSearchException {
         return actionGet(timeoutMillis, TimeUnit.MILLISECONDS);
     }

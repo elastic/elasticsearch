@@ -33,13 +33,18 @@ import static com.google.common.collect.Lists.*;
 import static org.elasticsearch.util.json.JsonBuilder.*;
 
 /**
- * A search source builder allowing to easily build search source. Simple consruction
+ * A search source builder allowing to easily build search source. Simple construction
  * using {@link org.elasticsearch.search.builder.SearchSourceBuilder#searchSource()}.
  *
  * @author kimchy (shay.banon)
  * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
 public class SearchSourceBuilder {
+
+    public static enum Order {
+        ASC,
+        DESC
+    }
 
     /**
      * A static factory method to construct a new search source.
@@ -130,6 +135,26 @@ public class SearchSourceBuilder {
     public SearchSourceBuilder explain(Boolean explain) {
         this.explain = explain;
         return this;
+    }
+
+    /**
+     * Adds a sort against the given field name and the sort ordering.
+     *
+     * @param name  The name of the field
+     * @param order The sort ordering
+     */
+    public SearchSourceBuilder sort(String name, Order order) {
+        boolean reverse = false;
+        if (name.equals("score")) {
+            if (order == Order.ASC) {
+                reverse = true;
+            }
+        } else {
+            if (order == Order.DESC) {
+                reverse = true;
+            }
+        }
+        return sort(name, null, reverse);
     }
 
     /**

@@ -195,7 +195,13 @@ public class RestSearchAction extends BaseRestHandler {
                 if (delimiter != -1) {
                     String sortField = sort.substring(0, delimiter);
                     String reverse = sort.substring(delimiter + 1);
-                    searchSourceBuilder.sort(sortField, reverse.equals("reverse"));
+                    if ("asc".equals(reverse)) {
+                        searchSourceBuilder.sort(sortField, SearchSourceBuilder.Order.ASC);
+                    } else if ("desc".equals(reverse)) {
+                        searchSourceBuilder.sort(sortField, SearchSourceBuilder.Order.DESC);
+                    } else {
+                        searchSourceBuilder.sort(sortField, reverse.equals("reverse"));
+                    }
                 } else {
                     searchSourceBuilder.sort(sort);
                 }

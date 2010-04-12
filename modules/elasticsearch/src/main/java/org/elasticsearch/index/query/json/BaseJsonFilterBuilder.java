@@ -24,7 +24,7 @@ import org.elasticsearch.util.json.JsonBuilder;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class BaseJsonFilterBuilder implements JsonFilterBuilder {
 

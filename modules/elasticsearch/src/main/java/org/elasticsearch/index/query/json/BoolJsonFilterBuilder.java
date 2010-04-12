@@ -30,7 +30,7 @@ import java.util.ArrayList;
  *
  * @author kimchy (shay.banon)
  */
-public class BoolJsonFilterBuilder extends BaseJsonQueryBuilder {
+public class BoolJsonFilterBuilder extends BaseJsonFilterBuilder {
 
     private ArrayList<Clause> clauses = new ArrayList<Clause>();
 

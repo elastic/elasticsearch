@@ -28,7 +28,7 @@ import org.elasticsearch.util.json.StringJsonBuilder;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class BaseJsonQueryBuilder implements JsonQueryBuilder {
 

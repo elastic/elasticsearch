@@ -142,7 +142,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         this.connectRetries = componentSettings.getAsInt("connect_retries", 2);
         this.tcpNoDelay = componentSettings.getAsBoolean("tcp_no_delay", true);
         this.tcpKeepAlive = componentSettings.getAsBoolean("tcp_keep_alive", null);
-        this.reuseAddress = componentSettings.getAsBoolean("reuse_address", true);
+        this.reuseAddress = componentSettings.getAsBoolean("reuse_address", null);
         this.tcpSendBufferSize = componentSettings.getAsSize("tcp_send_buffer_size", null);
         this.tcpReceiveBufferSize = componentSettings.getAsSize("tcp_receive_buffer_size", null);
     }

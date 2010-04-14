@@ -53,11 +53,23 @@ public class SearchShardTarget implements Streamable, Serializable {
         return nodeId;
     }
 
+    public String getNodeId() {
+        return nodeId;
+    }
+
     public String index() {
         return index;
     }
 
+    public String getIndex() {
+        return index;
+    }
+
     public int shardId() {
+        return shardId;
+    }
+
+    public int getShardId() {
         return shardId;
     }
 

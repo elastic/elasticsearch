@@ -69,6 +69,13 @@ public class SearchResponse implements ActionResponse, ToJson {
     }
 
     /**
+     * The search hits.
+     */
+    public SearchHits getHits() {
+        return hits();
+    }
+
+    /**
      * The search facets.
      */
     public Facets facets() {
@@ -76,9 +83,23 @@ public class SearchResponse implements ActionResponse, ToJson {
     }
 
     /**
+     * The search facets.
+     */
+    public Facets getFacets() {
+        return facets();
+    }
+
+    /**
      * The total number of shards the search was executed on.
      */
     public int totalShards() {
+        return totalShards;
+    }
+
+    /**
+     * The total number of shards the search was executed on.
+     */
+    public int getTotalShards() {
         return totalShards;
     }
 
@@ -90,10 +111,24 @@ public class SearchResponse implements ActionResponse, ToJson {
     }
 
     /**
+     * The successful number of shards the search was executed on.
+     */
+    public int getSuccessfulShards() {
+        return successfulShards;
+    }
+
+    /**
      * The failed number of shards the search was executed on.
      */
     public int failedShards() {
         return totalShards - successfulShards;
+    }
+
+    /**
+     * The failed number of shards the search was executed on.
+     */
+    public int getFailedShards() {
+        return failedShards();
     }
 
     /**
@@ -104,10 +139,25 @@ public class SearchResponse implements ActionResponse, ToJson {
     }
 
     /**
+     * The failures that occurred during the search.
+     */
+    public ShardSearchFailure[] getShardFailures() {
+        return shardFailures;
+    }
+
+    /**
      * If scrolling was enabled ({@link SearchRequest#scroll(org.elasticsearch.search.Scroll)}, the
      * scroll id that can be used to continue scrolling.
      */
     public String scrollId() {
+        return scrollId;
+    }
+
+    /**
+     * If scrolling was enabled ({@link SearchRequest#scroll(org.elasticsearch.search.Scroll)}, the
+     * scroll id that can be used to continue scrolling.
+     */
+    public String getScrollId() {
         return scrollId;
     }
 

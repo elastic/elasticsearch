@@ -27,7 +27,7 @@ import org.elasticsearch.util.json.ToJson;
  *
  * @author kimchy (shay.banon)
  */
-public interface SearchHits extends Streamable, ToJson {
+public interface SearchHits extends Streamable, ToJson, Iterable<SearchHit> {
 
     /**
      * The total number of hits that matches the search request.
@@ -35,7 +35,19 @@ public interface SearchHits extends Streamable, ToJson {
     long totalHits();
 
     /**
+     * The total number of hits that matches the search request.
+     */
+    long getTotalHits();
+
+    /**
      * The hits of the search request (based on the search type, and from / size provided).
      */
     SearchHit[] hits();
+
+    SearchHit getAt(int position);
+
+    /**
+     * The hits of the search request (based on the search type, and from / size provided).
+     */
+    public SearchHit[] getHits();
 }

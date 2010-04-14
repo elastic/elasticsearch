@@ -61,7 +61,17 @@ public interface Facet extends Streamable, ToJson {
     String name();
 
     /**
+     * The "logical" name of the search facet.
+     */
+    String getName();
+
+    /**
      * The type of the facet.
      */
     Type type();
+
+    /**
+     * The type of the facet.
+     */
+    Type getType();
 }

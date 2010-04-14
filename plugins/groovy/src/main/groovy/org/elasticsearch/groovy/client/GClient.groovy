@@ -30,6 +30,8 @@ import org.elasticsearch.action.get.GetRequest
 import org.elasticsearch.action.get.GetResponse
 import org.elasticsearch.action.index.IndexRequest
 import org.elasticsearch.action.index.IndexResponse
+import org.elasticsearch.action.search.SearchRequest
+import org.elasticsearch.action.search.SearchResponse
 import org.elasticsearch.action.terms.TermsRequest
 import org.elasticsearch.action.terms.TermsResponse
 import org.elasticsearch.client.Client
@@ -62,6 +64,13 @@ class GClient {
         }
         CountRequest.metaClass.query = {Closure c ->
             delegate.query(new JsonBuilder().buildAsBytes(c))
+        }
+
+        SearchRequest.metaClass.setSource = {Closure c ->
+            delegate.source(new JsonBuilder().buildAsBytes(c))
+        }
+        SearchRequest.metaClass.source = {Closure c ->
+            delegate.source(new JsonBuilder().buildAsBytes(c))
         }
     }
 
@@ -168,6 +177,24 @@ class GClient {
 
     void count(CountRequest request, ActionListener<CountResponse> listener) {
         client.count(request, listener)
+    }
+
+    GActionFuture<SearchResponse> search(Closure c) {
+        SearchRequest request = new SearchRequest()
+        c.resolveStrategy = resolveStrategy
+        c.setDelegate request
+        c.call()
+        search(request)
+    }
+
+    GActionFuture<SearchResponse> search(SearchRequest request) {
+        GActionFuture<SearchResponse> future = new GActionFuture<SearchResponse>(internalClient.threadPool(), request);
+        client.search(request, future)
+        return future
+    }
+
+    void search(SearchRequest request, ActionListener<SearchResponse> listener) {
+        client.search(request, listener)
     }
 
     GActionFuture<TermsResponse> terms(Closure c) {

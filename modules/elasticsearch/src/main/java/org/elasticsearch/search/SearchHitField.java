@@ -37,7 +37,17 @@ public interface SearchHitField extends Streamable, Iterable<Object> {
     String name();
 
     /**
+     * The name of the field.
+     */
+    String getName();
+
+    /**
      * The field values.
      */
     List<Object> values();
+
+    /**
+     * The field values.
+     */
+    List<Object> getValues();
 }

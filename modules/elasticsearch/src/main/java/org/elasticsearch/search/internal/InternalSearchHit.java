@@ -64,6 +64,8 @@ public class InternalSearchHit implements SearchHit {
 
     @Nullable private SearchShardTarget shard;
 
+    private Map<String, Object> sourceAsMap;
+
     private InternalSearchHit() {
 
     }
@@ -84,16 +86,32 @@ public class InternalSearchHit implements SearchHit {
         return shard.index();
     }
 
+    @Override public String getIndex() {
+        return index();
+    }
+
     @Override public String id() {
         return id;
+    }
+
+    @Override public String getId() {
+        return id();
     }
 
     @Override public String type() {
         return type;
     }
 
+    @Override public String getType() {
+        return type();
+    }
+
     @Override public byte[] source() {
         return source;
+    }
+
+    @Override public Map<String, Object> getSource() {
+        return sourceAsMap();
     }
 
     @Override public String sourceAsString() {
@@ -103,12 +121,17 @@ public class InternalSearchHit implements SearchHit {
         return Unicode.fromBytes(source);
     }
 
+    @SuppressWarnings({"unchecked"})
     @Override public Map<String, Object> sourceAsMap() throws ElasticSearchParseException {
         if (source == null) {
             return null;
         }
+        if (sourceAsMap != null) {
+            return sourceAsMap;
+        }
         try {
-            return defaultObjectMapper().readValue(source, 0, source.length, Map.class);
+            sourceAsMap = defaultObjectMapper().readValue(source, 0, source.length, Map.class);
+            return sourceAsMap;
         } catch (Exception e) {
             throw new ElasticSearchParseException("Failed to parse source to map", e);
         }
@@ -122,12 +145,20 @@ public class InternalSearchHit implements SearchHit {
         return fields;
     }
 
+    @Override public Map<String, SearchHitField> getFields() {
+        return fields();
+    }
+
     public void fields(Map<String, SearchHitField> fields) {
         this.fields = fields;
     }
 
     @Override public Map<String, HighlightField> highlightFields() {
         return this.highlightFields;
+    }
+
+    @Override public Map<String, HighlightField> getHighlightFields() {
+        return highlightFields();
     }
 
     public void highlightFields(Map<String, HighlightField> highlightFields) {
@@ -138,12 +169,20 @@ public class InternalSearchHit implements SearchHit {
         return explanation;
     }
 
+    @Override public Explanation getExplanation() {
+        return explanation();
+    }
+
     public void explanation(Explanation explanation) {
         this.explanation = explanation;
     }
 
     @Override public SearchShardTarget shard() {
         return shard;
+    }
+
+    @Override public SearchShardTarget getShard() {
+        return shard();
     }
 
     public void shard(SearchShardTarget target) {

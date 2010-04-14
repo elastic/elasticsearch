@@ -29,8 +29,10 @@ import org.elasticsearch.util.json.ToJson;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import static com.google.common.collect.Lists.*;
+import static com.google.common.collect.Maps.*;
 import static org.elasticsearch.search.facets.CountFacet.*;
 
 /**
@@ -43,6 +45,8 @@ public class Facets implements Streamable, ToJson, Iterable<Facet> {
     private final List<Facet> EMPTY = ImmutableList.of();
 
     private List<Facet> facets = EMPTY;
+
+    private Map<String, Facet> facetsAsMap;
 
     private Facets() {
 
@@ -70,6 +74,28 @@ public class Facets implements Streamable, ToJson, Iterable<Facet> {
     }
 
     /**
+     * Returns the {@link Facet}s keyed by map.
+     */
+    public Map<String, Facet> getFacets() {
+        return facetsAsMap;
+    }
+
+    /**
+     * Returns the {@link Facet}s keyed by map.
+     */
+    public Map<String, Facet> facetsAsMap() {
+        if (facetsAsMap != null) {
+            return facetsAsMap;
+        }
+        Map<String, Facet> facetsAsMap = newHashMap();
+        for (Facet facet : facets) {
+            facetsAsMap.put(facet.name(), facet);
+        }
+        this.facetsAsMap = facetsAsMap;
+        return facetsAsMap;
+    }
+
+    /**
      * A specific count facet against the registered facet name.
      */
     public CountFacet countFacet(String name) {
@@ -80,12 +106,7 @@ public class Facets implements Streamable, ToJson, Iterable<Facet> {
      * A facet of the specified name.
      */
     public Facet facet(String name) {
-        for (Facet facet : facets) {
-            if (facet.name().equals(name)) {
-                return facet;
-            }
-        }
-        return null;
+        return facetsAsMap().get(name);
     }
 
     @Override public void toJson(JsonBuilder builder, Params params) throws IOException {

@@ -71,13 +71,13 @@ public class HighlighterParseElement implements SearchParseElement {
             if (token == JsonToken.FIELD_NAME) {
                 topLevelFieldName = jp.getCurrentName();
             } else if (token == JsonToken.START_ARRAY) {
-                if ("pre_tags".equals(topLevelFieldName)) {
+                if ("pre_tags".equals(topLevelFieldName) || "preTags".equals(topLevelFieldName)) {
                     List<String> preTagsList = Lists.newArrayList();
                     while ((token = jp.nextToken()) != JsonToken.END_ARRAY) {
                         preTagsList.add(jp.getText());
                     }
                     preTags = preTagsList.toArray(new String[preTagsList.size()]);
-                } else if ("post_tags".equals(topLevelFieldName)) {
+                } else if ("post_tags".equals(topLevelFieldName) || "postTags".equals(topLevelFieldName)) {
                     List<String> postTagsList = Lists.newArrayList();
                     while ((token = jp.nextToken()) != JsonToken.END_ARRAY) {
                         postTagsList.add(jp.getText());
@@ -91,7 +91,7 @@ public class HighlighterParseElement implements SearchParseElement {
                     } else {
                         scoreOrdered = false;
                     }
-                } else if ("tags_schema".equals(topLevelFieldName)) {
+                } else if ("tags_schema".equals(topLevelFieldName) || "tagsSchema".equals(topLevelFieldName)) {
                     String schema = jp.getText();
                     if ("styled".equals(schema)) {
                         preTags = STYLED_PRE_TAG;
@@ -112,15 +112,15 @@ public class HighlighterParseElement implements SearchParseElement {
                                 if (token == JsonToken.FIELD_NAME) {
                                     fieldName = jp.getCurrentName();
                                 } else if (token == JsonToken.VALUE_STRING) {
-                                    if ("fragment_size".equals(fieldName)) {
+                                    if ("fragment_size".equals(fieldName) || "fragmentSize".equals(fieldName)) {
                                         fragmentSize = Integer.parseInt(jp.getText());
-                                    } else if ("number_of_fragments".equals(fieldName)) {
+                                    } else if ("number_of_fragments".equals(fieldName) || "numberOfFragments".equals(fieldName)) {
                                         numOfFragments = Integer.parseInt(jp.getText());
                                     }
                                 } else if (token == JsonToken.VALUE_NUMBER_INT) {
-                                    if ("fragment_size".equals(fieldName)) {
+                                    if ("fragment_size".equals(fieldName) || "fragmentSize".equals(fieldName)) {
                                         fragmentSize = jp.getIntValue();
-                                    } else if ("number_of_fragments".equals(fieldName)) {
+                                    } else if ("number_of_fragments".equals(fieldName) || "numberOfFragments".equals(fieldName)) {
                                         numOfFragments = jp.getIntValue();
                                     }
                                 }

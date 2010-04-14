@@ -54,10 +54,24 @@ public class HighlightField implements Streamable {
     }
 
     /**
+     * The name of the field highlighted.
+     */
+    public String getName() {
+        return name();
+    }
+
+    /**
      * The highlighted fragments. <tt>null</tt> if failed to highlight (for example, the field is not stored).
      */
     public String[] fragments() {
         return fragments;
+    }
+
+    /**
+     * The highlighted fragments. <tt>null</tt> if failed to highlight (for example, the field is not stored).
+     */
+    public String[] getFragments() {
+        return fragments();
     }
 
     @Override public String toString() {

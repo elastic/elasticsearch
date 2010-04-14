@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
+import com.google.common.collect.Iterators;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
@@ -29,6 +30,7 @@ import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 import static org.elasticsearch.search.SearchShardTarget.*;
@@ -58,8 +60,24 @@ public class InternalSearchHits implements SearchHits {
         return totalHits;
     }
 
+    @Override public long getTotalHits() {
+        return totalHits();
+    }
+
     public SearchHit[] hits() {
         return this.hits;
+    }
+
+    @Override public SearchHit getAt(int position) {
+        return hits[position];
+    }
+
+    @Override public SearchHit[] getHits() {
+        return hits();
+    }
+
+    @Override public Iterator<SearchHit> iterator() {
+        return Iterators.forArray(hits());
     }
 
     public InternalSearchHit[] internalHits() {

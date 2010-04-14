@@ -41,9 +41,19 @@ public interface SearchHit extends Streamable, ToJson, Iterable<SearchHitField> 
     String index();
 
     /**
+     * The index of the hit.
+     */
+    String getIndex();
+
+    /**
      * The id of the document.
      */
     String id();
+
+    /**
+     * The id of the document.
+     */
+    String getId();
 
     /**
      * The type of the document.
@@ -51,9 +61,19 @@ public interface SearchHit extends Streamable, ToJson, Iterable<SearchHitField> 
     String type();
 
     /**
+     * The type of the document.
+     */
+    String getType();
+
+    /**
      * The source of the document (can be <tt>null</tt>).
      */
     byte[] source();
+
+    /**
+     * The source of the document as a map (can be <tt>null</tt>).
+     */
+    Map<String, Object> getSource();
 
     /**
      * The source of the document as string (can be <tt>null</tt>).
@@ -71,10 +91,21 @@ public interface SearchHit extends Streamable, ToJson, Iterable<SearchHitField> 
     Explanation explanation();
 
     /**
+     * If enabled, the explanation of the search hit.
+     */
+    Explanation getExplanation();
+
+    /**
      * A map of hit fields (from field name to hit fields) if additional fields
      * were required to be loaded.
      */
     Map<String, SearchHitField> fields();
+
+    /**
+     * A map of hit fields (from field name to hit fields) if additional fields
+     * were required to be loaded.
+     */
+    Map<String, SearchHitField> getFields();
 
     /**
      * A map of highlighted fields.
@@ -82,7 +113,17 @@ public interface SearchHit extends Streamable, ToJson, Iterable<SearchHitField> 
     Map<String, HighlightField> highlightFields();
 
     /**
+     * A map of highlighted fields.
+     */
+    Map<String, HighlightField> getHighlightFields();
+
+    /**
      * The shard of the search hit.
      */
     SearchShardTarget shard();
+
+    /**
+     * The shard of the search hit.
+     */
+    SearchShardTarget getShard();
 }

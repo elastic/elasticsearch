@@ -49,6 +49,10 @@ public class CountFacet implements Facet {
         return Type.COUNT;
     }
 
+    @Override public Type getType() {
+        return type();
+    }
+
     /**
      * The "logical" name of the facet.
      */
@@ -56,10 +60,21 @@ public class CountFacet implements Facet {
         return name;
     }
 
+    @Override public String getName() {
+        return name();
+    }
+
     /**
      * The count of the facet.
      */
     public long count() {
+        return count;
+    }
+
+    /**
+     * The count of the facet.
+     */
+    public long getCount() {
         return count;
     }
 

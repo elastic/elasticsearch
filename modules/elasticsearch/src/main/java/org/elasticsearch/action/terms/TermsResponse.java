@@ -71,6 +71,13 @@ public class TermsResponse extends BroadcastOperationResponse implements Iterabl
     }
 
     /**
+     * The total number of documents.
+     */
+    public long getNumDocs() {
+        return numDocs;
+    }
+
+    /**
      * The total maximum number of documents (including deletions).
      */
     public long maxDoc() {
@@ -78,10 +85,24 @@ public class TermsResponse extends BroadcastOperationResponse implements Iterabl
     }
 
     /**
+     * The total maximum number of documents (including deletions).
+     */
+    public long getMaxDoc() {
+        return maxDoc;
+    }
+
+    /**
      * The number of deleted docs.
      */
     public long deletedDocs() {
         return this.numDeletedDocs;
+    }
+
+    /**
+     * The number of deleted docs.
+     */
+    public long getNumDeletedDocs() {
+        return numDeletedDocs;
     }
 
     /**
@@ -107,6 +128,10 @@ public class TermsResponse extends BroadcastOperationResponse implements Iterabl
      */
     public FieldTermsFreq[] fields() {
         return this.fieldsTermsFreq;
+    }
+
+    public Map<String, FieldTermsFreq> getFields() {
+        return fieldsAsMap();
     }
 
     /**

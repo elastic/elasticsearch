@@ -78,10 +78,10 @@ public class SimpleAttachmentIntegrationTests {
                 .source(jsonBuilder().startObject().field("file", copyToBytesFromClasspath("/org/elasticsearch/plugin/attachments/index/mapper/testXHTML.html")).endObject())).actionGet();
         node.client().admin().indices().refresh(refreshRequest()).actionGet();
 
-        CountResponse countResponse = node.client().count(countRequest("test").querySource(fieldQuery("file.title", "test document"))).actionGet();
+        CountResponse countResponse = node.client().count(countRequest("test").query(fieldQuery("file.title", "test document"))).actionGet();
         assertThat(countResponse.count(), equalTo(1l));
 
-        countResponse = node.client().count(countRequest("test").querySource(fieldQuery("file", "tests the ability"))).actionGet();
+        countResponse = node.client().count(countRequest("test").query(fieldQuery("file", "tests the ability"))).actionGet();
         assertThat(countResponse.count(), equalTo(1l));
     }
 }

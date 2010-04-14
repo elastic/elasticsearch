@@ -100,6 +100,13 @@ public class TermFreq implements Streamable {
         return term;
     }
 
+    /**
+     * The term.
+     */
+    public Object getTerm() {
+        return term;
+    }
+
     public String termAsString() {
         return term.toString();
     }
@@ -108,6 +115,13 @@ public class TermFreq implements Streamable {
      * The document frequency of the term (in how many documents this term exists).
      */
     public int docFreq() {
+        return docFreq;
+    }
+
+    /**
+     * The document frequency of the term (in how many documents this term exists).
+     */
+    public int getDocFreq() {
         return docFreq;
     }
 

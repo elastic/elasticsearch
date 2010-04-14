@@ -41,7 +41,7 @@ import static org.elasticsearch.rest.RestResponse.Status.*;
 import static org.elasticsearch.rest.action.support.RestActions.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class RestTermsAction extends BaseRestHandler {
 

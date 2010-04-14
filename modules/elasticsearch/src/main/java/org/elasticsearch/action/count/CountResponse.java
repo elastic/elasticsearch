@@ -52,6 +52,13 @@ public class CountResponse extends BroadcastOperationResponse {
         return count;
     }
 
+    /**
+     * The count of documents matching the query provided.
+     */
+    public long getCount() {
+        return count;
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         count = in.readVLong();

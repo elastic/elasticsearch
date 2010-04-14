@@ -53,10 +53,17 @@ public class FieldTermsFreq implements Streamable, Iterable<TermFreq> {
     }
 
     /**
-     * The fields name.
+     * The field name.
      */
     public String fieldName() {
         return this.fieldName;
+    }
+
+    /**
+     * The field name.
+     */
+    public String getFieldName() {
+        return fieldName;
     }
 
     /**
@@ -64,6 +71,13 @@ public class FieldTermsFreq implements Streamable, Iterable<TermFreq> {
      */
     public TermFreq[] termsFreqs() {
         return this.termsFreqs;
+    }
+
+    /**
+     * The term frequencies of the field.
+     */
+    public TermFreq[] getTermsFreqs() {
+        return termsFreqs;
     }
 
     /**

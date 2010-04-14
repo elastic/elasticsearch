@@ -157,6 +157,19 @@ class SimpleActionsTests extends GroovyTestCase {
         }
         assertTrue getR.response.exists
 
+
+        def count = node.client.count {
+            indices "test"
+            types "type1"
+            query {
+                term {
+                    test = "value"
+                }
+            }
+        }
+        assertEquals 0, count.response.failedShards
+        assertEquals 1, count.response.count
+
         def deleteByQuery = node.client.deleteByQuery {
             indices "test"
             query {

@@ -36,8 +36,8 @@ import java.util.Arrays;
  * A request to count the number of documents matching a specific query. Best created with
  * {@link org.elasticsearch.client.Requests#countRequest(String...)}.
  *
- * <p>The request requires the query source to be set either using {@link #querySource(org.elasticsearch.index.query.QueryBuilder)},
- * or {@link #querySource(byte[])}.
+ * <p>The request requires the query source to be set either using {@link #query(org.elasticsearch.index.query.QueryBuilder)},
+ * or {@link #query(byte[])}.
  *
  * @author kimchy (shay.banon)
  * @see CountResponse
@@ -80,6 +80,11 @@ public class CountRequest extends BroadcastOperationRequest {
         return this;
     }
 
+    public CountRequest indices(String... indices) {
+        this.indices = indices;
+        return this;
+    }
+
     /**
      * A query hint to optionally later be used when routing the request.
      */
@@ -116,22 +121,22 @@ public class CountRequest extends BroadcastOperationRequest {
      *
      * @see org.elasticsearch.index.query.json.JsonQueryBuilders
      */
-    @Required public CountRequest querySource(QueryBuilder queryBuilder) {
-        return querySource(queryBuilder.buildAsBytes());
+    @Required public CountRequest query(QueryBuilder queryBuilder) {
+        return query(queryBuilder.buildAsBytes());
     }
 
     /**
-     * The query source to execute. It is preferable to use either {@link #querySource(byte[])}
-     * or {@link #querySource(org.elasticsearch.index.query.QueryBuilder)}.
+     * The query source to execute. It is preferable to use either {@link #query(byte[])}
+     * or {@link #query(org.elasticsearch.index.query.QueryBuilder)}.
      */
-    @Required public CountRequest querySource(String querySource) {
-        return querySource(Unicode.fromStringAsBytes(querySource));
+    @Required public CountRequest query(String querySource) {
+        return query(Unicode.fromStringAsBytes(querySource));
     }
 
     /**
      * The query source to execute.
      */
-    @Required public CountRequest querySource(byte[] querySource) {
+    @Required public CountRequest query(byte[] querySource) {
         this.querySource = querySource;
         return this;
     }

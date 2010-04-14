@@ -170,23 +170,23 @@ public class DocumentActionsTests extends AbstractNodesTests {
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            CountResponse countResponse = client1.count(countRequest("test").querySource(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.NO_THREADS)).actionGet();
+            CountResponse countResponse = client1.count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.NO_THREADS)).actionGet();
             assertThat(countResponse.count(), equalTo(2l));
             assertThat(countResponse.successfulShards(), equalTo(5));
             assertThat(countResponse.failedShards(), equalTo(0));
 
-            countResponse = client1.count(countRequest("test").querySource(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.SINGLE_THREAD)).actionGet();
+            countResponse = client1.count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.SINGLE_THREAD)).actionGet();
             assertThat(countResponse.count(), equalTo(2l));
             assertThat(countResponse.successfulShards(), equalTo(5));
             assertThat(countResponse.failedShards(), equalTo(0));
 
-            countResponse = client1.count(countRequest("test").querySource(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD)).actionGet();
+            countResponse = client1.count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD)).actionGet();
             assertThat(countResponse.count(), equalTo(2l));
             assertThat(countResponse.successfulShards(), equalTo(5));
             assertThat(countResponse.failedShards(), equalTo(0));
 
             // test failed (simply query that can't be parsed)
-            countResponse = client1.count(countRequest("test").querySource(Unicode.fromStringAsBytes("{ term : { _type : \"type1 } }"))).actionGet();
+            countResponse = client1.count(countRequest("test").query(Unicode.fromStringAsBytes("{ term : { _type : \"type1 } }"))).actionGet();
 
             assertThat(countResponse.count(), equalTo(0l));
             assertThat(countResponse.successfulShards(), equalTo(0));

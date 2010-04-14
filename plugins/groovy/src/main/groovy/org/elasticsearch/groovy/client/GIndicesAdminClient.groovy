@@ -27,7 +27,7 @@ class GIndicesAdminClient {
     GActionFuture<RefreshResponse> refresh(Closure c) {
         RefreshRequest request = new RefreshRequest()
         c.setDelegate request
-        c.resolveStrategy = Closure.DELEGATE_FIRST
+        c.resolveStrategy = gClient.resolveStrategy
         c.call()
         refresh(request)
     }

@@ -20,6 +20,8 @@
 package org.elasticsearch.groovy.client
 
 import org.elasticsearch.action.ActionListener
+import org.elasticsearch.action.count.CountRequest
+import org.elasticsearch.action.count.CountResponse
 import org.elasticsearch.action.delete.DeleteRequest
 import org.elasticsearch.action.delete.DeleteResponse
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest
@@ -28,6 +30,8 @@ import org.elasticsearch.action.get.GetRequest
 import org.elasticsearch.action.get.GetResponse
 import org.elasticsearch.action.index.IndexRequest
 import org.elasticsearch.action.index.IndexResponse
+import org.elasticsearch.action.terms.TermsRequest
+import org.elasticsearch.action.terms.TermsResponse
 import org.elasticsearch.client.Client
 import org.elasticsearch.client.internal.InternalClient
 import org.elasticsearch.groovy.client.action.GActionFuture
@@ -52,9 +56,18 @@ class GClient {
         DeleteByQueryRequest.metaClass.query = {Closure c ->
             delegate.query(new JsonBuilder().buildAsBytes(c))
         }
+
+        CountRequest.metaClass.setQuery = {Closure c ->
+            delegate.query(new JsonBuilder().buildAsBytes(c))
+        }
+        CountRequest.metaClass.query = {Closure c ->
+            delegate.query(new JsonBuilder().buildAsBytes(c))
+        }
     }
 
     final Client client;
+
+    int resolveStrategy = Closure.DELEGATE_FIRST
 
     private final InternalClient internalClient
 
@@ -70,7 +83,7 @@ class GClient {
     GActionFuture<IndexResponse> index(Closure c) {
         IndexRequest request = new IndexRequest()
         c.setDelegate request
-        c.resolveStrategy = Closure.DELEGATE_FIRST
+        c.resolveStrategy = resolveStrategy
         c.call()
         index(request)
     }
@@ -88,7 +101,7 @@ class GClient {
     GActionFuture<GetResponse> get(Closure c) {
         GetRequest request = new GetRequest()
         c.setDelegate request
-        c.resolveStrategy = Closure.DELEGATE_FIRST
+        c.resolveStrategy = resolveStrategy
         c.call()
         get(request)
     }
@@ -105,7 +118,7 @@ class GClient {
 
     GActionFuture<DeleteResponse> delete(Closure c) {
         DeleteRequest request = new DeleteRequest()
-        c.resolveStrategy = Closure.DELEGATE_FIRST
+        c.resolveStrategy = resolveStrategy
         c.setDelegate request
         c.call()
         delete(request)
@@ -123,7 +136,7 @@ class GClient {
 
     GActionFuture<DeleteByQueryResponse> deleteByQuery(Closure c) {
         DeleteByQueryRequest request = new DeleteByQueryRequest()
-        c.resolveStrategy = Closure.DELEGATE_FIRST
+        c.resolveStrategy = resolveStrategy
         c.setDelegate request
         c.call()
         deleteByQuery(request)
@@ -137,5 +150,41 @@ class GClient {
 
     void deleteByQuery(DeleteByQueryRequest request, ActionListener<DeleteByQueryResponse> listener) {
         client.deleteByQuery(request, listener)
+    }
+
+    GActionFuture<CountResponse> count(Closure c) {
+        CountRequest request = new CountRequest()
+        c.resolveStrategy = resolveStrategy
+        c.setDelegate request
+        c.call()
+        count(request)
+    }
+
+    GActionFuture<CountResponse> count(CountRequest request) {
+        GActionFuture<CountResponse> future = new GActionFuture<CountResponse>(internalClient.threadPool(), request);
+        client.count(request, future)
+        return future
+    }
+
+    void count(CountRequest request, ActionListener<CountResponse> listener) {
+        client.count(request, listener)
+    }
+
+    GActionFuture<TermsResponse> terms(Closure c) {
+        TermsRequest request = new TermsRequest()
+        c.resolveStrategy = resolveStrategy
+        c.setDelegate request
+        c.call()
+        terms(request)
+    }
+
+    GActionFuture<TermsResponse> terms(TermsRequest request) {
+        GActionFuture<TermsResponse> future = new GActionFuture<TermsResponse>(internalClient.threadPool(), request);
+        client.terms(request, future)
+        return future
+    }
+
+    void terms(TermsRequest request, ActionListener<TermsResponse> listener) {
+        client.terms(request, listener)
     }
 }

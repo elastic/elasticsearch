@@ -28,6 +28,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
@@ -47,7 +48,7 @@ public class DisMaxJsonQueryParser extends AbstractIndexComponent implements Jso
     }
 
     @Override public String[] names() {
-        return new String[]{NAME};
+        return new String[]{NAME, Strings.toCamelCase(NAME)};
     }
 
     @Override public Query parse(JsonQueryParseContext parseContext) throws IOException, QueryParsingException {
@@ -81,7 +82,7 @@ public class DisMaxJsonQueryParser extends AbstractIndexComponent implements Jso
                     } else {
                         boost = jp.getFloatValue();
                     }
-                } else if ("tie_breaker".equals(currentFieldName)) {
+                } else if ("tie_breaker".equals(currentFieldName) || "tieBreaker".equals(currentFieldName)) {
                     if (token == JsonToken.VALUE_STRING) {
                         tieBreaker = Float.parseFloat(jp.getText());
                     } else {

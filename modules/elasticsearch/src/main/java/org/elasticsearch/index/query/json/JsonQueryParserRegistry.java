@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query.json;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -103,13 +104,13 @@ public class JsonQueryParserRegistry {
 
     private void add(Map<String, JsonFilterParser> map, JsonFilterParser filterParser) {
         for (String name : filterParser.names()) {
-            map.put(name, filterParser);
+            map.put(StringHelper.intern(name), filterParser);
         }
     }
 
     private void add(Map<String, JsonQueryParser> map, JsonQueryParser jsonQueryParser) {
         for (String name : jsonQueryParser.names()) {
-            map.put(name, jsonQueryParser);
+            map.put(StringHelper.intern(name), jsonQueryParser);
         }
     }
 }

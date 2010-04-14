@@ -68,7 +68,7 @@ public class BoolJsonQueryParser extends AbstractIndexComponent implements JsonQ
             } else if (token == JsonToken.START_OBJECT) {
                 if ("must".equals(currentFieldName)) {
                     clauses.add(new BooleanClause(parseContext.parseInnerQuery(), BooleanClause.Occur.MUST));
-                } else if ("must_not".equals(currentFieldName)) {
+                } else if ("must_not".equals(currentFieldName) || "mustNot".equals(currentFieldName)) {
                     clauses.add(new BooleanClause(parseContext.parseInnerQuery(), BooleanClause.Occur.MUST_NOT));
                 } else if ("should".equals(currentFieldName)) {
                     clauses.add(new BooleanClause(parseContext.parseInnerQuery(), BooleanClause.Occur.SHOULD));
@@ -78,7 +78,7 @@ public class BoolJsonQueryParser extends AbstractIndexComponent implements JsonQ
                     while ((token = jp.nextToken()) != JsonToken.END_ARRAY) {
                         clauses.add(new BooleanClause(parseContext.parseInnerQuery(), BooleanClause.Occur.MUST));
                     }
-                } else if ("must_not".equals(currentFieldName)) {
+                } else if ("must_not".equals(currentFieldName) || "mustNot".equals(currentFieldName)) {
                     while ((token = jp.nextToken()) != JsonToken.END_ARRAY) {
                         clauses.add(new BooleanClause(parseContext.parseInnerQuery(), BooleanClause.Occur.MUST_NOT));
                     }
@@ -88,13 +88,13 @@ public class BoolJsonQueryParser extends AbstractIndexComponent implements JsonQ
                     }
                 }
             } else if (token == JsonToken.VALUE_TRUE || token == JsonToken.VALUE_FALSE) {
-                if ("disable_coord".equals(currentFieldName)) {
+                if ("disable_coord".equals(currentFieldName) || "disableCoord".equals(currentFieldName)) {
                     disableCoord = token == JsonToken.VALUE_TRUE;
                 }
             } else if (token == JsonToken.VALUE_NUMBER_INT) {
-                if ("disable_coord".equals(currentFieldName)) {
+                if ("disable_coord".equals(currentFieldName) || "disableCoord".equals(currentFieldName)) {
                     disableCoord = jp.getIntValue() != 0;
-                } else if ("minimum_number_should_match".equals(currentFieldName)) {
+                } else if ("minimum_number_should_match".equals(currentFieldName) || "minimumNumberShouldMatch".equals(currentFieldName)) {
                     minimumNumberShouldMatch = jp.getIntValue();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = jp.getIntValue();
@@ -104,9 +104,9 @@ public class BoolJsonQueryParser extends AbstractIndexComponent implements JsonQ
                     boost = jp.getFloatValue();
                 }
             } else if (token == JsonToken.VALUE_STRING) {
-                if ("disable_coord".equals(currentFieldName)) {
+                if ("disable_coord".equals(currentFieldName) || "disableCoord".equals(currentFieldName)) {
                     disableCoord = Booleans.parseBoolean(jp.getText(), false);
-                } else if ("minimum_number_should_match".equals(currentFieldName)) {
+                } else if ("minimum_number_should_match".equals(currentFieldName) || "minimumNumberShouldMatch".equals(currentFieldName)) {
                     minimumNumberShouldMatch = Integer.parseInt(jp.getText());
                 } else if ("boost".equals(currentFieldName)) {
                     boost = Float.parseFloat(jp.getText());

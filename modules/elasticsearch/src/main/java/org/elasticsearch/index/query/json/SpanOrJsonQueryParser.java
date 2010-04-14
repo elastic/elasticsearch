@@ -29,6 +29,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
@@ -48,7 +49,7 @@ public class SpanOrJsonQueryParser extends AbstractIndexComponent implements Jso
     }
 
     @Override public String[] names() {
-        return new String[]{NAME};
+        return new String[]{NAME, Strings.toCamelCase(NAME)};
     }
 
     @Override public Query parse(JsonQueryParseContext parseContext) throws IOException, QueryParsingException {

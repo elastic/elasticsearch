@@ -28,6 +28,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
@@ -44,7 +45,7 @@ public class MatchAllJsonQueryParser extends AbstractIndexComponent implements J
     }
 
     @Override public String[] names() {
-        return new String[]{NAME};
+        return new String[]{NAME, Strings.toCamelCase(NAME)};
     }
 
     @Override public Query parse(JsonQueryParseContext parseContext) throws IOException, QueryParsingException {
@@ -61,7 +62,7 @@ public class MatchAllJsonQueryParser extends AbstractIndexComponent implements J
             } else if (token == JsonToken.VALUE_STRING) {
                 if ("boost".equals(currentFieldName)) {
                     boost = Float.parseFloat(jp.getText());
-                } else if ("norms_field".equals(currentFieldName)) {
+                } else if ("norms_field".equals(currentFieldName) || "normsField".equals(currentFieldName)) {
                     normsField = parseContext.indexName(jp.getText());
                 }
             } else {

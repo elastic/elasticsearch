@@ -84,7 +84,7 @@ public class RangeJsonFilterParser extends AbstractIndexComponent implements Jso
                     } else {
                         to = jp.getText();
                     }
-                } else if ("include_lower".equals(currentFieldName)) {
+                } else if ("include_lower".equals(currentFieldName) || "includeLower".equals(currentFieldName)) {
                     if (token == JsonToken.VALUE_NUMBER_INT) {
                         includeLower = jp.getIntValue() != 0;
                     } else if (token == JsonToken.VALUE_STRING) {
@@ -92,7 +92,7 @@ public class RangeJsonFilterParser extends AbstractIndexComponent implements Jso
                     } else {
                         includeLower = token == JsonToken.VALUE_TRUE;
                     }
-                } else if ("include_upper".equals(currentFieldName)) {
+                } else if ("include_upper".equals(currentFieldName) || "includeUpper".equals(currentFieldName)) {
                     if (token == JsonToken.VALUE_NUMBER_INT) {
                         includeUpper = jp.getIntValue() != 0;
                     } else if (token == JsonToken.VALUE_STRING) {
@@ -107,7 +107,7 @@ public class RangeJsonFilterParser extends AbstractIndexComponent implements Jso
                         from = jp.getText();
                     }
                     includeLower = false;
-                } else if ("gte".equals(currentFieldName)) {
+                } else if ("gte".equals(currentFieldName) || "ge".equals(currentFieldName)) {
                     if (jp.getCurrentToken() == JsonToken.VALUE_NULL) {
                         from = null;
                     } else {
@@ -121,7 +121,7 @@ public class RangeJsonFilterParser extends AbstractIndexComponent implements Jso
                         to = jp.getText();
                     }
                     includeUpper = false;
-                } else if ("lte".equals(currentFieldName)) {
+                } else if ("lte".equals(currentFieldName) || "le".equals(currentFieldName)) {
                     if (jp.getCurrentToken() == JsonToken.VALUE_NULL) {
                         to = null;
                     } else {

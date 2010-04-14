@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.Booleans;
+import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
@@ -59,7 +60,7 @@ public class FuzzyLikeThisFieldJsonQueryParser extends AbstractIndexComponent im
     }
 
     @Override public String[] names() {
-        return new String[]{NAME, "fuzzy_like_this_field"};
+        return new String[]{NAME, "fuzzy_like_this_field", Strings.toCamelCase(NAME), "fuzzyLikeThisField"};
     }
 
     @Override public Query parse(JsonQueryParseContext parseContext) throws IOException, QueryParsingException {
@@ -86,25 +87,25 @@ public class FuzzyLikeThisFieldJsonQueryParser extends AbstractIndexComponent im
             if (token == JsonToken.FIELD_NAME) {
                 currentFieldName = jp.getCurrentName();
             } else if (token == JsonToken.VALUE_STRING) {
-                if ("like_text".equals(currentFieldName)) {
+                if ("like_text".equals(currentFieldName) || "likeText".equals(currentFieldName)) {
                     likeText = jp.getText();
-                } else if ("max_query_terms".equals(currentFieldName)) {
+                } else if ("max_query_terms".equals(currentFieldName) || "maxQueryTerms".equals(currentFieldName)) {
                     maxNumTerms = Integer.parseInt(jp.getText());
                 } else if ("boost".equals(currentFieldName)) {
                     boost = Float.parseFloat(jp.getText());
-                } else if ("ignore_tf".equals(currentFieldName)) {
+                } else if ("ignore_tf".equals(currentFieldName) || "ignoreTF".equals(currentFieldName)) {
                     ignoreTF = Booleans.parseBoolean(jp.getText(), false);
                 }
             } else if (token == JsonToken.VALUE_NUMBER_INT) {
-                if ("max_query_terms".equals(currentFieldName)) {
+                if ("max_query_terms".equals(currentFieldName) || "maxQueryTerms".equals(currentFieldName)) {
                     maxNumTerms = jp.getIntValue();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = jp.getIntValue();
-                } else if ("ignore_tf".equals(currentFieldName)) {
+                } else if ("ignore_tf".equals(currentFieldName) || "ignoreTF".equals(currentFieldName)) {
                     ignoreTF = jp.getIntValue() != 0;
                 }
             } else if (token == JsonToken.VALUE_TRUE) {
-                if ("ignore_tf".equals(currentFieldName)) {
+                if ("ignore_tf".equals(currentFieldName) || "ignoreTF".equals(currentFieldName)) {
                     ignoreTF = true;
                 }
             } else if (token == JsonToken.VALUE_NUMBER_FLOAT) {
@@ -115,7 +116,7 @@ public class FuzzyLikeThisFieldJsonQueryParser extends AbstractIndexComponent im
         }
 
         if (likeText == null) {
-            throw new QueryParsingException(index, "fuzzy_like_This_field requires 'likeText' to be specified");
+            throw new QueryParsingException(index, "fuzzy_like_This_field requires 'like_text' to be specified");
         }
 
         Analyzer analyzer = null;

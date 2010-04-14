@@ -63,7 +63,7 @@ public class BoolJsonFilterParser extends AbstractIndexComponent implements Json
             } else if (token == JsonToken.START_OBJECT) {
                 if ("must".equals(currentFieldName)) {
                     clauses.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST));
-                } else if ("must_not".equals(currentFieldName)) {
+                } else if ("must_not".equals(currentFieldName) || "mustNot".equals(currentFieldName)) {
                     clauses.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST_NOT));
                 } else if ("should".equals(currentFieldName)) {
                     clauses.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.SHOULD));
@@ -73,7 +73,7 @@ public class BoolJsonFilterParser extends AbstractIndexComponent implements Json
                     while ((token = jp.nextToken()) != JsonToken.END_ARRAY) {
                         clauses.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST));
                     }
-                } else if ("must_not".equals(currentFieldName)) {
+                } else if ("must_not".equals(currentFieldName) || "mustNot".equals(currentFieldName)) {
                     while ((token = jp.nextToken()) != JsonToken.END_ARRAY) {
                         clauses.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST_NOT));
                     }

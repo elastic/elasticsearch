@@ -36,7 +36,7 @@ import org.elasticsearch.util.Nullable;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class JsonQueryParseContext {
 

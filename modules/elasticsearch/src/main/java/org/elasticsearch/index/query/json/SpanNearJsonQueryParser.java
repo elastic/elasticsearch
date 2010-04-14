@@ -30,6 +30,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.Booleans;
+import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
@@ -49,7 +50,7 @@ public class SpanNearJsonQueryParser extends AbstractIndexComponent implements J
     }
 
     @Override public String[] names() {
-        return new String[]{NAME};
+        return new String[]{NAME, Strings.toCamelCase(NAME)};
     }
 
     @Override public Query parse(JsonQueryParseContext parseContext) throws IOException, QueryParsingException {
@@ -78,9 +79,9 @@ public class SpanNearJsonQueryParser extends AbstractIndexComponent implements J
                     }
                 }
             } else if (token == JsonToken.VALUE_STRING) {
-                if ("in_order".equals(currentFieldName)) {
+                if ("in_order".equals(currentFieldName) || "inOrder".equals(currentFieldName)) {
                     inOrder = Booleans.parseBoolean(jp.getText(), inOrder);
-                } else if ("collect_payloads".equals(currentFieldName)) {
+                } else if ("collect_payloads".equals(currentFieldName) || "collectPayloads".equals(currentFieldName)) {
                     collectPayloads = Booleans.parseBoolean(jp.getText(), collectPayloads);
                 } else if ("slop".equals(currentFieldName)) {
                     slop = Integer.parseInt(jp.getText());
@@ -88,15 +89,15 @@ public class SpanNearJsonQueryParser extends AbstractIndexComponent implements J
                     boost = Float.parseFloat(jp.getText());
                 }
             } else if (token == JsonToken.VALUE_FALSE || token == JsonToken.VALUE_TRUE) {
-                if ("in_order".equals(currentFieldName)) {
+                if ("in_order".equals(currentFieldName) || "inOrder".equals(currentFieldName)) {
                     inOrder = token == JsonToken.VALUE_TRUE;
-                } else if ("collect_payloads".equals(currentFieldName)) {
+                } else if ("collect_payloads".equals(currentFieldName) || "collectPayloads".equals(currentFieldName)) {
                     collectPayloads = token == JsonToken.VALUE_TRUE;
                 }
             } else if (token == JsonToken.VALUE_NUMBER_INT) {
-                if ("in_order".equals(currentFieldName)) {
+                if ("in_order".equals(currentFieldName) || "inOrder".equals(currentFieldName)) {
                     inOrder = jp.getIntValue() != 0;
-                } else if ("collect_payloads".equals(currentFieldName)) {
+                } else if ("collect_payloads".equals(currentFieldName) || "collectPayloads".equals(currentFieldName)) {
                     collectPayloads = jp.getIntValue() != 0;
                 } else if ("slop".equals(currentFieldName)) {
                     slop = jp.getIntValue();

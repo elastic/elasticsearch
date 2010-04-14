@@ -22,7 +22,7 @@ package org.elasticsearch.action;
 import org.elasticsearch.util.io.stream.Streamable;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public interface ActionResponse extends Streamable {
 }

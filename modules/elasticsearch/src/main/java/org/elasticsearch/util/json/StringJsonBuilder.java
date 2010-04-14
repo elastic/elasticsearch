@@ -69,8 +69,6 @@ public class StringJsonBuilder extends JsonBuilder<StringJsonBuilder> {
 
     final UnicodeUtil.UTF8Result utf8Result = new UnicodeUtil.UTF8Result();
 
-    private StringBuilder cachedStringBuilder;
-
     public StringJsonBuilder() throws IOException {
         this(Jackson.defaultJsonFactory());
     }
@@ -87,10 +85,6 @@ public class StringJsonBuilder extends JsonBuilder<StringJsonBuilder> {
         this.generator = generator;
         this.factory = null;
         this.builder = this;
-    }
-
-    @Override protected StringBuilder cachedStringBuilder() {
-        return cachedStringBuilder;
     }
 
     @Override public StringJsonBuilder raw(byte[] json) throws IOException {

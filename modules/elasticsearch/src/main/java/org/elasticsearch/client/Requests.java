@@ -53,6 +53,10 @@ import org.elasticsearch.action.terms.TermsRequest;
  */
 public class Requests {
 
+    public static IndexRequest indexRequest() {
+        return new IndexRequest();
+    }
+
     /**
      * Create an index request against a specific index. Note the {@link IndexRequest#type(String)} must be
      * set as well and optionally the {@link IndexRequest#id(String)}.

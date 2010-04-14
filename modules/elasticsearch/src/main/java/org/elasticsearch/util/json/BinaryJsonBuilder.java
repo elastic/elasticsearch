@@ -65,8 +65,6 @@ public class BinaryJsonBuilder extends JsonBuilder<BinaryJsonBuilder> {
 
     private final JsonFactory factory;
 
-    private StringBuilder cachedStringBuilder;
-
     public BinaryJsonBuilder() throws IOException {
         this(Jackson.defaultJsonFactory());
     }
@@ -83,10 +81,6 @@ public class BinaryJsonBuilder extends JsonBuilder<BinaryJsonBuilder> {
         this.generator = generator;
         this.factory = null;
         this.builder = this;
-    }
-
-    @Override protected StringBuilder cachedStringBuilder() {
-        return cachedStringBuilder;
     }
 
     @Override public BinaryJsonBuilder raw(byte[] json) throws IOException {

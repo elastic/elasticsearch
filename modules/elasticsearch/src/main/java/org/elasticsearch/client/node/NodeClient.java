@@ -44,14 +44,17 @@ import org.elasticsearch.action.terms.TermsRequest;
 import org.elasticsearch.action.terms.TermsResponse;
 import org.elasticsearch.action.terms.TransportTermsAction;
 import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.InternalClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class NodeClient extends AbstractComponent implements Client {
+public class NodeClient extends AbstractComponent implements InternalClient {
+
+    private final ThreadPool threadPool;
 
     private final NodeAdminClient admin;
 
@@ -73,12 +76,13 @@ public class NodeClient extends AbstractComponent implements Client {
 
     private final TransportMoreLikeThisAction moreLikeThisAction;
 
-    @Inject public NodeClient(Settings settings, NodeAdminClient admin,
+    @Inject public NodeClient(Settings settings, ThreadPool threadPool, NodeAdminClient admin,
                               TransportIndexAction indexAction, TransportDeleteAction deleteAction,
                               TransportDeleteByQueryAction deleteByQueryAction, TransportGetAction getAction, TransportCountAction countAction,
                               TransportSearchAction searchAction, TransportSearchScrollAction searchScrollAction,
                               TransportTermsAction termsAction, TransportMoreLikeThisAction moreLikeThisAction) {
         super(settings);
+        this.threadPool = threadPool;
         this.admin = admin;
         this.indexAction = indexAction;
         this.deleteAction = deleteAction;
@@ -89,6 +93,10 @@ public class NodeClient extends AbstractComponent implements Client {
         this.searchScrollAction = searchScrollAction;
         this.termsAction = termsAction;
         this.moreLikeThisAction = moreLikeThisAction;
+    }
+
+    @Override public ThreadPool threadPool() {
+        return this.threadPool;
     }
 
     @Override public void close() {

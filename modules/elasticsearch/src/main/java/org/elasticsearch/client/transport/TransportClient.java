@@ -43,7 +43,7 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.terms.TermsRequest;
 import org.elasticsearch.action.terms.TermsResponse;
 import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.client.transport.action.ClientTransportActionModule;
 import org.elasticsearch.client.transport.support.InternalTransportClient;
 import org.elasticsearch.cluster.ClusterNameModule;
@@ -77,7 +77,7 @@ import static org.elasticsearch.util.settings.ImmutableSettings.*;
  *
  * @author kimchy (shay.banon)
  */
-public class TransportClient implements Client {
+public class TransportClient implements InternalClient {
 
     private final Injector injector;
 
@@ -207,6 +207,10 @@ public class TransportClient implements Client {
         injector.getInstance(ThreadPool.class).shutdown();
 
         ThreadLocals.clearReferencesThreadLocals();
+    }
+
+    @Override public ThreadPool threadPool() {
+        return internalClient.threadPool();
     }
 
     @Override public AdminClient admin() {

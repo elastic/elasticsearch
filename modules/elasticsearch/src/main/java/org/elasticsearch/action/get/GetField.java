@@ -50,7 +50,15 @@ public class GetField implements Streamable, Iterable<Object> {
         return name;
     }
 
+    public String getName() {
+        return name;
+    }
+
     public List<Object> values() {
+        return values;
+    }
+
+    public List<Object> getValues() {
         return values;
     }
 

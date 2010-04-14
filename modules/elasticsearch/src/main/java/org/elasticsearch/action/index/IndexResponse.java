@@ -59,6 +59,13 @@ public class IndexResponse implements ActionResponse, Streamable {
     }
 
     /**
+     * The index the document was indexed into.
+     */
+    public String getIndex() {
+        return index;
+    }
+
+    /**
      * The type of the document indexed.
      */
     public String type() {
@@ -66,10 +73,24 @@ public class IndexResponse implements ActionResponse, Streamable {
     }
 
     /**
+     * The type of the document indexed.
+     */
+    public String getType() {
+        return type;
+    }
+
+    /**
      * The id of the document indexed.
      */
     public String id() {
         return this.id;
+    }
+
+    /**
+     * The id of the document indexed.
+     */
+    public String getId() {
+        return id;
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {

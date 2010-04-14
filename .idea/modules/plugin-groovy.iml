@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="JAVA_MODULE" version="4">
+  <component name="NewModuleRootManager" inherit-compiler-output="false">
+    <output url="file://$MODULE_DIR$/../../plugins/groovy/build/classes/main" />
+    <output-test url="file://$MODULE_DIR$/../../plugins/groovy/build/classes/test" />
+    <exclude-output />
+    <content url="file://$MODULE_DIR$/../../plugins/groovy">
+      <sourceFolder url="file://$MODULE_DIR$/../../plugins/groovy/src/main/groovy" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/../../plugins/groovy/src/test/groovy" isTestSource="true" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="library" name="groovy-1.7.2" level="application" />
+    <orderEntry type="module" module-name="elasticsearch" />
+    <orderEntry type="library" scope="TEST" name="testng" level="project" />
+    <orderEntry type="library" scope="TEST" name="hamcrest" level="project" />
+    <orderEntry type="module" module-name="test-testng" scope="TEST" />
+  </component>
+</module>
+

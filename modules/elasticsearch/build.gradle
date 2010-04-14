@@ -97,15 +97,12 @@ artifacts {
 
 uploadArchives {
     repositories.mavenDeployer {
-//        repository(url: "file://localhost/" + rootProject.projectDir.absolutePath + "/build/maven/repository")
-//        snapshotRepository(url: "file://localhost/" + rootProject.projectDir.absolutePath + "/build/maven/snapshotRepository")
-
         configuration = configurations.deployerJars
-        repository(url: "http://oss.sonatype.org/service/local/staging/deploy/maven2/") {
-            authentication(userName: "kimchy", password: System.getenv("REPO_PASS"))
+        repository(url: rootProject.mavenRepoUrl) {
+            authentication(userName: rootProject.mavenRepoUser, password: rootProject.mavenRepoPass)
         }
-        snapshotRepository(url: "http://oss.sonatype.org/content/repositories/snapshots") {
-            authentication(userName: "kimchy", password: System.getenv("REPO_PASS"))
+        snapshotRepository(url: rootProject.mavenSnapshotRepoUrl) {
+            authentication(userName: rootProject.mavenRepoUser, password: rootProject.mavenRepoPass)
         }
 
         pom.project {

@@ -55,6 +55,8 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
 
     private Map<String, GetField> fields;
 
+    private Map<String, Object> sourceAsMap;
+
     private byte[] source;
 
     GetResponse() {
@@ -80,10 +82,24 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
     }
 
     /**
+     * Does the document exists.
+     */
+    public boolean isExists() {
+        return exists;
+    }
+
+    /**
      * The index the document was fetched from.
      */
     public String index() {
         return this.index;
+    }
+
+    /**
+     * The index the document was fetched from.
+     */
+    public String getIndex() {
+        return index;
     }
 
     /**
@@ -94,9 +110,23 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
     }
 
     /**
+     * The type of the document.
+     */
+    public String getType() {
+        return type;
+    }
+
+    /**
      * The id of the document.
      */
     public String id() {
+        return id;
+    }
+
+    /**
+     * The id of the document.
+     */
+    public String getId() {
         return id;
     }
 
@@ -125,15 +155,27 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
         if (source == null) {
             return null;
         }
+        if (sourceAsMap != null) {
+            return sourceAsMap;
+        }
         try {
-            return defaultObjectMapper().readValue(source, 0, source.length, Map.class);
+            sourceAsMap = defaultObjectMapper().readValue(source, 0, source.length, Map.class);
+            return sourceAsMap;
         } catch (Exception e) {
             throw new ElasticSearchParseException("Failed to parse source to map", e);
         }
     }
 
+    public Map<String, Object> getSource() {
+        return sourceAsMap();
+    }
+
     public Map<String, GetField> fields() {
         return this.fields;
+    }
+
+    public Map<String, GetField> getFields() {
+        return fields;
     }
 
     public GetField field(String name) {

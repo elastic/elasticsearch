@@ -18,6 +18,12 @@ explodedDistLibDir = new File(explodedDistDir, 'lib')
 explodedDistBinDir = new File(explodedDistDir, 'bin')
 explodedDistConfigDir = new File(explodedDistDir, 'config')
 
+//mavenRepoUrl = "file://localhost/" + projectDir.absolutePath + "/build/maven/repository"
+//mavenSnapshotRepoUrl = "file://localhost/" + projectDir.absolutePath + "/build/maven/snapshotRepository"
+mavenRepoUrl = "http://oss.sonatype.org/service/local/staging/deploy/maven2/"
+mavenSnapshotRepoUrl = "http://oss.sonatype.org/content/repositories/snapshots"
+mavenRepoUser = "kimchy"
+mavenRepoPass = System.getenv("REPO_PASS")
 
 allprojects {
     group = 'org.elasticsearch'

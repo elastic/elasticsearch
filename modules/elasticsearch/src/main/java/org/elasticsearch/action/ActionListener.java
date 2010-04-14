@@ -20,11 +20,19 @@
 package org.elasticsearch.action;
 
 /**
- * @author kimchy (Shay Banon)
+ * A listener for action responses or failures.
+ *
+ * @author kimchy (shay.banon)
  */
 public interface ActionListener<Response> {
 
+    /**
+     * A response handler.
+     */
     void onResponse(Response response);
 
+    /**
+     * A failure handler.
+     */
     void onFailure(Throwable e);
 }

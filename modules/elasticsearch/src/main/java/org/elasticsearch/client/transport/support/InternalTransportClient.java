@@ -40,7 +40,7 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.terms.TermsRequest;
 import org.elasticsearch.action.terms.TermsResponse;
 import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.client.transport.action.count.ClientTransportCountAction;
 import org.elasticsearch.client.transport.action.delete.ClientTransportDeleteAction;
@@ -52,13 +52,16 @@ import org.elasticsearch.client.transport.action.search.ClientTransportSearchAct
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchScrollAction;
 import org.elasticsearch.client.transport.action.terms.ClientTransportTermsAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public class InternalTransportClient extends AbstractComponent implements Client {
+public class InternalTransportClient extends AbstractComponent implements InternalClient {
+
+    private final ThreadPool threadPool;
 
     private final TransportClientNodesService nodesService;
 
@@ -82,12 +85,14 @@ public class InternalTransportClient extends AbstractComponent implements Client
 
     private final ClientTransportMoreLikeThisAction moreLikeThisAction;
 
-    @Inject public InternalTransportClient(Settings settings, TransportClientNodesService nodesService, InternalTransportAdminClient adminClient,
+    @Inject public InternalTransportClient(Settings settings, ThreadPool threadPool,
+                                           TransportClientNodesService nodesService, InternalTransportAdminClient adminClient,
                                            ClientTransportIndexAction indexAction, ClientTransportDeleteAction deleteAction, ClientTransportGetAction getAction,
                                            ClientTransportDeleteByQueryAction deleteByQueryAction, ClientTransportCountAction countAction,
                                            ClientTransportSearchAction searchAction, ClientTransportSearchScrollAction searchScrollAction,
                                            ClientTransportTermsAction termsAction, ClientTransportMoreLikeThisAction moreLikeThisAction) {
         super(settings);
+        this.threadPool = threadPool;
         this.nodesService = nodesService;
         this.adminClient = adminClient;
 
@@ -104,6 +109,10 @@ public class InternalTransportClient extends AbstractComponent implements Client
 
     @Override public void close() {
         // nothing to do here
+    }
+
+    @Override public ThreadPool threadPool() {
+        return this.threadPool;
     }
 
     @Override public AdminClient admin() {

@@ -21,73 +21,22 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchInterruptedException;
+import org.elasticsearch.util.concurrent.AbstractFuture;
 import org.elasticsearch.util.io.stream.Streamable;
 
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class PlainTransportFuture<V extends Streamable> implements TransportFuture<V>, TransportResponseHandler<V> {
+public class PlainTransportFuture<V extends Streamable> extends AbstractFuture<V> implements TransportFuture<V>, TransportResponseHandler<V> {
 
-    private final CountDownLatch latch;
     private final TransportResponseHandler<V> handler;
-    private volatile boolean done;
-    private volatile boolean canceled;
-    private volatile V result;
-    private volatile Exception exp;
 
     public PlainTransportFuture(TransportResponseHandler<V> handler) {
         this.handler = handler;
-        latch = new CountDownLatch(1);
-    }
-
-    @Override public boolean cancel(boolean mayInterruptIfRunning) {
-        if (done)
-            return true;
-
-        canceled = true;
-        latch.countDown();
-        return true;
-    }
-
-    @Override public boolean isCancelled() {
-        return canceled;
-    }
-
-    @Override public boolean isDone() {
-        return done;
-    }
-
-    @Override public V get() throws InterruptedException, ExecutionException {
-        latch.await();
-
-        if (!done || canceled) {
-            throw new InterruptedException("future was interrupted");
-        }
-
-        if (exp != null) {
-            throw new ExecutionException(exp.getMessage(), exp);
-        }
-
-        return this.result;
-    }
-
-    @Override public V get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
-        latch.await(timeout, unit);
-
-        if (!done || canceled) {
-            throw new TimeoutException("response did not arrive");
-        }
-
-        if (exp != null) {
-            throw new ExecutionException(exp.getMessage(), exp);
-        }
-
-        return this.result;
     }
 
     @Override public V txGet() throws ElasticSearchException {
@@ -123,25 +72,13 @@ public class PlainTransportFuture<V extends Streamable> implements TransportFutu
     }
 
     @Override public void handleResponse(V response) {
-        this.done = true;
-        this.result = response;
-
-        if (canceled)
-            return;
-
         handler.handleResponse(response);
-        latch.countDown();
+        set(response);
     }
 
     @Override public void handleException(RemoteTransportException exp) {
-        this.done = true;
-        this.exp = exp;
-
-        if (canceled)
-            return;
-
         handler.handleException(exp);
-        latch.countDown();
+        setException(exp);
     }
 
     @Override public boolean spawn() {

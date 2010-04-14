@@ -19,143 +19,16 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchInterruptedException;
-import org.elasticsearch.ElasticSearchTimeoutException;
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.util.TimeValue;
-
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-
 /**
  * @author kimchy (shay.banon)
  */
-public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> {
+public class PlainActionFuture<T> extends AdapterActionFuture<T, T> {
 
     public static <T> PlainActionFuture<T> newFuture() {
         return new PlainActionFuture<T>();
     }
 
-    private final CountDownLatch latch;
-
-    private volatile boolean done;
-    private volatile boolean canceled;
-    private volatile T result;
-    private volatile Throwable exp;
-
-    public PlainActionFuture() {
-        latch = new CountDownLatch(1);
-    }
-
-    @Override public boolean cancel(boolean mayInterruptIfRunning) {
-        if (done)
-            return true;
-
-        canceled = true;
-        latch.countDown();
-        return true;
-    }
-
-    @Override public boolean isCancelled() {
-        return canceled;
-    }
-
-    @Override public boolean isDone() {
-        return done;
-    }
-
-    @Override public T get() throws InterruptedException, ExecutionException {
-        latch.await();
-
-        if (!done || canceled) {
-            throw new InterruptedException("future was interrupted");
-        }
-
-        if (exp != null) {
-            throw new ExecutionException(exp.getMessage(), exp);
-        }
-
-        return this.result;
-    }
-
-    @Override public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
-        latch.await(timeout, unit);
-
-        if (!done || canceled) {
-            throw new TimeoutException("response did not arrive");
-        }
-
-        if (exp != null) {
-            throw new ExecutionException(exp.getMessage(), exp);
-        }
-
-        return this.result;
-    }
-
-    @Override public T actionGet() throws ElasticSearchException {
-        try {
-            return get();
-        } catch (InterruptedException e) {
-            throw new ElasticSearchInterruptedException(e.getMessage());
-        } catch (ExecutionException e) {
-            if (e.getCause() instanceof ElasticSearchException) {
-                throw (ElasticSearchException) e.getCause();
-            } else {
-                throw new TransportException("Failed execution", e);
-            }
-        }
-    }
-
-    @Override public T actionGet(String timeout) throws ElasticSearchException {
-        return actionGet(TimeValue.parseTimeValue(timeout, null));
-    }
-
-    @Override public T actionGet(long timeoutMillis) throws ElasticSearchException {
-        return actionGet(timeoutMillis, TimeUnit.MILLISECONDS);
-    }
-
-    @Override public T actionGet(TimeValue timeout) throws ElasticSearchException {
-        return actionGet(timeout.millis(), TimeUnit.MILLISECONDS);
-    }
-
-    @Override public T actionGet(long timeout, TimeUnit unit) throws ElasticSearchException {
-        try {
-            return get(timeout, unit);
-        } catch (TimeoutException e) {
-            throw new ElasticSearchTimeoutException(e.getMessage());
-        } catch (InterruptedException e) {
-            throw new ElasticSearchInterruptedException(e.getMessage());
-        } catch (ExecutionException e) {
-            if (e.getCause() instanceof ElasticSearchException) {
-                throw (ElasticSearchException) e.getCause();
-            } else {
-                throw new ElasticSearchException("Failed execution", e);
-            }
-        }
-    }
-
-    @Override public void onResponse(T result) {
-        this.done = true;
-        this.result = result;
-
-        if (canceled)
-            return;
-
-        latch.countDown();
-    }
-
-    @Override public void onFailure(Throwable e) {
-        this.done = true;
-        this.exp = e;
-
-        if (canceled)
-            return;
-
-        latch.countDown();
+    @Override protected T convert(T listenerResponse) {
+        return listenerResponse;
     }
 }

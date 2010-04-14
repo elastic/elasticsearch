@@ -69,6 +69,8 @@ public abstract class JsonBuilder<T extends JsonBuilder> {
 
     protected FieldCaseConversion fieldCaseConversion = globalFieldCaseConversion;
 
+    protected StringBuilder cachedStringBuilder;
+
     public static StringJsonBuilder stringJsonBuilder() throws IOException {
         return StringJsonBuilder.Cached.cached();
     }
@@ -143,9 +145,9 @@ public abstract class JsonBuilder<T extends JsonBuilder> {
 
     public T field(String name) throws IOException {
         if (fieldCaseConversion == FieldCaseConversion.UNDERSCORE) {
-            name = Strings.toUnderscoreCase(name);
+            name = Strings.toUnderscoreCase(name, cachedStringBuilder);
         } else if (fieldCaseConversion == FieldCaseConversion.CAMELCASE) {
-            name = Strings.toCamelCase(name);
+            name = Strings.toCamelCase(name, cachedStringBuilder);
         }
         generator.writeFieldName(name);
         return builder;
@@ -402,10 +404,6 @@ public abstract class JsonBuilder<T extends JsonBuilder> {
     public abstract byte[] copiedBytes() throws IOException;
 
     public abstract String string() throws IOException;
-
-    protected StringBuilder cachedStringBuilder() {
-        return null;
-    }
 
     public void close() {
         try {

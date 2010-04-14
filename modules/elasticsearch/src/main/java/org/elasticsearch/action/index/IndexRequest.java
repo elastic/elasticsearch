@@ -104,6 +104,9 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     private byte[] source;
     private OpType opType = OpType.INDEX;
 
+    public IndexRequest() {
+    }
+
     /**
      * Constructs a new index request against the specific index. The {@link #type(String)},
      * {@link #id(String)} and {@link #source(byte[])} must be set.
@@ -125,9 +128,6 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         this.type = type;
         this.id = id;
         this.source = source;
-    }
-
-    IndexRequest() {
     }
 
     @Override public ActionRequestValidationException validate() {

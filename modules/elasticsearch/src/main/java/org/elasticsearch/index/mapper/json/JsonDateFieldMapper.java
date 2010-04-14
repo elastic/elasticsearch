@@ -30,6 +30,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericDateAnalyzer;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.util.Numbers;
+import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.joda.FormatDateTimeFormatter;
 import org.elasticsearch.util.joda.Joda;
 import org.elasticsearch.util.json.JsonBuilder;
@@ -90,9 +91,9 @@ public class JsonDateFieldMapper extends JsonNumberFieldMapper<Long> {
             parseNumberField(builder, name, dateNode, parserContext);
             for (Iterator<Map.Entry<String, JsonNode>> propsIt = dateNode.getFields(); propsIt.hasNext();) {
                 Map.Entry<String, JsonNode> entry = propsIt.next();
-                String propName = entry.getKey();
+                String propName = Strings.toUnderscoreCase(entry.getKey());
                 JsonNode propNode = entry.getValue();
-                if (propName.equals("nullValue") || propName.equals("null_value")) {
+                if (propName.equals("null_value")) {
                     builder.nullValue(propNode.getValueAsText());
                 } else if (propName.equals("format")) {
                     builder.dateTimeFormatter(parseDateTimeFormatter(propName, propNode));

@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.util.MapBuilder;
+import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.io.FastStringReader;
 import org.elasticsearch.util.json.Jackson;
 
@@ -117,7 +118,7 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
 
         for (Iterator<Map.Entry<String, JsonNode>> fieldsIt = rootObj.getFields(); fieldsIt.hasNext();) {
             Map.Entry<String, JsonNode> entry = fieldsIt.next();
-            String fieldName = entry.getKey();
+            String fieldName = Strings.toUnderscoreCase(entry.getKey());
             JsonNode fieldNode = entry.getValue();
 
             if (JsonSourceFieldMapper.JSON_TYPE.equals(fieldName) || "sourceField".equals(fieldName)) {
@@ -178,7 +179,7 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
         parseNumberField(builder, name, boostNode, parserContext);
         for (Iterator<Map.Entry<String, JsonNode>> propsIt = boostNode.getFields(); propsIt.hasNext();) {
             Map.Entry<String, JsonNode> entry = propsIt.next();
-            String propName = entry.getKey();
+            String propName = Strings.toUnderscoreCase(entry.getKey());
             JsonNode propNode = entry.getValue();
             if (propName.equals("null_value")) {
                 builder.nullValue(nodeFloatValue(propNode));
@@ -208,7 +209,7 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
         parseJsonField(builder, builder.name, allNode, parserContext);
         for (Iterator<Map.Entry<String, JsonNode>> fieldsIt = allNode.getFields(); fieldsIt.hasNext();) {
             Map.Entry<String, JsonNode> entry = fieldsIt.next();
-            String fieldName = entry.getKey();
+            String fieldName = Strings.toUnderscoreCase(entry.getKey());
             JsonNode fieldNode = entry.getValue();
             if (fieldName.equals("enabled")) {
                 builder.enabled(nodeBooleanValue(fieldNode));
@@ -222,7 +223,7 @@ public class JsonDocumentMapperParser implements DocumentMapperParser {
         JsonSourceFieldMapper.Builder builder = source();
         for (Iterator<Map.Entry<String, JsonNode>> fieldsIt = sourceNode.getFields(); fieldsIt.hasNext();) {
             Map.Entry<String, JsonNode> entry = fieldsIt.next();
-            String fieldName = entry.getKey();
+            String fieldName = Strings.toUnderscoreCase(entry.getKey());
             JsonNode fieldNode = entry.getValue();
             if (fieldName.equals("enabled")) {
                 builder.enabled(nodeBooleanValue(fieldNode));

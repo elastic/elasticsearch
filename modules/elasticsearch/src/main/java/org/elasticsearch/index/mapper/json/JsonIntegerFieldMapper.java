@@ -30,6 +30,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.util.Numbers;
+import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
@@ -80,9 +81,9 @@ public class JsonIntegerFieldMapper extends JsonNumberFieldMapper<Integer> {
             parseNumberField(builder, name, integerNode, parserContext);
             for (Iterator<Map.Entry<String, JsonNode>> propsIt = integerNode.getFields(); propsIt.hasNext();) {
                 Map.Entry<String, JsonNode> entry = propsIt.next();
-                String propName = entry.getKey();
+                String propName = Strings.toUnderscoreCase(entry.getKey());
                 JsonNode propNode = entry.getValue();
-                if (propName.equals("nullValue")) {
+                if (propName.equals("null_value")) {
                     builder.nullValue(nodeIntegerValue(propNode));
                 }
             }

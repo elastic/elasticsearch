@@ -24,6 +24,7 @@ import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.node.ObjectNode;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.util.Strings;
 
 /**
  * @author kimchy (shay.banon)
@@ -53,7 +54,7 @@ public interface JsonTypeParser {
         }
 
         public JsonTypeParser typeParser(String type) {
-            return typeParsers.get(type);
+            return typeParsers.get(Strings.toUnderscoreCase(type));
         }
     }
 

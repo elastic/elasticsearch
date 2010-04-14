@@ -27,6 +27,7 @@ import org.codehaus.jackson.node.ArrayNode;
 import org.codehaus.jackson.node.ObjectNode;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.concurrent.ThreadSafe;
 import org.elasticsearch.util.joda.FormatDateTimeFormatter;
 import org.elasticsearch.util.json.JsonBuilder;
@@ -160,7 +161,7 @@ public class JsonObjectMapper implements JsonMapper, JsonIncludeInAllMapper {
             JsonObjectMapper.Builder builder = object(name);
             for (Iterator<Entry<String, JsonNode>> fieldsIt = objectNode.getFields(); fieldsIt.hasNext();) {
                 Map.Entry<String, JsonNode> entry = fieldsIt.next();
-                String fieldName = entry.getKey();
+                String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 JsonNode fieldNode = entry.getValue();
                 if (fieldName.equals("dynamic")) {
                     builder.dynamic(nodeBooleanValue(fieldNode));
@@ -169,7 +170,7 @@ public class JsonObjectMapper implements JsonMapper, JsonIncludeInAllMapper {
                     if (!type.equals("object")) {
                         throw new MapperParsingException("Trying to parse an object but has a different type [" + type + "] for [" + name + "]");
                     }
-                } else if (fieldName.equals("dateFormats") || fieldName.equals("date_formats")) {
+                } else if (fieldName.equals("date_formats")) {
                     List<FormatDateTimeFormatter> dateTimeFormatters = newArrayList();
                     if (fieldNode.isArray()) {
                         for (JsonNode node1 : (ArrayNode) fieldNode) {
@@ -191,7 +192,7 @@ public class JsonObjectMapper implements JsonMapper, JsonIncludeInAllMapper {
                     builder.pathType(parsePathType(name, fieldNode.getValueAsText()));
                 } else if (fieldName.equals("properties")) {
                     parseProperties(builder, (ObjectNode) fieldNode, parserContext);
-                } else if (fieldName.equals("includeInAll") || fieldName.equals("include_in_all")) {
+                } else if (fieldName.equals("include_in_all")) {
                     builder.includeInAll(nodeBooleanValue(fieldNode));
                 }
             }

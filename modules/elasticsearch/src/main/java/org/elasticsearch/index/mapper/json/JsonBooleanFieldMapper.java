@@ -26,6 +26,7 @@ import org.codehaus.jackson.JsonToken;
 import org.codehaus.jackson.node.ObjectNode;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.util.Booleans;
+import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.lucene.Lucene;
 
@@ -102,9 +103,9 @@ public class JsonBooleanFieldMapper extends JsonFieldMapper<Boolean> {
             parseJsonField(builder, name, booleanNode, parserContext);
             for (Iterator<Map.Entry<String, JsonNode>> propsIt = booleanNode.getFields(); propsIt.hasNext();) {
                 Map.Entry<String, JsonNode> entry = propsIt.next();
-                String propName = entry.getKey();
+                String propName = Strings.toUnderscoreCase(entry.getKey());
                 JsonNode propNode = entry.getValue();
-                if (propName.equals("nullValue") || propName.equals("null_value")) {
+                if (propName.equals("null_value")) {
                     builder.nullValue(nodeBooleanValue(propNode));
                 }
             }

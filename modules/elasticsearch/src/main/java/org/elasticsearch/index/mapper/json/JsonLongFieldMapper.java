@@ -30,6 +30,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericLongAnalyzer;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.util.Numbers;
+import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
@@ -80,9 +81,9 @@ public class JsonLongFieldMapper extends JsonNumberFieldMapper<Long> {
             parseNumberField(builder, name, longNode, parserContext);
             for (Iterator<Map.Entry<String, JsonNode>> propsIt = longNode.getFields(); propsIt.hasNext();) {
                 Map.Entry<String, JsonNode> entry = propsIt.next();
-                String propName = entry.getKey();
+                String propName = Strings.toUnderscoreCase(entry.getKey());
                 JsonNode propNode = entry.getValue();
-                if (propName.equals("nullValue")) {
+                if (propName.equals("null_value")) {
                     builder.nullValue(nodeLongValue(propNode));
                 }
             }

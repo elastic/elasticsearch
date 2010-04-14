@@ -23,6 +23,7 @@ import org.apache.lucene.document.Field;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.node.ObjectNode;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.joda.FormatDateTimeFormatter;
 import org.elasticsearch.util.joda.Joda;
 
@@ -40,9 +41,9 @@ public class JsonTypeParsers {
         parseJsonField(builder, name, numberNode, parserContext);
         for (Iterator<Map.Entry<String, JsonNode>> propsIt = numberNode.getFields(); propsIt.hasNext();) {
             Map.Entry<String, JsonNode> entry = propsIt.next();
-            String propName = entry.getKey();
+            String propName = Strings.toUnderscoreCase(entry.getKey());
             JsonNode propNode = entry.getValue();
-            if (propName.equals("precisionStep") || propName.equals("precision_step")) {
+            if (propName.equals("precision_step")) {
                 builder.precisionStep(nodeIntegerValue(propNode));
             }
         }
@@ -51,30 +52,30 @@ public class JsonTypeParsers {
     public static void parseJsonField(JsonFieldMapper.Builder builder, String name, ObjectNode fieldNode, JsonTypeParser.ParserContext parserContext) {
         for (Iterator<Map.Entry<String, JsonNode>> propsIt = fieldNode.getFields(); propsIt.hasNext();) {
             Map.Entry<String, JsonNode> entry = propsIt.next();
-            String propName = entry.getKey();
+            String propName = Strings.toUnderscoreCase(entry.getKey());
             JsonNode propNode = entry.getValue();
-            if (propName.equals("indexName") || propName.equals("index_name")) {
+            if (propName.equals("index_name")) {
                 builder.indexName(propNode.getTextValue());
             } else if (propName.equals("store")) {
                 builder.store(parseStore(name, propNode.getTextValue()));
             } else if (propName.equals("index")) {
                 builder.index(parseIndex(name, propNode.getTextValue()));
-            } else if (propName.equals("termVector") || propName.equals("term_vector")) {
+            } else if (propName.equals("term_vector")) {
                 builder.termVector(parseTermVector(name, propNode.getTextValue()));
             } else if (propName.equals("boost")) {
                 builder.boost(nodeFloatValue(propNode));
-            } else if (propName.equals("omitNorms") || propName.equals("omit_norms")) {
+            } else if (propName.equals("omit_norms")) {
                 builder.omitNorms(nodeBooleanValue(propNode));
-            } else if (propName.equals("omitTermFreqAndPositions") || propName.equals("omit_term_freq_and_positions")) {
+            } else if (propName.equals("omit_term_freq_and_positions")) {
                 builder.omitTermFreqAndPositions(nodeBooleanValue(propNode));
-            } else if (propName.equals("indexAnalyzer") || propName.equals("index_analyzer")) {
+            } else if (propName.equals("index_analyzer")) {
                 builder.indexAnalyzer(parserContext.analysisService().analyzer(propNode.getTextValue()));
-            } else if (propName.equals("searchAnalyzer") || propName.equals("search_analyzer")) {
+            } else if (propName.equals("search_analyzer")) {
                 builder.searchAnalyzer(parserContext.analysisService().analyzer(propNode.getTextValue()));
             } else if (propName.equals("analyzer")) {
                 builder.indexAnalyzer(parserContext.analysisService().analyzer(propNode.getTextValue()));
                 builder.searchAnalyzer(parserContext.analysisService().analyzer(propNode.getTextValue()));
-            } else if (propName.equals("includeInAll") || propName.equals("include_in_all")) {
+            } else if (propName.equals("include_in_all")) {
                 builder.includeInAll(nodeBooleanValue(propNode));
             }
         }
@@ -90,6 +91,7 @@ public class JsonTypeParsers {
     }
 
     public static Field.TermVector parseTermVector(String fieldName, String termVector) throws MapperParsingException {
+        termVector = Strings.toUnderscoreCase(termVector);
         if ("no".equals(termVector)) {
             return Field.TermVector.NO;
         } else if ("yes".equals(termVector)) {
@@ -106,6 +108,7 @@ public class JsonTypeParsers {
     }
 
     public static Field.Index parseIndex(String fieldName, String index) throws MapperParsingException {
+        index = Strings.toUnderscoreCase(index);
         if ("no".equals(index)) {
             return Field.Index.NO;
         } else if ("not_analyzed".equals(index)) {
@@ -128,7 +131,8 @@ public class JsonTypeParsers {
     }
 
     public static JsonPath.Type parsePathType(String name, String path) throws MapperParsingException {
-        if ("justName".equals(path) || "just_name".equals(path)) {
+        path = Strings.toUnderscoreCase(path);
+        if ("just_name".equals(path)) {
             return JsonPath.Type.JUST_NAME;
         } else if ("full".equals(path)) {
             return JsonPath.Type.FULL;

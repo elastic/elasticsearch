@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapperListener;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
@@ -106,7 +107,7 @@ public class JsonMultiFieldMapper implements JsonMapper, JsonIncludeInAllMapper 
             JsonMultiFieldMapper.Builder builder = multiField(name);
             for (Iterator<Map.Entry<String, JsonNode>> fieldsIt = multiFieldNode.getFields(); fieldsIt.hasNext();) {
                 Map.Entry<String, JsonNode> entry = fieldsIt.next();
-                String fieldName = entry.getKey();
+                String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 JsonNode fieldNode = entry.getValue();
                 if (fieldName.equals("path")) {
                     builder.pathType(parsePathType(name, fieldNode.getValueAsText()));

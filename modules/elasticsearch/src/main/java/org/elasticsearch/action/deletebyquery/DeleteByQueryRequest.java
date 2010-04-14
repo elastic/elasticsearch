@@ -38,8 +38,8 @@ import static org.elasticsearch.action.Actions.*;
  * A request to delete all documents that matching a specific query. Best created with
  * {@link org.elasticsearch.client.Requests#deleteByQueryRequest(String...)}.
  *
- * <p>The request requires the query source to be set either using {@link #querySource(org.elasticsearch.index.query.QueryBuilder)},
- * or {@link #querySource(byte[])}.
+ * <p>The request requires the query source to be set either using {@link #query(org.elasticsearch.index.query.QueryBuilder)},
+ * or {@link #query(byte[])}.
  *
  * @author kimchy (shay.banon)
  * @see DeleteByQueryResponse
@@ -79,6 +79,11 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
         return validationException;
     }
 
+    public DeleteByQueryRequest indices(String... indices) {
+        this.indices = indices;
+        return this;
+    }
+
     /**
      * The query source to execute.
      */
@@ -91,22 +96,22 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
      *
      * @see org.elasticsearch.index.query.json.JsonQueryBuilders
      */
-    @Required public DeleteByQueryRequest querySource(QueryBuilder queryBuilder) {
-        return querySource(queryBuilder.buildAsBytes());
+    @Required public DeleteByQueryRequest query(QueryBuilder queryBuilder) {
+        return query(queryBuilder.buildAsBytes());
     }
 
     /**
-     * The query source to execute. It is preferable to use either {@link #querySource(byte[])}
-     * or {@link #querySource(org.elasticsearch.index.query.QueryBuilder)}.
+     * The query source to execute. It is preferable to use either {@link #query(byte[])}
+     * or {@link #query(org.elasticsearch.index.query.QueryBuilder)}.
      */
-    @Required public DeleteByQueryRequest querySource(String querySource) {
-        return querySource(Unicode.fromStringAsBytes(querySource));
+    @Required public DeleteByQueryRequest query(String querySource) {
+        return query(Unicode.fromStringAsBytes(querySource));
     }
 
     /**
      * The query source to execute.
      */
-    @Required public DeleteByQueryRequest querySource(byte[] querySource) {
+    @Required public DeleteByQueryRequest query(byte[] querySource) {
         this.querySource = querySource;
         return this;
     }

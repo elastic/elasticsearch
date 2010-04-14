@@ -194,7 +194,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
         }
 
         logger.info("Delete by query");
-        DeleteByQueryResponse queryResponse = client2.deleteByQuery(deleteByQueryRequest("test").querySource(termQuery("name", "test2"))).actionGet();
+        DeleteByQueryResponse queryResponse = client2.deleteByQuery(deleteByQueryRequest("test").query(termQuery("name", "test2"))).actionGet();
         assertThat(queryResponse.index(getConcreteIndexName()).successfulShards(), equalTo(5));
         assertThat(queryResponse.index(getConcreteIndexName()).failedShards(), equalTo(0));
         client1.admin().indices().refresh(refreshRequest("test")).actionGet();

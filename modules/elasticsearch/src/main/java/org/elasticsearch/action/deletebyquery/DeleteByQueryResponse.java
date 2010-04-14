@@ -56,6 +56,13 @@ public class DeleteByQueryResponse implements ActionResponse, Streamable, Iterab
     }
 
     /**
+     * The responses from all the different indices.
+     */
+    public Map<String, IndexDeleteByQueryResponse> getIndices() {
+        return indices;
+    }
+
+    /**
      * The response of a specific index.
      */
     public IndexDeleteByQueryResponse index(String index) {

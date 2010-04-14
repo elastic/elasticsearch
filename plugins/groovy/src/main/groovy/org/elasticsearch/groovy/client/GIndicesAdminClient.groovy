@@ -12,18 +12,22 @@ import org.elasticsearch.groovy.client.action.GActionFuture
  */
 class GIndicesAdminClient {
 
+    private final GClient gClient
+
     private final InternalClient internalClient;
 
-    private final IndicesAdminClient indicesAdminClient;
+    final IndicesAdminClient indicesAdminClient;
 
-    def GIndicesAdminClient(internalClient) {
-        this.internalClient = internalClient;
+    def GIndicesAdminClient(gClient) {
+        this.gClient = gClient
+        this.internalClient = gClient.client
         this.indicesAdminClient = internalClient.admin().indices();
     }
 
     GActionFuture<RefreshResponse> refresh(Closure c) {
         RefreshRequest request = new RefreshRequest()
         c.setDelegate request
+        c.resolveStrategy = Closure.DELEGATE_FIRST
         c.call()
         refresh(request)
     }

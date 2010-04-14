@@ -22,6 +22,8 @@ package org.elasticsearch.groovy.client
 import org.elasticsearch.action.ActionListener
 import org.elasticsearch.action.delete.DeleteRequest
 import org.elasticsearch.action.delete.DeleteResponse
+import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest
+import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse
 import org.elasticsearch.action.get.GetRequest
 import org.elasticsearch.action.get.GetResponse
 import org.elasticsearch.action.index.IndexRequest
@@ -43,6 +45,13 @@ class GClient {
         IndexRequest.metaClass.source = {Closure c ->
             delegate.source(new JsonBuilder().buildAsBytes(c))
         }
+
+        DeleteByQueryRequest.metaClass.setQuery = {Closure c ->
+            delegate.query(new JsonBuilder().buildAsBytes(c))
+        }
+        DeleteByQueryRequest.metaClass.query = {Closure c ->
+            delegate.query(new JsonBuilder().buildAsBytes(c))
+        }
     }
 
     final Client client;
@@ -55,12 +64,13 @@ class GClient {
         this.client = client;
         this.internalClient = client;
 
-        this.admin = new GAdminClient(internalClient)
+        this.admin = new GAdminClient(this)
     }
 
     GActionFuture<IndexResponse> index(Closure c) {
         IndexRequest request = new IndexRequest()
         c.setDelegate request
+        c.resolveStrategy = Closure.DELEGATE_FIRST
         c.call()
         index(request)
     }
@@ -78,6 +88,7 @@ class GClient {
     GActionFuture<GetResponse> get(Closure c) {
         GetRequest request = new GetRequest()
         c.setDelegate request
+        c.resolveStrategy = Closure.DELEGATE_FIRST
         c.call()
         get(request)
     }
@@ -94,6 +105,7 @@ class GClient {
 
     GActionFuture<DeleteResponse> delete(Closure c) {
         DeleteRequest request = new DeleteRequest()
+        c.resolveStrategy = Closure.DELEGATE_FIRST
         c.setDelegate request
         c.call()
         delete(request)
@@ -107,5 +119,23 @@ class GClient {
 
     void delete(DeleteRequest request, ActionListener<DeleteResponse> listener) {
         client.delete(request, listener)
+    }
+
+    GActionFuture<DeleteByQueryResponse> deleteByQuery(Closure c) {
+        DeleteByQueryRequest request = new DeleteByQueryRequest()
+        c.resolveStrategy = Closure.DELEGATE_FIRST
+        c.setDelegate request
+        c.call()
+        deleteByQuery(request)
+    }
+
+    GActionFuture<DeleteByQueryResponse> deleteByQuery(DeleteByQueryRequest request) {
+        GActionFuture<DeleteByQueryResponse> future = new GActionFuture<DeleteByQueryResponse>(internalClient.threadPool(), request);
+        client.deleteByQuery(request, future)
+        return future
+    }
+
+    void deleteByQuery(DeleteByQueryRequest request, ActionListener<DeleteByQueryResponse> listener) {
+        client.deleteByQuery(request, listener)
     }
 }

@@ -1,22 +1,20 @@
 package org.elasticsearch.groovy.client
 
-import org.elasticsearch.client.internal.InternalClient
-
 /**
  * @author kimchy (shay.banon)
  */
 class GAdminClient {
 
-    private final InternalClient internalClient;
+    private final GClient gClient;
 
     final GIndicesAdminClient indices;
 
     final GClusterAdminClient cluster;
 
-    def GAdminClient(internalClient) {
-        this.internalClient = internalClient;
+    def GAdminClient(gClient) {
+        this.gClient = gClient;
 
-        this.indices = new GIndicesAdminClient(internalClient)
-        this.cluster = new GClusterAdminClient(internalClient)
+        this.indices = new GIndicesAdminClient(gClient)
+        this.cluster = new GClusterAdminClient(gClient)
     }
 }

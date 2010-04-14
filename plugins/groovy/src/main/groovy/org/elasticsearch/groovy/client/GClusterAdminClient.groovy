@@ -8,12 +8,15 @@ import org.elasticsearch.client.internal.InternalClient
  */
 class GClusterAdminClient {
 
+    private final GClient gClient
+
     private final InternalClient internalClient;
 
-    private final ClusterAdminClient clusterAdminClient;
+    final ClusterAdminClient clusterAdminClient;
 
-    def GClusterAdminClient(internalClient) {
-        this.internalClient = internalClient;
+    def GClusterAdminClient(gClient) {
+        this.gClient = gClient;
+        this.internalClient = gClient.client;
         this.clusterAdminClient = internalClient.admin().cluster();
     }
 }

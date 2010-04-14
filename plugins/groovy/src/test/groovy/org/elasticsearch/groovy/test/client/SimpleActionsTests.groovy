@@ -132,5 +132,47 @@ class SimpleActionsTests extends GroovyTestCase {
             id "1"
         }
         assertFalse getR.response.exists
+
+        indexR = node.client.index {
+            index "test"
+            type "type1"
+            id "1"
+            source {
+                test = "value"
+                complex {
+                    value1 = "value1"
+                    value2 = "value2"
+                }
+            }
+        }
+        assertEquals "1", indexR.response.id
+
+        refresh = node.client.admin.indices.refresh {}
+        assertEquals 0, refresh.response.failedShards
+
+        getR = node.client.get {
+            index "test"
+            type "type1"
+            id "1"
+        }
+        assertTrue getR.response.exists
+
+        def deleteByQuery = node.client.deleteByQuery {
+            indices "test"
+            query {
+                term("test": "value")
+            }
+        }
+        assertEquals 0, deleteByQuery.response.indices.test.failedShards
+
+        refresh = node.client.admin.indices.refresh {}
+        assertEquals 0, refresh.response.failedShards
+
+        getR = node.client.get {
+            index "test"
+            type "type1"
+            id "1"
+        }
+        assertFalse getR.response.exists
     }
 }

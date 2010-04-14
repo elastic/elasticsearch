@@ -57,10 +57,24 @@ public class IndexDeleteByQueryResponse implements ActionResponse, Streamable {
     }
 
     /**
+     * The index the delete by query operation was executed against.
+     */
+    public String getIndex() {
+        return index;
+    }
+
+    /**
      * The total number of shards the delete by query was executed on.
      */
     public int totalShards() {
         return failedShards + successfulShards;
+    }
+
+    /**
+     * The total number of shards the delete by query was executed on.
+     */
+    public int getTotalShards() {
+        return totalShards();
     }
 
     /**
@@ -71,9 +85,23 @@ public class IndexDeleteByQueryResponse implements ActionResponse, Streamable {
     }
 
     /**
+     * The successful number of shards the delete by query was executed on.
+     */
+    public int getSuccessfulShards() {
+        return successfulShards;
+    }
+
+    /**
      * The failed number of shards the delete by query was executed on.
      */
     public int failedShards() {
+        return failedShards;
+    }
+
+    /**
+     * The failed number of shards the delete by query was executed on.
+     */
+    public int getFailedShards() {
         return failedShards;
     }
 

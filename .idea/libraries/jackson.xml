@@ -1,15 +1,10 @@
 <component name="libraryTable">
   <library name="jackson">
     <CLASSES>
-      <root url="jar://$GRADLE_REPOSITORY$/org.codehaus.jackson/jackson-core-asl/jars/jackson-core-asl-1.5.0.jar!/" />
-      <root url="jar://$GRADLE_REPOSITORY$/org.codehaus.jackson/jackson-mapper-asl/jars/jackson-mapper-asl-1.5.0.jar!/" />
+      <root url="jar://$GRADLE_REPOSITORY$/org.codehaus.jackson/jackson-mapper-asl/jars/jackson-mapper-asl-1.5.1.jar!/" />
+      <root url="jar://$GRADLE_REPOSITORY$/org.codehaus.jackson/jackson-core-asl/jars/jackson-core-asl-1.5.1.jar!/" />
     </CLASSES>
     <JAVADOC />
-    <SOURCES>
-      <root url="file://$PROJECT_DIR$/../../../opt/jackson/1.5.0/src/jaxrs/java" />
-      <root url="file://$PROJECT_DIR$/../../../opt/jackson/1.5.0/src/xc/java" />
-      <root url="file://$PROJECT_DIR$/../../../opt/jackson/1.5.0/src/mapper/java" />
-      <root url="file://$PROJECT_DIR$/../../../opt/jackson/1.5.0/src/java" />
-    </SOURCES>
+    <SOURCES />
   </library>
 </component>

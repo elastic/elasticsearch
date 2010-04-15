@@ -39,8 +39,8 @@ dependencies {
     compile 'joda-time:joda-time:1.6'
     compile 'com.google.collections:google-collections:1.0'
 
-    compile 'org.codehaus.jackson:jackson-core-asl:1.5.0'
-    compile 'org.codehaus.jackson:jackson-mapper-asl:1.5.0'
+    compile 'org.codehaus.jackson:jackson-core-asl:1.5.1'
+    compile 'org.codehaus.jackson:jackson-mapper-asl:1.5.1'
 
     compile 'aopalliance:aopalliance:1.0'
     compile 'com.google.inject:guice:2.0'

@@ -57,7 +57,7 @@ public class HighlightSearchTests extends AbstractNodesTests {
         client.admin().indices().create(createIndexRequest("test")).actionGet();
 
         logger.info("Update mapping (_all to store and have term vectors)");
-        client.admin().indices().putMapping(putMappingRequest("test").mappingSource(mapping())).actionGet();
+        client.admin().indices().putMapping(putMappingRequest("test").source(mapping())).actionGet();
 
         for (int i = 0; i < 100; i++) {
             index(client("server1"), Integer.toString(i), "test", i);

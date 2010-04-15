@@ -86,8 +86,16 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return routingTable;
     }
 
+    public RoutingTable getRoutingTable() {
+        return routingTable();
+    }
+
     public MetaData metaData() {
         return this.metaData;
+    }
+
+    public MetaData getMetaData() {
+        return metaData();
     }
 
     public int requiredAverageNumberOfShardsPerNode() {
@@ -102,8 +110,16 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return this.unassigned;
     }
 
+    public List<MutableShardRouting> getUnassigned() {
+        return unassigned();
+    }
+
     public Map<String, RoutingNode> nodesToShards() {
         return nodesToShards;
+    }
+
+    public Map<String, RoutingNode> getNodesToShards() {
+        return nodesToShards();
     }
 
     public RoutingNode node(String nodeId) {

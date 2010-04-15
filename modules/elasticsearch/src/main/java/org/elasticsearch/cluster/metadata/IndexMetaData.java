@@ -74,28 +74,56 @@ public class IndexMetaData {
         return index;
     }
 
+    public String getIndex() {
+        return index();
+    }
+
     public int numberOfShards() {
         return settings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1);
+    }
+
+    public int getNumberOfShards() {
+        return numberOfShards();
     }
 
     public int numberOfReplicas() {
         return settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1);
     }
 
+    public int getNumberOfReplicas() {
+        return numberOfReplicas();
+    }
+
     public int totalNumberOfShards() {
         return totalNumberOfShards;
+    }
+
+    public int getTotalNumberOfShards() {
+        return totalNumberOfShards();
     }
 
     public Settings settings() {
         return settings;
     }
 
+    public Settings getSettings() {
+        return settings();
+    }
+
     public ImmutableSet<String> aliases() {
         return this.aliases;
     }
 
+    public ImmutableSet<String> getAliases() {
+        return aliases();
+    }
+
     public ImmutableMap<String, String> mappings() {
         return mappings;
+    }
+
+    public ImmutableMap<String, String> getMappings() {
+        return mappings();
     }
 
     public String mapping(String mappingType) {

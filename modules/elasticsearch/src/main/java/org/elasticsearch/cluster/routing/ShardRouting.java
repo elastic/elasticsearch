@@ -34,7 +34,11 @@ public interface ShardRouting extends Streamable, Serializable {
 
     String index();
 
+    String getIndex();
+
     int id();
+
+    int getId();
 
     boolean unassigned();
 

@@ -50,6 +50,14 @@ public class CreateIndexResponse implements ActionResponse, Streamable {
         return acknowledged;
     }
 
+    /**
+     * Has the index creation been acknowledged by all current cluster nodes within the
+     * provided {@link CreateIndexRequest#timeout(org.elasticsearch.util.TimeValue)}.
+     */
+    public boolean getAcknowledged() {
+        return acknowledged();
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         acknowledged = in.readBoolean();
     }

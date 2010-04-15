@@ -47,12 +47,24 @@ public class ShardStatus extends BroadcastShardOperationResponse {
             return numDocs;
         }
 
+        public int getNumDocs() {
+            return numDocs();
+        }
+
         public int maxDoc() {
             return maxDoc;
         }
 
+        public int getMaxDoc() {
+            return maxDoc();
+        }
+
         public int deletedDocs() {
             return deletedDocs;
+        }
+
+        public int getDeletedDocs() {
+            return deletedDocs();
         }
     }
 
@@ -82,28 +94,56 @@ public class ShardStatus extends BroadcastShardOperationResponse {
         return this.shardRouting;
     }
 
+    public ShardRouting getShardRouting() {
+        return shardRouting();
+    }
+
     public IndexShardState state() {
         return state;
+    }
+
+    public IndexShardState getState() {
+        return state();
     }
 
     public SizeValue storeSize() {
         return storeSize;
     }
 
+    public SizeValue getStoreSize() {
+        return storeSize();
+    }
+
     public SizeValue estimatedFlushableMemorySize() {
         return estimatedFlushableMemorySize;
+    }
+
+    public SizeValue getEstimatedFlushableMemorySize() {
+        return estimatedFlushableMemorySize();
     }
 
     public long translogId() {
         return translogId;
     }
 
+    public long getTranslogId() {
+        return translogId();
+    }
+
     public long translogOperations() {
         return translogOperations;
     }
 
+    public long getTranslogOperations() {
+        return translogOperations();
+    }
+
     public Docs docs() {
         return docs;
+    }
+
+    public Docs getDocs() {
+        return docs();
     }
 
     public static ShardStatus readIndexShardStatus(StreamInput in) throws IOException {

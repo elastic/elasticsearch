@@ -64,7 +64,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
 
         // create a mapping
         PutMappingResponse putMappingResponse = client("server1").admin().indices().putMapping(putMappingRequest("test").type("type1")
-                .mappingSource(mappingSource())).actionGet();
+                .source(mappingSource())).actionGet();
         assertThat(putMappingResponse.acknowledged(), equalTo(true));
 
         // verify that mapping is there

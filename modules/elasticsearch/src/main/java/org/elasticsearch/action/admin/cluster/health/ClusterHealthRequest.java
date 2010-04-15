@@ -55,8 +55,9 @@ public class ClusterHealthRequest extends MasterNodeOperationRequest {
         return indices;
     }
 
-    void indices(String[] indices) {
+    public ClusterHealthRequest indices(String[] indices) {
         this.indices = indices;
+        return this;
     }
 
     public TimeValue timeout() {

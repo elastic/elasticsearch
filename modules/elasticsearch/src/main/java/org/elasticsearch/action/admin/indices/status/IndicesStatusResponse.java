@@ -65,8 +65,20 @@ public class IndicesStatusResponse extends BroadcastOperationResponse {
         return this.shards;
     }
 
+    public ShardStatus[] getShards() {
+        return this.shards;
+    }
+
+    public ShardStatus getAt(int position) {
+        return shards[position];
+    }
+
     public IndexStatus index(String index) {
         return indices().get(index);
+    }
+
+    public Map<String, IndexStatus> getIndices() {
+        return indices();
     }
 
     public Map<String, IndexStatus> indices() {

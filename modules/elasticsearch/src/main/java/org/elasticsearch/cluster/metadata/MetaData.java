@@ -127,11 +127,19 @@ public class MetaData implements Iterable<IndexMetaData> {
         return this.aliases;
     }
 
+    public ImmutableSet<String> getAliases() {
+        return aliases();
+    }
+
     /**
      * Returns all the concrete indices.
      */
     public String[] concreteAllIndices() {
         return allIndices;
+    }
+
+    public String[] getConcreteAllIndices() {
+        return concreteAllIndices();
     }
 
     /**
@@ -195,12 +203,24 @@ public class MetaData implements Iterable<IndexMetaData> {
         return this.indices;
     }
 
+    public ImmutableMap<String, IndexMetaData> getIndices() {
+        return indices();
+    }
+
     public int maxNumberOfShardsPerNode() {
         return this.maxNumberOfShardsPerNode;
     }
 
+    public int getMaxNumberOfShardsPerNode() {
+        return maxNumberOfShardsPerNode();
+    }
+
     public int totalNumberOfShards() {
         return this.totalNumberOfShards;
+    }
+
+    public int getTotalNumberOfShards() {
+        return totalNumberOfShards();
     }
 
     @Override public UnmodifiableIterator<IndexMetaData> iterator() {

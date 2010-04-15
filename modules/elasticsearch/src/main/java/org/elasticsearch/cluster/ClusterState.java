@@ -60,20 +60,40 @@ public class ClusterState {
         return this.version;
     }
 
+    public long getVersion() {
+        return version();
+    }
+
     public DiscoveryNodes nodes() {
         return this.nodes;
+    }
+
+    public DiscoveryNodes getNodes() {
+        return nodes();
     }
 
     public MetaData metaData() {
         return this.metaData;
     }
 
+    public MetaData getMetaData() {
+        return metaData();
+    }
+
     public RoutingTable routingTable() {
         return routingTable;
     }
 
+    public RoutingTable getRoutingTable() {
+        return routingTable();
+    }
+
     public RoutingNodes routingNodes() {
         return routingTable.routingNodes(metaData);
+    }
+
+    public RoutingNodes getRoutingNodes() {
+        return readOnlyRoutingNodes();
     }
 
     /**

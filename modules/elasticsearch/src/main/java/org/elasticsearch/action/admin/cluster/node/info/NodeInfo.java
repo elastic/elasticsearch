@@ -31,7 +31,7 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class NodeInfo extends NodeOperationResponse {
 
@@ -56,8 +56,16 @@ public class NodeInfo extends NodeOperationResponse {
         return this.attributes;
     }
 
+    public ImmutableMap<String, String> getAttributes() {
+        return attributes();
+    }
+
     public Settings settings() {
         return this.settings;
+    }
+
+    public Settings getSettings() {
+        return settings();
     }
 
     public static NodeInfo readNodeInfo(StreamInput in) throws IOException {

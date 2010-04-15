@@ -30,7 +30,7 @@ import java.util.Map;
 import static com.google.common.collect.Lists.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class IndexStatus implements Iterable<IndexShardStatus> {
 
@@ -45,12 +45,24 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
             return numDocs;
         }
 
+        public long getNumDocs() {
+            return numDocs();
+        }
+
         public long maxDoc() {
             return maxDoc;
         }
 
+        public long getMaxDoc() {
+            return maxDoc();
+        }
+
         public long deletedDocs() {
             return deletedDocs;
+        }
+
+        public long getDeletedDocs() {
+            return deletedDocs();
         }
     }
 
@@ -83,6 +95,10 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
         return this.index;
     }
 
+    public String getIndex() {
+        return index();
+    }
+
     /**
      * A shard id to index shard status map (note, index shard status is the replication shard group that maps
      * to the shard id).
@@ -91,8 +107,16 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
         return this.indexShards;
     }
 
+    public Map<Integer, IndexShardStatus> getShards() {
+        return shards();
+    }
+
     public Settings settings() {
         return this.settings;
+    }
+
+    public Settings getSettings() {
+        return settings();
     }
 
     public SizeValue storeSize() {
@@ -111,6 +135,10 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
         return new SizeValue(bytes);
     }
 
+    public SizeValue getStoreSize() {
+        return storeSize();
+    }
+
     public SizeValue estimatedFlushableMemorySize() {
         long bytes = -1;
         for (IndexShardStatus shard : this) {
@@ -127,6 +155,10 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
         return new SizeValue(bytes);
     }
 
+    public SizeValue getEstimatedFlushableMemorySize() {
+        return estimatedFlushableMemorySize();
+    }
+
     public long translogOperations() {
         long translogOperations = -1;
         for (IndexShardStatus shard : this) {
@@ -138,6 +170,10 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
             }
         }
         return translogOperations;
+    }
+
+    public long getTranslogOperations() {
+        return translogOperations();
     }
 
     public Docs docs() {
@@ -163,6 +199,10 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
             }
         }
         return docs;
+    }
+
+    public Docs getDocs() {
+        return docs();
     }
 
     @Override public Iterator<IndexShardStatus> iterator() {

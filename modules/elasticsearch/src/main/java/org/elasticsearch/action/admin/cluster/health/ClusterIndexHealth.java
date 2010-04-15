@@ -69,36 +69,72 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
         return index;
     }
 
+    public String getIndex() {
+        return index();
+    }
+
     public List<String> validationFailures() {
         return this.validationFailures;
+    }
+
+    public List<String> getValidationFailures() {
+        return validationFailures();
     }
 
     public int numberOfShards() {
         return numberOfShards;
     }
 
+    public int getNumberOfShards() {
+        return numberOfShards();
+    }
+
     public int numberOfReplicas() {
         return numberOfReplicas;
+    }
+
+    public int getNumberOfReplicas() {
+        return numberOfReplicas();
     }
 
     public int activeShards() {
         return activeShards;
     }
 
+    public int getActiveShards() {
+        return activeShards();
+    }
+
     public int relocatingShards() {
         return relocatingShards;
+    }
+
+    public int getRelocatingShards() {
+        return relocatingShards();
     }
 
     public int activePrimaryShards() {
         return activePrimaryShards;
     }
 
+    public int getActivePrimaryShards() {
+        return activePrimaryShards();
+    }
+
     public ClusterHealthStatus status() {
         return status;
     }
 
+    public ClusterHealthStatus getStatus() {
+        return status();
+    }
+
     public Map<Integer, ClusterShardHealth> shards() {
         return this.shards;
+    }
+
+    public Map<Integer, ClusterShardHealth> getShards() {
+        return shards();
     }
 
     @Override public Iterator<ClusterShardHealth> iterator() {

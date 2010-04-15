@@ -55,6 +55,10 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
         return this.index;
     }
 
+    public String getIndex() {
+        return index();
+    }
+
     public void validate(RoutingTableValidation validation, MetaData metaData) {
         if (!metaData.hasIndex(index())) {
             validation.addIndexFailure(index(), "Exists in routing does not exists in metadata");
@@ -88,6 +92,10 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
 
     public ImmutableMap<Integer, IndexShardRoutingTable> shards() {
         return shards;
+    }
+
+    public ImmutableMap<Integer, IndexShardRoutingTable> getShards() {
+        return shards();
     }
 
     public IndexShardRoutingTable shard(int shardId) {

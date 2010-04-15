@@ -50,6 +50,14 @@ public class DeleteIndexResponse implements ActionResponse, Streamable {
         return acknowledged;
     }
 
+    /**
+     * Has the index deletion been acknowledged by all current cluster nodes within the
+     * provided {@link DeleteIndexRequest#timeout(org.elasticsearch.util.TimeValue)}.
+     */
+    public boolean getAcknowledged() {
+        return acknowledged();
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         acknowledged = in.readBoolean();
     }

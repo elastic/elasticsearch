@@ -65,7 +65,7 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
         request.indices(clusterState.metaData().concreteIndices(request.indices()));
         final String[] indices = request.indices();
 
-        MetaDataService.PutMappingResult result = metaDataService.putMapping(indices, request.type(), request.mappingSource(), request.ignoreConflicts(), request.timeout());
+        MetaDataService.PutMappingResult result = metaDataService.putMapping(indices, request.type(), request.source(), request.ignoreConflicts(), request.timeout());
         return new PutMappingResponse(result.acknowledged());
     }
 }

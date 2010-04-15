@@ -57,10 +57,24 @@ public class IndexGatewaySnapshotResponse implements ActionResponse, Streamable 
     }
 
     /**
+     * The index the gateway snapshot has performed on.
+     */
+    public String getIndex() {
+        return index();
+    }
+
+    /**
      * The number of successful shards the gateway snapshot operation was performed on.
      */
     public int successfulShards() {
         return successfulShards;
+    }
+
+    /**
+     * The number of successful shards the gateway snapshot operation was performed on.
+     */
+    public int getSuccessfulShards() {
+        return successfulShards();
     }
 
     /**
@@ -71,10 +85,24 @@ public class IndexGatewaySnapshotResponse implements ActionResponse, Streamable 
     }
 
     /**
+     * The number of failed shards the gateway snapshot operation was performed on.
+     */
+    public int getFailedShards() {
+        return failedShards();
+    }
+
+    /**
      * The number of total shards the gateway snapshot operation was performed on.
      */
     public int totalShards() {
         return successfulShards + failedShards;
+    }
+
+    /**
+     * The number of total shards the gateway snapshot operation was performed on.
+     */
+    public int getTotalShards() {
+        return totalShards();
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {

@@ -48,6 +48,10 @@ public class Index implements Serializable, Streamable {
         return this.name;
     }
 
+    public String getName() {
+        return name();
+    }
+
     @Override public String toString() {
         return "Index [" + name + "]";
     }

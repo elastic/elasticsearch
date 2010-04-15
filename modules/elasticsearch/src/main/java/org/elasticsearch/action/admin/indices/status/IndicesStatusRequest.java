@@ -24,7 +24,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.util.Strings;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class IndicesStatusRequest extends BroadcastOperationRequest {
 

@@ -67,6 +67,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
         return indicesRouting;
     }
 
+    public Map<String, IndexRoutingTable> getIndicesRouting() {
+        return indicesRouting();
+    }
+
     public RoutingNodes routingNodes(MetaData metaData) {
         return new RoutingNodes(metaData, this);
     }

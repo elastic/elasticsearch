@@ -54,6 +54,13 @@ public class GatewaySnapshotResponse implements ActionResponse, Streamable, Iter
     }
 
     /**
+     * A map of index level responses of the gateway snapshot operation.
+     */
+    public Map<String, IndexGatewaySnapshotResponse> getIndices() {
+        return indices();
+    }
+
+    /**
      * The index level gateway snapshot response for the given index.
      */
     public IndexGatewaySnapshotResponse index(String index) {

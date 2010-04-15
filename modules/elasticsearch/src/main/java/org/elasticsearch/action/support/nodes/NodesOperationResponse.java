@@ -52,8 +52,20 @@ public abstract class NodesOperationResponse<NodeResponse extends NodeOperationR
         return this.clusterName;
     }
 
+    public String getClusterName() {
+        return clusterName().value();
+    }
+
     public NodeResponse[] nodes() {
         return nodes;
+    }
+
+    public NodeResponse[] getNodes() {
+        return nodes();
+    }
+
+    public NodeResponse getAt(int position) {
+        return nodes[position];
     }
 
     @Override public Iterator<NodeResponse> iterator() {
@@ -68,6 +80,10 @@ public abstract class NodesOperationResponse<NodeResponse extends NodeOperationR
             }
         }
         return nodesMap;
+    }
+
+    public Map<String, NodeResponse> getNodesMap() {
+        return nodesMap();
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {

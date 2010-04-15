@@ -47,8 +47,16 @@ public abstract class BroadcastShardOperationResponse implements Streamable {
         return this.index;
     }
 
+    public String getIndex() {
+        return index();
+    }
+
     public int shardId() {
         return this.shardId;
+    }
+
+    public int getShardId() {
+        return shardId();
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {

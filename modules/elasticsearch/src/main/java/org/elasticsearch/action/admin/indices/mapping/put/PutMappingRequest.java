@@ -112,16 +112,16 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
     /**
      * The mapping source definition.
      */
-    String mappingSource() {
+    String source() {
         return mappingSource;
     }
 
     /**
      * The mapping source definition.
      */
-    @Required public PutMappingRequest mappingSource(JsonBuilder mappingBuilder) {
+    @Required public PutMappingRequest source(JsonBuilder mappingBuilder) {
         try {
-            return mappingSource(mappingBuilder.string());
+            return source(mappingBuilder.string());
         } catch (IOException e) {
             throw new ElasticSearchIllegalArgumentException("Failed to build json for mapping request", e);
         }
@@ -130,7 +130,7 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
     /**
      * The mapping source definition.
      */
-    @Required public PutMappingRequest mappingSource(String mappingSource) {
+    @Required public PutMappingRequest source(String mappingSource) {
         this.mappingSource = mappingSource;
         return this;
     }

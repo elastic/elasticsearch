@@ -57,8 +57,16 @@ public class ShardId implements Serializable, Streamable {
         return this.index;
     }
 
+    public String getIndex() {
+        return index().name();
+    }
+
     public int id() {
         return this.shardId;
+    }
+
+    public int getId() {
+        return id();
     }
 
     @Override public String toString() {

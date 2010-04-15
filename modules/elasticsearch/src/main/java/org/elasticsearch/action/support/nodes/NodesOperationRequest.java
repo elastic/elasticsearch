@@ -59,6 +59,11 @@ public abstract class NodesOperationRequest implements ActionRequest {
         return nodesIds;
     }
 
+    public NodesOperationRequest nodesIds(String... nodesIds) {
+        this.nodesIds = nodesIds;
+        return this;
+    }
+
     @Override public ActionRequestValidationException validate() {
         return null;
     }

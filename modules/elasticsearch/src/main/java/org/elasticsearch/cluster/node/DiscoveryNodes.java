@@ -83,12 +83,24 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
         return nodes.size();
     }
 
+    public int getSize() {
+        return size();
+    }
+
     public ImmutableMap<String, DiscoveryNode> nodes() {
         return this.nodes;
     }
 
+    public ImmutableMap<String, DiscoveryNode> getNodes() {
+        return nodes();
+    }
+
     public ImmutableMap<String, DiscoveryNode> dataNodes() {
         return this.dataNodes;
+    }
+
+    public ImmutableMap<String, DiscoveryNode> getDataNodes() {
+        return dataNodes();
     }
 
     public DiscoveryNode get(String nodeId) {
@@ -103,16 +115,32 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
         return this.masterNodeId;
     }
 
+    public String getMasterNodeId() {
+        return masterNodeId();
+    }
+
     public String localNodeId() {
         return this.localNodeId;
+    }
+
+    public String getLocalNodeId() {
+        return localNodeId();
     }
 
     public DiscoveryNode localNode() {
         return nodes.get(localNodeId);
     }
 
+    public DiscoveryNode getLocalNode() {
+        return localNode();
+    }
+
     public DiscoveryNode masterNode() {
         return nodes.get(masterNodeId);
+    }
+
+    public DiscoveryNode getMasterNode() {
+        return masterNode();
     }
 
     public DiscoveryNodes removeDeadMembers(Set<String> newNodes, String masterNodeId) {

@@ -73,8 +73,16 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         return this.index;
     }
 
+    @Override public String getIndex() {
+        return index();
+    }
+
     @Override public int id() {
         return this.shardId;
+    }
+
+    @Override public int getId() {
+        return id();
     }
 
     @Override public boolean unassigned() {

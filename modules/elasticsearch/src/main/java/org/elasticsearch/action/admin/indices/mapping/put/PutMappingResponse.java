@@ -51,6 +51,14 @@ public class PutMappingResponse implements ActionResponse, Streamable {
         return acknowledged;
     }
 
+    /**
+     * Has the put mapping creation been acknowledged by all current cluster nodes within the
+     * provided {@link PutMappingRequest#timeout(org.elasticsearch.util.TimeValue)}.
+     */
+    public boolean getAcknowledged() {
+        return acknowledged();
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         acknowledged = in.readBoolean();
     }

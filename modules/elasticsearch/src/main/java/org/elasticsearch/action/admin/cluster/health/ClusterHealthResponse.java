@@ -66,11 +66,22 @@ public class ClusterHealthResponse implements ActionResponse, Iterable<ClusterIn
         return clusterName;
     }
 
+    public String getClusterName() {
+        return clusterName();
+    }
+
     /**
      * The validation failures on the cluster level (without index validation failures).
      */
     public List<String> validationFailures() {
         return this.validationFailures;
+    }
+
+    /**
+     * The validation failures on the cluster level (without index validation failures).
+     */
+    public List<String> getValidationFailures() {
+        return validationFailures();
     }
 
     /**
@@ -84,17 +95,36 @@ public class ClusterHealthResponse implements ActionResponse, Iterable<ClusterIn
         return allFailures;
     }
 
+    /**
+     * All the validation failures, including index level validation failures.
+     */
+    public List<String> getAllValidationFailures() {
+        return allValidationFailures();
+    }
+
 
     public int activeShards() {
         return activeShards;
+    }
+
+    public int getActiveShards() {
+        return activeShards();
     }
 
     public int relocatingShards() {
         return relocatingShards;
     }
 
+    public int getRelocatingShards() {
+        return relocatingShards();
+    }
+
     public int activePrimaryShards() {
         return activePrimaryShards;
+    }
+
+    public int getActivePrimaryShards() {
+        return activePrimaryShards();
     }
 
     /**
@@ -104,12 +134,24 @@ public class ClusterHealthResponse implements ActionResponse, Iterable<ClusterIn
         return this.timedOut;
     }
 
+    public boolean isTimedOut() {
+        return this.timedOut();
+    }
+
     public ClusterHealthStatus status() {
         return status;
     }
 
+    public ClusterHealthStatus getStatus() {
+        return status();
+    }
+
     public Map<String, ClusterIndexHealth> indices() {
         return indices;
+    }
+
+    public Map<String, ClusterIndexHealth> getIndices() {
+        return indices();
     }
 
     @Override public Iterator<ClusterIndexHealth> iterator() {

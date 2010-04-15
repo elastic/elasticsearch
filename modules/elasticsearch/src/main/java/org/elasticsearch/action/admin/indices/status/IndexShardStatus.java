@@ -26,7 +26,7 @@ import org.elasticsearch.util.SizeValue;
 import java.util.Iterator;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class IndexShardStatus implements Iterable<ShardStatus> {
 
@@ -41,12 +41,24 @@ public class IndexShardStatus implements Iterable<ShardStatus> {
             return numDocs;
         }
 
+        public int getNumDocs() {
+            return numDocs;
+        }
+
         public int maxDoc() {
             return maxDoc;
         }
 
+        public int getMaxDoc() {
+            return maxDoc();
+        }
+
         public int deletedDocs() {
             return deletedDocs;
+        }
+
+        public int getDeletedDocs() {
+            return deletedDocs();
         }
     }
 
@@ -63,8 +75,20 @@ public class IndexShardStatus implements Iterable<ShardStatus> {
         return this.shardId;
     }
 
+    public ShardId getShardId() {
+        return shardId();
+    }
+
     public ShardStatus[] shards() {
         return this.shards;
+    }
+
+    public ShardStatus[] getShards() {
+        return shards();
+    }
+
+    public ShardStatus getAt(int position) {
+        return shards[position];
     }
 
     public SizeValue storeSize() {
@@ -83,6 +107,10 @@ public class IndexShardStatus implements Iterable<ShardStatus> {
         return new SizeValue(bytes);
     }
 
+    public SizeValue getStoreSize() {
+        return storeSize();
+    }
+
     public SizeValue estimatedFlushableMemorySize() {
         long bytes = -1;
         for (ShardStatus shard : shards()) {
@@ -99,6 +127,10 @@ public class IndexShardStatus implements Iterable<ShardStatus> {
         return new SizeValue(bytes);
     }
 
+    public SizeValue getEstimatedFlushableMemorySize() {
+        return estimatedFlushableMemorySize();
+    }
+
     public long translogOperations() {
         long translogOperations = -1;
         for (ShardStatus shard : shards()) {
@@ -110,6 +142,10 @@ public class IndexShardStatus implements Iterable<ShardStatus> {
             }
         }
         return translogOperations;
+    }
+
+    public long getTranslogOperations() {
+        return translogOperations();
     }
 
     public Docs docs() {
@@ -139,6 +175,10 @@ public class IndexShardStatus implements Iterable<ShardStatus> {
             }
         }
         return docs;
+    }
+
+    public Docs getDocs() {
+        return docs();
     }
 
     @Override public Iterator<ShardStatus> iterator() {

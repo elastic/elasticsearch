@@ -26,6 +26,7 @@ import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
@@ -120,6 +121,14 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
      */
     public CreateIndexRequest settings(Settings.Builder settings) {
         this.settings = settings.build();
+        return this;
+    }
+
+    /**
+     * The settings to crete the index with (either json/yaml/properties format)
+     */
+    public CreateIndexRequest settings(String source) {
+        this.settings = ImmutableSettings.settingsBuilder().loadFromSource(source).build();
         return this;
     }
 

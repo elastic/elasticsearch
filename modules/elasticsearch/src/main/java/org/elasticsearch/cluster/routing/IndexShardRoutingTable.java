@@ -55,6 +55,10 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return shardId;
     }
 
+    public ShardId getShardId() {
+        return shardId();
+    }
+
     @Override public UnmodifiableIterator<ShardRouting> iterator() {
         return shards.iterator();
     }
@@ -63,8 +67,16 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return shards.size();
     }
 
+    public int getSize() {
+        return size();
+    }
+
     public ImmutableList<ShardRouting> shards() {
         return shards;
+    }
+
+    public ImmutableList<ShardRouting> getShards() {
+        return shards();
     }
 
     public ShardsIterator shardsIt() {

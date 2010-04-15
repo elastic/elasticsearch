@@ -44,6 +44,10 @@ public class ClusterStateResponse implements ActionResponse {
         return this.clusterState;
     }
 
+    public ClusterState getState() {
+        return state();
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         clusterState = ClusterState.Builder.readFrom(in, null, null);
     }

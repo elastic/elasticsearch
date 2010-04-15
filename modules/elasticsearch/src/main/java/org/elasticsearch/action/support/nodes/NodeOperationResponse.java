@@ -44,6 +44,10 @@ public abstract class NodeOperationResponse implements Streamable {
         return node;
     }
 
+    public DiscoveryNode getNode() {
+        return node();
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         node = DiscoveryNode.readNode(in);
     }

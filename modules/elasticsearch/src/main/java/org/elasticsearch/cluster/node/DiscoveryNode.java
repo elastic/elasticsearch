@@ -71,10 +71,24 @@ public class DiscoveryNode implements Streamable, Serializable {
     }
 
     /**
+     * The address that the node can be communicated with.
+     */
+    public TransportAddress getAddress() {
+        return address();
+    }
+
+    /**
      * The unique id of the node.
      */
     public String id() {
         return nodeId;
+    }
+
+    /**
+     * The unique id of the node.
+     */
+    public String getId() {
+        return id();
     }
 
     /**
@@ -85,10 +99,24 @@ public class DiscoveryNode implements Streamable, Serializable {
     }
 
     /**
+     * The name of the node.
+     */
+    public String getName() {
+        return name();
+    }
+
+    /**
      * Should this node hold data (shards) or not.
      */
     public boolean dataNode() {
         return dataNode;
+    }
+
+    /**
+     * Should this node hold data (shards) or not.
+     */
+    public boolean isDataNode() {
+        return dataNode();
     }
 
     public static DiscoveryNode readNode(StreamInput in) throws IOException {

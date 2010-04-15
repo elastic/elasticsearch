@@ -21,8 +21,6 @@ package org.elasticsearch.util.path;
 
 import com.google.common.collect.ImmutableMap;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -135,7 +133,7 @@ public class PathTrie<T> {
             return namedWildcard != null;
         }
 
-        public T retrieve(String[] path, int index, Map<String, List<String>> params) {
+        public T retrieve(String[] path, int index, Map<String, String> params) {
             if (index >= path.length)
                 return null;
 
@@ -191,7 +189,7 @@ public class PathTrie<T> {
         return retrieve(path, null);
     }
 
-    public T retrieve(String path, Map<String, List<String>> params) {
+    public T retrieve(String path, Map<String, String> params) {
         if (path.length() == 0) {
             return rootValue;
         }
@@ -207,12 +205,7 @@ public class PathTrie<T> {
         return root.retrieve(strings, index, params);
     }
 
-    private static void put(Map<String, List<String>> params, String key, String value) {
-        List<String> list = params.get(key);
-        if (list == null) {
-            list = new ArrayList<String>(1);
-            params.put(key, list);
-        }
-        list.add(value);
+    private static void put(Map<String, String> params, String key, String value) {
+        params.put(key, value);
     }
 }

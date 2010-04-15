@@ -36,7 +36,6 @@ import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.rest.RestRequest.Method.*;
@@ -173,10 +172,6 @@ public class RestSearchAction extends BaseRestHandler {
         searchSourceBuilder.queryParserName(request.param("query_parser_name"));
         searchSourceBuilder.explain(request.paramAsBoolean("explain", null));
 
-        List<String> fields = request.params("field");
-        if (fields != null && !fields.isEmpty()) {
-            searchSourceBuilder.fields(fields);
-        }
         String sField = request.param("fields");
         if (sField != null) {
             String[] sFields = fieldsPattern.split(sField);
@@ -187,8 +182,9 @@ public class RestSearchAction extends BaseRestHandler {
             }
         }
 
-        List<String> sorts = request.params("sort");
-        if (sorts != null && !sorts.isEmpty()) {
+        String sSorts = request.param("sort");
+        if (sSorts != null) {
+            String[] sorts = fieldsPattern.split(sSorts);
             for (String sort : sorts) {
                 int delimiter = sort.lastIndexOf(":");
                 if (delimiter != -1) {

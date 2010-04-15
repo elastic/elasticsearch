@@ -98,7 +98,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         transport.close();
     }
 
-    private void internalDispatchRequest(final HttpRequest request, final HttpChannel channel) {
+    void internalDispatchRequest(final HttpRequest request, final HttpChannel channel) {
         final HttpServerHandler httpHandler = getHandler(request);
         if (httpHandler == null) {
             restController.dispatchRequest(request, channel);
@@ -148,13 +148,6 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
     }
 
     private String getPath(HttpRequest request) {
-        String uri = request.uri();
-        int questionMarkIndex = uri.indexOf('?');
-        if (questionMarkIndex == -1) {
-            return uri;
-        }
-        return uri.substring(0, questionMarkIndex);
+        return request.path();
     }
-
-
 }

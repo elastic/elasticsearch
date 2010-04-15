@@ -45,9 +45,9 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     private final ThreadPool threadPool;
 
-    private final ConcurrentMap<String, TransportRequestHandler> serverHandlers = newConcurrentMap();
+    final ConcurrentMap<String, TransportRequestHandler> serverHandlers = newConcurrentMap();
 
-    private final NonBlockingHashMapLong<TransportResponseHandler> clientHandlers = new NonBlockingHashMapLong<TransportResponseHandler>();
+    final NonBlockingHashMapLong<TransportResponseHandler> clientHandlers = new NonBlockingHashMapLong<TransportResponseHandler>();
 
     final AtomicLong requestIds = new AtomicLong();
 

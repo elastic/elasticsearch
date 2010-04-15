@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.index;
 
-import com.google.common.collect.ImmutableList;
 import com.google.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
@@ -49,7 +48,7 @@ public class RestIndexAction extends BaseRestHandler {
 
     final class CreateHandler implements RestHandler {
         @Override public void handleRequest(RestRequest request, RestChannel channel) {
-            request.params().put("op_type", ImmutableList.of("create"));
+            request.params().put("op_type", "create");
             RestIndexAction.this.handleRequest(request, channel);
         }
     }

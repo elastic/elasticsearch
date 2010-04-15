@@ -30,10 +30,8 @@ import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.regex.Pattern;
 
-import static com.google.common.collect.Lists.*;
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
 import static org.elasticsearch.rest.action.support.RestJsonBuilder.*;
@@ -62,21 +60,12 @@ public class RestGetAction extends BaseRestHandler {
         getRequest.operationThreaded(true);
 
 
-        List<String> fields = request.params("field");
         String sField = request.param("fields");
         if (sField != null) {
             String[] sFields = fieldsPattern.split(sField);
             if (sFields != null) {
-                if (fields == null) {
-                    fields = newArrayListWithExpectedSize(sField.length());
-                }
-                for (String field : sFields) {
-                    fields.add(field);
-                }
+                getRequest.fields(sFields);
             }
-        }
-        if (fields != null) {
-            getRequest.fields(fields.toArray(new String[fields.size()]));
         }
 
 

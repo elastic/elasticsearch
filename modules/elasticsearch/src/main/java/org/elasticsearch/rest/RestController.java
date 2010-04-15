@@ -106,11 +106,6 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     }
 
     private String getPath(RestRequest request) {
-        String uri = request.uri();
-        int questionMarkIndex = uri.indexOf('?');
-        if (questionMarkIndex == -1) {
-            return uri;
-        }
-        return uri.substring(0, questionMarkIndex);
+        return request.path();
     }
 }

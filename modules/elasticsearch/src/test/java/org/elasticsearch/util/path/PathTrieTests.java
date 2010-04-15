@@ -21,10 +21,9 @@ package org.elasticsearch.util.path;
 
 import org.testng.annotations.Test;
 
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
+import static com.google.common.collect.Maps.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -53,11 +52,11 @@ public class PathTrieTests {
         assertThat(trie.retrieve("a/b/c/d"), nullValue());
         assertThat(trie.retrieve("g/t/x"), equalTo("three"));
 
-        Map<String, List<String>> params = new HashMap<String, List<String>>();
+        Map<String, String> params = newHashMap();
         assertThat(trie.retrieve("index1/insert/12", params), equalTo("bingo"));
         assertThat(params.size(), equalTo(2));
-        assertThat(params.get("index").get(0), equalTo("index1"));
-        assertThat(params.get("docId").get(0), equalTo("12"));
+        assertThat(params.get("index"), equalTo("index1"));
+        assertThat(params.get("docId"), equalTo("12"));
     }
 
     @Test public void testEmptyPath() {

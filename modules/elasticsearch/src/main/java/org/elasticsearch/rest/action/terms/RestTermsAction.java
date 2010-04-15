@@ -33,8 +33,6 @@ import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.rest.RestResponse.Status.*;
@@ -71,20 +69,11 @@ public class RestTermsAction extends BaseRestHandler {
             }
             termsRequest.operationThreading(operationThreading);
 
-            List<String> fields = request.params("field");
             String sField = request.param("fields");
             if (sField != null) {
                 String[] sFields = fieldsPattern.split(sField);
-                if (sFields != null) {
-                    if (fields == null) {
-                        fields = new ArrayList<String>();
-                    }
-                    for (String field : sFields) {
-                        fields.add(field);
-                    }
-                }
+                termsRequest.fields(sFields);
             }
-            termsRequest.fields(fields.toArray(new String[fields.size()]));
 
             termsRequest.from(request.param("from"));
             termsRequest.to(request.param("to"));

@@ -29,7 +29,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public interface RestRequest extends ToJson.Params {
 
@@ -39,7 +39,15 @@ public interface RestRequest extends ToJson.Params {
 
     Method method();
 
+    /**
+     * The uri of the rest request, with the query string.
+     */
     String uri();
+
+    /**
+     * The path part of the URI (without the query string).
+     */
+    String path();
 
     boolean hasContent();
 
@@ -75,7 +83,5 @@ public interface RestRequest extends ToJson.Params {
 
     SizeValue paramAsSize(String key, SizeValue defaultValue);
 
-    List<String> params(String key);
-
-    Map<String, List<String>> params();
+    Map<String, String> params();
 }

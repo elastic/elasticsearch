@@ -41,7 +41,6 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
-import static org.elasticsearch.rest.action.support.RestActions.*;
 import static org.elasticsearch.rest.action.support.RestJsonBuilder.*;
 import static org.elasticsearch.util.TimeValue.*;
 
@@ -122,7 +121,7 @@ public class RestSearchAction extends BaseRestHandler {
         // add extra source based on the request parameters
         searchRequest.extraSource(parseSearchSource(request));
 
-        searchRequest.searchType(parseSearchType(request.param("search_type")));
+        searchRequest.searchType(request.param("search_type"));
 
         String scroll = request.param("scroll");
         if (scroll != null) {

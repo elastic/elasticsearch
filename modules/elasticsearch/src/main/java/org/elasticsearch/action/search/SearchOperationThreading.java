@@ -69,6 +69,13 @@ public enum SearchOperationThreading {
         if (value == null) {
             return defaultValue;
         }
-        return SearchOperationThreading.valueOf(value.toUpperCase());
+        if ("no_threads".equals(value) || "noThreads".equals(value)) {
+            return NO_THREADS;
+        } else if ("single_thread".equals(value) || "singleThread".equals(value)) {
+            return SINGLE_THREAD;
+        } else if ("thread_per_shard".equals(value) || "threadPerShard".equals(value)) {
+            return THREAD_PER_SHARD;
+        }
+        throw new ElasticSearchIllegalArgumentException("No value for search operation threading matching [" + value + "]");
     }
 }

@@ -116,7 +116,7 @@ public class RestTermsAction extends BaseRestHandler {
             termsRequest.size(request.paramAsInt("size", termsRequest.size()));
             termsRequest.prefix(request.param("prefix"));
             termsRequest.regexp(request.param("regexp"));
-            termsRequest.sortType(TermsRequest.SortType.fromString(request.param("sort"), termsRequest.sortType()));
+            termsRequest.sortType(request.param("sort"));
         } catch (Exception e) {
             try {
                 JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);

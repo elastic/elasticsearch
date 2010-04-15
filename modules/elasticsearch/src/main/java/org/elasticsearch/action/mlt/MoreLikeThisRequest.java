@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.mlt;
 
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.Actions;
@@ -334,6 +335,13 @@ public class MoreLikeThisRequest implements ActionRequest {
     public MoreLikeThisRequest searchType(SearchType searchType) {
         this.searchType = searchType;
         return this;
+    }
+
+    /**
+     * The search type of the mlt search query.
+     */
+    public MoreLikeThisRequest searchType(String searchType) throws ElasticSearchIllegalArgumentException {
+        return searchType(SearchType.fromString(searchType));
     }
 
     /**

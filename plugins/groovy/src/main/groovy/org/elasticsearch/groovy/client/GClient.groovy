@@ -30,6 +30,7 @@ import org.elasticsearch.action.get.GetRequest
 import org.elasticsearch.action.get.GetResponse
 import org.elasticsearch.action.index.IndexRequest
 import org.elasticsearch.action.index.IndexResponse
+import org.elasticsearch.action.mlt.MoreLikeThisRequest
 import org.elasticsearch.action.search.SearchRequest
 import org.elasticsearch.action.search.SearchResponse
 import org.elasticsearch.action.terms.TermsRequest
@@ -71,6 +72,13 @@ class GClient {
         }
         SearchRequest.metaClass.source = {Closure c ->
             delegate.source(new JsonBuilder().buildAsBytes(c))
+        }
+
+        MoreLikeThisRequest.metaClass.setSearchSource = {Closure c ->
+            delegate.searchSource(new JsonBuilder().buildAsBytes(c))
+        }
+        MoreLikeThisRequest.metaClass.searchSource = {Closure c ->
+            delegate.searchSource(new JsonBuilder().buildAsBytes(c))
         }
     }
 
@@ -213,5 +221,23 @@ class GClient {
 
     void terms(TermsRequest request, ActionListener<TermsResponse> listener) {
         client.terms(request, listener)
+    }
+
+    GActionFuture<SearchResponse> moreLikeThis(Closure c) {
+        MoreLikeThisRequest request = new MoreLikeThisRequest()
+        c.resolveStrategy = resolveStrategy
+        c.setDelegate request
+        c.call()
+        moreLikeThis(request)
+    }
+
+    GActionFuture<SearchResponse> moreLikeThis(MoreLikeThisRequest request) {
+        GActionFuture<SearchResponse> future = new GActionFuture<SearchResponse>(internalClient.threadPool(), request);
+        client.moreLikeThis(request, future)
+        return future
+    }
+
+    void moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener) {
+        client(request, listener)
     }
 }

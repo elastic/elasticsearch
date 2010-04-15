@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.search.Scroll;
@@ -137,6 +138,14 @@ public class SearchRequest implements ActionRequest {
     }
 
     /**
+     * Sets the string representation of the operation threading model. Can be one of
+     * "no_threads", "single_thread" and "thread_per_shard".
+     */
+    public SearchRequest operationThreading(String operationThreading) {
+        return operationThreading(SearchOperationThreading.fromString(operationThreading, this.operationThreading));
+    }
+
+    /**
      * The document types to execute the search against. Defaults to be executed against
      * all types.
      */
@@ -159,6 +168,15 @@ public class SearchRequest implements ActionRequest {
     public SearchRequest searchType(SearchType searchType) {
         this.searchType = searchType;
         return this;
+    }
+
+    /**
+     * The a string representation search type to execute, defaults to {@link SearchType#DEFAULT}. Can be
+     * one of "dfs_query_then_fetch"/"dfsQueryThenFetch", "dfs_query_and_fetch"/"dfsQueryAndFetch",
+     * "query_then_fetch"/"queryThenFetch", and "query_and_fetch"/"queryAndFetch".
+     */
+    public SearchRequest searchType(String searchType) throws ElasticSearchIllegalArgumentException {
+        return searchType(SearchType.fromString(searchType));
     }
 
     /**

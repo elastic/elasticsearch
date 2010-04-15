@@ -23,6 +23,7 @@ import com.google.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.search.Scroll;
@@ -34,7 +35,6 @@ import java.io.IOException;
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
-import static org.elasticsearch.rest.action.support.RestActions.*;
 import static org.elasticsearch.rest.action.support.RestJsonBuilder.*;
 import static org.elasticsearch.util.TimeValue.*;
 
@@ -63,7 +63,7 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
             mltRequest.maxWordLen(request.paramAsInt("max_word_len", -1));
             mltRequest.boostTerms(request.paramAsFloat("boost_terms", -1));
 
-            mltRequest.searchType(parseSearchType(request.param("search_type")));
+            mltRequest.searchType(SearchType.fromString(request.param("search_type")));
             mltRequest.searchIndices(request.paramAsStringArray("search_indices", null));
             mltRequest.searchTypes(request.paramAsStringArray("search_types", null));
             mltRequest.searchQueryHint(request.param("search_query_hint"));

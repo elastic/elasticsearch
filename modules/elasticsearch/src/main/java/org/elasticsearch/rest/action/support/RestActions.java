@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.support;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.index.query.json.JsonQueryBuilders;
 import org.elasticsearch.index.query.json.QueryStringJsonQueryBuilder;
@@ -62,23 +61,6 @@ public class RestActions {
             builder.endArray();
         }
         builder.endObject();
-    }
-
-    public static SearchType parseSearchType(String searchType) {
-        if (searchType == null) {
-            return SearchType.DEFAULT;
-        }
-        if ("dfs_query_then_fetch".equals(searchType)) {
-            return SearchType.DFS_QUERY_THEN_FETCH;
-        } else if ("dfs_query_and_fetch".equals(searchType)) {
-            return SearchType.DFS_QUERY_AND_FETCH;
-        } else if ("query_then_fetch".equals(searchType)) {
-            return SearchType.QUERY_THEN_FETCH;
-        } else if ("query_and_fetch".equals(searchType)) {
-            return SearchType.QUERY_AND_FETCH;
-        } else {
-            throw new ElasticSearchIllegalArgumentException("No search type for [" + searchType + "]");
-        }
     }
 
     public static byte[] parseQuerySource(RestRequest request) {

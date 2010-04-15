@@ -85,4 +85,26 @@ public enum SearchType {
             throw new ElasticSearchIllegalArgumentException("No search type for [" + id + "]");
         }
     }
+
+    /**
+     * The a string representation search type to execute, defaults to {@link SearchType#DEFAULT}. Can be
+     * one of "dfs_query_then_fetch"/"dfsQueryThenFetch", "dfs_query_and_fetch"/"dfsQueryAndFetch",
+     * "query_then_fetch"/"queryThenFetch", and "query_and_fetch"/"queryAndFetch".
+     */
+    public static SearchType fromString(String searchType) throws ElasticSearchIllegalArgumentException {
+        if (searchType == null) {
+            return SearchType.DEFAULT;
+        }
+        if ("dfs_query_then_fetch".equals(searchType)) {
+            return SearchType.DFS_QUERY_THEN_FETCH;
+        } else if ("dfs_query_and_fetch".equals(searchType)) {
+            return SearchType.DFS_QUERY_AND_FETCH;
+        } else if ("query_then_fetch".equals(searchType)) {
+            return SearchType.QUERY_THEN_FETCH;
+        } else if ("query_and_fetch".equals(searchType)) {
+            return SearchType.QUERY_AND_FETCH;
+        } else {
+            throw new ElasticSearchIllegalArgumentException("No search type for [" + searchType + "]");
+        }
+    }
 }

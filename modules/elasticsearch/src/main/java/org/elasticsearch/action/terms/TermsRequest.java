@@ -371,6 +371,13 @@ public class TermsRequest extends BroadcastOperationRequest {
     }
 
     /**
+     * Sets the string representation of the sort type.
+     */
+    public TermsRequest sortType(String sortType) {
+        return sortType(SortType.fromString(sortType, this.sortType));
+    }
+
+    /**
      * Should the doc frequencies be exact frequencies. Exact frequencies takes into account deletes that
      * have not been merged and cleaned (optimized). Note, when this is set to <tt>true</tt> this operation
      * might be an expensive operation. Defaults to <tt>false</tt>.

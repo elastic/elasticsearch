@@ -96,6 +96,13 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
         return this;
     }
 
+    /**
+     * Controls the operation threading model.
+     */
+    public BroadcastOperationRequest operationThreading(String operationThreading) {
+        return operationThreading(BroadcastOperationThreading.fromString(operationThreading, this.operationThreading));
+    }
+
     @Override public void writeTo(StreamOutput out) throws IOException {
         if (indices == null) {
             out.writeVInt(0);

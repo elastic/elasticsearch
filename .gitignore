@@ -9,3 +9,5 @@ modules/elasticsearch/build/
 modules/test/integration/build/
 modules/test/testng/build/
 modules/benchmark/micro/build/
+plugins/attachments/build
+plugins/groovy/build

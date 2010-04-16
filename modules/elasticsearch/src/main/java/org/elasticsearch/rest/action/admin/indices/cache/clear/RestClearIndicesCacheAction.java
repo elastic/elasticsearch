@@ -46,6 +46,9 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
         super(settings, client);
         controller.registerHandler(POST, "/_cache/clear", this);
         controller.registerHandler(POST, "/{index}/_cache/clear", this);
+
+        controller.registerHandler(GET, "/_cache/clear", this);
+        controller.registerHandler(GET, "/{index}/_cache/clear", this);
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {

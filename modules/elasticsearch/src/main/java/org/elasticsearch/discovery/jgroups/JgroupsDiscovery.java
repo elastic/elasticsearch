@@ -109,7 +109,7 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
             if (System.getProperty("jgroups.bind_addr") == null) {
                 // automatically set the bind address based on ElasticSearch default bindings...
                 try {
-                    InetAddress bindAddress = HostResolver.resultBindHostAddress(null, settings, HostResolver.LOCAL_IP);
+                    InetAddress bindAddress = HostResolver.resolveBindHostAddress(null, settings, HostResolver.LOCAL_IP);
                     if ((bindAddress instanceof Inet4Address && HostResolver.isIPv4()) || (bindAddress instanceof Inet6Address && !HostResolver.isIPv4())) {
                         sysPropsSet.put("jgroups.bind_addr", bindAddress.getHostAddress());
                         System.setProperty("jgroups.bind_addr", bindAddress.getHostAddress());

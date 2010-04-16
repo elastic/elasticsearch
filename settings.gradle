@@ -8,6 +8,7 @@ include 'benchmark-micro'
 
 include 'plugins-attachments'
 include 'plugins-groovy'
+include 'plugins-memcached'
 
 rootProject.name = 'elasticsearch-root'
 rootProject.children.each {project ->

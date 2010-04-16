@@ -17,27 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.http.netty;
+package org.elasticsearch.memcached.netty;
 
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.http.*;
+import org.elasticsearch.http.BindHttpException;
+import org.elasticsearch.memcached.MemcachedServerTransport;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.transport.BindTransportException;
-import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.transport.BoundTransportAddress;
 import org.elasticsearch.util.transport.InetSocketTransportAddress;
-import org.elasticsearch.util.transport.NetworkExceptionHelper;
 import org.elasticsearch.util.transport.PortsRange;
 import org.jboss.netty.bootstrap.ServerBootstrap;
-import org.jboss.netty.channel.*;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelPipeline;
+import org.jboss.netty.channel.ChannelPipelineFactory;
+import org.jboss.netty.channel.Channels;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
-import org.jboss.netty.handler.codec.http.HttpChunkAggregator;
-import org.jboss.netty.handler.codec.http.HttpRequestDecoder;
-import org.jboss.netty.handler.codec.http.HttpResponseEncoder;
-import org.jboss.netty.handler.timeout.ReadTimeoutException;
 import org.jboss.netty.logging.InternalLogger;
 import org.jboss.netty.logging.InternalLoggerFactory;
 import org.jboss.netty.logging.Slf4JLoggerFactory;
@@ -54,17 +53,17 @@ import static org.elasticsearch.util.io.HostResolver.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpServerTransport> implements HttpServerTransport {
+public class NettyMemcachedServerTransport extends AbstractLifecycleComponent<MemcachedServerTransport> implements MemcachedServerTransport {
 
     static {
         InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory() {
             @Override public InternalLogger newInstance(String name) {
-                return super.newInstance(name.replace("org.jboss.netty.", "netty.lib."));
+                return super.newInstance(name.replace("org.jboss.netty.", "netty."));
             }
         });
     }
 
-    private final SizeValue maxContentLength;
+    private final RestController restController;
 
     private final int workerCount;
 
@@ -92,13 +91,12 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     private volatile OpenChannelsHandler serverOpenChannels;
 
-    private volatile HttpServerAdapter httpServerAdapter;
-
-    @Inject public NettyHttpServerTransport(Settings settings) {
+    @Inject public NettyMemcachedServerTransport(Settings settings, RestController restController) {
         super(settings);
-        SizeValue maxContentLength = componentSettings.getAsSize("max_content_length", new SizeValue(100, SizeUnit.MB));
+        this.restController = restController;
+
         this.workerCount = componentSettings.getAsInt("worker_count", Runtime.getRuntime().availableProcessors());
-        this.port = componentSettings.get("port", "9200-9300");
+        this.port = componentSettings.get("port", "11211-11311");
         this.bindHost = componentSettings.get("bind_host");
         this.publishHost = componentSettings.get("publish_host");
         this.tcpNoDelay = componentSettings.getAsBoolean("tcp_no_delay", true);
@@ -106,37 +104,26 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         this.reuseAddress = componentSettings.getAsBoolean("reuse_address", null);
         this.tcpSendBufferSize = componentSettings.getAsSize("tcp_send_buffer_size", null);
         this.tcpReceiveBufferSize = componentSettings.getAsSize("tcp_receive_buffer_size", null);
-
-        // validate max content length
-        if (maxContentLength.bytes() > Integer.MAX_VALUE) {
-            logger.warn("maxContentLength[" + maxContentLength + "] set to high value, resetting it to [100mb]");
-            maxContentLength = new SizeValue(100, SizeUnit.MB);
-        }
-        this.maxContentLength = maxContentLength;
     }
 
-    public void httpServerAdapter(HttpServerAdapter httpServerAdapter) {
-        this.httpServerAdapter = httpServerAdapter;
+    @Override public BoundTransportAddress boundAddress() {
+        return boundAddress;
     }
 
     @Override protected void doStart() throws ElasticSearchException {
         this.serverOpenChannels = new OpenChannelsHandler();
 
         serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory(
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "httpBoss")),
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "httpIoWorker")),
+                Executors.newCachedThreadPool(daemonThreadFactory(settings, "memcachedBoss")),
+                Executors.newCachedThreadPool(daemonThreadFactory(settings, "memcachedIoWorker")),
                 workerCount));
-
-        final HttpRequestHandler requestHandler = new HttpRequestHandler(this);
 
         ChannelPipelineFactory pipelineFactory = new ChannelPipelineFactory() {
             @Override public ChannelPipeline getPipeline() throws Exception {
                 ChannelPipeline pipeline = Channels.pipeline();
                 pipeline.addLast("openChannels", serverOpenChannels);
-                pipeline.addLast("decoder", new HttpRequestDecoder());
-                pipeline.addLast("aggregator", new HttpChunkAggregator((int) maxContentLength.bytes()));
-                pipeline.addLast("encoder", new HttpResponseEncoder());
-                pipeline.addLast("handler", requestHandler);
+                pipeline.addLast("decoder", new TextMemcachedDecoder());
+                pipeline.addLast("dispatcher", new MemcachedDispatcher(restController));
                 return pipeline;
             }
         };
@@ -191,7 +178,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         try {
             InetAddress publishAddressX = resolvePublishHostAddress(publishHost, settings);
             if (publishAddressX == null) {
-                // if its 0.0.0.0, we can't publish that.., default to the local ip address 
+                // if its 0.0.0.0, we can't publish that.., default to the local ip address
                 if (boundAddress.getAddress().isAnyLocalAddress()) {
                     publishAddress = new InetSocketAddress(resolvePublishHostAddress(publishHost, settings, LOCAL_IP), boundAddress.getPort());
                 } else {
@@ -224,30 +211,5 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     }
 
     @Override protected void doClose() throws ElasticSearchException {
-    }
-
-    public BoundTransportAddress boundAddress() {
-        return this.boundAddress;
-    }
-
-    void dispatchRequest(HttpRequest request, HttpChannel channel) {
-        httpServerAdapter.dispatchRequest(request, channel);
-    }
-
-    void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
-        if (e.getCause() instanceof ReadTimeoutException) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("Connection timeout [{}]", ctx.getChannel().getRemoteAddress());
-            }
-            ctx.getChannel().close();
-        } else {
-            if (!lifecycle.started()) {
-                // ignore
-                return;
-            }
-            if (!NetworkExceptionHelper.isCloseConnectionException(e.getCause())) {
-                logger.warn("Caught exception while handling client http traffic", e.getCause());
-            }
-        }
     }
 }

@@ -46,6 +46,9 @@ public class RestOptimizeAction extends BaseRestHandler {
         super(settings, client);
         controller.registerHandler(POST, "/_optimize", this);
         controller.registerHandler(POST, "/{index}/_optimize", this);
+
+        controller.registerHandler(GET, "/_optimize", this);
+        controller.registerHandler(GET, "/{index}/_optimize", this);
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {

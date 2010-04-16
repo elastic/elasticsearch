@@ -233,7 +233,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         // Bind and start to accept incoming connections.
         InetAddress hostAddressX;
         try {
-            hostAddressX = resultBindHostAddress(bindHost, settings);
+            hostAddressX = resolveBindHostAddress(bindHost, settings);
         } catch (IOException e) {
             throw new BindTransportException("Failed to resolve host [" + bindHost + "]", e);
         }
@@ -261,11 +261,11 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         InetSocketAddress boundAddress = (InetSocketAddress) serverChannel.getLocalAddress();
         InetSocketAddress publishAddress;
         try {
-            InetAddress publishAddressX = resultPublishHostAddress(publishHost, settings);
+            InetAddress publishAddressX = resolvePublishHostAddress(publishHost, settings);
             if (publishAddressX == null) {
                 // if its 0.0.0.0, we can't publish that.., default to the local ip address
                 if (boundAddress.getAddress().isAnyLocalAddress()) {
-                    publishAddress = new InetSocketAddress(resultPublishHostAddress(publishHost, settings, LOCAL_IP), boundAddress.getPort());
+                    publishAddress = new InetSocketAddress(resolvePublishHostAddress(publishHost, settings, LOCAL_IP), boundAddress.getPort());
                 } else {
                     publishAddress = boundAddress;
                 }

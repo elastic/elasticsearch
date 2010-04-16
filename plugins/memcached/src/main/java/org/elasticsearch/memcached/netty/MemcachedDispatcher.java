@@ -17,53 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.groovy.node
+package org.elasticsearch.memcached.netty;
 
-import org.elasticsearch.groovy.client.GClient
-import org.elasticsearch.node.Node
+import org.elasticsearch.memcached.MemcachedRestRequest;
+import org.elasticsearch.rest.RestController;
+import org.jboss.netty.channel.ChannelHandlerContext;
+import org.jboss.netty.channel.MessageEvent;
+import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
 
 /**
  * @author kimchy (shay.banon)
  */
-class GNode {
+public class MemcachedDispatcher extends SimpleChannelUpstreamHandler {
 
-    final Node node;
+    private final RestController restController;
 
-    final GClient client;
-
-    def GNode(Node node) {
-        this.node = node;
-        this.client = new GClient(node.client())
+    public MemcachedDispatcher(RestController restController) {
+        this.restController = restController;
     }
 
-    /**
-     * The settings that were used to create the node.
-     */
-    def getSettings() {
-        node.settings();
-    }
-
-    /**
-     * Start the node. If the node is already started, this method is no-op.
-     */
-    def start() {
-        node.start()
-        this
-    }
-
-    /**
-     * Stops the node. If the node is already started, this method is no-op.
-     */
-    def stop() {
-        node.stop()
-        this
-    }
-
-    /**
-     * Closes the node (and   {@link #stop}  s if its running).
-     */
-    def close() {
-        node.close()
-        this
+    @Override public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {
+        MemcachedRestRequest request = (MemcachedRestRequest) e.getMessage();
+        restController.dispatchRequest(request, new MemcachedRestChannel(ctx.getChannel(), request));
+        super.messageReceived(ctx, e);
     }
 }

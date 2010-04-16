@@ -46,6 +46,9 @@ public class RestRefreshAction extends BaseRestHandler {
         super(settings, client);
         controller.registerHandler(POST, "/_refresh", this);
         controller.registerHandler(POST, "/{index}/_refresh", this);
+
+        controller.registerHandler(GET, "/_refresh", this);
+        controller.registerHandler(GET, "/{index}/_refresh", this);
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {

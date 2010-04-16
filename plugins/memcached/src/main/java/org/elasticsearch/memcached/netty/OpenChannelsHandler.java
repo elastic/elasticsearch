@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.http.netty;
+package org.elasticsearch.memcached.netty;
 
 import org.elasticsearch.util.concurrent.highscalelib.NonBlockingHashSet;
 import org.jboss.netty.channel.*;

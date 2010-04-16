@@ -116,7 +116,7 @@ public class JmxService {
                         connectorServer.start();
 
                         // create the publish url
-                        String publishHost = HostResolver.resultPublishHostAddress(settings.get("jmx.publishHost"), settings, LOCAL_IP).getHostAddress();
+                        String publishHost = HostResolver.resolvePublishHostAddress(settings.get("jmx.publishHost"), settings, LOCAL_IP).getHostAddress();
                         publishUrl = settings.get("jmx.publishUrl", JMXRMI_PUBLISH_URI_PATTERN).replace("{jmx.port}", Integer.toString(portNumber)).replace("{jmx.host}", publishHost);
                     } catch (Exception e) {
                         lastException.set(e);

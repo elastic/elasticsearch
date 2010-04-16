@@ -48,6 +48,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
     @Inject public RestCreateIndexAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(RestRequest.Method.PUT, "/{index}", this);
+        controller.registerHandler(RestRequest.Method.POST, "/{index}", this);
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {

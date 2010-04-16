@@ -17,53 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.groovy.node
+package org.elasticsearch.memcached;
 
-import org.elasticsearch.groovy.client.GClient
-import org.elasticsearch.node.Node
+import org.elasticsearch.ElasticSearchException;
 
 /**
  * @author kimchy (shay.banon)
  */
-class GNode {
+public class MemcachedTransportException extends ElasticSearchException {
 
-    final Node node;
-
-    final GClient client;
-
-    def GNode(Node node) {
-        this.node = node;
-        this.client = new GClient(node.client())
+    public MemcachedTransportException(String msg) {
+        super(msg);
     }
 
-    /**
-     * The settings that were used to create the node.
-     */
-    def getSettings() {
-        node.settings();
-    }
-
-    /**
-     * Start the node. If the node is already started, this method is no-op.
-     */
-    def start() {
-        node.start()
-        this
-    }
-
-    /**
-     * Stops the node. If the node is already started, this method is no-op.
-     */
-    def stop() {
-        node.stop()
-        this
-    }
-
-    /**
-     * Closes the node (and   {@link #stop}  s if its running).
-     */
-    def close() {
-        node.close()
-        this
+    public MemcachedTransportException(String msg, Throwable cause) {
+        super(msg, cause);
     }
 }

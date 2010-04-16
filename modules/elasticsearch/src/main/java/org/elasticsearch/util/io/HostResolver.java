@@ -44,19 +44,19 @@ public abstract class HostResolver {
         return System.getProperty("java.net.preferIPv4Stack") != null && System.getProperty("java.net.preferIPv4Stack").equals("true");
     }
 
-    public static InetAddress resultBindHostAddress(String bindHost, Settings settings) throws IOException {
-        return resultBindHostAddress(bindHost, settings, null);
+    public static InetAddress resolveBindHostAddress(String bindHost, Settings settings) throws IOException {
+        return resolveBindHostAddress(bindHost, settings, null);
     }
 
-    public static InetAddress resultBindHostAddress(String bindHost, Settings settings, String defaultValue2) throws IOException {
+    public static InetAddress resolveBindHostAddress(String bindHost, Settings settings, String defaultValue2) throws IOException {
         return resolveInetAddress(bindHost, settings.get(GLOBAL_NETWORK_BINDHOST_SETTING), defaultValue2);
     }
 
-    public static InetAddress resultPublishHostAddress(String publishHost, Settings settings) throws IOException {
-        return resultPublishHostAddress(publishHost, settings, null);
+    public static InetAddress resolvePublishHostAddress(String publishHost, Settings settings) throws IOException {
+        return resolvePublishHostAddress(publishHost, settings, null);
     }
 
-    public static InetAddress resultPublishHostAddress(String publishHost, Settings settings, String defaultValue2) throws IOException {
+    public static InetAddress resolvePublishHostAddress(String publishHost, Settings settings, String defaultValue2) throws IOException {
         return resolveInetAddress(publishHost, settings.get(GLOBAL_NETWORK_PUBLISHHOST_SETTING), defaultValue2);
     }
 

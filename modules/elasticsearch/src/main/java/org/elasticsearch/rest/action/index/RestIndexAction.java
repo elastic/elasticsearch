@@ -43,7 +43,9 @@ public class RestIndexAction extends BaseRestHandler {
         super(settings, client);
         controller.registerHandler(POST, "/{index}/{type}", this); // auto id creation
         controller.registerHandler(PUT, "/{index}/{type}/{id}", this);
+        controller.registerHandler(POST, "/{index}/{type}/{id}", this);
         controller.registerHandler(PUT, "/{index}/{type}/{id}/_create", new CreateHandler());
+        controller.registerHandler(POST, "/{index}/{type}/{id}/_create", new CreateHandler());
     }
 
     final class CreateHandler implements RestHandler {

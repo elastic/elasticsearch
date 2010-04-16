@@ -17,23 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.groovy.client
+package org.elasticsearch.memcached;
+
+import org.elasticsearch.util.component.LifecycleComponent;
+import org.elasticsearch.util.transport.BoundTransportAddress;
 
 /**
  * @author kimchy (shay.banon)
  */
-class GAdminClient {
+public interface MemcachedServerTransport extends LifecycleComponent<MemcachedServerTransport> {
 
-    private final GClient gClient;
-
-    final GIndicesAdminClient indices;
-
-    final GClusterAdminClient cluster;
-
-    def GAdminClient(gClient) {
-        this.gClient = gClient;
-
-        this.indices = new GIndicesAdminClient(gClient)
-        this.cluster = new GClusterAdminClient(gClient)
-    }
+    BoundTransportAddress boundAddress();
 }

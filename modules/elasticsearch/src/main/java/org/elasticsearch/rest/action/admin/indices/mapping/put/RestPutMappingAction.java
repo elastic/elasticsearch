@@ -50,6 +50,9 @@ public class RestPutMappingAction extends BaseRestHandler {
         super(settings, client);
         controller.registerHandler(PUT, "/{index}/_mapping", this);
         controller.registerHandler(PUT, "/{index}/{type}/_mapping", this);
+
+        controller.registerHandler(POST, "/{index}/_mapping", this);
+        controller.registerHandler(POST, "/{index}/{type}/_mapping", this);
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {

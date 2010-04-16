@@ -17,53 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.groovy.node
+package org.elasticsearch.memcached.netty;
 
-import org.elasticsearch.groovy.client.GClient
-import org.elasticsearch.node.Node
+import com.google.inject.AbstractModule;
+import org.elasticsearch.memcached.MemcachedServerTransport;
 
 /**
  * @author kimchy (shay.banon)
  */
-class GNode {
+public class NettyMemcachedServerTransportModule extends AbstractModule {
 
-    final Node node;
-
-    final GClient client;
-
-    def GNode(Node node) {
-        this.node = node;
-        this.client = new GClient(node.client())
-    }
-
-    /**
-     * The settings that were used to create the node.
-     */
-    def getSettings() {
-        node.settings();
-    }
-
-    /**
-     * Start the node. If the node is already started, this method is no-op.
-     */
-    def start() {
-        node.start()
-        this
-    }
-
-    /**
-     * Stops the node. If the node is already started, this method is no-op.
-     */
-    def stop() {
-        node.stop()
-        this
-    }
-
-    /**
-     * Closes the node (and   {@link #stop}  s if its running).
-     */
-    def close() {
-        node.close()
-        this
+    @Override protected void configure() {
+        bind(MemcachedServerTransport.class).to(NettyMemcachedServerTransport.class).asEagerSingleton();
     }
 }

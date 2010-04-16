@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.http.netty;
+package org.elasticsearch.memcached;
 
-import org.elasticsearch.http.HttpRequest;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.rest.support.AbstractRestRequest;
 import org.elasticsearch.rest.support.RestUtils;
-import org.jboss.netty.buffer.ChannelBufferInputStream;
-import org.jboss.netty.handler.codec.http.HttpHeaders;
-import org.jboss.netty.handler.codec.http.HttpMethod;
+import org.elasticsearch.util.Unicode;
+import org.elasticsearch.util.io.FastByteArrayInputStream;
 
 import java.io.InputStream;
 import java.util.HashMap;
@@ -35,19 +35,28 @@ import java.util.Set;
 /**
  * @author kimchy (shay.banon)
  */
-public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest {
+public class MemcachedRestRequest extends AbstractRestRequest {
 
-    private final org.jboss.netty.handler.codec.http.HttpRequest request;
+    private final Method method;
+
+    private final String uri;
+
+    private final int dataSize;
+
+    private boolean binary;
 
     private final Map<String, String> params;
 
     private final String path;
 
-    public NettyHttpRequest(org.jboss.netty.handler.codec.http.HttpRequest request) {
-        this.request = request;
-        this.params = new HashMap<String, String>();
+    private byte[] data;
 
-        String uri = request.getUri();
+    public MemcachedRestRequest(Method method, String uri, int dataSize, boolean binary) {
+        this.method = method;
+        this.uri = uri;
+        this.dataSize = dataSize;
+        this.binary = binary;
+        this.params = new HashMap<String, String>();
         int pathEndPos = uri.indexOf('?');
         if (pathEndPos < 0) {
             this.path = uri;
@@ -58,66 +67,55 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
     }
 
     @Override public Method method() {
-        HttpMethod httpMethod = request.getMethod();
-        if (httpMethod == HttpMethod.GET)
-            return Method.GET;
-
-        if (httpMethod == HttpMethod.POST)
-            return Method.POST;
-
-        if (httpMethod == HttpMethod.PUT)
-            return Method.PUT;
-
-        if (httpMethod == HttpMethod.DELETE)
-            return Method.DELETE;
-
-        return Method.GET;
+        return this.method;
     }
 
     @Override public String uri() {
-        return request.getUri();
+        return this.uri;
     }
 
     @Override public String path() {
-        return path;
+        return this.path;
     }
 
-    @Override public Map<String, String> params() {
-        return params;
+    public int getDataSize() {
+        return dataSize;
+    }
+
+    public void setData(byte[] data) {
+        this.data = data;
     }
 
     @Override public boolean hasContent() {
-        return request.getContent().readableBytes() > 0;
+        return data != null;
     }
 
     @Override public InputStream contentAsStream() {
-        return new ChannelBufferInputStream(request.getContent());
+        return new FastByteArrayInputStream(data);
     }
 
     @Override public byte[] contentAsBytes() {
-        byte[] data = new byte[request.getContent().readableBytes()];
-        request.getContent().getBytes(request.getContent().readerIndex(), data);
         return data;
     }
 
     @Override public String contentAsString() {
-        return request.getContent().toString("UTF-8");
+        return Unicode.fromBytes(data);
     }
 
     @Override public Set<String> headerNames() {
-        return request.getHeaderNames();
+        return ImmutableSet.of();
     }
 
     @Override public String header(String name) {
-        return request.getHeader(name);
+        return null;
     }
 
     @Override public List<String> headers(String name) {
-        return request.getHeaders(name);
+        return ImmutableList.of();
     }
 
     @Override public String cookie() {
-        return request.getHeader(HttpHeaders.Names.COOKIE);
+        return null;
     }
 
     @Override public boolean hasParam(String key) {
@@ -126,5 +124,9 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
 
     @Override public String param(String key) {
         return params.get(key);
+    }
+
+    @Override public Map<String, String> params() {
+        return params;
     }
 }

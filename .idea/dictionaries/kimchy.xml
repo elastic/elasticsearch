@@ -34,10 +34,12 @@
       <w>lifecycle</w>
       <w>linefeeds</w>
       <w>lucene</w>
+      <w>memcached</w>
       <w>metadata</w>
       <w>millis</w>
       <w>mmap</w>
       <w>multi</w>
+      <w>multiline</w>
       <w>nanos</w>
       <w>newcount</w>
       <w>ngram</w>

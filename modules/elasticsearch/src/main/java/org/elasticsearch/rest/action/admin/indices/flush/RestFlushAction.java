@@ -46,6 +46,9 @@ public class RestFlushAction extends BaseRestHandler {
         super(settings, client);
         controller.registerHandler(POST, "/_flush", this);
         controller.registerHandler(POST, "/{index}/_flush", this);
+
+        controller.registerHandler(GET, "/_flush", this);
+        controller.registerHandler(GET, "/{index}/_flush", this);
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {

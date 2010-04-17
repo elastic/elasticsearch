@@ -25,6 +25,7 @@ import org.elasticsearch.util.Unicode;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelHandlerContext;
+import org.jboss.netty.channel.ChannelPipelineCoverage;
 import org.jboss.netty.channel.ExceptionEvent;
 import org.jboss.netty.handler.codec.frame.FrameDecoder;
 
@@ -34,6 +35,7 @@ import java.util.regex.Pattern;
 /**
  * @author kimchy (shay.banon)
  */
+@ChannelPipelineCoverage(ChannelPipelineCoverage.ONE)
 public class MemcachedDecoder extends FrameDecoder {
 
     private final Pattern lineSplit = Pattern.compile(" +");

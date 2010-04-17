@@ -36,6 +36,8 @@ class JsonBuilder {
 
     static NODE_ELEMENT = "element"
 
+    static int rootResolveStrategy = Closure.OWNER_FIRST; // the default
+
     def root
 
     def current
@@ -70,7 +72,7 @@ class JsonBuilder {
 
     private buildRoot(Closure c) {
         c.delegate = this
-        c.resolveStrategy = Closure.DELEGATE_FIRST
+        c.resolveStrategy = rootResolveStrategy;
         root = [:]
         current = root
         def returnValue = c.call()

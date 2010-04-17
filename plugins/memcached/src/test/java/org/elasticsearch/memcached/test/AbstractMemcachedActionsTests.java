@@ -26,7 +26,6 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
@@ -36,8 +35,7 @@ import static org.elasticsearch.util.json.JsonBuilder.*;
 /**
  * @author kimchy (shay.banon)
  */
-@Test
-public class SimpleMemcachedActionsTests {
+public abstract class AbstractMemcachedActionsTests {
 
     private Node node;
 
@@ -46,10 +44,10 @@ public class SimpleMemcachedActionsTests {
     @BeforeMethod
     public void setup() throws IOException {
         node = nodeBuilder().node();
-
-//        NodesInfoResponse nodesInfo = node.client().admin().cluster().nodesInfo(nodesInfo()).actionGet();
-        memcachedClient = new MemcachedClient(new InetSocketAddress("localhost", 11211));
+        memcachedClient = createMemcachedClient();
     }
+
+    protected abstract MemcachedClient createMemcachedClient() throws IOException;
 
     @AfterMethod
     public void tearDown() {

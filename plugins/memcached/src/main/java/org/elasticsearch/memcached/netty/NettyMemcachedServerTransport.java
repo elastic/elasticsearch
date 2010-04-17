@@ -122,7 +122,7 @@ public class NettyMemcachedServerTransport extends AbstractLifecycleComponent<Me
             @Override public ChannelPipeline getPipeline() throws Exception {
                 ChannelPipeline pipeline = Channels.pipeline();
                 pipeline.addLast("openChannels", serverOpenChannels);
-                pipeline.addLast("decoder", new TextMemcachedDecoder());
+                pipeline.addLast("decoder", new MemcachedDecoder());
                 pipeline.addLast("dispatcher", new MemcachedDispatcher(restController));
                 return pipeline;
             }

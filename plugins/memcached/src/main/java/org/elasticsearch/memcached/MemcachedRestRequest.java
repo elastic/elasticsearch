@@ -41,6 +41,8 @@ public class MemcachedRestRequest extends AbstractRestRequest {
 
     private final String uri;
 
+    private final byte[] uriBytes;
+
     private final int dataSize;
 
     private boolean binary;
@@ -51,9 +53,12 @@ public class MemcachedRestRequest extends AbstractRestRequest {
 
     private byte[] data;
 
-    public MemcachedRestRequest(Method method, String uri, int dataSize, boolean binary) {
+    private int opaque;
+
+    public MemcachedRestRequest(Method method, String uri, byte[] uriBytes, int dataSize, boolean binary) {
         this.method = method;
         this.uri = uri;
+        this.uriBytes = uriBytes;
         this.dataSize = dataSize;
         this.binary = binary;
         this.params = new HashMap<String, String>();
@@ -76,6 +81,22 @@ public class MemcachedRestRequest extends AbstractRestRequest {
 
     @Override public String path() {
         return this.path;
+    }
+
+    public byte[] getUriBytes() {
+        return uriBytes;
+    }
+
+    public boolean isBinary() {
+        return binary;
+    }
+
+    public int getOpaque() {
+        return opaque;
+    }
+
+    public void setOpaque(int opaque) {
+        this.opaque = opaque;
     }
 
     public int getDataSize() {

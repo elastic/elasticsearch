@@ -32,6 +32,7 @@ import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
 
@@ -116,6 +117,11 @@ public class RestSearchAction extends BaseRestHandler {
         // get the content, and put it in the body
         if (request.hasContent()) {
             searchRequest.source(request.contentAsBytes());
+        } else {
+            String source = request.param("source");
+            if (source != null) {
+                searchRequest.source(Unicode.fromStringAsBytes(source));
+            }
         }
         // add extra source based on the request parameters
         searchRequest.extraSource(parseSearchSource(request));

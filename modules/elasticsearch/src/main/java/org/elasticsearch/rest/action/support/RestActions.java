@@ -26,6 +26,7 @@ import org.elasticsearch.index.query.json.JsonQueryBuilders;
 import org.elasticsearch.index.query.json.QueryStringJsonQueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.util.Strings;
+import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
@@ -66,6 +67,10 @@ public class RestActions {
     public static byte[] parseQuerySource(RestRequest request) {
         if (request.hasContent()) {
             return request.contentAsBytes();
+        }
+        String source = request.param("source");
+        if (source != null) {
+            return Unicode.fromStringAsBytes(source);
         }
         String queryString = request.param("q");
         if (queryString == null) {

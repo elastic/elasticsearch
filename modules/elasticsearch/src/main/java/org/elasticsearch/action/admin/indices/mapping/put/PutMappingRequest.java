@@ -19,20 +19,24 @@
 
 package org.elasticsearch.action.admin.indices.mapping.put;
 
+import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.util.Required;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.io.FastCharArrayWriter;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.Actions.*;
 import static org.elasticsearch.util.TimeValue.*;
+import static org.elasticsearch.util.json.Jackson.*;
 
 /**
  * Puts mapping definition registered under a specific type into one or more indices. Best created with
@@ -125,6 +129,19 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
         } catch (IOException e) {
             throw new ElasticSearchIllegalArgumentException("Failed to build json for mapping request", e);
         }
+    }
+
+    /**
+     * The mapping source definition.
+     */
+    @Required public PutMappingRequest source(Map mappingSource) {
+        FastCharArrayWriter writer = FastCharArrayWriter.Cached.cached();
+        try {
+            defaultObjectMapper().writeValue(writer, mappingSource);
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate [" + mappingSource + "]", e);
+        }
+        return source(writer.toString());
     }
 
     /**

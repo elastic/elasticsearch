@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -28,14 +29,17 @@ import org.elasticsearch.util.Bytes;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.Unicode;
+import org.elasticsearch.util.io.FastByteArrayOutputStream;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.action.Actions.*;
 import static org.elasticsearch.search.Scroll.*;
 import static org.elasticsearch.util.TimeValue.*;
+import static org.elasticsearch.util.json.Jackson.*;
 
 /**
  * A request to execute search against one or more indices (or all). Best created using
@@ -195,6 +199,20 @@ public class SearchRequest implements ActionRequest {
     }
 
     /**
+     * The source of the search request in the form of a map.
+     */
+    public SearchRequest source(Map source) {
+        FastByteArrayOutputStream os = FastByteArrayOutputStream.Cached.cached();
+        try {
+            defaultObjectMapper().writeValue(os, source);
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
+        }
+        this.source = os.copiedByteArray();
+        return this;
+    }
+
+    /**
      * The search source to execute.
      */
     public SearchRequest source(byte[] source) {
@@ -214,6 +232,17 @@ public class SearchRequest implements ActionRequest {
      */
     public SearchRequest extraSource(SearchSourceBuilder sourceBuilder) {
         return extraSource(sourceBuilder.build());
+    }
+
+    public SearchRequest extraSource(Map extraSource) {
+        FastByteArrayOutputStream os = FastByteArrayOutputStream.Cached.cached();
+        try {
+            defaultObjectMapper().writeValue(os, extraSource);
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate [" + extraSource + "]", e);
+        }
+        this.extraSource = os.copiedByteArray();
+        return this;
     }
 
     /**

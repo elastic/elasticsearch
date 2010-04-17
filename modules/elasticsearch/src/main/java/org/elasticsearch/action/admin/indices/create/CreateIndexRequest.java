@@ -19,10 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.io.FastCharArrayWriter;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.json.JsonBuilder;
@@ -36,6 +38,7 @@ import java.util.concurrent.TimeUnit;
 import static com.google.common.collect.Maps.*;
 import static org.elasticsearch.action.Actions.*;
 import static org.elasticsearch.util.TimeValue.*;
+import static org.elasticsearch.util.json.Jackson.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.*;
 
@@ -133,6 +136,19 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
     }
 
     /**
+     * The settings to crete the index with (either json/yaml/properties format)
+     */
+    public CreateIndexRequest settings(Map source) {
+        FastCharArrayWriter writer = FastCharArrayWriter.Cached.cached();
+        try {
+            defaultObjectMapper().writeValue(writer, source);
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
+        }
+        return settings(writer.toString());
+    }
+
+    /**
      * Adds mapping that will be added when the index gets created.
      *
      * @param type   The mapping type
@@ -164,6 +180,22 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
             throw new ElasticSearchIllegalArgumentException("Failed to build json for mapping request", e);
         }
         return this;
+    }
+
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
+     * @param type   The mapping type
+     * @param source The mapping source
+     */
+    public CreateIndexRequest mapping(String type, Map source) {
+        FastCharArrayWriter writer = FastCharArrayWriter.Cached.cached();
+        try {
+            defaultObjectMapper().writeValue(writer, source);
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
+        }
+        return mapping(type, writer.toString());
     }
 
     Map<String, String> mappings() {

@@ -73,6 +73,12 @@ class GClient {
         SearchRequest.metaClass.source = {Closure c ->
             delegate.source(new JsonBuilder().buildAsBytes(c))
         }
+        SearchRequest.metaClass.setExtraSource = {Closure c ->
+            delegate.extraSource(new JsonBuilder().buildAsBytes(c))
+        }
+        SearchRequest.metaClass.extraSource = {Closure c ->
+            delegate.extraSource(new JsonBuilder().buildAsBytes(c))
+        }
 
         MoreLikeThisRequest.metaClass.setSearchSource = {Closure c ->
             delegate.searchSource(new JsonBuilder().buildAsBytes(c))

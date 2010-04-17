@@ -51,10 +51,10 @@ import org.elasticsearch.groovy.util.json.JsonBuilder
 class GIndicesAdminClient {
 
     static {
-        CreateIndexRequest.metaClass.setSource = {Closure c ->
+        CreateIndexRequest.metaClass.setSettings = {Closure c ->
             delegate.settings(new JsonBuilder().buildAsString(c))
         }
-        CreateIndexRequest.metaClass.source = {Closure c ->
+        CreateIndexRequest.metaClass.settings = {Closure c ->
             delegate.settings(new JsonBuilder().buildAsString(c))
         }
         CreateIndexRequest.metaClass.mapping = {String type, Closure c ->

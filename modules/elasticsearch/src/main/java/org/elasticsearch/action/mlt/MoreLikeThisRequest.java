@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.mlt;
 
+import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -30,12 +31,15 @@ import org.elasticsearch.util.Bytes;
 import org.elasticsearch.util.Required;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.Unicode;
+import org.elasticsearch.util.io.FastByteArrayOutputStream;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.search.Scroll.*;
+import static org.elasticsearch.util.json.Jackson.*;
 
 /**
  * A more like this request allowing to search for documents that a "like" the provided document. The document
@@ -310,6 +314,17 @@ public class MoreLikeThisRequest implements ActionRequest {
      */
     public MoreLikeThisRequest searchSource(String searchSource) {
         return searchSource(Unicode.fromStringAsBytes(searchSource));
+    }
+
+    public MoreLikeThisRequest searchSource(Map searchSource) {
+        FastByteArrayOutputStream os = FastByteArrayOutputStream.Cached.cached();
+        try {
+            defaultObjectMapper().writeValue(os, searchSource);
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate [" + searchSource + "]", e);
+        }
+        this.searchSource = os.copiedByteArray();
+        return this;
     }
 
     /**

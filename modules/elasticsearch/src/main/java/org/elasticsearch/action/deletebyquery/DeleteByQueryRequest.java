@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.deletebyquery;
 
+import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.IndicesReplicationOperationRequest;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -26,13 +27,16 @@ import org.elasticsearch.util.Required;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.Unicode;
+import org.elasticsearch.util.io.FastByteArrayOutputStream;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 
 import static org.elasticsearch.action.Actions.*;
+import static org.elasticsearch.util.json.Jackson.*;
 
 /**
  * A request to delete all documents that matching a specific query. Best created with
@@ -106,6 +110,20 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
      */
     @Required public DeleteByQueryRequest query(String querySource) {
         return query(Unicode.fromStringAsBytes(querySource));
+    }
+
+    /**
+     * The query source to execute in the form of a map.
+     */
+    @Required public DeleteByQueryRequest query(Map querySource) {
+        FastByteArrayOutputStream os = FastByteArrayOutputStream.Cached.cached();
+        try {
+            defaultObjectMapper().writeValue(os, querySource);
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate [" + querySource + "]", e);
+        }
+        this.querySource = os.copiedByteArray();
+        return this;
     }
 
     /**

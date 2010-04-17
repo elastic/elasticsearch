@@ -142,7 +142,7 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
             channel.connect(clusterName.value());
             channel.setReceiver(this);
             logger.debug("Connected to cluster [{}], address [{}]", channel.getClusterName(), channel.getAddress());
-            this.localNode = new DiscoveryNode(settings.get("name"), settings.getAsBoolean("node.data", true), channel.getAddress().toString(), transportService.boundAddress().publishAddress());
+            this.localNode = new DiscoveryNode(settings.get("name"), settings.getAsBoolean("node.data", !settings.getAsBoolean("node.client", false)), channel.getAddress().toString(), transportService.boundAddress().publishAddress());
 
             if (isMaster()) {
                 firstMaster = true;

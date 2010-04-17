@@ -100,7 +100,6 @@ public class NodeBuilder {
      */
     public NodeBuilder client(boolean client) {
         settings.put("node.client", client);
-        data(!client);
         return this;
     }
 
@@ -124,7 +123,7 @@ public class NodeBuilder {
      * @param local Should the node be local or not
      */
     public NodeBuilder local(boolean local) {
-        settings.put("node.local", true);
+        settings.put("node.local", local);
         return this;
     }
 

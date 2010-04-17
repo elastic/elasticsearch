@@ -70,7 +70,7 @@ class JsonBuilder {
 
     private buildRoot(Closure c) {
         c.delegate = this
-        //c.resolveStrategy = Closure.DELEGATE_FIRST
+        c.resolveStrategy = Closure.DELEGATE_FIRST
         root = [:]
         current = root
         def returnValue = c.call()

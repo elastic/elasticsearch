@@ -54,6 +54,11 @@ class SimpleActionsTests {
 
     @Test
     void testSimpleOperations() {
+        def value1 = new org.elasticsearch.groovy.util.json.JsonBuilder().buildAsString {
+            something = "test"
+        }
+        println value1
+
         def indexR = node.client.index {
             index "test"
             type "type1"

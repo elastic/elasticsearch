@@ -84,7 +84,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 clusterGroups.put(clusterName, clusterGroup);
             }
             logger.debug("Connected to cluster [{}]", clusterName);
-            this.localNode = new DiscoveryNode(settings.get("name"), settings.getAsBoolean("node.data", true), Long.toString(nodeIdGenerator.incrementAndGet()), transportService.boundAddress().publishAddress());
+            this.localNode = new DiscoveryNode(settings.get("name"), settings.getAsBoolean("node.data", !settings.getAsBoolean("node.client", false)), Long.toString(nodeIdGenerator.incrementAndGet()), transportService.boundAddress().publishAddress());
 
             clusterGroup.members().add(this);
             if (clusterGroup.members().size() == 1) {

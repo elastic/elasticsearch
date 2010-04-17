@@ -23,6 +23,7 @@ import com.google.inject.Inject;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
@@ -30,6 +31,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.ScheduledRefreshableEngine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperNotFoundException;
@@ -54,6 +56,7 @@ import org.elasticsearch.util.lucene.search.TermFilter;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
+import java.nio.channels.ClosedByInterruptException;
 import java.util.concurrent.ScheduledFuture;
 
 /**
@@ -513,6 +516,16 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         @Override public void run() {
             try {
                 engine.refresh(new Engine.Refresh(false));
+            } catch (RefreshFailedEngineException e) {
+                if (e.getCause() instanceof InterruptedException) {
+                    // ignore, we are being shutdown
+                } else if (e.getCause() instanceof ClosedByInterruptException) {
+                    // ignore, we are being shutdown
+                } else if (e.getCause() instanceof ThreadInterruptedException) {
+                    // ignore, we are being shutdown
+                } else {
+                    logger.warn("Failed to perform scheduled engine refresh", e);
+                }
             } catch (Exception e) {
                 logger.warn("Failed to perform scheduled engine refresh", e);
             }

@@ -22,6 +22,7 @@ package org.elasticsearch.memcached;
 import com.google.inject.Module;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.util.component.LifecycleComponent;
+import org.elasticsearch.util.settings.Settings;
 
 import java.util.Collection;
 
@@ -31,6 +32,12 @@ import static com.google.common.collect.Lists.*;
  * @author kimchy (shay.banon)
  */
 public class MemcachedPlugin extends AbstractPlugin {
+
+    private final Settings settings;
+
+    public MemcachedPlugin(Settings settings) {
+        this.settings = settings;
+    }
 
     @Override public String name() {
         return "memcached";
@@ -42,13 +49,17 @@ public class MemcachedPlugin extends AbstractPlugin {
 
     @Override public Collection<Class<? extends Module>> modules() {
         Collection<Class<? extends Module>> modules = newArrayList();
-        modules.add(MemcachedServerModule.class);
+        if (settings.getAsBoolean("memcached.enabled", true)) {
+            modules.add(MemcachedServerModule.class);
+        }
         return modules;
     }
 
     @Override public Collection<Class<? extends LifecycleComponent>> services() {
         Collection<Class<? extends LifecycleComponent>> services = newArrayList();
-        services.add(MemcachedServer.class);
+        if (settings.getAsBoolean("memcached.enabled", true)) {
+            services.add(MemcachedServer.class);
+        }
         return services;
     }
 }

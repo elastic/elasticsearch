@@ -24,6 +24,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.inject.Inject;
 import com.google.inject.Module;
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.component.CloseableIndexComponent;
@@ -258,8 +259,17 @@ public class PluginsService extends AbstractComponent {
                 is = pluginUrl.openStream();
                 pluginProps.load(is);
                 String sPluginClass = pluginProps.getProperty("plugin");
-                Class<?> pluginClass = settings.getClassLoader().loadClass(sPluginClass);
-                Plugin plugin = (Plugin) pluginClass.newInstance();
+                Class<? extends Plugin> pluginClass = (Class<? extends Plugin>) settings.getClassLoader().loadClass(sPluginClass);
+                Plugin plugin;
+                try {
+                    plugin = pluginClass.getConstructor(Settings.class).newInstance(settings);
+                } catch (NoSuchMethodException e) {
+                    try {
+                        plugin = pluginClass.getConstructor().newInstance();
+                    } catch (NoSuchMethodException e1) {
+                        throw new ElasticSearchException("No constructor for [" + pluginClass + "]");
+                    }
+                }
                 plugins.put(plugin.name(), plugin);
             } catch (Exception e) {
                 logger.warn("Failed to load plugin from [" + pluginUrl + "]", e);

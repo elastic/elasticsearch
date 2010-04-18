@@ -542,6 +542,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     channel.close().awaitUninterruptibly();
                 }
             }
+            logger.debug("Disconnected from [{}]", node);
             transportServiceAdapter.raiseNodeDisconnected(node);
         }
     }

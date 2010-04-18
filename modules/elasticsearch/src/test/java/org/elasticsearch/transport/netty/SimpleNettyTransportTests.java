@@ -24,14 +24,17 @@ import org.elasticsearch.transport.AbstractSimpleTransportTests;
 import org.elasticsearch.transport.TransportService;
 import org.testng.annotations.Test;
 
+import static org.elasticsearch.util.settings.ImmutableSettings.*;
+
 @Test
 public class SimpleNettyTransportTests extends AbstractSimpleTransportTests {
 
     @Override protected void build() {
-        serviceA = new TransportService(new NettyTransport(threadPool), threadPool).start();
+        serviceA = new TransportService(settingsBuilder().put("name", "A").build(), new NettyTransport(settingsBuilder().put("name", "A").build(), threadPool), threadPool).start();
         serviceANode = new DiscoveryNode("A", serviceA.boundAddress().publishAddress());
 
-        serviceB = new TransportService(new NettyTransport(threadPool), threadPool).start();
+        serviceB = new TransportService(settingsBuilder().put("name", "B").build(), new NettyTransport(settingsBuilder().put("name", "B").build(), threadPool), threadPool).start();
         serviceBNode = new DiscoveryNode("B", serviceB.boundAddress().publishAddress());
     }
+
 }

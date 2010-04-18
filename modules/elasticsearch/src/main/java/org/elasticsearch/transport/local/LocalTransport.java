@@ -35,6 +35,7 @@ import org.elasticsearch.util.transport.LocalTransportAddress;
 import org.elasticsearch.util.transport.TransportAddress;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -81,6 +82,14 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Override protected void doStop() throws ElasticSearchException {
         transports.remove(localAddress);
+        // now, go over all the transports connected to me, and raise disconnected event
+        for (LocalTransport targetTransport : transports.values()) {
+            for (Map.Entry<DiscoveryNode, LocalTransport> entry : targetTransport.connectedNodes.entrySet()) {
+                if (entry.getValue() == this) {
+                    targetTransport.disconnectFromNode(entry.getKey());
+                }
+            }
+        }
     }
 
     @Override protected void doClose() throws ElasticSearchException {

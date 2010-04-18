@@ -30,6 +30,8 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
@@ -144,6 +146,23 @@ public abstract class AbstractSimpleTransportTests {
 
         System.out.println("after ...");
 
+    }
+
+    @Test
+    public void testDisconnectListener() throws Exception {
+        final CountDownLatch latch = new CountDownLatch(1);
+        TransportConnectionListener disconnectListener = new TransportConnectionListener() {
+            @Override public void onNodeConnected(DiscoveryNode node) {
+                throw new RuntimeException("Should not be called");
+            }
+
+            @Override public void onNodeDisconnected(DiscoveryNode node) {
+                latch.countDown();
+            }
+        };
+        serviceA.addConnectionListener(disconnectListener);
+        serviceB.close();
+        assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
     }
 
     private class StringMessage implements Streamable {

@@ -70,9 +70,20 @@ public interface Transport extends LifecycleComponent<Transport> {
      */
     boolean addressSupported(Class<? extends TransportAddress> address);
 
-    void nodesAdded(Iterable<DiscoveryNode> nodes);
+    /**
+     * Returns <tt>true</tt> if the node is connected.
+     */
+    boolean nodeConnected(DiscoveryNode node);
 
-    void nodesRemoved(Iterable<DiscoveryNode> nodes);
+    /**
+     * Connects to the given node, if already connected, does nothing.
+     */
+    void connectToNode(DiscoveryNode node) throws ConnectTransportException;
+
+    /**
+     * Disconnected from the given node, if not connected, will do nothing.
+     */
+    void disconnectFromNode(DiscoveryNode node);
 
     <T extends Streamable> void sendRequest(DiscoveryNode node, long requestId, String action,
                                             Streamable message, TransportResponseHandler<T> handler) throws IOException, TransportException;

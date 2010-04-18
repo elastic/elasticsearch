@@ -37,7 +37,7 @@ public class NettyTransportManagement {
 
     @ManagedAttribute(description = "Number of connections this node has to other nodes")
     public long getNumberOfOutboundConnections() {
-        return transport.clientChannels.size();
+        return transport.connectedNodes.size();
     }
 
     @ManagedAttribute(description = "Number if IO worker threads")

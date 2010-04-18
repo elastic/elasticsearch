@@ -17,21 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.local;
+package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.transport.AbstractSimpleTransportTests;
-import org.elasticsearch.transport.TransportService;
-import org.testng.annotations.Test;
 
-@Test
-public class SimpleLocalTransportTests extends AbstractSimpleTransportTests {
+/**
+ * An exception indicating that a message is sent to a node that is not connected.
+ *
+ * @author kimchy (shay.banon)
+ */
+public class NodeNotConnectedException extends ConnectTransportException {
 
-    @Override protected void build() {
-        serviceA = new TransportService(new LocalTransport(threadPool), threadPool).start();
-        serviceANode = new DiscoveryNode("A", serviceA.boundAddress().publishAddress());
+    public NodeNotConnectedException(DiscoveryNode node, String msg) {
+        super(node, msg);
+    }
 
-        serviceB = new TransportService(new LocalTransport(threadPool), threadPool).start();
-        serviceBNode = new DiscoveryNode("B", serviceB.boundAddress().publishAddress());
+    public NodeNotConnectedException(DiscoveryNode node, String msg, Throwable cause) {
+        super(node, msg, cause);
     }
 }

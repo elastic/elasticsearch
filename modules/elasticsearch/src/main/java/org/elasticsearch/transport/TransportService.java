@@ -31,6 +31,7 @@ import org.elasticsearch.util.transport.BoundTransportAddress;
 import org.elasticsearch.util.transport.TransportAddress;
 
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.util.concurrent.ConcurrentMaps.*;
@@ -50,6 +51,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     final NonBlockingHashMapLong<TransportResponseHandler> clientHandlers = new NonBlockingHashMapLong<TransportResponseHandler>();
 
     final AtomicLong requestIds = new AtomicLong();
+
+    final CopyOnWriteArrayList<TransportConnectionListener> connectionListeners = new CopyOnWriteArrayList<TransportConnectionListener>();
 
     private boolean throwConnectException = false;
 
@@ -72,6 +75,18 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
             @Override public TransportResponseHandler remove(long requestId) {
                 return clientHandlers.remove(requestId);
+            }
+
+            @Override public void raiseNodeConnected(DiscoveryNode node) {
+                for (TransportConnectionListener connectionListener : connectionListeners) {
+                    connectionListener.onNodeConnected(node);
+                }
+            }
+
+            @Override public void raiseNodeDisconnected(DiscoveryNode node) {
+                for (TransportConnectionListener connectionListener : connectionListeners) {
+                    connectionListener.onNodeDisconnected(node);
+                }
             }
         });
         transport.start();
@@ -96,20 +111,24 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         return transport.boundAddress();
     }
 
-    public void nodesAdded(Iterable<DiscoveryNode> nodes) {
-        try {
-            transport.nodesAdded(nodes);
-        } catch (Exception e) {
-            logger.warn("Failed add nodes [" + nodes + "] to transport", e);
-        }
+    public boolean nodeConnected(DiscoveryNode node) {
+        return transport.nodeConnected(node);
     }
 
-    public void nodesRemoved(Iterable<DiscoveryNode> nodes) {
-        try {
-            transport.nodesRemoved(nodes);
-        } catch (Exception e) {
-            logger.warn("Failed to remove nodes[" + nodes + "] from transport", e);
-        }
+    public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
+        transport.connectToNode(node);
+    }
+
+    public void disconnectFromNode(DiscoveryNode node) {
+        transport.disconnectFromNode(node);
+    }
+
+    public void addConnectionListener(TransportConnectionListener listener) {
+        connectionListeners.add(listener);
+    }
+
+    public void removeConnectionListener(TransportConnectionListener listener) {
+        connectionListeners.remove(listener);
     }
 
     /**

@@ -19,12 +19,18 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
+
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public interface TransportServiceAdapter {
 
     TransportRequestHandler handler(String action);
 
     TransportResponseHandler remove(long requestId);
+
+    void raiseNodeConnected(DiscoveryNode node);
+
+    void raiseNodeDisconnected(DiscoveryNode node);
 }

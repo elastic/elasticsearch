@@ -58,6 +58,8 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
 
     private static final AtomicLong transportAddressIdGenerator = new AtomicLong();
 
+    private final ConcurrentMap<DiscoveryNode, LocalTransport> connectedNodes = newConcurrentMap();
+
     public LocalTransport(ThreadPool threadPool) {
         this(ImmutableSettings.Builder.EMPTY_SETTINGS, threadPool);
     }
@@ -92,10 +94,31 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         return boundAddress;
     }
 
-    @Override public void nodesAdded(Iterable<DiscoveryNode> nodes) {
+    @Override public boolean nodeConnected(DiscoveryNode node) {
+        return connectedNodes.containsKey(node);
     }
 
-    @Override public void nodesRemoved(Iterable<DiscoveryNode> nodes) {
+    @Override public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
+        synchronized (this) {
+            if (connectedNodes.containsKey(node)) {
+                return;
+            }
+            final LocalTransport targetTransport = transports.get(node.address());
+            if (targetTransport == null) {
+                throw new ConnectTransportException(node, "Failed to connect");
+            }
+            connectedNodes.put(node, targetTransport);
+            transportServiceAdapter.raiseNodeConnected(node);
+        }
+    }
+
+    @Override public void disconnectFromNode(DiscoveryNode node) {
+        synchronized (this) {
+            LocalTransport removed = connectedNodes.remove(node);
+            if (removed != null) {
+                transportServiceAdapter.raiseNodeDisconnected(node);
+            }
+        }
     }
 
     @Override public <T extends Streamable> void sendRequest(final DiscoveryNode node, final long requestId, final String action,
@@ -110,9 +133,9 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         stream.writeUTF(action);
         message.writeTo(stream);
 
-        final LocalTransport targetTransport = transports.get(node.address());
+        final LocalTransport targetTransport = connectedNodes.get(node);
         if (targetTransport == null) {
-            throw new ConnectTransportException(node, "Failed to connect");
+            throw new NodeNotConnectedException(node, "Node not connected");
         }
 
         final byte[] data = ((BytesStreamOutput) stream.wrappedOut()).copiedByteArray();

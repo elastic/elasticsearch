@@ -41,9 +41,9 @@ public class TransportClientDocumentActionsTests extends DocumentActionsTests {
     }
 
     @Override protected Client getClient2() {
-        TransportAddress server1Address = ((InternalNode) node("server2")).injector().getInstance(TransportService.class).boundAddress().publishAddress();
+        TransportAddress server2Address = ((InternalNode) node("server2")).injector().getInstance(TransportService.class).boundAddress().publishAddress();
         TransportClient client = new TransportClient(settingsBuilder().put("discovery.enabled", false).build());
-        client.addTransportAddress(server1Address);
+        client.addTransportAddress(server2Address);
         return client;
     }
 }

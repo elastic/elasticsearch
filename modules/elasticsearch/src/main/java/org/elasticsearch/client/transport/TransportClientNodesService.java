@@ -49,7 +49,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.util.TimeValue.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TransportClientNodesService extends AbstractComponent implements ClusterStateListener {
 
@@ -61,7 +61,8 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
 
     private final ThreadPool threadPool;
 
-    private volatile ImmutableList<TransportAddress> transportAddresses = ImmutableList.of();
+    // nodes that are added to be discovered
+    private volatile ImmutableList<DiscoveryNode> listedNodes = ImmutableList.of();
 
     private final Object transportMutex = new Object();
 
@@ -97,7 +98,11 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
     }
 
     public ImmutableList<TransportAddress> transportAddresses() {
-        return this.transportAddresses;
+        ImmutableList.Builder<TransportAddress> lstBuilder = ImmutableList.builder();
+        for (DiscoveryNode listedNode : listedNodes) {
+            lstBuilder.add(listedNode.address());
+        }
+        return lstBuilder.build();
     }
 
     public ImmutableList<DiscoveryNode> connectedNodes() {
@@ -106,8 +111,8 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
 
     public TransportClientNodesService addTransportAddress(TransportAddress transportAddress) {
         synchronized (transportMutex) {
-            ImmutableList.Builder<TransportAddress> builder = ImmutableList.builder();
-            transportAddresses = builder.addAll(transportAddresses).add(transportAddress).build();
+            ImmutableList.Builder<DiscoveryNode> builder = ImmutableList.builder();
+            listedNodes = builder.addAll(listedNodes).add(new DiscoveryNode("#temp#-" + tempNodeIdGenerator.incrementAndGet(), transportAddress)).build();
         }
         nodesSampler.run();
         return this;
@@ -115,13 +120,13 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
 
     public TransportClientNodesService removeTransportAddress(TransportAddress transportAddress) {
         synchronized (transportMutex) {
-            ImmutableList.Builder<TransportAddress> builder = ImmutableList.builder();
-            for (TransportAddress otherTransportAddress : transportAddresses) {
-                if (!otherTransportAddress.equals(transportAddress)) {
-                    builder.add(otherTransportAddress);
+            ImmutableList.Builder<DiscoveryNode> builder = ImmutableList.builder();
+            for (DiscoveryNode otherNode : listedNodes) {
+                if (!otherNode.address().equals(transportAddress)) {
+                    builder.add(otherNode);
                 }
             }
-            transportAddresses = builder.build();
+            listedNodes = builder.build();
         }
         nodesSampler.run();
         return this;
@@ -146,32 +151,39 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
 
     public void close() {
         nodesSamplerFuture.cancel(true);
+        for (DiscoveryNode listedNode : listedNodes)
+            transportService.disconnectFromNode(listedNode);
     }
 
     @Override public void clusterChanged(ClusterChangedEvent event) {
-        transportService.nodesAdded(event.nodesDelta().addedNodes());
+        for (DiscoveryNode node : event.nodesDelta().addedNodes()) {
+            try {
+                transportService.connectToNode(node);
+            } catch (Exception e) {
+                logger.warn("Failed to connect to discovered node [" + node + "]", e);
+            }
+        }
         this.discoveredNodes = event.state().nodes();
         HashSet<DiscoveryNode> newNodes = new HashSet<DiscoveryNode>(nodes);
         newNodes.addAll(discoveredNodes.nodes().values());
         nodes = new ImmutableList.Builder<DiscoveryNode>().addAll(newNodes).build();
-        transportService.nodesRemoved(event.nodesDelta().removedNodes());
+        for (DiscoveryNode node : event.nodesDelta().removedNodes()) {
+            transportService.disconnectFromNode(node);
+        }
     }
 
     private class ScheduledNodesSampler implements Runnable {
 
         @Override public synchronized void run() {
-            ImmutableList<TransportAddress> transportAddresses = TransportClientNodesService.this.transportAddresses;
-            final CountDownLatch latch = new CountDownLatch(transportAddresses.size());
+            ImmutableList<DiscoveryNode> listedNodes = TransportClientNodesService.this.listedNodes;
+            final CountDownLatch latch = new CountDownLatch(listedNodes.size());
             final CopyOnWriteArrayList<NodesInfoResponse> nodesInfoResponses = new CopyOnWriteArrayList<NodesInfoResponse>();
-            final CopyOnWriteArrayList<DiscoveryNode> tempNodes = new CopyOnWriteArrayList<DiscoveryNode>();
-            for (final TransportAddress transportAddress : transportAddresses) {
+            for (final DiscoveryNode listedNode : listedNodes) {
                 threadPool.execute(new Runnable() {
                     @Override public void run() {
-                        DiscoveryNode tempNode = new DiscoveryNode("#temp#-" + tempNodeIdGenerator.incrementAndGet(), transportAddress);
-                        tempNodes.add(tempNode);
                         try {
-                            transportService.nodesAdded(ImmutableList.of(tempNode));
-                            transportService.sendRequest(tempNode, TransportActions.Admin.Cluster.Node.INFO, Requests.nodesInfo("_local"), new BaseTransportResponseHandler<NodesInfoResponse>() {
+                            transportService.connectToNode(listedNode); // make sure we are connected to it
+                            transportService.sendRequest(listedNode, TransportActions.Admin.Cluster.Node.INFO, Requests.nodesInfo("_local"), new BaseTransportResponseHandler<NodesInfoResponse>() {
 
                                 @Override public NodesInfoResponse newInstance() {
                                     return new NodesInfoResponse();
@@ -183,12 +195,12 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
                                 }
 
                                 @Override public void handleException(RemoteTransportException exp) {
-                                    logger.debug("Failed to get node info from " + transportAddress + ", removed from nodes list", exp);
+                                    logger.debug("Failed to get node info from " + listedNode + ", removed from nodes list", exp);
                                     latch.countDown();
                                 }
                             });
                         } catch (Exception e) {
-                            logger.debug("Failed to get node info from " + transportAddress + ", removed from nodes list", e);
+                            logger.debug("Failed to get node info from " + listedNode + ", removed from nodes list", e);
                             latch.countDown();
                         }
                     }
@@ -218,9 +230,15 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
             if (discoveredNodes != null) {
                 newNodes.addAll(discoveredNodes.nodes().values());
             }
+            // now, make sure we are connected to all the updated nodes
+            for (DiscoveryNode node : newNodes) {
+                try {
+                    transportService.connectToNode(node);
+                } catch (Exception e) {
+                    logger.debug("Failed to connect to discovered node [" + node + "]", e);
+                }
+            }
             nodes = new ImmutableList.Builder<DiscoveryNode>().addAll(newNodes).build();
-
-            transportService.nodesRemoved(tempNodes);
         }
     }
 

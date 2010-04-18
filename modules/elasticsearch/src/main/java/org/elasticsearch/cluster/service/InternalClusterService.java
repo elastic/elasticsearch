@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.service;
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -180,11 +181,15 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                         }
                     }
 
-                    threadPool.execute(new Runnable() {
-                        @Override public void run() {
-                            transportService.nodesAdded(nodesDelta.addedNodes());
+                    // TODO, do this in parallel (and wait)
+                    for (DiscoveryNode node : nodesDelta.addedNodes()) {
+                        try {
+                            transportService.connectToNode(node);
+                        } catch (Exception e) {
+                            // TODO, need to mark this node as failed...
+                            logger.warn("Failed to connect to node [" + node + "]", e);
                         }
-                    });
+                    }
 
                     for (TimeoutHolder timeoutHolder : clusterStateTimeoutListeners) {
                         timeoutHolder.listener.clusterChanged(clusterChangedEvent);
@@ -195,7 +200,9 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
                     threadPool.execute(new Runnable() {
                         @Override public void run() {
-                            transportService.nodesRemoved(nodesDelta.removedNodes());
+                            for (DiscoveryNode node : nodesDelta.removedNodes()) {
+                                transportService.disconnectFromNode(node);
+                            }
                         }
                     });
 

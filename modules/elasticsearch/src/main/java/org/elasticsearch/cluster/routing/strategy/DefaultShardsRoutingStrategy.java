@@ -333,20 +333,27 @@ public class DefaultShardsRoutingStrategy implements ShardsRoutingStrategy {
             boolean inRelocation = failedShard.relocatingNodeId() != null;
             if (inRelocation) {
                 RoutingNode routingNode = routingNodes.nodesToShards().get(failedShard.currentNodeId());
-                Iterator<MutableShardRouting> shards = routingNode.iterator();
-                while (shards.hasNext()) {
-                    MutableShardRouting shard = shards.next();
-                    if (shard.shardId().equals(failedShard.shardId())) {
-                        shardDirty = true;
-                        shard.deassignNode();
-                        shards.remove();
-                        break;
+                if (routingNode != null) {
+                    Iterator<MutableShardRouting> shards = routingNode.iterator();
+                    while (shards.hasNext()) {
+                        MutableShardRouting shard = shards.next();
+                        if (shard.shardId().equals(failedShard.shardId())) {
+                            shardDirty = true;
+                            shard.deassignNode();
+                            shards.remove();
+                            break;
+                        }
                     }
                 }
             }
 
             String nodeId = inRelocation ? failedShard.relocatingNodeId() : failedShard.currentNodeId();
             RoutingNode currentRoutingNode = routingNodes.nodesToShards().get(nodeId);
+
+            if (currentRoutingNode == null) {
+                // already failed (might be called several times for the same shard)
+                continue;
+            }
 
             Iterator<MutableShardRouting> shards = currentRoutingNode.iterator();
             while (shards.hasNext()) {

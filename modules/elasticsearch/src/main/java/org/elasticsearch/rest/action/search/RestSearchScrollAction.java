@@ -47,8 +47,8 @@ public class RestSearchScrollAction extends BaseRestHandler {
 
         controller.registerHandler(GET, "/_search/scroll", this);
         controller.registerHandler(POST, "/_search/scroll", this);
-        controller.registerHandler(GET, "/_search/scroll/{scrollId}", this);
-        controller.registerHandler(POST, "/_search/scroll/{scrollId}", this);
+        controller.registerHandler(GET, "/_search/scroll/{scroll_id}", this);
+        controller.registerHandler(POST, "/_search/scroll/{scroll_id}", this);
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {

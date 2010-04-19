@@ -35,16 +35,16 @@ import java.util.Set;
  */
 public class CustomBoostFactorQuery extends Query {
 
-    private Query q;
+    private Query subQuery;
     private float boostFactor;
 
     public CustomBoostFactorQuery(Query subQuery, float boostFactor) {
-        this.q = subQuery;
+        this.subQuery = subQuery;
         this.boostFactor = boostFactor;
     }
 
-    public Query getQuery() {
-        return q;
+    public Query getSubQuery() {
+        return subQuery;
     }
 
     public float getBoostFactor() {
@@ -53,30 +53,30 @@ public class CustomBoostFactorQuery extends Query {
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
-        Query newQ = q.rewrite(reader);
-        if (newQ == q) return this;
+        Query newQ = subQuery.rewrite(reader);
+        if (newQ == subQuery) return this;
         CustomBoostFactorQuery bq = (CustomBoostFactorQuery) this.clone();
-        bq.q = newQ;
+        bq.subQuery = newQ;
         return bq;
     }
 
     @Override
     public void extractTerms(Set<Term> terms) {
-        q.extractTerms(terms);
+        subQuery.extractTerms(terms);
     }
 
     @Override
     public Weight createWeight(Searcher searcher) throws IOException {
-        return new CustomBoostFactorQuery.BoostedWeight(searcher);
+        return new CustomBoostFactorWeight(searcher);
     }
 
-    private class BoostedWeight extends Weight {
+    private class CustomBoostFactorWeight extends Weight {
         Searcher searcher;
-        Weight qWeight;
+        Weight subQueryWeight;
 
-        public BoostedWeight(Searcher searcher) throws IOException {
+        public CustomBoostFactorWeight(Searcher searcher) throws IOException {
             this.searcher = searcher;
-            this.qWeight = q.weight(searcher);
+            this.subQueryWeight = subQuery.weight(searcher);
         }
 
         public Query getQuery() {
@@ -89,7 +89,7 @@ public class CustomBoostFactorQuery extends Query {
 
         @Override
         public float sumOfSquaredWeights() throws IOException {
-            float sum = qWeight.sumOfSquaredWeights();
+            float sum = subQueryWeight.sumOfSquaredWeights();
             sum *= getBoost() * getBoost();
             return sum;
         }
@@ -97,21 +97,21 @@ public class CustomBoostFactorQuery extends Query {
         @Override
         public void normalize(float norm) {
             norm *= getBoost();
-            qWeight.normalize(norm);
+            subQueryWeight.normalize(norm);
         }
 
         @Override
         public Scorer scorer(IndexReader reader, boolean scoreDocsInOrder, boolean topScorer) throws IOException {
-            Scorer subQueryScorer = qWeight.scorer(reader, true, false);
+            Scorer subQueryScorer = subQueryWeight.scorer(reader, true, false);
             if (subQueryScorer == null) {
                 return null;
             }
-            return new CustomBoostFactorQuery.CustomScorer(getSimilarity(searcher), reader, this, subQueryScorer);
+            return new CustomBoostFactorScorer(getSimilarity(searcher), reader, this, subQueryScorer);
         }
 
         @Override
         public Explanation explain(IndexReader reader, int doc) throws IOException {
-            Explanation subQueryExpl = qWeight.explain(reader, doc);
+            Explanation subQueryExpl = subQueryWeight.explain(reader, doc);
             if (!subQueryExpl.isMatch()) {
                 return subQueryExpl;
             }
@@ -126,17 +126,17 @@ public class CustomBoostFactorQuery extends Query {
     }
 
 
-    private class CustomScorer extends Scorer {
-        private final CustomBoostFactorQuery.BoostedWeight weight;
-        private final float qWeight;
+    private class CustomBoostFactorScorer extends Scorer {
+        private final CustomBoostFactorWeight weight;
+        private final float subQueryWeight;
         private final Scorer scorer;
         private final IndexReader reader;
 
-        private CustomScorer(Similarity similarity, IndexReader reader, CustomBoostFactorQuery.BoostedWeight w,
-                             Scorer scorer) throws IOException {
+        private CustomBoostFactorScorer(Similarity similarity, IndexReader reader, CustomBoostFactorWeight w,
+                                        Scorer scorer) throws IOException {
             super(similarity);
             this.weight = w;
-            this.qWeight = w.getValue();
+            this.subQueryWeight = w.getValue();
             this.scorer = scorer;
             this.reader = reader;
         }
@@ -158,7 +158,7 @@ public class CustomBoostFactorQuery extends Query {
 
         @Override
         public float score() throws IOException {
-            float score = qWeight * scorer.score() * boostFactor;
+            float score = subQueryWeight * scorer.score() * boostFactor;
 
             // Current Lucene priority queues can't handle NaN and -Infinity, so
             // map to -Float.MAX_VALUE. This conditional handles both -infinity
@@ -167,7 +167,7 @@ public class CustomBoostFactorQuery extends Query {
         }
 
         public Explanation explain(int doc) throws IOException {
-            Explanation subQueryExpl = weight.qWeight.explain(reader, doc);
+            Explanation subQueryExpl = weight.subQueryWeight.explain(reader, doc);
             if (!subQueryExpl.isMatch()) {
                 return subQueryExpl;
             }
@@ -183,7 +183,7 @@ public class CustomBoostFactorQuery extends Query {
 
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
-        sb.append("CustomBoostFactor(").append(q.toString(field)).append(',').append(boostFactor).append(')');
+        sb.append("CustomBoostFactor(").append(subQuery.toString(field)).append(',').append(boostFactor).append(')');
         sb.append(ToStringUtils.boost(getBoost()));
         return sb.toString();
     }
@@ -192,12 +192,12 @@ public class CustomBoostFactorQuery extends Query {
         if (getClass() != o.getClass()) return false;
         CustomBoostFactorQuery other = (CustomBoostFactorQuery) o;
         return this.getBoost() == other.getBoost()
-                && this.q.equals(other.q)
+                && this.subQuery.equals(other.subQuery)
                 && this.boostFactor == other.boostFactor;
     }
 
     public int hashCode() {
-        int h = q.hashCode();
+        int h = subQuery.hashCode();
         h ^= (h << 17) | (h >>> 16);
         h += Float.floatToIntBits(boostFactor);
         h ^= (h << 8) | (h >>> 25);

@@ -28,6 +28,7 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.facets.FacetsPhase;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.util.lucene.search.CustomBoostFactorQuery;
 import org.elasticsearch.util.lucene.search.TermFilter;
 
 import java.util.Map;
@@ -60,7 +61,9 @@ public class QueryPhase implements SearchPhase {
         if (context.query() == null) {
             throw new SearchParseException(context, "No query specified in search request");
         }
-        context.query().setBoost(context.query().getBoost() * context.queryBoost());
+        if (context.queryBoost() != 1.0f) {
+            context.query(new CustomBoostFactorQuery(context.query(), context.queryBoost()));
+        }
         facetsPhase.preProcess(context);
     }
 

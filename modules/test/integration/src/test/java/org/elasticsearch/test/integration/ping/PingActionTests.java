@@ -23,8 +23,8 @@ import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingRespon
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingResponse;
 import org.elasticsearch.action.admin.cluster.ping.single.SinglePingResponse;
 import org.elasticsearch.test.integration.AbstractNodesTests;
+import org.elasticsearch.util.logging.ESLogger;
 import org.elasticsearch.util.logging.Loggers;
-import org.slf4j.Logger;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.*;
  */
 public class PingActionTests extends AbstractNodesTests {
 
-    private final Logger logger = Loggers.getLogger(PingActionTests.class);
+    private final ESLogger logger = Loggers.getLogger(PingActionTests.class);
 
     @BeforeMethod public void startNodes() {
         startNode("server1");

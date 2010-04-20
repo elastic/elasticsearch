@@ -25,7 +25,7 @@ import org.elasticsearch.util.Classes;
 import org.elasticsearch.util.MapBuilder;
 import org.elasticsearch.util.Preconditions;
 import org.elasticsearch.util.Strings;
-import org.slf4j.Logger;
+import org.elasticsearch.util.logging.ESLogger;
 
 import javax.management.*;
 import java.lang.reflect.Field;
@@ -46,7 +46,7 @@ public class ResourceDMBean implements DynamicMBean {
     private static final Class<?>[] primitives = {int.class, byte.class, short.class, long.class,
             float.class, double.class, boolean.class, char.class};
 
-    private final Logger logger;
+    private final ESLogger logger;
 
     private final Object obj;
 
@@ -68,7 +68,7 @@ public class ResourceDMBean implements DynamicMBean {
 
     private final ImmutableList<MBeanOperationInfo> operations;
 
-    public ResourceDMBean(Object instance, Logger logger) {
+    public ResourceDMBean(Object instance, ESLogger logger) {
         Preconditions.checkNotNull(instance, "Cannot make an MBean wrapper for null instance");
         this.obj = instance;
         this.logger = logger;

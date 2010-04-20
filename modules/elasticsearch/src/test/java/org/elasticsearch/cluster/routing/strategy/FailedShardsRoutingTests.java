@@ -25,9 +25,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.util.logging.ESLogger;
 import org.elasticsearch.util.logging.Loggers;
 import org.elasticsearch.util.transport.DummyTransportAddress;
-import org.slf4j.Logger;
 import org.testng.annotations.Test;
 
 import java.util.List;
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.*;
 @Test
 public class FailedShardsRoutingTests {
 
-    private final Logger logger = Loggers.getLogger(FailedShardsRoutingTests.class);
+    private final ESLogger logger = Loggers.getLogger(FailedShardsRoutingTests.class);
 
     @Test public void testFailures() {
         DefaultShardsRoutingStrategy strategy = new DefaultShardsRoutingStrategy();

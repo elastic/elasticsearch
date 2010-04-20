@@ -50,7 +50,9 @@
       <w>plugins</w>
       <w>porterstem</w>
       <w>rebalance</w>
+      <w>sbuf</w>
       <w>searchable</w>
+      <w>serializers</w>
       <w>snapshotting</w>
       <w>stopwords</w>
       <w>streamable</w>

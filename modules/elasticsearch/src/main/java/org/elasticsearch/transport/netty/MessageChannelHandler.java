@@ -25,21 +25,21 @@ import org.elasticsearch.util.io.ThrowableObjectInputStream;
 import org.elasticsearch.util.io.stream.HandlesStreamInput;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.Streamable;
+import org.elasticsearch.util.logging.ESLogger;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.*;
-import org.slf4j.Logger;
 
 import java.io.IOException;
 
 import static org.elasticsearch.transport.Transport.Helper.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 @ChannelPipelineCoverage("one")
 public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
-    private final Logger logger;
+    private final ESLogger logger;
 
     private final ThreadPool threadPool;
 
@@ -47,7 +47,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
     private final NettyTransport transport;
 
-    public MessageChannelHandler(NettyTransport transport, Logger logger) {
+    public MessageChannelHandler(NettyTransport transport, ESLogger logger) {
         this.threadPool = transport.threadPool();
         this.transportServiceAdapter = transport.transportServiceAdapter();
         this.transport = transport;

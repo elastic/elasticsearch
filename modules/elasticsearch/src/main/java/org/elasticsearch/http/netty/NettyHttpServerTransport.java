@@ -23,6 +23,7 @@ import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.http.*;
 import org.elasticsearch.transport.BindTransportException;
+import org.elasticsearch.transport.netty.NettyInternalESLoggerFactory;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
@@ -40,7 +41,6 @@ import org.jboss.netty.handler.codec.http.HttpResponseEncoder;
 import org.jboss.netty.handler.timeout.ReadTimeoutException;
 import org.jboss.netty.logging.InternalLogger;
 import org.jboss.netty.logging.InternalLoggerFactory;
-import org.jboss.netty.logging.Slf4JLoggerFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -57,9 +57,9 @@ import static org.elasticsearch.util.io.HostResolver.*;
 public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpServerTransport> implements HttpServerTransport {
 
     static {
-        InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory() {
+        InternalLoggerFactory.setDefaultFactory(new NettyInternalESLoggerFactory() {
             @Override public InternalLogger newInstance(String name) {
-                return super.newInstance(name.replace("org.jboss.netty.", "netty.lib."));
+                return super.newInstance(name.replace("org.jboss.netty.", "netty."));
             }
         });
     }

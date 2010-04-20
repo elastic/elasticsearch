@@ -19,8 +19,8 @@
 
 package org.elasticsearch.util;
 
+import org.elasticsearch.util.logging.ESLogger;
 import org.elasticsearch.util.logging.Loggers;
-import org.slf4j.Logger;
 
 /**
  * A {@link Runnable} that changes the current thread name and reverts it back
@@ -31,7 +31,7 @@ import org.slf4j.Logger;
  */
 public class ThreadRenamingRunnable implements Runnable {
 
-    private static final Logger logger = Loggers.getLogger(ThreadRenamingRunnable.class);
+    private static final ESLogger logger = Loggers.getLogger(ThreadRenamingRunnable.class);
 
     private static volatile ThreadNameDeterminer threadNameDeterminer =
             ThreadNameDeterminer.PROPOSED;

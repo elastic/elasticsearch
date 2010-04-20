@@ -23,8 +23,8 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.util.logging.ESLogger;
 import org.elasticsearch.util.logging.Loggers;
-import org.slf4j.Logger;
 import org.testng.annotations.*;
 
 import static org.elasticsearch.client.Requests.*;
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.*;
 @Test
 public class SimpleAttachmentIntegrationTests {
 
-    private final Logger logger = Loggers.getLogger(getClass());
+    private final ESLogger logger = Loggers.getLogger(getClass());
 
     private Node node;
 

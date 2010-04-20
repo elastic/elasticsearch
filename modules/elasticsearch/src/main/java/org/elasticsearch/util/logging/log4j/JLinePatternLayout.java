@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.util.logging;
+package org.elasticsearch.util.logging.log4j;
 
 import org.apache.log4j.Level;
 import org.apache.log4j.PatternLayout;

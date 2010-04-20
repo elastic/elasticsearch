@@ -19,10 +19,10 @@
 
 package org.elasticsearch.discovery.jgroups;
 
+import org.elasticsearch.util.logging.ESLogger;
+import org.elasticsearch.util.logging.ESLoggerFactory;
 import org.jgroups.logging.CustomLogFactory;
 import org.jgroups.logging.Log;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * @author kimchy (Shay Banon)
@@ -34,14 +34,14 @@ public class JgroupsCustomLogFactory implements CustomLogFactory {
     }
 
     @Override public Log getLog(String category) {
-        return new Slf4jLog(LoggerFactory.getLogger(category.replace("org.jgroups.", "jgroups.").replace(".protocols.", ".")));
+        return new JgroupsESLog(ESLoggerFactory.getLogger(category.replace("org.jgroups.", "jgroups.").replace(".protocols.", ".")));
     }
 
-    private static class Slf4jLog implements Log {
+    private static class JgroupsESLog implements Log {
 
-        private final Logger logger;
+        private final ESLogger logger;
 
-        private Slf4jLog(Logger logger) {
+        private JgroupsESLog(ESLogger logger) {
             this.logger = logger;
         }
 

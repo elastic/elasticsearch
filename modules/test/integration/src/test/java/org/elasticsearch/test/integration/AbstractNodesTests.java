@@ -21,9 +21,9 @@ package org.elasticsearch.test.integration;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.util.logging.ESLogger;
 import org.elasticsearch.util.logging.Loggers;
 import org.elasticsearch.util.settings.Settings;
-import org.slf4j.Logger;
 
 import java.util.Map;
 
@@ -34,7 +34,7 @@ import static org.elasticsearch.util.settings.ImmutableSettings.*;
 
 public abstract class AbstractNodesTests {
 
-    protected final Logger logger = Loggers.getLogger(getClass());
+    protected final ESLogger logger = Loggers.getLogger(getClass());
 
     private Map<String, Node> nodes = newHashMap();
 

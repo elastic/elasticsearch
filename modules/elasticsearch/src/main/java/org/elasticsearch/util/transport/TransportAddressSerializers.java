@@ -23,8 +23,8 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.logging.ESLogger;
 import org.elasticsearch.util.logging.Loggers;
-import org.slf4j.Logger;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
@@ -33,15 +33,15 @@ import static org.elasticsearch.util.MapBuilder.*;
 
 /**
  * A global registry of all different types of {@link org.elasticsearch.util.transport.TransportAddress} allowing
- * to perfrom serialization of them.
- * <p/>
- * <p>By defualt, adds {@link org.elasticsearch.util.transport.InetSocketTransportAddress}.
+ * to perform serialization of them.
+ *
+ * <p>By default, adds {@link org.elasticsearch.util.transport.InetSocketTransportAddress}.
  *
  * @author kimchy (Shay Banon)
  */
 public abstract class TransportAddressSerializers {
 
-    private static final Logger logger = Loggers.getLogger(TransportAddressSerializers.class);
+    private static final ESLogger logger = Loggers.getLogger(TransportAddressSerializers.class);
 
     private static ImmutableMap<Short, Constructor<? extends TransportAddress>> addressConstructors = ImmutableMap.of();
 

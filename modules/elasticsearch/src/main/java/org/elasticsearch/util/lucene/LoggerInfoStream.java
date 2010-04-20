@@ -19,8 +19,8 @@
 
 package org.elasticsearch.util.lucene;
 
+import org.elasticsearch.util.logging.ESLogger;
 import org.elasticsearch.util.logging.Loggers;
-import org.slf4j.Logger;
 
 import java.io.OutputStream;
 import java.io.PrintStream;
@@ -40,9 +40,9 @@ public class LoggerInfoStream extends PrintStream {
 
     /**
      * Creates a new {@link LoggerInfoStream} based on the provided logger
-     * by appending to its {@link Logger#getName()} the {@link #SUFFIX}.
+     * by appending to its <tt>NAME</tt> the {@link #SUFFIX}.
      */
-    public static LoggerInfoStream getInfoStream(Logger logger) {
+    public static LoggerInfoStream getInfoStream(ESLogger logger) {
         return new LoggerInfoStream(Loggers.getLogger(logger, SUFFIX));
     }
 
@@ -54,13 +54,13 @@ public class LoggerInfoStream extends PrintStream {
         return new LoggerInfoStream(Loggers.getLogger(name + SUFFIX));
     }
 
-    private final Logger logger;
+    private final ESLogger logger;
 
     /**
      * Constucts a new instance based on the provided logger. Will output
      * each {@link #println(String)} operation as a trace level.
      */
-    public LoggerInfoStream(Logger logger) {
+    public LoggerInfoStream(ESLogger logger) {
         super((OutputStream) null);
         this.logger = logger;
     }

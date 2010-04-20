@@ -19,8 +19,8 @@
 
 package org.elasticsearch.util;
 
+import org.elasticsearch.util.logging.ESLogger;
 import org.elasticsearch.util.logging.Loggers;
-import org.slf4j.Logger;
 
 import java.lang.ref.Reference;
 import java.lang.reflect.Field;
@@ -32,7 +32,7 @@ import java.lang.reflect.Method;
  */
 public class ThreadLocals {
 
-    private static final Logger logger = Loggers.getLogger(ThreadLocals.class);
+    private static final ESLogger logger = Loggers.getLogger(ThreadLocals.class);
 
     public static class CleanableValue<T> {
 

@@ -23,7 +23,7 @@ import org.elasticsearch.util.MapBackedSet;
 import org.elasticsearch.util.ReusableIterator;
 import org.elasticsearch.util.ThreadRenamingRunnable;
 import org.elasticsearch.util.concurrent.ConcurrentIdentityHashMap;
-import org.slf4j.Logger;
+import org.elasticsearch.util.logging.ESLogger;
 
 import java.util.*;
 import java.util.concurrent.ThreadFactory;
@@ -71,7 +71,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  */
 public class HashedWheelTimer implements Timer {
 
-    private final Logger logger;
+    private final ESLogger logger;
 
     private static final AtomicInteger id = new AtomicInteger();
 
@@ -101,7 +101,7 @@ public class HashedWheelTimer implements Timer {
      * @param tickDuration  the duration between tick
      * @param unit          the time unit of the {@code tickDuration}
      */
-    public HashedWheelTimer(Logger logger, ThreadFactory threadFactory, long tickDuration, TimeUnit unit) {
+    public HashedWheelTimer(ESLogger logger, ThreadFactory threadFactory, long tickDuration, TimeUnit unit) {
         this(logger, threadFactory, tickDuration, unit, 512);
     }
 
@@ -115,7 +115,7 @@ public class HashedWheelTimer implements Timer {
      * @param unit          the time unit of the {@code tickDuration}
      * @param ticksPerWheel the size of the wheel
      */
-    public HashedWheelTimer(Logger logger, ThreadFactory threadFactory, long tickDuration, TimeUnit unit, int ticksPerWheel) {
+    public HashedWheelTimer(ESLogger logger, ThreadFactory threadFactory, long tickDuration, TimeUnit unit, int ticksPerWheel) {
         this.logger = logger;
 
         if (threadFactory == null) {

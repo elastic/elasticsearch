@@ -19,16 +19,16 @@
 
 package org.elasticsearch.util.component;
 
+import org.elasticsearch.util.logging.ESLogger;
 import org.elasticsearch.util.logging.Loggers;
 import org.elasticsearch.util.settings.Settings;
-import org.slf4j.Logger;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class AbstractComponent {
 
-    protected final Logger logger;
+    protected final ESLogger logger;
 
     protected final Settings settings;
 

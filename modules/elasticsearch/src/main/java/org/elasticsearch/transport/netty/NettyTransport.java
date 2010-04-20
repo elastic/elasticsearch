@@ -46,7 +46,6 @@ import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import org.jboss.netty.logging.InternalLogger;
 import org.jboss.netty.logging.InternalLoggerFactory;
-import org.jboss.netty.logging.Slf4JLoggerFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -76,7 +75,7 @@ import static org.elasticsearch.util.transport.NetworkExceptionHelper.*;
 public class NettyTransport extends AbstractLifecycleComponent<Transport> implements Transport {
 
     static {
-        InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory() {
+        InternalLoggerFactory.setDefaultFactory(new NettyInternalESLoggerFactory() {
             @Override public InternalLogger newInstance(String name) {
                 return super.newInstance(name.replace("org.jboss.netty.", "netty."));
             }

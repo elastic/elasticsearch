@@ -125,8 +125,9 @@ uploadArchives {
 
         pom.whenConfigured {pom ->
             pom.dependencies = pom.dependencies.findAll {dep -> dep.scope != 'test' } // removes the test scoped ones
-            pom.dependencies = pom.dependencies.findAll {dep -> !dep.artifactId.contains('log4j') } // removes the test scoped ones
-            pom.dependencies = pom.dependencies.findAll {dep -> !dep.artifactId.contains('jline') } // removes the test scoped ones
+            pom.dependencies = pom.dependencies.findAll {dep -> !dep.artifactId.contains('log4j') }
+            pom.dependencies = pom.dependencies.findAll {dep -> !dep.artifactId.contains('slf4j') }
+            pom.dependencies = pom.dependencies.findAll {dep -> !dep.artifactId.contains('jline') }
             pom.dependencies.findAll {dep -> dep.groupId == 'jgroups' }*.scope = 'runtime'
             pom.dependencies.findAll {dep -> dep.groupId == 'org.jboss.netty' }*.scope = 'runtime'
         }

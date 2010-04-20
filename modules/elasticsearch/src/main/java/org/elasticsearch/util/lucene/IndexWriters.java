@@ -20,18 +20,18 @@
 package org.elasticsearch.util.lucene;
 
 import org.apache.lucene.index.IndexWriter;
+import org.elasticsearch.util.logging.ESLogger;
 import org.elasticsearch.util.logging.Loggers;
-import org.slf4j.Logger;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class IndexWriters {
 
-    private static Logger logger = Loggers.getLogger(IndexWriters.class);
+    private static ESLogger logger = Loggers.getLogger(IndexWriters.class);
 
     private static Field docWriterField;
 

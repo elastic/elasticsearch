@@ -31,10 +31,10 @@ import org.elasticsearch.node.internal.InternalSettingsPerparer;
 import org.elasticsearch.util.Classes;
 import org.elasticsearch.util.Tuple;
 import org.elasticsearch.util.jline.ANSI;
+import org.elasticsearch.util.logging.ESLogger;
 import org.elasticsearch.util.logging.Loggers;
 import org.elasticsearch.util.logging.log4j.LogConfigurator;
 import org.elasticsearch.util.settings.Settings;
-import org.slf4j.Logger;
 
 import java.io.File;
 import java.util.Set;
@@ -162,7 +162,7 @@ public class Bootstrap {
                 System.err.close();
             }
         } catch (Throwable e) {
-            Logger logger = Loggers.getLogger(Bootstrap.class);
+            ESLogger logger = Loggers.getLogger(Bootstrap.class);
             if (bootstrap.node != null) {
                 logger = Loggers.getLogger(Bootstrap.class, bootstrap.node.settings().get("name"));
             }

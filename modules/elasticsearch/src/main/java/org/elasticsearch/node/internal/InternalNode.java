@@ -65,10 +65,10 @@ import org.elasticsearch.util.component.Lifecycle;
 import org.elasticsearch.util.component.LifecycleComponent;
 import org.elasticsearch.util.guice.Injectors;
 import org.elasticsearch.util.io.FileSystemUtils;
+import org.elasticsearch.util.logging.ESLogger;
 import org.elasticsearch.util.logging.Loggers;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.settings.SettingsModule;
-import org.slf4j.Logger;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -100,7 +100,7 @@ public final class InternalNode implements Node {
     public InternalNode(Settings pSettings, boolean loadConfigSettings) throws ElasticSearchException {
         Tuple<Settings, Environment> tuple = InternalSettingsPerparer.prepareSettings(pSettings, loadConfigSettings);
 
-        Logger logger = Loggers.getLogger(Node.class, tuple.v1().get("name"));
+        ESLogger logger = Loggers.getLogger(Node.class, tuple.v1().get("name"));
         logger.info("{{}}: Initializing ...", Version.full());
 
         this.pluginsService = new PluginsService(tuple.v1(), tuple.v2());
@@ -151,7 +151,7 @@ public final class InternalNode implements Node {
             return this;
         }
 
-        Logger logger = Loggers.getLogger(Node.class, settings.get("name"));
+        ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
         logger.info("{{}}: Starting ...", Version.full());
 
         for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
@@ -184,7 +184,7 @@ public final class InternalNode implements Node {
         if (!lifecycle.moveToStopped()) {
             return this;
         }
-        Logger logger = Loggers.getLogger(Node.class, settings.get("name"));
+        ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
         logger.info("{{}}: Stopping ...", Version.full());
 
         if (settings.getAsBoolean("http.enabled", true)) {
@@ -228,7 +228,7 @@ public final class InternalNode implements Node {
             return;
         }
 
-        Logger logger = Loggers.getLogger(Node.class, settings.get("name"));
+        ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
         logger.info("{{}}: Closing ...", Version.full());
 
         if (settings.getAsBoolean("http.enabled", true)) {

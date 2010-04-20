@@ -24,8 +24,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.util.Classes;
 import org.elasticsearch.util.settings.Settings;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -36,12 +34,8 @@ import static java.util.Arrays.asList;
 
 /**
  * A set of utilities around Logging.
- * <p/>
- * <p>The most important is the {@link #getLogger(Class)} which should be used instead of
- * {@link org.slf4j.LoggerFactory#getLogger(Class)}. It will use the package name as the
- * logging level without the actual class name.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class Loggers {
 
@@ -59,15 +53,15 @@ public class Loggers {
         return consoleLoggingEnabled;
     }
 
-    public static Logger getLogger(Class clazz, Settings settings, ShardId shardId, String... prefixes) {
+    public static ESLogger getLogger(Class clazz, Settings settings, ShardId shardId, String... prefixes) {
         return getLogger(clazz, settings, shardId.index(), Lists.asList(Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
     }
 
-    public static Logger getLogger(Class clazz, Settings settings, Index index, String... prefixes) {
+    public static ESLogger getLogger(Class clazz, Settings settings, Index index, String... prefixes) {
         return getLogger(clazz, settings, Lists.asList(index.name(), prefixes).toArray(new String[0]));
     }
 
-    public static Logger getLogger(Class clazz, Settings settings, String... prefixes) {
+    public static ESLogger getLogger(Class clazz, Settings settings, String... prefixes) {
         List<String> prefixesList = newArrayList();
         if (settings.getAsBoolean("logger.logHostAddress", false)) {
             try {
@@ -90,44 +84,40 @@ public class Loggers {
         if (prefixes != null && prefixes.length > 0) {
             prefixesList.addAll(asList(prefixes));
         }
-        return getLogger(clazz, prefixesList.toArray(new String[prefixesList.size()]));
+        return getLogger(getLoggerName(clazz), prefixesList.toArray(new String[prefixesList.size()]));
     }
 
-    public static Logger getLogger(Logger parentLogger, String s) {
-        Logger logger = getLogger(parentLogger.getName() + s);
-        if (parentLogger instanceof PrefixLoggerAdapter) {
-            return new PrefixLoggerAdapter(((PrefixLoggerAdapter) parentLogger).prefix(), logger);
-        }
-        return logger;
+    public static ESLogger getLogger(ESLogger parentLogger, String s) {
+        return getLogger(parentLogger.getName() + s, parentLogger.getPrefix());
     }
 
-    public static Logger getLogger(String s) {
-        return LoggerFactory.getLogger(s);
+    public static ESLogger getLogger(String s) {
+        return ESLoggerFactory.getLogger(s);
     }
 
-    public static Logger getLogger(Class clazz) {
-        return LoggerFactory.getLogger(getLoggerName(clazz));
+    public static ESLogger getLogger(Class clazz) {
+        return ESLoggerFactory.getLogger(getLoggerName(clazz));
     }
 
-    public static Logger getLogger(Class clazz, String... prefixes) {
-        return getLogger(LoggerFactory.getLogger(getLoggerName(clazz)), prefixes);
+    public static ESLogger getLogger(Class clazz, String... prefixes) {
+        return getLogger(getLoggerName(clazz), prefixes);
     }
 
-    public static Logger getLogger(Logger logger, String... prefixes) {
-        if (prefixes == null || prefixes.length == 0) {
-            return logger;
-        }
-        StringBuilder sb = new StringBuilder();
-        for (String prefix : prefixes) {
-            if (prefix != null) {
-                sb.append("[").append(prefix).append("]");
+    public static ESLogger getLogger(String name, String... prefixes) {
+        String prefix = null;
+        if (prefixes != null && prefixes.length > 0) {
+            StringBuilder sb = new StringBuilder();
+            for (String prefixX : prefixes) {
+                if (prefixX != null) {
+                    sb.append("[").append(prefixX).append("]");
+                }
+            }
+            if (sb.length() > 0) {
+                sb.append(" ");
+                prefix = sb.toString();
             }
         }
-        if (sb.length() == 0) {
-            return logger;
-        }
-        sb.append(" ");
-        return new PrefixLoggerAdapter(sb.toString(), logger);
+        return ESLoggerFactory.getLogger(prefix, getLoggerName(name));
     }
 
     private static String getLoggerName(Class clazz) {

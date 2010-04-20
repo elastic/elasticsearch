@@ -28,9 +28,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.AbstractNodesTests;
+import org.elasticsearch.util.logging.ESLogger;
 import org.elasticsearch.util.logging.Loggers;
 import org.elasticsearch.util.settings.Settings;
-import org.slf4j.Logger;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
@@ -42,11 +42,11 @@ import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class IndexLifecycleActionTests extends AbstractNodesTests {
 
-    private final Logger logger = Loggers.getLogger(IndexLifecycleActionTests.class);
+    private final ESLogger logger = Loggers.getLogger(IndexLifecycleActionTests.class);
 
     @AfterMethod public void closeNodes() {
         closeAllNodes();

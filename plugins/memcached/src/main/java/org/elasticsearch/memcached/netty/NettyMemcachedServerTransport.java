@@ -25,6 +25,7 @@ import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.memcached.MemcachedServerTransport;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.transport.BindTransportException;
+import org.elasticsearch.transport.netty.NettyInternalESLoggerFactory;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.settings.Settings;
@@ -39,7 +40,6 @@ import org.jboss.netty.channel.Channels;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import org.jboss.netty.logging.InternalLogger;
 import org.jboss.netty.logging.InternalLoggerFactory;
-import org.jboss.netty.logging.Slf4JLoggerFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -56,7 +56,7 @@ import static org.elasticsearch.util.io.HostResolver.*;
 public class NettyMemcachedServerTransport extends AbstractLifecycleComponent<MemcachedServerTransport> implements MemcachedServerTransport {
 
     static {
-        InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory() {
+        InternalLoggerFactory.setDefaultFactory(new NettyInternalESLoggerFactory() {
             @Override public InternalLogger newInstance(String name) {
                 return super.newInstance(name.replace("org.jboss.netty.", "netty."));
             }

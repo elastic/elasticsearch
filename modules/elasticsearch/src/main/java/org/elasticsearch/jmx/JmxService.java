@@ -20,9 +20,9 @@
 package org.elasticsearch.jmx;
 
 import org.elasticsearch.util.io.HostResolver;
+import org.elasticsearch.util.logging.ESLogger;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.transport.PortsRange;
-import org.slf4j.Logger;
 
 import javax.management.InstanceAlreadyExistsException;
 import javax.management.MBeanServer;
@@ -54,7 +54,7 @@ public class JmxService {
 
     public static final String JMXRMI_PUBLISH_URI_PATTERN = "service:jmx:rmi:///jndi/rmi://{jmx.host}:{jmx.port}/jmxrmi";
 
-    private final Logger logger;
+    private final ESLogger logger;
 
     private final Settings settings;
 
@@ -76,7 +76,7 @@ public class JmxService {
 
     private volatile boolean started = false;
 
-    public JmxService(Logger logger, final Settings settings) {
+    public JmxService(ESLogger logger, final Settings settings) {
         this.logger = logger;
         this.settings = settings;
 

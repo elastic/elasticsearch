@@ -21,9 +21,9 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.jmx.ManagedGroupName;
+import org.elasticsearch.util.logging.ESLogger;
 import org.elasticsearch.util.logging.Loggers;
 import org.elasticsearch.util.settings.Settings;
-import org.slf4j.Logger;
 
 import static org.elasticsearch.index.IndexServiceManagement.*;
 
@@ -32,7 +32,7 @@ import static org.elasticsearch.index.IndexServiceManagement.*;
  */
 public abstract class AbstractIndexComponent implements IndexComponent {
 
-    protected final Logger logger;
+    protected final ESLogger logger;
 
     protected final Index index;
 

@@ -20,7 +20,6 @@
 package org.elasticsearch.util.testng;
 
 import org.apache.log4j.PropertyConfigurator;
-import org.slf4j.LoggerFactory;
 import org.testng.ITestContext;
 import org.testng.ITestResult;
 import org.testng.TestListenerAdapter;
@@ -30,7 +29,7 @@ import java.io.IOException;
 import java.util.Properties;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class LoggingListener extends TestListenerAdapter {
 
@@ -55,19 +54,19 @@ public class LoggingListener extends TestListenerAdapter {
         }
         PropertyConfigurator.configure(props);
 
-        LoggerFactory.getLogger("testng").info("========== Starting Test [" + result.getName() + "] ==========");
+        org.apache.log4j.Logger.getLogger("testng").info("========== Starting Test [" + result.getName() + "] ==========");
     }
 
     @Override public void onTestSuccess(ITestResult result) {
-        LoggerFactory.getLogger("testng").info("========== Test Success [" + result.getName() + "] ==========");
+        org.apache.log4j.Logger.getLogger("testng").info("========== Test Success [" + result.getName() + "] ==========");
     }
 
     @Override public void onTestFailure(ITestResult result) {
-        LoggerFactory.getLogger("testng").info("========== Test Failure [" + result.getName() + "] ==========");
+        org.apache.log4j.Logger.getLogger("testng").info("========== Test Failure [" + result.getName() + "] ==========");
     }
 
     @Override public void onTestSkipped(ITestResult result) {
-        LoggerFactory.getLogger("testng").info("========== Test Skipped [" + result.getName() + "] ==========");
+        org.apache.log4j.Logger.getLogger("testng").info("========== Test Skipped [" + result.getName() + "] ==========");
     }
 
     /**

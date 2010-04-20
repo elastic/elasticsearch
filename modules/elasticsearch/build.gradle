@@ -22,7 +22,7 @@ manifest.mainAttributes("Implementation-Title": "ElasticSearch", "Implementation
 
 // no need to use the resource dir
 sourceSets.main.resources.srcDirs 'src/main/java', rootProject.file('config')
-sourceSets.test.resources.srcDir 'src/test/java'
+sourceSets.test.resources.srcDirs 'src/test/java'
 
 // add the source files to the dist jar
 jar {

@@ -13,8 +13,8 @@ configurations.compile.transitive = true
 configurations.testCompile.transitive = true
 
 // no need to use the resource dir
-sourceSets.main.resources.srcDir 'src/main/java'
-sourceSets.test.resources.srcDir 'src/test/java'
+sourceSets.main.resources.srcDirs 'src/main/java'
+sourceSets.test.resources.srcDirs 'src/test/java'
 
 // add the source files to the dist jar
 jar {

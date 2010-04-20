@@ -13,8 +13,8 @@ configurations.compile.transitive = true
 configurations.testCompile.transitive = true
 
 // no need to use the resource dir
-sourceSets.main.resources.srcDir 'src/main/groovy'
-sourceSets.test.resources.srcDir 'src/test/groovy'
+sourceSets.main.resources.srcDirs 'src/main/groovy'
+sourceSets.test.resources.srcDirs 'src/test/groovy'
 
 // add the source files to the dist jar
 jar {

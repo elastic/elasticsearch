@@ -28,9 +28,9 @@ public interface TransportResponseHandler<T extends Streamable> {
 
     /**
      * creates a new instance of the return type from the remote call.
-     * called by the infra before deserializing the response.
+     * called by the infra before de-serializing the response.
      *
-     * @return a new reponse copy.
+     * @return a new response copy.
      */
     T newInstance();
 

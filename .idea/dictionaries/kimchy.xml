@@ -1,20 +1,24 @@
 <component name="ProjectDictionaryState">
   <dictionary name="kimchy">
     <words>
+      <w>addr</w>
       <w>args</w>
       <w>asciifolding</w>
       <w>attr</w>
       <w>banon</w>
+      <w>bindhost</w>
       <w>birthdate</w>
       <w>bool</w>
       <w>booleans</w>
       <w>camelcase</w>
+      <w>canonicalhost</w>
       <w>checksum</w>
       <w>closeable</w>
       <w>commitable</w>
       <w>committable</w>
       <w>configurator</w>
       <w>coord</w>
+      <w>datagram</w>
       <w>desc</w>
       <w>deserialize</w>
       <w>elasticsearch</w>
@@ -26,6 +30,7 @@
       <w>indices</w>
       <w>inet</w>
       <w>infos</w>
+      <w>intf</w>
       <w>iter</w>
       <w>jgroups</w>
       <w>joda</w>
@@ -33,12 +38,14 @@
       <w>kimchy</w>
       <w>lifecycle</w>
       <w>linefeeds</w>
+      <w>loopback</w>
       <w>lucene</w>
       <w>memcached</w>
       <w>metadata</w>
       <w>millis</w>
       <w>mmap</w>
       <w>multi</w>
+      <w>multicast</w>
       <w>multiline</w>
       <w>nanos</w>
       <w>newcount</w>
@@ -49,6 +56,7 @@
       <w>pluggable</w>
       <w>plugins</w>
       <w>porterstem</w>
+      <w>publishhost</w>
       <w>rebalance</w>
       <w>sbuf</w>
       <w>searchable</w>

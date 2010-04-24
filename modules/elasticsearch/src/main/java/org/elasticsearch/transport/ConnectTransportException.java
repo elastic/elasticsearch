@@ -22,7 +22,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class ConnectTransportException extends TransportException {
 

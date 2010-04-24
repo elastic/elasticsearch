@@ -120,6 +120,10 @@ public abstract class AbstractThreadPool extends AbstractComponent implements Th
         return executorService.submit(new FutureRunnable(task, null, listener));
     }
 
+    @Override public ScheduledFuture<?> schedule(Runnable command, TimeValue delay) {
+        return schedule(command, delay.millis(), TimeUnit.MILLISECONDS);
+    }
+
     @Override public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, TimeValue interval) {
         return scheduleWithFixedDelay(command, interval.millis(), interval.millis(), TimeUnit.MILLISECONDS);
     }

@@ -39,5 +39,7 @@ public interface ThreadPool extends ScheduledExecutorService {
 
     Future<?> submit(Runnable task, FutureListener<?> listener);
 
-    public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, TimeValue interval);
+    public ScheduledFuture<?> schedule(Runnable command, TimeValue delay);
+
+    ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, TimeValue interval);
 }

@@ -31,7 +31,7 @@ import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
-import org.elasticsearch.util.io.HostResolver;
+import org.elasticsearch.util.io.NetworkUtils;
 import org.elasticsearch.util.io.stream.BytesStreamInput;
 import org.elasticsearch.util.io.stream.BytesStreamOutput;
 import org.elasticsearch.util.settings.Settings;
@@ -109,8 +109,8 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
             if (System.getProperty("jgroups.bind_addr") == null) {
                 // automatically set the bind address based on ElasticSearch default bindings...
                 try {
-                    InetAddress bindAddress = HostResolver.resolveBindHostAddress(null, settings, HostResolver.LOCAL_IP);
-                    if ((bindAddress instanceof Inet4Address && HostResolver.isIPv4()) || (bindAddress instanceof Inet6Address && !HostResolver.isIPv4())) {
+                    InetAddress bindAddress = NetworkUtils.resolveBindHostAddress(null, settings, NetworkUtils.LOCAL);
+                    if ((bindAddress instanceof Inet4Address && NetworkUtils.isIPv4()) || (bindAddress instanceof Inet6Address && !NetworkUtils.isIPv4())) {
                         sysPropsSet.put("jgroups.bind_addr", bindAddress.getHostAddress());
                         System.setProperty("jgroups.bind_addr", bindAddress.getHostAddress());
                     }

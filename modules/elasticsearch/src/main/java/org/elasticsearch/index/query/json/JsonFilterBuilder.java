@@ -22,7 +22,7 @@ package org.elasticsearch.index.query.json;
 import org.elasticsearch.util.json.ToJson;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public interface JsonFilterBuilder extends ToJson {
 

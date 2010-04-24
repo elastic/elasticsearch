@@ -22,6 +22,7 @@ package org.elasticsearch.transport.netty.benchmark;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.cached.CachedThreadPool;
+import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
@@ -56,8 +57,9 @@ public class BenchmarkNettyClient {
                 .put("transport.netty.connectionsPerNode", 5)
                 .build();
 
-        final ThreadPool threadPool = new CachedThreadPool();
-        final TransportService transportService = new TransportService(new NettyTransport(settings, threadPool), threadPool).start();
+        final ThreadPool threadPool = new CachedThreadPool(settings);
+        final TimerService timerService = new TimerService(settings, threadPool);
+        final TransportService transportService = new TransportService(new NettyTransport(settings, threadPool), threadPool, timerService).start();
 
         final DiscoveryNode node = new DiscoveryNode("server", new InetSocketTransportAddress("localhost", 9999));
 

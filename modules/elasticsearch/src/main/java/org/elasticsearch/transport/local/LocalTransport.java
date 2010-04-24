@@ -193,13 +193,22 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     private void handleRequest(StreamInput stream, long requestId, LocalTransport sourceTransport) throws Exception {
         final String action = stream.readUTF();
         final LocalTransportChannel transportChannel = new LocalTransportChannel(this, sourceTransport, action, requestId);
-        final TransportRequestHandler handler = transportServiceAdapter.handler(action);
-        if (handler == null) {
-            throw new ActionNotFoundTransportException("Action [" + action + "] not found");
+        try {
+            final TransportRequestHandler handler = transportServiceAdapter.handler(action);
+            if (handler == null) {
+                throw new ActionNotFoundTransportException("Action [" + action + "] not found");
+            }
+            final Streamable streamable = handler.newInstance();
+            streamable.readFrom(stream);
+            handler.messageReceived(streamable, transportChannel);
+        } catch (Exception e) {
+            try {
+                transportChannel.sendResponse(e);
+            } catch (IOException e1) {
+                logger.warn("Failed to send error message back to client for action [" + action + "]", e);
+                logger.warn("Actual Exception", e1);
+            }
         }
-        final Streamable streamable = handler.newInstance();
-        streamable.readFrom(stream);
-        handler.messageReceived(streamable, transportChannel);
     }
 
 

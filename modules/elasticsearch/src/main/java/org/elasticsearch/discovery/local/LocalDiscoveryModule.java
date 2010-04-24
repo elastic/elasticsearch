@@ -23,7 +23,7 @@ import com.google.inject.AbstractModule;
 import org.elasticsearch.discovery.Discovery;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class LocalDiscoveryModule extends AbstractModule {
 

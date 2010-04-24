@@ -65,11 +65,6 @@ public class NettyTransportManagement {
         return transport.connectTimeout.toString();
     }
 
-    @ManagedAttribute(description = "Connect retries")
-    public int getConnectRetries() {
-        return transport.connectRetries;
-    }
-
     @ManagedAttribute(description = "TcpNoDelay")
     public Boolean getTcpNoDelay() {
         return transport.tcpNoDelay;

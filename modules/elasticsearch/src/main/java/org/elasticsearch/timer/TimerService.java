@@ -23,6 +23,7 @@ import com.google.inject.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.component.AbstractComponent;
+import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.timer.HashedWheelTimer;
 import org.elasticsearch.util.timer.Timeout;
@@ -50,6 +51,12 @@ public class TimerService extends AbstractComponent {
 
     private final TimeValue tickDuration;
 
+    private final int ticksPerWheel;
+
+    public TimerService(ThreadPool threadPool) {
+        this(ImmutableSettings.Builder.EMPTY_SETTINGS, threadPool);
+    }
+
     @Inject public TimerService(Settings settings, ThreadPool threadPool) {
         super(settings);
         this.threadPool = threadPool;
@@ -58,8 +65,9 @@ public class TimerService extends AbstractComponent {
         this.timeEstimatorFuture = threadPool.scheduleWithFixedDelay(timeEstimator, 50, 50, TimeUnit.MILLISECONDS);
 
         this.tickDuration = componentSettings.getAsTime("tick_duration", timeValueMillis(100));
+        this.ticksPerWheel = componentSettings.getAsInt("ticks_per_wheel", 1024);
 
-        this.timer = new HashedWheelTimer(logger, daemonThreadFactory(settings, "timer"), tickDuration.millis(), TimeUnit.MILLISECONDS);
+        this.timer = new HashedWheelTimer(logger, daemonThreadFactory(settings, "timer"), tickDuration.millis(), TimeUnit.MILLISECONDS, ticksPerWheel);
     }
 
     public void close() {

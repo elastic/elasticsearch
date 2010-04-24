@@ -17,21 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.util.timer;
+package org.elasticsearch.transport;
+
+import org.elasticsearch.cluster.node.DiscoveryNode;
 
 /**
- * A task which is executed after the delay specified with
- * {@link Timer#newTimeout(TimerTask, long, java.util.concurrent.TimeUnit)}.
- *
  * @author kimchy (shay.banon)
  */
-public interface TimerTask {
+public class ReceiveTimeoutTransportException extends RemoteTransportException {
 
-    /**
-     * Executed after the delay specified with
-     * {@link Timer#newTimeout(TimerTask, long, java.util.concurrent.TimeUnit)}.
-     *
-     * @param timeout a handle which is associated with this task
-     */
-    void run(Timeout timeout) throws Exception;
+    public ReceiveTimeoutTransportException(DiscoveryNode node, String action) {
+        super(node.name(), node.address(), action, null);
+    }
+
+//    @Override public Throwable fillInStackTrace() {
+//        return fillStack();
+//    }
 }

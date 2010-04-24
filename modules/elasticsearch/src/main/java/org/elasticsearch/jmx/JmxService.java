@@ -19,7 +19,7 @@
 
 package org.elasticsearch.jmx;
 
-import org.elasticsearch.util.io.HostResolver;
+import org.elasticsearch.util.io.NetworkUtils;
 import org.elasticsearch.util.logging.ESLogger;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.transport.PortsRange;
@@ -35,8 +35,6 @@ import java.lang.management.ManagementFactory;
 import java.rmi.registry.LocateRegistry;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static org.elasticsearch.util.io.HostResolver.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -116,7 +114,7 @@ public class JmxService {
                         connectorServer.start();
 
                         // create the publish url
-                        String publishHost = HostResolver.resolvePublishHostAddress(settings.get("jmx.publishHost"), settings, LOCAL_IP).getHostAddress();
+                        String publishHost = NetworkUtils.resolvePublishHostAddress(settings.get("jmx.publishHost"), settings).getHostAddress();
                         publishUrl = settings.get("jmx.publishUrl", JMXRMI_PUBLISH_URI_PATTERN).replace("{jmx.port}", Integer.toString(portNumber)).replace("{jmx.host}", publishHost);
                     } catch (Exception e) {
                         lastException.set(e);

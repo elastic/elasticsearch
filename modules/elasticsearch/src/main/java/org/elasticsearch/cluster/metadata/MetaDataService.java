@@ -319,7 +319,11 @@ public class MetaDataService extends AbstractComponent {
         }
         // build the updated mapping source
         final String updatedMappingSource = existingMapper.buildSource();
-        logger.info("Index [" + index + "]: Update mapping [" + type + "] (dynamic) with source [" + updatedMappingSource + "]");
+        if (logger.isDebugEnabled()) {
+            logger.debug("Index [" + index + "]: Update mapping [" + type + "] (dynamic) with source [" + updatedMappingSource + "]");
+        } else if (logger.isInfoEnabled()) {
+            logger.info("Index [" + index + "]: Update mapping [" + type + "] (dynamic)");
+        }
         // publish the new mapping
         clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "]", new ClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
@@ -391,7 +395,11 @@ public class MetaDataService extends AbstractComponent {
                 mapping = new Tuple<String, String>(newMapper.type(), newMapper.buildSource());
             }
             mappings.put(index, mapping);
-            logger.info("Index [" + index + "]: Put mapping [" + mapping.v1() + "] with source [" + mapping.v2() + "]");
+            if (logger.isDebugEnabled()) {
+                logger.debug("Index [" + index + "]: Put mapping [" + mapping.v1() + "] with source [" + mapping.v2() + "]");
+            } else if (logger.isInfoEnabled()) {
+                logger.info("Index [" + index + "]: Put mapping [" + mapping.v1() + "]");
+            }
         }
 
         final CountDownLatch latch = new CountDownLatch(clusterService.state().nodes().size() * indices.length);

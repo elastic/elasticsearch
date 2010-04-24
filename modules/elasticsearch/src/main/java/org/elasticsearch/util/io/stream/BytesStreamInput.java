@@ -36,9 +36,13 @@ public class BytesStreamInput extends StreamInput {
     protected int count;
 
     public BytesStreamInput(byte buf[]) {
+        this(buf, 0, buf.length);
+    }
+
+    public BytesStreamInput(byte buf[], int position, int count) {
         this.buf = buf;
-        this.pos = 0;
-        this.count = buf.length;
+        this.pos = position;
+        this.count = count;
     }
 
     @Override public byte readByte() throws IOException {

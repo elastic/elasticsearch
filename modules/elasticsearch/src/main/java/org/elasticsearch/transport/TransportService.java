@@ -23,13 +23,18 @@ import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.timer.TimerService;
+import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.concurrent.highscalelib.NonBlockingHashMapLong;
 import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.timer.Timeout;
+import org.elasticsearch.util.timer.TimerTask;
 import org.elasticsearch.util.transport.BoundTransportAddress;
 import org.elasticsearch.util.transport.TransportAddress;
 
+import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
@@ -46,9 +51,11 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     private final ThreadPool threadPool;
 
+    private final TimerService timerService;
+
     final ConcurrentMap<String, TransportRequestHandler> serverHandlers = newConcurrentMap();
 
-    final NonBlockingHashMapLong<TransportResponseHandler> clientHandlers = new NonBlockingHashMapLong<TransportResponseHandler>();
+    final NonBlockingHashMapLong<RequestHolder> clientHandlers = new NonBlockingHashMapLong<RequestHolder>();
 
     final AtomicLong requestIds = new AtomicLong();
 
@@ -56,39 +63,20 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     private boolean throwConnectException = false;
 
-    public TransportService(Transport transport, ThreadPool threadPool) {
-        this(EMPTY_SETTINGS, transport, threadPool);
+    public TransportService(Transport transport, ThreadPool threadPool, TimerService timerService) {
+        this(EMPTY_SETTINGS, transport, threadPool, timerService);
     }
 
-    @Inject public TransportService(Settings settings, Transport transport, ThreadPool threadPool) {
+    @Inject public TransportService(Settings settings, Transport transport, ThreadPool threadPool, TimerService timerService) {
         super(settings);
         this.transport = transport;
         this.threadPool = threadPool;
+        this.timerService = timerService;
     }
 
     @Override protected void doStart() throws ElasticSearchException {
         // register us as an adapter for the transport service
-        transport.transportServiceAdapter(new TransportServiceAdapter() {
-            @Override public TransportRequestHandler handler(String action) {
-                return serverHandlers.get(action);
-            }
-
-            @Override public TransportResponseHandler remove(long requestId) {
-                return clientHandlers.remove(requestId);
-            }
-
-            @Override public void raiseNodeConnected(DiscoveryNode node) {
-                for (TransportConnectionListener connectionListener : connectionListeners) {
-                    connectionListener.onNodeConnected(node);
-                }
-            }
-
-            @Override public void raiseNodeDisconnected(DiscoveryNode node) {
-                for (TransportConnectionListener connectionListener : connectionListeners) {
-                    connectionListener.onNodeDisconnected(node);
-                }
-            }
-        });
+        transport.transportServiceAdapter(new Adapter());
         transport.start();
         if (transport.boundAddress() != null && logger.isInfoEnabled()) {
             logger.info("{}", transport.boundAddress());
@@ -144,16 +132,30 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     public <T extends Streamable> TransportFuture<T> submitRequest(DiscoveryNode node, String action, Streamable message,
                                                                    TransportResponseHandler<T> handler) throws TransportException {
+        return submitRequest(node, action, message, null, handler);
+    }
+
+    public <T extends Streamable> TransportFuture<T> submitRequest(DiscoveryNode node, String action, Streamable message,
+                                                                   TimeValue timeout, TransportResponseHandler<T> handler) throws TransportException {
         PlainTransportFuture<T> futureHandler = new PlainTransportFuture<T>(handler);
-        sendRequest(node, action, message, futureHandler);
+        sendRequest(node, action, message, timeout, futureHandler);
         return futureHandler;
     }
 
     public <T extends Streamable> void sendRequest(final DiscoveryNode node, final String action, final Streamable message,
                                                    final TransportResponseHandler<T> handler) throws TransportException {
+        sendRequest(node, action, message, null, handler);
+    }
+
+    public <T extends Streamable> void sendRequest(final DiscoveryNode node, final String action, final Streamable message,
+                                                   final TimeValue timeout, final TransportResponseHandler<T> handler) throws TransportException {
         final long requestId = newRequestId();
         try {
-            clientHandlers.put(requestId, handler);
+            Timeout timeoutX = null;
+            if (timeout != null) {
+                timeoutX = timerService.newTimeout(new TimeoutTimerTask(requestId), timeout);
+            }
+            clientHandlers.put(requestId, new RequestHolder<T>(handler, node, action, timeoutX));
             transport.sendRequest(node, requestId, action, message, handler);
         } catch (final Exception e) {
             // usually happen either because we failed to connect to the node
@@ -183,10 +185,105 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     public void registerHandler(String action, TransportRequestHandler handler) {
-        serverHandlers.put(action, handler);
+        TransportRequestHandler handlerReplaced = serverHandlers.put(action, handler);
+        if (handlerReplaced != null) {
+            logger.warn("Registered two transport handlers for action {}, handlers: {}, {}", action, handler, handlerReplaced);
+        }
     }
 
     public void removeHandler(String action) {
         serverHandlers.remove(action);
+    }
+
+    class Adapter implements TransportServiceAdapter {
+        @Override public TransportRequestHandler handler(String action) {
+            return serverHandlers.get(action);
+        }
+
+        @Override public TransportResponseHandler remove(long requestId) {
+            RequestHolder holder = clientHandlers.remove(requestId);
+            if (holder == null) {
+                return null;
+            }
+            if (holder.timeout() != null) {
+                holder.timeout().cancel();
+            }
+            return holder.handler();
+        }
+
+        @Override public void raiseNodeConnected(DiscoveryNode node) {
+            for (TransportConnectionListener connectionListener : connectionListeners) {
+                connectionListener.onNodeConnected(node);
+            }
+        }
+
+        @Override public void raiseNodeDisconnected(DiscoveryNode node) {
+            for (TransportConnectionListener connectionListener : connectionListeners) {
+                connectionListener.onNodeDisconnected(node);
+            }
+            // node got disconnected, raise disconnection on possible ongoing handlers
+            for (Map.Entry<Long, RequestHolder> entry : clientHandlers.entrySet()) {
+                RequestHolder holder = entry.getValue();
+                if (holder.node().equals(node)) {
+                    holder = clientHandlers.remove(entry.getKey());
+                    if (holder != null) {
+                        holder.handler().handleException(new NodeDisconnectedTransportException(node, holder.action()));
+                    }
+                }
+            }
+        }
+    }
+
+    class TimeoutTimerTask implements TimerTask {
+
+        private final long requestId;
+
+        TimeoutTimerTask(long requestId) {
+            this.requestId = requestId;
+        }
+
+        @Override public void run(Timeout timeout) throws Exception {
+            if (timeout.isCancelled()) {
+                return;
+            }
+            RequestHolder holder = clientHandlers.remove(requestId);
+            if (holder != null) {
+                holder.handler().handleException(new ReceiveTimeoutTransportException(holder.node(), holder.action()));
+            }
+        }
+    }
+
+    static class RequestHolder<T extends Streamable> {
+
+        private final TransportResponseHandler<T> handler;
+
+        private final DiscoveryNode node;
+
+        private final String action;
+
+        private final Timeout timeout;
+
+        RequestHolder(TransportResponseHandler<T> handler, DiscoveryNode node, String action, Timeout timeout) {
+            this.handler = handler;
+            this.node = node;
+            this.action = action;
+            this.timeout = timeout;
+        }
+
+        public TransportResponseHandler<T> handler() {
+            return handler;
+        }
+
+        public DiscoveryNode node() {
+            return this.node;
+        }
+
+        public String action() {
+            return this.action;
+        }
+
+        public Timeout timeout() {
+            return timeout;
+        }
     }
 }

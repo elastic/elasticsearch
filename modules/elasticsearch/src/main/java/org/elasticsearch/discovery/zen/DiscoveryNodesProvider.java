@@ -17,21 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.util.timer;
+package org.elasticsearch.discovery.zen;
+
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 
 /**
- * A task which is executed after the delay specified with
- * {@link Timer#newTimeout(TimerTask, long, java.util.concurrent.TimeUnit)}.
- *
  * @author kimchy (shay.banon)
  */
-public interface TimerTask {
+public interface DiscoveryNodesProvider {
 
-    /**
-     * Executed after the delay specified with
-     * {@link Timer#newTimeout(TimerTask, long, java.util.concurrent.TimeUnit)}.
-     *
-     * @param timeout a handle which is associated with this task
-     */
-    void run(Timeout timeout) throws Exception;
+    DiscoveryNodes nodes();
 }

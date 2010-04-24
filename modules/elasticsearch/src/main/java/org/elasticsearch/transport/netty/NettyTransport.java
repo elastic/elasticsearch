@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport.netty;
 
-import com.google.common.collect.Lists;
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
@@ -29,6 +28,7 @@ import org.elasticsearch.transport.*;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
+import org.elasticsearch.util.io.NetworkUtils;
 import org.elasticsearch.util.io.stream.BytesStreamOutput;
 import org.elasticsearch.util.io.stream.HandlesStreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
@@ -51,7 +51,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
@@ -61,11 +60,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.google.common.collect.Lists.*;
 import static org.elasticsearch.transport.Transport.Helper.*;
 import static org.elasticsearch.util.TimeValue.*;
 import static org.elasticsearch.util.concurrent.ConcurrentMaps.*;
 import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
-import static org.elasticsearch.util.io.HostResolver.*;
+import static org.elasticsearch.util.io.NetworkUtils.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.util.transport.NetworkExceptionHelper.*;
 
@@ -93,8 +93,6 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     final TimeValue connectTimeout;
 
     final int connectionsPerNode;
-
-    final int connectRetries;
 
     final Boolean tcpNoDelay;
 
@@ -138,10 +136,9 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         this.connectionsPerNode = componentSettings.getAsInt("connections_per_node", 5);
         this.publishHost = componentSettings.get("publish_host");
         this.connectTimeout = componentSettings.getAsTime("connect_timeout", timeValueSeconds(1));
-        this.connectRetries = componentSettings.getAsInt("connect_retries", 2);
         this.tcpNoDelay = componentSettings.getAsBoolean("tcp_no_delay", true);
         this.tcpKeepAlive = componentSettings.getAsBoolean("tcp_keep_alive", null);
-        this.reuseAddress = componentSettings.getAsBoolean("reuse_address", null);
+        this.reuseAddress = componentSettings.getAsBoolean("reuse_address", NetworkUtils.defaultReuseAddress());
         this.tcpSendBufferSize = componentSettings.getAsSize("tcp_send_buffer_size", null);
         this.tcpReceiveBufferSize = componentSettings.getAsSize("tcp_receive_buffer_size", null);
     }
@@ -260,17 +257,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         InetSocketAddress boundAddress = (InetSocketAddress) serverChannel.getLocalAddress();
         InetSocketAddress publishAddress;
         try {
-            InetAddress publishAddressX = resolvePublishHostAddress(publishHost, settings);
-            if (publishAddressX == null) {
-                // if its 0.0.0.0, we can't publish that.., default to the local ip address
-                if (boundAddress.getAddress().isAnyLocalAddress()) {
-                    publishAddress = new InetSocketAddress(resolvePublishHostAddress(publishHost, settings, LOCAL_IP), boundAddress.getPort());
-                } else {
-                    publishAddress = boundAddress;
-                }
-            } else {
-                publishAddress = new InetSocketAddress(publishAddressX, boundAddress.getPort());
-            }
+            publishAddress = new InetSocketAddress(resolvePublishHostAddress(publishHost, settings), boundAddress.getPort());
         } catch (Exception e) {
             throw new BindTransportException("Failed to resolve publish address", e);
         }
@@ -412,59 +399,35 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 if (nodeConnections != null) {
                     return;
                 }
-                // build connection(s) to the node
-                ArrayList<Channel> channels = new ArrayList<Channel>();
-                Throwable lastConnectException = null;
+                List<ChannelFuture> connectFutures = newArrayList();
                 for (int connectionIndex = 0; connectionIndex < connectionsPerNode; connectionIndex++) {
-                    for (int i = 1; i <= connectRetries; i++) {
-                        if (!lifecycle.started()) {
-                            for (Channel channel1 : channels) {
-                                channel1.close().awaitUninterruptibly();
-                            }
-                            throw new ConnectTransportException(node, "Can't connect when the transport is stopped");
+                    InetSocketAddress address = ((InetSocketTransportAddress) node.address()).address();
+                    connectFutures.add(clientBootstrap.connect(address));
+
+                }
+                List<Channel> channels = newArrayList();
+                Throwable lastConnectException = null;
+                for (ChannelFuture connectFuture : connectFutures) {
+                    if (!lifecycle.started()) {
+                        for (Channel channel : channels) {
+                            channel.close().awaitUninterruptibly();
                         }
-                        InetSocketAddress address = ((InetSocketTransportAddress) node.address()).address();
-                        ChannelFuture channelFuture = clientBootstrap.connect(address);
-                        channelFuture.awaitUninterruptibly((long) (connectTimeout.millis() * 1.25));
-                        if (!channelFuture.isSuccess()) {
-                            // we failed to connect, check if we need to bail or retry
-                            if (i == connectRetries && connectionIndex == 0) {
-                                lastConnectException = channelFuture.getCause();
-                                if (connectionIndex == 0) {
-                                    throw new ConnectTransportException(node, "connectTimeout[" + connectTimeout + "], connectRetries[" + connectRetries + "]", lastConnectException);
-                                } else {
-                                    // break out of the retry loop, try another connection
-                                    break;
-                                }
-                            } else {
-                                logger.trace("Retry #[" + i + "], connect to [" + node + "]");
-                                try {
-                                    channelFuture.getChannel().close();
-                                } catch (Exception e) {
-                                    // ignore
-                                }
-                                continue;
-                            }
-                        }
-                        // we got a connection, add it to our connections
-                        Channel channel = channelFuture.getChannel();
-                        if (!lifecycle.started()) {
-                            channel.close();
-                            for (Channel channel1 : channels) {
-                                channel1.close().awaitUninterruptibly();
-                            }
-                            throw new ConnectTransportException(node, "Can't connect when the transport is stopped");
-                        }
+                        throw new ConnectTransportException(node, "Can't connect when the transport is stopped");
+                    }
+                    connectFuture.awaitUninterruptibly((long) (connectTimeout.millis() * 1.25));
+                    if (!connectFuture.isSuccess()) {
+                        lastConnectException = connectFuture.getCause();
+                    } else {
+                        Channel channel = connectFuture.getChannel();
                         channel.getCloseFuture().addListener(new ChannelCloseListener(node.id()));
                         channels.add(channel);
-                        break;
                     }
                 }
                 if (channels.isEmpty()) {
                     if (lastConnectException != null) {
-                        throw new ConnectTransportException(node, "connectTimeout[" + connectTimeout + "], connectRetries[" + connectRetries + "]", lastConnectException);
+                        throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", lastConnectException);
                     }
-                    throw new ConnectTransportException(node, "connectTimeout[" + connectTimeout + "], connectRetries[" + connectRetries + "], reason unknown");
+                    throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "], reason unknown");
                 }
                 if (logger.isDebugEnabled()) {
                     logger.debug("Connected to node[{}], number_of_connections[{}]", node, channels.size());
@@ -516,7 +479,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
 
         private void channelClosed(Channel closedChannel) {
-            List<Channel> updated = Lists.newArrayList();
+            List<Channel> updated = newArrayList();
             for (Channel channel : channels) {
                 if (!channel.getId().equals(closedChannel.getId())) {
                     updated.add(channel);

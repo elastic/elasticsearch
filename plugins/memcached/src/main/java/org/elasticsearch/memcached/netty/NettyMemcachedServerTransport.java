@@ -28,6 +28,7 @@ import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.netty.NettyInternalESLoggerFactory;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
+import org.elasticsearch.util.io.NetworkUtils;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.transport.BoundTransportAddress;
 import org.elasticsearch.util.transport.InetSocketTransportAddress;
@@ -48,7 +49,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
-import static org.elasticsearch.util.io.HostResolver.*;
+import static org.elasticsearch.util.io.NetworkUtils.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -101,7 +102,7 @@ public class NettyMemcachedServerTransport extends AbstractLifecycleComponent<Me
         this.publishHost = componentSettings.get("publish_host");
         this.tcpNoDelay = componentSettings.getAsBoolean("tcp_no_delay", true);
         this.tcpKeepAlive = componentSettings.getAsBoolean("tcp_keep_alive", null);
-        this.reuseAddress = componentSettings.getAsBoolean("reuse_address", null);
+        this.reuseAddress = componentSettings.getAsBoolean("reuse_address", NetworkUtils.defaultReuseAddress());
         this.tcpSendBufferSize = componentSettings.getAsSize("tcp_send_buffer_size", null);
         this.tcpReceiveBufferSize = componentSettings.getAsSize("tcp_receive_buffer_size", null);
     }
@@ -176,17 +177,7 @@ public class NettyMemcachedServerTransport extends AbstractLifecycleComponent<Me
         InetSocketAddress boundAddress = (InetSocketAddress) serverChannel.getLocalAddress();
         InetSocketAddress publishAddress;
         try {
-            InetAddress publishAddressX = resolvePublishHostAddress(publishHost, settings);
-            if (publishAddressX == null) {
-                // if its 0.0.0.0, we can't publish that.., default to the local ip address
-                if (boundAddress.getAddress().isAnyLocalAddress()) {
-                    publishAddress = new InetSocketAddress(resolvePublishHostAddress(publishHost, settings, LOCAL_IP), boundAddress.getPort());
-                } else {
-                    publishAddress = boundAddress;
-                }
-            } else {
-                publishAddress = new InetSocketAddress(publishAddressX, boundAddress.getPort());
-            }
+            publishAddress = new InetSocketAddress(resolvePublishHostAddress(publishHost, settings), boundAddress.getPort());
         } catch (Exception e) {
             throw new BindTransportException("Failed to resolve publish address", e);
         }

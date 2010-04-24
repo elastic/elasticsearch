@@ -23,7 +23,7 @@ import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.component.LifecycleComponent;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public interface ClusterService extends LifecycleComponent<ClusterService> {
 

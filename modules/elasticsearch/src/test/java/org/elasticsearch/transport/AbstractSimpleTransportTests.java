@@ -21,7 +21,9 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.scaling.ScalingThreadPool;
+import org.elasticsearch.threadpool.cached.CachedThreadPool;
+import org.elasticsearch.timer.TimerService;
+import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
@@ -42,6 +44,7 @@ import static org.hamcrest.Matchers.*;
 public abstract class AbstractSimpleTransportTests {
 
     protected ThreadPool threadPool;
+    protected TimerService timerService;
 
     protected TransportService serviceA;
     protected TransportService serviceB;
@@ -49,7 +52,8 @@ public abstract class AbstractSimpleTransportTests {
     protected DiscoveryNode serviceBNode;
 
     @BeforeMethod public void setUp() {
-        threadPool = new ScalingThreadPool();
+        threadPool = new CachedThreadPool();
+        timerService = new TimerService(threadPool);
         build();
         serviceA.connectToNode(serviceBNode);
         serviceB.connectToNode(serviceANode);
@@ -106,6 +110,8 @@ public abstract class AbstractSimpleTransportTests {
             assertThat(e.getMessage(), false, equalTo(true));
         }
 
+        serviceA.removeHandler("sayHello");
+
         System.out.println("after ...");
     }
 
@@ -144,6 +150,8 @@ public abstract class AbstractSimpleTransportTests {
             assertThat("bad message !!!", equalTo(e.getCause().getMessage()));
         }
 
+        serviceA.removeHandler("sayHelloException");
+
         System.out.println("after ...");
 
     }
@@ -162,7 +170,53 @@ public abstract class AbstractSimpleTransportTests {
         };
         serviceA.addConnectionListener(disconnectListener);
         serviceB.close();
-        assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
+        assertThat(latch.await(5, TimeUnit.SECONDS), equalTo(true));
+    }
+
+    @Test public void testTimeoutSendException() throws Exception {
+        serviceA.registerHandler("sayHelloTimeout", new BaseTransportRequestHandler<StringMessage>() {
+            @Override public StringMessage newInstance() {
+                return new StringMessage();
+            }
+
+            @Override public void messageReceived(StringMessage request, TransportChannel channel) {
+                System.out.println("got message: " + request.message);
+                assertThat("moshe", equalTo(request.message));
+                // don't send back a response
+//                try {
+//                    channel.sendResponse(new StringMessage("hello " + request.message));
+//                } catch (IOException e) {
+//                    e.printStackTrace();
+//                    assertThat(e.getMessage(), false, equalTo(true));
+//                }
+            }
+        });
+
+        TransportFuture<StringMessage> res = serviceB.submitRequest(serviceANode, "sayHelloTimeout",
+                new StringMessage("moshe"), TimeValue.timeValueMillis(100), new BaseTransportResponseHandler<StringMessage>() {
+                    @Override public StringMessage newInstance() {
+                        return new StringMessage();
+                    }
+
+                    @Override public void handleResponse(StringMessage response) {
+                        assertThat("got response instead of exception", false, equalTo(true));
+                    }
+
+                    @Override public void handleException(RemoteTransportException exp) {
+                        assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
+                    }
+                });
+
+        try {
+            StringMessage message = res.txGet();
+            assertThat("exception should be thrown", false, equalTo(true));
+        } catch (Exception e) {
+            assertThat(e, instanceOf(ReceiveTimeoutTransportException.class));
+        }
+
+        serviceA.removeHandler("sayHelloTimeout");
+
+        System.out.println("after ...");
     }
 
     private class StringMessage implements Streamable {

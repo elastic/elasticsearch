@@ -17,21 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.util.timer;
+package org.elasticsearch.discovery.zen.ping;
+
+import org.elasticsearch.discovery.DiscoveryException;
 
 /**
- * A task which is executed after the delay specified with
- * {@link Timer#newTimeout(TimerTask, long, java.util.concurrent.TimeUnit)}.
- *
  * @author kimchy (shay.banon)
  */
-public interface TimerTask {
+public class ZenPingException extends DiscoveryException {
 
-    /**
-     * Executed after the delay specified with
-     * {@link Timer#newTimeout(TimerTask, long, java.util.concurrent.TimeUnit)}.
-     *
-     * @param timeout a handle which is associated with this task
-     */
-    void run(Timeout timeout) throws Exception;
+    public ZenPingException(String message) {
+        super(message);
+    }
+
+    public ZenPingException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

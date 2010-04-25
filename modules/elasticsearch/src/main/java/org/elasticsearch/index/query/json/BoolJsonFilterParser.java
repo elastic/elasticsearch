@@ -20,10 +20,7 @@
 package org.elasticsearch.index.query.json;
 
 import com.google.inject.Inject;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanFilter;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterClause;
+import org.apache.lucene.search.*;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -85,7 +82,7 @@ public class BoolJsonFilterParser extends AbstractIndexComponent implements Json
             }
         }
 
-        BooleanFilter booleanFilter = new BooleanFilter();
+        BooleanFilter booleanFilter = new PublicBooleanFilter();
         for (FilterClause filterClause : clauses) {
             booleanFilter.add(filterClause);
         }

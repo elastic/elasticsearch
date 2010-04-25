@@ -61,7 +61,10 @@ public class HighlightPhase implements SearchPhase {
         }
         FastVectorHighlighter highlighter = new FastVectorHighlighter(true, false, fragListBuilder, fragmentsBuilder);
 
-        FieldQuery fieldQuery = highlighter.getFieldQuery(context.query());
+        CustomFieldQuery.reader.set(context.searcher().getIndexReader());
+        CustomFieldQuery.highlightFilters.set(context.highlight().highlightFilter());
+
+        FieldQuery fieldQuery = new CustomFieldQuery(context.query(), highlighter);
         for (SearchHit hit : context.fetchResult().hits().hits()) {
             InternalSearchHit internalHit = (InternalSearchHit) hit;
 

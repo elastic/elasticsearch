@@ -22,6 +22,7 @@ package org.elasticsearch.index.query.json;
 import com.google.inject.Inject;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.PublicTermsFilter;
 import org.apache.lucene.search.TermsFilter;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
@@ -73,7 +74,7 @@ public class TermsJsonFilterParser extends AbstractIndexComponent implements Jso
             throw new QueryParsingException(index, "Terms filter must define the terms to filter on as an array");
         }
 
-        TermsFilter termsFilter = new TermsFilter();
+        TermsFilter termsFilter = new PublicTermsFilter();
         while ((token = jp.nextToken()) != JsonToken.END_ARRAY) {
             String value = jp.getText();
             if (value == null) {

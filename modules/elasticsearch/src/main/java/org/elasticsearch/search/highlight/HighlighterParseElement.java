@@ -25,6 +25,7 @@ import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.util.Booleans;
 
 import java.util.List;
 
@@ -67,6 +68,7 @@ public class HighlighterParseElement implements SearchParseElement {
         String[] preTags = DEFAULT_PRE_TAGS;
         String[] postTags = DEFAULT_POST_TAGS;
         boolean scoreOrdered = false;
+        boolean highlightFilter = true;
         while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
             if (token == JsonToken.FIELD_NAME) {
                 topLevelFieldName = jp.getCurrentName();
@@ -97,6 +99,16 @@ public class HighlighterParseElement implements SearchParseElement {
                         preTags = STYLED_PRE_TAG;
                         postTags = STYLED_POST_TAGS;
                     }
+                } else if ("highlight_filter".equals(topLevelFieldName) || "highlightFilter".equals(topLevelFieldName)) {
+                    highlightFilter = Booleans.parseBoolean(jp.getText(), true);
+                }
+            } else if (token == JsonToken.VALUE_NUMBER_INT) {
+                if ("highlight_filter".equals(topLevelFieldName) || "highlightFilter".equals(topLevelFieldName)) {
+                    highlightFilter = jp.getIntValue() != 0;
+                }
+            } else if (token == JsonToken.VALUE_FALSE) {
+                if ("highlight_filter".equals(topLevelFieldName) || "highlightFilter".equals(topLevelFieldName)) {
+                    highlightFilter = false;
                 }
             } else if (token == JsonToken.START_OBJECT) {
                 if ("fields".equals(topLevelFieldName)) {
@@ -134,6 +146,6 @@ public class HighlighterParseElement implements SearchParseElement {
         if (preTags != null && postTags == null) {
             throw new SearchParseException(context, "Highlighter preTags are set, but postTags are not set");
         }
-        context.highlight(new SearchContextHighlight(fields, preTags, postTags, scoreOrdered));
+        context.highlight(new SearchContextHighlight(fields, preTags, postTags, scoreOrdered, highlightFilter));
     }
 }

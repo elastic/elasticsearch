@@ -23,9 +23,8 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.*;
+import org.apache.lucene.search.vectorhighlight.CustomFieldQuery;
 import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
@@ -58,6 +57,45 @@ public class VectorHighlighterTests {
         String fragment = highlighter.getBestFragment(highlighter.getFieldQuery(new TermQuery(new Term("content", "bad"))),
                 reader, topDocs.scoreDocs[0].doc, "content", 30);
         assertThat(fragment, notNullValue());
+        System.out.println(fragment);
+    }
+
+    @Test public void testVectorHighlighterPrefixQuery() throws Exception {
+        Directory dir = new RAMDirectory();
+        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+
+        indexWriter.addDocument(doc().add(field("_id", "1")).add(field("content", "the big bad dog", Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS)).build());
+
+        IndexReader reader = indexWriter.getReader();
+        IndexSearcher searcher = new IndexSearcher(reader);
+        TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
+
+        assertThat(topDocs.totalHits, equalTo(1));
+
+        FastVectorHighlighter highlighter = new FastVectorHighlighter();
+
+        PrefixQuery prefixQuery = new PrefixQuery(new Term("content", "ba"));
+        assertThat(prefixQuery.getRewriteMethod().getClass().getName(), equalTo(PrefixQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT.getClass().getName()));
+        String fragment = highlighter.getBestFragment(highlighter.getFieldQuery(prefixQuery),
+                reader, topDocs.scoreDocs[0].doc, "content", 30);
+        assertThat(fragment, nullValue());
+
+        prefixQuery.setRewriteMethod(PrefixQuery.SCORING_BOOLEAN_QUERY_REWRITE);
+        Query rewriteQuery = prefixQuery.rewrite(reader);
+        fragment = highlighter.getBestFragment(highlighter.getFieldQuery(rewriteQuery),
+                reader, topDocs.scoreDocs[0].doc, "content", 30);
+        assertThat(fragment, notNullValue());
+
+        System.out.println(fragment);
+
+        // now check with the custom field query
+        prefixQuery = new PrefixQuery(new Term("content", "ba"));
+        assertThat(prefixQuery.getRewriteMethod().getClass().getName(), equalTo(PrefixQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT.getClass().getName()));
+        CustomFieldQuery.reader.set(reader);
+        fragment = highlighter.getBestFragment(new CustomFieldQuery(prefixQuery, highlighter),
+                reader, topDocs.scoreDocs[0].doc, "content", 30);
+        assertThat(fragment, notNullValue());
+
         System.out.println(fragment);
     }
 

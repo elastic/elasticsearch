@@ -34,11 +34,19 @@ public class SearchContextHighlight {
 
     private boolean scoreOrdered = false;
 
-    public SearchContextHighlight(List<ParsedHighlightField> fields, String[] preTags, String[] postTags, boolean scoreOrdered) {
+    private boolean highlightFilter;
+
+    public SearchContextHighlight(List<ParsedHighlightField> fields, String[] preTags, String[] postTags,
+                                  boolean scoreOrdered, boolean highlightFilter) {
         this.fields = fields;
         this.preTags = preTags;
         this.postTags = postTags;
         this.scoreOrdered = scoreOrdered;
+        this.highlightFilter = highlightFilter;
+    }
+
+    public boolean highlightFilter() {
+        return highlightFilter;
     }
 
     public List<ParsedHighlightField> fields() {

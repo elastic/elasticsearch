@@ -25,6 +25,7 @@ import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.transport.TransportAddress;
 
 import java.io.IOException;
 import java.util.List;
@@ -141,6 +142,15 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
 
     public DiscoveryNode getMasterNode() {
         return masterNode();
+    }
+
+    public DiscoveryNode findByAddress(TransportAddress address) {
+        for (DiscoveryNode node : nodes.values()) {
+            if (node.address().equals(address)) {
+                return node;
+            }
+        }
+        return null;
     }
 
     public DiscoveryNodes removeDeadMembers(Set<String> newNodes, String masterNodeId) {

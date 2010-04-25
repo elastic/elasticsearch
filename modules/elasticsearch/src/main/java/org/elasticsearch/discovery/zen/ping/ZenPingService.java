@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.ping.multicast.MulticastZenPing;
+import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.TimeValue;
@@ -49,7 +50,15 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
     @Inject public ZenPingService(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {
         super(settings);
 
-        this.zenPings = ImmutableList.of(new MulticastZenPing(settings, threadPool, transportService, clusterName));
+        ImmutableList.Builder<ZenPing> zenPingsBuilder = ImmutableList.builder();
+        if (componentSettings.getAsBoolean("multicast.enabled", true)) {
+            zenPingsBuilder.add(new MulticastZenPing(settings, threadPool, transportService, clusterName));
+        }
+        if (componentSettings.getAsArray("unicast.hosts").length > 0) {
+            zenPingsBuilder.add(new UnicastZenPing(settings, threadPool, transportService, clusterName));
+        }
+
+        this.zenPings = zenPingsBuilder.build();
     }
 
     public ImmutableList<? extends ZenPing> zenPings() {

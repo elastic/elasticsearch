@@ -24,10 +24,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 /**
  * @author kimchy (shay.banon)
  */
-public class NodeDisconnectedTransportException extends RemoteTransportException {
+public class NodeDisconnectedTransportException extends ConnectTransportException {
 
     public NodeDisconnectedTransportException(DiscoveryNode node, String action) {
-        super(node.name(), node.address(), action, null);
+        super(node, "disconnected", action, null);
     }
 
 //    @Override public Throwable fillInStackTrace() {

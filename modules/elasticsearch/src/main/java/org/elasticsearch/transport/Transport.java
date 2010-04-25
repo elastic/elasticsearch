@@ -63,7 +63,15 @@ public interface Transport extends LifecycleComponent<Transport> {
 
     void transportServiceAdapter(TransportServiceAdapter service);
 
+    /**
+     * The address the transport is bound on.
+     */
     BoundTransportAddress boundAddress();
+
+    /**
+     * Returns an address from its string representation.
+     */
+    TransportAddress addressFromString(String address) throws Exception;
 
     /**
      * Is the address type supported.

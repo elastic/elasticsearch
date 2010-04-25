@@ -180,6 +180,10 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         return requestIds.getAndIncrement();
     }
 
+    public TransportAddress addressFromString(String address) throws Exception {
+        return transport.addressFromString(address);
+    }
+
     public void registerHandler(ActionTransportRequestHandler handler) {
         registerHandler(handler.action(), handler);
     }

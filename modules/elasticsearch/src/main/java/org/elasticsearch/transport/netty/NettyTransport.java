@@ -314,6 +314,16 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     @Override protected void doClose() throws ElasticSearchException {
     }
 
+    @Override public TransportAddress addressFromString(String address) throws Exception {
+        int index = address.lastIndexOf(':');
+        if (index == -1) {
+            throw new ElasticSearchIllegalStateException("Port must be provided to create inet address from [" + address + "]");
+        }
+        String host = address.substring(0, index);
+        int port = Integer.parseInt(address.substring(index + 1));
+        return new InetSocketTransportAddress(host, port);
+    }
+
     @Override public boolean addressSupported(Class<? extends TransportAddress> address) {
         return InetSocketTransportAddress.class.equals(address);
     }

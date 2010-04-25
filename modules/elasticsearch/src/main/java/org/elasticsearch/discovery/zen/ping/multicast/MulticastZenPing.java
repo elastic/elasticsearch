@@ -109,7 +109,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         this.bufferSize = componentSettings.getAsInt("buffer_size", 2048);
         this.ttl = componentSettings.getAsInt("ttl", 3);
 
-        this.transportService.registerHandler(PingResponseRequestHandler.ACTION, new PingResponseRequestHandler());
+        this.transportService.registerHandler(MulticastPingResponseRequestHandler.ACTION, new MulticastPingResponseRequestHandler());
     }
 
     @Override public void setNodesProvider(DiscoveryNodesProvider nodesProvider) {
@@ -197,7 +197,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                 ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.remove(id);
                 listener.onPing(responses.values().toArray(new PingResponse[responses.size()]));
             }
-        }, timeout.millis(), TimeUnit.MILLISECONDS);
+        }, timeout);
     }
 
     private void sendPingRequest(int id) {
@@ -224,15 +224,15 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         }
     }
 
-    private class PingResponseRequestHandler extends BaseTransportRequestHandler<WrappedPingResponse> {
+    class MulticastPingResponseRequestHandler extends BaseTransportRequestHandler<MulticastPingResponse> {
 
         static final String ACTION = "discovery/zen/multicast";
 
-        @Override public WrappedPingResponse newInstance() {
-            return new WrappedPingResponse();
+        @Override public MulticastPingResponse newInstance() {
+            return new MulticastPingResponse();
         }
 
-        @Override public void messageReceived(WrappedPingResponse request, TransportChannel channel) throws Exception {
+        @Override public void messageReceived(MulticastPingResponse request, TransportChannel channel) throws Exception {
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}] Received {}", request.id, request.pingResponse);
             }
@@ -246,24 +246,18 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         }
     }
 
-    class WrappedPingResponse implements Streamable {
+    static class MulticastPingResponse implements Streamable {
 
         int id;
 
         PingResponse pingResponse;
 
-        WrappedPingResponse() {
-        }
-
-        WrappedPingResponse(int id, PingResponse pingResponse) {
-            this.id = id;
-            this.pingResponse = pingResponse;
+        MulticastPingResponse() {
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {
             id = in.readInt();
-            pingResponse = new PingResponse();
-            pingResponse.readFrom(in);
+            pingResponse = PingResponse.readPingResponse(in);
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
@@ -318,12 +312,12 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                         // not our cluster, ignore it...
                         continue;
                     }
-                    final WrappedPingResponse wrappedPingResponse = new WrappedPingResponse();
-                    wrappedPingResponse.id = id;
-                    wrappedPingResponse.pingResponse = new PingResponse(discoveryNodes.localNode(), discoveryNodes.masterNode());
+                    final MulticastPingResponse multicastPingResponse = new MulticastPingResponse();
+                    multicastPingResponse.id = id;
+                    multicastPingResponse.pingResponse = new PingResponse(discoveryNodes.localNode(), discoveryNodes.masterNode(), clusterName);
 
                     if (logger.isTraceEnabled()) {
-                        logger.trace("[{}] Received ping_request from [{}], sending {}", id, requestingNode, wrappedPingResponse.pingResponse);
+                        logger.trace("[{}] Received ping_request from [{}], sending {}", id, requestingNode, multicastPingResponse.pingResponse);
                     }
 
                     if (!transportService.nodeConnected(requestingNode)) {
@@ -336,7 +330,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                                 } catch (Exception e) {
                                     logger.warn("Failed to connect to requesting node {}", e, requestingNode);
                                 }
-                                transportService.sendRequest(requestingNode, PingResponseRequestHandler.ACTION, wrappedPingResponse, new VoidTransportResponseHandler(false) {
+                                transportService.sendRequest(requestingNode, MulticastPingResponseRequestHandler.ACTION, multicastPingResponse, new VoidTransportResponseHandler(false) {
                                     @Override public void handleException(RemoteTransportException exp) {
                                         logger.warn("Failed to receive confirmation on sent ping response to [{}]", exp, requestingNode);
                                     }
@@ -344,7 +338,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                             }
                         });
                     } else {
-                        transportService.sendRequest(requestingNode, PingResponseRequestHandler.ACTION, wrappedPingResponse, new VoidTransportResponseHandler(false) {
+                        transportService.sendRequest(requestingNode, MulticastPingResponseRequestHandler.ACTION, multicastPingResponse, new VoidTransportResponseHandler(false) {
                             @Override public void handleException(RemoteTransportException exp) {
                                 logger.warn("Failed to receive confirmation on sent ping response to [{}]", exp, requestingNode);
                             }

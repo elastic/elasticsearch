@@ -24,16 +24,24 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 /**
  * @author kimchy (shay.banon)
  */
-public class ConnectTransportException extends TransportException {
+public class ConnectTransportException extends RemoteTransportException {
 
     private final DiscoveryNode node;
 
     public ConnectTransportException(DiscoveryNode node, String msg) {
-        this(node, msg, null);
+        this(node, msg, null, null);
+    }
+
+    public ConnectTransportException(DiscoveryNode node, String msg, String action) {
+        this(node, msg, action, null);
     }
 
     public ConnectTransportException(DiscoveryNode node, String msg, Throwable cause) {
-        super(node + ": " + msg, cause);
+        this(node, msg, null, cause);
+    }
+
+    public ConnectTransportException(DiscoveryNode node, String msg, String action, Throwable cause) {
+        super(node.name(), node.address(), action, cause);
         this.node = node;
     }
 

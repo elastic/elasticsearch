@@ -120,7 +120,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         boolean retry = true;
         while (retry) {
             retry = false;
-            DiscoveryNode masterNode = pingTillMasterResolved();
+            DiscoveryNode masterNode = broadBingTillMasterResolved();
             if (localNode.equals(masterNode)) {
                 // we are the master (first)
                 this.firstMaster = true;
@@ -182,7 +182,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 logger.debug("Failed to send leave request to master [{}]", e, latestDiscoNodes.masterNode());
             }
         } else {
-            DiscoveryNode[] possibleMasters = electMaster.nextPossibleMasters(latestDiscoNodes.nodes().values(), 3);
+            DiscoveryNode[] possibleMasters = electMaster.nextPossibleMasters(latestDiscoNodes.nodes().values(), 5);
             for (DiscoveryNode possibleMaster : possibleMasters) {
                 if (localNode.equals(possibleMaster)) {
                     continue;
@@ -365,7 +365,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
     }
 
-    private DiscoveryNode pingTillMasterResolved() {
+    private DiscoveryNode broadBingTillMasterResolved() {
         while (true) {
             ZenPing.PingResponse[] pingResponses = pingService.pingAndWait(initialPingTimeout);
             List<DiscoveryNode> pingMasters = newArrayList();

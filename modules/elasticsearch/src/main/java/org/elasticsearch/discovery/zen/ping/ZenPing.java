@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery.zen.ping;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.util.TimeValue;
@@ -30,6 +31,7 @@ import org.elasticsearch.util.io.stream.Streamable;
 
 import java.io.IOException;
 
+import static org.elasticsearch.cluster.ClusterName.*;
 import static org.elasticsearch.cluster.node.DiscoveryNode.*;
 
 /**
@@ -48,16 +50,23 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
 
     public class PingResponse implements Streamable {
 
+        private ClusterName clusterName;
+
         private DiscoveryNode target;
 
         private DiscoveryNode master;
 
-        public PingResponse() {
+        private PingResponse() {
         }
 
-        public PingResponse(DiscoveryNode target, DiscoveryNode master) {
+        public PingResponse(DiscoveryNode target, DiscoveryNode master, ClusterName clusterName) {
             this.target = target;
             this.master = master;
+            this.clusterName = clusterName;
+        }
+
+        public ClusterName clusterName() {
+            return this.clusterName;
         }
 
         public DiscoveryNode target() {
@@ -68,7 +77,14 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
             return master;
         }
 
+        public static PingResponse readPingResponse(StreamInput in) throws IOException {
+            PingResponse response = new PingResponse();
+            response.readFrom(in);
+            return response;
+        }
+
         @Override public void readFrom(StreamInput in) throws IOException {
+            clusterName = readClusterName(in);
             target = readNode(in);
             if (in.readBoolean()) {
                 master = readNode(in);
@@ -76,6 +92,7 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
+            clusterName.writeTo(out);
             target.writeTo(out);
             if (master == null) {
                 out.writeBoolean(false);

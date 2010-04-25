@@ -19,51 +19,38 @@
 
 package org.elasticsearch.groovy.node
 
-import org.elasticsearch.groovy.client.GClient
+import org.elasticsearch.groovy.util.json.JsonBuilder
 import org.elasticsearch.node.Node
+import org.elasticsearch.node.internal.InternalNode
+import org.elasticsearch.util.settings.ImmutableSettings
+import org.elasticsearch.util.settings.loader.JsonSettingsLoader
 
 /**
+ * The node builder allow to build a   {@link GNode}   instance.
+ *
  * @author kimchy (shay.banon)
  */
-class GNode {
+public class GNodeBuilder {
 
-    final Node node;
+    private final ImmutableSettings.Builder settingsBuilder = ImmutableSettings.settingsBuilder();
 
-    final GClient client;
+    private boolean loadConfigSettings = true;
 
-    def GNode(Node node) {
-        this.node = node;
-        this.client = new GClient(node.client())
+    public static GNodeBuilder nodeBuilder() {
+        new GNodeBuilder()
     }
 
-    /**
-     * The settings that were used to create the node.
-     */
-    def getSettings() {
-        node.settings();
+    def settings(Closure settings) {
+        byte[] settingsBytes = new JsonBuilder().buildAsBytes(settings);
+        settingsBuilder.put(new JsonSettingsLoader().load(settingsBytes))
     }
 
-    /**
-     * Start the node. If the node is already started, this method is no-op.
-     */
-    def start() {
-        node.start()
-        this
+    def build() {
+        Node node = new InternalNode(settingsBuilder.build(), loadConfigSettings)
+        new GNode(node)
     }
 
-    /**
-     * Stops the node. If the node is already started, this method is no-op.
-     */
-    def stop() {
-        node.stop()
-        this
-    }
-
-    /**
-     * Closes the node (and   {@link #stop}  s if its running).
-     */
-    def close() {
-        node.close()
-        this
+    def node() {
+        build().start()
     }
 }

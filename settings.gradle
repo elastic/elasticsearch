@@ -7,7 +7,7 @@ include 'test-integration'
 include 'benchmark-micro'
 
 include 'plugins-attachments'
-include 'plugins-groovy'
+include 'plugins-client-groovy'
 include 'plugins-memcached'
 include 'plugins-discovery-jgroups'
 

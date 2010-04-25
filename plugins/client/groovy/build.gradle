@@ -3,7 +3,7 @@ dependsOn(':elasticsearch')
 apply plugin: 'groovy'
 apply plugin: 'maven'
 
-archivesBaseName = "elasticsearch-groovy"
+archivesBaseName = "elasticsearch-client-groovy"
 
 explodedDistDir = new File(distsDir, 'exploded')
 
@@ -115,7 +115,7 @@ uploadArchives {
 
         pom.project {
             inceptionYear '2009'
-            name 'elasticsearch-plugins-groovy'
+            name 'elasticsearch-plugins-client--groovy'
             description 'Groovy Plugin for ElasticSearch'
             licenses {
                 license {

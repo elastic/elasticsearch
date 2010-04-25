@@ -6,9 +6,8 @@
     <exclude-output />
     <content url="file://$MODULE_DIR$/../../plugins/transport/memcached">
       <sourceFolder url="file://$MODULE_DIR$/../../plugins/transport/memcached/src/main/java" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/../../plugins/transport/memcached/src/test/java" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/../../plugins/transport/memcached/src/test/java" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/../../plugins/transport/memcached/build" />
-      <excludeFolder url="file://$MODULE_DIR$/../../plugins/transport/memcached/src/test/java" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

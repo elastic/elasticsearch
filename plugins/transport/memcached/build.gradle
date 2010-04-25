@@ -3,7 +3,7 @@ dependsOn(':elasticsearch')
 apply plugin: 'java'
 apply plugin: 'maven'
 
-archivesBaseName = "elasticsearch-memcached"
+archivesBaseName = "elasticsearch-transport-memcached"
 
 explodedDistDir = new File(distsDir, 'exploded')
 

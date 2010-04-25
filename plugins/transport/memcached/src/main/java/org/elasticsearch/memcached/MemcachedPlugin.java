@@ -40,7 +40,7 @@ public class MemcachedPlugin extends AbstractPlugin {
     }
 
     @Override public String name() {
-        return "memcached";
+        return "transport-memcached";
     }
 
     @Override public String description() {

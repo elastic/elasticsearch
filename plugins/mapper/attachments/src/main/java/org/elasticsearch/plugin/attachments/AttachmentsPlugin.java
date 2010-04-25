@@ -32,7 +32,7 @@ import static com.google.common.collect.Lists.*;
 public class AttachmentsPlugin extends AbstractPlugin {
 
     @Override public String name() {
-        return "attachments";
+        return "mapper-attachments";
     }
 
     @Override public String description() {

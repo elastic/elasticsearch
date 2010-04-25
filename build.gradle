@@ -92,7 +92,7 @@ task zip(type: Zip, dependsOn: ['explodedDist']) {
     }
 }
 
-task release(dependsOn: [zip, ":plugins-attachments:release"]) << {
+task release(dependsOn: [zip]) << {
     ant.delete(dir: explodedDistDir)
 }
 

@@ -3,11 +3,11 @@ dependsOn(':elasticsearch')
 apply plugin: 'java'
 apply plugin: 'maven'
 
-archivesBaseName = "elasticsearch-attachments"
+archivesBaseName = "elasticsearch-mapper-attachments"
 
 explodedDistDir = new File(distsDir, 'exploded')
 
-manifest.mainAttributes("Implementation-Title": "ElasticSearch::Plugins::Attachments", "Implementation-Version": rootProject.version, "Implementation-Date": buildTimeStr)
+manifest.mainAttributes("Implementation-Title": "ElasticSearch::Plugins::Mapper::Attachments", "Implementation-Version": rootProject.version, "Implementation-Date": buildTimeStr)
 
 configurations.compile.transitive = true
 configurations.testCompile.transitive = true

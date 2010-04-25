@@ -6,9 +6,9 @@ include 'test-integration'
 
 include 'benchmark-micro'
 
-include 'plugins-attachments'
+include 'plugins-mapper-attachments'
 include 'plugins-client-groovy'
-include 'plugins-memcached'
+include 'plugins-transport-memcached'
 include 'plugins-discovery-jgroups'
 
 rootProject.name = 'elasticsearch-root'

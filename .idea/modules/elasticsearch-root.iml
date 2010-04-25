@@ -13,8 +13,10 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="elasticsearch" />
-    <orderEntry type="module" module-name="plugin-memcached" />
-    <orderEntry type="module" module-name="plugin-attachments" />
+    <orderEntry type="module" module-name="plugin-client-groovy" />
+    <orderEntry type="module" module-name="plugin-discovery-jgroups" />
+    <orderEntry type="module" module-name="plugin-mapper-attachments" />
+    <orderEntry type="module" module-name="plugin-transport-memcached" />
     <orderEntry type="module" module-name="test-integration" />
   </component>
 </module>

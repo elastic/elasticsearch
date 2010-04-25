@@ -7,7 +7,7 @@ archivesBaseName = "elasticsearch-client-groovy"
 
 explodedDistDir = new File(distsDir, 'exploded')
 
-manifest.mainAttributes("Implementation-Title": "ElasticSearch::Plugins::Groovy", "Implementation-Version": rootProject.version, "Implementation-Date": buildTimeStr)
+manifest.mainAttributes("Implementation-Title": "ElasticSearch::Plugins::Client::Groovy", "Implementation-Version": rootProject.version, "Implementation-Date": buildTimeStr)
 
 configurations.compile.transitive = true
 configurations.testCompile.transitive = true

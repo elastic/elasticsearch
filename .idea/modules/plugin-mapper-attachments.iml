@@ -6,9 +6,8 @@
     <exclude-output />
     <content url="file://$MODULE_DIR$/../../plugins/mapper/attachments">
       <sourceFolder url="file://$MODULE_DIR$/../../plugins/mapper/attachments/src/main/java" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/../../plugins/mapper/attachments/src/test/java" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/../../plugins/mapper/attachments/src/test/java" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/../../plugins/mapper/attachments/build" />
-      <excludeFolder url="file://$MODULE_DIR$/../../plugins/mapper/attachments/src/test/java" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

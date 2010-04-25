@@ -14,7 +14,6 @@ set JAVA_OPTS=^
  -Xms128m^
  -Xmx1G^
  -Djline.enabled=false^
- -Djava.net.preferIPv4Stack=true^
  -XX:+AggressiveOpts^
  -XX:+UseParNewGC^
  -XX:+UseConcMarkSweepGC^

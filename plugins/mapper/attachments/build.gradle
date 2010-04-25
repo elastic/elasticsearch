@@ -17,9 +17,9 @@ sourceSets.main.resources.srcDirs 'src/main/java'
 sourceSets.test.resources.srcDirs 'src/test/java'
 
 // add the source files to the dist jar
-jar {
-    from sourceSets.main.allJava
-}
+//jar {
+//    from sourceSets.main.allJava
+//}
 
 configurations {
     dists

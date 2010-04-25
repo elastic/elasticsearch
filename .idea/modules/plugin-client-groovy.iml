@@ -8,6 +8,7 @@
       <sourceFolder url="file://$MODULE_DIR$/../../plugins/client/groovy/src/main/groovy" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/../../plugins/client/groovy/src/test/groovy" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/../../plugins/client/groovy/build" />
+      <excludeFolder url="file://$MODULE_DIR$/../../plugins/client/groovy/work" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

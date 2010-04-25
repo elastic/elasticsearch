@@ -115,7 +115,7 @@ public abstract class JsonNumberFieldMapper<T extends Number> extends JsonFieldM
     /**
      * Use the field query created here when matching on numbers.
      */
-    @Override public boolean useFieldQueryWithQueryString() {
+    @Override public boolean useTermQueryWithQueryString() {
         return true;
     }
 

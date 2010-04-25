@@ -162,15 +162,15 @@ public interface FieldMapper<T> {
     String indexedValue(T value);
 
     /**
-     * Should the field query {@link #fieldQuery(String)} be used when detecting this
+     * Should the field query {@link #termQuery(String)} be used when detecting this
      * field in query string.
      */
-    boolean useFieldQueryWithQueryString();
+    boolean useTermQueryWithQueryString();
 
     /**
      * A field query for the specified value.
      */
-    Query fieldQuery(String value);
+    Query termQuery(String value);
 
     /**
      * A term query to use when parsing a query string. Can return <tt>null</tt>.

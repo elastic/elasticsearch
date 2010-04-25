@@ -93,7 +93,7 @@ public class TermJsonQueryParser extends AbstractIndexComponent implements JsonQ
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
-                query = smartNameFieldMappers.mapper().fieldQuery(value);
+                query = smartNameFieldMappers.mapper().termQuery(value);
             }
         }
         if (query == null) {

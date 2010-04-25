@@ -110,6 +110,10 @@ public class JsonAllFieldMapper extends JsonFieldMapper<Void> implements AllFiel
         return new AllTermQuery(term);
     }
 
+    @Override public Query termQuery(String value) {
+        return new AllTermQuery(new Term(names.indexName(), value));
+    }
+
     @Override protected Field parseCreateField(JsonParseContext jsonContext) throws IOException {
         if (!enabled) {
             return null;
@@ -149,10 +153,6 @@ public class JsonAllFieldMapper extends JsonFieldMapper<Void> implements AllFiel
     }
 
     @Override public Object valueForSearch(Fieldable field) {
-        return null;
-    }
-
-    @Override public String indexedValue(String value) {
         return null;
     }
 

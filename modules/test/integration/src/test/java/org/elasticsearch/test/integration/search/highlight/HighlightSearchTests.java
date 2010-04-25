@@ -76,7 +76,7 @@ public class HighlightSearchTests extends AbstractNodesTests {
 
     @Test public void testSimpleHighlighting() throws Exception {
         SearchSourceBuilder source = searchSource()
-                .query(termQuery("multi", "test"))
+                .query(termQuery("_all", "test"))
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("_all").order("score").preTags("<xxx>").postTags("</xxx>"));
 
@@ -106,6 +106,26 @@ public class HighlightSearchTests extends AbstractNodesTests {
     @Test public void testPrefixHighlightingOnSpecificField() throws Exception {
         SearchSourceBuilder source = searchSource()
                 .query(prefixQuery("multi", "te"))
+                .from(0).size(60).explain(true)
+                .highlight(highlight().field("_all").order("score").preTags("<xxx>").postTags("</xxx>"));
+
+        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(100l));
+        assertThat(searchResponse.hits().hits().length, equalTo(60));
+        for (int i = 0; i < 60; i++) {
+            SearchHit hit = searchResponse.hits().hits()[i];
+//            System.out.println(hit.target() + ": " +  hit.explanation());
+//            assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
+//            System.out.println(hit.shard() + ": " + hit.highlightFields());
+            assertThat(hit.highlightFields().size(), equalTo(1));
+            assertThat(hit.highlightFields().get("_all").fragments().length, greaterThan(0));
+        }
+    }
+
+    @Test public void testPrefixHighlightingOnAllField() throws Exception {
+        SearchSourceBuilder source = searchSource()
+                .query(prefixQuery("_all", "te"))
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("_all").order("score").preTags("<xxx>").postTags("</xxx>"));
 

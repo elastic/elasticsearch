@@ -319,11 +319,11 @@ public abstract class JsonFieldMapper<T> implements FieldMapper<T>, JsonMapper {
         return value.toString();
     }
 
-    @Override public boolean useFieldQueryWithQueryString() {
+    @Override public boolean useTermQueryWithQueryString() {
         return false;
     }
 
-    @Override public Query fieldQuery(String value) {
+    @Override public Query termQuery(String value) {
         return new TermQuery(new Term(names.indexName(), indexedValue(value)));
     }
 

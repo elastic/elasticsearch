@@ -82,8 +82,8 @@ public class MapperQueryParser extends QueryParser {
                 currentMapper = fieldMappers.fieldMappers().mapper();
                 if (currentMapper != null) {
                     Query query;
-                    if (currentMapper.useFieldQueryWithQueryString()) {
-                        query = currentMapper.fieldQuery(queryText);
+                    if (currentMapper.useTermQueryWithQueryString()) {
+                        query = currentMapper.termQuery(queryText);
                     } else {
                         query = super.getFieldQuery(currentMapper.names().indexName(), queryText);
                     }

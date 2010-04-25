@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticSearchException;
 
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 /**
  * @author kimchy (Shay Banon)
@@ -40,6 +39,6 @@ public interface TransportFuture<V> extends Future<V> {
      * Waits if necessary for at most the given time for the computation
      * to complete, and then retrieves its result, if available.
      */
-    V txGet(long timeout, TimeUnit unit) throws ElasticSearchException, TimeoutException;
+    V txGet(long timeout, TimeUnit unit) throws ElasticSearchException;
 }
 

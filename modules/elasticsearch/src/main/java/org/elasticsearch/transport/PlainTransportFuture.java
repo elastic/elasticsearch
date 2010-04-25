@@ -21,6 +21,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchInterruptedException;
+import org.elasticsearch.ElasticSearchTimeoutException;
 import org.elasticsearch.util.concurrent.AbstractFuture;
 import org.elasticsearch.util.io.stream.Streamable;
 
@@ -53,9 +54,11 @@ public class PlainTransportFuture<V extends Streamable> extends AbstractFuture<V
         }
     }
 
-    @Override public V txGet(long timeout, TimeUnit unit) throws ElasticSearchException, TimeoutException {
+    @Override public V txGet(long timeout, TimeUnit unit) throws ElasticSearchException {
         try {
             return get(timeout, unit);
+        } catch (TimeoutException e) {
+            throw new ElasticSearchTimeoutException(e.getMessage());
         } catch (InterruptedException e) {
             throw new ElasticSearchInterruptedException(e.getMessage());
         } catch (ExecutionException e) {

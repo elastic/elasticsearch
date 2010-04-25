@@ -35,7 +35,6 @@ import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 /**
  * @author kimchy (shay.banon)
@@ -70,7 +69,7 @@ public class MembershipAction extends AbstractComponent {
         transportService.sendRequest(node, LeaveRequestRequestHandler.ACTION, new LeaveRequest(masterNode), VoidTransportResponseHandler.INSTANCE_NOSPAWN);
     }
 
-    public void sendLeaveRequestBlocking(DiscoveryNode masterNode, DiscoveryNode node, TimeValue timeout) throws ElasticSearchException, TimeoutException {
+    public void sendLeaveRequestBlocking(DiscoveryNode masterNode, DiscoveryNode node, TimeValue timeout) throws ElasticSearchException {
         transportService.submitRequest(masterNode, LeaveRequestRequestHandler.ACTION, new LeaveRequest(node), VoidTransportResponseHandler.INSTANCE_NOSPAWN).txGet(timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
@@ -78,7 +77,7 @@ public class MembershipAction extends AbstractComponent {
         transportService.sendRequest(masterNode, JoinRequestRequestHandler.ACTION, new JoinRequest(node), VoidTransportResponseHandler.INSTANCE_NOSPAWN);
     }
 
-    public void sendJoinRequestBlocking(DiscoveryNode masterNode, DiscoveryNode node, TimeValue timeout) throws ElasticSearchException, TimeoutException {
+    public void sendJoinRequestBlocking(DiscoveryNode masterNode, DiscoveryNode node, TimeValue timeout) throws ElasticSearchException {
         transportService.submitRequest(masterNode, JoinRequestRequestHandler.ACTION, new JoinRequest(node), VoidTransportResponseHandler.INSTANCE_NOSPAWN).txGet(timeout.millis(), TimeUnit.MILLISECONDS);
     }
 

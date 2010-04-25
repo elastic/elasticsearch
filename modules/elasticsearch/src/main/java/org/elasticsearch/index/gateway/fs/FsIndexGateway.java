@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.gateway.fs;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.fs.FsGateway;

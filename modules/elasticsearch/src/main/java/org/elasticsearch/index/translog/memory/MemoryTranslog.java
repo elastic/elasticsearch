@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.translog.memory;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.gateway.snapshot;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.replication.TransportIndicesReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;

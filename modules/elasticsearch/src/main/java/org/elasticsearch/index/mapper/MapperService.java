@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.elasticsearch.util.gcommon.collect.UnmodifiableIterator;
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.env.Environment;

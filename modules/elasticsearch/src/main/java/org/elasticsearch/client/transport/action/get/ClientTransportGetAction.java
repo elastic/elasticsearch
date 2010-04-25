@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.transport.action.get;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.discovery;
 
-import com.google.inject.AbstractModule;
-import com.google.inject.Module;
+import org.elasticsearch.util.guice.inject.AbstractModule;
+import org.elasticsearch.util.guice.inject.Module;
 import org.elasticsearch.discovery.local.LocalDiscoveryModule;
 import org.elasticsearch.discovery.zen.ZenDiscoveryModule;
 import org.elasticsearch.util.settings.Settings;

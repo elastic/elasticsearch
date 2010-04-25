@@ -19,7 +19,7 @@
 
 package org.elasticsearch.timer;
 
-import com.google.inject.AbstractModule;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 
 /**
  * @author kimchy (Shay Banon)

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.deletionpolicy;
 
-import com.google.inject.Inject;
-import com.google.inject.name.Named;
+import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.guice.inject.name.Named;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;

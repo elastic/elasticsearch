@@ -19,7 +19,7 @@
 
 package org.elasticsearch.plugin.attachments;
 
-import com.google.inject.Module;
+import org.elasticsearch.util.guice.inject.Module;
 import org.elasticsearch.plugins.AbstractPlugin;
 
 import java.util.Collection;

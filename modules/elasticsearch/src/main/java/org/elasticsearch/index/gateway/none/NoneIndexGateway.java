@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.gateway.none;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.gateway.IndexGateway;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.merge.policy;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;

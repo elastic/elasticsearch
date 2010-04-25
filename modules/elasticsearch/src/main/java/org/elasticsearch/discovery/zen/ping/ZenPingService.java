@@ -20,7 +20,7 @@
 package org.elasticsearch.discovery.zen.ping;
 
 import org.elasticsearch.util.gcommon.collect.ImmutableList;
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.ClusterName;

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.node.internal;
 
-import com.google.inject.Guice;
-import com.google.inject.Injector;
-import com.google.inject.Module;
+import org.elasticsearch.util.guice.inject.Guice;
+import org.elasticsearch.util.guice.inject.Injector;
+import org.elasticsearch.util.guice.inject.Module;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.TransportActionModule;

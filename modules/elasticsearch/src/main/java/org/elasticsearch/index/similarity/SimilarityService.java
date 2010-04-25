@@ -20,7 +20,7 @@
 package org.elasticsearch.index.similarity;
 
 import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.search.Similarity;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;

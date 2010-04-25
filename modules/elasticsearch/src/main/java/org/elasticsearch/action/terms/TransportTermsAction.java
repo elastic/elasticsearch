@@ -20,7 +20,7 @@
 package org.elasticsearch.action.terms;
 
 import org.elasticsearch.util.gcommon.collect.Maps;
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermDocs;
 import org.apache.lucene.index.TermEnum;

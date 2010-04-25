@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search;
 
-import com.google.inject.AbstractModule;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.dfs.DfsPhase;

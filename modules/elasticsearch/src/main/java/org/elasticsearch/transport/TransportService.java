@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.threadpool.ThreadPool;

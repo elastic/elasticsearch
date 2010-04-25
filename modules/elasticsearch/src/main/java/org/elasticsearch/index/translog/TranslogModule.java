@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.translog;
 
-import com.google.inject.AbstractModule;
-import com.google.inject.Scopes;
+import org.elasticsearch.util.guice.inject.AbstractModule;
+import org.elasticsearch.util.guice.inject.Scopes;
 import org.elasticsearch.index.translog.memory.MemoryTranslog;
 import org.elasticsearch.util.settings.Settings;
 

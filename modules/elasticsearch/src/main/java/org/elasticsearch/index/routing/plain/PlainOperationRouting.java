@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.routing.plain;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;

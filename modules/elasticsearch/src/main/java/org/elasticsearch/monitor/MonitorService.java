@@ -19,7 +19,7 @@
 
 package org.elasticsearch.monitor;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.monitor.jvm.JvmMonitorService;
 import org.elasticsearch.monitor.memory.MemoryMonitorService;

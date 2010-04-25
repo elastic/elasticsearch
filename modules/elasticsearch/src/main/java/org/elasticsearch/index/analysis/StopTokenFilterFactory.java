@@ -21,8 +21,8 @@ package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.util.gcommon.collect.ImmutableSet;
 import org.elasticsearch.util.gcommon.collect.Iterators;
-import com.google.inject.Inject;
-import com.google.inject.assistedinject.Assisted;
+import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.guice.inject.assistedinject.Assisted;
 import org.apache.lucene.analysis.StopAnalyzer;
 import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;

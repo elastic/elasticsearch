@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.util.gcommon.collect.Maps;
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;

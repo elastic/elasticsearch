@@ -20,9 +20,9 @@
 package org.elasticsearch.client.transport;
 
 import org.elasticsearch.util.gcommon.collect.ImmutableList;
-import com.google.inject.Guice;
-import com.google.inject.Injector;
-import com.google.inject.Module;
+import org.elasticsearch.util.guice.inject.Guice;
+import org.elasticsearch.util.guice.inject.Injector;
+import org.elasticsearch.util.guice.inject.Module;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;

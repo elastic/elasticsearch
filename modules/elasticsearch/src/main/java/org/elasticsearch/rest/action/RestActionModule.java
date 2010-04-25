@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action;
 
-import com.google.inject.AbstractModule;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthAction;
 import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.node.shutdown.RestNodesShutdownAction;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.merge.scheduler;
 
-import com.google.inject.AbstractModule;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.util.settings.Settings;
 
 import static org.elasticsearch.index.merge.scheduler.MergeSchedulerModule.MergeSchedulerSettings.*;

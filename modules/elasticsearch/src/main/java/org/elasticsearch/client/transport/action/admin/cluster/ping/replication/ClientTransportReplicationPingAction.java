@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.transport.action.admin.cluster.ping.replication;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingRequest;
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingResponse;

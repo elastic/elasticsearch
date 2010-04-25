@@ -19,8 +19,8 @@
 
 package org.elasticsearch.bootstrap;
 
-import com.google.inject.CreationException;
-import com.google.inject.spi.Message;
+import org.elasticsearch.util.guice.inject.CreationException;
+import org.elasticsearch.util.guice.inject.spi.Message;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.env.Environment;

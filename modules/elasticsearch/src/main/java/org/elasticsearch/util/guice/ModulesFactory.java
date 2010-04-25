@@ -19,7 +19,7 @@
 
 package org.elasticsearch.util.guice;
 
-import com.google.inject.Module;
+import org.elasticsearch.util.guice.inject.Module;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.util.settings.Settings;
 

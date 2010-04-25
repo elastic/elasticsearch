@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.action.TransportActions;

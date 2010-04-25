@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
-import com.google.inject.Inject;
-import com.google.inject.assistedinject.Assisted;
+import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.guice.inject.assistedinject.Assisted;
 import org.apache.lucene.analysis.LengthFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.index.Index;

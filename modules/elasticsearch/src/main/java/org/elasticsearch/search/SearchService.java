@@ -20,7 +20,7 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.search.TopDocs;
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonParser;

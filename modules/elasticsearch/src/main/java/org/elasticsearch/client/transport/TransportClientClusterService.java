@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.transport;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.util.component.AbstractComponent;

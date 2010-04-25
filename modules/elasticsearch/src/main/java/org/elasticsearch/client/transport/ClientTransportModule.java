@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.transport;
 
-import com.google.inject.AbstractModule;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.client.transport.support.InternalTransportAdminClient;
 import org.elasticsearch.client.transport.support.InternalTransportClient;
 import org.elasticsearch.client.transport.support.InternalTransportClusterAdminClient;

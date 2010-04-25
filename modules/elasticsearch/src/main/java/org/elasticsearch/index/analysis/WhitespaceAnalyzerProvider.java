@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
-import com.google.inject.Inject;
-import com.google.inject.assistedinject.Assisted;
+import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.guice.inject.assistedinject.Assisted;
 import org.apache.lucene.analysis.WhitespaceAnalyzer;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;

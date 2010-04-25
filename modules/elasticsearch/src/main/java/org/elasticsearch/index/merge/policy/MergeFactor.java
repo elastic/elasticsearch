@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.merge.policy;
 
-import com.google.inject.BindingAnnotation;
+import org.elasticsearch.util.guice.inject.BindingAnnotation;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;

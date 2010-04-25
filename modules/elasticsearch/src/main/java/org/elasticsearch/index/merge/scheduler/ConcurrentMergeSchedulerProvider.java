@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.merge.scheduler;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.MergeScheduler;
 import org.elasticsearch.index.settings.IndexSettings;

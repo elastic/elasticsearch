@@ -19,7 +19,7 @@
 
 package org.elasticsearch.memcached;
 
-import com.google.inject.Module;
+import org.elasticsearch.util.guice.inject.Module;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.util.component.LifecycleComponent;
 import org.elasticsearch.util.settings.Settings;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.get;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetField;
 import org.elasticsearch.action.get.GetRequest;

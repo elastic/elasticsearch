@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.store.ram;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;

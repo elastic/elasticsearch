@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.service;
 
-import com.google.inject.Injector;
+import org.elasticsearch.util.guice.inject.Injector;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.IndexShardMissingException;

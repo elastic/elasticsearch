@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.query.json.guice;
 
-import com.google.inject.Inject;
-import com.google.inject.assistedinject.Assisted;
+import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.guice.inject.assistedinject.Assisted;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;

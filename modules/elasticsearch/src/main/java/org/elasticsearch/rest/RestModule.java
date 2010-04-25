@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest;
 
-import com.google.inject.AbstractModule;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.rest.action.RestActionModule;
 import org.elasticsearch.util.settings.Settings;
 

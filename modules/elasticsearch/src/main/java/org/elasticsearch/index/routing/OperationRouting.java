@@ -24,7 +24,8 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.util.Nullable;
+
+import javax.annotation.Nullable;
 
 /**
  * @author kimchy (Shay Banon)

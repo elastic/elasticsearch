@@ -19,8 +19,8 @@
 
 package org.elasticsearch.indices;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.UnmodifiableIterator;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.UnmodifiableIterator;
 import com.google.inject.Inject;
 import com.google.inject.Injector;
 import org.elasticsearch.ElasticSearchException;
@@ -53,8 +53,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import static com.google.common.collect.Maps.*;
-import static com.google.common.collect.Sets.*;
+import static org.elasticsearch.util.gcommon.collect.Maps.*;
+import static org.elasticsearch.util.gcommon.collect.Sets.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.util.MapBuilder.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.*;

@@ -48,7 +48,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Set;
 
-import static com.google.common.collect.Sets.*;
+import static org.elasticsearch.util.gcommon.collect.Sets.*;
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.index.query.json.JsonQueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.*;

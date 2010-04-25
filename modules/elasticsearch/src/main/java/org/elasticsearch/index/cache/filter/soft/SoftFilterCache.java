@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.cache.filter.soft;
 
-import com.google.common.collect.MapMaker;
+import org.elasticsearch.util.gcommon.collect.MapMaker;
 import com.google.inject.Inject;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;

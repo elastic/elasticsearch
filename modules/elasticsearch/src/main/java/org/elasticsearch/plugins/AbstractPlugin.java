@@ -19,7 +19,7 @@
 
 package org.elasticsearch.plugins;
 
-import com.google.common.collect.ImmutableList;
+import org.elasticsearch.util.gcommon.collect.ImmutableList;
 import com.google.inject.Module;
 import org.elasticsearch.util.component.CloseableIndexComponent;
 import org.elasticsearch.util.component.LifecycleComponent;

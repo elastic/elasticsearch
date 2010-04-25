@@ -51,7 +51,7 @@ public class MulticastZenPingTests {
         final TransportService transportServiceB = new TransportService(new LocalTransport(threadPool), threadPool, timerService).start();
         final DiscoveryNode nodeB = new DiscoveryNode("B", transportServiceA.boundAddress().publishAddress());
 
-        MulticastZenPing zenPingA = (MulticastZenPing) new MulticastZenPing(threadPool, transportServiceA, clusterName);
+        MulticastZenPing zenPingA = new MulticastZenPing(threadPool, transportServiceA, clusterName);
         zenPingA.setNodesProvider(new DiscoveryNodesProvider() {
             @Override public DiscoveryNodes nodes() {
                 return DiscoveryNodes.newNodesBuilder().put(nodeA).localNodeId("A").build();
@@ -59,7 +59,7 @@ public class MulticastZenPingTests {
         });
         zenPingA.start();
 
-        MulticastZenPing zenPingB = (MulticastZenPing) new MulticastZenPing(threadPool, transportServiceB, clusterName);
+        MulticastZenPing zenPingB = new MulticastZenPing(threadPool, transportServiceB, clusterName);
         zenPingB.setNodesProvider(new DiscoveryNodesProvider() {
             @Override public DiscoveryNodes nodes() {
                 return DiscoveryNodes.newNodesBuilder().put(nodeB).localNodeId("B").build();

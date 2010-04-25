@@ -21,8 +21,9 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Fieldable;
-import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.concurrent.ThreadSafe;
+
+import javax.annotation.Nullable;
 
 /**
  * @author kimchy (shay.banon)

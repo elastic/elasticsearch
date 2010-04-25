@@ -19,8 +19,8 @@
 
 package org.elasticsearch.test.integration.search;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.Sets;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
@@ -55,8 +55,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static com.google.common.collect.Lists.*;
-import static com.google.common.collect.Maps.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Maps.*;
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.index.query.json.JsonQueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.*;

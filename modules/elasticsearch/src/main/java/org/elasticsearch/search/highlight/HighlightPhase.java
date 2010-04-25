@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.highlight;
 
-import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.apache.lucene.search.vectorhighlight.*;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.index.mapper.DocumentMapper;

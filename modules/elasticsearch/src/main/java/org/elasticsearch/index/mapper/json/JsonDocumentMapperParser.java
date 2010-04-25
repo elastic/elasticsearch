@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper.json;
 
-import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.node.ObjectNode;

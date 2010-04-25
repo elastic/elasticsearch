@@ -25,7 +25,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
 
-import static com.google.common.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 
 /**
  * @author kimchy (shay.banon)

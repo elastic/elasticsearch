@@ -23,10 +23,10 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 
 import static org.elasticsearch.search.SearchShardTarget.*;

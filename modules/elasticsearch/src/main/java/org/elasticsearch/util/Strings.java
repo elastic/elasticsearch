@@ -19,7 +19,7 @@
 
 package org.elasticsearch.util;
 
-import com.google.common.collect.ImmutableSet;
+import org.elasticsearch.util.gcommon.collect.ImmutableSet;
 
 import java.util.*;
 

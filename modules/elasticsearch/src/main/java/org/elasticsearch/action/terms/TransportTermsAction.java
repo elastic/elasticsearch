@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.terms;
 
-import com.google.common.collect.Maps;
+import org.elasticsearch.util.gcommon.collect.Maps;
 import com.google.inject.Inject;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermDocs;
@@ -44,17 +44,17 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.BoundedTreeSet;
-import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.gnu.trove.TObjectIntHashMap;
 import org.elasticsearch.util.gnu.trove.TObjectIntIterator;
 import org.elasticsearch.util.settings.Settings;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.regex.Pattern;
 
-import static com.google.common.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 
 /**
  * @author kimchy (shay.banon)

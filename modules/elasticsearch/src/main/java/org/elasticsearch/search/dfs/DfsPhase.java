@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.dfs;
 
-import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;

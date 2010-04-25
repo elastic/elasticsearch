@@ -29,7 +29,7 @@ import org.elasticsearch.util.json.ToJson;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.google.common.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static org.elasticsearch.util.json.JsonBuilder.*;
 
 /**

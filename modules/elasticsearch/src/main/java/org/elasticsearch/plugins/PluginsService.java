@@ -19,9 +19,9 @@
 
 package org.elasticsearch.plugins;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.Lists;
+import org.elasticsearch.util.gcommon.collect.Maps;
 import com.google.inject.Inject;
 import com.google.inject.Module;
 import org.elasticsearch.ElasticSearchException;
@@ -39,7 +39,7 @@ import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-import static com.google.common.collect.Maps.*;
+import static org.elasticsearch.util.gcommon.collect.Maps.*;
 import static org.elasticsearch.util.io.FileSystemUtils.*;
 
 /**

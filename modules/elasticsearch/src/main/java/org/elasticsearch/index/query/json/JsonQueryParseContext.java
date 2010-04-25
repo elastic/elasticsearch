@@ -31,8 +31,8 @@ import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.util.Nullable;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 
 /**

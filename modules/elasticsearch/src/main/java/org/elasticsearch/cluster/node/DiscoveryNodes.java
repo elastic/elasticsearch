@@ -19,21 +19,21 @@
 
 package org.elasticsearch.cluster.node;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.UnmodifiableIterator;
-import org.elasticsearch.util.Nullable;
+import org.elasticsearch.util.gcommon.collect.ImmutableList;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.UnmodifiableIterator;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.transport.TransportAddress;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static com.google.common.collect.Lists.*;
-import static com.google.common.collect.Maps.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Maps.*;
 
 /**
  * @author kimchy (Shay Banon)

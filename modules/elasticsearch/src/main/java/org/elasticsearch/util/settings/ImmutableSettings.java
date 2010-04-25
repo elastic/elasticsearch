@@ -35,7 +35,7 @@ import java.net.URL;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-import static com.google.common.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static org.elasticsearch.util.SizeValue.*;
 import static org.elasticsearch.util.Strings.*;
 import static org.elasticsearch.util.TimeValue.*;

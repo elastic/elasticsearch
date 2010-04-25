@@ -19,10 +19,10 @@
 
 package org.elasticsearch.monitor.dump;
 
-import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.util.Nullable;
 
+import javax.annotation.Nullable;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.ArrayList;

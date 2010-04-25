@@ -23,8 +23,9 @@ import org.apache.lucene.search.*;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.lucene.search.TermFilter;
+
+import javax.annotation.Nullable;
 
 /**
  * @author kimchy (shay.banon)

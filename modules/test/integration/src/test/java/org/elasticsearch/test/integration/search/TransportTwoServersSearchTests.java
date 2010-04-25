@@ -19,7 +19,7 @@
 
 package org.elasticsearch.test.integration.search;
 
-import com.google.common.collect.Sets;
+import org.elasticsearch.util.gcommon.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.store.fs;
 
-import com.google.common.collect.ImmutableSet;
+import org.elasticsearch.util.gcommon.collect.ImmutableSet;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.elasticsearch.index.settings.IndexSettings;

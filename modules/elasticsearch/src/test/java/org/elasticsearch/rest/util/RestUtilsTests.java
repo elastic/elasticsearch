@@ -24,7 +24,7 @@ import org.testng.annotations.Test;
 
 import java.util.Map;
 
-import static com.google.common.collect.Maps.*;
+import static org.elasticsearch.util.gcommon.collect.Maps.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

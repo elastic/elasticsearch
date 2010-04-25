@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.highlight;
 
-import com.google.common.collect.Lists;
+import org.elasticsearch.util.gcommon.collect.Lists;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.search.SearchParseElement;
@@ -29,7 +29,7 @@ import org.elasticsearch.util.Booleans;
 
 import java.util.List;
 
-import static com.google.common.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 
 /**
  * <pre>

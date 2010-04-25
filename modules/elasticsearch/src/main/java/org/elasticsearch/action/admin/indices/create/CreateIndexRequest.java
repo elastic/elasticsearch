@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static com.google.common.collect.Maps.*;
+import static org.elasticsearch.util.gcommon.collect.Maps.*;
 import static org.elasticsearch.action.Actions.*;
 import static org.elasticsearch.util.TimeValue.*;
 import static org.elasticsearch.util.json.Jackson.*;

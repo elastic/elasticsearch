@@ -22,13 +22,13 @@ package org.elasticsearch.action.count;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.Required;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Arrays;
 

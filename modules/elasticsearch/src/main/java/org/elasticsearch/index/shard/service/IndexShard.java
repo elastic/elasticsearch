@@ -27,10 +27,11 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.component.CloseableComponent;
 import org.elasticsearch.util.concurrent.ThreadSafe;
+
+import javax.annotation.Nullable;
 
 /**
  * @author kimchy (shay.banon)

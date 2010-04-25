@@ -30,8 +30,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Lists.*;
-import static com.google.common.collect.Maps.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Maps.*;
 
 /**
  * Settings loader that loads (parses) the settings in a json format by flattening them

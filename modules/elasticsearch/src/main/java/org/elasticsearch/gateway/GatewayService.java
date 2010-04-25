@@ -27,11 +27,11 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataService;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.settings.Settings;
 
+import javax.annotation.Nullable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;

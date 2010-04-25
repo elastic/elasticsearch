@@ -24,9 +24,9 @@ import org.apache.lucene.queryParser.ParseException;
 import org.apache.lucene.search.*;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.trove.ExtTObjectFloatHashMap;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 

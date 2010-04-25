@@ -19,12 +19,11 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.ImmutableSet;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.util.MapBuilder;
-import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.Preconditions;
 import org.elasticsearch.util.concurrent.Immutable;
 import org.elasticsearch.util.io.stream.StreamInput;
@@ -34,6 +33,7 @@ import org.elasticsearch.util.json.ToJson;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Map;
 

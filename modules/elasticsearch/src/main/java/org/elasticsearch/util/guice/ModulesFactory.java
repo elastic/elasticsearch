@@ -21,9 +21,9 @@ package org.elasticsearch.util.guice;
 
 import com.google.inject.Module;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.settings.Settings;
 
+import javax.annotation.Nullable;
 import java.lang.reflect.Constructor;
 
 /**

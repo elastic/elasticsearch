@@ -26,7 +26,7 @@ import org.elasticsearch.util.settings.Settings;
 
 import java.util.Collection;
 
-import static com.google.common.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 
 /**
  * @author kimchy (shay.banon)

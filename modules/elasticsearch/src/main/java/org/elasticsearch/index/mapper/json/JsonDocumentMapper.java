@@ -26,7 +26,6 @@ import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.Preconditions;
 import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.json.Jackson;
@@ -34,10 +33,11 @@ import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.json.StringJsonBuilder;
 import org.elasticsearch.util.json.ToJson;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.List;
 
-import static com.google.common.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static org.elasticsearch.util.json.JsonBuilder.*;
 
 /**

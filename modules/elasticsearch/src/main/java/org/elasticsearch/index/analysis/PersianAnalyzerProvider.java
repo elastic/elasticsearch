@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterators;
+import org.elasticsearch.util.gcommon.collect.ImmutableSet;
+import org.elasticsearch.util.gcommon.collect.Iterators;
 import com.google.inject.Inject;
 import com.google.inject.assistedinject.Assisted;
 import org.apache.lucene.analysis.fa.PersianAnalyzer;

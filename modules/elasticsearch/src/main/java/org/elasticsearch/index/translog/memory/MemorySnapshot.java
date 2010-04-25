@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.translog.memory;
 
-import com.google.common.collect.Iterables;
+import org.elasticsearch.util.gcommon.collect.Iterables;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.index.translog.Translog;

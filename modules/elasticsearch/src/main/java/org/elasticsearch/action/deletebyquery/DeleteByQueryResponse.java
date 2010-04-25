@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 
-import static com.google.common.collect.Maps.*;
+import static org.elasticsearch.util.gcommon.collect.Maps.*;
 
 /**
  * The response of delete by query action. Holds the {@link IndexDeleteByQueryResponse}s from all the

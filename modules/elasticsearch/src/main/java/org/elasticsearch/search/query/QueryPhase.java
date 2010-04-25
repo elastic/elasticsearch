@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.query;
 
-import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import com.google.inject.Inject;
 import org.apache.lucene.search.*;
 import org.elasticsearch.index.mapper.DocumentMapper;

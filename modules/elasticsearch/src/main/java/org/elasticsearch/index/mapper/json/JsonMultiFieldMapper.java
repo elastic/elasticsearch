@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper.json;
 
-import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.node.ObjectNode;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -35,7 +35,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static org.elasticsearch.index.mapper.json.JsonMapperBuilders.*;
 import static org.elasticsearch.index.mapper.json.JsonTypeParsers.*;
 import static org.elasticsearch.util.MapBuilder.*;

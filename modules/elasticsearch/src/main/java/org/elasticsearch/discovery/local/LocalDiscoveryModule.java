@@ -19,7 +19,7 @@
 
 package org.elasticsearch.discovery.local;
 
-import com.google.inject.AbstractModule;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.discovery.Discovery;
 
 /**

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.cache.filter.none;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.routing.plain;
 
-import com.google.inject.AbstractModule;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.index.routing.OperationRouting;
 
 /**

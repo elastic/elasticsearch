@@ -20,7 +20,7 @@
 package org.elasticsearch.client.transport;
 
 import org.elasticsearch.util.gcommon.collect.ImmutableList;
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;

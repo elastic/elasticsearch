@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.node;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.count.CountRequest;

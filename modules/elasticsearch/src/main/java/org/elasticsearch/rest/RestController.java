@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;

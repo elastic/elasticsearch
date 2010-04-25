@@ -21,8 +21,8 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.elasticsearch.util.gcommon.collect.UnmodifiableIterator;
-import com.google.inject.Inject;
-import com.google.inject.Injector;
+import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.guice.inject.Injector;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;

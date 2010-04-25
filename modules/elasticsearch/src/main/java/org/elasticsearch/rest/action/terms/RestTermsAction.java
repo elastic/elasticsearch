@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.terms;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.action.terms.FieldTermsFreq;

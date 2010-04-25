@@ -19,11 +19,11 @@
 
 package org.elasticsearch.util.guice;
 
-import com.google.inject.AbstractModule;
-import com.google.inject.BindingAnnotation;
-import com.google.inject.Guice;
-import com.google.inject.Injector;
-import com.google.inject.matcher.Matchers;
+import org.elasticsearch.util.guice.inject.AbstractModule;
+import org.elasticsearch.util.guice.inject.BindingAnnotation;
+import org.elasticsearch.util.guice.inject.Guice;
+import org.elasticsearch.util.guice.inject.Injector;
+import org.elasticsearch.util.guice.inject.matcher.Matchers;
 import org.testng.annotations.Test;
 
 import java.lang.annotation.Documented;

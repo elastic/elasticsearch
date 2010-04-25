@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.shard.recovery;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.ElasticSearchException;

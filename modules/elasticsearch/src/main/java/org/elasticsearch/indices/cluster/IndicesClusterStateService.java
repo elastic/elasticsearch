@@ -20,7 +20,7 @@
 package org.elasticsearch.indices.cluster;
 
 import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;

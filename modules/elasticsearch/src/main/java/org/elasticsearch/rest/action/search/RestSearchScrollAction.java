@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.search;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchOperationThreading;
 import org.elasticsearch.action.search.SearchResponse;

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.similarity;
 
-import com.google.inject.AbstractModule;
-import com.google.inject.Scopes;
-import com.google.inject.assistedinject.FactoryProvider;
-import com.google.inject.multibindings.MapBinder;
+import org.elasticsearch.util.guice.inject.AbstractModule;
+import org.elasticsearch.util.guice.inject.Scopes;
+import org.elasticsearch.util.guice.inject.assistedinject.FactoryProvider;
+import org.elasticsearch.util.guice.inject.multibindings.MapBinder;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.Map;

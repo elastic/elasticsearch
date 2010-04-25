@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.indices.status;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.status.*;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query.json;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.codehaus.jackson.JsonParser;

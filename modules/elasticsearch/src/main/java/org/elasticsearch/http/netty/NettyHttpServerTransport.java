@@ -19,7 +19,7 @@
 
 package org.elasticsearch.http.netty;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.http.*;
 import org.elasticsearch.transport.BindTransportException;

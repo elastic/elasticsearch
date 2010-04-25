@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.similarity;
 
-import com.google.inject.Provider;
+import org.elasticsearch.util.guice.inject.Provider;
 import org.apache.lucene.search.Similarity;
 import org.elasticsearch.index.IndexComponent;
 

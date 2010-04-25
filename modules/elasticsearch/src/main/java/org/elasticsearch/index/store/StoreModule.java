@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.store;
 
-import com.google.inject.AbstractModule;
-import com.google.inject.Module;
+import org.elasticsearch.util.guice.inject.AbstractModule;
+import org.elasticsearch.util.guice.inject.Module;
 import org.elasticsearch.index.store.fs.MmapFsStoreModule;
 import org.elasticsearch.index.store.fs.NioFsStoreModule;
 import org.elasticsearch.index.store.fs.SimpleFsStoreModule;

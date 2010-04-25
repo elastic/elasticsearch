@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.search;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.search.type.TransportSearchDfsQueryAndFetchAction;

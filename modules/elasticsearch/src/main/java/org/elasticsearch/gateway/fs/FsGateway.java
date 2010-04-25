@@ -19,8 +19,8 @@
 
 package org.elasticsearch.gateway.fs;
 
-import com.google.inject.Inject;
-import com.google.inject.Module;
+import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.guice.inject.Module;
 import org.codehaus.jackson.JsonEncoding;
 import org.codehaus.jackson.JsonParser;
 import org.elasticsearch.ElasticSearchException;

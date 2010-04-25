@@ -19,8 +19,8 @@
 
 package org.elasticsearch.plugins;
 
-import com.google.inject.AbstractModule;
-import com.google.inject.Module;
+import org.elasticsearch.util.guice.inject.AbstractModule;
+import org.elasticsearch.util.guice.inject.Module;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.Collection;

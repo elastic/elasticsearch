@@ -19,7 +19,7 @@
 
 package org.elasticsearch.gateway.none;
 
-import com.google.inject.AbstractModule;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.gateway.Gateway;
 
 /**

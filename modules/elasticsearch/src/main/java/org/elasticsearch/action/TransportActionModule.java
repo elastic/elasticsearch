@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action;
 
-import com.google.inject.AbstractModule;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfo;
 import org.elasticsearch.action.admin.cluster.node.shutdown.TransportNodesShutdown;

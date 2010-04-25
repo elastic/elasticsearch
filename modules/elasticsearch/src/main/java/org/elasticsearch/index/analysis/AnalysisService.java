@@ -20,7 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;

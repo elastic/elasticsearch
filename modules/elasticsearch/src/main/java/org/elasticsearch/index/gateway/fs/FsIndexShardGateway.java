@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.gateway.fs;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;

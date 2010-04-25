@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.deletionpolicy;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.elasticsearch.index.settings.IndexSettings;

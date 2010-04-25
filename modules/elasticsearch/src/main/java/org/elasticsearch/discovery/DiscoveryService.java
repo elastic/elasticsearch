@@ -19,7 +19,7 @@
 
 package org.elasticsearch.discovery;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.util.TimeValue;

@@ -20,7 +20,7 @@
 package org.elasticsearch.rest.action.main;
 
 import org.elasticsearch.util.gcommon.collect.Iterators;
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.node.ArrayNode;
 import org.elasticsearch.Version;

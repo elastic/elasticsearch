@@ -19,6 +19,8 @@
 
 package org.elasticsearch.util;
 
+import java.lang.reflect.Modifier;
+
 /**
  * @author kimchy (Shay Banon)
  */
@@ -80,6 +82,16 @@ public class Classes {
         return fullPackage;
     }
 
+    public static boolean isInnerClass(Class<?> clazz) {
+      return !Modifier.isStatic(clazz.getModifiers())
+          && clazz.getEnclosingClass() != null;
+    }
+
+    public static boolean isConcrete(Class<?> clazz) {
+      int modifiers = clazz.getModifiers();
+      return !clazz.isInterface() && !Modifier.isAbstract(modifiers);
+    }
+    
     private Classes() {
 
     }

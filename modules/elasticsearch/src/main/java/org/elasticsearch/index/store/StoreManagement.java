@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.store;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.jmx.MBean;
 import org.elasticsearch.jmx.ManagedAttribute;

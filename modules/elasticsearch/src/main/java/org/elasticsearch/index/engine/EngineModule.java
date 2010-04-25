@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.engine;
 
-import com.google.inject.AbstractModule;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.index.engine.robin.RobinEngineModule;
 import org.elasticsearch.util.guice.ModulesFactory;
 import org.elasticsearch.util.settings.Settings;

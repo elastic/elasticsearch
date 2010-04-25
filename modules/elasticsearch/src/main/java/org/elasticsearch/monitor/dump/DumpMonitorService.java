@@ -19,7 +19,7 @@
 
 package org.elasticsearch.monitor.dump;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.dump.heap.HeapDumpContributor;

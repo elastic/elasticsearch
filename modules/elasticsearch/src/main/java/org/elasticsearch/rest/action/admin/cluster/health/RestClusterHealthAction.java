@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.cluster.health;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.*;
 import org.elasticsearch.client.Client;

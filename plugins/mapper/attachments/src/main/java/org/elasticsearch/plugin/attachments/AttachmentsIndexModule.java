@@ -19,7 +19,7 @@
 
 package org.elasticsearch.plugin.attachments;
 
-import com.google.inject.AbstractModule;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.plugin.attachments.index.mapper.JsonAttachmentMapperService;
 
 /**

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.threadpool;
 
-import com.google.inject.AbstractModule;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.threadpool.cached.CachedThreadPool;
 import org.elasticsearch.util.settings.Settings;
 

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.util.settings;
 
-import com.google.inject.AbstractModule;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 
 /**
  * A module that binds the provided settings to the {@link Settings} interface.

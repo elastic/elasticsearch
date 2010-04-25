@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
-import com.google.inject.Provider;
+import org.elasticsearch.util.guice.inject.Provider;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.index.IndexComponent;
 

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.threadpool.scaling;
 
-import com.google.inject.Inject;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.threadpool.support.AbstractThreadPool;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.concurrent.DynamicExecutors;

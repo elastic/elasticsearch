@@ -19,7 +19,7 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import com.google.common.collect.ImmutableSet;
+import org.elasticsearch.util.gcommon.collect.ImmutableSet;
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.monitor.dump.DumpGenerator;

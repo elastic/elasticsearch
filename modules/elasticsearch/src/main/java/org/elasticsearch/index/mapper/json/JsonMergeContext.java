@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper.json;
 
-import com.google.common.collect.Lists;
+import org.elasticsearch.util.gcommon.collect.Lists;
 import org.elasticsearch.index.mapper.DocumentMapper;
 
 import java.util.List;

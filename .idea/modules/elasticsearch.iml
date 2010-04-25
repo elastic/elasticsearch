@@ -15,7 +15,6 @@
     <orderEntry type="library" exported="" scope="RUNTIME" name="config" level="project" />
     <orderEntry type="library" exported="" name="logging" level="project" />
     <orderEntry type="library" exported="" name="lucene" level="project" />
-    <orderEntry type="library" exported="" name="google-collect" level="project" />
     <orderEntry type="library" exported="" name="joda-time" level="project" />
     <orderEntry type="library" exported="" name="jackson" level="project" />
     <orderEntry type="library" exported="" name="guice" level="project" />

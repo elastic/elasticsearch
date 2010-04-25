@@ -35,8 +35,8 @@ import org.testng.annotations.Test;
 import java.util.List;
 import java.util.Set;
 
-import static com.google.common.collect.Lists.*;
-import static com.google.common.collect.Sets.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Sets.*;
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.cluster.metadata.MetaData.*;

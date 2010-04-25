@@ -35,7 +35,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.io.FastCharArrayReader;
 import org.elasticsearch.util.io.FastCharArrayWriter;
@@ -43,11 +42,12 @@ import org.elasticsearch.util.io.FastStringReader;
 import org.elasticsearch.util.json.Jackson;
 import org.elasticsearch.util.settings.Settings;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 
 /**
  * @author kimchy (Shay Banon)

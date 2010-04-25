@@ -19,8 +19,8 @@
 
 package org.elasticsearch.jmx;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.ImmutableList;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.elasticsearch.util.Classes;
 import org.elasticsearch.util.MapBuilder;
 import org.elasticsearch.util.Preconditions;

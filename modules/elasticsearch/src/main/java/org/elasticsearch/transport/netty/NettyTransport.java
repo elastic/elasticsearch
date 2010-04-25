@@ -60,7 +60,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static com.google.common.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static org.elasticsearch.transport.Transport.Helper.*;
 import static org.elasticsearch.util.TimeValue.*;
 import static org.elasticsearch.util.concurrent.ConcurrentMaps.*;

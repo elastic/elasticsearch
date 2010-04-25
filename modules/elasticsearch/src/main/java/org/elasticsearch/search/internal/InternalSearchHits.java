@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
-import com.google.common.collect.Iterators;
+import org.elasticsearch.util.gcommon.collect.Iterators;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.discovery.zen.ping.unicast;
 
-import com.google.common.collect.ImmutableList;
+import org.elasticsearch.util.gcommon.collect.ImmutableList;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cluster.ClusterName;
@@ -47,7 +47,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.google.common.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static org.elasticsearch.discovery.zen.ping.ZenPing.PingResponse.*;
 import static org.elasticsearch.util.TimeValue.*;
 import static org.elasticsearch.util.concurrent.ConcurrentMaps.*;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.query;
 
-import com.google.common.collect.Lists;
+import org.elasticsearch.util.gcommon.collect.Lists;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.codehaus.jackson.JsonParser;

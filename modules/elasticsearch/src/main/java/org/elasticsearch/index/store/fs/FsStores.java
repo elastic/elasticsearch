@@ -20,8 +20,8 @@
 package org.elasticsearch.index.store.fs;
 
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.util.Nullable;
 
+import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 

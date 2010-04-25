@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query.json;
 
-import com.google.common.collect.Lists;
+import org.elasticsearch.util.gcommon.collect.Lists;
 import com.google.inject.Inject;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queryParser.ParseException;

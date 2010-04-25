@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query.json;
 
-import com.google.common.collect.Sets;
+import org.elasticsearch.util.gcommon.collect.Sets;
 import org.apache.lucene.search.Query;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;

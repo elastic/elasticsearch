@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.status;
 
-import com.google.common.collect.Iterators;
+import org.elasticsearch.util.gcommon.collect.Iterators;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.util.SizeValue;
 

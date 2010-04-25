@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
-import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.TransportActions;

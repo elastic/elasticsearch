@@ -24,13 +24,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.io.stream.BytesStreamInput;
 import org.elasticsearch.util.io.stream.BytesStreamOutput;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.settings.Settings;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 
 /**

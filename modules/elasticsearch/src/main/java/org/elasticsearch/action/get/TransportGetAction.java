@@ -41,7 +41,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Map;
 
-import static com.google.common.collect.Maps.*;
+import static org.elasticsearch.util.gcommon.collect.Maps.*;
 
 /**
  * Performs the get operation.

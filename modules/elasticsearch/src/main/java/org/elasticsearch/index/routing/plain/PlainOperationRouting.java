@@ -35,8 +35,9 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.util.IdentityHashSet;
-import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.settings.Settings;
+
+import javax.annotation.Nullable;
 
 /**
  * @author kimchy (Shay Banon)

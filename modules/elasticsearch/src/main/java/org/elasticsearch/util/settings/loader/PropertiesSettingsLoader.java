@@ -26,7 +26,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Properties;
 
-import static com.google.common.collect.Maps.*;
+import static org.elasticsearch.util.gcommon.collect.Maps.*;
 
 /**
  * Settings loader that loads (parses) the settings in a properties format.

@@ -31,8 +31,8 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.util.Nullable;
 
+import javax.annotation.Nullable;
 import java.util.List;
 
 import static org.elasticsearch.index.query.support.QueryParsers.*;

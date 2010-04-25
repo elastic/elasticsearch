@@ -46,7 +46,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
@@ -55,6 +54,7 @@ import org.elasticsearch.util.lucene.Lucene;
 import org.elasticsearch.util.lucene.search.TermFilter;
 import org.elasticsearch.util.settings.Settings;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.util.concurrent.ScheduledFuture;

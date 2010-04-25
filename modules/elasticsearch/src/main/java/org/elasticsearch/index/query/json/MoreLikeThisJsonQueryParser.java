@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query.json;
 
-import com.google.common.collect.Sets;
+import org.elasticsearch.util.gcommon.collect.Sets;
 import org.apache.lucene.search.Query;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
-import static com.google.common.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 
 /**
  * @author kimchy (shay.banon)

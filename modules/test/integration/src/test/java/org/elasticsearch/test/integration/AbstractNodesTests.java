@@ -27,7 +27,7 @@ import org.elasticsearch.util.settings.Settings;
 
 import java.util.Map;
 
-import static com.google.common.collect.Maps.*;
+import static org.elasticsearch.util.gcommon.collect.Maps.*;
 import static org.elasticsearch.node.NodeBuilder.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.*;

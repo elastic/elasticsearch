@@ -25,7 +25,7 @@ import org.elasticsearch.util.json.ToJson;
 import java.io.IOException;
 import java.util.List;
 
-import static com.google.common.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 
 /**
  * A builder for search highlighting.

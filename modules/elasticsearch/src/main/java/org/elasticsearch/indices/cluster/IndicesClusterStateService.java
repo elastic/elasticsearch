@@ -19,7 +19,7 @@
 
 package org.elasticsearch.indices.cluster;
 
-import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -56,7 +56,7 @@ import org.elasticsearch.util.settings.Settings;
 import java.util.Map;
 import java.util.Set;
 
-import static com.google.common.collect.Sets.*;
+import static org.elasticsearch.util.gcommon.collect.Sets.*;
 import static org.elasticsearch.ExceptionsHelper.*;
 
 /**

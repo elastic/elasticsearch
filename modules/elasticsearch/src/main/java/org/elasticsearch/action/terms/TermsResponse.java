@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.terms;
 
-import com.google.common.collect.Iterators;
+import org.elasticsearch.util.gcommon.collect.Iterators;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.util.io.stream.StreamInput;

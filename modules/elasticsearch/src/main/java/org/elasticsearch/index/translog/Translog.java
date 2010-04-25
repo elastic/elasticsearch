@@ -24,7 +24,6 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.service.IndexShard;
-import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.concurrent.NotThreadSafe;
@@ -34,6 +33,7 @@ import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.lease.Releasable;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 
 /**

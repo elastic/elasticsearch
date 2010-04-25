@@ -44,7 +44,7 @@ import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 
-import static com.google.common.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.routing.ImmutableShardRouting.*;
 

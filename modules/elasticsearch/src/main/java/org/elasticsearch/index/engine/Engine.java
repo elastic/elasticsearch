@@ -29,11 +29,12 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.component.CloseableComponent;
 import org.elasticsearch.util.concurrent.ThreadSafe;
 import org.elasticsearch.util.lease.Releasable;
+
+import javax.annotation.Nullable;
 
 /**
  * @author kimchy (shay.banon)

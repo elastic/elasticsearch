@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query.json;
 
-import com.google.common.collect.Lists;
+import org.elasticsearch.util.gcommon.collect.Lists;
 import org.apache.lucene.search.FuzzyLikeThisQuery;
 import org.apache.lucene.search.Query;
 import org.codehaus.jackson.JsonParser;

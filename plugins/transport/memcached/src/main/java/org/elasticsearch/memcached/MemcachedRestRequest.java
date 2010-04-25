@@ -19,8 +19,8 @@
 
 package org.elasticsearch.memcached;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
+import org.elasticsearch.util.gcommon.collect.ImmutableList;
+import org.elasticsearch.util.gcommon.collect.ImmutableSet;
 import org.elasticsearch.rest.support.AbstractRestRequest;
 import org.elasticsearch.rest.support.RestUtils;
 import org.elasticsearch.util.Unicode;

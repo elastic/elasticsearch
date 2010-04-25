@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search;
 
-import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import com.google.inject.Inject;
 import org.apache.lucene.search.TopDocs;
 import org.codehaus.jackson.JsonFactory;

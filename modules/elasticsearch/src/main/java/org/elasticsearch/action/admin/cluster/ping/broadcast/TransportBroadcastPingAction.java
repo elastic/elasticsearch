@@ -38,7 +38,7 @@ import org.elasticsearch.util.settings.Settings;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-import static com.google.common.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 
 /**
  * @author kimchy (Shay Banon)

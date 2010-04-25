@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.status;
 
-import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,8 +31,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Lists.*;
-import static com.google.common.collect.Maps.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Maps.*;
 import static org.elasticsearch.action.admin.indices.status.ShardStatus.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.*;
 

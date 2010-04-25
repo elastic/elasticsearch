@@ -19,9 +19,9 @@
 
 package org.elasticsearch.cluster.routing;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
+import org.elasticsearch.util.gcommon.collect.ImmutableList;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.Lists;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
@@ -31,8 +31,8 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Lists.*;
-import static com.google.common.collect.Maps.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Maps.*;
 
 /**
  * @author kimchy (shay.banon)

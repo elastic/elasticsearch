@@ -24,7 +24,6 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
-import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.io.ThrowableObjectInputStream;
 import org.elasticsearch.util.io.stream.*;
@@ -34,6 +33,7 @@ import org.elasticsearch.util.transport.BoundTransportAddress;
 import org.elasticsearch.util.transport.LocalTransportAddress;
 import org.elasticsearch.util.transport.TransportAddress;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;

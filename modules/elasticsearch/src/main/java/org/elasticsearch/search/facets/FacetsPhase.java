@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.facets;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.Lists;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.OpenBitSet;
 import org.elasticsearch.ElasticSearchException;

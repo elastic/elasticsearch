@@ -19,9 +19,9 @@
 
 package org.elasticsearch.cluster.routing;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.UnmodifiableIterator;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.Lists;
+import org.elasticsearch.util.gcommon.collect.UnmodifiableIterator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.index.Index;
@@ -34,7 +34,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Maps.*;
+import static org.elasticsearch.util.gcommon.collect.Maps.*;
 
 /**
  * @author kimchy (Shay Banon)

@@ -45,7 +45,7 @@ import org.testng.annotations.Test;
 
 import java.util.Map;
 
-import static com.google.common.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.index.query.json.JsonQueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.*;

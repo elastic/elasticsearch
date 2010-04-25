@@ -37,7 +37,6 @@ dependencies {
     compile('log4j:log4j:1.2.15') { transitive = false }
 
     compile 'joda-time:joda-time:1.6'
-    compile 'com.google.collections:google-collections:1.0'
 
     compile 'org.codehaus.jackson:jackson-core-asl:1.5.1'
     compile 'org.codehaus.jackson:jackson-mapper-asl:1.5.1'

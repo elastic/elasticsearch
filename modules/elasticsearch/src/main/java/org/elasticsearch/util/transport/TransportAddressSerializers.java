@@ -19,7 +19,7 @@
 
 package org.elasticsearch.util.transport;
 
-import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;

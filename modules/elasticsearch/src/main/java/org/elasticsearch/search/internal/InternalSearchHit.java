@@ -19,20 +19,20 @@
 
 package org.elasticsearch.search.internal;
 
-import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.highlight.HighlightField;
-import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.gnu.trove.TIntObjectHashMap;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.json.JsonBuilder;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;

@@ -25,7 +25,7 @@ import org.elasticsearch.util.trove.ExtTObjectFloatHashMap;
 import java.io.IOException;
 import java.util.List;
 
-import static com.google.common.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 
 /**
  * A query that parses a query string and runs it. There are two modes that this operates. The first,

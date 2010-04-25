@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.google.common.collect.Maps;
+import org.elasticsearch.util.gcommon.collect.Maps;
 import com.google.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterService;
@@ -59,8 +59,8 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static com.google.common.collect.Maps.*;
-import static com.google.common.collect.Sets.*;
+import static org.elasticsearch.util.gcommon.collect.Maps.*;
+import static org.elasticsearch.util.gcommon.collect.Sets.*;
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.cluster.metadata.MetaData.*;

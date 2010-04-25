@@ -19,17 +19,17 @@
 
 package org.elasticsearch.index.query.json;
 
-import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.settings.Settings;
 
+import javax.annotation.Nullable;
 import java.util.Map;
 
-import static com.google.common.collect.Maps.*;
+import static org.elasticsearch.util.gcommon.collect.Maps.*;
 
 /**
  * @author kimchy (Shay Banon)

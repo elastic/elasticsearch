@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facets;
 
-import com.google.common.collect.ImmutableList;
+import org.elasticsearch.util.gcommon.collect.ImmutableList;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
@@ -31,8 +31,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Lists.*;
-import static com.google.common.collect.Maps.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Maps.*;
 import static org.elasticsearch.search.facets.CountFacet.*;
 
 /**

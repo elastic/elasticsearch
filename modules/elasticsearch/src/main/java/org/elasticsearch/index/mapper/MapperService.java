@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.UnmodifiableIterator;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.UnmodifiableIterator;
 import com.google.inject.Inject;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
@@ -31,11 +31,11 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.json.JsonDocumentMapperParser;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.concurrent.ThreadSafe;
 import org.elasticsearch.util.io.Streams;
 import org.elasticsearch.util.settings.Settings;
 
+import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;

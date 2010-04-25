@@ -19,7 +19,7 @@
 
 package org.elasticsearch.util.lucene.all;
 
-import com.google.common.collect.Lists;
+import org.elasticsearch.util.gcommon.collect.Lists;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.util.io.CharSequenceReader;
 import org.elasticsearch.util.io.FastCharArrayWriter;
@@ -31,7 +31,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-import static com.google.common.collect.Sets.*;
+import static org.elasticsearch.util.gcommon.collect.Sets.*;
 
 /**
  * @author kimchy (shay.banon)

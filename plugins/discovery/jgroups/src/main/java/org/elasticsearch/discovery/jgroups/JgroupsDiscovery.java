@@ -47,8 +47,8 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static com.google.common.collect.Maps.*;
-import static com.google.common.collect.Sets.*;
+import static org.elasticsearch.util.gcommon.collect.Maps.*;
+import static org.elasticsearch.util.gcommon.collect.Sets.*;
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.node.DiscoveryNode.*;
 

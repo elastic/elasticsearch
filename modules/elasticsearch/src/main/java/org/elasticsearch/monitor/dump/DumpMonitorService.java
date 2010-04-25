@@ -25,14 +25,14 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.dump.heap.HeapDumpContributor;
 import org.elasticsearch.monitor.dump.summary.SummaryDumpContributor;
 import org.elasticsearch.monitor.dump.thread.ThreadDumpContributor;
-import org.elasticsearch.util.Nullable;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.settings.Settings;
 
+import javax.annotation.Nullable;
 import java.io.File;
 import java.util.Map;
 
-import static com.google.common.collect.Maps.*;
+import static org.elasticsearch.util.gcommon.collect.Maps.*;
 import static org.elasticsearch.monitor.dump.heap.HeapDumpContributor.*;
 import static org.elasticsearch.monitor.dump.summary.SummaryDumpContributor.*;
 import static org.elasticsearch.monitor.dump.thread.ThreadDumpContributor.*;

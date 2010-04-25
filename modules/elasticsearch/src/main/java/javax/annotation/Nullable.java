@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.util;
+package javax.annotation;
 
 import java.lang.annotation.*;
 

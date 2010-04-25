@@ -39,7 +39,7 @@ import org.elasticsearch.util.settings.Settings;
 import java.io.File;
 import java.util.Set;
 
-import static com.google.common.collect.Sets.*;
+import static org.elasticsearch.util.gcommon.collect.Sets.*;
 import static jline.ANSIBuffer.ANSICodes.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.*;

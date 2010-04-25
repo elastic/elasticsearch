@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.broadcast;
 
-import com.google.common.collect.ImmutableList;
+import org.elasticsearch.util.gcommon.collect.ImmutableList;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.BaseAction;
@@ -46,7 +46,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-import static com.google.common.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 
 /**
  * @author kimchy (shay.banon)

@@ -55,7 +55,12 @@ public interface Settings {
     Settings getComponentSettings(String prefix, Class component);
 
     /**
-     * The class loader associted with this settings.
+     * A settings that are filtered (and key is removed) with the specified prefix.
+     */
+    Settings getByPrefix(String prefix);
+
+    /**
+     * The class loader associated with this settings.
      */
     ClassLoader getClassLoader();
 

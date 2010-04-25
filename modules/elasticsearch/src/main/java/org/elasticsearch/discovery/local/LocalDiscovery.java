@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static com.google.common.collect.Sets.*;
 import static org.elasticsearch.cluster.ClusterState.*;
+import static org.elasticsearch.cluster.node.DiscoveryNode.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -84,14 +85,14 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 clusterGroups.put(clusterName, clusterGroup);
             }
             logger.debug("Connected to cluster [{}]", clusterName);
-            this.localNode = new DiscoveryNode(settings.get("name"), settings.getAsBoolean("node.data", !settings.getAsBoolean("node.client", false)), Long.toString(nodeIdGenerator.incrementAndGet()), transportService.boundAddress().publishAddress());
+            this.localNode = new DiscoveryNode(settings.get("name"), Long.toString(nodeIdGenerator.incrementAndGet()), transportService.boundAddress().publishAddress(), buildCommonNodesAttributes(settings));
 
             clusterGroup.members().add(this);
             if (clusterGroup.members().size() == 1) {
                 // we are the first master (and the master)
                 master = true;
                 firstMaster = true;
-                clusterService.submitStateUpdateTask("local-disco-initialconnect(master)", new ProcessedClusterStateUpdateTask() {
+                clusterService.submitStateUpdateTask("local-disco-initial_connect(master)", new ProcessedClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
                         DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder()
                                 .localNodeId(localNode.id())

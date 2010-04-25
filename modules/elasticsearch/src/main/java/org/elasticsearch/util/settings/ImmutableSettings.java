@@ -83,15 +83,19 @@ public class ImmutableSettings implements Settings {
             throw new SettingsException("Component [" + type + "] does not start with prefix [" + prefix + "]");
         }
         String settingPrefix = type.substring(prefix.length() + 1); // 1 for the '.'
-        settingPrefix = settingPrefix.substring(0, settingPrefix.length() - component.getSimpleName().length() - 1); // remove the simple class name
+        settingPrefix = settingPrefix.substring(0, settingPrefix.length() - component.getSimpleName().length()); // remove the simple class name (keep the dot)
+        return getByPrefix(settingPrefix);
+    }
+
+    @Override public Settings getByPrefix(String prefix) {
         Builder builder = new Builder();
         for (Map.Entry<String, String> entry : getAsMap().entrySet()) {
-            if (entry.getKey().startsWith(settingPrefix)) {
-                if (entry.getKey().length() <= settingPrefix.length()) {
+            if (entry.getKey().startsWith(prefix)) {
+                if (entry.getKey().length() < prefix.length()) {
                     // ignore this one
                     continue;
                 }
-                builder.put(entry.getKey().substring(settingPrefix.length() + 1), entry.getValue());
+                builder.put(entry.getKey().substring(prefix.length()), entry.getValue());
             }
         }
         builder.globalSettings(this);

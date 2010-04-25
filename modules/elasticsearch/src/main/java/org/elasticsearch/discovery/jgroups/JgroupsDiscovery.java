@@ -50,6 +50,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static com.google.common.collect.Maps.*;
 import static com.google.common.collect.Sets.*;
 import static org.elasticsearch.cluster.ClusterState.*;
+import static org.elasticsearch.cluster.node.DiscoveryNode.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -142,11 +143,11 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
             channel.connect(clusterName.value());
             channel.setReceiver(this);
             logger.debug("Connected to cluster [{}], address [{}]", channel.getClusterName(), channel.getAddress());
-            this.localNode = new DiscoveryNode(settings.get("name"), settings.getAsBoolean("node.data", !settings.getAsBoolean("node.client", false)), channel.getAddress().toString(), transportService.boundAddress().publishAddress());
+            this.localNode = new DiscoveryNode(settings.get("name"), channel.getAddress().toString(), transportService.boundAddress().publishAddress(), buildCommonNodesAttributes(settings));
 
             if (isMaster()) {
                 firstMaster = true;
-                clusterService.submitStateUpdateTask("jgroups-disco-initialconnect(master)", new ProcessedClusterStateUpdateTask() {
+                clusterService.submitStateUpdateTask("jgroups-disco-initial_connect(master)", new ProcessedClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
                         DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder()
                                 .localNodeId(localNode.id())

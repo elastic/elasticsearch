@@ -26,6 +26,7 @@ import org.elasticsearch.util.settings.Settings;
 
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 
 import static com.google.common.collect.Lists.*;
@@ -45,7 +46,7 @@ public class ElectMasterService extends AbstractComponent {
      * Returns a list of the next possible masters.
      */
     public DiscoveryNode[] nextPossibleMasters(Iterable<DiscoveryNode> nodes, int numberOfPossibleMasters) {
-        List<DiscoveryNode> sortedNodes = sortedNodes(nodes);
+        List<DiscoveryNode> sortedNodes = sortedMasterNodes(nodes);
         if (sortedNodes == null) {
             return new DiscoveryNode[0];
         }
@@ -65,17 +66,26 @@ public class ElectMasterService extends AbstractComponent {
      * if no master has been elected.
      */
     public DiscoveryNode electMaster(Iterable<DiscoveryNode> nodes) {
-        List<DiscoveryNode> sortedNodes = sortedNodes(nodes);
-        if (sortedNodes == null) {
+        List<DiscoveryNode> sortedNodes = sortedMasterNodes(nodes);
+        if (sortedNodes == null || sortedNodes.isEmpty()) {
             return null;
         }
         return sortedNodes.get(0);
     }
 
-    private List<DiscoveryNode> sortedNodes(Iterable<DiscoveryNode> nodes) {
+    private List<DiscoveryNode> sortedMasterNodes(Iterable<DiscoveryNode> nodes) {
         List<DiscoveryNode> possibleNodes = Lists.newArrayList(nodes);
         if (possibleNodes.isEmpty()) {
             return null;
+        }
+        // clean non master nodes
+        for (Iterator<DiscoveryNode> it = possibleNodes.iterator(); it.hasNext();) {
+            DiscoveryNode node = it.next();
+            if (node.attributes().containsKey("zen.master")) {
+                if (node.attributes().get("zen.master").equals("false")) {
+                    it.remove();
+                }
+            }
         }
         Collections.sort(possibleNodes, nodeComparator);
         return possibleNodes;

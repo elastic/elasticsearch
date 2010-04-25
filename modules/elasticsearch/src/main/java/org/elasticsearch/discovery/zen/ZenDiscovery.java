@@ -42,11 +42,13 @@ import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.google.common.collect.Lists.*;
 import static org.elasticsearch.cluster.ClusterState.*;
+import static org.elasticsearch.cluster.node.DiscoveryNode.*;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.*;
 import static org.elasticsearch.util.TimeValue.*;
 
@@ -54,6 +56,8 @@ import static org.elasticsearch.util.TimeValue.*;
  * @author kimchy (shay.banon)
  */
 public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery, DiscoveryNodesProvider {
+
+    private final ThreadPool threadPool;
 
     private final TransportService transportService;
 
@@ -94,6 +98,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                                 ZenPingService pingService) {
         super(settings);
         this.clusterName = clusterName;
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.pingService = pingService;
@@ -114,57 +119,29 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     @Override protected void doStart() throws ElasticSearchException {
-        localNode = new DiscoveryNode(settings.get("name"), settings.getAsBoolean("node.data", !settings.getAsBoolean("node.client", false)), UUID.randomUUID().toString(), transportService.boundAddress().publishAddress());
+        Map<String, String> nodeAttributes = buildCommonNodesAttributes(settings);
+        Boolean zenMaster = componentSettings.getAsBoolean("master", null);
+        if (zenMaster != null) {
+            if (zenMaster.equals(Boolean.FALSE)) {
+                nodeAttributes.put("zen.master", "false");
+            }
+        } else if (nodeAttributes.containsKey("client")) {
+            if (nodeAttributes.get("client").equals("true")) {
+                nodeAttributes.put("zen.master", "false");
+            }
+        }
+        localNode = new DiscoveryNode(settings.get("name"), UUID.randomUUID().toString(), transportService.boundAddress().publishAddress(), nodeAttributes);
         pingService.start();
 
-        boolean retry = true;
-        while (retry) {
-            retry = false;
-            DiscoveryNode masterNode = broadBingTillMasterResolved();
-            if (localNode.equals(masterNode)) {
-                // we are the master (first)
-                this.firstMaster = true;
-                this.master = true;
-                nodesFD.start(); // start the nodes FD
-                clusterService.submitStateUpdateTask("zen-disco-initial_connect(master)", new ProcessedClusterStateUpdateTask() {
-                    @Override public ClusterState execute(ClusterState currentState) {
-                        DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder()
-                                .localNodeId(localNode.id())
-                                .masterNodeId(localNode.id())
-                                        // put our local node
-                                .put(localNode);
-                        // update the fact that we are the master...
-                        latestDiscoNodes = builder.build();
-                        return newClusterStateBuilder().state(currentState).nodes(builder).build();
-                    }
-
-                    @Override public void clusterStateProcessed(ClusterState clusterState) {
-                        sendInitialStateEventIfNeeded();
-                    }
-                });
-            } else {
-                this.firstMaster = false;
-                this.master = false;
-                try {
-                    // first, make sure we can connect to the master
-                    transportService.connectToNode(masterNode);
-                } catch (Exception e) {
-                    logger.warn("Failed to connect to master [{}], retrying...", e, masterNode);
-                    retry = true;
-                    continue;
+        if (nodeAttributes.containsKey("zen.master") && nodeAttributes.get("zen.master").equals("false")) {
+            // do the join on a different thread
+            threadPool.execute(new Runnable() {
+                @Override public void run() {
+                    initialJoin();
                 }
-                // send join request
-                try {
-                    membership.sendJoinRequestBlocking(masterNode, localNode, initialPingTimeout);
-                } catch (Exception e) {
-                    logger.warn("Failed to send join request to master [{}], retrying...", e, masterNode);
-                    // failed to send the join request, retry
-                    retry = true;
-                    continue;
-                }
-                // cool, we found a master, start an FD on it
-                masterFD.start(masterNode);
-            }
+            });
+        } else {
+            initialJoin();
         }
     }
 
@@ -237,6 +214,63 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         latestDiscoNodes = clusterState.nodes();
         nodesFD.updateNodes(clusterState.nodes());
         publishClusterState.publish(clusterState);
+    }
+
+    private void initialJoin() {
+        boolean retry = true;
+        while (retry) {
+            retry = false;
+            DiscoveryNode masterNode = broadPingTillMasterResolved();
+            if (localNode.equals(masterNode)) {
+                // we are the master (first)
+                this.firstMaster = true;
+                this.master = true;
+                nodesFD.start(); // start the nodes FD
+                clusterService.submitStateUpdateTask("zen-disco-initial_connect(master)", new ProcessedClusterStateUpdateTask() {
+                    @Override public ClusterState execute(ClusterState currentState) {
+                        DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder()
+                                .localNodeId(localNode.id())
+                                .masterNodeId(localNode.id())
+                                        // put our local node
+                                .put(localNode);
+                        // update the fact that we are the master...
+                        latestDiscoNodes = builder.build();
+                        return newClusterStateBuilder().state(currentState).nodes(builder).build();
+                    }
+
+                    @Override public void clusterStateProcessed(ClusterState clusterState) {
+                        sendInitialStateEventIfNeeded();
+                    }
+                });
+            } else {
+                this.firstMaster = false;
+                this.master = false;
+                try {
+                    // first, make sure we can connect to the master
+                    transportService.connectToNode(masterNode);
+                } catch (Exception e) {
+                    logger.warn("Failed to connect to master [{}], retrying...", e, masterNode);
+                    retry = true;
+                    continue;
+                }
+                // send join request
+                try {
+                    membership.sendJoinRequestBlocking(masterNode, localNode, initialPingTimeout);
+                } catch (Exception e) {
+                    logger.warn("Failed to send join request to master [{}], retrying...", e, masterNode);
+                    // failed to send the join request, retry
+                    retry = true;
+                    continue;
+                }
+                // cool, we found a master, start an FD on it
+                masterFD.start(masterNode);
+            }
+            if (retry) {
+                if (!lifecycle.started()) {
+                    return;
+                }
+            }
+        }
     }
 
     private void handleNodeFailure(final DiscoveryNode node) {
@@ -365,7 +399,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
     }
 
-    private DiscoveryNode broadBingTillMasterResolved() {
+    private DiscoveryNode broadPingTillMasterResolved() {
         while (true) {
             ZenPing.PingResponse[] pingResponses = pingService.pingAndWait(initialPingTimeout);
             List<DiscoveryNode> pingMasters = newArrayList();

@@ -19,7 +19,6 @@
     <orderEntry type="library" exported="" name="jackson" level="project" />
     <orderEntry type="library" exported="" name="guice" level="project" />
     <orderEntry type="library" exported="" name="jline" level="project" />
-    <orderEntry type="library" exported="" name="jgroups" level="project" />
     <orderEntry type="library" exported="" name="netty" level="project" />
     <orderEntry type="library" scope="TEST" name="testng" level="project" />
     <orderEntry type="library" scope="TEST" name="hamcrest" level="project" />

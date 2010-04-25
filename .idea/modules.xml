@@ -6,6 +6,7 @@
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/elasticsearch.iml" filepath="$PROJECT_DIR$/.idea/modules/elasticsearch.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/elasticsearch-root.iml" filepath="$PROJECT_DIR$/.idea/modules/elasticsearch-root.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-attachments.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-attachments.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-discovery-jgroups.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-discovery-jgroups.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-groovy.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-groovy.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-memcached.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-memcached.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//test-integration.iml" filepath="$PROJECT_DIR$/.idea/modules//test-integration.iml" />

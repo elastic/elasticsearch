@@ -22,7 +22,7 @@ package org.elasticsearch.discovery;
 import com.google.inject.AbstractModule;
 import com.google.inject.Module;
 import org.elasticsearch.discovery.local.LocalDiscoveryModule;
-import org.elasticsearch.util.Classes;
+import org.elasticsearch.discovery.zen.ZenDiscoveryModule;
 import org.elasticsearch.util.settings.Settings;
 
 import static org.elasticsearch.util.guice.ModulesFactory.*;
@@ -44,12 +44,7 @@ public class DiscoveryModule extends AbstractModule {
         if (settings.getAsBoolean("node.local", false)) {
             defaultDiscoveryModule = LocalDiscoveryModule.class;
         } else {
-            try {
-                Classes.getDefaultClassLoader().loadClass("org.elasticsearch.discovery.jgroups.JgroupsDiscovery");
-                defaultDiscoveryModule = (Class<? extends Module>) Classes.getDefaultClassLoader().loadClass("org.elasticsearch.discovery.jgroups.JgroupsDiscoveryModule");
-            } catch (ClassNotFoundException e) {
-                defaultDiscoveryModule = LocalDiscoveryModule.class;
-            }
+            defaultDiscoveryModule = ZenDiscoveryModule.class;
         }
 
         Class<? extends Module> moduleClass = settings.getAsClass("discovery.type", defaultDiscoveryModule, "org.elasticsearch.discovery.", "DiscoveryModule");

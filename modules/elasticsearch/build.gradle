@@ -52,7 +52,6 @@ dependencies {
     compile 'org.apache.lucene:lucene-queries:3.0.1'
     compile 'org.apache.lucene:lucene-fast-vector-highlighter:3.0.1'
 
-    compile('jgroups:jgroups:2.9.0.GA') { transitive = false }
     compile('org.jboss.netty:netty:3.1.5.GA') { transitive = false }
 
     testCompile project(':test-testng')

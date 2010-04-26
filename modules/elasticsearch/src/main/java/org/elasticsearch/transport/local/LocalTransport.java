@@ -70,8 +70,8 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         this.threadPool = threadPool;
     }
 
-    @Override public TransportAddress addressFromString(String address) {
-        return new LocalTransportAddress(address);
+    @Override public TransportAddress[] addressesFromString(String address) {
+        return new TransportAddress[] {new LocalTransportAddress(address)};
     }
 
     @Override public boolean addressSupported(Class<? extends TransportAddress> address) {

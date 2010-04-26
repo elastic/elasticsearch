@@ -19,6 +19,8 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.monitor.jvm.JvmConfig;
+
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -71,5 +73,9 @@ public class Version {
             sb.append("/").append(date);
         }
         return sb.toString();
+    }
+
+    public static void main(String[] args) {
+        System.out.println("ElasticSearch Version: " + number + " (" + date() + "), JVM: " + JvmConfig.jvmConfig().vmVersion());
     }
 }

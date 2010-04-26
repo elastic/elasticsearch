@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery.zen.ping.unicast;
 
+import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.gcommon.collect.ImmutableList;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -32,10 +33,12 @@ import org.elasticsearch.transport.*;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.concurrent.jsr166y.LinkedTransferQueue;
+import org.elasticsearch.util.gcommon.collect.Lists;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.transport.TransportAddress;
 
 import java.io.IOException;
 import java.util.List;
@@ -64,8 +67,6 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     private final ClusterName clusterName;
 
 
-    private final String[] hosts;
-
     private final DiscoveryNode[] nodes;
 
     private volatile DiscoveryNodesProvider nodesProvider;
@@ -83,15 +84,22 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         this.transportService = transportService;
         this.clusterName = clusterName;
 
-        this.hosts = componentSettings.getAsArray("hosts");
-        this.nodes = new DiscoveryNode[hosts.length];
-        for (int i = 0; i < hosts.length; i++) {
+        List<String> hosts = Lists.newArrayList(componentSettings.getAsArray("hosts"));
+        if (componentSettings.get("hosts") != null) {
+            hosts.addAll(Strings.commaDelimitedListToSet(componentSettings.get("hosts")));
+        }
+        List<DiscoveryNode> nodes = Lists.newArrayList();
+        int idCounter = 0;
+        for (String host : hosts) {
             try {
-                nodes[i] = new DiscoveryNode("#zen_unicast_" + i + "#", transportService.addressFromString(hosts[i]));
+                for (TransportAddress address : transportService.addressesFromString(host)) {
+                    nodes.add(new DiscoveryNode("#zen_unicast_" + (++idCounter) + "#", address));
+                }
             } catch (Exception e) {
-                throw new ElasticSearchIllegalArgumentException("Failed to resolve address for [" + hosts[i] + "]", e);
+                throw new ElasticSearchIllegalArgumentException("Failed to resolve address for [" + host + "]", e);
             }
         }
+        this.nodes = nodes.toArray(new DiscoveryNode[nodes.size()]);
 
         transportService.registerHandler(UnicastPingRequestHandler.ACTION, new UnicastPingRequestHandler());
     }

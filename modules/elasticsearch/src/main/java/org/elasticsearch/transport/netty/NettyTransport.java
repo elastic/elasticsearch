@@ -19,6 +19,8 @@
 
 package org.elasticsearch.transport.netty;
 
+import org.elasticsearch.util.Strings;
+import org.elasticsearch.util.gcommon.collect.Lists;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
@@ -53,6 +55,7 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledFuture;
@@ -314,14 +317,28 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     @Override protected void doClose() throws ElasticSearchException {
     }
 
-    @Override public TransportAddress addressFromString(String address) throws Exception {
-        int index = address.lastIndexOf(':');
-        if (index == -1) {
-            throw new ElasticSearchIllegalStateException("Port must be provided to create inet address from [" + address + "]");
+    @Override public TransportAddress[] addressesFromString(String address) throws Exception {
+        int index = address.indexOf('[');
+        if (index != -1) {
+            String host = address.substring(0, index);
+            Set<String> ports = Strings.commaDelimitedListToSet(address.substring(index + 1, address.indexOf(']')));
+            List<TransportAddress> addresses = Lists.newArrayList();
+            for (String port : ports) {
+                int[] iPorts = new PortsRange(port).ports();
+                for (int iPort : iPorts) {
+                    addresses.add(new InetSocketTransportAddress(host, iPort));
+                }
+            }
+            return addresses.toArray(new TransportAddress[addresses.size()]);
+        } else {
+            index = address.lastIndexOf(':');
+            if (index == -1) {
+                throw new ElasticSearchIllegalStateException("Port must be provided to create inet address from [" + address + "]");
+            }
+            String host = address.substring(0, index);
+            int port = Integer.parseInt(address.substring(index + 1));
+            return new TransportAddress[] {new InetSocketTransportAddress(host, port)};
         }
-        String host = address.substring(0, index);
-        int port = Integer.parseInt(address.substring(index + 1));
-        return new InetSocketTransportAddress(host, port);
     }
 
     @Override public boolean addressSupported(Class<? extends TransportAddress> address) {

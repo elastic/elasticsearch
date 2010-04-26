@@ -126,11 +126,16 @@ launch_service()
 }
 
 # Parse any command line options.
-args=`getopt fhp:bD:X: "$@"`
+args=`getopt vfhp:D:X: "$@"`
 eval set -- "$args"
 
 while true; do
     case "$1" in
+        -v)
+            $JAVA $JAVA_OPTS $ES_JAVA_OPTS $es_parms -cp $CLASSPATH $props \
+                    org.elasticsearch.Version
+            exit 0
+        ;;
         -p)
             pidfile="$2"
             shift 2
@@ -140,7 +145,7 @@ while true; do
             shift
         ;;
         -h)
-            echo "Usage: $0 [-d] [-h] [-p pidfile]"
+            echo "Usage: $0 [-f] [-h] [-p pidfile]"
             exit 0
         ;;
         -D)

@@ -3,11 +3,11 @@ dependsOn(':elasticsearch')
 apply plugin: 'java'
 apply plugin: 'maven'
 
-archivesBaseName = "elasticsearch-mapper-attachments"
+archivesBaseName = "elasticsearch-analysis-icu"
 
 explodedDistDir = new File(distsDir, 'exploded')
 
-manifest.mainAttributes("Implementation-Title": "ElasticSearch::Plugins::Mapper::Attachments", "Implementation-Version": rootProject.version, "Implementation-Date": buildTimeStr)
+manifest.mainAttributes("Implementation-Title": "ElasticSearch::Plugins::Analysis::ICU", "Implementation-Version": rootProject.version, "Implementation-Date": buildTimeStr)
 
 configurations.compile.transitive = true
 configurations.testCompile.transitive = true
@@ -32,8 +32,10 @@ configurations {
 dependencies {
     compile project(':elasticsearch')
 
-    compile('org.apache.tika:tika-app:0.7') { transitive = false }
-    distLib('org.apache.tika:tika-app:0.7') { transitive = false }
+    compile('com.ibm.icu:icu4j:4.4') { transitive = false }
+    distLib('com.ibm.icu:icu4j:4.4') { transitive = false }
+    compile('org.apache.lucene:lucene-collation:3.0.1') { transitive = false }
+    distLib('org.apache.lucene:lucene-collation:3.0.1') { transitive = false }
 
 
     testCompile project(':test-testng')
@@ -117,7 +119,7 @@ uploadArchives {
 
         pom.project {
             inceptionYear '2009'
-            name 'elasticsearch-plugins-mapper-attachments'
+            name 'elasticsearch-plugins-analysis-icu'
             description 'Attachments Plugin for ElasticSearch'
             licenses {
                 license {

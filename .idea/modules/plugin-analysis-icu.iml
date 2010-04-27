@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module version="4">
+  <component name="NewModuleRootManager" inherit-compiler-output="false">
+    <output url="file://$MODULE_DIR$/../../plugins/analysis/icu/build/classes/main" />
+    <output-test url="file://$MODULE_DIR$/../../plugins/analysis/icu/build/classes/test" />
+    <exclude-output />
+    <content url="file://$MODULE_DIR$/../../plugins/analysis/icu">
+      <sourceFolder url="file://$MODULE_DIR$/../../plugins/analysis/icu/src/main/java" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/../../plugins/analysis/icu/src/test/java" isTestSource="true" />
+      <excludeFolder url="file://$MODULE_DIR$/../../plugins/analysis/icu/build" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="module" module-name="elasticsearch" />
+    <orderEntry type="module-library">
+      <library name="icu4j">
+        <CLASSES>
+          <root url="jar://$GRADLE_REPOSITORY$/com.ibm.icu/icu4j/jars/icu4j-4.4.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES>
+          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/tests/charset/src" />
+          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/tests/localespi/src" />
+          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/classes/translit/src" />
+          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/classes/langdata/src" />
+          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/tests/collate/src" />
+          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/classes/charset/src" />
+          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/classes/collate/src" />
+          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/tests/translit/src" />
+          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/tests/core/src" />
+          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/classes/core/src" />
+          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/classes/regiondata/src" />
+          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/tests/packaging/src" />
+          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/tests/framework/src" />
+          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/classes/currdata/src" />
+          <root url="file://$MODULE_DIR$/../../../../../opt/icu4j/4.4/main/classes/localespi/src" />
+        </SOURCES>
+      </library>
+    </orderEntry>
+    <orderEntry type="module" module-name="test-testng" />
+    <orderEntry type="library" name="testng" level="project" />
+    <orderEntry type="library" name="hamcrest" level="project" />
+    <orderEntry type="module-library">
+      <library name="lucene-collation">
+        <CLASSES>
+          <root url="jar://$GRADLE_REPOSITORY$/org.apache.lucene/lucene-collation/jars/lucene-collation-3.0.1.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
+  </component>
+</module>
+

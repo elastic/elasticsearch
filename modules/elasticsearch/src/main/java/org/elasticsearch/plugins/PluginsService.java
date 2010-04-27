@@ -70,6 +70,14 @@ public class PluginsService extends AbstractComponent {
         return this.settings;
     }
 
+    public void processModules(Iterable<Module> modules) {
+        for (Module module : modules) {
+            for (Plugin plugin : plugins.values()) {
+                plugin.processModule(module);
+            }
+        }
+    }
+
     public Collection<Class<? extends Module>> modules() {
         List<Class<? extends Module>> modules = Lists.newArrayList();
         for (Plugin plugin : plugins.values()) {

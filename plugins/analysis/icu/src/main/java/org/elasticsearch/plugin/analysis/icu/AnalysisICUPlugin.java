@@ -17,17 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.attachments;
+package org.elasticsearch.plugin.analysis.icu;
 
-import org.elasticsearch.util.guice.inject.AbstractModule;
-import org.elasticsearch.plugin.attachments.index.mapper.JsonAttachmentMapperService;
+import org.elasticsearch.index.analysis.AnalysisModule;
+import org.elasticsearch.index.analysis.IcuAnalysisBinderProcessor;
+import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.util.guice.inject.Module;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class AttachmentsIndexModule extends AbstractModule {
+public class AnalysisICUPlugin extends AbstractPlugin {
 
-    @Override protected void configure() {
-        bind(JsonAttachmentMapperService.class).asEagerSingleton();
+    @Override public String name() {
+        return "analysis-icu";
+    }
+
+    @Override public String description() {
+        return "UTF related ICU analysis support";
+    }
+
+    @Override public void processModule(Module module) {
+        if (module instanceof AnalysisModule) {
+            AnalysisModule analysisModule = (AnalysisModule) module;
+            analysisModule.addProcessor(new IcuAnalysisBinderProcessor());
+        }
     }
 }

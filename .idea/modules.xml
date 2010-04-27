@@ -5,6 +5,7 @@
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//benchmark-micro.iml" filepath="$PROJECT_DIR$/.idea/modules//benchmark-micro.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/elasticsearch.iml" filepath="$PROJECT_DIR$/.idea/modules/elasticsearch.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/elasticsearch-root.iml" filepath="$PROJECT_DIR$/.idea/modules/elasticsearch-root.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/plugin-analysis-icu.iml" filepath="$PROJECT_DIR$/.idea/modules/plugin-analysis-icu.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-client-groovy.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-client-groovy.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-discovery-jgroups.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-discovery-jgroups.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-mapper-attachments.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-mapper-attachments.iml" />

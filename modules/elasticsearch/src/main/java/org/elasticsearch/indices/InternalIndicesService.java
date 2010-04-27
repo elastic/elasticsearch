@@ -47,8 +47,10 @@ import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.component.CloseableIndexComponent;
 import org.elasticsearch.util.concurrent.ThreadSafe;
 import org.elasticsearch.util.guice.Injectors;
+import org.elasticsearch.util.guice.inject.Module;
 import org.elasticsearch.util.settings.Settings;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -167,19 +169,23 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
                 .globalSettings(settings.getGlobalSettings())
                 .build();
 
-        Injector indexInjector = injector.createChildInjector(
-                new IndexNameModule(index),
-                new LocalNodeIdModule(localNodeId),
-                new IndexSettingsModule(indexSettings),
-                new IndicesPluginsModule(indexSettings, pluginsService),
-                new AnalysisModule(indexSettings),
-                new SimilarityModule(indexSettings),
-                new IndexCacheModule(indexSettings),
-                new IndexQueryParserModule(indexSettings),
-                new MapperServiceModule(),
-                new IndexGatewayModule(indexSettings, injector.getInstance(Gateway.class)),
-                new OperationRoutingModule(indexSettings),
-                new IndexModule());
+        ArrayList<Module> modules = new ArrayList<Module>();
+        modules.add(new IndexNameModule(index));
+        modules.add(new LocalNodeIdModule(localNodeId));
+        modules.add(new IndexSettingsModule(indexSettings));
+        modules.add(new IndicesPluginsModule(indexSettings, pluginsService));
+        modules.add(new AnalysisModule(indexSettings));
+        modules.add(new SimilarityModule(indexSettings));
+        modules.add(new IndexCacheModule(indexSettings));
+        modules.add(new IndexQueryParserModule(indexSettings));
+        modules.add(new MapperServiceModule());
+        modules.add(new IndexGatewayModule(indexSettings, injector.getInstance(Gateway.class)));
+        modules.add(new OperationRoutingModule(indexSettings));
+        modules.add(new IndexModule());
+
+        pluginsService.processModules(modules);
+
+        Injector indexInjector = injector.createChildInjector(modules);
 
         indicesInjectors.put(index.name(), indexInjector);
 

@@ -1,9 +1,0 @@
-<component name="libraryTable">
-  <library name="spymemcached">
-    <CLASSES>
-      <root url="jar://$GRADLE_REPOSITORY$/spy/memcached/jars/memcached-2.4.2.jar!/" />
-    </CLASSES>
-    <JAVADOC />
-    <SOURCES />
-  </library>
-</component>

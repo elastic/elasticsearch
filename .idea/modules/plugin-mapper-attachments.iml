@@ -13,7 +13,15 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="elasticsearch" />
-    <orderEntry type="library" name="tika" level="project" />
+    <orderEntry type="module-library">
+      <library name="tika">
+        <CLASSES>
+          <root url="jar://$GRADLE_REPOSITORY$/org.apache.tika/tika-app/bundles/tika-app-0.7.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
     <orderEntry type="module" module-name="test-testng" scope="TEST" />
     <orderEntry type="library" scope="TEST" name="testng" level="project" />
     <orderEntry type="library" scope="TEST" name="hamcrest" level="project" />

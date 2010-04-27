@@ -37,7 +37,7 @@ public class SearchContextException extends SearchException {
     private static String buildMessage(SearchContext context, String msg) {
         StringBuilder sb = new StringBuilder();
         sb.append('[').append(context.shardTarget().index()).append("][").append(context.shardTarget().shardId()).append("]: ");
-        sb.append("query[").append(context.query()).append("],from[").append(context.from()).append("],size[").append(context.size()).append("]");
+        sb.append("query[").append(context.originalQuery()).append("],from[").append(context.from()).append("],size[").append(context.size()).append("]");
         if (context.sort() != null) {
             sb.append(",sort[").append(context.sort()).append("]");
         }

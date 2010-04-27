@@ -106,9 +106,9 @@ public class HighlighterParseElement implements SearchParseElement {
                 if ("highlight_filter".equals(topLevelFieldName) || "highlightFilter".equals(topLevelFieldName)) {
                     highlightFilter = jp.getIntValue() != 0;
                 }
-            } else if (token == JsonToken.VALUE_FALSE) {
+            } else if (token == JsonToken.VALUE_FALSE || token == JsonToken.VALUE_TRUE) {
                 if ("highlight_filter".equals(topLevelFieldName) || "highlightFilter".equals(topLevelFieldName)) {
-                    highlightFilter = false;
+                    highlightFilter = token == JsonToken.VALUE_TRUE;
                 }
             } else if (token == JsonToken.START_OBJECT) {
                 if ("fields".equals(topLevelFieldName)) {

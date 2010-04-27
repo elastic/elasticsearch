@@ -12,7 +12,15 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="elasticsearch" />
-    <orderEntry type="library" name="jgroups" level="project" />
+    <orderEntry type="module-library">
+      <library name="jgroups">
+        <CLASSES>
+          <root url="jar://$GRADLE_REPOSITORY$/jgroups/jgroups/jars/jgroups-2.9.0.GA.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
     <orderEntry type="module" module-name="test-testng" scope="TEST" />
     <orderEntry type="library" scope="TEST" name="testng" level="project" />
     <orderEntry type="library" scope="TEST" name="hamcrest" level="project" />

@@ -37,6 +37,7 @@ allprojects {
     repositories {
         mavenCentral()
         mavenRepo urls: 'http://repository.jboss.com/maven2/'
+        mavenRepo urls: 'http://elasticsearch.googlecode.com/svn/maven'
     }
 }
 

@@ -71,4 +71,6 @@ public interface Plugin {
      * Per index shard service that will be automatically closed.
      */
     Collection<Class<? extends CloseableIndexComponent>> shardServices();
+
+    void processModule(Module module);
 }

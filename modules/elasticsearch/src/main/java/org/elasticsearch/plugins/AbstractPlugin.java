@@ -74,4 +74,8 @@ public abstract class AbstractPlugin implements Plugin {
     @Override public Collection<Class<? extends CloseableIndexComponent>> shardServices() {
         return ImmutableList.of();
     }
+
+    @Override public void processModule(Module module) {
+        // nothing to do here
+    }
 }

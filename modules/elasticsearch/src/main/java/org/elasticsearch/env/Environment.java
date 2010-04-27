@@ -21,9 +21,13 @@ package org.elasticsearch.env;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.util.Classes;
+import org.elasticsearch.util.io.Streams;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.MalformedURLException;
 import java.net.URL;
 
@@ -120,6 +124,10 @@ public class Environment {
 
     public File logsFile() {
         return logsFile;
+    }
+
+    public String resolveConfigAndLoadToString(String path) throws FailedToResolveConfigException, IOException {
+        return Streams.copyToString(new InputStreamReader(resolveConfig(path).openStream(), "UTF-8"));
     }
 
     public URL resolveConfig(String path) throws FailedToResolveConfigException {

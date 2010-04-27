@@ -74,22 +74,6 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
             }
         }
 
-        // add some defaults
-        if (!analyzerProviders.containsKey("standard")) {
-            analyzerProviders.put("standard", new StandardAnalyzerProvider(index, indexSettings, "standard", ImmutableSettings.Builder.EMPTY_SETTINGS));
-        }
-        if (!analyzerProviders.containsKey("simple")) {
-            analyzerProviders.put("simple", new SimpleAnalyzerProvider(index, indexSettings, "simple", ImmutableSettings.Builder.EMPTY_SETTINGS));
-        }
-        if (!analyzerProviders.containsKey("stop")) {
-            analyzerProviders.put("stop", new StopAnalyzerProvider(index, indexSettings, "stop", ImmutableSettings.Builder.EMPTY_SETTINGS));
-        }
-        if (!analyzerProviders.containsKey("whitespace")) {
-            analyzerProviders.put("whitespace", new WhitespaceAnalyzerProvider(index, indexSettings, "whitespace", ImmutableSettings.Builder.EMPTY_SETTINGS));
-        }
-        if (!analyzerProviders.containsKey("keyword")) {
-            analyzerProviders.put("keyword", new KeywordAnalyzerProvider(index, indexSettings, "keyword", ImmutableSettings.Builder.EMPTY_SETTINGS));
-        }
         if (!analyzerProviders.containsKey("default")) {
             analyzerProviders.put("default", new StandardAnalyzerProvider(index, indexSettings, "default", ImmutableSettings.Builder.EMPTY_SETTINGS));
         }
@@ -99,45 +83,6 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         if (!analyzerProviders.containsKey("default_search")) {
             analyzerProviders.put("default_search", analyzerProviders.get("default"));
         }
-
-        // extended analyzers defaults
-        if (!analyzerProviders.containsKey("arabic")) {
-            analyzerProviders.put("arabic", new ArabicAnalyzerProvider(index, indexSettings, "arabic", ImmutableSettings.Builder.EMPTY_SETTINGS));
-        }
-        if (!analyzerProviders.containsKey("brazilian")) {
-            analyzerProviders.put("brazilian", new BrazilianAnalyzerProvider(index, indexSettings, "brazilian", ImmutableSettings.Builder.EMPTY_SETTINGS));
-        }
-        if (!analyzerProviders.containsKey("chinese")) {
-            analyzerProviders.put("chinese", new ChineseAnalyzerProvider(index, indexSettings, "chinese", ImmutableSettings.Builder.EMPTY_SETTINGS));
-        }
-        if (!analyzerProviders.containsKey("cjk")) {
-            analyzerProviders.put("cjk", new ChineseAnalyzerProvider(index, indexSettings, "cjk", ImmutableSettings.Builder.EMPTY_SETTINGS));
-        }
-        if (!analyzerProviders.containsKey("czech")) {
-            analyzerProviders.put("czech", new CzechAnalyzerProvider(index, indexSettings, "czech", ImmutableSettings.Builder.EMPTY_SETTINGS));
-        }
-        if (!analyzerProviders.containsKey("dutch")) {
-            analyzerProviders.put("dutch", new DutchAnalyzerProvider(index, indexSettings, "dutch", ImmutableSettings.Builder.EMPTY_SETTINGS));
-        }
-        if (!analyzerProviders.containsKey("french")) {
-            analyzerProviders.put("french", new FrenchAnalyzerProvider(index, indexSettings, "french", ImmutableSettings.Builder.EMPTY_SETTINGS));
-        }
-        if (!analyzerProviders.containsKey("german")) {
-            analyzerProviders.put("german", new GermanAnalyzerProvider(index, indexSettings, "german", ImmutableSettings.Builder.EMPTY_SETTINGS));
-        }
-        if (!analyzerProviders.containsKey("greek")) {
-            analyzerProviders.put("greek", new GreekAnalyzerProvider(index, indexSettings, "greek", ImmutableSettings.Builder.EMPTY_SETTINGS));
-        }
-        if (!analyzerProviders.containsKey("persian")) {
-            analyzerProviders.put("persian", new PersianAnalyzerProvider(index, indexSettings, "persian", ImmutableSettings.Builder.EMPTY_SETTINGS));
-        }
-        if (!analyzerProviders.containsKey("russian")) {
-            analyzerProviders.put("russian", new RussianAnalyzerProvider(index, indexSettings, "russian", ImmutableSettings.Builder.EMPTY_SETTINGS));
-        }
-        if (!analyzerProviders.containsKey("thai")) {
-            analyzerProviders.put("thai", new ThaiAnalyzerProvider(index, indexSettings, "thai", ImmutableSettings.Builder.EMPTY_SETTINGS));
-        }
-
 
         this.analyzerProviders = ImmutableMap.copyOf(analyzerProviders);
 

@@ -131,6 +131,7 @@ public final class InternalNode implements Node {
         modules.add(new GatewayModule(settings));
         modules.add(new NodeClientModule());
 
+        pluginsService.processModules(modules);
 
         injector = Guice.createInjector(modules);
 

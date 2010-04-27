@@ -20,6 +20,7 @@
 package org.elasticsearch.index.service;
 
 import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.Lists;
 import org.elasticsearch.util.gcommon.collect.UnmodifiableIterator;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.guice.inject.Injector;
@@ -56,9 +57,11 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ShardsPluginsModule;
 import org.elasticsearch.util.component.CloseableIndexComponent;
 import org.elasticsearch.util.guice.Injectors;
+import org.elasticsearch.util.guice.inject.Module;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -189,16 +192,20 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
         logger.debug("Creating shard_id[{}]", shardId.id());
 
-        Injector shardInjector = injector.createChildInjector(
-                new ShardsPluginsModule(indexSettings, pluginsService),
-                new IndexShardModule(shardId),
-                new StoreModule(indexSettings),
-                new DeletionPolicyModule(indexSettings),
-                new MergePolicyModule(indexSettings),
-                new MergeSchedulerModule(indexSettings),
-                new TranslogModule(indexSettings),
-                new EngineModule(indexSettings),
-                new IndexShardGatewayModule(injector.getInstance(IndexGateway.class)));
+        List<Module> modules = Lists.newArrayList();
+        modules.add(new ShardsPluginsModule(indexSettings, pluginsService));
+        modules.add(new IndexShardModule(shardId));
+        modules.add(new StoreModule(indexSettings));
+        modules.add(new DeletionPolicyModule(indexSettings));
+        modules.add(new MergePolicyModule(indexSettings));
+        modules.add(new MergeSchedulerModule(indexSettings));
+        modules.add(new TranslogModule(indexSettings));
+        modules.add(new EngineModule(indexSettings));
+        modules.add(new IndexShardGatewayModule(injector.getInstance(IndexGateway.class)));
+
+        pluginsService.processModules(modules);
+
+        Injector shardInjector = injector.createChildInjector(modules);
 
         shardsInjectors = newMapBuilder(shardsInjectors).put(shardId.id(), shardInjector).immutableMap();
 

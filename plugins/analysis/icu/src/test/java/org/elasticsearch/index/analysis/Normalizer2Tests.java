@@ -17,31 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.attachments;
+package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.util.guice.inject.Module;
-import org.elasticsearch.plugins.AbstractPlugin;
+import com.ibm.icu.text.Normalizer2;
+import org.hamcrest.MatcherAssert;
+import org.hamcrest.Matchers;
+import org.testng.annotations.Test;
 
-import java.util.Collection;
-
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import java.text.Normalizer;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class AttachmentsPlugin extends AbstractPlugin {
+public class Normalizer2Tests {
 
-    @Override public String name() {
-        return "mapper-attachments";
-    }
+    @Test public void testNormalizer2() {
+        Normalizer2 normalizer = Normalizer2.getInstance(null, "nfkc_cf", Normalizer2.Mode.COMPOSE);
+        MatcherAssert.assertThat(normalizer.normalize("Jordania"), Matchers.equalTo("jordania"));
+        MatcherAssert.assertThat(normalizer.normalize("João"), Matchers.equalTo("joão"));
 
-    @Override public String description() {
-        return "Adds the attachment type allowing to parse difference attachment formats";
-    }
-
-    @Override public Collection<Class<? extends Module>> indexModules() {
-        Collection<Class<? extends Module>> modules = newArrayList();
-        modules.add(AttachmentsIndexModule.class);
-        return modules;
+        MatcherAssert.assertThat(Normalizer.normalize("Jordania", Normalizer.Form.NFKC), Matchers.equalTo("Jordania"));
+        MatcherAssert.assertThat(Normalizer.normalize("João", Normalizer.Form.NFKC), Matchers.equalTo("João"));
     }
 }

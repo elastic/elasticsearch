@@ -21,6 +21,7 @@
       <entry name="?*.yml" />
       <entry name="?*.txt" />
       <entry name="?*.pdf" />
+      <entry name="?*.nrm" />
     </wildcardResourcePatterns>
     <annotationProcessing enabled="false" useClasspath="true" />
   </component>

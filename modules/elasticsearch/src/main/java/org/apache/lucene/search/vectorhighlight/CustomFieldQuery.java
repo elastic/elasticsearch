@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.SpanTermQuery;
+import org.elasticsearch.util.lucene.search.CustomBoostFactorQuery;
 import org.elasticsearch.util.lucene.search.TermFilter;
 
 import java.io.IOException;
@@ -73,10 +74,9 @@ public class CustomFieldQuery extends FieldQuery {
                 flatQueries.add(termQuery);
             }
         } else if (sourceQuery instanceof ConstantScoreQuery) {
-            Boolean highlight = highlightFilters.get();
-            if (highlight != null && highlight.equals(Boolean.TRUE)) {
-                flatten(((ConstantScoreQuery) sourceQuery).getFilter(), flatQueries);
-            }
+            flatten(((ConstantScoreQuery) sourceQuery).getFilter(), flatQueries);
+        } else if (sourceQuery instanceof CustomBoostFactorQuery) {
+            flatten(((CustomBoostFactorQuery) sourceQuery).getSubQuery(), flatQueries);
         } else if (sourceQuery instanceof MultiTermQuery) {
             MultiTermQuery multiTermQuery = (MultiTermQuery) sourceQuery;
             MultiTermQuery.RewriteMethod rewriteMethod = multiTermQuery.getRewriteMethod();
@@ -87,16 +87,25 @@ public class CustomFieldQuery extends FieldQuery {
                     flatten(multiTermQuery.rewrite(reader.get()), flatQueries);
                 } catch (IOException e) {
                     // ignore
+                } catch (BooleanQuery.TooManyClauses e) {
+                    // ignore
                 } finally {
                     multiTermQuery.setRewriteMethod(rewriteMethod);
                 }
             }
+        } else if (sourceQuery instanceof FilteredQuery) {
+            flatten(((FilteredQuery) sourceQuery).getQuery(), flatQueries);
+            flatten(((FilteredQuery) sourceQuery).getFilter(), flatQueries);
         } else {
             super.flatten(sourceQuery, flatQueries);
         }
     }
 
     void flatten(Filter sourceFilter, Collection<Query> flatQueries) {
+        Boolean highlight = highlightFilters.get();
+        if (highlight == null || highlight.equals(Boolean.FALSE)) {
+            return;
+        }
         if (sourceFilter instanceof TermFilter) {
             flatten(new TermQuery(((TermFilter) sourceFilter).getTerm()), flatQueries);
         } else if (sourceFilter instanceof PublicTermsFilter) {

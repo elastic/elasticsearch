@@ -42,7 +42,9 @@ public class DfsPhase implements SearchPhase {
 
     public void execute(SearchContext context) {
         try {
-            context.rewriteQuery();
+            if (!context.queryRewritten()) {
+                context.updateRewriteQuery(context.searcher().rewrite(context.query()));
+            }
 
             THashSet<Term> termsSet = new THashSet<Term>();
             context.query().extractTerms(termsSet);

@@ -86,6 +86,8 @@ public class SearchContext implements Releasable {
 
     private String queryParserName;
 
+    private Query originalQuery;
+
     private Query query;
 
     private int[] docIdsToLoad;
@@ -238,17 +240,40 @@ public class SearchContext implements Releasable {
     }
 
     public SearchContext query(Query query) {
-        if (query == null) {
-            this.query = query;
-            return this;
-        }
         queryRewritten = false;
+        this.originalQuery = query;
         this.query = query;
         return this;
     }
 
+    /**
+     * The original query to execute, unmodified.
+     */
+    public Query originalQuery() {
+        return this.originalQuery;
+    }
+
+    /**
+     * The query to execute, might be rewritten.
+     */
     public Query query() {
         return this.query;
+    }
+
+    /**
+     * Has the query been rewritten already?
+     */
+    public boolean queryRewritten() {
+        return queryRewritten;
+    }
+
+    /**
+     * Rewrites the query and updates it. Only happens once.
+     */
+    public SearchContext updateRewriteQuery(Query rewriteQuery) {
+        query = rewriteQuery;
+        queryRewritten = true;
+        return this;
     }
 
     public int from() {
@@ -284,15 +309,6 @@ public class SearchContext implements Releasable {
 
     public void explain(boolean explain) {
         this.explain = explain;
-    }
-
-    public SearchContext rewriteQuery() throws IOException {
-        if (queryRewritten) {
-            return this;
-        }
-        query = query.rewrite(searcher.getIndexReader());
-        queryRewritten = true;
-        return this;
     }
 
     public int[] docIdsToLoad() {

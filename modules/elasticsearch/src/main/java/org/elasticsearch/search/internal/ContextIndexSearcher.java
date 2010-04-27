@@ -28,7 +28,7 @@ import org.elasticsearch.util.lucene.docidset.DocIdSetCollector;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class ContextIndexSearcher extends IndexSearcher {
 
@@ -55,6 +55,20 @@ public class ContextIndexSearcher extends IndexSearcher {
 
     public OpenBitSet docIdSet() {
         return docIdSet;
+    }
+
+    @Override public Query rewrite(Query original) throws IOException {
+        if (original == searchContext.query() || original == searchContext.originalQuery()) {
+            // optimize in case its the top level search query and we already rewrote it...
+            if (searchContext.queryRewritten()) {
+                return searchContext.query();
+            }
+            Query rewriteQuery = super.rewrite(original);
+            searchContext.updateRewriteQuery(rewriteQuery);
+            return rewriteQuery;
+        } else {
+            return super.rewrite(original);
+        }
     }
 
     @Override protected Weight createWeight(Query query) throws IOException {

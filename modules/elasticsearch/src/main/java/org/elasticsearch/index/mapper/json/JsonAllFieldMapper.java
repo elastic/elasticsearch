@@ -110,7 +110,7 @@ public class JsonAllFieldMapper extends JsonFieldMapper<Void> implements AllFiel
         return new AllTermQuery(term);
     }
 
-    @Override public Query termQuery(String value) {
+    @Override public Query fieldQuery(String value) {
         return new AllTermQuery(new Term(names.indexName(), value));
     }
 

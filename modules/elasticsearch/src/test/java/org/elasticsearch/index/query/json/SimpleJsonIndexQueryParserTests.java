@@ -158,7 +158,7 @@ public class SimpleJsonIndexQueryParserTests {
 
     @Test public void testDisMaxBuilder() throws Exception {
         IndexQueryParser queryParser = newQueryParser();
-        Query parsedQuery = queryParser.parse(disMaxQuery().boost(1.2f).tieBreaker(0.7f).add(termQuery("age", 34)).add(termQuery("age", 35)));
+        Query parsedQuery = queryParser.parse(disMaxQuery().boost(1.2f).tieBreaker(0.7f).add(termQuery("name.first", "first")).add(termQuery("name.last", "last")));
         assertThat(parsedQuery, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) parsedQuery;
         assertThat((double) disjunctionMaxQuery.getBoost(), closeTo(1.2, 0.01));
@@ -168,11 +168,11 @@ public class SimpleJsonIndexQueryParserTests {
 
         Query firstQ = disjuncts.get(0);
         assertThat(firstQ, instanceOf(TermQuery.class));
-        assertThat(((TermQuery) firstQ).getTerm(), equalTo(new Term("age", NumericUtils.longToPrefixCoded(34))));
+        assertThat(((TermQuery) firstQ).getTerm(), equalTo(new Term("name.first", "first")));
 
         Query secondsQ = disjuncts.get(1);
         assertThat(secondsQ, instanceOf(TermQuery.class));
-        assertThat(((TermQuery) secondsQ).getTerm(), equalTo(new Term("age", NumericUtils.longToPrefixCoded(35))));
+        assertThat(((TermQuery) secondsQ).getTerm(), equalTo(new Term("name.last", "last")));
     }
 
     @Test public void testDisMax() throws Exception {
@@ -188,49 +188,57 @@ public class SimpleJsonIndexQueryParserTests {
 
         Query firstQ = disjuncts.get(0);
         assertThat(firstQ, instanceOf(TermQuery.class));
-        assertThat(((TermQuery) firstQ).getTerm(), equalTo(new Term("age", NumericUtils.longToPrefixCoded(34))));
+        assertThat(((TermQuery) firstQ).getTerm(), equalTo(new Term("name.first", "first")));
 
         Query secondsQ = disjuncts.get(1);
         assertThat(secondsQ, instanceOf(TermQuery.class));
-        assertThat(((TermQuery) secondsQ).getTerm(), equalTo(new Term("age", NumericUtils.longToPrefixCoded(35))));
+        assertThat(((TermQuery) secondsQ).getTerm(), equalTo(new Term("name.last", "last")));
     }
 
     @Test public void testTermQueryBuilder() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
         Query parsedQuery = queryParser.parse(termQuery("age", 34).buildAsBytes());
-        assertThat(parsedQuery, instanceOf(TermQuery.class));
-        TermQuery termQuery = (TermQuery) parsedQuery;
-        // since age is automatically registered in data, we encode it as numeric
-        assertThat(termQuery.getTerm(), equalTo(new Term("age", NumericUtils.longToPrefixCoded(34))));
+        assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
+        NumericRangeQuery fieldQuery = (NumericRangeQuery) parsedQuery;
+        assertThat(fieldQuery.getMin().intValue(), equalTo(34));
+        assertThat(fieldQuery.getMax().intValue(), equalTo(34));
+        assertThat(fieldQuery.includesMax(), equalTo(true));
+        assertThat(fieldQuery.includesMin(), equalTo(true));
     }
 
     @Test public void testTermQuery() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/json/term.json");
         Query parsedQuery = queryParser.parse(query);
-        assertThat(parsedQuery, instanceOf(TermQuery.class));
-        TermQuery termQuery = (TermQuery) parsedQuery;
-        // since age is automatically registered in data, we encode it as numeric
-        assertThat(termQuery.getTerm(), equalTo(new Term("age", NumericUtils.longToPrefixCoded(34))));
+        assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
+        NumericRangeQuery fieldQuery = (NumericRangeQuery) parsedQuery;
+        assertThat(fieldQuery.getMin().intValue(), equalTo(34));
+        assertThat(fieldQuery.getMax().intValue(), equalTo(34));
+        assertThat(fieldQuery.includesMax(), equalTo(true));
+        assertThat(fieldQuery.includesMin(), equalTo(true));
     }
 
     @Test public void testFieldQueryBuilder1() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
         Query parsedQuery = queryParser.parse(fieldQuery("age", 34).buildAsBytes());
-        assertThat(parsedQuery, instanceOf(TermQuery.class));
-        TermQuery termQuery = (TermQuery) parsedQuery;
-        // since age is automatically registered in data, we encode it as numeric
-        assertThat(termQuery.getTerm(), equalTo(new Term("age", NumericUtils.longToPrefixCoded(34))));
+        assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
+        NumericRangeQuery fieldQuery = (NumericRangeQuery) parsedQuery;
+        assertThat(fieldQuery.getMin().intValue(), equalTo(34));
+        assertThat(fieldQuery.getMax().intValue(), equalTo(34));
+        assertThat(fieldQuery.includesMax(), equalTo(true));
+        assertThat(fieldQuery.includesMin(), equalTo(true));
     }
 
     @Test public void testFieldQuery1() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/json/field1.json");
         Query parsedQuery = queryParser.parse(query);
-        assertThat(parsedQuery, instanceOf(TermQuery.class));
-        TermQuery termQuery = (TermQuery) parsedQuery;
-        // since age is automatically registered in data, we encode it as numeric
-        assertThat(termQuery.getTerm(), equalTo(new Term("age", NumericUtils.longToPrefixCoded(34))));
+        assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
+        NumericRangeQuery fieldQuery = (NumericRangeQuery) parsedQuery;
+        assertThat(fieldQuery.getMin().intValue(), equalTo(34));
+        assertThat(fieldQuery.getMax().intValue(), equalTo(34));
+        assertThat(fieldQuery.includesMax(), equalTo(true));
+        assertThat(fieldQuery.includesMin(), equalTo(true));
     }
 
     @Test public void testFieldQuery2() throws IOException {
@@ -251,31 +259,37 @@ public class SimpleJsonIndexQueryParserTests {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/json/field3.json");
         Query parsedQuery = queryParser.parse(query);
         assertThat((double) parsedQuery.getBoost(), closeTo(2.0, 0.01));
-        assertThat(parsedQuery, instanceOf(TermQuery.class));
-        TermQuery termQuery = (TermQuery) parsedQuery;
-        // since age is automatically registered in data, we encode it as numeric
-        assertThat(termQuery.getTerm(), equalTo(new Term("age", NumericUtils.longToPrefixCoded(34))));
+        assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
+        NumericRangeQuery fieldQuery = (NumericRangeQuery) parsedQuery;
+        assertThat(fieldQuery.getMin().intValue(), equalTo(34));
+        assertThat(fieldQuery.getMax().intValue(), equalTo(34));
+        assertThat(fieldQuery.includesMax(), equalTo(true));
+        assertThat(fieldQuery.includesMin(), equalTo(true));
     }
 
     @Test public void testTermWithBoostQueryBuilder() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
         Query parsedQuery = queryParser.parse(termQuery("age", 34).boost(2.0f));
-        assertThat(parsedQuery, instanceOf(TermQuery.class));
-        TermQuery termQuery = (TermQuery) parsedQuery;
-        // since age is automatically registered in data, we encode it as numeric
-        assertThat(termQuery.getTerm(), equalTo(new Term("age", NumericUtils.longToPrefixCoded(34))));
-        assertThat((double) termQuery.getBoost(), closeTo(2.0, 0.01));
+        assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
+        NumericRangeQuery fieldQuery = (NumericRangeQuery) parsedQuery;
+        assertThat(fieldQuery.getMin().intValue(), equalTo(34));
+        assertThat(fieldQuery.getMax().intValue(), equalTo(34));
+        assertThat(fieldQuery.includesMax(), equalTo(true));
+        assertThat(fieldQuery.includesMin(), equalTo(true));
+        assertThat((double) fieldQuery.getBoost(), closeTo(2.0, 0.01));
     }
 
     @Test public void testTermWithBoostQuery() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/json/term-with-boost.json");
         Query parsedQuery = queryParser.parse(query);
-        assertThat(parsedQuery, instanceOf(TermQuery.class));
-        TermQuery termQuery = (TermQuery) parsedQuery;
-        // since age is automatically registered in data, we encode it as numeric
-        assertThat(termQuery.getTerm(), equalTo(new Term("age", NumericUtils.longToPrefixCoded(34))));
-        assertThat((double) termQuery.getBoost(), closeTo(2.0, 0.01));
+        assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
+        NumericRangeQuery fieldQuery = (NumericRangeQuery) parsedQuery;
+        assertThat(fieldQuery.getMin().intValue(), equalTo(34));
+        assertThat(fieldQuery.getMax().intValue(), equalTo(34));
+        assertThat(fieldQuery.includesMax(), equalTo(true));
+        assertThat(fieldQuery.includesMin(), equalTo(true));
+        assertThat((double) fieldQuery.getBoost(), closeTo(2.0, 0.01));
     }
 
     @Test public void testPrefixQueryBuilder() throws IOException {

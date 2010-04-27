@@ -4,10 +4,10 @@
         boost: 1.2,
         queries : [
             {
-                term : { age : 34 }
+                term : { "name.first" : "first" }
             },
             {
-                term : { age : 35 }
+                term : { "name.last" : "last" }
             }
         ]
     }

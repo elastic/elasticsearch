@@ -23,6 +23,8 @@ import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.util.ThreadLocals;
@@ -115,9 +117,29 @@ public abstract class JsonNumberFieldMapper<T extends Number> extends JsonFieldM
     /**
      * Use the field query created here when matching on numbers.
      */
-    @Override public boolean useTermQueryWithQueryString() {
+    @Override public boolean useFieldQueryWithQueryString() {
         return true;
     }
+
+    /**
+     * Numeric field level query are basically range queries with same value and included. That's the recommended
+     * way to execute it.
+     */
+    @Override public Query fieldQuery(String value) {
+        return rangeQuery(value, value, true, true);
+    }
+
+    /**
+     * Numeric field level filter are basically range queries with same value and included. That's the recommended
+     * way to execute it.
+     */
+    @Override public Filter fieldFilter(String value) {
+        return rangeFilter(value, value, true, true);
+    }
+
+    @Override public abstract Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper);
+
+    @Override public abstract Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper);
 
     /**
      * Override the default behavior (to return the string, and return the actual Number instance).

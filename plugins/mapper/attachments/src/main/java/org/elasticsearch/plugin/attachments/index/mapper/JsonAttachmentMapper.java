@@ -154,39 +154,35 @@ public class JsonAttachmentMapper implements JsonMapper {
      */
     public static class TypeParser implements JsonTypeParser {
 
-        @Override public JsonMapper.Builder parse(String name, JsonNode node, ParserContext parserContext) throws MapperParsingException {
-            ObjectNode attachmentNode = (ObjectNode) node;
+        @Override public JsonMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             JsonAttachmentMapper.Builder builder = new JsonAttachmentMapper.Builder(name);
 
-            for (Iterator<Map.Entry<String, JsonNode>> fieldsIt = attachmentNode.getFields(); fieldsIt.hasNext();) {
-                Map.Entry<String, JsonNode> entry = fieldsIt.next();
+            for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = entry.getKey();
-                JsonNode fieldNode = entry.getValue();
+                Object fieldNode = entry.getValue();
                 if (fieldName.equals("path")) {
-                    builder.pathType(parsePathType(name, fieldNode.getValueAsText()));
+                    builder.pathType(parsePathType(name, fieldNode.toString()));
                 } else if (fieldName.equals("fields")) {
-                    ObjectNode fieldsNode = (ObjectNode) fieldNode;
-                    for (Iterator<Map.Entry<String, JsonNode>> propsIt = fieldsNode.getFields(); propsIt.hasNext();) {
-                        Map.Entry<String, JsonNode> entry1 = propsIt.next();
+                    Map<String, Object> fieldsNode = (Map<String, Object>) fieldNode;
+                    for (Map.Entry<String, Object> entry1 : fieldsNode.entrySet()) {
                         String propName = entry1.getKey();
-                        JsonNode propNode = entry1.getValue();
+                        Object propNode = entry1.getValue();
 
                         if (name.equals(propName)) {
                             // that is the content
-                            builder.content((JsonStringFieldMapper.Builder) parserContext.typeParser("string").parse(name, propNode, parserContext));
+                            builder.content((JsonStringFieldMapper.Builder) parserContext.typeParser("string").parse(name, (Map<String, Object>) propNode, parserContext));
                         } else if ("date".equals(propName)) {
-                            builder.date((JsonDateFieldMapper.Builder) parserContext.typeParser("date").parse("date", propNode, parserContext));
+                            builder.date((JsonDateFieldMapper.Builder) parserContext.typeParser("date").parse("date", (Map<String, Object>) propNode, parserContext));
                         } else if ("title".equals(propName)) {
-                            builder.title((JsonStringFieldMapper.Builder) parserContext.typeParser("string").parse("title", propNode, parserContext));
+                            builder.title((JsonStringFieldMapper.Builder) parserContext.typeParser("string").parse("title", (Map<String, Object>) propNode, parserContext));
                         } else if ("author".equals(propName)) {
-                            builder.author((JsonStringFieldMapper.Builder) parserContext.typeParser("string").parse("author", propNode, parserContext));
+                            builder.author((JsonStringFieldMapper.Builder) parserContext.typeParser("string").parse("author", (Map<String, Object>) propNode, parserContext));
                         } else if ("keywords".equals(propName)) {
-                            builder.keywords((JsonStringFieldMapper.Builder) parserContext.typeParser("string").parse("keywords", propNode, parserContext));
+                            builder.keywords((JsonStringFieldMapper.Builder) parserContext.typeParser("string").parse("keywords", (Map<String, Object>) propNode, parserContext));
                         }
                     }
                 }
             }
-
 
             return builder;
         }

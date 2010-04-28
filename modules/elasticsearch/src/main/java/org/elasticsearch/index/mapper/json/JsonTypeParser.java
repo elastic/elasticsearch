@@ -26,6 +26,8 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.util.Strings;
 
+import java.util.Map;
+
 /**
  * @author kimchy (shay.banon)
  */
@@ -35,11 +37,11 @@ public interface JsonTypeParser {
 
         private final AnalysisService analysisService;
 
-        private final ObjectNode rootNode;
+        private final Map<String, Object> rootNode;
 
         private final ImmutableMap<String, JsonTypeParser> typeParsers;
 
-        public ParserContext(ObjectNode rootNode, AnalysisService analysisService, ImmutableMap<String, JsonTypeParser> typeParsers) {
+        public ParserContext(Map<String, Object> rootNode, AnalysisService analysisService, ImmutableMap<String, JsonTypeParser> typeParsers) {
             this.analysisService = analysisService;
             this.rootNode = rootNode;
             this.typeParsers = typeParsers;
@@ -49,7 +51,7 @@ public interface JsonTypeParser {
             return analysisService;
         }
 
-        public ObjectNode rootNode() {
+        public Map<String, Object> rootNode() {
             return this.rootNode;
         }
 
@@ -58,5 +60,5 @@ public interface JsonTypeParser {
         }
     }
 
-    JsonMapper.Builder parse(String name, JsonNode node, ParserContext parserContext) throws MapperParsingException;
+    JsonMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException;
 }

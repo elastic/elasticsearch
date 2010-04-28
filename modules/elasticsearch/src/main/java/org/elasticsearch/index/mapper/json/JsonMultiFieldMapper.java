@@ -19,26 +19,23 @@
 
 package org.elasticsearch.index.mapper.json;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import org.codehaus.jackson.JsonNode;
-import org.codehaus.jackson.node.ObjectNode;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapperListener;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.util.Strings;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static org.elasticsearch.index.mapper.json.JsonMapperBuilders.*;
 import static org.elasticsearch.index.mapper.json.JsonTypeParsers.*;
 import static org.elasticsearch.util.MapBuilder.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -102,26 +99,24 @@ public class JsonMultiFieldMapper implements JsonMapper, JsonIncludeInAllMapper 
     }
 
     public static class TypeParser implements JsonTypeParser {
-        @Override public JsonMapper.Builder parse(String name, JsonNode node, ParserContext parserContext) throws MapperParsingException {
-            ObjectNode multiFieldNode = (ObjectNode) node;
+        @Override public JsonMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             JsonMultiFieldMapper.Builder builder = multiField(name);
-            for (Iterator<Map.Entry<String, JsonNode>> fieldsIt = multiFieldNode.getFields(); fieldsIt.hasNext();) {
-                Map.Entry<String, JsonNode> entry = fieldsIt.next();
+
+            for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
-                JsonNode fieldNode = entry.getValue();
+                Object fieldNode = entry.getValue();
                 if (fieldName.equals("path")) {
-                    builder.pathType(parsePathType(name, fieldNode.getValueAsText()));
+                    builder.pathType(parsePathType(name, fieldNode.toString()));
                 } else if (fieldName.equals("fields")) {
-                    ObjectNode fieldsNode = (ObjectNode) fieldNode;
-                    for (Iterator<Map.Entry<String, JsonNode>> propsIt = fieldsNode.getFields(); propsIt.hasNext();) {
-                        Map.Entry<String, JsonNode> entry1 = propsIt.next();
+                    Map<String, Object> fieldsNode = (Map<String, Object>) fieldNode;
+                    for (Map.Entry<String, Object> entry1 : fieldsNode.entrySet()) {
                         String propName = entry1.getKey();
-                        JsonNode propNode = entry1.getValue();
+                        Map<String, Object> propNode = (Map<String, Object>) entry1.getValue();
 
                         String type;
-                        JsonNode typeNode = propNode.get("type");
+                        Object typeNode = propNode.get("type");
                         if (typeNode != null) {
-                            type = typeNode.getTextValue();
+                            type = typeNode.toString();
                         } else {
                             throw new MapperParsingException("No type specified for property [" + propName + "]");
                         }

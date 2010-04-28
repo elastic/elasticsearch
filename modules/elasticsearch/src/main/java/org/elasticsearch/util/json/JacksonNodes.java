@@ -21,59 +21,65 @@ package org.elasticsearch.util.json;
 
 import org.codehaus.jackson.JsonNode;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * @author kimchy (shay.banon)
  */
 public class JacksonNodes {
 
-    public static float nodeFloatValue(JsonNode node) {
-        if (node.isNumber()) {
-            return node.getNumberValue().floatValue();
-        }
-        String value = node.getTextValue();
-        return Float.parseFloat(value);
+    public static boolean isObject(Object node) {
+        return node instanceof Map;
     }
 
-    public static double nodeDoubleValue(JsonNode node) {
-        if (node.isNumber()) {
-            return node.getNumberValue().doubleValue();
-        }
-        String value = node.getTextValue();
-        return Double.parseDouble(value);
+    public static boolean isArray(Object node) {
+        return node instanceof List;
     }
 
-    public static int nodeIntegerValue(JsonNode node) {
-        if (node.isNumber()) {
-            return node.getNumberValue().intValue();
+    public static float nodeFloatValue(Object node) {
+        if (node instanceof Number) {
+            return ((Number) node).floatValue();
         }
-        String value = node.getTextValue();
-        return Integer.parseInt(value);
+        return Float.parseFloat(node.toString());
     }
 
-    public static short nodeShortValue(JsonNode node) {
-        if (node.isNumber()) {
-            return node.getNumberValue().shortValue();
+    public static double nodeDoubleValue(Object node) {
+        if (node instanceof Number) {
+            return ((Number) node).doubleValue();
         }
-        String value = node.getTextValue();
-        return Short.parseShort(value);
+        return Double.parseDouble(node.toString());
     }
 
-    public static long nodeLongValue(JsonNode node) {
-        if (node.isNumber()) {
-            return node.getNumberValue().longValue();
+    public static int nodeIntegerValue(Object node) {
+        if (node instanceof Number) {
+            return ((Number) node).intValue();
         }
-        String value = node.getTextValue();
-        return Long.parseLong(value);
+        return Integer.parseInt(node.toString());
     }
 
-    public static boolean nodeBooleanValue(JsonNode node) {
-        if (node.isBoolean()) {
-            return node.getBooleanValue();
+    public static short nodeShortValue(Object node) {
+        if (node instanceof Number) {
+            return ((Number) node).shortValue();
         }
-        if (node.isNumber()) {
-            return node.getNumberValue().intValue() != 0;
+        return Short.parseShort(node.toString());
+    }
+
+    public static long nodeLongValue(Object node) {
+        if (node instanceof Number) {
+            return ((Number) node).longValue();
         }
-        String value = node.getTextValue();
+        return Long.parseLong(node.toString());
+    }
+
+    public static boolean nodeBooleanValue(Object node) {
+        if (node instanceof Boolean) {
+            return (Boolean) node;
+        }
+        if (node instanceof Number) {
+            return ((Number) node).intValue() != 0;
+        }
+        String value = node.toString();
         return !(value.equals("false") || value.equals("0") || value.equals("off"));
     }
 }

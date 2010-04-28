@@ -20,14 +20,11 @@
 package org.elasticsearch.index.mapper.json;
 
 import org.apache.lucene.document.Field;
-import org.codehaus.jackson.JsonNode;
-import org.codehaus.jackson.node.ObjectNode;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.joda.FormatDateTimeFormatter;
 import org.elasticsearch.util.joda.Joda;
 
-import java.util.Iterator;
 import java.util.Map;
 
 import static org.elasticsearch.util.json.JacksonNodes.*;
@@ -37,31 +34,29 @@ import static org.elasticsearch.util.json.JacksonNodes.*;
  */
 public class JsonTypeParsers {
 
-    public static void parseNumberField(JsonNumberFieldMapper.Builder builder, String name, ObjectNode numberNode, JsonTypeParser.ParserContext parserContext) {
+    public static void parseNumberField(JsonNumberFieldMapper.Builder builder, String name, Map<String, Object> numberNode, JsonTypeParser.ParserContext parserContext) {
         parseJsonField(builder, name, numberNode, parserContext);
-        for (Iterator<Map.Entry<String, JsonNode>> propsIt = numberNode.getFields(); propsIt.hasNext();) {
-            Map.Entry<String, JsonNode> entry = propsIt.next();
+        for (Map.Entry<String, Object> entry : numberNode.entrySet()) {
             String propName = Strings.toUnderscoreCase(entry.getKey());
-            JsonNode propNode = entry.getValue();
+            Object propNode = entry.getValue();
             if (propName.equals("precision_step")) {
                 builder.precisionStep(nodeIntegerValue(propNode));
             }
         }
     }
 
-    public static void parseJsonField(JsonFieldMapper.Builder builder, String name, ObjectNode fieldNode, JsonTypeParser.ParserContext parserContext) {
-        for (Iterator<Map.Entry<String, JsonNode>> propsIt = fieldNode.getFields(); propsIt.hasNext();) {
-            Map.Entry<String, JsonNode> entry = propsIt.next();
+    public static void parseJsonField(JsonFieldMapper.Builder builder, String name, Map<String, Object> fieldNode, JsonTypeParser.ParserContext parserContext) {
+        for (Map.Entry<String, Object> entry : fieldNode.entrySet()) {
             String propName = Strings.toUnderscoreCase(entry.getKey());
-            JsonNode propNode = entry.getValue();
+            Object propNode = entry.getValue();
             if (propName.equals("index_name")) {
-                builder.indexName(propNode.getTextValue());
+                builder.indexName(propNode.toString());
             } else if (propName.equals("store")) {
-                builder.store(parseStore(name, propNode.getTextValue()));
+                builder.store(parseStore(name, propNode.toString()));
             } else if (propName.equals("index")) {
-                builder.index(parseIndex(name, propNode.getTextValue()));
+                builder.index(parseIndex(name, propNode.toString()));
             } else if (propName.equals("term_vector")) {
-                builder.termVector(parseTermVector(name, propNode.getTextValue()));
+                builder.termVector(parseTermVector(name, propNode.toString()));
             } else if (propName.equals("boost")) {
                 builder.boost(nodeFloatValue(propNode));
             } else if (propName.equals("omit_norms")) {
@@ -69,25 +64,20 @@ public class JsonTypeParsers {
             } else if (propName.equals("omit_term_freq_and_positions")) {
                 builder.omitTermFreqAndPositions(nodeBooleanValue(propNode));
             } else if (propName.equals("index_analyzer")) {
-                builder.indexAnalyzer(parserContext.analysisService().analyzer(propNode.getTextValue()));
+                builder.indexAnalyzer(parserContext.analysisService().analyzer(propNode.toString()));
             } else if (propName.equals("search_analyzer")) {
-                builder.searchAnalyzer(parserContext.analysisService().analyzer(propNode.getTextValue()));
+                builder.searchAnalyzer(parserContext.analysisService().analyzer(propNode.toString()));
             } else if (propName.equals("analyzer")) {
-                builder.indexAnalyzer(parserContext.analysisService().analyzer(propNode.getTextValue()));
-                builder.searchAnalyzer(parserContext.analysisService().analyzer(propNode.getTextValue()));
+                builder.indexAnalyzer(parserContext.analysisService().analyzer(propNode.toString()));
+                builder.searchAnalyzer(parserContext.analysisService().analyzer(propNode.toString()));
             } else if (propName.equals("include_in_all")) {
                 builder.includeInAll(nodeBooleanValue(propNode));
             }
         }
     }
 
-    public static FormatDateTimeFormatter parseDateTimeFormatter(String fieldName, JsonNode node) {
-        if (node.isTextual()) {
-            return Joda.forPattern(node.getTextValue());
-        } else {
-            // TODO support more complex configuration...
-            throw new MapperParsingException("Wrong node to use to parse date formatters [" + fieldName + "]");
-        }
+    public static FormatDateTimeFormatter parseDateTimeFormatter(String fieldName, Object node) {
+        return Joda.forPattern(node.toString());
     }
 
     public static Field.TermVector parseTermVector(String fieldName, String termVector) throws MapperParsingException {

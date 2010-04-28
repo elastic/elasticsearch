@@ -21,9 +21,7 @@ package org.elasticsearch.index.mapper.json;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
-import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.JsonToken;
-import org.codehaus.jackson.node.ObjectNode;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.util.Booleans;
 import org.elasticsearch.util.Strings;
@@ -31,7 +29,6 @@ import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.lucene.Lucene;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.json.JsonMapperBuilders.*;
@@ -97,14 +94,12 @@ public class JsonBooleanFieldMapper extends JsonFieldMapper<Boolean> {
     }
 
     public static class TypeParser implements JsonTypeParser {
-        @Override public JsonMapper.Builder parse(String name, JsonNode node, ParserContext parserContext) throws MapperParsingException {
-            ObjectNode booleanNode = (ObjectNode) node;
+        @Override public JsonMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             JsonBooleanFieldMapper.Builder builder = booleanField(name);
-            parseJsonField(builder, name, booleanNode, parserContext);
-            for (Iterator<Map.Entry<String, JsonNode>> propsIt = booleanNode.getFields(); propsIt.hasNext();) {
-                Map.Entry<String, JsonNode> entry = propsIt.next();
+            parseJsonField(builder, name, node, parserContext);
+            for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String propName = Strings.toUnderscoreCase(entry.getKey());
-                JsonNode propNode = entry.getValue();
+                Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
                     builder.nullValue(nodeBooleanValue(propNode));
                 }

@@ -19,13 +19,11 @@
 
 package org.elasticsearch.search.highlight;
 
-import org.elasticsearch.util.gcommon.collect.Lists;
-import org.codehaus.jackson.JsonParser;
-import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.util.Booleans;
+import org.elasticsearch.util.gcommon.collect.Lists;
+import org.elasticsearch.util.xcontent.XContentParser;
 
 import java.util.List;
 
@@ -61,79 +59,61 @@ public class HighlighterParseElement implements SearchParseElement {
     public static final String[] STYLED_POST_TAGS = {"</em>"};
 
 
-    @Override public void parse(JsonParser jp, SearchContext context) throws Exception {
-        JsonToken token;
+    @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
+        XContentParser.Token token;
         String topLevelFieldName = null;
         List<SearchContextHighlight.ParsedHighlightField> fields = newArrayList();
         String[] preTags = DEFAULT_PRE_TAGS;
         String[] postTags = DEFAULT_POST_TAGS;
         boolean scoreOrdered = false;
         boolean highlightFilter = true;
-        while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
-            if (token == JsonToken.FIELD_NAME) {
-                topLevelFieldName = jp.getCurrentName();
-            } else if (token == JsonToken.START_ARRAY) {
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                topLevelFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("pre_tags".equals(topLevelFieldName) || "preTags".equals(topLevelFieldName)) {
                     List<String> preTagsList = Lists.newArrayList();
-                    while ((token = jp.nextToken()) != JsonToken.END_ARRAY) {
-                        preTagsList.add(jp.getText());
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        preTagsList.add(parser.text());
                     }
                     preTags = preTagsList.toArray(new String[preTagsList.size()]);
                 } else if ("post_tags".equals(topLevelFieldName) || "postTags".equals(topLevelFieldName)) {
                     List<String> postTagsList = Lists.newArrayList();
-                    while ((token = jp.nextToken()) != JsonToken.END_ARRAY) {
-                        postTagsList.add(jp.getText());
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        postTagsList.add(parser.text());
                     }
                     postTags = postTagsList.toArray(new String[postTagsList.size()]);
                 }
-            } else if (token == JsonToken.VALUE_STRING) {
+            } else if (token.isValue()) {
                 if ("order".equals(topLevelFieldName)) {
-                    if ("score".equals(jp.getText())) {
-                        scoreOrdered = true;
-                    } else {
-                        scoreOrdered = false;
-                    }
+                    scoreOrdered = "score".equals(parser.text());
                 } else if ("tags_schema".equals(topLevelFieldName) || "tagsSchema".equals(topLevelFieldName)) {
-                    String schema = jp.getText();
+                    String schema = parser.text();
                     if ("styled".equals(schema)) {
                         preTags = STYLED_PRE_TAG;
                         postTags = STYLED_POST_TAGS;
                     }
                 } else if ("highlight_filter".equals(topLevelFieldName) || "highlightFilter".equals(topLevelFieldName)) {
-                    highlightFilter = Booleans.parseBoolean(jp.getText(), true);
+                    highlightFilter = parser.booleanValue();
                 }
-            } else if (token == JsonToken.VALUE_NUMBER_INT) {
-                if ("highlight_filter".equals(topLevelFieldName) || "highlightFilter".equals(topLevelFieldName)) {
-                    highlightFilter = jp.getIntValue() != 0;
-                }
-            } else if (token == JsonToken.VALUE_FALSE || token == JsonToken.VALUE_TRUE) {
-                if ("highlight_filter".equals(topLevelFieldName) || "highlightFilter".equals(topLevelFieldName)) {
-                    highlightFilter = token == JsonToken.VALUE_TRUE;
-                }
-            } else if (token == JsonToken.START_OBJECT) {
+            } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("fields".equals(topLevelFieldName)) {
                     String highlightFieldName = null;
-                    while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
-                        if (token == JsonToken.FIELD_NAME) {
-                            highlightFieldName = jp.getCurrentName();
-                        } else if (token == JsonToken.START_OBJECT) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            highlightFieldName = parser.currentName();
+                        } else if (token == XContentParser.Token.START_OBJECT) {
                             String fieldName = null;
                             int fragmentSize = 100;
                             int numOfFragments = 5;
-                            while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
-                                if (token == JsonToken.FIELD_NAME) {
-                                    fieldName = jp.getCurrentName();
-                                } else if (token == JsonToken.VALUE_STRING) {
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                if (token == XContentParser.Token.FIELD_NAME) {
+                                    fieldName = parser.currentName();
+                                } else if (token.isValue()) {
                                     if ("fragment_size".equals(fieldName) || "fragmentSize".equals(fieldName)) {
-                                        fragmentSize = Integer.parseInt(jp.getText());
+                                        fragmentSize = parser.intValue();
                                     } else if ("number_of_fragments".equals(fieldName) || "numberOfFragments".equals(fieldName)) {
-                                        numOfFragments = Integer.parseInt(jp.getText());
-                                    }
-                                } else if (token == JsonToken.VALUE_NUMBER_INT) {
-                                    if ("fragment_size".equals(fieldName) || "fragmentSize".equals(fieldName)) {
-                                        fragmentSize = jp.getIntValue();
-                                    } else if ("number_of_fragments".equals(fieldName) || "numberOfFragments".equals(fieldName)) {
-                                        numOfFragments = jp.getIntValue();
+                                        numOfFragments = parser.intValue();
                                     }
                                 }
                             }

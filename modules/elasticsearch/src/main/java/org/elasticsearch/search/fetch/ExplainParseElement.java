@@ -19,24 +19,19 @@
 
 package org.elasticsearch.search.fetch;
 
-import org.codehaus.jackson.JsonParser;
-import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.util.Booleans;
+import org.elasticsearch.util.xcontent.XContentParser;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class ExplainParseElement implements SearchParseElement {
 
-    @Override public void parse(JsonParser jp, SearchContext context) throws Exception {
-        if (jp.getCurrentToken() == JsonToken.VALUE_NUMBER_INT) {
-            context.explain(jp.getIntValue() != 0);
-        } else if (jp.getCurrentToken() == JsonToken.VALUE_STRING) {
-            context.explain(Booleans.parseBoolean(jp.getText(), context.explain()));
-        } else {
-            context.explain(jp.getCurrentToken() == JsonToken.VALUE_TRUE);
+    @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
+        XContentParser.Token token = parser.currentToken();
+        if (token.isValue()) {
+            context.explain(parser.booleanValue());
         }
     }
 }

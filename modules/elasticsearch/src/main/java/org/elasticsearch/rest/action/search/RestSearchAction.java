@@ -19,6 +19,8 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.index.query.xcontent.QueryBuilders;
+import org.elasticsearch.index.query.xcontent.QueryStringQueryBuilder;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
@@ -26,8 +28,6 @@ import org.elasticsearch.action.search.SearchOperationThreading;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.index.query.json.JsonQueryBuilders;
-import org.elasticsearch.index.query.json.QueryStringJsonQueryBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.search.Scroll;
@@ -149,15 +149,15 @@ public class RestSearchAction extends BaseRestHandler {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         String queryString = request.param("q");
         if (queryString != null) {
-            QueryStringJsonQueryBuilder queryBuilder = JsonQueryBuilders.queryString(queryString);
+            QueryStringQueryBuilder queryBuilder = QueryBuilders.queryString(queryString);
             queryBuilder.defaultField(request.param("df"));
             queryBuilder.analyzer(request.param("analyzer"));
             String defaultOperator = request.param("default_operator");
             if (defaultOperator != null) {
                 if ("OR".equals(defaultOperator)) {
-                    queryBuilder.defaultOperator(QueryStringJsonQueryBuilder.Operator.OR);
+                    queryBuilder.defaultOperator(QueryStringQueryBuilder.Operator.OR);
                 } else if ("AND".equals(defaultOperator)) {
-                    queryBuilder.defaultOperator(QueryStringJsonQueryBuilder.Operator.AND);
+                    queryBuilder.defaultOperator(QueryStringQueryBuilder.Operator.AND);
                 } else {
                     throw new ElasticSearchIllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
                 }

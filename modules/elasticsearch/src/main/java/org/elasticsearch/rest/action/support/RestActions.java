@@ -22,8 +22,8 @@ package org.elasticsearch.rest.action.support;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
-import org.elasticsearch.index.query.json.JsonQueryBuilders;
-import org.elasticsearch.index.query.json.QueryStringJsonQueryBuilder;
+import org.elasticsearch.index.query.xcontent.QueryBuilders;
+import org.elasticsearch.index.query.xcontent.QueryStringQueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.Unicode;
@@ -76,15 +76,15 @@ public class RestActions {
         if (queryString == null) {
             throw new ElasticSearchIllegalArgumentException("No query to execute, not in body, and not bounded to 'q' parameter");
         }
-        QueryStringJsonQueryBuilder queryBuilder = JsonQueryBuilders.queryString(queryString);
+        QueryStringQueryBuilder queryBuilder = QueryBuilders.queryString(queryString);
         queryBuilder.defaultField(request.param("df"));
         queryBuilder.analyzer(request.param("analyzer"));
         String defaultOperator = request.param("default_operator");
         if (defaultOperator != null) {
             if ("OR".equals(defaultOperator)) {
-                queryBuilder.defaultOperator(QueryStringJsonQueryBuilder.Operator.OR);
+                queryBuilder.defaultOperator(QueryStringQueryBuilder.Operator.OR);
             } else if ("AND".equals(defaultOperator)) {
-                queryBuilder.defaultOperator(QueryStringJsonQueryBuilder.Operator.AND);
+                queryBuilder.defaultOperator(QueryStringQueryBuilder.Operator.AND);
             } else {
                 throw new ElasticSearchIllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
             }

@@ -19,16 +19,19 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.util.io.FastCharArrayWriter;
+import org.elasticsearch.util.io.FastByteArrayOutputStream;
+import org.elasticsearch.util.xcontent.XContentType;
 
 /**
  * @author kimchy (shay.banon)
  */
 public interface QueryBuilder {
 
-    String buildAsString() throws QueryBuilderException;
+    FastByteArrayOutputStream buildAsUnsafeBytes() throws QueryBuilderException;
 
-    FastCharArrayWriter buildAsUnsafeChars() throws QueryBuilderException;
+    FastByteArrayOutputStream buildAsUnsafeBytes(XContentType contentType) throws QueryBuilderException;
 
     byte[] buildAsBytes() throws QueryBuilderException;
+
+    byte[] buildAsBytes(XContentType contentType) throws QueryBuilderException;
 }

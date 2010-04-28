@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.builder;
 
-import org.elasticsearch.util.json.JsonBuilder;
-import org.elasticsearch.util.json.ToJson;
+import org.elasticsearch.util.xcontent.ToXContent;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,7 +33,7 @@ import static org.elasticsearch.util.gcommon.collect.Lists.*;
  * @author kimchy (shay.banon)
  * @see SearchSourceBuilder#highlight()
  */
-public class SearchSourceHighlightBuilder implements ToJson {
+public class SearchSourceHighlightBuilder implements ToXContent {
 
     private List<Field> fields;
 
@@ -127,7 +127,7 @@ public class SearchSourceHighlightBuilder implements ToJson {
         return this;
     }
 
-    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
+    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("highlight");
         if (tagsSchema != null) {
             builder.field("tags_schema", tagsSchema);

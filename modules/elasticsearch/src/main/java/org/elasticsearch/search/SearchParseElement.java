@@ -21,11 +21,12 @@ package org.elasticsearch.search;
 
 import org.codehaus.jackson.JsonParser;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.util.xcontent.XContentParser;
 
 /**
  * @author kimchy (shay.banon)
  */
 public interface SearchParseElement {
 
-    void parse(JsonParser jp, SearchContext context) throws Exception;
+    void parse(XContentParser parser, SearchContext context) throws Exception;
 }

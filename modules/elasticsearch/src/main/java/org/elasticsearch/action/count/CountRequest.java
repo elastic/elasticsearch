@@ -119,7 +119,7 @@ public class CountRequest extends BroadcastOperationRequest {
     /**
      * The query source to execute.
      *
-     * @see org.elasticsearch.index.query.json.JsonQueryBuilders
+     * @see org.elasticsearch.index.query.xcontent.QueryBuilders
      */
     @Required public CountRequest query(QueryBuilder queryBuilder) {
         return query(queryBuilder.buildAsBytes());

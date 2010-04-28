@@ -19,18 +19,19 @@
 
 package org.elasticsearch.search.builder;
 
-import org.elasticsearch.index.query.json.JsonQueryBuilder;
+import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.util.gnu.trove.TObjectFloatHashMap;
 import org.elasticsearch.util.gnu.trove.TObjectFloatIterator;
-import org.elasticsearch.util.json.JsonBuilder;
-import org.elasticsearch.util.json.ToJson;
+import org.elasticsearch.util.xcontent.ToXContent;
+import org.elasticsearch.util.xcontent.XContentFactory;
+import org.elasticsearch.util.xcontent.XContentType;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.util.gcommon.collect.Lists.*;
-import static org.elasticsearch.util.json.JsonBuilder.*;
 
 /**
  * A search source builder allowing to easily build search source. Simple construction
@@ -67,7 +68,7 @@ public class SearchSourceBuilder {
         return new SearchSourceHighlightBuilder();
     }
 
-    private JsonQueryBuilder queryBuilder;
+    private XContentQueryBuilder queryBuilder;
 
     private int from = -1;
 
@@ -97,9 +98,9 @@ public class SearchSourceBuilder {
     /**
      * Constructs a new search source builder with a search query.
      *
-     * @see org.elasticsearch.index.query.json.JsonQueryBuilders
+     * @see org.elasticsearch.index.query.xcontent.QueryBuilders
      */
-    public SearchSourceBuilder query(JsonQueryBuilder query) {
+    public SearchSourceBuilder query(XContentQueryBuilder query) {
         this.queryBuilder = query;
         return this;
     }
@@ -255,8 +256,10 @@ public class SearchSourceBuilder {
 
     public byte[] build() throws SearchException {
         try {
-            JsonBuilder builder = binaryJsonBuilder();
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.startObject();
+
+            ToXContent.Params params = ToXContent.EMPTY_PARAMS;
 
             if (from != -1) {
                 builder.field("from", from);
@@ -270,7 +273,7 @@ public class SearchSourceBuilder {
 
             if (queryBuilder != null) {
                 builder.field("query");
-                queryBuilder.toJson(builder, ToJson.EMPTY_PARAMS);
+                queryBuilder.toXContent(builder, params);
             }
 
             if (explain != null) {
@@ -316,11 +319,11 @@ public class SearchSourceBuilder {
             }
 
             if (facetsBuilder != null) {
-                facetsBuilder.toJson(builder, ToJson.EMPTY_PARAMS);
+                facetsBuilder.toXContent(builder, params);
             }
 
             if (highlightBuilder != null) {
-                highlightBuilder.toJson(builder, ToJson.EMPTY_PARAMS);
+                highlightBuilder.toXContent(builder, params);
             }
 
             builder.endObject();

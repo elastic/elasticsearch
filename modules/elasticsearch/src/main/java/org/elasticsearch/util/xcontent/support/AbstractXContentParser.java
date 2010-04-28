@@ -92,6 +92,13 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     protected abstract double doDoubleValue() throws IOException;
 
+    @Override public String textOrNull() throws IOException {
+        if (currentToken() == Token.VALUE_NULL) {
+            return null;
+        }
+        return text();
+    }
+
     @Override public Map<String, Object> map() throws IOException {
         return XContentMapConverter.readMap(this);
     }

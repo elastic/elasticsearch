@@ -19,10 +19,9 @@
 
 package org.elasticsearch.search.query;
 
-import org.codehaus.jackson.JsonParser;
-import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.util.xcontent.XContentParser;
 
 /**
  * <pre>
@@ -38,19 +37,15 @@ import org.elasticsearch.search.internal.SearchContext;
  */
 public class IndicesBoostParseElement implements SearchParseElement {
 
-    @Override public void parse(JsonParser jp, SearchContext context) throws Exception {
-        JsonToken token;
-        while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
-            if (token == JsonToken.FIELD_NAME) {
-                String indexName = jp.getCurrentName();
+    @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                String indexName = parser.currentName();
                 if (indexName.equals(context.shardTarget().index())) {
-                    jp.nextToken(); // move to the value
+                    parser.nextToken(); // move to the value
                     // we found our query boost
-                    if (jp.getCurrentToken() == JsonToken.VALUE_STRING) {
-                        context.queryBoost(Float.parseFloat(jp.getText()));
-                    } else {
-                        context.queryBoost(jp.getFloatValue());
-                    }
+                    context.queryBoost(parser.floatValue());
                 }
             }
         }

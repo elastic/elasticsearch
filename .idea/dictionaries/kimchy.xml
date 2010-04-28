@@ -58,6 +58,7 @@
       <w>plugins</w>
       <w>porterstem</w>
       <w>publishhost</w>
+      <w>queryparser</w>
       <w>rebalance</w>
       <w>sbuf</w>
       <w>searchable</w>

@@ -23,6 +23,7 @@ import org.codehaus.jackson.JsonEncoding;
 import org.codehaus.jackson.JsonFactory;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.util.ThreadLocals;
+import org.elasticsearch.util.io.FastStringReader;
 import org.elasticsearch.util.json.Jackson;
 import org.elasticsearch.util.xcontent.XContent;
 import org.elasticsearch.util.xcontent.XContentGenerator;
@@ -30,7 +31,6 @@ import org.elasticsearch.util.xcontent.XContentParser;
 import org.elasticsearch.util.xcontent.XContentType;
 import org.elasticsearch.util.xcontent.builder.BinaryXContentBuilder;
 import org.elasticsearch.util.xcontent.builder.TextXContentBuilder;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.*;
 
@@ -85,15 +85,15 @@ public class JsonXContent implements XContent {
         }
     }
 
-    public static XContentBuilder contentBuilder() throws IOException {
+    public static BinaryXContentBuilder contentBuilder() throws IOException {
         return contentBinaryBuilder();
     }
 
-    public static XContentBuilder contentBinaryBuilder() throws IOException {
+    public static BinaryXContentBuilder contentBinaryBuilder() throws IOException {
         return CachedBinaryBuilder.cached();
     }
 
-    public static XContentBuilder contentTextBuilder() throws IOException {
+    public static TextXContentBuilder contentTextBuilder() throws IOException {
         return CachedTextBuilder.cached();
     }
 
@@ -117,7 +117,7 @@ public class JsonXContent implements XContent {
     }
 
     @Override public XContentParser createParser(String content) throws IOException {
-        return new JsonXContentParser(jsonFactory.createJsonParser(content));
+        return new JsonXContentParser(jsonFactory.createJsonParser(new FastStringReader(content)));
     }
 
     @Override public XContentParser createParser(InputStream is) throws IOException {

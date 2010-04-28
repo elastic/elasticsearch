@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.index.query.xcontent.*;
 import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.util.guice.inject.Scopes;
 import org.elasticsearch.util.guice.inject.assistedinject.FactoryProvider;
 import org.elasticsearch.util.guice.inject.multibindings.MapBinder;
-import org.elasticsearch.index.query.json.*;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.Map;
@@ -50,40 +50,40 @@ public class IndexQueryParserModule extends AbstractModule {
             String qName = entry.getKey();
             Settings qSettings = entry.getValue();
             qbinder.addBinding(qName).toProvider(FactoryProvider.newFactory(IndexQueryParserFactory.class,
-                    qSettings.getAsClass("type", JsonIndexQueryParser.class))).in(Scopes.SINGLETON);
+                    qSettings.getAsClass("type", XContentIndexQueryParser.class))).in(Scopes.SINGLETON);
         }
         if (!queryParserGroupSettings.containsKey(IndexQueryParserService.Defaults.DEFAULT)) {
             qbinder.addBinding(IndexQueryParserService.Defaults.DEFAULT).toProvider(FactoryProvider.newFactory(IndexQueryParserFactory.class,
-                    JsonIndexQueryParser.class)).in(Scopes.SINGLETON);
+                    XContentIndexQueryParser.class)).in(Scopes.SINGLETON);
         }
 
-        // handle JsonQueryParsers
-        MapBinder<String, JsonQueryParserFactory> jsonQueryBinder
-                = MapBinder.newMapBinder(binder(), String.class, JsonQueryParserFactory.class);
-        Map<String, Settings> jsonQueryParserGroups = settings.getGroups(JsonIndexQueryParser.Defaults.JSON_QUERY_PREFIX);
-        for (Map.Entry<String, Settings> entry : jsonQueryParserGroups.entrySet()) {
+        // handle XContenQueryParsers
+        MapBinder<String, XContentQueryParserFactory> queryBinder
+                = MapBinder.newMapBinder(binder(), String.class, XContentQueryParserFactory.class);
+        Map<String, Settings> xContentQueryParserGroups = settings.getGroups(XContentIndexQueryParser.Defaults.QUERY_PREFIX);
+        for (Map.Entry<String, Settings> entry : xContentQueryParserGroups.entrySet()) {
             String qName = entry.getKey();
             Settings qSettings = entry.getValue();
-            Class<? extends JsonQueryParser> type = qSettings.getAsClass("type", null);
+            Class<? extends XContentQueryParser> type = qSettings.getAsClass("type", null);
             if (type == null) {
-                throw new IllegalArgumentException("Json Query Parser [" + qName + "] must be provided with a type");
+                throw new IllegalArgumentException("Query Parser [" + qName + "] must be provided with a type");
             }
-            jsonQueryBinder.addBinding(qName).toProvider(FactoryProvider.newFactory(JsonQueryParserFactory.class,
+            queryBinder.addBinding(qName).toProvider(FactoryProvider.newFactory(XContentQueryParserFactory.class,
                     qSettings.getAsClass("type", null))).in(Scopes.SINGLETON);
         }
 
-        // handle JsonFilterParsers
-        MapBinder<String, JsonFilterParserFactory> jsonFilterBinder
-                = MapBinder.newMapBinder(binder(), String.class, JsonFilterParserFactory.class);
-        Map<String, Settings> jsonFilterParserGroups = settings.getGroups(JsonIndexQueryParser.Defaults.JSON_FILTER_PREFIX);
-        for (Map.Entry<String, Settings> entry : jsonFilterParserGroups.entrySet()) {
+        // handle XContentFilterParsers
+        MapBinder<String, XContentFilterParserFactory> filterBinder
+                = MapBinder.newMapBinder(binder(), String.class, XContentFilterParserFactory.class);
+        Map<String, Settings> xContentFilterParserGroups = settings.getGroups(XContentIndexQueryParser.Defaults.FILTER_PREFIX);
+        for (Map.Entry<String, Settings> entry : xContentFilterParserGroups.entrySet()) {
             String fName = entry.getKey();
             Settings fSettings = entry.getValue();
-            Class<? extends JsonFilterParser> type = fSettings.getAsClass("type", null);
+            Class<? extends XContentFilterParser> type = fSettings.getAsClass("type", null);
             if (type == null) {
-                throw new IllegalArgumentException("Json Filter Parser [" + fName + "] must be provided with a type");
+                throw new IllegalArgumentException("Filter Parser [" + fName + "] must be provided with a type");
             }
-            jsonFilterBinder.addBinding(fName).toProvider(FactoryProvider.newFactory(JsonFilterParserFactory.class,
+            filterBinder.addBinding(fName).toProvider(FactoryProvider.newFactory(XContentFilterParserFactory.class,
                     fSettings.getAsClass("type", null))).in(Scopes.SINGLETON);
         }
 

@@ -23,17 +23,17 @@ import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.util.xcontent.XContentParser;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class FromParseElement implements SearchParseElement {
 
-    @Override public void parse(JsonParser jp, SearchContext context) throws Exception {
-        if (jp.getCurrentToken() == JsonToken.VALUE_STRING) {
-            context.from(Integer.parseInt(jp.getText()));
-        } else {
-            context.from(jp.getIntValue());
+    @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
+        XContentParser.Token token = parser.currentToken();
+        if (token.isValue()) {
+            context.from(parser.intValue());
         }
     }
 }

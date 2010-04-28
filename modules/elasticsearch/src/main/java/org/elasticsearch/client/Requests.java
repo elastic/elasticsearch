@@ -83,7 +83,7 @@ public class Requests {
 
     /**
      * Creates a delete by query request. Note, the query itself must be set either by setting the JSON source
-     * of the query, or by using a {@link org.elasticsearch.index.query.QueryBuilder} (using {@link org.elasticsearch.index.query.json.JsonQueryBuilders}).
+     * of the query, or by using a {@link org.elasticsearch.index.query.QueryBuilder} (using {@link org.elasticsearch.index.query.xcontent.QueryBuilders}).
      *
      * @param indices The indices the delete by query against. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
      * @return The delete by query request
@@ -107,7 +107,7 @@ public class Requests {
 
     /**
      * Creates a count request which counts the hits matched against a query. Note, the query itself must be set
-     * either using the JSON source of the query, or using a {@link org.elasticsearch.index.query.QueryBuilder} (using {@link org.elasticsearch.index.query.json.JsonQueryBuilders}).
+     * either using the JSON source of the query, or using a {@link org.elasticsearch.index.query.QueryBuilder} (using {@link org.elasticsearch.index.query.xcontent.QueryBuilders}).
      *
      * @param indices The indices the delete by query against. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
      * @return The count request

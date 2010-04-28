@@ -29,15 +29,52 @@ import java.util.Map;
 public interface XContentParser {
 
     enum Token {
-        START_OBJECT,
-        END_OBJECT,
-        START_ARRAY,
-        END_ARRAY,
-        FIELD_NAME,
-        VALUE_STRING,
-        VALUE_NUMBER,
-        VALUE_BOOLEAN,
-        VALUE_NULL
+        START_OBJECT {
+            @Override public boolean isValue() {
+                return false;
+            }},
+
+        END_OBJECT {
+            @Override public boolean isValue() {
+                return false;
+            }},
+
+        START_ARRAY {
+            @Override public boolean isValue() {
+                return false;
+            }},
+
+        END_ARRAY {
+            @Override public boolean isValue() {
+                return false;
+            }},
+
+        FIELD_NAME {
+            @Override public boolean isValue() {
+                return false;
+            }},
+
+        VALUE_STRING {
+            @Override public boolean isValue() {
+                return true;
+            }},
+
+        VALUE_NUMBER {
+            @Override public boolean isValue() {
+                return true;
+            }},
+
+        VALUE_BOOLEAN {
+            @Override public boolean isValue() {
+                return true;
+            }},
+
+        VALUE_NULL {
+            @Override public boolean isValue() {
+                return false;
+            }};
+
+        public abstract boolean isValue();
     }
 
     enum NumberType {
@@ -57,6 +94,8 @@ public interface XContentParser {
     Map<String, Object> map() throws IOException;
 
     String text() throws IOException;
+
+    String textOrNull() throws IOException;
 
     char[] textCharacters() throws IOException;
 

@@ -22,13 +22,14 @@ package org.elasticsearch.search.query;
 import org.codehaus.jackson.JsonParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.util.xcontent.XContentParser;
 
 /**
  * @author kimchy (Shay Banon)
  */
 public class QueryParserNameParseElement implements SearchParseElement {
 
-    @Override public void parse(JsonParser jp, SearchContext context) throws Exception {
-        context.queryParserName(jp.getText());
+    @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
+        context.queryParserName(parser.text());
     }
 }

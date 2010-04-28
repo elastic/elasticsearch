@@ -21,18 +21,19 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.Query;
 import org.codehaus.jackson.JsonParser;
-import org.elasticsearch.index.query.json.JsonIndexQueryParser;
+import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.util.xcontent.XContentParser;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class QueryParseElement implements SearchParseElement {
 
-    @Override public void parse(JsonParser jp, SearchContext context) throws Exception {
-        JsonIndexQueryParser indexQueryParser = (JsonIndexQueryParser) context.queryParser();
-        Query query = indexQueryParser.parse(jp);
+    @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
+        XContentIndexQueryParser indexQueryParser = (XContentIndexQueryParser) context.queryParser();
+        Query query = indexQueryParser.parse(parser);
         context.query(query);
     }
 }

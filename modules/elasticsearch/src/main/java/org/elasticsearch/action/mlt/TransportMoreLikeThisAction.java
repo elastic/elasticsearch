@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.mlt;
 
+import org.elasticsearch.index.query.xcontent.BoolQueryBuilder;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
@@ -36,8 +37,7 @@ import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.query.json.BoolJsonQueryBuilder;
-import org.elasticsearch.index.query.json.MoreLikeThisFieldJsonQueryBuilder;
+import org.elasticsearch.index.query.xcontent.MoreLikeThisFieldQueryBuilder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
@@ -50,7 +50,7 @@ import java.util.Set;
 
 import static org.elasticsearch.util.gcommon.collect.Sets.*;
 import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.index.query.json.JsonQueryBuilders.*;
+import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.*;
 
 /**
@@ -104,7 +104,7 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
                     listener.onFailure(new ElasticSearchException("document missing"));
                     return;
                 }
-                final BoolJsonQueryBuilder boolBuilder = boolQuery();
+                final BoolQueryBuilder boolBuilder = boolQuery();
                 try {
                     DocumentMapper docMapper = indicesService.indexServiceSafe(request.index()).mapperService().documentMapper(request.type());
                     final Set<String> fields = newHashSet();
@@ -190,7 +190,7 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
         });
     }
 
-    private void parseSource(GetResponse getResponse, final BoolJsonQueryBuilder boolBuilder, DocumentMapper docMapper, final Set<String> fields, final MoreLikeThisRequest request) {
+    private void parseSource(GetResponse getResponse, final BoolQueryBuilder boolBuilder, DocumentMapper docMapper, final Set<String> fields, final MoreLikeThisRequest request) {
         if (getResponse.source() == null) {
             return;
         }
@@ -213,12 +213,12 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
         });
     }
 
-    private void addMoreLikeThis(MoreLikeThisRequest request, BoolJsonQueryBuilder boolBuilder, FieldMapper fieldMapper, Fieldable field) {
+    private void addMoreLikeThis(MoreLikeThisRequest request, BoolQueryBuilder boolBuilder, FieldMapper fieldMapper, Fieldable field) {
         addMoreLikeThis(request, boolBuilder, field.name(), fieldMapper.valueAsString(field));
     }
 
-    private void addMoreLikeThis(MoreLikeThisRequest request, BoolJsonQueryBuilder boolBuilder, String fieldName, String likeText) {
-        MoreLikeThisFieldJsonQueryBuilder mlt = moreLikeThisFieldQuery(fieldName)
+    private void addMoreLikeThis(MoreLikeThisRequest request, BoolQueryBuilder boolBuilder, String fieldName, String likeText) {
+        MoreLikeThisFieldQueryBuilder mlt = moreLikeThisFieldQuery(fieldName)
                 .likeText(likeText)
                 .percentTermsToMatch(request.percentTermsToMatch())
                 .boostTerms(request.boostTerms())

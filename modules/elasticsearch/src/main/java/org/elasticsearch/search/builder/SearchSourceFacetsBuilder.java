@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.builder;
 
-import org.elasticsearch.index.query.json.JsonQueryBuilder;
-import org.elasticsearch.util.json.JsonBuilder;
-import org.elasticsearch.util.json.ToJson;
+import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
+import org.elasticsearch.util.xcontent.ToXContent;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,7 +34,7 @@ import static org.elasticsearch.util.gcommon.collect.Lists.*;
  * @author kimchy (shay.banon)
  * @see SearchSourceBuilder#facets(SearchSourceFacetsBuilder)
  */
-public class SearchSourceFacetsBuilder implements ToJson {
+public class SearchSourceFacetsBuilder implements ToXContent {
 
     private String queryExecution;
 
@@ -54,7 +54,7 @@ public class SearchSourceFacetsBuilder implements ToJson {
      * @param name  The logical name of the facet, it will be returned under the name
      * @param query The query facet
      */
-    public SearchSourceFacetsBuilder facet(String name, JsonQueryBuilder query) {
+    public SearchSourceFacetsBuilder facet(String name, XContentQueryBuilder query) {
         if (queryFacets == null) {
             queryFacets = newArrayListWithCapacity(2);
         }
@@ -69,7 +69,7 @@ public class SearchSourceFacetsBuilder implements ToJson {
      * @param name  The logical name of the facet, it will be returned under the name
      * @param query The query facet
      */
-    public SearchSourceFacetsBuilder facet(String name, JsonQueryBuilder query, boolean global) {
+    public SearchSourceFacetsBuilder facet(String name, XContentQueryBuilder query, boolean global) {
         if (queryFacets == null) {
             queryFacets = newArrayListWithCapacity(2);
         }
@@ -77,7 +77,7 @@ public class SearchSourceFacetsBuilder implements ToJson {
         return this;
     }
 
-    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
+    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         if (queryExecution == null && queryFacets == null) {
             return;
         }
@@ -92,7 +92,7 @@ public class SearchSourceFacetsBuilder implements ToJson {
             for (FacetQuery facetQuery : queryFacets) {
                 builder.startObject(facetQuery.name());
                 builder.field("query");
-                facetQuery.queryBuilder().toJson(builder, params);
+                facetQuery.queryBuilder().toXContent(builder, params);
                 if (facetQuery.global() != null) {
                     builder.field("global", facetQuery.global());
                 }
@@ -105,10 +105,10 @@ public class SearchSourceFacetsBuilder implements ToJson {
 
     private static class FacetQuery {
         private final String name;
-        private final JsonQueryBuilder queryBuilder;
+        private final XContentQueryBuilder queryBuilder;
         private final Boolean global;
 
-        private FacetQuery(String name, JsonQueryBuilder queryBuilder, Boolean global) {
+        private FacetQuery(String name, XContentQueryBuilder queryBuilder, Boolean global) {
             this.name = name;
             this.queryBuilder = queryBuilder;
             this.global = global;
@@ -118,7 +118,7 @@ public class SearchSourceFacetsBuilder implements ToJson {
             return name;
         }
 
-        public JsonQueryBuilder queryBuilder() {
+        public XContentQueryBuilder queryBuilder() {
             return queryBuilder;
         }
 

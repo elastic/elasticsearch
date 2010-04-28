@@ -19,15 +19,13 @@
 
 package org.elasticsearch.search.facets;
 
-import org.elasticsearch.util.gcommon.collect.Lists;
 import org.apache.lucene.search.Query;
-import org.codehaus.jackson.JsonParser;
-import org.codehaus.jackson.JsonToken;
-import org.elasticsearch.index.query.json.JsonIndexQueryParser;
+import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.util.Booleans;
+import org.elasticsearch.util.gcommon.collect.Lists;
+import org.elasticsearch.util.xcontent.XContentParser;
 
 import java.util.List;
 
@@ -46,17 +44,17 @@ import java.util.List;
  */
 public class FacetsParseElement implements SearchParseElement {
 
-    @Override public void parse(JsonParser jp, SearchContext context) throws Exception {
-        JsonToken token;
+    @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
+        XContentParser.Token token;
         SearchContextFacets.QueryExecutionType queryExecutionType = SearchContextFacets.QueryExecutionType.COLLECT;
         List<SearchContextFacets.QueryFacet> queryFacets = null;
         String topLevelFieldName = null;
-        while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
-            if (token == JsonToken.FIELD_NAME) {
-                topLevelFieldName = jp.getCurrentName();
-            } else if (token == JsonToken.VALUE_STRING) {
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                topLevelFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_STRING) {
                 if ("query_execution".equals(topLevelFieldName) || "queryExecution".equals(topLevelFieldName)) {
-                    String text = jp.getText();
+                    String text = parser.text();
                     if ("collect".equals(text)) {
                         queryExecutionType = SearchContextFacets.QueryExecutionType.COLLECT;
                     } else if ("idset".equals(text)) {
@@ -65,31 +63,27 @@ public class FacetsParseElement implements SearchParseElement {
                         throw new SearchParseException(context, "Unsupported query type [" + text + "]");
                     }
                 }
-            } else if (token == JsonToken.START_OBJECT) {
+            } else if (token == XContentParser.Token.START_OBJECT) {
                 SearchContextFacets.Facet facet = null;
                 boolean global = false;
                 String facetFieldName = null;
-                while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
-                    if (token == JsonToken.FIELD_NAME) {
-                        facetFieldName = jp.getCurrentName();
-                    } else if (token == JsonToken.START_OBJECT) {
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        facetFieldName = parser.currentName();
+                    } else if (token == XContentParser.Token.START_OBJECT) {
                         if ("query".equals(facetFieldName)) {
-                            JsonIndexQueryParser indexQueryParser = (JsonIndexQueryParser) context.queryParser();
-                            Query facetQuery = indexQueryParser.parse(jp);
+                            XContentIndexQueryParser indexQueryParser = (XContentIndexQueryParser) context.queryParser();
+                            Query facetQuery = indexQueryParser.parse(parser);
                             facet = new SearchContextFacets.QueryFacet(topLevelFieldName, facetQuery);
                             if (queryFacets == null) {
                                 queryFacets = Lists.newArrayListWithCapacity(2);
                             }
                             queryFacets.add((SearchContextFacets.QueryFacet) facet);
                         }
-                    } else if (token == JsonToken.VALUE_TRUE) {
+                    } else if (token.isValue()) {
                         if ("global".equals(facetFieldName)) {
-                            global = true;
+                            global = parser.booleanValue();
                         }
-                    } else if (token == JsonToken.VALUE_NUMBER_INT) {
-                        global = jp.getIntValue() != 0;
-                    } else if (token == JsonToken.VALUE_STRING) {
-                        global = Booleans.parseBoolean(jp.getText(), global);
                     }
                 }
                 if (facet == null) {

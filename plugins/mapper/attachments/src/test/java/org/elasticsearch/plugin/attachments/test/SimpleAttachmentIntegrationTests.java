@@ -28,7 +28,7 @@ import org.elasticsearch.util.logging.Loggers;
 import org.testng.annotations.*;
 
 import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.index.query.json.JsonQueryBuilders.*;
+import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.elasticsearch.node.NodeBuilder.*;
 import static org.elasticsearch.util.io.Streams.*;
 import static org.elasticsearch.util.json.JsonBuilder.*;

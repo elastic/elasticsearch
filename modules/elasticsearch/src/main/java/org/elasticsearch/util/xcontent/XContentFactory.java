@@ -21,6 +21,8 @@ package org.elasticsearch.util.xcontent;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.util.xcontent.builder.BinaryXContentBuilder;
+import org.elasticsearch.util.xcontent.builder.TextXContentBuilder;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 import org.elasticsearch.util.xcontent.json.JsonXContent;
 
@@ -40,21 +42,21 @@ public class XContentFactory {
         contents[0] = new JsonXContent();
     }
 
-    public static XContentBuilder contentBuilder(XContentType type) throws IOException {
+    public static BinaryXContentBuilder contentBuilder(XContentType type) throws IOException {
         if (type == XContentType.JSON) {
             return JsonXContent.contentBinaryBuilder();
         }
         throw new ElasticSearchIllegalArgumentException("No matching content type for " + type);
     }
 
-    public static XContentBuilder contentBinaryBuilder(XContentType type) throws IOException {
+    public static BinaryXContentBuilder contentBinaryBuilder(XContentType type) throws IOException {
         if (type == XContentType.JSON) {
             return JsonXContent.contentBinaryBuilder();
         }
         throw new ElasticSearchIllegalArgumentException("No matching content type for " + type);
     }
 
-    public static XContentBuilder contentTextBuilder(XContentType type) throws IOException {
+    public static TextXContentBuilder contentTextBuilder(XContentType type) throws IOException {
         if (type == XContentType.JSON) {
             return JsonXContent.contentTextBuilder();
         }

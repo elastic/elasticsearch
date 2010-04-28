@@ -19,12 +19,7 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.search.TopDocs;
-import org.codehaus.jackson.JsonFactory;
-import org.codehaus.jackson.JsonParser;
-import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.index.Index;
@@ -53,10 +48,13 @@ import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.concurrent.highscalelib.NonBlockingHashMapLong;
-import org.elasticsearch.util.json.Jackson;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.timer.Timeout;
 import org.elasticsearch.util.timer.TimerTask;
+import org.elasticsearch.util.xcontent.XContentFactory;
+import org.elasticsearch.util.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -70,8 +68,6 @@ import static org.elasticsearch.util.TimeValue.*;
  * @author kimchy (shay.banon)
  */
 public class SearchService extends AbstractLifecycleComponent<SearchService> {
-
-    private final JsonFactory jsonFactory = Jackson.defaultJsonFactory();
 
     private final ClusterService clusterService;
 
@@ -339,17 +335,17 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             return;
         }
         try {
-            JsonParser jp = jsonFactory.createJsonParser(source);
-            JsonToken token;
-            while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
-                if (token == JsonToken.FIELD_NAME) {
-                    String fieldName = jp.getCurrentName();
-                    jp.nextToken();
+            XContentParser parser = XContentFactory.xContent(source).createParser(source);
+            XContentParser.Token token;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    String fieldName = parser.currentName();
+                    parser.nextToken();
                     SearchParseElement element = elementParsers.get(fieldName);
                     if (element == null) {
                         throw new SearchParseException(context, "No parser for element [" + fieldName + "]");
                     }
-                    element.parse(jp, context);
+                    element.parse(parser, context);
                 } else if (token == null) {
                     break;
                 }

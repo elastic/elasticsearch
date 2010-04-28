@@ -19,18 +19,17 @@
 
 package org.elasticsearch.search.query;
 
-import org.elasticsearch.util.gcommon.collect.Lists;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.codehaus.jackson.JsonParser;
-import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.util.Booleans;
+import org.elasticsearch.util.gcommon.collect.Lists;
 import org.elasticsearch.util.gnu.trove.TObjectIntHashMap;
 import org.elasticsearch.util.trove.ExtTObjectIntHasMap;
+import org.elasticsearch.util.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -58,36 +57,36 @@ public class SortParseElement implements SearchParseElement {
         sortFieldTypesMapper.put("string_val", SortField.STRING_VAL);
     }
 
-    @Override public void parse(JsonParser jp, SearchContext context) throws Exception {
-        JsonToken token = jp.getCurrentToken();
+    @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
+        XContentParser.Token token = parser.currentToken();
         List<SortField> sortFields = Lists.newArrayListWithCapacity(2);
-        if (token == JsonToken.START_ARRAY) {
-            while ((token = jp.nextToken()) != JsonToken.END_ARRAY) {
-                if (token == JsonToken.START_OBJECT) {
-                    addCompoundSortField(jp, context, sortFields);
-                } else if (token == JsonToken.VALUE_STRING) {
-                    addSortField(context, sortFields, jp.getText(), false, -1);
+        if (token == XContentParser.Token.START_ARRAY) {
+            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                if (token == XContentParser.Token.START_OBJECT) {
+                    addCompoundSortField(parser, context, sortFields);
+                } else if (token == XContentParser.Token.VALUE_STRING) {
+                    addSortField(context, sortFields, parser.text(), false, -1);
                 }
             }
         } else {
-            addCompoundSortField(jp, context, sortFields);
+            addCompoundSortField(parser, context, sortFields);
         }
         if (!sortFields.isEmpty()) {
             context.sort(new Sort(sortFields.toArray(new SortField[sortFields.size()])));
         }
     }
 
-    private void addCompoundSortField(JsonParser jp, SearchContext context, List<SortField> sortFields) throws IOException {
-        JsonToken token;
-        while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
-            if (token == JsonToken.FIELD_NAME) {
-                String fieldName = jp.getCurrentName();
+    private void addCompoundSortField(XContentParser parser, SearchContext context, List<SortField> sortFields) throws IOException {
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                String fieldName = parser.currentName();
                 boolean reverse = false;
                 String innerJsonName = null;
                 int type = -1;
-                token = jp.nextToken();
-                if (token == JsonToken.VALUE_STRING) {
-                    String direction = jp.getText();
+                token = parser.nextToken();
+                if (token == XContentParser.Token.VALUE_STRING) {
+                    String direction = parser.text();
                     if (direction.equals("asc")) {
                         if ("score".equals(fieldName)) {
                             reverse = true;
@@ -102,25 +101,21 @@ public class SortParseElement implements SearchParseElement {
                         }
                     }
                 } else {
-                    while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
-                        if (token == JsonToken.FIELD_NAME) {
-                            innerJsonName = jp.getCurrentName();
-                        } else if (token == JsonToken.VALUE_STRING) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            innerJsonName = parser.currentName();
+                        } else if (token == XContentParser.Token.VALUE_STRING) {
                             if ("type".equals(innerJsonName)) {
-                                type = sortFieldTypesMapper.get(jp.getText());
+                                type = sortFieldTypesMapper.get(parser.text());
                                 if (type == -1) {
-                                    throw new SearchParseException(context, "No sort type for [" + jp.getText() + "] with field [" + fieldName + "]");
+                                    throw new SearchParseException(context, "No sort type for [" + parser.text() + "] with field [" + fieldName + "]");
                                 }
                             } else if ("reverse".equals(innerJsonName)) {
-                                reverse = Booleans.parseBoolean(jp.getText(), reverse);
+                                reverse = Booleans.parseBoolean(parser.text(), reverse);
                             }
-                        } else if (token == JsonToken.VALUE_NUMBER_INT) {
+                        } else if (token.isValue()) {
                             if ("reverse".equals(innerJsonName)) {
-                                reverse = jp.getIntValue() != 0;
-                            }
-                        } else if (token == JsonToken.VALUE_TRUE) {
-                            if ("reverse".equals(innerJsonName)) {
-                                reverse = true;
+                                reverse = parser.booleanValue();
                             }
                         }
                     }

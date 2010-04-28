@@ -27,7 +27,7 @@ import org.elasticsearch.index.query.xcontent.QueryStringQueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.Unicode;
-import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.regex.Pattern;
@@ -41,7 +41,7 @@ public class RestActions {
     public final static Pattern typesPattern = Pattern.compile(",");
     public final static Pattern nodesIdsPattern = Pattern.compile(",");
 
-    public static void buildBroadcastShardsHeader(JsonBuilder builder, BroadcastOperationResponse response) throws IOException {
+    public static void buildBroadcastShardsHeader(XContentBuilder builder, BroadcastOperationResponse response) throws IOException {
         builder.startObject("_shards");
         builder.field("total", response.totalShards());
         builder.field("successful", response.successfulShards());

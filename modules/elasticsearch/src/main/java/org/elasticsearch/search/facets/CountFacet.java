@@ -21,7 +21,7 @@ package org.elasticsearch.search.facets;
 
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 
@@ -82,7 +82,7 @@ public class CountFacet implements Facet {
         count += increment;
     }
 
-    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
+    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(name, count);
     }
 

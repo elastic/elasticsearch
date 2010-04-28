@@ -28,13 +28,14 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
-import static org.elasticsearch.rest.action.support.RestJsonBuilder.*;
+import static org.elasticsearch.rest.action.support.RestXContentBuilder.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -73,7 +74,7 @@ public class RestGetAction extends BaseRestHandler {
             @Override public void onResponse(GetResponse response) {
                 try {
                     if (!response.exists()) {
-                        JsonBuilder builder = restJsonBuilder(request);
+                        XContentBuilder builder = restContentBuilder(request);
                         builder.startObject();
                         builder.field("_index", response.index());
                         builder.field("_type", response.type());
@@ -81,14 +82,13 @@ public class RestGetAction extends BaseRestHandler {
                         builder.endObject();
                         channel.sendResponse(new JsonRestResponse(request, NOT_FOUND, builder));
                     } else {
-                        JsonBuilder builder = restJsonBuilder(request);
+                        XContentBuilder builder = restContentBuilder(request);
                         builder.startObject();
                         builder.field("_index", response.index());
                         builder.field("_type", response.type());
                         builder.field("_id", response.id());
                         if (response.source() != null) {
-                            builder.raw(", \"_source\" : ");
-                            builder.raw(response.source());
+                            builder.rawField("_source", response.source());
                         }
 
                         if (response.fields() != null && !response.fields().isEmpty()) {

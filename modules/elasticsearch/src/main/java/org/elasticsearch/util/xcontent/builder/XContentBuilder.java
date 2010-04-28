@@ -280,7 +280,12 @@ public abstract class XContentBuilder<T extends XContentBuilder> {
         return builder;
     }
 
-    public abstract T raw(byte[] json) throws IOException;
+    public T rawField(String fieldName, byte[] content) throws IOException {
+        generator.writeRawFieldStart(fieldName);
+        return raw(content);
+    }
+
+    public abstract T raw(byte[] content) throws IOException;
 
     public T value(Boolean value) throws IOException {
         return value(value.booleanValue());

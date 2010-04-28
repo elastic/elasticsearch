@@ -28,9 +28,10 @@ import org.elasticsearch.action.admin.cluster.ping.replication.ShardReplicationP
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestJsonBuilder;
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 
@@ -54,7 +55,7 @@ public class RestReplicationPingAction extends BaseRestHandler {
         client.admin().cluster().ping(replicationPingRequest, new ActionListener<ReplicationPingResponse>() {
             @Override public void onResponse(ReplicationPingResponse result) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
                     builder.field("ok", true);
                     for (IndexReplicationPingResponse indexResponse : result.indices().values()) {

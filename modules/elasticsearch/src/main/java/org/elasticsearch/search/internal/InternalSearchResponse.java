@@ -26,6 +26,8 @@ import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.json.ToJson;
+import org.elasticsearch.util.xcontent.ToXContent;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 
@@ -35,7 +37,7 @@ import static org.elasticsearch.search.internal.InternalSearchHits.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class InternalSearchResponse implements Streamable, ToJson {
+public class InternalSearchResponse implements Streamable, ToXContent {
 
     private InternalSearchHits hits;
 
@@ -57,10 +59,10 @@ public class InternalSearchResponse implements Streamable, ToJson {
         return facets;
     }
 
-    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
-        hits.toJson(builder, params);
+    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+        hits.toXContent(builder, params);
         if (facets != null) {
-            facets.toJson(builder, params);
+            facets.toXContent(builder, params);
         }
     }
 

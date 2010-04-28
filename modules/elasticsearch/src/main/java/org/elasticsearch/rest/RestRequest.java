@@ -21,7 +21,7 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.json.ToJson;
+import org.elasticsearch.util.xcontent.ToXContent;
 
 import java.io.InputStream;
 import java.util.List;
@@ -31,7 +31,7 @@ import java.util.Set;
 /**
  * @author kimchy (shay.banon)
  */
-public interface RestRequest extends ToJson.Params {
+public interface RestRequest extends ToXContent.Params {
 
     enum Method {
         GET, POST, PUT, DELETE

@@ -19,19 +19,19 @@
 
 package org.elasticsearch.rest.action.main;
 
-import org.elasticsearch.util.gcommon.collect.Iterators;
-import org.elasticsearch.util.guice.inject.Inject;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.node.ArrayNode;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestJsonBuilder;
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.util.Classes;
 import org.elasticsearch.util.concurrent.jsr166y.ThreadLocalRandom;
+import org.elasticsearch.util.gcommon.collect.Iterators;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.json.Jackson;
-import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 
@@ -66,7 +66,7 @@ public class RestMainAction extends BaseRestHandler {
 
     @Override public void handleRequest(RestRequest request, RestChannel channel) {
         try {
-            JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request).prettyPrint();
+            XContentBuilder builder = RestXContentBuilder.restContentBuilder(request).prettyPrint();
             builder.startObject();
             builder.field("ok", true);
             if (settings.get("name") != null) {

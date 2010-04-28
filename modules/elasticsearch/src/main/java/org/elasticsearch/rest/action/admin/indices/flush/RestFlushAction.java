@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.indices.flush;
 
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -27,9 +28,9 @@ import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestJsonBuilder;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 
@@ -65,7 +66,7 @@ public class RestFlushAction extends BaseRestHandler {
         client.admin().indices().flush(flushRequest, new ActionListener<FlushResponse>() {
             @Override public void onResponse(FlushResponse response) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
                     builder.field("ok", true);
 

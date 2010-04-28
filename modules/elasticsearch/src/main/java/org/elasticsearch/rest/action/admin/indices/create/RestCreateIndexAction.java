@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices.create;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -27,12 +26,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestJsonBuilder;
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.util.Strings;
-import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.settings.SettingsException;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 
@@ -71,7 +71,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
         client.admin().indices().create(createIndexRequest, new ActionListener<CreateIndexResponse>() {
             @Override public void onResponse(CreateIndexResponse response) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
                             .field("ok", true)
                             .field("acknowledged", response.acknowledged())
@@ -86,7 +86,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
                 try {
                     Throwable t = unwrapCause(e);
                     if (t instanceof IndexAlreadyExistsException || t instanceof InvalidIndexNameException) {
-                        JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                        XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                         channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, builder.startObject().field("error", t.getMessage()).endObject()));
                     } else {
                         channel.sendResponse(new JsonThrowableRestResponse(request, e));

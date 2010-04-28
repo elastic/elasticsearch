@@ -21,7 +21,7 @@ package org.elasticsearch.rest;
 
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.util.ThreadLocals;
-import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 
@@ -49,16 +49,16 @@ public class JsonRestResponse extends AbstractRestResponse {
 
     private final Status status;
 
-    private final JsonBuilder jsonBuilder;
+    private final XContentBuilder builder;
 
     public JsonRestResponse(RestRequest request, Status status) {
-        this.jsonBuilder = null;
+        this.builder = null;
         this.status = status;
         this.prefixUtf8Result = startJsonp(request);
     }
 
-    public JsonRestResponse(RestRequest request, Status status, JsonBuilder jsonBuilder) throws IOException {
-        this.jsonBuilder = jsonBuilder;
+    public JsonRestResponse(RestRequest request, Status status, XContentBuilder builder) throws IOException {
+        this.builder = builder;
         this.status = status;
         this.prefixUtf8Result = startJsonp(request);
     }
@@ -72,11 +72,11 @@ public class JsonRestResponse extends AbstractRestResponse {
     }
 
     @Override public byte[] content() throws IOException {
-        return jsonBuilder.unsafeBytes();
+        return builder.unsafeBytes();
     }
 
     @Override public int contentLength() throws IOException {
-        return jsonBuilder.unsafeBytesLength();
+        return builder.unsafeBytesLength();
     }
 
     @Override public Status status() {

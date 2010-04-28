@@ -19,15 +19,16 @@
 
 package org.elasticsearch.rest.action.admin.cluster.ping.single;
 
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.ping.single.SinglePingRequest;
 import org.elasticsearch.action.admin.cluster.ping.single.SinglePingResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestJsonBuilder;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 
@@ -53,7 +54,7 @@ public class RestSinglePingAction extends BaseRestHandler {
         client.admin().cluster().ping(singlePingRequest, new ActionListener<SinglePingResponse>() {
             @Override public void onResponse(SinglePingResponse result) {
                 try {
-                    JsonBuilder generator = RestJsonBuilder.restJsonBuilder(request);
+                    XContentBuilder generator = RestXContentBuilder.restContentBuilder(request);
                     generator.startObject().field("ok", true).endObject();
                     channel.sendResponse(new JsonRestResponse(request, OK, generator));
                 } catch (Exception e) {

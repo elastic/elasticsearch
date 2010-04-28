@@ -27,6 +27,7 @@ import org.elasticsearch.util.gnu.trove.TIntObjectHashMap;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.IdentityHashMap;
@@ -84,13 +85,13 @@ public class InternalSearchHits implements SearchHits {
         return this.hits;
     }
 
-    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
+    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("hits");
         builder.field("total", totalHits);
         builder.field("hits");
         builder.startArray();
         for (SearchHit hit : hits) {
-            hit.toJson(builder, params);
+            hit.toXContent(builder, params);
         }
         builder.endArray();
         builder.endObject();

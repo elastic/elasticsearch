@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.cluster.node.info;
 
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -27,9 +28,9 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestJsonBuilder;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -54,7 +55,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
         client.admin().cluster().nodesInfo(nodesInfoRequest, new ActionListener<NodesInfoResponse>() {
             @Override public void onResponse(NodesInfoResponse result) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
                     builder.field("cluster_name", result.clusterName().value());
 

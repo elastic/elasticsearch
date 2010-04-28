@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.json.ToJson;
+import org.elasticsearch.util.xcontent.ToXContent;
 
 import java.util.Map;
 
@@ -33,7 +34,7 @@ import java.util.Map;
  * @author kimchy (shay.banon)
  * @see SearchHits
  */
-public interface SearchHit extends Streamable, ToJson, Iterable<SearchHitField> {
+public interface SearchHit extends Streamable, ToXContent, Iterable<SearchHitField> {
 
     /**
      * The index of the hit.

@@ -158,6 +158,11 @@ public class JsonXContentGenerator implements XContentGenerator {
         generator.writeObjectFieldStart(fieldName);
     }
 
+    @Override public void writeRawFieldStart(String fieldName) throws IOException {
+        generator.writeRaw(", \"" + fieldName + "\" : ");
+
+    }
+
     @Override public void flush() throws IOException {
         generator.flush();
     }

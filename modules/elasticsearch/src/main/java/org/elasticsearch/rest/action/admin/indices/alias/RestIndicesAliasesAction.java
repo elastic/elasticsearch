@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices.alias;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -29,15 +28,16 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestJsonBuilder;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.json.Jackson;
-import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
+import static org.elasticsearch.rest.action.support.RestXContentBuilder.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -116,7 +116,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
         client.admin().indices().aliases(indicesAliasesRequest, new ActionListener<IndicesAliasesResponse>() {
             @Override public void onResponse(IndicesAliasesResponse response) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                    XContentBuilder builder = restContentBuilder(request);
                     builder.startObject()
                             .field("ok", true)
                             .endObject();

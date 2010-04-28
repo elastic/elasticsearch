@@ -27,9 +27,10 @@ import org.elasticsearch.action.admin.indices.gateway.snapshot.IndexGatewaySnaps
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestJsonBuilder;
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 
@@ -55,7 +56,7 @@ public class RestGatewaySnapshotAction extends BaseRestHandler {
         client.admin().indices().gatewaySnapshot(gatewaySnapshotRequest, new ActionListener<GatewaySnapshotResponse>() {
             @Override public void onResponse(GatewaySnapshotResponse result) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
                     builder.field("ok", true);
                     builder.startObject("indices");

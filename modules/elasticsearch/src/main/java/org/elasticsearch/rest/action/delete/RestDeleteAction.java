@@ -19,15 +19,16 @@
 
 package org.elasticsearch.rest.action.delete;
 
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestJsonBuilder;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 
@@ -54,7 +55,7 @@ public class RestDeleteAction extends BaseRestHandler {
         client.delete(deleteRequest, new ActionListener<DeleteResponse>() {
             @Override public void onResponse(DeleteResponse result) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
                             .field("ok", true)
                             .field("_index", result.index())

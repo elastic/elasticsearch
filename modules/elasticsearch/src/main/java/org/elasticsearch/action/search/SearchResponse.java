@@ -27,6 +27,8 @@ import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.json.ToJson;
+import org.elasticsearch.util.xcontent.ToXContent;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 
@@ -38,7 +40,7 @@ import static org.elasticsearch.search.internal.InternalSearchResponse.*;
  *
  * @author kimchy (shay.banon)
  */
-public class SearchResponse implements ActionResponse, ToJson {
+public class SearchResponse implements ActionResponse, ToXContent {
 
     private InternalSearchResponse internalResponse;
 
@@ -161,7 +163,7 @@ public class SearchResponse implements ActionResponse, ToJson {
         return scrollId;
     }
 
-    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
+    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         if (scrollId != null) {
             builder.field("_scrollId", scrollId);
         }
@@ -185,7 +187,7 @@ public class SearchResponse implements ActionResponse, ToJson {
         }
 
         builder.endObject();
-        internalResponse.toJson(builder, params);
+        internalResponse.toXContent(builder, params);
     }
 
     public static SearchResponse readSearchResponse(StreamInput in) throws IOException {

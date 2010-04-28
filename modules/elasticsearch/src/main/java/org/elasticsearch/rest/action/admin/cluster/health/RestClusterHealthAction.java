@@ -19,15 +19,16 @@
 
 package org.elasticsearch.rest.action.admin.cluster.health;
 
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.*;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestJsonBuilder;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 
@@ -68,7 +69,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
             }
         } catch (Exception e) {
             try {
-                JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                 channel.sendResponse(new JsonRestResponse(request, PRECONDITION_FAILED, builder.startObject().field("error", e.getMessage()).endObject()));
             } catch (IOException e1) {
                 logger.error("Failed to send failure response", e1);
@@ -79,7 +80,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
         client.admin().cluster().health(clusterHealthRequest, new ActionListener<ClusterHealthResponse>() {
             @Override public void onResponse(ClusterHealthResponse response) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
 
                     builder.field("status", response.status().name().toLowerCase());

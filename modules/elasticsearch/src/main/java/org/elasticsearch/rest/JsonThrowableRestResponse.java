@@ -19,12 +19,12 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 
 import static org.elasticsearch.ExceptionsHelper.*;
-import static org.elasticsearch.util.json.JsonBuilder.*;
+import static org.elasticsearch.rest.action.support.RestXContentBuilder.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -39,8 +39,8 @@ public class JsonThrowableRestResponse extends JsonRestResponse {
         super(request, status, convert(request, t));
     }
 
-    private static JsonBuilder convert(RestRequest request, Throwable t) throws IOException {
-        JsonBuilder builder = binaryJsonBuilder().prettyPrint()
+    private static XContentBuilder convert(RestRequest request, Throwable t) throws IOException {
+        XContentBuilder builder = restContentBuilder(request)
                 .startObject().field("error", detailedMessage(t));
         if (t != null && request.paramAsBoolean("error_trace", false)) {
             builder.startObject("error_trace");
@@ -62,7 +62,7 @@ public class JsonThrowableRestResponse extends JsonRestResponse {
         return builder;
     }
 
-    private static void buildThrowable(Throwable t, JsonBuilder builder) throws IOException {
+    private static void buildThrowable(Throwable t, XContentBuilder builder) throws IOException {
         builder.field("message", t.getMessage());
         for (StackTraceElement stElement : t.getStackTrace()) {
             builder.startObject("at")

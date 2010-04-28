@@ -30,13 +30,14 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
-import static org.elasticsearch.rest.action.support.RestJsonBuilder.*;
+import static org.elasticsearch.rest.action.support.RestXContentBuilder.*;
 import static org.elasticsearch.util.TimeValue.*;
 
 /**
@@ -82,7 +83,7 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
             }
         } catch (Exception e) {
             try {
-                JsonBuilder builder = restJsonBuilder(request);
+                XContentBuilder builder = restContentBuilder(request);
                 channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, builder.startObject().field("error", e.getMessage()).endObject()));
             } catch (IOException e1) {
                 logger.error("Failed to send failure response", e1);
@@ -93,9 +94,9 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
         client.moreLikeThis(mltRequest, new ActionListener<SearchResponse>() {
             @Override public void onResponse(SearchResponse response) {
                 try {
-                    JsonBuilder builder = restJsonBuilder(request);
+                    XContentBuilder builder = restContentBuilder(request);
                     builder.startObject();
-                    response.toJson(builder, request);
+                    response.toXContent(builder, request);
                     builder.endObject();
                     channel.sendResponse(new JsonRestResponse(request, OK, builder));
                 } catch (Exception e) {

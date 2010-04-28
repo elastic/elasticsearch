@@ -20,19 +20,19 @@
 package org.elasticsearch.rest.action.support;
 
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.util.json.BinaryJsonBuilder;
+import org.elasticsearch.util.xcontent.XContentFactory;
+import org.elasticsearch.util.xcontent.XContentType;
+import org.elasticsearch.util.xcontent.builder.BinaryXContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.util.json.JsonBuilder.*;
-
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class RestJsonBuilder {
+public class RestXContentBuilder {
 
-    public static BinaryJsonBuilder restJsonBuilder(RestRequest request) throws IOException {
-        BinaryJsonBuilder builder = binaryJsonBuilder();
+    public static BinaryXContentBuilder restContentBuilder(RestRequest request) throws IOException {
+        BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(XContentType.JSON);
         if (request.paramAsBoolean("pretty", false)) {
             builder.prettyPrint();
         }

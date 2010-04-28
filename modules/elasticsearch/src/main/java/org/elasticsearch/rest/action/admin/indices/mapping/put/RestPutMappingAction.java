@@ -28,9 +28,10 @@ import org.elasticsearch.index.mapper.InvalidTypeNameException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestJsonBuilder;
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 
@@ -64,7 +65,7 @@ public class RestPutMappingAction extends BaseRestHandler {
         client.admin().indices().putMapping(putMappingRequest, new ActionListener<PutMappingResponse>() {
             @Override public void onResponse(PutMappingResponse response) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
                             .field("ok", true)
                             .field("acknowledged", response.acknowledged());
@@ -77,7 +78,7 @@ public class RestPutMappingAction extends BaseRestHandler {
 
             @Override public void onFailure(Throwable e) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     Throwable t = unwrapCause(e);
                     if (t instanceof IndexMissingException || t instanceof InvalidTypeNameException || t instanceof MergeMappingException) {
                         channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, builder.startObject().field("error", t.getMessage()).endObject()));

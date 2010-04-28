@@ -19,15 +19,16 @@
 
 package org.elasticsearch.rest.action.index;
 
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestJsonBuilder;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 
@@ -66,7 +67,7 @@ public class RestIndexAction extends BaseRestHandler {
                 indexRequest.opType(IndexRequest.OpType.CREATE);
             } else {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, builder.startObject().field("error", "opType [" + sOpType + "] not allowed, either [index] or [create] are allowed").endObject()));
                 } catch (IOException e1) {
                     logger.warn("Failed to send response", e1);
@@ -81,7 +82,7 @@ public class RestIndexAction extends BaseRestHandler {
         client.index(indexRequest, new ActionListener<IndexResponse>() {
             @Override public void onResponse(IndexResponse result) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
                             .field("ok", true)
                             .field("_index", result.index())

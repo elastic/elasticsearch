@@ -89,6 +89,8 @@ public interface XContentGenerator {
 
     void writeObjectFieldStart(String fieldName) throws IOException;
 
+    void writeRawFieldStart(String fieldName) throws IOException;
+
     void flush() throws IOException;
 
     void close() throws IOException;

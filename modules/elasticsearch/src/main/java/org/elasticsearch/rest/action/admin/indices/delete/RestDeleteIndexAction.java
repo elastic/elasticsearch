@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.indices.delete;
 
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -26,9 +27,9 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestJsonBuilder;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 
@@ -52,7 +53,7 @@ public class RestDeleteIndexAction extends BaseRestHandler {
         client.admin().indices().delete(deleteIndexRequest, new ActionListener<DeleteIndexResponse>() {
             @Override public void onResponse(DeleteIndexResponse response) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
                             .field("ok", true)
                             .field("acknowledged", response.acknowledged())
@@ -67,7 +68,7 @@ public class RestDeleteIndexAction extends BaseRestHandler {
                 try {
                     Throwable t = unwrapCause(e);
                     if (t instanceof IndexMissingException) {
-                        JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                        XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                         channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, builder.startObject().field("error", t.getMessage()).endObject()));
                     } else {
                         channel.sendResponse(new JsonThrowableRestResponse(request, e));

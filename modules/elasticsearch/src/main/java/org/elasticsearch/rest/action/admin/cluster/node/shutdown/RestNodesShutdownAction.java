@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.cluster.node.shutdown;
 
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest;
@@ -26,11 +27,13 @@ import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRespons
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestJsonBuilder;
 import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
+
+import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
 
 /**
  * @author kimchy (shay.banon)
@@ -52,7 +55,7 @@ public class RestNodesShutdownAction extends BaseRestHandler {
         client.admin().cluster().nodesShutdown(nodesShutdownRequest, new ActionListener<NodesShutdownResponse>() {
             @Override public void onResponse(NodesShutdownResponse result) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                    XContentBuilder builder = restContentBuilder(request);
                     builder.startObject();
                     builder.field("cluster_name", result.clusterName().value());
 

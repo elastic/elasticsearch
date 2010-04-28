@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.cluster.state;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -31,9 +30,10 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestJsonBuilder;
-import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -54,7 +54,7 @@ public class RestClusterStateAction extends BaseRestHandler {
             @Override public void onResponse(ClusterStateResponse response) {
                 try {
                     ClusterState state = response.state();
-                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
 
                     // meta data
@@ -125,7 +125,7 @@ public class RestClusterStateAction extends BaseRestHandler {
                 }
             }
 
-            private void jsonShardRouting(JsonBuilder builder, ShardRouting shardRouting) throws IOException {
+            private void jsonShardRouting(XContentBuilder builder, ShardRouting shardRouting) throws IOException {
                 builder.startObject()
                         .field("state", shardRouting.state())
                         .field("primary", shardRouting.primary())

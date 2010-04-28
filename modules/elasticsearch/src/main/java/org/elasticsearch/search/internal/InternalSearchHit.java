@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.search.SearchHit;
@@ -27,10 +26,12 @@ import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.util.Unicode;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.elasticsearch.util.gnu.trove.TIntObjectHashMap;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.xcontent.XContentFactory;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -189,7 +190,7 @@ public class InternalSearchHit implements SearchHit {
         this.shard = target;
     }
 
-    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
+    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("_index", shard.index());
 //        builder.field("_shard", shard.shardId());
@@ -197,8 +198,12 @@ public class InternalSearchHit implements SearchHit {
         builder.field("_type", type());
         builder.field("_id", id());
         if (source() != null) {
-            builder.raw(", \"_source\" : ");
-            builder.raw(source());
+            if (XContentFactory.xContentType(source()) == builder.contentType()) {
+                builder.field("_source");
+                builder.value(source());
+            } else {
+                builder.rawField("_source", source());
+            }
         }
         if (fields != null && !fields.isEmpty()) {
             builder.startObject("fields");
@@ -242,7 +247,7 @@ public class InternalSearchHit implements SearchHit {
         builder.endObject();
     }
 
-    private void buildExplanation(JsonBuilder builder, Explanation explanation) throws IOException {
+    private void buildExplanation(XContentBuilder builder, Explanation explanation) throws IOException {
         builder.startObject();
         builder.field("value", explanation.getValue());
         builder.field("description", explanation.getDescription());

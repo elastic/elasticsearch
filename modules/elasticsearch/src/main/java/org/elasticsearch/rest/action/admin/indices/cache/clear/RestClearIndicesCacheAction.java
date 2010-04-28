@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.indices.cache.clear;
 
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
@@ -27,9 +28,8 @@ import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestJsonBuilder;
-import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 
@@ -66,7 +66,7 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
             clearIndicesCacheRequest.operationThreading(operationThreading);
         } catch (Exception e) {
             try {
-                JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                 channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, builder.startObject().field("error", e.getMessage()).endObject()));
             } catch (IOException e1) {
                 logger.error("Failed to send failure response", e1);
@@ -76,7 +76,7 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
         client.admin().indices().clearCache(clearIndicesCacheRequest, new ActionListener<ClearIndicesCacheResponse>() {
             @Override public void onResponse(ClearIndicesCacheResponse response) {
                 try {
-                    JsonBuilder builder = RestJsonBuilder.restJsonBuilder(request);
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
                     builder.field("ok", true);
 

@@ -21,13 +21,14 @@ package org.elasticsearch.search;
 
 import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.json.ToJson;
+import org.elasticsearch.util.xcontent.ToXContent;
 
 /**
  * The hits of a search request.
  *
  * @author kimchy (shay.banon)
  */
-public interface SearchHits extends Streamable, ToJson, Iterable<SearchHit> {
+public interface SearchHits extends Streamable, ToXContent, Iterable<SearchHit> {
 
     /**
      * The total number of hits that matches the search request.

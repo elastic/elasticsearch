@@ -22,13 +22,14 @@ package org.elasticsearch.search.facets;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.json.ToJson;
+import org.elasticsearch.util.xcontent.ToXContent;
 
 /**
  * A search facet.
  *
  * @author kimchy (shay.banon)
  */
-public interface Facet extends Streamable, ToJson {
+public interface Facet extends Streamable, ToXContent {
 
     enum Type {
         /**

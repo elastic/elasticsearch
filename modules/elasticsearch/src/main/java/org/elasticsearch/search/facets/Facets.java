@@ -23,24 +23,24 @@ import org.elasticsearch.util.gcommon.collect.ImmutableList;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
-import org.elasticsearch.util.json.JsonBuilder;
-import org.elasticsearch.util.json.ToJson;
+import org.elasticsearch.util.xcontent.ToXContent;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.search.facets.CountFacet.*;
 import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static org.elasticsearch.util.gcommon.collect.Maps.*;
-import static org.elasticsearch.search.facets.CountFacet.*;
 
 /**
  * Facets of search action.
  *
  * @author kimchy (shay.banon)
  */
-public class Facets implements Streamable, ToJson, Iterable<Facet> {
+public class Facets implements Streamable, ToXContent, Iterable<Facet> {
 
     private final List<Facet> EMPTY = ImmutableList.of();
 
@@ -109,10 +109,10 @@ public class Facets implements Streamable, ToJson, Iterable<Facet> {
         return facetsAsMap().get(name);
     }
 
-    @Override public void toJson(JsonBuilder builder, Params params) throws IOException {
+    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("facets");
         for (Facet facet : facets) {
-            facet.toJson(builder, params);
+            facet.toXContent(builder, params);
         }
         builder.endObject();
     }

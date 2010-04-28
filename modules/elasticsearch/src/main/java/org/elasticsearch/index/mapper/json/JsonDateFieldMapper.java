@@ -23,9 +23,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.NumericUtils;
-import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.JsonToken;
-import org.codehaus.jackson.node.ObjectNode;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericDateAnalyzer;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -36,7 +34,6 @@ import org.elasticsearch.util.joda.Joda;
 import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.json.JsonMapperBuilders.*;
@@ -85,16 +82,14 @@ public class JsonDateFieldMapper extends JsonNumberFieldMapper<Long> {
     }
 
     public static class TypeParser implements JsonTypeParser {
-        @Override public JsonMapper.Builder parse(String name, JsonNode node, ParserContext parserContext) throws MapperParsingException {
-            ObjectNode dateNode = (ObjectNode) node;
+        @Override public JsonMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             JsonDateFieldMapper.Builder builder = dateField(name);
-            parseNumberField(builder, name, dateNode, parserContext);
-            for (Iterator<Map.Entry<String, JsonNode>> propsIt = dateNode.getFields(); propsIt.hasNext();) {
-                Map.Entry<String, JsonNode> entry = propsIt.next();
+            parseNumberField(builder, name, node, parserContext);
+            for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String propName = Strings.toUnderscoreCase(entry.getKey());
-                JsonNode propNode = entry.getValue();
+                Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
-                    builder.nullValue(propNode.getValueAsText());
+                    builder.nullValue(propNode.toString());
                 } else if (propName.equals("format")) {
                     builder.dateTimeFormatter(parseDateTimeFormatter(propName, propNode));
                 }

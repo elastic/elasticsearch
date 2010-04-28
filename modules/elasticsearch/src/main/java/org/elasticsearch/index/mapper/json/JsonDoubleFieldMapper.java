@@ -23,9 +23,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.NumericUtils;
-import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.JsonToken;
-import org.codehaus.jackson.node.ObjectNode;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericDoubleAnalyzer;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -33,7 +31,6 @@ import org.elasticsearch.util.Numbers;
 import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.json.JsonMapperBuilders.*;
@@ -74,14 +71,12 @@ public class JsonDoubleFieldMapper extends JsonNumberFieldMapper<Double> {
     }
 
     public static class TypeParser implements JsonTypeParser {
-        @Override public JsonMapper.Builder parse(String name, JsonNode node, ParserContext parserContext) throws MapperParsingException {
-            ObjectNode doubleNode = (ObjectNode) node;
+        @Override public JsonMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             JsonDoubleFieldMapper.Builder builder = doubleField(name);
-            parseNumberField(builder, name, doubleNode, parserContext);
-            for (Iterator<Map.Entry<String, JsonNode>> propsIt = doubleNode.getFields(); propsIt.hasNext();) {
-                Map.Entry<String, JsonNode> entry = propsIt.next();
+            parseNumberField(builder, name, node, parserContext);
+            for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String propName = entry.getKey();
-                JsonNode propNode = entry.getValue();
+                Object propNode = entry.getValue();
                 if (propName.equals("nullValue") || propName.equals("null_value")) {
                     builder.nullValue(nodeDoubleValue(propNode));
                 }

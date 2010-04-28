@@ -75,14 +75,12 @@ public class JsonIntegerFieldMapper extends JsonNumberFieldMapper<Integer> {
     }
 
     public static class TypeParser implements JsonTypeParser {
-        @Override public JsonMapper.Builder parse(String name, JsonNode node, ParserContext parserContext) throws MapperParsingException {
-            ObjectNode integerNode = (ObjectNode) node;
+        @Override public JsonMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             JsonIntegerFieldMapper.Builder builder = integerField(name);
-            parseNumberField(builder, name, integerNode, parserContext);
-            for (Iterator<Map.Entry<String, JsonNode>> propsIt = integerNode.getFields(); propsIt.hasNext();) {
-                Map.Entry<String, JsonNode> entry = propsIt.next();
+            parseNumberField(builder, name, node, parserContext);
+            for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String propName = Strings.toUnderscoreCase(entry.getKey());
-                JsonNode propNode = entry.getValue();
+                Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
                     builder.nullValue(nodeIntegerValue(propNode));
                 }

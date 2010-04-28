@@ -19,30 +19,26 @@
 
 package org.elasticsearch.index.mapper.json;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
-import org.codehaus.jackson.node.ArrayNode;
-import org.codehaus.jackson.node.ObjectNode;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.concurrent.ThreadSafe;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.elasticsearch.util.joda.FormatDateTimeFormatter;
 import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.util.gcommon.collect.ImmutableMap.*;
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static org.elasticsearch.index.mapper.json.JsonMapperBuilders.*;
 import static org.elasticsearch.index.mapper.json.JsonTypeParsers.*;
 import static org.elasticsearch.util.MapBuilder.*;
+import static org.elasticsearch.util.gcommon.collect.ImmutableMap.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static org.elasticsearch.util.json.JacksonNodes.*;
 
 /**
@@ -156,27 +152,28 @@ public class JsonObjectMapper implements JsonMapper, JsonIncludeInAllMapper {
     }
 
     public static class TypeParser implements JsonTypeParser {
-        @Override public JsonMapper.Builder parse(String name, JsonNode node, ParserContext parserContext) throws MapperParsingException {
-            ObjectNode objectNode = (ObjectNode) node;
+        @Override public JsonMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            Map<String, Object> objectNode = node;
             JsonObjectMapper.Builder builder = object(name);
-            for (Iterator<Entry<String, JsonNode>> fieldsIt = objectNode.getFields(); fieldsIt.hasNext();) {
-                Map.Entry<String, JsonNode> entry = fieldsIt.next();
+
+            for (Map.Entry<String, Object> entry : objectNode.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
-                JsonNode fieldNode = entry.getValue();
+                Object fieldNode = entry.getValue();
+
                 if (fieldName.equals("dynamic")) {
                     builder.dynamic(nodeBooleanValue(fieldNode));
                 } else if (fieldName.equals("type")) {
-                    String type = fieldNode.getTextValue();
+                    String type = fieldNode.toString();
                     if (!type.equals("object")) {
                         throw new MapperParsingException("Trying to parse an object but has a different type [" + type + "] for [" + name + "]");
                     }
                 } else if (fieldName.equals("date_formats")) {
                     List<FormatDateTimeFormatter> dateTimeFormatters = newArrayList();
-                    if (fieldNode.isArray()) {
-                        for (JsonNode node1 : (ArrayNode) fieldNode) {
+                    if (fieldNode instanceof List) {
+                        for (Object node1 : (List) fieldNode) {
                             dateTimeFormatters.add(parseDateTimeFormatter(fieldName, node1));
                         }
-                    } else if ("none".equals(fieldNode.getValueAsText())) {
+                    } else if ("none".equals(fieldNode.toString())) {
                         dateTimeFormatters = null;
                     } else {
                         dateTimeFormatters.add(parseDateTimeFormatter(fieldName, fieldNode));
@@ -189,9 +186,9 @@ public class JsonObjectMapper implements JsonMapper, JsonIncludeInAllMapper {
                 } else if (fieldName.equals("enabled")) {
                     builder.enabled(nodeBooleanValue(fieldNode));
                 } else if (fieldName.equals("path")) {
-                    builder.pathType(parsePathType(name, fieldNode.getValueAsText()));
+                    builder.pathType(parsePathType(name, fieldNode.toString()));
                 } else if (fieldName.equals("properties")) {
-                    parseProperties(builder, (ObjectNode) fieldNode, parserContext);
+                    parseProperties(builder, (Map<String, Object>) fieldNode, parserContext);
                 } else if (fieldName.equals("include_in_all")) {
                     builder.includeInAll(nodeBooleanValue(fieldNode));
                 }
@@ -199,21 +196,20 @@ public class JsonObjectMapper implements JsonMapper, JsonIncludeInAllMapper {
             return builder;
         }
 
-        private void parseProperties(JsonObjectMapper.Builder objBuilder, ObjectNode propsNode, JsonTypeParser.ParserContext parserContext) {
-            for (Iterator<Map.Entry<String, JsonNode>> propsIt = propsNode.getFields(); propsIt.hasNext();) {
-                Map.Entry<String, JsonNode> entry = propsIt.next();
+        private void parseProperties(JsonObjectMapper.Builder objBuilder, Map<String, Object> propsNode, JsonTypeParser.ParserContext parserContext) {
+            for (Map.Entry<String, Object> entry : propsNode.entrySet()) {
                 String propName = entry.getKey();
-                JsonNode propNode = entry.getValue();
+                Map<String, Object> propNode = (Map<String, Object>) entry.getValue();
 
                 String type;
-                JsonNode typeNode = propNode.get("type");
+                Object typeNode = propNode.get("type");
                 if (typeNode != null) {
-                    type = typeNode.getTextValue();
+                    type = typeNode.toString();
                 } else {
                     // lets see if we can derive this...
-                    if (propNode.isObject() && propNode.get("properties") != null) {
+                    if (propNode.get("properties") != null) {
                         type = JsonObjectMapper.JSON_TYPE;
-                    } else if (propNode.isObject() && propNode.get("fields") != null) {
+                    } else if (propNode.get("fields") != null) {
                         type = JsonMultiFieldMapper.JSON_TYPE;
                     } else {
                         throw new MapperParsingException("No type specified for property [" + propName + "]");

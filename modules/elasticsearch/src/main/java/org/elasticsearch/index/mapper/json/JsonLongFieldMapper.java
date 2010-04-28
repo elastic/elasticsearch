@@ -23,9 +23,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.NumericUtils;
-import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.JsonToken;
-import org.codehaus.jackson.node.ObjectNode;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericLongAnalyzer;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -34,7 +32,6 @@ import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.json.JsonBuilder;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.json.JsonMapperBuilders.*;
@@ -75,14 +72,12 @@ public class JsonLongFieldMapper extends JsonNumberFieldMapper<Long> {
     }
 
     public static class TypeParser implements JsonTypeParser {
-        @Override public JsonMapper.Builder parse(String name, JsonNode node, ParserContext parserContext) throws MapperParsingException {
-            ObjectNode longNode = (ObjectNode) node;
+        @Override public JsonMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             JsonLongFieldMapper.Builder builder = longField(name);
-            parseNumberField(builder, name, longNode, parserContext);
-            for (Iterator<Map.Entry<String, JsonNode>> propsIt = longNode.getFields(); propsIt.hasNext();) {
-                Map.Entry<String, JsonNode> entry = propsIt.next();
+            parseNumberField(builder, name, node, parserContext);
+            for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String propName = Strings.toUnderscoreCase(entry.getKey());
-                JsonNode propNode = entry.getValue();
+                Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
                     builder.nullValue(nodeLongValue(propNode));
                 }

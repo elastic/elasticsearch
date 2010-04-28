@@ -23,8 +23,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.util.StopWatch;
-import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Random;
@@ -33,8 +33,8 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.node.NodeBuilder.*;
-import static org.elasticsearch.util.json.JsonBuilder.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.*;
+import static org.elasticsearch.util.xcontent.XContentFactory.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -82,7 +82,7 @@ public class SimpleMemoryMonitorBenchmark {
         node2.close();
     }
 
-    private static JsonBuilder source(String id, String nameValue) throws IOException {
+    private static XContentBuilder source(String id, String nameValue) throws IOException {
         return jsonBuilder().startObject().field("id", id).field("name", nameValue).endObject();
     }
 }

@@ -24,12 +24,14 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.io.FastCharArrayWriter;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.json.JsonBuilder;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.xcontent.XContentFactory;
+import org.elasticsearch.util.xcontent.XContentType;
+import org.elasticsearch.util.xcontent.builder.TextXContentBuilder;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -38,7 +40,6 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.action.Actions.*;
 import static org.elasticsearch.util.TimeValue.*;
 import static org.elasticsearch.util.gcommon.collect.Maps.*;
-import static org.elasticsearch.util.json.Jackson.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.*;
 
@@ -139,13 +140,14 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
      * The settings to crete the index with (either json/yaml/properties format)
      */
     public CreateIndexRequest settings(Map source) {
-        FastCharArrayWriter writer = FastCharArrayWriter.Cached.cached();
         try {
-            defaultObjectMapper().writeValue(writer, source);
+            TextXContentBuilder builder = XContentFactory.contentTextBuilder(XContentType.JSON);
+            builder.map(source);
+            settings(builder.string());
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
         }
-        return settings(writer.toString());
+        return this;
     }
 
     /**
@@ -173,7 +175,7 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
      * @param type   The mapping type
      * @param source The mapping source
      */
-    public CreateIndexRequest mapping(String type, JsonBuilder source) {
+    public CreateIndexRequest mapping(String type, XContentBuilder source) {
         try {
             mappings.put(type, source.string());
         } catch (IOException e) {
@@ -189,13 +191,13 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
      * @param source The mapping source
      */
     public CreateIndexRequest mapping(String type, Map source) {
-        FastCharArrayWriter writer = FastCharArrayWriter.Cached.cached();
         try {
-            defaultObjectMapper().writeValue(writer, source);
+            TextXContentBuilder builder = XContentFactory.contentTextBuilder(XContentType.JSON);
+            builder.map(source);
+            return mapping(type, builder.string());
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
         }
-        return mapping(type, writer.toString());
     }
 
     Map<String, String> mappings() {

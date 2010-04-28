@@ -29,7 +29,7 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.util.json.JsonBuilder.*;
+import static org.elasticsearch.util.xcontent.XContentFactory.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -73,8 +73,8 @@ public class MoreLikeThisActionTests extends AbstractNodesTests {
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing...");
-        client1.index(indexRequest("test").type("type1").id("1").source(binaryJsonBuilder().startObject().field("text", "lucene").endObject())).actionGet();
-        client1.index(indexRequest("test").type("type1").id("2").source(binaryJsonBuilder().startObject().field("text", "lucene release").endObject())).actionGet();
+        client1.index(indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("text", "lucene").endObject())).actionGet();
+        client1.index(indexRequest("test").type("type1").id("2").source(jsonBuilder().startObject().field("text", "lucene release").endObject())).actionGet();
         client1.admin().indices().refresh(refreshRequest()).actionGet();
 
         logger.info("Running moreLikeThis");

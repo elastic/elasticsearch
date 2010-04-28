@@ -17,23 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.util.json;
+package org.elasticsearch.util.xcontent.builder;
 
-import org.codehaus.jackson.JsonEncoding;
-import org.codehaus.jackson.JsonGenerator;
-import org.codehaus.jackson.JsonNode;
-import org.elasticsearch.util.MapBuilder;
-import org.elasticsearch.util.io.FastByteArrayInputStream;
 import org.elasticsearch.util.io.FastByteArrayOutputStream;
 import org.elasticsearch.util.io.FastCharArrayWriter;
-import org.joda.time.DateTime;
+import org.elasticsearch.util.xcontent.XContentFactory;
+import org.elasticsearch.util.xcontent.XContentGenerator;
+import org.elasticsearch.util.xcontent.XContentType;
 import org.testng.annotations.Test;
 
-import java.util.Date;
-import java.util.Map;
-
-import static org.elasticsearch.util.json.Jackson.*;
-import static org.elasticsearch.util.json.JsonBuilder.FieldCaseConversion.*;
+import static org.elasticsearch.util.xcontent.builder.XContentBuilder.FieldCaseConversion.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -41,11 +34,11 @@ import static org.hamcrest.Matchers.*;
  * @author kimchy (shay.banon)
  */
 @Test
-public class JsonBuilderTests {
+public class XContentBuilderTests {
 
     @Test public void verifyReuseJsonGenerator() throws Exception {
         FastCharArrayWriter writer = new FastCharArrayWriter();
-        org.codehaus.jackson.JsonGenerator generator = Jackson.defaultJsonFactory().createJsonGenerator(writer);
+        XContentGenerator generator = XContentFactory.xContent(XContentType.JSON).createGenerator(writer);
         generator.writeStartObject();
         generator.writeStringField("test", "value");
         generator.writeEndObject();
@@ -63,8 +56,8 @@ public class JsonBuilderTests {
         assertThat(writer.toStringTrim(), equalTo("{\"test\":\"value\"}"));
     }
 
-    @Test public void testSimpleJacksonGenerator() throws Exception {
-        StringJsonBuilder builder = JsonBuilder.stringJsonBuilder();
+    @Test public void testSimpleGenerator() throws Exception {
+        TextXContentBuilder builder = XContentFactory.contentTextBuilder(XContentType.JSON);
         builder.startObject().field("test", "value").endObject();
         assertThat(builder.string(), equalTo("{\"test\":\"value\"}"));
         builder.reset();
@@ -75,7 +68,7 @@ public class JsonBuilderTests {
     @Test public void testWritingBinaryToStream() throws Exception {
         FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
 
-        JsonGenerator gen = Jackson.defaultJsonFactory().createJsonGenerator(bos, JsonEncoding.UTF8);
+        XContentGenerator gen = XContentFactory.xContent(XContentType.JSON).createGenerator(bos);
         gen.writeStartObject();
         gen.writeStringField("name", "something");
         gen.flush();
@@ -87,27 +80,14 @@ public class JsonBuilderTests {
         byte[] data = bos.copiedByteArray();
         String sData = new String(data, "UTF8");
         System.out.println("DATA: " + sData);
-
-        JsonNode node = Jackson.newObjectMapper().readValue(new FastByteArrayInputStream(data), JsonNode.class);
-        assertThat(node.get("source").get("test").getTextValue(), equalTo("value"));
-    }
-
-    @Test public void testDatesObjectMapper() throws Exception {
-        Date date = new Date();
-        DateTime dateTime = new DateTime();
-        Map<String, Object> data = MapBuilder.<String, Object>newMapBuilder()
-                .put("date", date)
-                .put("dateTime", dateTime)
-                .map();
-        System.out.println("Data: " + defaultObjectMapper().writeValueAsString(data));
     }
 
     @Test public void testFieldCaseConversion() throws Exception {
-        StringJsonBuilder builder = JsonBuilder.stringJsonBuilder().fieldCaseConversion(CAMELCASE);
+        TextXContentBuilder builder = XContentFactory.contentTextBuilder(XContentType.JSON).fieldCaseConversion(CAMELCASE);
         builder.startObject().field("test_name", "value").endObject();
         assertThat(builder.string(), equalTo("{\"testName\":\"value\"}"));
 
-        builder = JsonBuilder.stringJsonBuilder().fieldCaseConversion(UNDERSCORE);
+        builder = XContentFactory.contentTextBuilder(XContentType.JSON).fieldCaseConversion(UNDERSCORE);
         builder.startObject().field("testName", "value").endObject();
         assertThat(builder.string(), equalTo("{\"test_name\":\"value\"}"));
     }

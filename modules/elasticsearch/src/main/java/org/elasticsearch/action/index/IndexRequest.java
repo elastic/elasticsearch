@@ -26,16 +26,17 @@ import org.elasticsearch.action.support.replication.ShardReplicationOperationReq
 import org.elasticsearch.util.Required;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.Unicode;
-import org.elasticsearch.util.io.FastByteArrayOutputStream;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.xcontent.XContentFactory;
+import org.elasticsearch.util.xcontent.XContentType;
+import org.elasticsearch.util.xcontent.builder.BinaryXContentBuilder;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.action.Actions.*;
-import static org.elasticsearch.util.json.Jackson.*;
 
 /**
  * Index request to index a typed JSON document into a specific index and make it searchable. Best
@@ -44,9 +45,9 @@ import static org.elasticsearch.util.json.Jackson.*;
  * <p>The index requires the {@link #index()}, {@link #type(String)}, {@link #id(String)} and
  * {@link #source(byte[])} to be set.
  *
- * <p>The source (JSON to index) can be set in its bytes form using ({@link #source(byte[])}),
- * its string form ({@link #source(String)}) or using a {@link org.elasticsearch.util.json.JsonBuilder}
- * ({@link #source(org.elasticsearch.util.json.JsonBuilder)}).
+ * <p>The source (content to index) can be set in its bytes form using ({@link #source(byte[])}),
+ * its string form ({@link #source(String)}) or using a {@link org.elasticsearch.util.xcontent.builder.XContentBuilder}
+ * ({@link #source(org.elasticsearch.util.xcontent.builder.XContentBuilder)}).
  *
  * <p>If the {@link #id(String)} is not set, it will be automatically generated.
  *
@@ -209,20 +210,20 @@ public class IndexRequest extends ShardReplicationOperationRequest {
      * @param source The map to index
      */
     @Required public IndexRequest source(Map source) throws ElasticSearchGenerationException {
-        FastByteArrayOutputStream os = FastByteArrayOutputStream.Cached.cached();
         try {
-            defaultObjectMapper().writeValue(os, source);
+            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(XContentType.JSON);
+            builder.map(source);
+            this.source = builder.copiedBytes();
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
         }
-        this.source = os.copiedByteArray();
         return this;
     }
 
     /**
      * Sets the JSON source to index.
      *
-     * <p>Note, its preferable to either set it using {@link #source(org.elasticsearch.util.json.JsonBuilder)}
+     * <p>Note, its preferable to either set it using {@link #source(org.elasticsearch.util.xcontent.builder.XContentBuilder)}
      * or using the {@link #source(byte[])}.
      */
     @Required public IndexRequest source(String source) {
@@ -231,9 +232,9 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     }
 
     /**
-     * Sets the JSON source to index.
+     * Sets the content source to index.
      */
-    @Required public IndexRequest source(JsonBuilder jsonBuilder) {
+    @Required public IndexRequest source(XContentBuilder jsonBuilder) {
         try {
             return source(jsonBuilder.copiedBytes());
         } catch (IOException e) {

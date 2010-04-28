@@ -34,7 +34,7 @@ import org.testng.annotations.Test;
 import static org.elasticsearch.action.terms.TermsRequest.SortType.*;
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.util.MapBuilder.*;
-import static org.elasticsearch.util.json.JsonBuilder.*;
+import static org.elasticsearch.util.xcontent.XContentFactory.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -81,7 +81,7 @@ public class TermsActionTests extends AbstractNodesTests {
         assertThat("no term freqs for the 'value' since nothing is indexed", termsResponse.field("value").iterator().hasNext(), equalTo(false));
 
         logger.info("Index [1]");
-        client.index(indexRequest("test").type("type1").id("1").source(binaryJsonBuilder().startObject().field("value", "aaa").endObject())).actionGet();
+        client.index(indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("value", "aaa").endObject())).actionGet();
         logger.info("Refresh");
         client.admin().indices().refresh(refreshRequest()).actionGet();
 
@@ -97,7 +97,7 @@ public class TermsActionTests extends AbstractNodesTests {
         assertThat(termsResponse.field("value").docFreq("bbb"), equalTo(-1));
 
         logger.info("Index [2]");
-        client.index(indexRequest("test").type("type1").id("2").source(binaryJsonBuilder().startObject().field("value", "bbb bbb").endObject())).actionGet();
+        client.index(indexRequest("test").type("type1").id("2").source(jsonBuilder().startObject().field("value", "bbb bbb").endObject())).actionGet();
         logger.info("Refresh");
         client.admin().indices().refresh(refreshRequest()).actionGet();
 
@@ -124,7 +124,7 @@ public class TermsActionTests extends AbstractNodesTests {
         assertThat(termsResponse.field("_all").docFreq("bbb"), equalTo(1));
 
         logger.info("Delete 3");
-        client.index(indexRequest("test").type("type1").id("3").source(binaryJsonBuilder().startObject().field("value", "bbb").endObject())).actionGet();
+        client.index(indexRequest("test").type("type1").id("3").source(jsonBuilder().startObject().field("value", "bbb").endObject())).actionGet();
         logger.info("Refresh");
         client.admin().indices().refresh(refreshRequest()).actionGet();
 

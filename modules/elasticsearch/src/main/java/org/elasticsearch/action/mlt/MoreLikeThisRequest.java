@@ -31,15 +31,16 @@ import org.elasticsearch.util.Bytes;
 import org.elasticsearch.util.Required;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.Unicode;
-import org.elasticsearch.util.io.FastByteArrayOutputStream;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.xcontent.XContentFactory;
+import org.elasticsearch.util.xcontent.XContentType;
+import org.elasticsearch.util.xcontent.builder.BinaryXContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.search.Scroll.*;
-import static org.elasticsearch.util.json.Jackson.*;
 
 /**
  * A more like this request allowing to search for documents that a "like" the provided document. The document
@@ -317,13 +318,13 @@ public class MoreLikeThisRequest implements ActionRequest {
     }
 
     public MoreLikeThisRequest searchSource(Map searchSource) {
-        FastByteArrayOutputStream os = FastByteArrayOutputStream.Cached.cached();
         try {
-            defaultObjectMapper().writeValue(os, searchSource);
+            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(XContentType.JSON);
+            builder.map(searchSource);
+            this.searchSource = builder.copiedBytes();
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + searchSource + "]", e);
         }
-        this.searchSource = os.copiedByteArray();
         return this;
     }
 

@@ -25,10 +25,12 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.util.Required;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.io.FastCharArrayWriter;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.xcontent.XContentFactory;
+import org.elasticsearch.util.xcontent.XContentType;
+import org.elasticsearch.util.xcontent.builder.TextXContentBuilder;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -36,7 +38,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.Actions.*;
 import static org.elasticsearch.util.TimeValue.*;
-import static org.elasticsearch.util.json.Jackson.*;
 
 /**
  * Puts mapping definition registered under a specific type into one or more indices. Best created with
@@ -123,7 +124,7 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
     /**
      * The mapping source definition.
      */
-    @Required public PutMappingRequest source(JsonBuilder mappingBuilder) {
+    @Required public PutMappingRequest source(XContentBuilder mappingBuilder) {
         try {
             return source(mappingBuilder.string());
         } catch (IOException e) {
@@ -135,13 +136,13 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
      * The mapping source definition.
      */
     @Required public PutMappingRequest source(Map mappingSource) {
-        FastCharArrayWriter writer = FastCharArrayWriter.Cached.cached();
         try {
-            defaultObjectMapper().writeValue(writer, mappingSource);
+            TextXContentBuilder builder = XContentFactory.contentTextBuilder(XContentType.JSON);
+            builder.map(mappingSource);
+            return source(builder.string());
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + mappingSource + "]", e);
         }
-        return source(writer.toString());
     }
 
     /**

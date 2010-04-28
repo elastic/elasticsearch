@@ -19,10 +19,10 @@
 
 package org.elasticsearch.groovy.util.json
 
-import org.elasticsearch.ElasticSearchGenerationException
-import org.elasticsearch.util.io.FastByteArrayOutputStream
-import org.elasticsearch.util.io.FastCharArrayWriter
-import static org.elasticsearch.util.json.Jackson.*
+import org.elasticsearch.util.xcontent.XContentFactory
+import org.elasticsearch.util.xcontent.XContentType
+import org.elasticsearch.util.xcontent.builder.BinaryXContentBuilder
+import org.elasticsearch.util.xcontent.builder.TextXContentBuilder
 
 /**
  * Used to build JSON data.
@@ -49,25 +49,17 @@ class JsonBuilder {
     }
 
     String buildAsString(Closure c) {
-        FastCharArrayWriter writer = FastCharArrayWriter.Cached.cached();
-        try {
-            def json = build(c)
-            defaultObjectMapper().writeValue(writer, json);
-        } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + c + "]", e);
-        }
-        return writer.toStringTrim()
+        TextXContentBuilder builder = XContentFactory.contentTextBuilder(XContentType.JSON);
+        def json = build(c)
+        builder.map(json);
+        return builder.string();
     }
 
     byte[] buildAsBytes(Closure c) {
-        FastByteArrayOutputStream os = FastByteArrayOutputStream.Cached.cached();
-        try {
-            def json = build(c)
-            defaultObjectMapper().writeValue(os, json);
-        } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + c + "]", e);
-        }
-        return os.copiedByteArray()
+        BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(XContentType.JSON);
+        def json = build(c)
+        builder.map(json);
+        return builder.copiedBytes();
     }
 
     private buildRoot(Closure c) {

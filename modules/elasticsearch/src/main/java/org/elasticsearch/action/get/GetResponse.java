@@ -26,6 +26,8 @@ import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
+import org.elasticsearch.util.xcontent.XContentFactory;
+import org.elasticsearch.util.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -34,7 +36,6 @@ import java.util.Map;
 import static org.elasticsearch.action.get.GetField.*;
 import static org.elasticsearch.util.gcommon.collect.Iterators.*;
 import static org.elasticsearch.util.gcommon.collect.Maps.*;
-import static org.elasticsearch.util.json.Jackson.*;
 
 /**
  * The response of a get action.
@@ -158,11 +159,18 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
         if (sourceAsMap != null) {
             return sourceAsMap;
         }
+        XContentParser parser = null;
         try {
-            sourceAsMap = defaultObjectMapper().readValue(source, 0, source.length, Map.class);
+            parser = XContentFactory.xContent(source).createParser(source);
+            sourceAsMap = parser.map();
+            parser.close();
             return sourceAsMap;
         } catch (Exception e) {
             throw new ElasticSearchParseException("Failed to parse source to map", e);
+        } finally {
+            if (parser != null) {
+                parser.close();
+            }
         }
     }
 

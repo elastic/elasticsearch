@@ -30,7 +30,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.node.NodeBuilder.*;
-import static org.elasticsearch.util.json.JsonBuilder.*;
+import static org.elasticsearch.util.xcontent.XContentFactory.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -56,7 +56,7 @@ public abstract class AbstractMemcachedActionsTests {
     }
 
     @Test public void testSimpleOperations() throws Exception {
-        Future setResult = memcachedClient.set("/test/person/1", 0, binaryJsonBuilder().startObject().field("test", "value").endObject().copiedBytes());
+        Future setResult = memcachedClient.set("/test/person/1", 0, jsonBuilder().startObject().field("test", "value").endObject().copiedBytes());
         setResult.get(10, TimeUnit.SECONDS);
 
         String getResult = (String) memcachedClient.get("/_refresh");

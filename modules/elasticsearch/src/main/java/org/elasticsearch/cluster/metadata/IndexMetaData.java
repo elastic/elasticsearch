@@ -19,8 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.codehaus.jackson.JsonParser;
-import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.util.MapBuilder;
 import org.elasticsearch.util.Preconditions;
 import org.elasticsearch.util.concurrent.Immutable;
@@ -28,10 +26,11 @@ import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.elasticsearch.util.gcommon.collect.ImmutableSet;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.json.JsonBuilder;
-import org.elasticsearch.util.json.ToJson;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.xcontent.ToXContent;
+import org.elasticsearch.util.xcontent.XContentParser;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -202,7 +201,7 @@ public class IndexMetaData {
             return new IndexMetaData(index, settings, mappings.immutableMap());
         }
 
-        public static void toJson(IndexMetaData indexMetaData, JsonBuilder builder, ToJson.Params params) throws IOException {
+        public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject(indexMetaData.index());
 
             builder.startObject("settings");
@@ -222,33 +221,33 @@ public class IndexMetaData {
             builder.endObject();
         }
 
-        public static IndexMetaData fromJson(JsonParser jp, @Nullable Settings globalSettings) throws IOException {
-            Builder builder = new Builder(jp.getCurrentName());
+        public static IndexMetaData fromXContent(XContentParser parser, @Nullable Settings globalSettings) throws IOException {
+            Builder builder = new Builder(parser.currentName());
 
             String currentFieldName = null;
-            JsonToken token = jp.nextToken();
-            while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
-                if (token == JsonToken.FIELD_NAME) {
-                    currentFieldName = jp.getCurrentName();
-                } else if (token == JsonToken.START_OBJECT) {
+            XContentParser.Token token = parser.nextToken();
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("settings".equals(currentFieldName)) {
                         ImmutableSettings.Builder settingsBuilder = settingsBuilder().globalSettings(globalSettings);
-                        while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
-                            String key = jp.getCurrentName();
-                            token = jp.nextToken();
-                            String value = jp.getText();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            String key = parser.currentName();
+                            token = parser.nextToken();
+                            String value = parser.text();
                             settingsBuilder.put(key, value);
                         }
                         builder.settings(settingsBuilder.build());
                     } else if ("mappings".equals(currentFieldName)) {
-                        while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
-                            String mappingType = jp.getCurrentName();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            String mappingType = parser.currentName();
                             String mappingSource = null;
-                            while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
-                                if (token == JsonToken.FIELD_NAME) {
-                                    if ("source".equals(jp.getCurrentName())) {
-                                        jp.nextToken();
-                                        mappingSource = jp.getText();
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                if (token == XContentParser.Token.FIELD_NAME) {
+                                    if ("source".equals(parser.currentName())) {
+                                        parser.nextToken();
+                                        mappingSource = parser.text();
                                     }
                                 }
                             }

@@ -29,14 +29,14 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.util.Unicode;
-import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.util.json.JsonBuilder.*;
+import static org.elasticsearch.util.xcontent.XContentFactory.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -108,12 +108,12 @@ public class TransportSearchFailuresTests extends AbstractNodesTests {
         client.index(Requests.indexRequest("test").type("type1").id(id).source(source(id, nameValue, age))).actionGet();
     }
 
-    private JsonBuilder source(String id, String nameValue, int age) throws IOException {
+    private XContentBuilder source(String id, String nameValue, int age) throws IOException {
         StringBuilder multi = new StringBuilder().append(nameValue);
         for (int i = 0; i < age; i++) {
             multi.append(" ").append(nameValue);
         }
-        return binaryJsonBuilder().startObject()
+        return jsonBuilder().startObject()
                 .field("id", id)
                 .field("name", nameValue + id)
                 .field("age", age)

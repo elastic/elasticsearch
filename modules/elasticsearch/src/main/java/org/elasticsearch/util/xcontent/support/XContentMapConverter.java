@@ -54,10 +54,6 @@ public class XContentMapConverter {
     }
 
     private static List<Object> readList(XContentParser parser, XContentParser.Token t) throws IOException {
-        if (t == XContentParser.Token.START_ARRAY) {
-            t = parser.nextToken();
-        }
-
         ArrayList<Object> list = new ArrayList<Object>();
         while ((t = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             list.add(readValue(parser, t));

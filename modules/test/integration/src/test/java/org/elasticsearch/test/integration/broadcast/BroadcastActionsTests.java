@@ -28,7 +28,9 @@ import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.util.Unicode;
-import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.xcontent.XContentFactory;
+import org.elasticsearch.util.xcontent.XContentType;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
@@ -36,7 +38,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
-import static org.elasticsearch.util.json.JsonBuilder.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -113,7 +114,7 @@ public class BroadcastActionsTests extends AbstractNodesTests {
 
     }
 
-    private JsonBuilder source(String id, String nameValue) throws IOException {
-        return jsonBuilder().startObject().field("id", id).field("name", nameValue).endObject();
+    private XContentBuilder source(String id, String nameValue) throws IOException {
+        return XContentFactory.contentBinaryBuilder(XContentType.JSON).startObject().field("id", id).field("name", nameValue).endObject();
     }
 }

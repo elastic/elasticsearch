@@ -19,12 +19,9 @@
 
 package org.elasticsearch.util.settings.loader;
 
-import org.codehaus.jackson.JsonFactory;
-import org.codehaus.jackson.JsonParser;
-import org.codehaus.jackson.JsonToken;
-import org.elasticsearch.util.io.FastByteArrayInputStream;
-import org.elasticsearch.util.io.FastStringReader;
-import org.elasticsearch.util.json.Jackson;
+import org.elasticsearch.util.xcontent.XContentFactory;
+import org.elasticsearch.util.xcontent.XContentParser;
+import org.elasticsearch.util.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,31 +34,29 @@ import static org.elasticsearch.util.gcommon.collect.Maps.*;
  * Settings loader that loads (parses) the settings in a json format by flattening them
  * into a map.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class JsonSettingsLoader implements SettingsLoader {
 
-    private final JsonFactory jsonFactory = Jackson.defaultJsonFactory();
-
     @Override public Map<String, String> load(String source) throws IOException {
-        JsonParser jp = jsonFactory.createJsonParser(new FastStringReader(source));
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(source);
         try {
-            return load(jp);
+            return load(parser);
         } finally {
-            jp.close();
+            parser.close();
         }
     }
 
     @Override public Map<String, String> load(byte[] source) throws IOException {
-        JsonParser jp = jsonFactory.createJsonParser(new FastByteArrayInputStream(source));
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(source);
         try {
-            return load(jp);
+            return load(parser);
         } finally {
-            jp.close();
+            parser.close();
         }
     }
 
-    public Map<String, String> load(JsonParser jp) throws IOException {
+    public Map<String, String> load(XContentParser jp) throws IOException {
         StringBuilder sb = new StringBuilder();
         Map<String, String> settings = newHashMap();
         List<String> path = newArrayList();
@@ -70,24 +65,24 @@ public class JsonSettingsLoader implements SettingsLoader {
         return settings;
     }
 
-    private void serializeObject(Map<String, String> settings, StringBuilder sb, List<String> path, JsonParser jp, String objFieldName) throws IOException {
+    private void serializeObject(Map<String, String> settings, StringBuilder sb, List<String> path, XContentParser parser, String objFieldName) throws IOException {
         if (objFieldName != null) {
             path.add(objFieldName);
         }
 
         String currentFieldName = null;
-        JsonToken token;
-        while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
-            if (token == JsonToken.START_OBJECT) {
-                serializeObject(settings, sb, path, jp, currentFieldName);
-            } else if (token == JsonToken.START_ARRAY) {
-                serializeArray(settings, sb, path, jp, currentFieldName);
-            } else if (token == JsonToken.FIELD_NAME) {
-                currentFieldName = jp.getCurrentName();
-            } else if (token == JsonToken.VALUE_NULL) {
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.START_OBJECT) {
+                serializeObject(settings, sb, path, parser, currentFieldName);
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                serializeArray(settings, sb, path, parser, currentFieldName);
+            } else if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_NULL) {
                 // ignore this
             } else {
-                serializeValue(settings, sb, path, jp, currentFieldName);
+                serializeValue(settings, sb, path, parser, currentFieldName);
 
             }
         }
@@ -97,31 +92,31 @@ public class JsonSettingsLoader implements SettingsLoader {
         }
     }
 
-    private void serializeArray(Map<String, String> settings, StringBuilder sb, List<String> path, JsonParser jp, String fieldName) throws IOException {
-        JsonToken token;
+    private void serializeArray(Map<String, String> settings, StringBuilder sb, List<String> path, XContentParser parser, String fieldName) throws IOException {
+        XContentParser.Token token;
         int counter = 0;
-        while ((token = jp.nextToken()) != JsonToken.END_ARRAY) {
-            if (token == JsonToken.START_OBJECT) {
-                serializeObject(settings, sb, path, jp, fieldName + '.' + (counter++));
-            } else if (token == JsonToken.START_ARRAY) {
-                serializeArray(settings, sb, path, jp, fieldName + '.' + (counter++));
-            } else if (token == JsonToken.FIELD_NAME) {
-                fieldName = jp.getCurrentName();
-            } else if (token == JsonToken.VALUE_NULL) {
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            if (token == XContentParser.Token.START_OBJECT) {
+                serializeObject(settings, sb, path, parser, fieldName + '.' + (counter++));
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                serializeArray(settings, sb, path, parser, fieldName + '.' + (counter++));
+            } else if (token == XContentParser.Token.FIELD_NAME) {
+                fieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_NULL) {
                 // ignore
             } else {
-                serializeValue(settings, sb, path, jp, fieldName + '.' + (counter++));
+                serializeValue(settings, sb, path, parser, fieldName + '.' + (counter++));
             }
         }
     }
 
-    private void serializeValue(Map<String, String> settings, StringBuilder sb, List<String> path, JsonParser jp, String fieldName) throws IOException {
+    private void serializeValue(Map<String, String> settings, StringBuilder sb, List<String> path, XContentParser parser, String fieldName) throws IOException {
         sb.setLength(0);
         for (String pathEle : path) {
             sb.append(pathEle).append('.');
         }
         sb.append(fieldName);
-        settings.put(sb.toString(), jp.getText());
+        settings.put(sb.toString(), parser.text());
     }
 
 }

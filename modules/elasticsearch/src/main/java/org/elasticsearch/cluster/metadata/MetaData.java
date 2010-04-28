@@ -19,8 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.codehaus.jackson.JsonParser;
-import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
@@ -32,10 +30,13 @@ import org.elasticsearch.util.gcommon.collect.Lists;
 import org.elasticsearch.util.gcommon.collect.UnmodifiableIterator;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.json.JsonBuilder;
-import org.elasticsearch.util.json.StringJsonBuilder;
-import org.elasticsearch.util.json.ToJson;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.xcontent.ToXContent;
+import org.elasticsearch.util.xcontent.XContentFactory;
+import org.elasticsearch.util.xcontent.XContentParser;
+import org.elasticsearch.util.xcontent.XContentType;
+import org.elasticsearch.util.xcontent.builder.TextXContentBuilder;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -270,44 +271,48 @@ public class MetaData implements Iterable<IndexMetaData> {
             return new MetaData(indices.immutableMap(), maxNumberOfShardsPerNode);
         }
 
-        public static String toJson(MetaData metaData) throws IOException {
-            StringJsonBuilder builder = JsonBuilder.stringJsonBuilder().prettyPrint();
+        public static String toXContent(MetaData metaData) throws IOException {
+            TextXContentBuilder builder = XContentFactory.contentTextBuilder(XContentType.JSON);
             builder.startObject();
-            toJson(metaData, builder, ToJson.EMPTY_PARAMS);
+            toXContent(metaData, builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             return builder.string();
         }
 
-        public static void toJson(MetaData metaData, JsonBuilder builder, ToJson.Params params) throws IOException {
+        public static void toXContent(MetaData metaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject("meta-data");
             builder.field("max_number_of_shards_per_node", metaData.maxNumberOfShardsPerNode());
 
             builder.startObject("indices");
             for (IndexMetaData indexMetaData : metaData) {
-                IndexMetaData.Builder.toJson(indexMetaData, builder, params);
+                IndexMetaData.Builder.toXContent(indexMetaData, builder, params);
             }
             builder.endObject();
 
             builder.endObject();
         }
 
-        public static MetaData fromJson(JsonParser jp, @Nullable Settings globalSettings) throws IOException {
+        public static MetaData fromXContent(XContentParser parser, @Nullable Settings globalSettings) throws IOException {
             Builder builder = new Builder();
 
             String currentFieldName = null;
-            JsonToken token = jp.nextToken();
-            while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
-                if (token == JsonToken.FIELD_NAME) {
-                    currentFieldName = jp.getCurrentName();
-                } else if (token == JsonToken.START_OBJECT) {
+            XContentParser.Token token = parser.nextToken();
+            if (token == null) {
+                // no data...
+                return builder.build();
+            }
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("indices".equals(currentFieldName)) {
-                        while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
-                            builder.put(IndexMetaData.Builder.fromJson(jp, globalSettings));
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            builder.put(IndexMetaData.Builder.fromXContent(parser, globalSettings));
                         }
                     }
-                } else if (token == JsonToken.VALUE_NUMBER_INT) {
+                } else if (token.isValue()) {
                     if ("max_number_of_shards_per_node".equals(currentFieldName)) {
-                        builder.maxNumberOfShardsPerNode(jp.getIntValue());
+                        builder.maxNumberOfShardsPerNode(parser.intValue());
                     }
                 }
             }

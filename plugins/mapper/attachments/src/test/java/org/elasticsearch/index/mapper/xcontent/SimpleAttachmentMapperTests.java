@@ -26,7 +26,7 @@ import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.util.io.Streams.*;
-import static org.elasticsearch.util.json.JsonBuilder.*;
+import static org.elasticsearch.util.xcontent.XContentFactory.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

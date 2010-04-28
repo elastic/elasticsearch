@@ -19,10 +19,6 @@
 
 package org.elasticsearch.gateway.fs;
 
-import org.elasticsearch.util.guice.inject.Inject;
-import org.elasticsearch.util.guice.inject.Module;
-import org.codehaus.jackson.JsonEncoding;
-import org.codehaus.jackson.JsonParser;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -31,12 +27,15 @@ import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.GatewayException;
 import org.elasticsearch.index.gateway.fs.FsIndexGatewayModule;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
+import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.guice.inject.Module;
 import org.elasticsearch.util.io.FileSystemUtils;
-import org.elasticsearch.util.json.BinaryJsonBuilder;
-import org.elasticsearch.util.json.Jackson;
-import org.elasticsearch.util.json.JsonBuilder;
-import org.elasticsearch.util.json.ToJson;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.xcontent.ToXContent;
+import org.elasticsearch.util.xcontent.XContentFactory;
+import org.elasticsearch.util.xcontent.XContentParser;
+import org.elasticsearch.util.xcontent.XContentType;
+import org.elasticsearch.util.xcontent.builder.BinaryXContentBuilder;
 
 import java.io.*;
 
@@ -122,15 +121,14 @@ public class FsGateway extends AbstractLifecycleComponent<Gateway> implements Ga
                 throw new GatewayException("Failed to create new file [" + file + "]");
             }
 
-            FileOutputStream fileStream = new FileOutputStream(file);
-
-            JsonBuilder builder = new BinaryJsonBuilder(Jackson.defaultJsonFactory().createJsonGenerator(fileStream, JsonEncoding.UTF8));
+            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(XContentType.JSON);
             builder.prettyPrint();
             builder.startObject();
-            MetaData.Builder.toJson(metaData, builder, ToJson.EMPTY_PARAMS);
+            MetaData.Builder.toXContent(metaData, builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            builder.close();
 
+            FileOutputStream fileStream = new FileOutputStream(file);
+            fileStream.write(builder.unsafeBytes(), 0, builder.unsafeBytesLength());
             fileStream.close();
 
             syncFile(file);
@@ -209,17 +207,13 @@ public class FsGateway extends AbstractLifecycleComponent<Gateway> implements Ga
 
     private MetaData readMetaData(File file) throws IOException {
         FileInputStream fileStream = new FileInputStream(file);
-        JsonParser jp = null;
+        XContentParser parser = null;
         try {
-            jp = Jackson.defaultJsonFactory().createJsonParser(fileStream);
-            return MetaData.Builder.fromJson(jp, settings);
+            parser = XContentFactory.xContent(XContentType.JSON).createParser(fileStream);
+            return MetaData.Builder.fromXContent(parser, settings);
         } finally {
-            if (jp != null) {
-                try {
-                    jp.close();
-                } catch (Exception e) {
-                    // ignore
-                }
+            if (parser != null) {
+                parser.close();
             }
             try {
                 fileStream.close();

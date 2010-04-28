@@ -19,8 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices.alias;
 
-import org.codehaus.jackson.JsonParser;
-import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -29,8 +27,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.util.guice.inject.Inject;
-import org.elasticsearch.util.json.Jackson;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.xcontent.XContentFactory;
+import org.elasticsearch.util.xcontent.XContentParser;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
@@ -58,16 +57,17 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
             //         { remove : { index : "test1", alias : "alias1" } }
             //     ]
             // }
-            JsonParser jp = Jackson.defaultJsonFactory().createJsonParser(request.contentAsStream());
-            JsonToken token = jp.nextToken();
+            byte[] content = request.contentAsBytes();
+            XContentParser parser = XContentFactory.xContent(content).createParser(content);
+            XContentParser.Token token = parser.nextToken();
             if (token == null) {
                 throw new ElasticSearchIllegalArgumentException("No action is specified");
             }
-            while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
-                if (token == JsonToken.START_ARRAY) {
-                    while ((token = jp.nextToken()) != JsonToken.END_ARRAY) {
-                        if (token == JsonToken.FIELD_NAME) {
-                            String action = jp.getCurrentName();
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.START_ARRAY) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            String action = parser.currentName();
                             AliasAction.Type type;
                             if ("add".equals(action)) {
                                 type = AliasAction.Type.ADD;
@@ -79,14 +79,14 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                             String index = null;
                             String alias = null;
                             String currentFieldName = null;
-                            while ((token = jp.nextToken()) != JsonToken.END_OBJECT) {
-                                if (token == JsonToken.FIELD_NAME) {
-                                    currentFieldName = jp.getCurrentName();
-                                } else if (token == JsonToken.VALUE_STRING) {
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                if (token == XContentParser.Token.FIELD_NAME) {
+                                    currentFieldName = parser.currentName();
+                                } else if (token == XContentParser.Token.VALUE_STRING) {
                                     if ("index".equals(currentFieldName)) {
-                                        index = jp.getText();
+                                        index = parser.text();
                                     } else if ("alias".equals(currentFieldName)) {
-                                        alias = jp.getText();
+                                        alias = parser.text();
                                     }
                                 }
                             }

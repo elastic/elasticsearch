@@ -31,6 +31,7 @@ import org.elasticsearch.util.gnu.trove.TIntObjectHashMap;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.xcontent.XContentFactory;
+import org.elasticsearch.util.xcontent.XContentParser;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import javax.annotation.Nullable;
@@ -41,7 +42,6 @@ import java.util.Map;
 import static org.elasticsearch.search.SearchShardTarget.*;
 import static org.elasticsearch.search.highlight.HighlightField.*;
 import static org.elasticsearch.search.internal.InternalSearchHitField.*;
-import static org.elasticsearch.util.json.Jackson.*;
 import static org.elasticsearch.util.lucene.Lucene.*;
 
 /**
@@ -130,11 +130,18 @@ public class InternalSearchHit implements SearchHit {
         if (sourceAsMap != null) {
             return sourceAsMap;
         }
+        XContentParser parser = null;
         try {
-            sourceAsMap = defaultObjectMapper().readValue(source, 0, source.length, Map.class);
+            parser = XContentFactory.xContent(source).createParser(source);
+            sourceAsMap = parser.map();
+            parser.close();
             return sourceAsMap;
         } catch (Exception e) {
             throw new ElasticSearchParseException("Failed to parse source to map", e);
+        } finally {
+            if (parser != null) {
+                parser.close();
+            }
         }
     }
 

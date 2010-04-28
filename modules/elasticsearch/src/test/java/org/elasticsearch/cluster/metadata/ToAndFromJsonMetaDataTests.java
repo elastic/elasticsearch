@@ -19,7 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.util.json.Jackson;
+import org.elasticsearch.util.xcontent.XContentFactory;
+import org.elasticsearch.util.xcontent.XContentType;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -59,10 +60,10 @@ public class ToAndFromJsonMetaDataTests {
                         .putMapping("mapping2", MAPPING_SOURCE2))
                 .build();
 
-        String metaDataSource = MetaData.Builder.toJson(metaData);
+        String metaDataSource = MetaData.Builder.toXContent(metaData);
         System.out.println("ToJson: " + metaDataSource);
 
-        MetaData parsedMetaData = MetaData.Builder.fromJson(Jackson.defaultJsonFactory().createJsonParser(metaDataSource), null);
+        MetaData parsedMetaData = MetaData.Builder.fromXContent(XContentFactory.xContent(XContentType.JSON).createParser(metaDataSource), null);
         assertThat(parsedMetaData.maxNumberOfShardsPerNode(), equalTo(2));
 
         IndexMetaData indexMetaData = metaData.index("test1");

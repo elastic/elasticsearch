@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.util.xcontent.builder.BinaryXContentBuilder;
 import org.elasticsearch.util.xcontent.builder.TextXContentBuilder;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 import org.elasticsearch.util.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -40,6 +39,10 @@ public class XContentFactory {
     static {
         contents = new XContent[1];
         contents[0] = new JsonXContent();
+    }
+
+    public static BinaryXContentBuilder jsonBuilder() throws IOException {
+        return contentBinaryBuilder(XContentType.JSON);
     }
 
     public static BinaryXContentBuilder contentBuilder(XContentType type) throws IOException {

@@ -29,9 +29,11 @@ import org.elasticsearch.util.Bytes;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.Unicode;
-import org.elasticsearch.util.io.FastByteArrayOutputStream;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.xcontent.XContentFactory;
+import org.elasticsearch.util.xcontent.XContentType;
+import org.elasticsearch.util.xcontent.builder.BinaryXContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -39,7 +41,6 @@ import java.util.Map;
 import static org.elasticsearch.action.Actions.*;
 import static org.elasticsearch.search.Scroll.*;
 import static org.elasticsearch.util.TimeValue.*;
-import static org.elasticsearch.util.json.Jackson.*;
 
 /**
  * A request to execute search against one or more indices (or all). Best created using
@@ -202,13 +203,13 @@ public class SearchRequest implements ActionRequest {
      * The source of the search request in the form of a map.
      */
     public SearchRequest source(Map source) {
-        FastByteArrayOutputStream os = FastByteArrayOutputStream.Cached.cached();
         try {
-            defaultObjectMapper().writeValue(os, source);
+            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(XContentType.JSON);
+            builder.map(source);
+            this.source = builder.copiedBytes();
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
         }
-        this.source = os.copiedByteArray();
         return this;
     }
 
@@ -235,13 +236,13 @@ public class SearchRequest implements ActionRequest {
     }
 
     public SearchRequest extraSource(Map extraSource) {
-        FastByteArrayOutputStream os = FastByteArrayOutputStream.Cached.cached();
         try {
-            defaultObjectMapper().writeValue(os, extraSource);
+            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(XContentType.JSON);
+            builder.map(extraSource);
+            this.extraSource = builder.copiedBytes();
         } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + extraSource + "]", e);
+            throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
         }
-        this.extraSource = os.copiedByteArray();
         return this;
     }
 

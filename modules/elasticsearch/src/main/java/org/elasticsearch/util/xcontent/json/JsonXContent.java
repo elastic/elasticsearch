@@ -21,10 +21,11 @@ package org.elasticsearch.util.xcontent.json;
 
 import org.codehaus.jackson.JsonEncoding;
 import org.codehaus.jackson.JsonFactory;
+import org.codehaus.jackson.JsonGenerator;
+import org.codehaus.jackson.JsonParser;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.io.FastStringReader;
-import org.elasticsearch.util.json.Jackson;
 import org.elasticsearch.util.xcontent.XContent;
 import org.elasticsearch.util.xcontent.XContentGenerator;
 import org.elasticsearch.util.xcontent.XContentParser;
@@ -101,7 +102,9 @@ public class JsonXContent implements XContent {
     private final JsonFactory jsonFactory;
 
     public JsonXContent() {
-        jsonFactory = Jackson.defaultJsonFactory();
+        jsonFactory = new JsonFactory();
+        jsonFactory.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
+        jsonFactory.configure(JsonGenerator.Feature.QUOTE_FIELD_NAMES, true);
     }
 
     @Override public XContentType type() {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test.integration.search;
 
-import org.elasticsearch.util.gcommon.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -30,7 +29,8 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.util.Unicode;
-import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.gcommon.collect.Sets;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -44,7 +44,7 @@ import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.*;
 import static org.elasticsearch.util.TimeValue.*;
-import static org.elasticsearch.util.json.JsonBuilder.*;
+import static org.elasticsearch.util.xcontent.XContentFactory.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -313,12 +313,12 @@ public class TransportTwoServersSearchTests extends AbstractNodesTests {
         client.index(Requests.indexRequest("test").type("type1").id(id).source(source(id, nameValue, age))).actionGet();
     }
 
-    private JsonBuilder source(String id, String nameValue, int age) throws IOException {
+    private XContentBuilder source(String id, String nameValue, int age) throws IOException {
         StringBuilder multi = new StringBuilder().append(nameValue);
         for (int i = 0; i < age; i++) {
             multi.append(" ").append(nameValue);
         }
-        return binaryJsonBuilder().startObject()
+        return jsonBuilder().startObject()
                 .field("id", id)
                 .field("name", nameValue + id)
                 .field("age", age)

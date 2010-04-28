@@ -17,17 +17,40 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.attachments;
+package org.elasticsearch.util.xcontent;
 
-import org.elasticsearch.util.guice.inject.AbstractModule;
-import org.elasticsearch.index.mapper.xcontent.XContentAttachmentMapperService;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
+
+import java.io.IOException;
+import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class MapperAttachmentsIndexModule extends AbstractModule {
+public interface ToXContent {
 
-    @Override protected void configure() {
-        bind(XContentAttachmentMapperService.class).asEagerSingleton();
+    public static interface Params {
+        String param(String key);
     }
+
+    public static final Params EMPTY_PARAMS = new Params() {
+        @Override public String param(String key) {
+            return null;
+        }
+    };
+
+    public static class MapParams implements Params {
+
+        private final Map<String, String> params;
+
+        public MapParams(Map<String, String> params) {
+            this.params = params;
+        }
+
+        @Override public String param(String key) {
+            return params.get(key);
+        }
+    }
+
+    void toXContent(XContentBuilder builder, Params params) throws IOException;
 }

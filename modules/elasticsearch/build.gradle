@@ -38,8 +38,8 @@ dependencies {
 
     compile 'joda-time:joda-time:1.6'
 
-    compile 'org.codehaus.jackson:jackson-core-asl:1.5.1'
-    compile 'org.codehaus.jackson:jackson-mapper-asl:1.5.1'
+    compile 'org.codehaus.jackson:jackson-core-asl:1.5.2'
+    compile 'org.codehaus.jackson:jackson-mapper-asl:1.5.2'
 
     compile 'org.apache.lucene:lucene-core:3.0.1'
     compile 'org.apache.lucene:lucene-analyzers:3.0.1'

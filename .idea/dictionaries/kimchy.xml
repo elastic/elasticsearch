@@ -32,6 +32,7 @@
       <w>infos</w>
       <w>intf</w>
       <w>iter</w>
+      <w>iterable</w>
       <w>jgroups</w>
       <w>joda</w>
       <w>jsonp</w>
@@ -79,6 +80,7 @@
       <w>uuid</w>
       <w>versioned</w>
       <w>wildcards</w>
+      <w>xcontent</w>
       <w>yaml</w>
     </words>
   </dictionary>

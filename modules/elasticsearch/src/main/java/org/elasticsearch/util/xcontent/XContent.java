@@ -17,17 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.attachments;
+package org.elasticsearch.util.xcontent;
 
-import org.elasticsearch.util.guice.inject.AbstractModule;
-import org.elasticsearch.index.mapper.xcontent.XContentAttachmentMapperService;
+import java.io.*;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class MapperAttachmentsIndexModule extends AbstractModule {
+public interface XContent {
 
-    @Override protected void configure() {
-        bind(XContentAttachmentMapperService.class).asEagerSingleton();
-    }
+    XContentType type();
+
+    XContentGenerator createGenerator(OutputStream os) throws IOException;
+
+    XContentGenerator createGenerator(Writer writer) throws IOException;
+
+    XContentParser createParser(String content) throws IOException;
+
+    XContentParser createParser(InputStream is) throws IOException;
+
+    XContentParser createParser(byte[] data) throws IOException;
+
+    XContentParser createParser(byte[] data, int offset, int length) throws IOException;
+
+    XContentParser createParser(Reader reader) throws IOException;
 }

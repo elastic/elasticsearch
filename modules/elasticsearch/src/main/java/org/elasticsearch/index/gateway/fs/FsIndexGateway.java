@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.gateway.fs;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.fs.FsGateway;
@@ -30,6 +29,7 @@ import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.Strings;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.File;

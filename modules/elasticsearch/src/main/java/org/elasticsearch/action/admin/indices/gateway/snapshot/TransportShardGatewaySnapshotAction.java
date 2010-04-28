@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.gateway.snapshot;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,6 +28,7 @@ import org.elasticsearch.index.gateway.IndexShardGatewayService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 /**

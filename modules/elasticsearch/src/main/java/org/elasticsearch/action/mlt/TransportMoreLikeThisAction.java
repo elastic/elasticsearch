@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.mlt;
 
-import org.elasticsearch.index.query.xcontent.BoolQueryBuilder;
-import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticSearchException;
@@ -37,21 +35,23 @@ import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.query.xcontent.BoolQueryBuilder;
 import org.elasticsearch.index.query.xcontent.MoreLikeThisFieldQueryBuilder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Set;
 
-import static org.elasticsearch.util.gcommon.collect.Sets.*;
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.*;
+import static org.elasticsearch.util.gcommon.collect.Sets.*;
 
 /**
  * The more like this action.

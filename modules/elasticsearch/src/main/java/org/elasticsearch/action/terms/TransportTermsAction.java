@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.terms;
 
-import org.elasticsearch.util.gcommon.collect.Maps;
-import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermDocs;
 import org.apache.lucene.index.TermEnum;
@@ -44,8 +42,10 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.BoundedTreeSet;
+import org.elasticsearch.util.gcommon.collect.Maps;
 import org.elasticsearch.util.gnu.trove.TObjectIntHashMap;
 import org.elasticsearch.util.gnu.trove.TObjectIntIterator;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 import javax.annotation.Nullable;

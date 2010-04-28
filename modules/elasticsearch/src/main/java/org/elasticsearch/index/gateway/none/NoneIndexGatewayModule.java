@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.gateway.none;
 
-import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.index.gateway.IndexGateway;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 
 /**
  * @author kimchy (Shay Banon)

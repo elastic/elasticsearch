@@ -20,7 +20,6 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.util.io.stream.Streamable;
-import org.elasticsearch.util.json.ToJson;
 import org.elasticsearch.util.xcontent.ToXContent;
 
 /**

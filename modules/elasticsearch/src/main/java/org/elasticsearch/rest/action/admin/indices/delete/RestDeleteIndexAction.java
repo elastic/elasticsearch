@@ -19,15 +19,14 @@
 
 package org.elasticsearch.rest.action.admin.indices.delete;
 
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 

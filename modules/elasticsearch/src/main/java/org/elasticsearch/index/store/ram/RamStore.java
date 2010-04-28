@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.store.ram;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.support.AbstractStore;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;

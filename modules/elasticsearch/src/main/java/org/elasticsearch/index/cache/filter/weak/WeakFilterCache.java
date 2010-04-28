@@ -19,14 +19,14 @@
 
 package org.elasticsearch.index.cache.filter.weak;
 
-import org.elasticsearch.util.gcommon.collect.MapMaker;
-import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.support.AbstractConcurrentMapFilterCache;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.util.gcommon.collect.MapMaker;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.concurrent.ConcurrentMap;

@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import org.elasticsearch.util.gcommon.collect.UnmodifiableIterator;
-import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.env.Environment;
@@ -32,6 +29,9 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapperParser;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.concurrent.ThreadSafe;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.UnmodifiableIterator;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.io.Streams;
 import org.elasticsearch.util.settings.Settings;
 

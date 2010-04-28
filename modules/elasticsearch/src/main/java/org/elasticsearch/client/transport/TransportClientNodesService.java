@@ -19,8 +19,6 @@
 
 package org.elasticsearch.client.transport;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -37,6 +35,8 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.component.AbstractComponent;
+import org.elasticsearch.util.gcommon.collect.ImmutableList;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.transport.TransportAddress;
 

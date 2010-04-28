@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index.query.xcontent;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.elasticsearch.util.settings.Settings;
 
 import javax.annotation.Nullable;
@@ -41,10 +41,10 @@ public class XContentQueryParserRegistry {
     private final Map<String, XContentFilterParser> filterParsers;
 
     public XContentQueryParserRegistry(Index index,
-                                   @IndexSettings Settings indexSettings,
-                                   AnalysisService analysisService,
-                                   @Nullable Iterable<XContentQueryParser> queryParsers,
-                                   @Nullable Iterable<XContentFilterParser> filterParsers) {
+                                       @IndexSettings Settings indexSettings,
+                                       AnalysisService analysisService,
+                                       @Nullable Iterable<XContentQueryParser> queryParsers,
+                                       @Nullable Iterable<XContentFilterParser> filterParsers) {
 
         Map<String, XContentQueryParser> queryParsersMap = newHashMap();
         // add defaults

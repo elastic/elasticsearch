@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.store.ram;
 
-import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 
 /**
  * @author kimchy (Shay Banon)

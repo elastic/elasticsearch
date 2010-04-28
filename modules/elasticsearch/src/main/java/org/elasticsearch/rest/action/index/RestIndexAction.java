@@ -19,14 +19,13 @@
 
 package org.elasticsearch.rest.action.index;
 
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 

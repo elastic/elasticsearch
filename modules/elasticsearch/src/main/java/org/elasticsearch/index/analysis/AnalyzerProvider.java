@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.util.guice.inject.Provider;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.index.IndexComponent;
+import org.elasticsearch.util.guice.inject.Provider;
 
 /**
  * @author kimchy (Shay Banon)

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.support.broadcast;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.BaseAction;
@@ -34,6 +33,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
+import org.elasticsearch.util.gcommon.collect.ImmutableList;
 import org.elasticsearch.util.io.ThrowableObjectInputStream;
 import org.elasticsearch.util.io.ThrowableObjectOutputStream;
 import org.elasticsearch.util.io.stream.StreamInput;

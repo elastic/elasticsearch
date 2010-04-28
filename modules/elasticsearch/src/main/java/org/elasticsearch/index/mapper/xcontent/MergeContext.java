@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.mapper.xcontent;
 
-import org.elasticsearch.util.gcommon.collect.Lists;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.util.gcommon.collect.Lists;
 
 import java.util.List;
 

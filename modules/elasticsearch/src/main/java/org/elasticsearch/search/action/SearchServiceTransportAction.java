@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.action;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.search.SearchService;
@@ -32,6 +31,7 @@ import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.*;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.io.stream.LongStreamable;
 import org.elasticsearch.util.io.stream.VoidStreamable;
 

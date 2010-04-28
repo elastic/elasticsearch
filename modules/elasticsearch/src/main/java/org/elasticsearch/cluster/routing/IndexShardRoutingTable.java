@@ -19,10 +19,10 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
-import org.elasticsearch.util.gcommon.collect.UnmodifiableIterator;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.util.concurrent.jsr166y.ThreadLocalRandom;
+import org.elasticsearch.util.gcommon.collect.ImmutableList;
+import org.elasticsearch.util.gcommon.collect.UnmodifiableIterator;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 

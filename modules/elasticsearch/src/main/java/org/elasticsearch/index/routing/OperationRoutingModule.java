@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.routing;
 
-import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.index.routing.hash.HashFunction;
 import org.elasticsearch.index.routing.hash.djb.DjbHashFunction;
 import org.elasticsearch.index.routing.plain.PlainOperationRoutingModule;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.util.settings.Settings;
 
 import static org.elasticsearch.util.guice.ModulesFactory.*;

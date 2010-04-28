@@ -19,13 +19,13 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.util.MapBuilder;
 import org.elasticsearch.util.Preconditions;
 import org.elasticsearch.util.concurrent.Immutable;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.ImmutableSet;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.json.JsonBuilder;

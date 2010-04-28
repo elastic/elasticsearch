@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.gateway;
 
-import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.util.guice.ModulesFactory;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.util.settings.Settings;
 
 /**

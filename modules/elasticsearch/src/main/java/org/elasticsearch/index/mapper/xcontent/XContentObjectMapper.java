@@ -249,12 +249,12 @@ public class XContentObjectMapper implements XContentMapper, XContentIncludeInAl
     }
 
     protected XContentObjectMapper(String name, boolean enabled, boolean dynamic, ContentPath.Type pathType,
-                               FormatDateTimeFormatter[] dateTimeFormatters) {
+                                   FormatDateTimeFormatter[] dateTimeFormatters) {
         this(name, enabled, dynamic, pathType, dateTimeFormatters, null);
     }
 
     XContentObjectMapper(String name, boolean enabled, boolean dynamic, ContentPath.Type pathType,
-                     FormatDateTimeFormatter[] dateTimeFormatters, Map<String, XContentMapper> mappers) {
+                         FormatDateTimeFormatter[] dateTimeFormatters, Map<String, XContentMapper> mappers) {
         this.name = name;
         this.enabled = enabled;
         this.dynamic = dynamic;

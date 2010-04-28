@@ -23,7 +23,6 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.util.io.stream.Streamable;
-import org.elasticsearch.util.json.ToJson;
 import org.elasticsearch.util.xcontent.ToXContent;
 
 import java.util.Map;

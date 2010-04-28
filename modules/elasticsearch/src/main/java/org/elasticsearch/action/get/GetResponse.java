@@ -19,10 +19,10 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.util.Unicode;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
@@ -31,9 +31,9 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 
+import static org.elasticsearch.action.get.GetField.*;
 import static org.elasticsearch.util.gcommon.collect.Iterators.*;
 import static org.elasticsearch.util.gcommon.collect.Maps.*;
-import static org.elasticsearch.action.get.GetField.*;
 import static org.elasticsearch.util.json.Jackson.*;
 
 /**

@@ -25,8 +25,6 @@ import org.elasticsearch.search.facets.Facets;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.json.JsonBuilder;
-import org.elasticsearch.util.json.ToJson;
 import org.elasticsearch.util.xcontent.ToXContent;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 

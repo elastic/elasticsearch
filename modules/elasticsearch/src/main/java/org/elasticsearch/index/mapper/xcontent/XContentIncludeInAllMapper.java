@@ -17,17 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.attachments;
-
-import org.elasticsearch.util.guice.inject.AbstractModule;
-import org.elasticsearch.index.mapper.xcontent.XContentAttachmentMapperService;
+package org.elasticsearch.index.mapper.xcontent;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class MapperAttachmentsIndexModule extends AbstractModule {
+public interface XContentIncludeInAllMapper extends XContentMapper {
 
-    @Override protected void configure() {
-        bind(XContentAttachmentMapperService.class).asEagerSingleton();
-    }
+    void includeInAll(Boolean includeInAll);
 }

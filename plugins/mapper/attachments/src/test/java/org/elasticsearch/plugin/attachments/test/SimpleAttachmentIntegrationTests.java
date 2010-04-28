@@ -70,12 +70,12 @@ public class SimpleAttachmentIntegrationTests {
     }
 
     @Test public void testSimpleAttachment() throws Exception {
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/plugin/attachments/index/mapper/test-mapping.json");
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/test-mapping.json");
 
         node.client().admin().indices().putMapping(putMappingRequest("test").source(mapping)).actionGet();
 
         node.client().index(indexRequest("test").type("person")
-                .source(jsonBuilder().startObject().field("file", copyToBytesFromClasspath("/org/elasticsearch/plugin/attachments/index/mapper/testXHTML.html")).endObject())).actionGet();
+                .source(jsonBuilder().startObject().field("file", copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/testXHTML.html")).endObject())).actionGet();
         node.client().admin().indices().refresh(refreshRequest()).actionGet();
 
         CountResponse countResponse = node.client().count(countRequest("test").query(fieldQuery("file.title", "test document"))).actionGet();

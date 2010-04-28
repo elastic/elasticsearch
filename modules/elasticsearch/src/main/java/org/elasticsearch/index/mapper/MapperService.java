@@ -29,7 +29,7 @@ import org.elasticsearch.env.FailedToResolveConfigException;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.mapper.json.JsonDocumentMapperParser;
+import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapperParser;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.concurrent.ThreadSafe;
 import org.elasticsearch.util.io.Streams;
@@ -85,7 +85,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
 
     @Inject public MapperService(Index index, @IndexSettings Settings indexSettings, Environment environment, AnalysisService analysisService) {
         super(index, indexSettings);
-        this.documentParser = new JsonDocumentMapperParser(analysisService);
+        this.documentParser = new XContentDocumentMapperParser(analysisService);
         this.searchAnalyzer = new SmartIndexNameSearchAnalyzer(analysisService.defaultSearchAnalyzer());
         this.indexClassLoader = indexSettings.getClassLoader();
 
@@ -97,7 +97,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 dynamicMappingUrl = environment.resolveConfig("dynamic-mapping.json");
             } catch (FailedToResolveConfigException e) {
                 // not there, default to the built in one
-                dynamicMappingUrl = indexClassLoader.getResource("org/elasticsearch/index/mapper/json/dynamic-mapping.json");
+                dynamicMappingUrl = indexClassLoader.getResource("org/elasticsearch/index/mapper/xcontent/dynamic-mapping.json");
             }
         } else {
             try {

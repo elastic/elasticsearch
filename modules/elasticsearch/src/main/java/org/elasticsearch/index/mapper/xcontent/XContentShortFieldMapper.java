@@ -91,8 +91,8 @@ public class XContentShortFieldMapper extends XContentNumberFieldMapper<Short> {
     private final String nullValueAsString;
 
     protected XContentShortFieldMapper(Names names, int precisionStep, Field.Index index, Field.Store store,
-                                   float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
-                                   Short nullValue) {
+                                       float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
+                                       Short nullValue) {
         super(names, precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions,
                 new NamedAnalyzer("_short/" + precisionStep, new NumericIntegerAnalyzer(precisionStep)),
                 new NamedAnalyzer("_short/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)));

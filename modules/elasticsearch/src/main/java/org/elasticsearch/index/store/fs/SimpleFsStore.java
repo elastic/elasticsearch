@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.store.fs;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.SimpleFSDirectory;
@@ -28,6 +27,7 @@ import org.elasticsearch.index.LocalNodeId;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.support.ForceSyncDirectory;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.lucene.store.SwitchDirectory;
 import org.elasticsearch.util.settings.Settings;
 

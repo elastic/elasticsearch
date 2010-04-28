@@ -19,12 +19,12 @@
 
 package org.elasticsearch.client.transport.action.admin.cluster.ping.broadcast;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingRequest;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingResponse;
 import org.elasticsearch.client.transport.action.support.BaseClientTransportAction;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 /**

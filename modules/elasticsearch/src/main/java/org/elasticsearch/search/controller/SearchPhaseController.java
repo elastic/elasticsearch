@@ -19,9 +19,6 @@
 
 package org.elasticsearch.search.controller;
 
-import org.elasticsearch.util.gcommon.collect.Iterables;
-import org.elasticsearch.util.gcommon.collect.Lists;
-import org.elasticsearch.util.gcommon.collect.Maps;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
@@ -42,6 +39,9 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
+import org.elasticsearch.util.gcommon.collect.Iterables;
+import org.elasticsearch.util.gcommon.collect.Lists;
+import org.elasticsearch.util.gcommon.collect.Maps;
 import org.elasticsearch.util.trove.ExtTIntArrayList;
 import org.elasticsearch.util.trove.ExtTObjectIntHasMap;
 

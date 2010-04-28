@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.util.concurrent.Immutable;
 import org.elasticsearch.util.gcommon.collect.ImmutableList;
 import org.elasticsearch.util.gcommon.collect.Iterators;
 import org.elasticsearch.util.gcommon.collect.UnmodifiableIterator;
-import org.elasticsearch.util.concurrent.Immutable;
 
 /**
  * A holder for several {@link FieldMapper}.

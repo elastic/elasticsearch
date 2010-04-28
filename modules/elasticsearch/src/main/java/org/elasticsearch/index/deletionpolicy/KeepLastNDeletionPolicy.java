@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.deletionpolicy;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;

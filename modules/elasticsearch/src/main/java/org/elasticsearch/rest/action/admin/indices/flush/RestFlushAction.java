@@ -19,8 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices.flush;
 
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -28,7 +26,8 @@ import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 

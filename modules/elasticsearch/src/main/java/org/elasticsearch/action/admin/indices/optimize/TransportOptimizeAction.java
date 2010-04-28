@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.optimize;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.TransportActions;
@@ -35,6 +34,7 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.List;

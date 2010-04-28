@@ -72,7 +72,7 @@ public class XContentTypeFieldMapper extends XContentFieldMapper<String> impleme
     }
 
     public XContentTypeFieldMapper(String name, String indexName, Field.Store store, Field.TermVector termVector,
-                               float boost, boolean omitNorms, boolean omitTermFreqAndPositions) {
+                                   float boost, boolean omitNorms, boolean omitTermFreqAndPositions) {
         super(new Names(name, indexName, indexName, name), Defaults.INDEX, store, termVector, boost, omitNorms, omitTermFreqAndPositions,
                 Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
     }

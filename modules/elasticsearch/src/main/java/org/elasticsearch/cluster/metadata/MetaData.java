@@ -19,10 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
-import org.elasticsearch.util.gcommon.collect.Lists;
-import org.elasticsearch.util.gcommon.collect.UnmodifiableIterator;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -30,6 +26,10 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.util.MapBuilder;
 import org.elasticsearch.util.concurrent.Immutable;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.ImmutableSet;
+import org.elasticsearch.util.gcommon.collect.Lists;
+import org.elasticsearch.util.gcommon.collect.UnmodifiableIterator;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.json.JsonBuilder;
@@ -41,9 +41,9 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.*;
 
+import static org.elasticsearch.util.MapBuilder.*;
 import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static org.elasticsearch.util.gcommon.collect.Sets.*;
-import static org.elasticsearch.util.MapBuilder.*;
 
 /**
  * @author kimchy (shay.banon)

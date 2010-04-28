@@ -91,8 +91,8 @@ public class XContentFloatFieldMapper extends XContentNumberFieldMapper<Float> {
     private final String nullValueAsString;
 
     protected XContentFloatFieldMapper(Names names, int precisionStep, Field.Index index, Field.Store store,
-                                   float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
-                                   Float nullValue) {
+                                       float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
+                                       Float nullValue) {
         super(names, precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions,
                 new NamedAnalyzer("_float/" + precisionStep, new NumericFloatAnalyzer(precisionStep)),
                 new NamedAnalyzer("_float/max", new NumericFloatAnalyzer(Integer.MAX_VALUE)));

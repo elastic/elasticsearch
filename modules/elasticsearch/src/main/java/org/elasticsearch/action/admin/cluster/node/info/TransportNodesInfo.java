@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.nodes.NodeOperationRequest;
@@ -30,6 +28,8 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.MapBuilder;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.ArrayList;

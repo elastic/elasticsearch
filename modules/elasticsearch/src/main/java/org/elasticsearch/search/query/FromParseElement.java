@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.query;
 
-import org.codehaus.jackson.JsonParser;
-import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.util.xcontent.XContentParser;

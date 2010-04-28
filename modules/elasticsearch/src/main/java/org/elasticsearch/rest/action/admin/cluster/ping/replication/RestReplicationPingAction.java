@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.cluster.ping.replication;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.ping.replication.IndexReplicationPingResponse;
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingRequest;
@@ -29,7 +28,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
-import org.elasticsearch.util.json.JsonBuilder;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 

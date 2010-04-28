@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.shard.recovery;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.ElasticSearchException;
@@ -43,6 +42,7 @@ import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.StopWatch;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.component.CloseableComponent;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;

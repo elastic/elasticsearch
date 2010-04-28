@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.action.index;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -29,6 +28,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.VoidTransportResponseHandler;
 import org.elasticsearch.util.component.AbstractComponent;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;

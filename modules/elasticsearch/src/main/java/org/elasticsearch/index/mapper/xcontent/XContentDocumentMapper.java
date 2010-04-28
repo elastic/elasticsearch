@@ -166,14 +166,14 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
     private final Object mutex = new Object();
 
     public XContentDocumentMapper(XContentObjectMapper rootObjectMapper,
-                              XContentUidFieldMapper uidFieldMapper,
-                              XContentIdFieldMapper idFieldMapper,
-                              XContentTypeFieldMapper typeFieldMapper,
-                              XContentSourceFieldMapper sourceFieldMapper,
-                              XContentAllFieldMapper allFieldMapper,
-                              Analyzer indexAnalyzer, Analyzer searchAnalyzer,
-                              @Nullable XContentBoostFieldMapper boostFieldMapper,
-                              @Nullable String mappingSource) {
+                                  XContentUidFieldMapper uidFieldMapper,
+                                  XContentIdFieldMapper idFieldMapper,
+                                  XContentTypeFieldMapper typeFieldMapper,
+                                  XContentSourceFieldMapper sourceFieldMapper,
+                                  XContentAllFieldMapper allFieldMapper,
+                                  Analyzer indexAnalyzer, Analyzer searchAnalyzer,
+                                  @Nullable XContentBoostFieldMapper boostFieldMapper,
+                                  @Nullable String mappingSource) {
         this.type = rootObjectMapper.name();
         this.mappingSource = mappingSource;
         this.rootObjectMapper = rootObjectMapper;

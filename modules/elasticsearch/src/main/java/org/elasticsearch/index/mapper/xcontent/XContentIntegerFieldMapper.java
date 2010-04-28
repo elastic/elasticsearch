@@ -91,8 +91,8 @@ public class XContentIntegerFieldMapper extends XContentNumberFieldMapper<Intege
     private final String nullValueAsString;
 
     protected XContentIntegerFieldMapper(Names names, int precisionStep, Field.Index index, Field.Store store,
-                                     float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
-                                     Integer nullValue) {
+                                         float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
+                                         Integer nullValue) {
         super(names, precisionStep, index, store, boost, omitNorms, omitTermFreqAndPositions,
                 new NamedAnalyzer("_int/" + precisionStep, new NumericIntegerAnalyzer(precisionStep)),
                 new NamedAnalyzer("_int/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)));

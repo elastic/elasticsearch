@@ -19,14 +19,14 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
-import org.elasticsearch.util.gcommon.collect.Iterators;
-import org.elasticsearch.util.guice.inject.Inject;
-import org.elasticsearch.util.guice.inject.assistedinject.Assisted;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.nl.DutchStemFilter;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.util.gcommon.collect.ImmutableSet;
+import org.elasticsearch.util.gcommon.collect.Iterators;
+import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.guice.inject.assistedinject.Assisted;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.Set;

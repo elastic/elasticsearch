@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.index.NodeIndexCreatedAction;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
@@ -30,6 +29,7 @@ import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.strategy.DefaultShardsRoutingStrategy;
 import org.elasticsearch.cluster.routing.strategy.ShardsRoutingStrategy;
 import org.elasticsearch.cluster.service.InternalClusterService;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.util.settings.Settings;
 
 /**

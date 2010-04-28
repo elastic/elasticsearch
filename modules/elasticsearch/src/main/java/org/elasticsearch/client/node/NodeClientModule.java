@@ -19,11 +19,11 @@
 
 package org.elasticsearch.client.node;
 
-import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 
 /**
  * @author kimchy (shay.banon)

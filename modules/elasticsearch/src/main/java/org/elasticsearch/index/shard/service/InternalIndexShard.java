@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.shard.service;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
@@ -50,6 +49,7 @@ import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.concurrent.ThreadSafe;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.lucene.Lucene;
 import org.elasticsearch.util.lucene.search.TermFilter;
 import org.elasticsearch.util.settings.Settings;

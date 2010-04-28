@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.elasticsearch.index.analysis.FieldNameAnalyzer;
+import org.elasticsearch.util.concurrent.Immutable;
 import org.elasticsearch.util.gcommon.collect.ImmutableList;
 import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.elasticsearch.util.gcommon.collect.Iterables;
 import org.elasticsearch.util.gcommon.collect.UnmodifiableIterator;
-import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.index.analysis.FieldNameAnalyzer;
-import org.elasticsearch.util.concurrent.Immutable;
 
 import java.util.Map;
 

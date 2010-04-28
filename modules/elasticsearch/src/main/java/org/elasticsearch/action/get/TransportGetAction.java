@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldSelector;
 import org.apache.lucene.document.Fieldable;
@@ -34,6 +33,7 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.lucene.Lucene;
 import org.elasticsearch.util.settings.Settings;
 

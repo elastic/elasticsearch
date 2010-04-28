@@ -19,12 +19,12 @@
 
 package org.elasticsearch.client.transport.action.admin.indices.status;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.client.transport.action.support.BaseClientTransportAction;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 /**

@@ -19,16 +19,16 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
 

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.action.admin.indices.alias;
 
-import org.elasticsearch.util.gcommon.collect.Lists;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.metadata.AliasAction;
+import org.elasticsearch.util.gcommon.collect.Lists;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 

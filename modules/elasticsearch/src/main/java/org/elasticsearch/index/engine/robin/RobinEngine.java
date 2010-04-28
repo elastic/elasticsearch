@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.engine.robin;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LogMergePolicy;
@@ -42,6 +41,7 @@ import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.concurrent.resource.AcquirableResource;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.lucene.IndexWriters;
 import org.elasticsearch.util.lucene.ReaderSearcherHolder;
 import org.elasticsearch.util.settings.Settings;

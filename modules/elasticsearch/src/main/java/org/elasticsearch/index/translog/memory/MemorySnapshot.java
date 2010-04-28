@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.translog.memory;
 
-import org.elasticsearch.util.gcommon.collect.Iterables;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.util.gcommon.collect.Iterables;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 

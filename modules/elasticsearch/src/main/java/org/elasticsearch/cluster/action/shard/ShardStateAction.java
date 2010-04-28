@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.action.shard;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -36,6 +35,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.VoidTransportResponseHandler;
 import org.elasticsearch.util.component.AbstractComponent;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
@@ -44,9 +44,9 @@ import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.routing.ImmutableShardRouting.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 
 /**
  * @author kimchy (Shay Banon)

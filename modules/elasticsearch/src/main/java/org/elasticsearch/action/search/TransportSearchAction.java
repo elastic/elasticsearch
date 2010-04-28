@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.search.type.TransportSearchDfsQueryAndFetchAction;
@@ -30,6 +29,7 @@ import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 import static org.elasticsearch.action.search.SearchType.*;

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.transport.action;
 
-import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.client.transport.action.admin.cluster.health.ClientTransportClusterHealthAction;
 import org.elasticsearch.client.transport.action.admin.cluster.node.info.ClientTransportNodesInfoAction;
 import org.elasticsearch.client.transport.action.admin.cluster.node.shutdown.ClientTransportNodesShutdownAction;
@@ -45,6 +44,7 @@ import org.elasticsearch.client.transport.action.index.ClientTransportIndexActio
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchAction;
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchScrollAction;
 import org.elasticsearch.client.transport.action.terms.ClientTransportTermsAction;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 
 /**
  * @author kimchy (shay.banon)

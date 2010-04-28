@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.component.CloseableComponent;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
 

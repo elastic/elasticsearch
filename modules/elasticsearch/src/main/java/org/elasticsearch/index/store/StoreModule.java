@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.store;
 
-import org.elasticsearch.util.guice.inject.AbstractModule;
-import org.elasticsearch.util.guice.inject.Module;
 import org.elasticsearch.index.store.fs.MmapFsStoreModule;
 import org.elasticsearch.index.store.fs.NioFsStoreModule;
 import org.elasticsearch.index.store.fs.SimpleFsStoreModule;
@@ -28,6 +26,8 @@ import org.elasticsearch.index.store.memory.MemoryStoreModule;
 import org.elasticsearch.index.store.ram.RamStoreModule;
 import org.elasticsearch.util.OsUtils;
 import org.elasticsearch.util.guice.ModulesFactory;
+import org.elasticsearch.util.guice.inject.AbstractModule;
+import org.elasticsearch.util.guice.inject.Module;
 import org.elasticsearch.util.settings.Settings;
 
 /**

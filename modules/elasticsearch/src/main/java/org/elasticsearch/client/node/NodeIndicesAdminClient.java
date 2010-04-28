@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.node;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -54,6 +53,7 @@ import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.admin.indices.status.TransportIndicesStatusAction;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.util.component.AbstractComponent;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 /**

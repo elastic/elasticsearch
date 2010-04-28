@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.search.type;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.cluster.ClusterService;
@@ -37,6 +36,7 @@ import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.Collection;

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.cache;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;

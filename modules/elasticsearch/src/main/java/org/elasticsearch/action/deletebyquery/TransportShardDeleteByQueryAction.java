@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.deletebyquery;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -30,6 +29,7 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 /**

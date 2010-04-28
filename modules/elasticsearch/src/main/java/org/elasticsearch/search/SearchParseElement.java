@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search;
 
-import org.codehaus.jackson.JsonParser;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.util.xcontent.XContentParser;
 

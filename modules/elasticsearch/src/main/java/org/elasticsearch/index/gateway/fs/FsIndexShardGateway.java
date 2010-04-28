@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.gateway.fs;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
@@ -37,6 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.io.stream.DataInputStreamInput;
 import org.elasticsearch.util.io.stream.DataOutputStreamOutput;
 import org.elasticsearch.util.io.stream.StreamOutput;
@@ -50,8 +50,8 @@ import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static org.elasticsearch.index.translog.TranslogStreams.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static org.elasticsearch.util.io.FileSystemUtils.*;
 import static org.elasticsearch.util.lucene.Directories.*;
 

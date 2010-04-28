@@ -19,11 +19,11 @@
 
 package org.elasticsearch.client.transport;
 
-import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.client.transport.support.InternalTransportAdminClient;
 import org.elasticsearch.client.transport.support.InternalTransportClient;
 import org.elasticsearch.client.transport.support.InternalTransportClusterAdminClient;
 import org.elasticsearch.client.transport.support.InternalTransportIndicesAdminClient;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 
 /**
  * @author kimchy (Shay Banon)

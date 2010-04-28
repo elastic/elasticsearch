@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.transport.support;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -57,6 +56,7 @@ import org.elasticsearch.client.transport.action.admin.indices.refresh.ClientTra
 import org.elasticsearch.client.transport.action.admin.indices.status.ClientTransportIndicesStatusAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.util.component.AbstractComponent;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 /**

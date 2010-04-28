@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.routing.plain;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -35,6 +34,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.util.IdentityHashSet;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 import javax.annotation.Nullable;

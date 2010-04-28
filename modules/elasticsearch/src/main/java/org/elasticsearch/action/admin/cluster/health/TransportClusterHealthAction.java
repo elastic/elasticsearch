@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
@@ -34,6 +33,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 /**

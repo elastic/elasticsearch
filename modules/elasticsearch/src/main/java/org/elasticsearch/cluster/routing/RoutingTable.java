@@ -19,14 +19,14 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import org.elasticsearch.util.gcommon.collect.Lists;
-import org.elasticsearch.util.gcommon.collect.UnmodifiableIterator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.util.concurrent.Immutable;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.Lists;
+import org.elasticsearch.util.gcommon.collect.UnmodifiableIterator;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 

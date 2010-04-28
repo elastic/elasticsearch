@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.status;
 
-import org.elasticsearch.util.gcommon.collect.Iterators;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.util.SizeValue;
+import org.elasticsearch.util.gcommon.collect.Iterators;
 
 import java.util.Iterator;
 

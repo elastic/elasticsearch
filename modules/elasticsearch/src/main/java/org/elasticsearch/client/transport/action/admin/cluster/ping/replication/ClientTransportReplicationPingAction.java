@@ -19,12 +19,12 @@
 
 package org.elasticsearch.client.transport.action.admin.cluster.ping.replication;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingRequest;
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingResponse;
 import org.elasticsearch.client.transport.action.support.BaseClientTransportAction;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 /**

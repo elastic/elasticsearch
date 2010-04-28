@@ -20,7 +20,6 @@
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.Query;
-import org.codehaus.jackson.JsonParser;
 import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;

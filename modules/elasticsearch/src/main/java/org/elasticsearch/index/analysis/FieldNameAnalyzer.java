@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 
 import java.io.IOException;
 import java.io.Reader;

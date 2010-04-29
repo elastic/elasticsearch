@@ -75,12 +75,16 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
 
     private class IndexReaderCleaner implements Runnable {
         @Override public void run() {
+            int totalCount = cache.size();
+            int cleaned = 0;
             for (Iterator<IndexReader> readerIt = cache.keySet().iterator(); readerIt.hasNext();) {
                 IndexReader reader = readerIt.next();
                 if (reader.getRefCount() <= 0) {
                     readerIt.remove();
+                    cleaned++;
                 }
             }
+            logger.trace("Cleaned [{}] out of estimated total [{}]", cleaned, totalCount);
         }
     }
 

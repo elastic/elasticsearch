@@ -225,8 +225,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             queryPhase.execute(context);
             shortcutDocIdsToLoad(context);
             fetchPhase.execute(context);
-            if (context.scroll() != null) {
-                activeContexts.put(context.id(), context);
+            if (context.scroll() == null) {
+                freeContext(request.id());
             }
             return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
         } catch (RuntimeException e) {

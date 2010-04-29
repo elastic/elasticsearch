@@ -27,6 +27,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.xcontent.XContentFactory;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
@@ -87,7 +88,12 @@ public class RestGetAction extends BaseRestHandler {
                         builder.field("_type", response.type());
                         builder.field("_id", response.id());
                         if (response.source() != null) {
-                            builder.rawField("_source", response.source());
+                            if (builder.contentType() == XContentFactory.xContentType(response.source())) {
+                                builder.rawField("_source", response.source());
+                            } else {
+                                builder.field("_source");
+                                builder.value(response.source());
+                            }
                         }
 
                         if (response.fields() != null && !response.fields().isEmpty()) {

@@ -206,10 +206,10 @@ public class InternalSearchHit implements SearchHit {
         builder.field("_id", id());
         if (source() != null) {
             if (XContentFactory.xContentType(source()) == builder.contentType()) {
+                builder.rawField("_source", source());
+            } else {
                 builder.field("_source");
                 builder.value(source());
-            } else {
-                builder.rawField("_source", source());
             }
         }
         if (fields != null && !fields.isEmpty()) {

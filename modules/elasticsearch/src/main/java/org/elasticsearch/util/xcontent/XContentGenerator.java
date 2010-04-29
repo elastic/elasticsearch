@@ -20,8 +20,6 @@
 package org.elasticsearch.util.xcontent;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.BigInteger;
 
 /**
  * @author kimchy (shay.banon)
@@ -54,13 +52,9 @@ public interface XContentGenerator {
 
     void writeNumber(long v) throws IOException;
 
-    void writeNumber(BigInteger v) throws IOException;
-
     void writeNumber(double d) throws IOException;
 
     void writeNumber(float f) throws IOException;
-
-    void writeNumber(BigDecimal dec) throws IOException;
 
     void writeBoolean(boolean state) throws IOException;
 
@@ -80,8 +74,6 @@ public interface XContentGenerator {
     void writeNumberField(String fieldName, double value) throws IOException;
 
     void writeNumberField(String fieldName, float value) throws IOException;
-
-    void writeNumberField(String fieldName, BigDecimal value) throws IOException;
 
     void writeBinaryField(String fieldName, byte[] data) throws IOException;
 

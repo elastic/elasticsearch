@@ -25,6 +25,8 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
+ * An interface allowing to transfer an object to "XContent" using an {@link org.elasticsearch.util.xcontent.builder.XContentBuilder}.
+ *
  * @author kimchy (shay.banon)
  */
 public interface ToXContent {

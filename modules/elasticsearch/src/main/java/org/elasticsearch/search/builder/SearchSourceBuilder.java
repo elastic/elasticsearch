@@ -20,14 +20,16 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
-import org.elasticsearch.search.SearchException;
 import org.elasticsearch.util.gnu.trove.TObjectFloatHashMap;
 import org.elasticsearch.util.gnu.trove.TObjectFloatIterator;
+import org.elasticsearch.util.io.FastByteArrayOutputStream;
 import org.elasticsearch.util.xcontent.ToXContent;
 import org.elasticsearch.util.xcontent.XContentFactory;
 import org.elasticsearch.util.xcontent.XContentType;
+import org.elasticsearch.util.xcontent.builder.BinaryXContentBuilder;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -40,7 +42,7 @@ import static org.elasticsearch.util.gcommon.collect.Lists.*;
  * @author kimchy (shay.banon)
  * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
-public class SearchSourceBuilder {
+public class SearchSourceBuilder implements ToXContent {
 
     public static enum Order {
         ASC,
@@ -253,85 +255,104 @@ public class SearchSourceBuilder {
         return this;
     }
 
+    public FastByteArrayOutputStream buildAsUnsafeBytes() throws SearchSourceBuilderException {
+        return buildAsUnsafeBytes(XContentType.JSON);
+    }
 
-    public byte[] build() throws SearchException {
+    public FastByteArrayOutputStream buildAsUnsafeBytes(XContentType contentType) throws SearchSourceBuilderException {
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            builder.startObject();
+            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
+            toXContent(builder, ToXContent.EMPTY_PARAMS);
+            return builder.unsafeStream();
+        } catch (Exception e) {
+            throw new SearchSourceBuilderException("Failed to build search source", e);
+        }
+    }
 
-            ToXContent.Params params = ToXContent.EMPTY_PARAMS;
+    public byte[] buildAsBytes() throws SearchSourceBuilderException {
+        return buildAsBytes(XContentType.JSON);
+    }
 
-            if (from != -1) {
-                builder.field("from", from);
-            }
-            if (size != -1) {
-                builder.field("size", size);
-            }
-            if (queryParserName != null) {
-                builder.field("query_parser_name", queryParserName);
-            }
-
-            if (queryBuilder != null) {
-                builder.field("query");
-                queryBuilder.toXContent(builder, params);
-            }
-
-            if (explain != null) {
-                builder.field("explain", explain);
-            }
-
-            if (fieldNames != null) {
-                if (fieldNames.size() == 1) {
-                    builder.field("fields", fieldNames.get(0));
-                } else {
-                    builder.startArray("fields");
-                    for (String fieldName : fieldNames) {
-                        builder.value(fieldName);
-                    }
-                    builder.endArray();
-                }
-            }
-
-            if (sortFields != null) {
-                builder.field("sort");
-                builder.startObject();
-                for (SortTuple sortTuple : sortFields) {
-                    builder.field(sortTuple.fieldName());
-                    builder.startObject();
-                    if (sortTuple.reverse) {
-                        builder.field("reverse", true);
-                    }
-                    if (sortTuple.type != null) {
-                        builder.field("type", sortTuple.type());
-                    }
-                    builder.endObject();
-                }
-                builder.endObject();
-            }
-
-            if (indexBoost != null) {
-                builder.startObject("indices_boost");
-                for (TObjectFloatIterator<String> it = indexBoost.iterator(); it.hasNext();) {
-                    it.advance();
-                    builder.field(it.key(), it.value());
-                }
-                builder.endObject();
-            }
-
-            if (facetsBuilder != null) {
-                facetsBuilder.toXContent(builder, params);
-            }
-
-            if (highlightBuilder != null) {
-                highlightBuilder.toXContent(builder, params);
-            }
-
-            builder.endObject();
-
+    public byte[] buildAsBytes(XContentType contentType) throws SearchSourceBuilderException {
+        try {
+            XContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
+            toXContent(builder, EMPTY_PARAMS);
             return builder.copiedBytes();
         } catch (Exception e) {
             throw new SearchSourceBuilderException("Failed to build search source", e);
         }
+    }
+
+
+    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+
+        if (from != -1) {
+            builder.field("from", from);
+        }
+        if (size != -1) {
+            builder.field("size", size);
+        }
+        if (queryParserName != null) {
+            builder.field("query_parser_name", queryParserName);
+        }
+
+        if (queryBuilder != null) {
+            builder.field("query");
+            queryBuilder.toXContent(builder, params);
+        }
+
+        if (explain != null) {
+            builder.field("explain", explain);
+        }
+
+        if (fieldNames != null) {
+            if (fieldNames.size() == 1) {
+                builder.field("fields", fieldNames.get(0));
+            } else {
+                builder.startArray("fields");
+                for (String fieldName : fieldNames) {
+                    builder.value(fieldName);
+                }
+                builder.endArray();
+            }
+        }
+
+        if (sortFields != null) {
+            builder.field("sort");
+            builder.startObject();
+            for (SortTuple sortTuple : sortFields) {
+                builder.field(sortTuple.fieldName());
+                builder.startObject();
+                if (sortTuple.reverse) {
+                    builder.field("reverse", true);
+                }
+                if (sortTuple.type != null) {
+                    builder.field("type", sortTuple.type());
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+
+        if (indexBoost != null) {
+            builder.startObject("indices_boost");
+            for (TObjectFloatIterator<String> it = indexBoost.iterator(); it.hasNext();) {
+                it.advance();
+                builder.field(it.key(), it.value());
+            }
+            builder.endObject();
+        }
+
+        if (facetsBuilder != null) {
+            facetsBuilder.toXContent(builder, params);
+        }
+
+        if (highlightBuilder != null) {
+            highlightBuilder.toXContent(builder, params);
+        }
+
+        builder.endObject();
     }
 
     private static class SortTuple {

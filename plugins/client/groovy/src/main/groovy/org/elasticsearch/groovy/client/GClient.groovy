@@ -38,7 +38,8 @@ import org.elasticsearch.action.terms.TermsResponse
 import org.elasticsearch.client.Client
 import org.elasticsearch.client.internal.InternalClient
 import org.elasticsearch.groovy.client.action.GActionFuture
-import org.elasticsearch.groovy.util.json.JsonBuilder
+import org.elasticsearch.groovy.util.xcontent.GXContentBuilder
+import org.elasticsearch.util.xcontent.XContentType
 
 /**
  * @author kimchy (shay.banon)
@@ -47,46 +48,50 @@ class GClient {
 
     static {
         IndexRequest.metaClass.setSource = {Closure c ->
-            delegate.source(new JsonBuilder().buildAsBytes(c))
+            delegate.source(new GXContentBuilder().buildAsBytes(c, indexContentType))
         }
         IndexRequest.metaClass.source = {Closure c ->
-            delegate.source(new JsonBuilder().buildAsBytes(c))
+            delegate.source(new GXContentBuilder().buildAsBytes(c, indexContentType))
         }
 
         DeleteByQueryRequest.metaClass.setQuery = {Closure c ->
-            delegate.query(new JsonBuilder().buildAsBytes(c))
+            delegate.query(new GXContentBuilder().buildAsBytes(c, contentType))
         }
         DeleteByQueryRequest.metaClass.query = {Closure c ->
-            delegate.query(new JsonBuilder().buildAsBytes(c))
+            delegate.query(new GXContentBuilder().buildAsBytes(c, contentType))
         }
 
         CountRequest.metaClass.setQuery = {Closure c ->
-            delegate.query(new JsonBuilder().buildAsBytes(c))
+            delegate.query(new GXContentBuilder().buildAsBytes(c, contentType))
         }
         CountRequest.metaClass.query = {Closure c ->
-            delegate.query(new JsonBuilder().buildAsBytes(c))
+            delegate.query(new GXContentBuilder().buildAsBytes(c, contentType))
         }
 
         SearchRequest.metaClass.setSource = {Closure c ->
-            delegate.source(new JsonBuilder().buildAsBytes(c))
+            delegate.source(new GXContentBuilder().buildAsBytes(c, contentType))
         }
         SearchRequest.metaClass.source = {Closure c ->
-            delegate.source(new JsonBuilder().buildAsBytes(c))
+            delegate.source(new GXContentBuilder().buildAsBytes(c, contentType))
         }
         SearchRequest.metaClass.setExtraSource = {Closure c ->
-            delegate.extraSource(new JsonBuilder().buildAsBytes(c))
+            delegate.extraSource(new GXContentBuilder().buildAsBytes(c, contentType))
         }
         SearchRequest.metaClass.extraSource = {Closure c ->
-            delegate.extraSource(new JsonBuilder().buildAsBytes(c))
+            delegate.extraSource(new GXContentBuilder().buildAsBytes(c, contentType))
         }
 
         MoreLikeThisRequest.metaClass.setSearchSource = {Closure c ->
-            delegate.searchSource(new JsonBuilder().buildAsBytes(c))
+            delegate.searchSource(new GXContentBuilder().buildAsBytes(c, contentType))
         }
         MoreLikeThisRequest.metaClass.searchSource = {Closure c ->
-            delegate.searchSource(new JsonBuilder().buildAsBytes(c))
+            delegate.searchSource(new GXContentBuilder().buildAsBytes(c, contentType))
         }
     }
+
+    static XContentType contentType = XContentType.XSON;
+
+    static XContentType indexContentType = XContentType.JSON;
 
     final Client client;
 

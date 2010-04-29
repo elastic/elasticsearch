@@ -19,14 +19,14 @@
 
 package org.elasticsearch.groovy.node
 
-import org.elasticsearch.groovy.util.json.JsonBuilder
+import org.elasticsearch.groovy.util.xcontent.GXContentBuilder
 import org.elasticsearch.node.Node
 import org.elasticsearch.node.internal.InternalNode
 import org.elasticsearch.util.settings.ImmutableSettings
 import org.elasticsearch.util.settings.loader.JsonSettingsLoader
 
 /**
- * The node builder allow to build a   {@link GNode}   instance.
+ * The node builder allow to build a    {@link GNode}    instance.
  *
  * @author kimchy (shay.banon)
  */
@@ -41,7 +41,7 @@ public class GNodeBuilder {
     }
 
     def settings(Closure settings) {
-        byte[] settingsBytes = new JsonBuilder().buildAsBytes(settings);
+        byte[] settingsBytes = new GXContentBuilder().buildAsBytes(settings);
         settingsBuilder.put(new JsonSettingsLoader().load(settingsBytes))
     }
 

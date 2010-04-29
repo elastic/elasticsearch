@@ -45,13 +45,19 @@ import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.terms.TermsRequest;
+import org.elasticsearch.util.xcontent.XContentType;
 
 /**
  * A handy one stop shop for creating requests (make sure to import static this class).
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class Requests {
+
+    /**
+     * The content type used to generate request builders (query / search).
+     */
+    public static XContentType CONTENT_TYPE = XContentType.XSON;
 
     public static IndexRequest indexRequest() {
         return new IndexRequest();

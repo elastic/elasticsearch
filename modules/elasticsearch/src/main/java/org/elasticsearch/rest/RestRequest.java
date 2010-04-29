@@ -23,7 +23,6 @@ import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.xcontent.ToXContent;
 
-import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -50,8 +49,6 @@ public interface RestRequest extends ToXContent.Params {
     String path();
 
     boolean hasContent();
-
-    InputStream contentAsStream();
 
     byte[] contentAsBytes();
 

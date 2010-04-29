@@ -19,9 +19,6 @@
 
 package org.elasticsearch.test.integration.search;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import org.elasticsearch.util.guice.inject.AbstractModule;
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
@@ -50,6 +47,9 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.guice.inject.AbstractModule;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.trove.ExtTIntArrayList;
 import org.testng.annotations.AfterClass;
@@ -60,12 +60,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
-import static org.elasticsearch.util.gcommon.collect.Maps.*;
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.*;
 import static org.elasticsearch.util.TimeValue.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Maps.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -360,7 +360,7 @@ public class TwoInstanceUnbalancedShardsEmbeddedSearchTests extends AbstractNode
     }
 
     private static InternalSearchRequest searchRequest(ShardRouting shardRouting, SearchSourceBuilder builder) {
-        return new InternalSearchRequest(shardRouting, builder.build());
+        return new InternalSearchRequest(shardRouting, builder.buildAsBytes());
     }
 
     private void index(Client client, String id, String nameValue, int age) {

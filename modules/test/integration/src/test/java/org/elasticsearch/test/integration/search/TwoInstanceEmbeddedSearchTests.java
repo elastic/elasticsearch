@@ -19,8 +19,6 @@
 
 package org.elasticsearch.test.integration.search;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import org.elasticsearch.util.gcommon.collect.Sets;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
@@ -45,6 +43,8 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.gcommon.collect.Sets;
 import org.elasticsearch.util.trove.ExtTIntArrayList;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -55,12 +55,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
-import static org.elasticsearch.util.gcommon.collect.Maps.*;
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.*;
 import static org.elasticsearch.util.TimeValue.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.gcommon.collect.Maps.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -354,7 +354,7 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractNodesTests {
     }
 
     private InternalSearchRequest searchRequest(ShardRouting shardRouting, SearchSourceBuilder builder) {
-        return new InternalSearchRequest(shardRouting, builder.build());
+        return new InternalSearchRequest(shardRouting, builder.buildAsBytes());
     }
 
     private void index(Client client, String id, String nameValue, int age) {

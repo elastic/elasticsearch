@@ -17,40 +17,36 @@
  * under the License.
  */
 
-package org.elasticsearch.util.xcontent.json;
+package org.elasticsearch.util.xcontent.xson;
 
-import org.codehaus.jackson.JsonEncoding;
-import org.codehaus.jackson.JsonFactory;
-import org.codehaus.jackson.JsonGenerator;
-import org.codehaus.jackson.JsonParser;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.util.ThreadLocals;
-import org.elasticsearch.util.io.FastStringReader;
+import org.elasticsearch.util.io.FastByteArrayInputStream;
 import org.elasticsearch.util.xcontent.XContent;
 import org.elasticsearch.util.xcontent.XContentGenerator;
 import org.elasticsearch.util.xcontent.XContentParser;
 import org.elasticsearch.util.xcontent.XContentType;
 import org.elasticsearch.util.xcontent.builder.BinaryXContentBuilder;
-import org.elasticsearch.util.xcontent.builder.TextXContentBuilder;
 
 import java.io.*;
 
 /**
- * A JSON based content implementation using Jackson.
+ * A binary representation of content (basically, JSON encoded in optimized binary format).
  *
  * @author kimchy (shay.banon)
  */
-public class JsonXContent implements XContent {
+public class XsonXContent implements XContent {
 
     public static class CachedBinaryBuilder {
 
         private static final ThreadLocal<ThreadLocals.CleanableValue<BinaryXContentBuilder>> cache = new ThreadLocal<ThreadLocals.CleanableValue<BinaryXContentBuilder>>() {
             @Override protected ThreadLocals.CleanableValue<BinaryXContentBuilder> initialValue() {
                 try {
-                    BinaryXContentBuilder builder = new BinaryXContentBuilder(new JsonXContent());
+                    BinaryXContentBuilder builder = new BinaryXContentBuilder(new XsonXContent());
                     return new ThreadLocals.CleanableValue<BinaryXContentBuilder>(builder);
                 } catch (IOException e) {
-                    throw new ElasticSearchException("Failed to create json generator", e);
+                    throw new ElasticSearchException("Failed to create xson generator", e);
                 }
             }
         };
@@ -65,79 +61,39 @@ public class JsonXContent implements XContent {
         }
     }
 
-    public static class CachedTextBuilder {
-
-        private static final ThreadLocal<ThreadLocals.CleanableValue<TextXContentBuilder>> cache = new ThreadLocal<ThreadLocals.CleanableValue<TextXContentBuilder>>() {
-            @Override protected ThreadLocals.CleanableValue<TextXContentBuilder> initialValue() {
-                try {
-                    TextXContentBuilder builder = new TextXContentBuilder(new JsonXContent());
-                    return new ThreadLocals.CleanableValue<TextXContentBuilder>(builder);
-                } catch (IOException e) {
-                    throw new ElasticSearchException("Failed to create json generator", e);
-                }
-            }
-        };
-
-        /**
-         * Returns the cached thread local generator, with its internal {@link StringBuilder} cleared.
-         */
-        static TextXContentBuilder cached() throws IOException {
-            ThreadLocals.CleanableValue<TextXContentBuilder> cached = cache.get();
-            cached.get().reset();
-            return cached.get();
-        }
-    }
-
-    public static BinaryXContentBuilder contentBuilder() throws IOException {
-        return contentBinaryBuilder();
-    }
-
     public static BinaryXContentBuilder contentBinaryBuilder() throws IOException {
         return CachedBinaryBuilder.cached();
     }
 
-    public static TextXContentBuilder contentTextBuilder() throws IOException {
-        return CachedTextBuilder.cached();
-    }
-
-
-    private final JsonFactory jsonFactory;
-
-    public JsonXContent() {
-        jsonFactory = new JsonFactory();
-        jsonFactory.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
-        jsonFactory.configure(JsonGenerator.Feature.QUOTE_FIELD_NAMES, true);
-    }
-
     @Override public XContentType type() {
-        return XContentType.JSON;
+        return XContentType.XSON;
     }
 
     @Override public XContentGenerator createGenerator(OutputStream os) throws IOException {
-        return new JsonXContentGenerator(jsonFactory.createJsonGenerator(os, JsonEncoding.UTF8));
+        return new XsonXContentGenerator(os);
     }
 
     @Override public XContentGenerator createGenerator(Writer writer) throws IOException {
-        return new JsonXContentGenerator(jsonFactory.createJsonGenerator(writer));
+        throw new ElasticSearchIllegalStateException("Can't create generator over xson with textual data");
     }
 
     @Override public XContentParser createParser(String content) throws IOException {
-        return new JsonXContentParser(jsonFactory.createJsonParser(new FastStringReader(content)));
+        throw new ElasticSearchIllegalStateException("Can't create parser over xson for textual data");
     }
 
     @Override public XContentParser createParser(InputStream is) throws IOException {
-        return new JsonXContentParser(jsonFactory.createJsonParser(is));
+        return new XsonXContentParser(is);
     }
 
     @Override public XContentParser createParser(byte[] data) throws IOException {
-        return new JsonXContentParser(jsonFactory.createJsonParser(data));
+        return new XsonXContentParser(new FastByteArrayInputStream(data));
     }
 
     @Override public XContentParser createParser(byte[] data, int offset, int length) throws IOException {
-        return new JsonXContentParser(jsonFactory.createJsonParser(data, offset, length));
+        return new XsonXContentParser(new FastByteArrayInputStream(data, offset, length));
     }
 
     @Override public XContentParser createParser(Reader reader) throws IOException {
-        return new JsonXContentParser(jsonFactory.createJsonParser(reader));
+        throw new ElasticSearchIllegalStateException("Can't create parser over xson for textual data");
     }
 }

@@ -105,6 +105,8 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     private byte[] source;
     private OpType opType = OpType.INDEX;
 
+    private transient XContentBuilder sourceBuilder;
+
     public IndexRequest() {
     }
 
@@ -136,7 +138,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         if (type == null) {
             validationException = addValidationError("type is missing", validationException);
         }
-        if (source == null) {
+        if (source == null && sourceBuilder == null) {
             validationException = addValidationError("source is missing", validationException);
         }
         return validationException;
@@ -201,6 +203,13 @@ public class IndexRequest extends ShardReplicationOperationRequest {
      * The source of the JSON document to index.
      */
     byte[] source() {
+        if (source == null && sourceBuilder != null) {
+            try {
+                source = sourceBuilder.copiedBytes();
+            } catch (IOException e) {
+                throw new ElasticSearchGenerationException("Failed to build source", e);
+            }
+        }
         return source;
     }
 
@@ -234,12 +243,9 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     /**
      * Sets the content source to index.
      */
-    @Required public IndexRequest source(XContentBuilder jsonBuilder) {
-        try {
-            return source(jsonBuilder.copiedBytes());
-        } catch (IOException e) {
-            throw new ElasticSearchIllegalArgumentException("Failed to build json for index request", e);
-        }
+    @Required public IndexRequest source(XContentBuilder sourceBuilder) {
+        this.sourceBuilder = sourceBuilder;
+        return this;
     }
 
     /**
@@ -318,8 +324,13 @@ public class IndexRequest extends ShardReplicationOperationRequest {
             out.writeBoolean(true);
             out.writeUTF(id);
         }
-        out.writeVInt(source.length);
-        out.writeBytes(source);
+        if (source != null) {
+            out.writeVInt(source.length);
+            out.writeBytes(source);
+        } else {
+            out.writeVInt(sourceBuilder.unsafeBytesLength());
+            out.writeBytes(sourceBuilder.unsafeBytes(), 0, sourceBuilder.unsafeBytesLength());
+        }
         out.writeByte(opType.id());
     }
 

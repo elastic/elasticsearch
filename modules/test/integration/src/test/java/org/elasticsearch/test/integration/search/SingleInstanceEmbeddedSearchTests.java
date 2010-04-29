@@ -45,10 +45,10 @@ import org.testng.annotations.Test;
 
 import java.util.Map;
 
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -194,7 +194,7 @@ public class SingleInstanceEmbeddedSearchTests extends AbstractNodesTests {
 
 
     private InternalSearchRequest searchRequest(SearchSourceBuilder builder) {
-        return new InternalSearchRequest("test", 0, builder.build());
+        return new InternalSearchRequest("test", 0, builder.buildAsBytes());
     }
 
     private void index(Client client, String id, String nameValue, int age) {

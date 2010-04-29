@@ -145,7 +145,7 @@ public class RestSearchAction extends BaseRestHandler {
         return searchRequest;
     }
 
-    private byte[] parseSearchSource(RestRequest request) {
+    private SearchSourceBuilder parseSearchSource(RestRequest request) {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         String queryString = request.param("q");
         if (queryString != null) {
@@ -227,7 +227,6 @@ public class RestSearchAction extends BaseRestHandler {
             }
         }
 
-        // TODO add different parameters to the source
-        return searchSourceBuilder.build();
+        return searchSourceBuilder;
     }
 }

@@ -19,18 +19,27 @@
 
 package org.elasticsearch.action.count;
 
+import org.elasticsearch.ElasticSearchGenerationException;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.Actions;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.util.Required;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.Unicode;
+import org.elasticsearch.util.io.FastByteArrayOutputStream;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.xcontent.XContentFactory;
+import org.elasticsearch.util.xcontent.XContentType;
+import org.elasticsearch.util.xcontent.builder.BinaryXContentBuilder;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 
 /**
  * A request to count the number of documents matching a specific query. Best created with
@@ -46,12 +55,16 @@ import java.util.Arrays;
  */
 public class CountRequest extends BroadcastOperationRequest {
 
+    private static final XContentType contentType = Requests.CONTENT_TYPE;
+
     public static final float DEFAULT_MIN_SCORE = -1f;
 
     private float minScore = DEFAULT_MIN_SCORE;
     @Required private byte[] querySource;
     private String[] types = Strings.EMPTY_ARRAY;
     @Nullable private String queryParserName;
+
+    private transient QueryBuilder queryBuilder = null;
 
     CountRequest() {
     }
@@ -62,6 +75,14 @@ public class CountRequest extends BroadcastOperationRequest {
      */
     public CountRequest(String... indices) {
         super(indices, null);
+    }
+
+    @Override public ActionRequestValidationException validate() {
+        ActionRequestValidationException validationException = super.validate();
+        if (querySource == null && queryBuilder == null) {
+            validationException = Actions.addValidationError("query is missing", validationException);
+        }
+        return validationException;
     }
 
     /**
@@ -113,6 +134,10 @@ public class CountRequest extends BroadcastOperationRequest {
      * The query source to execute.
      */
     byte[] querySource() {
+        if (querySource == null && queryBuilder != null) {
+            // did not get serialized...
+            querySource = queryBuilder.buildAsBytes(contentType);
+        }
         return querySource;
     }
 
@@ -122,7 +147,22 @@ public class CountRequest extends BroadcastOperationRequest {
      * @see org.elasticsearch.index.query.xcontent.QueryBuilders
      */
     @Required public CountRequest query(QueryBuilder queryBuilder) {
-        return query(queryBuilder.buildAsBytes());
+        this.queryBuilder = queryBuilder;
+        return this;
+    }
+
+    /**
+     * The query source to execute in the form of a map.
+     */
+    @Required public CountRequest query(Map querySource) {
+        try {
+            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
+            builder.map(querySource);
+            this.querySource = builder.copiedBytes();
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate [" + querySource + "]", e);
+        }
+        return this;
     }
 
     /**
@@ -191,8 +231,14 @@ public class CountRequest extends BroadcastOperationRequest {
     @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeFloat(minScore);
-        out.writeVInt(querySource.length);
-        out.writeBytes(querySource);
+        if (querySource != null) {
+            out.writeVInt(querySource.length);
+            out.writeBytes(querySource);
+        } else {
+            FastByteArrayOutputStream os = queryBuilder.buildAsUnsafeBytes(contentType);
+            out.writeVInt(os.size());
+            out.writeBytes(os.unsafeByteArray(), 0, os.size());
+        }
         if (queryParserName == null) {
             out.writeBoolean(false);
         } else {

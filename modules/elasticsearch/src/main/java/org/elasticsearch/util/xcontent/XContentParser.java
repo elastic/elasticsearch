@@ -20,7 +20,6 @@
 package org.elasticsearch.util.xcontent;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.util.Map;
 
 /**
@@ -78,7 +77,7 @@ public interface XContentParser {
     }
 
     enum NumberType {
-        INT, LONG, BIG_INTEGER, FLOAT, DOUBLE, BIG_DECIMAL
+        INT, LONG, FLOAT, DOUBLE
     }
 
     XContentType contentType();
@@ -107,7 +106,11 @@ public interface XContentParser {
 
     NumberType numberType() throws IOException;
 
-    byte byteValue() throws IOException;
+    /**
+     * Is the number type estimated or not (i.e. an int might actually be a long, its just low enough
+     * to be an int).
+     */
+    boolean estimatedNumberType();
 
     short shortValue() throws IOException;
 
@@ -115,13 +118,9 @@ public interface XContentParser {
 
     long longValue() throws IOException;
 
-    BigInteger bigIntegerValue() throws IOException;
-
     float floatValue() throws IOException;
 
     double doubleValue() throws IOException;
-
-    java.math.BigDecimal decimalValue() throws IOException;
 
     boolean booleanValue() throws IOException;
 

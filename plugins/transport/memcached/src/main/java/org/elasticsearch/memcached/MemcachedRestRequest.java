@@ -19,14 +19,12 @@
 
 package org.elasticsearch.memcached;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
 import org.elasticsearch.rest.support.AbstractRestRequest;
 import org.elasticsearch.rest.support.RestUtils;
 import org.elasticsearch.util.Unicode;
-import org.elasticsearch.util.io.FastByteArrayInputStream;
+import org.elasticsearch.util.gcommon.collect.ImmutableList;
+import org.elasticsearch.util.gcommon.collect.ImmutableSet;
 
-import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -109,10 +107,6 @@ public class MemcachedRestRequest extends AbstractRestRequest {
 
     @Override public boolean hasContent() {
         return data != null;
-    }
-
-    @Override public InputStream contentAsStream() {
-        return new FastByteArrayInputStream(data);
     }
 
     @Override public byte[] contentAsBytes() {

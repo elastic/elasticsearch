@@ -22,14 +22,10 @@ package org.elasticsearch.util.xcontent.json;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.util.xcontent.XContentParser;
 import org.elasticsearch.util.xcontent.XContentType;
 import org.elasticsearch.util.xcontent.support.AbstractXContentParser;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
@@ -62,6 +58,10 @@ public class JsonXContentParser extends AbstractXContentParser {
         return convertNumberType(parser.getNumberType());
     }
 
+    @Override public boolean estimatedNumberType() {
+        return true;
+    }
+
     @Override public String currentName() throws IOException {
         return parser.getCurrentName();
     }
@@ -90,10 +90,6 @@ public class JsonXContentParser extends AbstractXContentParser {
         return parser.getNumberValue();
     }
 
-    @Override public byte byteValue() throws IOException {
-        return parser.getByteValue();
-    }
-
     @Override public short doShortValue() throws IOException {
         return parser.getShortValue();
     }
@@ -106,20 +102,12 @@ public class JsonXContentParser extends AbstractXContentParser {
         return parser.getLongValue();
     }
 
-    @Override public BigInteger bigIntegerValue() throws IOException {
-        return parser.getBigIntegerValue();
-    }
-
     @Override public float doFloatValue() throws IOException {
         return parser.getFloatValue();
     }
 
     @Override public double doDoubleValue() throws IOException {
         return parser.getDoubleValue();
-    }
-
-    @Override public BigDecimal decimalValue() throws IOException {
-        return parser.getDecimalValue();
     }
 
     @Override public byte[] binaryValue() throws IOException {
@@ -144,10 +132,6 @@ public class JsonXContentParser extends AbstractXContentParser {
                 return NumberType.FLOAT;
             case DOUBLE:
                 return NumberType.DOUBLE;
-            case BIG_DECIMAL:
-                return NumberType.BIG_DECIMAL;
-            case BIG_INTEGER:
-                return NumberType.BIG_INTEGER;
         }
         throw new ElasticSearchIllegalStateException("No matching token for number_type [" + numberType + "]");
     }

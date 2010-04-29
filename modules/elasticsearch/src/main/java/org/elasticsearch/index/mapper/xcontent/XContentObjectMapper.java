@@ -428,11 +428,19 @@ public class XContentObjectMapper implements XContentMapper, XContentIncludeInAl
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 XContentParser.NumberType numberType = context.parser().numberType();
                 if (numberType == XContentParser.NumberType.INT) {
-                    mapper = integerField(currentFieldName).build(builderContext);
+                    if (context.parser().estimatedNumberType()) {
+                        mapper = longField(currentFieldName).build(builderContext);
+                    } else {
+                        mapper = integerField(currentFieldName).build(builderContext);
+                    }
                 } else if (numberType == XContentParser.NumberType.LONG) {
                     mapper = longField(currentFieldName).build(builderContext);
                 } else if (numberType == XContentParser.NumberType.FLOAT) {
-                    mapper = floatField(currentFieldName).build(builderContext);
+                    if (context.parser().estimatedNumberType()) {
+                        mapper = doubleField(currentFieldName).build(builderContext);
+                    } else {
+                        mapper = floatField(currentFieldName).build(builderContext);
+                    }
                 } else if (numberType == XContentParser.NumberType.DOUBLE) {
                     mapper = doubleField(currentFieldName).build(builderContext);
                 }

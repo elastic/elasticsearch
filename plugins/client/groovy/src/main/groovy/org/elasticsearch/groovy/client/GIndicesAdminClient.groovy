@@ -43,7 +43,7 @@ import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse
 import org.elasticsearch.client.IndicesAdminClient
 import org.elasticsearch.client.internal.InternalClient
 import org.elasticsearch.groovy.client.action.GActionFuture
-import org.elasticsearch.groovy.util.json.JsonBuilder
+import org.elasticsearch.groovy.util.xcontent.GXContentBuilder
 
 /**
  * @author kimchy (shay.banon)
@@ -52,23 +52,23 @@ class GIndicesAdminClient {
 
     static {
         CreateIndexRequest.metaClass.setSettings = {Closure c ->
-            delegate.settings(new JsonBuilder().buildAsString(c))
+            delegate.settings(new GXContentBuilder().buildAsString(c))
         }
         CreateIndexRequest.metaClass.settings = {Closure c ->
-            delegate.settings(new JsonBuilder().buildAsString(c))
+            delegate.settings(new GXContentBuilder().buildAsString(c))
         }
         CreateIndexRequest.metaClass.mapping = {String type, Closure c ->
-            delegate.mapping(type, new JsonBuilder().buildAsString(c))
+            delegate.mapping(type, new GXContentBuilder().buildAsString(c))
         }
         CreateIndexRequest.metaClass.setMapping = {String type, Closure c ->
-            delegate.mapping(type, new JsonBuilder().buildAsString(c))
+            delegate.mapping(type, new GXContentBuilder().buildAsString(c))
         }
 
         PutMappingRequest.metaClass.setSource = {Closure c ->
-            delegate.source(new JsonBuilder().buildAsString(c))
+            delegate.source(new GXContentBuilder().buildAsString(c))
         }
         PutMappingRequest.metaClass.source = {Closure c ->
-            delegate.source(new JsonBuilder().buildAsString(c))
+            delegate.source(new GXContentBuilder().buildAsString(c))
         }
     }
 

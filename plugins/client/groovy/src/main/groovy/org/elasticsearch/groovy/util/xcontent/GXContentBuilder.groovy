@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.groovy.util.json
+package org.elasticsearch.groovy.util.xcontent
 
 import org.elasticsearch.util.xcontent.XContentFactory
 import org.elasticsearch.util.xcontent.XContentType
@@ -32,7 +32,7 @@ import org.elasticsearch.util.xcontent.builder.TextXContentBuilder
  *
  * @since 1.2
  */
-class JsonBuilder {
+class GXContentBuilder {
 
     static NODE_ELEMENT = "element"
 
@@ -56,7 +56,11 @@ class JsonBuilder {
     }
 
     byte[] buildAsBytes(Closure c) {
-        BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(XContentType.JSON);
+        return buildAsBytes(c, XContentType.JSON);
+    }
+
+    byte[] buildAsBytes(Closure c, XContentType contentType) {
+        BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
         def json = build(c)
         builder.map(json);
         return builder.copiedBytes();
@@ -164,7 +168,7 @@ class JsonBuilder {
             value = value.collect {
                 if (it instanceof Closure) {
                     def callable = it
-                    final JsonBuilder localBuilder = new JsonBuilder()
+                    final GXContentBuilder localBuilder = new GXContentBuilder()
                     callable.delegate = localBuilder
                     callable.resolveStrategy = Closure.DELEGATE_FIRST
                     final Map nestedObject = localBuilder.buildRoot(callable)

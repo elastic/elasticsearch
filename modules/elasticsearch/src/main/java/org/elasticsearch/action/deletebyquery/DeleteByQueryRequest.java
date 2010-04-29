@@ -22,11 +22,13 @@ package org.elasticsearch.action.deletebyquery;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.IndicesReplicationOperationRequest;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.util.Required;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.Unicode;
+import org.elasticsearch.util.io.FastByteArrayOutputStream;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.xcontent.XContentFactory;
@@ -53,9 +55,13 @@ import static org.elasticsearch.action.Actions.*;
  */
 public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
 
+    private static final XContentType contentType = Requests.CONTENT_TYPE;
+
     private byte[] querySource;
     private String queryParserName;
     private String[] types = Strings.EMPTY_ARRAY;
+
+    private transient QueryBuilder queryBuilder;
 
     /**
      * Constructs a new delete by query request to run against the provided indices. No indices means
@@ -78,7 +84,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
 
     @Override public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (querySource == null) {
+        if (querySource == null && queryBuilder == null) {
             validationException = addValidationError("query is missing", validationException);
         }
         return validationException;
@@ -93,6 +99,9 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
      * The query source to execute.
      */
     byte[] querySource() {
+        if (querySource == null && queryBuilder != null) {
+            querySource = queryBuilder.buildAsBytes();
+        }
         return querySource;
     }
 
@@ -102,7 +111,8 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
      * @see org.elasticsearch.index.query.xcontent.QueryBuilders
      */
     @Required public DeleteByQueryRequest query(QueryBuilder queryBuilder) {
-        return query(queryBuilder.buildAsBytes());
+        this.queryBuilder = queryBuilder;
+        return this;
     }
 
     /**
@@ -118,7 +128,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
      */
     @Required public DeleteByQueryRequest query(Map querySource) {
         try {
-            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(XContentType.JSON);
+            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
             builder.map(querySource);
             this.querySource = builder.copiedBytes();
         } catch (IOException e) {
@@ -184,8 +194,14 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
 
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(querySource.length);
-        out.writeBytes(querySource);
+        if (querySource != null) {
+            out.writeVInt(querySource.length);
+            out.writeBytes(querySource);
+        } else {
+            FastByteArrayOutputStream os = queryBuilder.buildAsUnsafeBytes(contentType);
+            out.writeVInt(os.size());
+            out.writeBytes(os.unsafeByteArray(), 0, os.size());
+        }
         if (queryParserName == null) {
             out.writeBoolean(false);
         } else {

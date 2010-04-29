@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.groovy.util.json
+package org.elasticsearch.groovy.util.xcontent
 
 /**
  * @author kimchy (shay.banon)
  */
-class JsonBuilderTests extends GroovyTestCase {
+class GXContentBuilderTests extends GroovyTestCase {
 
     void testSimple() {
-        def builder = new JsonBuilder()
+        def builder = new GXContentBuilder()
 
         def result = builder.buildAsString {
             rootprop = "something"
@@ -35,7 +35,7 @@ class JsonBuilderTests extends GroovyTestCase {
     }
 
     void testArrays() {
-        def builder = new JsonBuilder()
+        def builder = new GXContentBuilder()
 
         def result = builder.buildAsString {
             categories = ['a', 'b', 'c']
@@ -46,7 +46,7 @@ class JsonBuilderTests extends GroovyTestCase {
     }
 
     void testSubObjects() {
-        def builder = new JsonBuilder()
+        def builder = new GXContentBuilder()
 
         def result = builder.buildAsString {
             categories = ['a', 'b', 'c']
@@ -60,7 +60,7 @@ class JsonBuilderTests extends GroovyTestCase {
     }
 
     void testAssignedObjects() {
-        def builder = new JsonBuilder()
+        def builder = new GXContentBuilder()
 
         def result = builder.buildAsString {
             categories = ['a', 'b', 'c']
@@ -74,7 +74,7 @@ class JsonBuilderTests extends GroovyTestCase {
     }
 
     void testNamedArgumentHandling() {
-        def builder = new JsonBuilder()
+        def builder = new GXContentBuilder()
         def result = builder.buildAsString {
             categories = ['a', 'b', 'c']
             rootprop = "something"
@@ -87,7 +87,7 @@ class JsonBuilderTests extends GroovyTestCase {
 
 
     void testArrayOfClosures() {
-        def builder = new JsonBuilder()
+        def builder = new GXContentBuilder()
         def result = builder.buildAsString {
             foo = [{ bar = "hello" }]
         }
@@ -96,7 +96,7 @@ class JsonBuilderTests extends GroovyTestCase {
     }
 
     void testRootElementList() {
-        def builder = new JsonBuilder()
+        def builder = new GXContentBuilder()
 
         def results = ['one', 'two', 'three']
 
@@ -117,7 +117,7 @@ class JsonBuilderTests extends GroovyTestCase {
     }
 
     void testExampleFromReferenceGuide() {
-        def builder = new JsonBuilder()
+        def builder = new GXContentBuilder()
 
         def results = ['one', 'two', 'three']
 
@@ -150,7 +150,7 @@ class JsonBuilderTests extends GroovyTestCase {
     }
 
     void testAppendToArray() {
-        def builder = new JsonBuilder()
+        def builder = new GXContentBuilder()
 
         def results = ['one', 'two', 'three']
 

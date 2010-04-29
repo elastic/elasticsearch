@@ -25,12 +25,14 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.Actions;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.util.Bytes;
 import org.elasticsearch.util.Required;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.Unicode;
+import org.elasticsearch.util.io.FastByteArrayOutputStream;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.xcontent.XContentFactory;
@@ -54,6 +56,8 @@ import static org.elasticsearch.search.Scroll.*;
  * @see org.elasticsearch.action.search.SearchResponse
  */
 public class MoreLikeThisRequest implements ActionRequest {
+
+    private static final XContentType contentType = Requests.CONTENT_TYPE;
 
     private String index;
 
@@ -80,6 +84,7 @@ public class MoreLikeThisRequest implements ActionRequest {
     private Scroll searchScroll;
     private byte[] searchSource;
 
+    private transient SearchSourceBuilder searchSourceBuiler;
 
     private boolean threadedListener = false;
 
@@ -306,7 +311,8 @@ public class MoreLikeThisRequest implements ActionRequest {
      * more like this documents.
      */
     public MoreLikeThisRequest searchSource(SearchSourceBuilder sourceBuilder) {
-        return searchSource(sourceBuilder.build());
+        this.searchSourceBuiler = sourceBuilder;
+        return this;
     }
 
     /**
@@ -342,6 +348,9 @@ public class MoreLikeThisRequest implements ActionRequest {
      * more like this documents.
      */
     public byte[] searchSource() {
+        if (searchSource == null && searchSourceBuiler != null) {
+            searchSource = searchSourceBuiler.buildAsBytes(contentType);
+        }
         return this.searchSource;
     }
 
@@ -589,11 +598,17 @@ public class MoreLikeThisRequest implements ActionRequest {
             out.writeBoolean(true);
             searchScroll.writeTo(out);
         }
-        if (searchSource == null) {
+        if (searchSource == null && searchSourceBuiler == null) {
             out.writeVInt(0);
         } else {
-            out.writeVInt(searchSource.length);
-            out.writeBytes(searchSource);
+            if (searchSource != null) {
+                out.writeVInt(searchSource.length);
+                out.writeBytes(searchSource);
+            } else {
+                FastByteArrayOutputStream os = searchSourceBuiler.buildAsUnsafeBytes(contentType);
+                out.writeVInt(os.size());
+                out.writeBytes(os.unsafeByteArray(), 0, os.size());
+            }
         }
     }
 }

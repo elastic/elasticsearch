@@ -32,7 +32,18 @@ import java.io.IOException;
 public class RestXContentBuilder {
 
     public static BinaryXContentBuilder restContentBuilder(RestRequest request) throws IOException {
-        BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(XContentType.JSON);
+        XContentType contentType = XContentType.fromRestContentType(request.header("Content-Type"));
+        if (contentType == null) {
+            // try and guess it from the body, if exists
+            if (request.hasContent()) {
+                contentType = XContentFactory.xContentType(request.contentAsBytes());
+            }
+        }
+        if (contentType == null) {
+            // default to JSON
+            contentType = XContentType.JSON;
+        }
+        BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
         if (request.paramAsBoolean("pretty", false)) {
             builder.prettyPrint();
         }

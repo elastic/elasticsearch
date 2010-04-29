@@ -23,12 +23,14 @@ import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.util.Bytes;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.Unicode;
+import org.elasticsearch.util.io.FastByteArrayOutputStream;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.xcontent.XContentFactory;
@@ -58,6 +60,8 @@ import static org.elasticsearch.util.TimeValue.*;
  */
 public class SearchRequest implements ActionRequest {
 
+    private static final XContentType contentType = Requests.CONTENT_TYPE;
+
     private SearchType searchType = SearchType.DEFAULT;
 
     private String[] indices;
@@ -76,6 +80,9 @@ public class SearchRequest implements ActionRequest {
 
     private boolean listenerThreaded = false;
     private SearchOperationThreading operationThreading = SearchOperationThreading.SINGLE_THREAD;
+
+    private transient SearchSourceBuilder sourceBuilder;
+    private transient SearchSourceBuilder extraSourceBuilder;
 
     SearchRequest() {
     }
@@ -98,7 +105,7 @@ public class SearchRequest implements ActionRequest {
 
     @Override public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (source == null && extraSource == null) {
+        if (source == null && sourceBuilder == null && extraSource == null && extraSourceBuilder == null) {
             validationException = addValidationError("search source is missing", validationException);
         }
         return validationException;
@@ -188,7 +195,8 @@ public class SearchRequest implements ActionRequest {
      * The source of the search request.
      */
     public SearchRequest source(SearchSourceBuilder sourceBuilder) {
-        return source(sourceBuilder.build());
+        this.sourceBuilder = sourceBuilder;
+        return this;
     }
 
     /**
@@ -204,7 +212,7 @@ public class SearchRequest implements ActionRequest {
      */
     public SearchRequest source(Map source) {
         try {
-            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(XContentType.JSON);
+            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
             builder.map(source);
             this.source = builder.copiedBytes();
         } catch (IOException e) {
@@ -225,6 +233,9 @@ public class SearchRequest implements ActionRequest {
      * The search source to execute.
      */
     public byte[] source() {
+        if (source == null && sourceBuilder != null) {
+            source = sourceBuilder.buildAsBytes(contentType);
+        }
         return source;
     }
 
@@ -232,12 +243,13 @@ public class SearchRequest implements ActionRequest {
      * Allows to provide additional source that will be used as well.
      */
     public SearchRequest extraSource(SearchSourceBuilder sourceBuilder) {
-        return extraSource(sourceBuilder.build());
+        this.extraSourceBuilder = sourceBuilder;
+        return this;
     }
 
     public SearchRequest extraSource(Map extraSource) {
         try {
-            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(XContentType.JSON);
+            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
             builder.map(extraSource);
             this.extraSource = builder.copiedBytes();
         } catch (IOException e) {
@@ -265,6 +277,9 @@ public class SearchRequest implements ActionRequest {
      * Additional search source to execute.
      */
     public byte[] extraSource() {
+        if (extraSource == null && extraSourceBuilder != null) {
+            extraSource = extraSourceBuilder.buildAsBytes(contentType);
+        }
         return this.extraSource;
     }
 
@@ -405,17 +420,29 @@ public class SearchRequest implements ActionRequest {
             out.writeBoolean(true);
             timeout.writeTo(out);
         }
-        if (source == null) {
+        if (source == null && sourceBuilder == null) {
             out.writeVInt(0);
         } else {
-            out.writeVInt(source.length);
-            out.writeBytes(source);
+            if (source != null) {
+                out.writeVInt(source.length);
+                out.writeBytes(source);
+            } else {
+                FastByteArrayOutputStream os = sourceBuilder.buildAsUnsafeBytes(contentType);
+                out.writeVInt(os.size());
+                out.writeBytes(os.unsafeByteArray(), 0, os.size());
+            }
         }
-        if (extraSource == null) {
+        if (extraSource == null && extraSourceBuilder == null) {
             out.writeVInt(0);
         } else {
-            out.writeVInt(extraSource.length);
-            out.writeBytes(extraSource);
+            if (extraSource != null) {
+                out.writeVInt(extraSource.length);
+                out.writeBytes(extraSource);
+            } else {
+                FastByteArrayOutputStream os = extraSourceBuilder.buildAsUnsafeBytes(contentType);
+                out.writeVInt(os.size());
+                out.writeBytes(os.unsafeByteArray(), 0, os.size());
+            }
         }
         out.writeVInt(types.length);
         for (String type : types) {

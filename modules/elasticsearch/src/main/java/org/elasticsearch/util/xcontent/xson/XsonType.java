@@ -17,38 +17,36 @@
  * under the License.
  */
 
-package org.elasticsearch.util.xcontent;
+package org.elasticsearch.util.xcontent.xson;
 
 /**
  * @author kimchy (shay.banon)
  */
-public enum XContentType {
+public enum XsonType {
 
-    JSON(0),
-    XSON(1);
+    START_ARRAY((byte) 0x01),
+    END_ARRAY((byte) 0x02),
+    START_OBJECT((byte) 0x03),
+    END_OBJECT((byte) 0x04),
+    FIELD_NAME((byte) 0x05),
+    VALUE_STRING((byte) 0x06),
+    VALUE_BINARY((byte) 0x07),
+    VALUE_INTEGER((byte) 0x08),
+    VALUE_LONG((byte) 0x09),
+    VALUE_FLOAT((byte) 0x0A),
+    VALUE_DOUBLE((byte) 0x0B),
+    VALUE_BOOLEAN((byte) 0x0C),
+    VALUE_NULL((byte) 0x0D),;
 
-    public static XContentType fromRestContentType(String contentType) {
-        if (contentType == null) {
-            return null;
-        }
-        if ("application/json".equals(contentType)) {
-            return JSON;
-        }
+    public static final int HEADER = 0x00;
 
-        if ("application/xson".equals(contentType)) {
-            return XSON;
-        }
+    private final byte code;
 
-        return null;
+    XsonType(byte code) {
+        this.code = code;
     }
 
-    private int index;
-
-    XContentType(int index) {
-        this.index = index;
-    }
-
-    public int index() {
-        return index;
+    public byte code() {
+        return code;
     }
 }

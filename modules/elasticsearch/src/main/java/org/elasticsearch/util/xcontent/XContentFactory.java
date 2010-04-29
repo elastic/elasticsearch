@@ -20,14 +20,17 @@
 package org.elasticsearch.util.xcontent;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.util.xcontent.builder.BinaryXContentBuilder;
 import org.elasticsearch.util.xcontent.builder.TextXContentBuilder;
 import org.elasticsearch.util.xcontent.json.JsonXContent;
+import org.elasticsearch.util.xcontent.xson.XsonType;
+import org.elasticsearch.util.xcontent.xson.XsonXContent;
 
 import java.io.IOException;
 
 /**
+ * A one stop to use {@link org.elasticsearch.util.xcontent.XContent} and {@link org.elasticsearch.util.xcontent.builder.XContentBuilder}.
+ *
  * @author kimchy (shay.banon)
  */
 public class XContentFactory {
@@ -37,28 +40,52 @@ public class XContentFactory {
     private static final XContent[] contents;
 
     static {
-        contents = new XContent[1];
+        contents = new XContent[2];
         contents[0] = new JsonXContent();
+        contents[1] = new XsonXContent();
     }
 
+    /**
+     * Returns a binary content builder using JSON format ({@link org.elasticsearch.util.xcontent.XContentType#JSON}.
+     */
     public static BinaryXContentBuilder jsonBuilder() throws IOException {
         return contentBinaryBuilder(XContentType.JSON);
     }
 
+    /**
+     * Returns a binary content builder using XSON format ({@link org.elasticsearch.util.xcontent.XContentType#XSON}.
+     */
+    public static BinaryXContentBuilder xsonBuilder() throws IOException {
+        return contentBinaryBuilder(XContentType.XSON);
+    }
+
+    /**
+     * Returns a binary content builder for the provided content type.
+     */
     public static BinaryXContentBuilder contentBuilder(XContentType type) throws IOException {
         if (type == XContentType.JSON) {
             return JsonXContent.contentBinaryBuilder();
+        } else if (type == XContentType.XSON) {
+            return XsonXContent.contentBinaryBuilder();
         }
         throw new ElasticSearchIllegalArgumentException("No matching content type for " + type);
     }
 
+    /**
+     * Returns a binary content builder for the provided content type.
+     */
     public static BinaryXContentBuilder contentBinaryBuilder(XContentType type) throws IOException {
         if (type == XContentType.JSON) {
             return JsonXContent.contentBinaryBuilder();
+        } else if (type == XContentType.XSON) {
+            return XsonXContent.contentBinaryBuilder();
         }
         throw new ElasticSearchIllegalArgumentException("No matching content type for " + type);
     }
 
+    /**
+     * Returns a textual content builder for the provided content type. Note, XSON does not support this... .
+     */
     public static TextXContentBuilder contentTextBuilder(XContentType type) throws IOException {
         if (type == XContentType.JSON) {
             return JsonXContent.contentTextBuilder();
@@ -66,10 +93,16 @@ public class XContentFactory {
         throw new ElasticSearchIllegalArgumentException("No matching content type for " + type);
     }
 
+    /**
+     * Returns the {@link org.elasticsearch.util.xcontent.XContent} for the provided content type.
+     */
     public static XContent xContent(XContentType type) {
         return contents[type.index()];
     }
 
+    /**
+     * Guesses the content type based on the provided char sequence.
+     */
     public static XContentType xContentType(CharSequence content) {
         int length = content.length() < GUESS_HEADER_LENGTH ? content.length() : GUESS_HEADER_LENGTH;
         for (int i = 0; i < length; i++) {
@@ -78,32 +111,50 @@ public class XContentFactory {
                 return XContentType.JSON;
             }
         }
-        throw new ElasticSearchIllegalStateException("Failed to derive xContent from byte stream");
+        return null;
     }
 
+    /**
+     * Guesses the content (type) based on the provided char sequence.
+     */
     public static XContent xContent(CharSequence content) {
         return xContent(xContentType(content));
     }
 
+    /**
+     * Guesses the content type based on the provided bytes.
+     */
     public static XContent xContent(byte[] data) {
         return xContent(data, 0, data.length);
     }
 
+    /**
+     * Guesses the content type based on the provided bytes.
+     */
     public static XContent xContent(byte[] data, int offset, int length) {
         return xContent(xContentType(data, offset, length));
     }
 
+    /**
+     * Guesses the content type based on the provided bytes.
+     */
     public static XContentType xContentType(byte[] data) {
         return xContentType(data, 0, data.length);
     }
 
+    /**
+     * Guesses the content type based on the provided bytes.
+     */
     public static XContentType xContentType(byte[] data, int offset, int length) {
         length = length < GUESS_HEADER_LENGTH ? length : GUESS_HEADER_LENGTH;
+        if (length > 1 && data[0] == XsonType.HEADER) {
+            return XContentType.XSON;
+        }
         for (int i = offset; i < length; i++) {
             if (data[i] == '{') {
                 return XContentType.JSON;
             }
         }
-        throw new ElasticSearchIllegalStateException("Failed to derive xContent from byte stream");
+        return null;
     }
 }

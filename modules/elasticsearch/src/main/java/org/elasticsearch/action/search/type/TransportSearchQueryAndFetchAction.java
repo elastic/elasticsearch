@@ -42,7 +42,7 @@ import java.util.Map;
 import static org.elasticsearch.action.search.type.TransportSearchHelper.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TransportSearchQueryAndFetchAction extends TransportSearchTypeAction {
 

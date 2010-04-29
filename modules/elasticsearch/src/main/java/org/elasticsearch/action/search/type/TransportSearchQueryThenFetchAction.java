@@ -63,6 +63,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
 
         private final Map<SearchShardTarget, FetchSearchResult> fetchResults = searchCache.obtainFetchResults();
 
+        private volatile Map<SearchShardTarget, ExtTIntArrayList> docIdsToLoad;
 
         private AsyncAction(SearchRequest request, ActionListener<SearchResponse> listener) {
             super(request, listener);
@@ -83,9 +84,9 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
         @Override protected void moveToSecondPhase() {
             sortedShardList = searchPhaseController.sortDocs(queryResults.values());
             final Map<SearchShardTarget, ExtTIntArrayList> docIdsToLoad = searchPhaseController.docIdsToLoad(sortedShardList);
+            this.docIdsToLoad = docIdsToLoad;
 
             if (docIdsToLoad.isEmpty()) {
-                releaseIrrelevantSearchContexts(queryResults, docIdsToLoad);
                 finishHim();
             }
 
@@ -134,8 +135,6 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
                     }
                 }
             }
-
-            releaseIrrelevantSearchContexts(queryResults, docIdsToLoad);
         }
 
         private void executeFetch(final AtomicInteger counter, FetchSearchRequest fetchSearchRequest, DiscoveryNode node) {
@@ -174,6 +173,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
             if (request.scroll() != null) {
                 scrollId = TransportSearchHelper.buildScrollId(request.searchType(), queryResults.values());
             }
+            releaseIrrelevantSearchContexts(queryResults, docIdsToLoad);
             searchCache.releaseQueryResults(queryResults);
             searchCache.releaseFetchResults(fetchResults);
             invokeListener(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildShardFailures()));

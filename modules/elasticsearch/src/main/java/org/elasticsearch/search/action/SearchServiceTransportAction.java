@@ -31,9 +31,12 @@ import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.*;
+import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.io.stream.LongStreamable;
 import org.elasticsearch.util.io.stream.VoidStreamable;
+import org.elasticsearch.util.logging.ESLogger;
+import org.elasticsearch.util.settings.Settings;
 
 /**
  * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
@@ -41,7 +44,21 @@ import org.elasticsearch.util.io.stream.VoidStreamable;
  *
  * @author kimchy (Shay Banon)
  */
-public class SearchServiceTransportAction {
+public class SearchServiceTransportAction extends AbstractComponent {
+
+    static final class FreeContextResponseHandler extends VoidTransportResponseHandler {
+
+        private final ESLogger logger;
+
+        FreeContextResponseHandler(ESLogger logger) {
+            super(false);
+            this.logger = logger;
+        }
+
+        @Override public void handleException(RemoteTransportException exp) {
+            logger.warn("Failed to send release search context", exp);
+        }
+    }
 
     private final TransportService transportService;
 
@@ -49,7 +66,10 @@ public class SearchServiceTransportAction {
 
     private final SearchService searchService;
 
-    @Inject public SearchServiceTransportAction(TransportService transportService, ClusterService clusterService, SearchService searchService) {
+    private final FreeContextResponseHandler freeContextResponseHandler = new FreeContextResponseHandler(logger);
+
+    @Inject public SearchServiceTransportAction(Settings settings, TransportService transportService, ClusterService clusterService, SearchService searchService) {
+        super(settings);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.searchService = searchService;
@@ -69,7 +89,7 @@ public class SearchServiceTransportAction {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             searchService.freeContext(contextId);
         } else {
-            transportService.sendRequest(node, SearchFreeContextTransportHandler.ACTION, new LongStreamable(contextId), VoidTransportResponseHandler.INSTANCE_NOSPAWN);
+            transportService.sendRequest(node, SearchFreeContextTransportHandler.ACTION, new LongStreamable(contextId), freeContextResponseHandler);
         }
     }
 

@@ -279,6 +279,9 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
          */
         protected void releaseIrrelevantSearchContexts(Map<SearchShardTarget, QuerySearchResultProvider> queryResults,
                                                        Map<SearchShardTarget, ExtTIntArrayList> docIdsToLoad) {
+            if (docIdsToLoad == null) {
+                return;
+            }
             for (Map.Entry<SearchShardTarget, QuerySearchResultProvider> entry : queryResults.entrySet()) {
                 if (!docIdsToLoad.containsKey(entry.getKey())) {
                     DiscoveryNode node = nodes.get(entry.getKey().nodeId());

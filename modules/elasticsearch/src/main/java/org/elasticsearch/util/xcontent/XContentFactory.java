@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.util.xcontent.builder.BinaryXContentBuilder;
 import org.elasticsearch.util.xcontent.builder.TextXContentBuilder;
 import org.elasticsearch.util.xcontent.json.JsonXContent;
-import org.elasticsearch.util.xcontent.xson.XsonType;
 import org.elasticsearch.util.xcontent.xson.XsonXContent;
 
 import java.io.IOException;
@@ -147,7 +146,7 @@ public class XContentFactory {
      */
     public static XContentType xContentType(byte[] data, int offset, int length) {
         length = length < GUESS_HEADER_LENGTH ? length : GUESS_HEADER_LENGTH;
-        if (length > 1 && data[0] == XsonType.HEADER) {
+        if (length > 1 && data[0] == 0x00 && data[1] == 0x00) {
             return XContentType.XSON;
         }
         for (int i = offset; i < length; i++) {

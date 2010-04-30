@@ -42,13 +42,8 @@ public class XContentFactory {
 
     static {
         contents = new XContent[2];
-        try {
-            contents[0] = new JsonXContent();
-            contents[1] = new XsonXContent();
-        } catch (Throwable t) {
-            System.err.println("Failed to load xcontent");
-            t.printStackTrace();
-        }
+        contents[0] = new JsonXContent();
+        contents[1] = new XsonXContent();
     }
 
     /**

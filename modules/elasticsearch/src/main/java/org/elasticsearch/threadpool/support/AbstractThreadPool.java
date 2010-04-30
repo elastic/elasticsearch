@@ -25,9 +25,6 @@ import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.settings.Settings;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 import java.util.concurrent.*;
 
 /**
@@ -74,20 +71,10 @@ public abstract class AbstractThreadPool extends AbstractComponent implements Th
         scheduledExecutorService.shutdown();
     }
 
-    @Override public List<Runnable> shutdownNow() {
+    @Override public void shutdownNow() {
         started = false;
-        List<Runnable> result = new ArrayList<Runnable>();
-        result.addAll(executorService.shutdownNow());
-        result.addAll(scheduledExecutorService.shutdownNow());
-        return result;
-    }
-
-    @Override public boolean isShutdown() {
-        return executorService.isShutdown() || scheduledExecutorService.isShutdown();
-    }
-
-    @Override public boolean isTerminated() {
-        return executorService.isTerminated() || scheduledExecutorService.isTerminated();
+        executorService.shutdownNow();
+        scheduledExecutorService.shutdownNow();
     }
 
     @Override public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
@@ -126,22 +113,6 @@ public abstract class AbstractThreadPool extends AbstractComponent implements Th
 
     @Override public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, TimeValue interval) {
         return scheduleWithFixedDelay(command, interval.millis(), interval.millis(), TimeUnit.MILLISECONDS);
-    }
-
-    @Override public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) throws InterruptedException {
-        return executorService.invokeAll(tasks);
-    }
-
-    @Override public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) throws InterruptedException {
-        return executorService.invokeAll(tasks, timeout, unit);
-    }
-
-    @Override public <T> T invokeAny(Collection<? extends Callable<T>> tasks) throws InterruptedException, ExecutionException {
-        return executorService.invokeAny(tasks);
-    }
-
-    @Override public <T> T invokeAny(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
-        return executorService.invokeAny(tasks, timeout, unit);
     }
 
     @Override public void execute(Runnable command) {

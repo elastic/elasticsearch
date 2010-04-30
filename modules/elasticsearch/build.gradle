@@ -24,11 +24,6 @@ manifest.mainAttributes("Implementation-Title": "ElasticSearch", "Implementation
 sourceSets.main.resources.srcDirs 'src/main/java', rootProject.file('config')
 sourceSets.test.resources.srcDirs 'src/test/java'
 
-// add the source files to the dist jar
-//jar {
-//    from sourceSets.main.allJava
-//}
-
 dependencies {
     compile('jline:jline:0.9.94') { transitive = false }
 
@@ -52,6 +47,43 @@ dependencies {
     testCompile('org.hamcrest:hamcrest-all:1.1') { transitive = false }
 }
 
+configurations {
+    deployerJars
+    tools
+}
+
+dependencies {
+    deployerJars "org.apache.maven.wagon:wagon-http:1.0-beta-2"
+    tools "com.google.code:jarjar:1.0"
+}
+
+// add the source files to the dist jar
+//jar {
+//    from sourceSets.main.allJava
+//}
+
+jar << {
+    jarjarArchivePath = new File(jar.archivePath.absolutePath + ".jarjar.jar")
+    project.ant {
+        taskdef name: "jarjar", classname: "com.tonicsystems.jarjar.JarJarTask", classpath: configurations.tools.asPath
+        jarjar(jarfile: jarjarArchivePath) {
+            zipfileset(src: jar.archivePath)
+            configurations.compile.files.findAll {file ->
+                ['jackson', 'joda'].any { file.name.contains(it) }
+            }.each { jarjarFile ->
+                zipfileset(src: jarjarFile) {
+                    exclude(name: "META-INF/**")
+                }
+            }
+            rule pattern: "org.codehaus.jackson.**", result: "org.elasticsearch.util.jackson.@1"
+            rule pattern: "org.joda.**", result: "org.elasticsearch.util.joda.@1"
+        }
+        delete(file: jar.archivePath)
+        copy(file: jarjarArchivePath, tofile: jar.archivePath)
+        delete(file: jarjarArchivePath)
+    }
+}
+
 javadoc {
     maxMemory = "1g"
 }
@@ -62,14 +94,6 @@ test {
     suiteName = project.name
     listeners = ["org.elasticsearch.util.testng.Listeners"]
     systemProperties["es.test.log.conf"] = System.getProperty("es.test.log.conf", "log4j-gradle.properties")
-}
-
-configurations {
-    deployerJars
-}
-
-dependencies {
-    deployerJars "org.apache.maven.wagon:wagon-http:1.0-beta-2"
 }
 
 task sourcesJar(type: Jar, dependsOn: classes) {
@@ -120,6 +144,8 @@ uploadArchives {
             pom.dependencies = pom.dependencies.findAll {dep -> !dep.artifactId.contains('log4j') }
             pom.dependencies = pom.dependencies.findAll {dep -> !dep.artifactId.contains('slf4j') }
             pom.dependencies = pom.dependencies.findAll {dep -> !dep.artifactId.contains('jline') }
+            pom.dependencies = pom.dependencies.findAll {dep -> !dep.artifactId.contains('jackson') }
+            pom.dependencies = pom.dependencies.findAll {dep -> !dep.artifactId.contains('joda') }
             pom.dependencies.findAll {dep -> dep.groupId == 'jgroups' }*.scope = 'runtime'
             pom.dependencies.findAll {dep -> dep.groupId == 'org.jboss.netty' }*.scope = 'runtime'
         }

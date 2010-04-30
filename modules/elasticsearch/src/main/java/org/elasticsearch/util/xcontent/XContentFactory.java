@@ -20,12 +20,14 @@
 package org.elasticsearch.util.xcontent;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.util.xcontent.builder.BinaryXContentBuilder;
 import org.elasticsearch.util.xcontent.builder.TextXContentBuilder;
 import org.elasticsearch.util.xcontent.json.JsonXContent;
 import org.elasticsearch.util.xcontent.xson.XsonXContent;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * A one stop to use {@link org.elasticsearch.util.xcontent.XContent} and {@link org.elasticsearch.util.xcontent.builder.XContentBuilder}.
@@ -40,8 +42,13 @@ public class XContentFactory {
 
     static {
         contents = new XContent[2];
-        contents[0] = new JsonXContent();
-        contents[1] = new XsonXContent();
+        try {
+            contents[0] = new JsonXContent();
+            contents[1] = new XsonXContent();
+        } catch (Throwable t) {
+            System.err.println("Failed to load xcontent");
+            t.printStackTrace();
+        }
     }
 
     /**
@@ -117,7 +124,11 @@ public class XContentFactory {
      * Guesses the content (type) based on the provided char sequence.
      */
     public static XContent xContent(CharSequence content) {
-        return xContent(xContentType(content));
+        XContentType type = xContentType(content);
+        if (type == null) {
+            throw new ElasticSearchParseException("Failed to derive xcontent from " + content);
+        }
+        return xContent(type);
     }
 
     /**
@@ -131,7 +142,11 @@ public class XContentFactory {
      * Guesses the content type based on the provided bytes.
      */
     public static XContent xContent(byte[] data, int offset, int length) {
-        return xContent(xContentType(data, offset, length));
+        XContentType type = xContentType(data, offset, length);
+        if (type == null) {
+            throw new ElasticSearchParseException("Failed to derive xcontent from " + Arrays.toString(data));
+        }
+        return xContent(type);
     }
 
     /**

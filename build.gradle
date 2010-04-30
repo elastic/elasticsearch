@@ -87,10 +87,18 @@ task zip(type: Zip, dependsOn: ['explodedDist']) {
     from(explodedDistDir) {
         into zipRootFolder
         exclude 'bin/elasticsearch'
+        exclude 'bin/service/elasticsearch'
+        exclude 'bin/service/elasticsearch32'
+        exclude 'bin/service/elasticsearch64'
+        exclude 'bin/service/exec/**'
     }
     from(explodedDistDir) {
         into zipRootFolder
         include 'bin/elasticsearch'
+        include 'bin/service/elasticsearch'
+        include 'bin/service/elasticsearch32'
+        include 'bin/service/elasticsearch64'
+        include 'bin/service/exec/**'
         fileMode = 0755
     }
 }

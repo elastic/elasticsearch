@@ -19,8 +19,6 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.util.guice.inject.CreationException;
-import org.elasticsearch.util.guice.inject.spi.Message;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.env.Environment;
@@ -30,6 +28,8 @@ import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPerparer;
 import org.elasticsearch.util.Classes;
 import org.elasticsearch.util.Tuple;
+import org.elasticsearch.util.guice.inject.CreationException;
+import org.elasticsearch.util.guice.inject.spi.Message;
 import org.elasticsearch.util.jline.ANSI;
 import org.elasticsearch.util.logging.ESLogger;
 import org.elasticsearch.util.logging.Loggers;
@@ -39,8 +39,8 @@ import org.elasticsearch.util.settings.Settings;
 import java.io.File;
 import java.util.Set;
 
-import static org.elasticsearch.util.gcommon.collect.Sets.*;
 import static jline.ANSIBuffer.ANSICodes.*;
+import static org.elasticsearch.util.gcommon.collect.Sets.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.*;
 
@@ -131,6 +131,10 @@ public class Bootstrap {
         String pidFile = System.getProperty("es-pidfile");
 
         boolean foreground = System.getProperty("es-foreground") != null;
+        // handle the wrapper system property, if its a service, don't run as a service
+        if (System.getProperty("wrapper.service", "XXX").equalsIgnoreCase("true")) {
+            foreground = false;
+        }
 
         Tuple<Settings, Environment> tuple = null;
         try {

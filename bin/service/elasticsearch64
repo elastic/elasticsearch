@@ -1,0 +1,4 @@
+#! /bin/sh
+
+export DIST_BITS="64"
+`dirname $0`/elasticsearch $1

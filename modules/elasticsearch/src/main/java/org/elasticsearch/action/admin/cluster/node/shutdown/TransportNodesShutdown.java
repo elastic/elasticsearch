@@ -102,7 +102,21 @@ public class TransportNodesShutdown extends TransportNodesOperationAction<NodesS
         logger.info("Shutting down in [{}]", request.delay);
         threadPool.schedule(new Runnable() {
             @Override public void run() {
-                node.close();
+                boolean shutdownWithWrapper = false;
+                if (System.getProperty("elasticsearch-service") != null) {
+                    try {
+                        Class wrapperManager = settings.getClassLoader().loadClass("org.tanukisoftware.wrapper.WrapperManager");
+                        logger.info("Initiating requested shutdown (using service)");
+                        wrapperManager.getMethod("stopAndReturn", int.class).invoke(null, 0);
+                        shutdownWithWrapper = true;
+                    } catch (Throwable e) {
+                        e.printStackTrace();
+                    }
+                }
+                if (!shutdownWithWrapper) {
+                    logger.info("Initiating requested shutdown");
+                    node.close();
+                }
             }
         }, request.delay.millis(), TimeUnit.MILLISECONDS);
         return new NodesShutdownResponse.NodeShutdownResponse(clusterService.state().nodes().localNode());

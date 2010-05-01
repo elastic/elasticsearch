@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.attachments.test;
+package org.elasticsearch.plugin.mapper.attachments.test;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;

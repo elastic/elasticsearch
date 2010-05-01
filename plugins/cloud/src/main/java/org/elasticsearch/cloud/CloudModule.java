@@ -17,31 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.attachments;
+package org.elasticsearch.cloud;
 
-import org.elasticsearch.util.guice.inject.Module;
-import org.elasticsearch.plugins.AbstractPlugin;
-
-import java.util.Collection;
-
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import org.elasticsearch.cloud.blobstore.CloudBlobstoreService;
+import org.elasticsearch.cloud.compute.CloudComputeService;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class MapperAttachmentsPlugin extends AbstractPlugin {
+public class CloudModule extends AbstractModule {
 
-    @Override public String name() {
-        return "mapper-attachments";
-    }
-
-    @Override public String description() {
-        return "Adds the attachment type allowing to parse difference attachment formats";
-    }
-
-    @Override public Collection<Class<? extends Module>> indexModules() {
-        Collection<Class<? extends Module>> modules = newArrayList();
-        modules.add(MapperAttachmentsIndexModule.class);
-        return modules;
+    @Override protected void configure() {
+        bind(CloudComputeService.class).asEagerSingleton();
+        bind(CloudBlobstoreService.class).asEagerSingleton();
     }
 }

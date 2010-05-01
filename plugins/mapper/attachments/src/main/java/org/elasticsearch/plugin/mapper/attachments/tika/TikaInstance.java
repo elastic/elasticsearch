@@ -17,20 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.jgroups;
+package org.elasticsearch.plugin.mapper.attachments.tika;
 
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.apache.tika.Tika;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class JgroupsPlugin extends AbstractPlugin {
+public class TikaInstance {
 
-    @Override public String name() {
-        return "discovery-plugin";
-    }
+    private static final Tika tika = new Tika();
 
-    @Override public String description() {
-        return "Adds jgroups as a discovery type";
+    public static Tika tika() {
+        return tika;
     }
 }

@@ -6,6 +6,7 @@ include 'test-integration'
 
 include 'benchmark-micro'
 
+include 'plugins-cloud'
 include 'plugins-analysis-icu'
 include 'plugins-mapper-attachments'
 include 'plugins-client-groovy'

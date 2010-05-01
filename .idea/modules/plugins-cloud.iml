@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="JAVA_MODULE" version="4">
+  <component name="NewModuleRootManager" inherit-compiler-output="false">
+    <output url="file://$MODULE_DIR$/../../plugins/cloud/build/classes/main" />
+    <output-test url="file://$MODULE_DIR$/../../plugins/cloud/build/classes/test" />
+    <exclude-output />
+    <content url="file://$MODULE_DIR$/../../plugins/cloud">
+      <sourceFolder url="file://$MODULE_DIR$/../../plugins/cloud/src/main/java" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/../../plugins/cloud/src/test/java" isTestSource="true" />
+      <excludeFolder url="file://$MODULE_DIR$/../../plugins/cloud/build" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="module" module-name="elasticsearch" />
+    <orderEntry type="module-library">
+      <library name="jclouds">
+        <CLASSES>
+          <root url="jar://$GRADLE_REPOSITORY$/com.google.code.gson/gson/jars/gson-1.4.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/com.google.code.guice/guice/jars/guice-2.1-r1128.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/com.jamesmurty.utils/java-xmlbuilder/jars/java-xmlbuilder-0.3.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-compute/jars/jclouds-compute-1.0-beta-4.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-aws/jars/jclouds-aws-1.0-beta-4.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-scriptbuilder/jars/jclouds-scriptbuilder-1.0-beta-4.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-blobstore/jars/jclouds-blobstore-1.0-beta-4.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-core/jars/jclouds-core-1.0-beta-4.jar!/" />
+        </CLASSES>
+        <JAVADOC>
+          <root url="http://jclouds.rimuhosting.com/apidocs/" />
+        </JAVADOC>
+        <SOURCES />
+      </library>
+    </orderEntry>
+  </component>
+</module>
+

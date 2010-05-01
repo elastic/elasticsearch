@@ -17,11 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.memcached;
+package org.elasticsearch.plugin.transport.memcached;
 
-import org.elasticsearch.util.guice.inject.Module;
+import org.elasticsearch.memcached.MemcachedServer;
+import org.elasticsearch.memcached.MemcachedServerModule;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.util.component.LifecycleComponent;
+import org.elasticsearch.util.guice.inject.Module;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.Collection;
@@ -31,11 +33,11 @@ import static org.elasticsearch.util.gcommon.collect.Lists.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class MemcachedPlugin extends AbstractPlugin {
+public class MemcachedTransportPlugin extends AbstractPlugin {
 
     private final Settings settings;
 
-    public MemcachedPlugin(Settings settings) {
+    public MemcachedTransportPlugin(Settings settings) {
         this.settings = settings;
     }
 

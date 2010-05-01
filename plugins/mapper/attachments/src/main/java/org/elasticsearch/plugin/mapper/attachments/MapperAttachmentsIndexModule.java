@@ -17,18 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.attachments.tika;
+package org.elasticsearch.plugin.mapper.attachments;
 
-import org.apache.tika.Tika;
+import org.elasticsearch.index.mapper.xcontent.XContentAttachmentMapperService;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class TikaInstance {
+public class MapperAttachmentsIndexModule extends AbstractModule {
 
-    private static final Tika tika = new Tika();
-
-    public static Tika tika() {
-        return tika;
+    @Override protected void configure() {
+        bind(XContentAttachmentMapperService.class).asEagerSingleton();
     }
 }

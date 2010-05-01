@@ -17,17 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.attachments;
+package org.elasticsearch.plugin.discovery.jgroups;
 
-import org.elasticsearch.util.guice.inject.AbstractModule;
-import org.elasticsearch.index.mapper.xcontent.XContentAttachmentMapperService;
+import org.elasticsearch.plugins.AbstractPlugin;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class MapperAttachmentsIndexModule extends AbstractModule {
+public class JgroupsDiscoveryPlugin extends AbstractPlugin {
 
-    @Override protected void configure() {
-        bind(XContentAttachmentMapperService.class).asEagerSingleton();
+    @Override public String name() {
+        return "discovery-jgroups";
+    }
+
+    @Override public String description() {
+        return "Adds jgroups as a discovery type";
     }
 }

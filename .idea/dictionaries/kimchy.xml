@@ -8,12 +8,15 @@
       <w>banon</w>
       <w>bindhost</w>
       <w>birthdate</w>
+      <w>blobstore</w>
       <w>bool</w>
       <w>booleans</w>
       <w>camelcase</w>
       <w>canonicalhost</w>
       <w>checksum</w>
       <w>closeable</w>
+      <w>cloudfiles</w>
+      <w>cloudservers</w>
       <w>commitable</w>
       <w>committable</w>
       <w>configurator</w>
@@ -59,6 +62,7 @@
       <w>porterstem</w>
       <w>publishhost</w>
       <w>queryparser</w>
+      <w>rackspace</w>
       <w>rebalance</w>
       <w>sbuf</w>
       <w>searchable</w>

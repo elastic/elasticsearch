@@ -74,6 +74,7 @@ public class TransportActions {
             public static class Node {
                 public static final String INFO = "/cluster/nodes/info";
                 public static final String SHUTDOWN = "/cluster/nodes/shutdown";
+                public static final String RESTART = "/cluster/nodes/restart";
             }
 
             public static class Ping {

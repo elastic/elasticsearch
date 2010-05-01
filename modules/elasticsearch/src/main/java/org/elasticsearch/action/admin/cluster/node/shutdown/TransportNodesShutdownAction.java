@@ -37,7 +37,6 @@ import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static org.elasticsearch.util.TimeValue.*;
@@ -46,15 +45,15 @@ import static org.elasticsearch.util.gcommon.collect.Lists.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class TransportNodesShutdown extends TransportNodesOperationAction<NodesShutdownRequest, NodesShutdownResponse, TransportNodesShutdown.NodeShutdownRequest, NodesShutdownResponse.NodeShutdownResponse> {
+public class TransportNodesShutdownAction extends TransportNodesOperationAction<NodesShutdownRequest, NodesShutdownResponse, TransportNodesShutdownAction.NodeShutdownRequest, NodesShutdownResponse.NodeShutdownResponse> {
 
     private final Node node;
 
     private final boolean disabled;
 
-    @Inject public TransportNodesShutdown(Settings settings, ClusterName clusterName, ThreadPool threadPool,
-                                          ClusterService clusterService, TransportService transportService,
-                                          Node node) {
+    @Inject public TransportNodesShutdownAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+                                                ClusterService clusterService, TransportService transportService,
+                                                Node node) {
         super(settings, clusterName, threadPool, clusterService, transportService);
         this.node = node;
         disabled = componentSettings.getAsBoolean("disabled", false);
@@ -95,13 +94,18 @@ public class TransportNodesShutdown extends TransportNodesOperationAction<NodesS
         return new NodesShutdownResponse.NodeShutdownResponse();
     }
 
-    @Override protected NodesShutdownResponse.NodeShutdownResponse nodeOperation(NodeShutdownRequest request) throws ElasticSearchException {
+    @Override protected NodesShutdownResponse.NodeShutdownResponse nodeOperation(final NodeShutdownRequest request) throws ElasticSearchException {
         if (disabled) {
             throw new ElasticSearchIllegalStateException("Shutdown is disabled");
         }
         logger.info("Shutting down in [{}]", request.delay);
-        threadPool.schedule(new Runnable() {
+        Thread t = new Thread(new Runnable() {
             @Override public void run() {
+                try {
+                    Thread.sleep(request.delay.millis());
+                } catch (InterruptedException e) {
+                    // ignore
+                }
                 boolean shutdownWithWrapper = false;
                 if (System.getProperty("elasticsearch-service") != null) {
                     try {
@@ -115,10 +119,18 @@ public class TransportNodesShutdown extends TransportNodesOperationAction<NodesS
                 }
                 if (!shutdownWithWrapper) {
                     logger.info("Initiating requested shutdown");
-                    node.close();
+                    try {
+                        node.close();
+                    } catch (Exception e) {
+                        logger.warn("Failed to shutdown", e);
+                    } finally {
+                        // make sure we initiate the shutdown hooks, so the Bootstrap#main thread will exit
+                        System.exit(0);
+                    }
                 }
             }
-        }, request.delay.millis(), TimeUnit.MILLISECONDS);
+        });
+        t.start();
         return new NodesShutdownResponse.NodeShutdownResponse(clusterService.state().nodes().localNode());
     }
 

@@ -3,11 +3,11 @@ dependsOn(':elasticsearch')
 apply plugin: 'java'
 apply plugin: 'maven'
 
-archivesBaseName = "elasticsearch-discovery-jgroups"
+archivesBaseName = "elasticsearch-cloud"
 
 explodedDistDir = new File(distsDir, 'exploded')
 
-manifest.mainAttributes("Implementation-Title": "ElasticSearch::Plugins::Discovery::Jgrorups", "Implementation-Version": rootProject.version, "Implementation-Date": buildTimeStr)
+manifest.mainAttributes("Implementation-Title": "ElasticSearch::Plugins::Cloud", "Implementation-Version": rootProject.version, "Implementation-Date": buildTimeStr)
 
 configurations.compile.transitive = true
 configurations.testCompile.transitive = true
@@ -25,14 +25,18 @@ configurations {
     dists
     distLib {
         visible = false
-        transitive = false
     }
+}
+
+repositories {
+    mavenRepo urls: "http://jclouds.googlecode.com/svn/repo"
+    mavenRepo urls: "http://java-xmlbuilder.googlecode.com/svn/repo"
 }
 
 dependencies {
     compile project(':elasticsearch')
-    compile('jgroups:jgroups:2.9.0.GA') { transitive = false }
-    distLib('jgroups:jgroups:2.9.0.GA') { transitive = false }
+    compile('org.jclouds:jclouds-aws:1.0-beta-4')
+    distLib('org.jclouds:jclouds-aws:1.0-beta-4')
 
     testCompile project(':test-testng')
     testCompile('org.testng:testng:5.10:jdk15') { transitive = false }
@@ -114,8 +118,8 @@ uploadArchives {
 
         pom.project {
             inceptionYear '2009'
-            name 'elasticsearch-plugins-disocvery-jgroups'
-            description 'Memcacehd Plugin for ElasticSearch'
+            name 'elasticsearch-plugins-cloud'
+            description 'Clouud Plugin for ElasticSearch'
             licenses {
                 license {
                     name 'The Apache Software License, Version 2.0'

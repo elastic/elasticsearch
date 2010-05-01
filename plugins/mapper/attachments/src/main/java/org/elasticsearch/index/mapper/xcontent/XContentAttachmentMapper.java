@@ -33,7 +33,7 @@ import java.util.Map;
 
 import static org.elasticsearch.index.mapper.xcontent.XContentMapperBuilders.*;
 import static org.elasticsearch.index.mapper.xcontent.XContentTypeParsers.*;
-import static org.elasticsearch.plugin.attachments.tika.TikaInstance.*;
+import static org.elasticsearch.plugin.mapper.attachments.tika.TikaInstance.*;
 
 /**
  * <pre>
@@ -200,8 +200,8 @@ public class XContentAttachmentMapper implements XContentMapper {
     private final XContentStringFieldMapper keywordsMapper;
 
     public XContentAttachmentMapper(String name, ContentPath.Type pathType, XContentStringFieldMapper contentMapper,
-                                XContentDateFieldMapper dateMapper, XContentStringFieldMapper titleMapper, XContentStringFieldMapper authorMapper,
-                                XContentStringFieldMapper keywordsMapper) {
+                                    XContentDateFieldMapper dateMapper, XContentStringFieldMapper titleMapper, XContentStringFieldMapper authorMapper,
+                                    XContentStringFieldMapper keywordsMapper) {
         this.name = name;
         this.pathType = pathType;
         this.contentMapper = contentMapper;

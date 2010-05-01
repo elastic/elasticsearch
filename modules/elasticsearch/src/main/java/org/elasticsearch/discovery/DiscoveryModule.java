@@ -19,10 +19,10 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.util.guice.inject.AbstractModule;
-import org.elasticsearch.util.guice.inject.Module;
 import org.elasticsearch.discovery.local.LocalDiscoveryModule;
 import org.elasticsearch.discovery.zen.ZenDiscoveryModule;
+import org.elasticsearch.util.guice.inject.AbstractModule;
+import org.elasticsearch.util.guice.inject.Module;
 import org.elasticsearch.util.settings.Settings;
 
 import static org.elasticsearch.util.guice.ModulesFactory.*;
@@ -34,8 +34,15 @@ public class DiscoveryModule extends AbstractModule {
 
     private final Settings settings;
 
+    private Class<? extends Module> defaultDiscoModule;
+
     public DiscoveryModule(Settings settings) {
         this.settings = settings;
+        this.defaultDiscoModule = ZenDiscoveryModule.class;
+    }
+
+    public void replaceDefaultDiscoModule(Class<? extends Module> defaultDiscoModule) {
+        this.defaultDiscoModule = defaultDiscoModule;
     }
 
     @Override
@@ -44,7 +51,7 @@ public class DiscoveryModule extends AbstractModule {
         if (settings.getAsBoolean("node.local", false)) {
             defaultDiscoveryModule = LocalDiscoveryModule.class;
         } else {
-            defaultDiscoveryModule = ZenDiscoveryModule.class;
+            defaultDiscoveryModule = defaultDiscoModule;
         }
 
         Class<? extends Module> moduleClass = settings.getAsClass("discovery.type", defaultDiscoveryModule, "org.elasticsearch.discovery.", "DiscoveryModule");

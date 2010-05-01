@@ -7,7 +7,7 @@ archivesBaseName = "elasticsearch-transport-memcached"
 
 explodedDistDir = new File(distsDir, 'exploded')
 
-manifest.mainAttributes("Implementation-Title": "ElasticSearch::Plugins::Memcached", "Implementation-Version": rootProject.version, "Implementation-Date": buildTimeStr)
+manifest.mainAttributes("Implementation-Title": "ElasticSearch::Plugins::Transport::Memcached", "Implementation-Version": rootProject.version, "Implementation-Date": buildTimeStr)
 
 configurations.compile.transitive = true
 configurations.testCompile.transitive = true
@@ -117,7 +117,7 @@ uploadArchives {
 
         pom.project {
             inceptionYear '2009'
-            name 'elasticsearch-plugins-memcached'
+            name 'elasticsearch-plugins-transport-memcached'
             description 'Memcacehd Plugin for ElasticSearch'
             licenses {
                 license {

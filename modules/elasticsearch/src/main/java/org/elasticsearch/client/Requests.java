@@ -21,6 +21,7 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
+import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartRequest;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingRequest;
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingRequest;
@@ -335,6 +336,24 @@ public class Requests {
      */
     public static NodesShutdownRequest nodesShutdown(String... nodesIds) {
         return new NodesShutdownRequest(nodesIds);
+    }
+
+    /**
+     * Restarts all nodes in the cluster.
+     */
+    public static NodesRestartRequest nodesRestart() {
+        return new NodesRestartRequest();
+    }
+
+    /**
+     * Restarts specific nodes in the cluster.
+     *
+     * @param nodesIds The nodes ids to restart
+     * @return The nodes info request
+     * @see org.elasticsearch.client.ClusterAdminClient#nodesRestart(org.elasticsearch.action.admin.cluster.node.restart.NodesRestartRequest)
+     */
+    public static NodesRestartRequest nodesRestart(String... nodesIds) {
+        return new NodesRestartRequest(nodesIds);
     }
 
     public static SinglePingRequest pingSingleRequest(String index) {

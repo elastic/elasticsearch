@@ -1,0 +1,156 @@
+/*
+ * Licensed to Elastic Search and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Elastic Search licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.action.admin.cluster.node.restart;
+
+import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.action.TransportActions;
+import org.elasticsearch.action.support.nodes.NodeOperationRequest;
+import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.settings.Settings;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReferenceArray;
+
+import static org.elasticsearch.util.TimeValue.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
+
+/**
+ * @author kimchy (shay.banon)
+ */
+public class TransportNodesRestartAction extends TransportNodesOperationAction<NodesRestartRequest, NodesRestartResponse, TransportNodesRestartAction.NodeRestartRequest, NodesRestartResponse.NodeRestartResponse> {
+
+    private final Node node;
+
+    private final boolean disabled;
+
+    @Inject public TransportNodesRestartAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+                                               ClusterService clusterService, TransportService transportService,
+                                               Node node) {
+        super(settings, clusterName, threadPool, clusterService, transportService);
+        this.node = node;
+        disabled = componentSettings.getAsBoolean("disabled", false);
+    }
+
+    @Override protected String transportAction() {
+        return TransportActions.Admin.Cluster.Node.RESTART;
+    }
+
+    @Override protected String transportNodeAction() {
+        return "/cluster/nodes/restart/node";
+    }
+
+    @Override protected NodesRestartResponse newResponse(NodesRestartRequest nodesShutdownRequest, AtomicReferenceArray responses) {
+        final List<NodesRestartResponse.NodeRestartResponse> nodeRestartResponses = newArrayList();
+        for (int i = 0; i < responses.length(); i++) {
+            Object resp = responses.get(i);
+            if (resp instanceof NodesRestartResponse.NodeRestartResponse) {
+                nodeRestartResponses.add((NodesRestartResponse.NodeRestartResponse) resp);
+            }
+        }
+        return new NodesRestartResponse(clusterName, nodeRestartResponses.toArray(new NodesRestartResponse.NodeRestartResponse[nodeRestartResponses.size()]));
+    }
+
+    @Override protected NodesRestartRequest newRequest() {
+        return new NodesRestartRequest();
+    }
+
+    @Override protected NodeRestartRequest newNodeRequest() {
+        return new NodeRestartRequest();
+    }
+
+    @Override protected NodeRestartRequest newNodeRequest(String nodeId, NodesRestartRequest request) {
+        return new NodeRestartRequest(nodeId, request.delay);
+    }
+
+    @Override protected NodesRestartResponse.NodeRestartResponse newNodeResponse() {
+        return new NodesRestartResponse.NodeRestartResponse();
+    }
+
+    @Override protected NodesRestartResponse.NodeRestartResponse nodeOperation(NodeRestartRequest request) throws ElasticSearchException {
+        if (disabled) {
+            throw new ElasticSearchIllegalStateException("Restart is disabled");
+        }
+        logger.info("Restarting in [{}]", request.delay);
+        threadPool.schedule(new Runnable() {
+            @Override public void run() {
+                boolean restartWithWrapper = false;
+                if (System.getProperty("elasticsearch-service") != null) {
+                    try {
+                        Class wrapperManager = settings.getClassLoader().loadClass("org.tanukisoftware.wrapper.WrapperManager");
+                        logger.info("Initiating requested restart (using service)");
+                        wrapperManager.getMethod("restartAndReturn").invoke(null);
+                        restartWithWrapper = true;
+                    } catch (Throwable e) {
+                        e.printStackTrace();
+                    }
+                }
+                if (!restartWithWrapper) {
+                    logger.info("Initiating requested restart");
+                    try {
+                        node.stop();
+                        node.start();
+                    } catch (Exception e) {
+                        logger.warn("Failed to restart", e);
+                    }
+                }
+            }
+        }, request.delay.millis(), TimeUnit.MILLISECONDS);
+        return new NodesRestartResponse.NodeRestartResponse(clusterService.state().nodes().localNode());
+    }
+
+    @Override protected boolean accumulateExceptions() {
+        return false;
+    }
+
+    protected static class NodeRestartRequest extends NodeOperationRequest {
+
+        TimeValue delay;
+
+        private NodeRestartRequest() {
+        }
+
+        private NodeRestartRequest(String nodeId, TimeValue delay) {
+            super(nodeId);
+            this.delay = delay;
+        }
+
+        @Override public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            delay = readTimeValue(in);
+        }
+
+        @Override public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            delay.writeTo(out);
+        }
+    }
+}

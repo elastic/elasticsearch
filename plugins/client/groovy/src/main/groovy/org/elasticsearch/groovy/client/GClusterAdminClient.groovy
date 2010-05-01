@@ -24,6 +24,8 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse
+import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartRequest
+import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartResponse
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownResponse
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest
@@ -109,7 +111,7 @@ class GClusterAdminClient {
         clusterAdminClient.nodesInfo(request, listener)
     }
 
-    // NODES INFO
+    // NODES SHUTDOWN
 
     GActionFuture<NodesShutdownResponse> nodesShutdown(Closure c) {
         NodesShutdownRequest request = new NodesShutdownRequest()
@@ -127,5 +129,25 @@ class GClusterAdminClient {
 
     void nodesShutdown(NodesShutdownRequest request, ActionListener<NodesShutdownResponse> listener) {
         clusterAdminClient.nodesShutdown(request, listener)
+    }
+
+    // NODES RESTART
+
+    GActionFuture<NodesRestartResponse> nodesRestart(Closure c) {
+        NodesRestartRequest request = new NodesRestartRequest()
+        c.setDelegate request
+        c.resolveStrategy = gClient.resolveStrategy
+        c.call()
+        nodesRestart(request)
+    }
+
+    GActionFuture<NodesRestartResponse> nodesRestart(NodesRestartRequest request) {
+        GActionFuture<NodesRestartResponse> future = new GActionFuture<NodesRestartResponse>(internalClient.threadPool(), request);
+        clusterAdminClient.nodesRestart(request, future)
+        return future
+    }
+
+    void nodesRestart(NodesRestartRequest request, ActionListener<NodesRestartResponse> listener) {
+        clusterAdminClient.nodesRestart(request, listener)
     }
 }

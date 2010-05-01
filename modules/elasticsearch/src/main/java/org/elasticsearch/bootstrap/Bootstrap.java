@@ -38,6 +38,7 @@ import org.elasticsearch.util.settings.Settings;
 
 import java.io.File;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 
 import static jline.ANSIBuffer.ANSICodes.*;
 import static org.elasticsearch.util.gcommon.collect.Sets.*;
@@ -164,6 +165,23 @@ public class Bootstrap {
 
             if (!foreground) {
                 System.err.close();
+            }
+
+            // keep this thread alive (non daemon thread) until we shutdown
+            final CountDownLatch latch = new CountDownLatch(1);
+            Runtime.getRuntime().addShutdownHook(new Thread() {
+                @Override public void run() {
+                    latch.countDown();
+                }
+            });
+
+            while (true) {
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    // bail out
+                }
+                break;
             }
         } catch (Throwable e) {
             ESLogger logger = Loggers.getLogger(Bootstrap.class);

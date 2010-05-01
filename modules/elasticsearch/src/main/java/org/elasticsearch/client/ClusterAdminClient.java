@@ -25,6 +25,8 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartRequest;
+import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartResponse;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownResponse;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingRequest;
@@ -94,7 +96,7 @@ public interface ClusterAdminClient {
      *
      * @param request  The nodes info request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#nodesInfo(String...)
+     * @see org.elasticsearch.client.Requests#nodesShutdown(String...)
      */
     void nodesInfo(NodesInfoRequest request, ActionListener<NodesInfoResponse> listener);
 
@@ -115,6 +117,24 @@ public interface ClusterAdminClient {
      * @see org.elasticsearch.client.Requests#nodesShutdown(String...)
      */
     void nodesShutdown(NodesShutdownRequest request, ActionListener<NodesShutdownResponse> listener);
+
+    /**
+     * Restarts nodes in the cluster.
+     *
+     * @param request The nodes restart request
+     * @return The result future
+     * @see org.elasticsearch.client.Requests#nodesRestart(String...)
+     */
+    ActionFuture<NodesRestartResponse> nodesRestart(NodesRestartRequest request);
+
+    /**
+     * Restarts nodes in the cluster.
+     *
+     * @param request  The nodes restart request
+     * @param listener A listener to be notified with a result
+     * @see org.elasticsearch.client.Requests#nodesRestart(String...)
+     */
+    void nodesRestart(NodesRestartRequest request, ActionListener<NodesRestartResponse> listener);
 
     ActionFuture<SinglePingResponse> ping(SinglePingRequest request);
 

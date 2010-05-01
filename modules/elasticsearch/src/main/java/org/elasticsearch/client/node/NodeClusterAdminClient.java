@@ -27,9 +27,12 @@ import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthActio
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfo;
+import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartRequest;
+import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartResponse;
+import org.elasticsearch.action.admin.cluster.node.restart.TransportNodesRestartAction;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownResponse;
-import org.elasticsearch.action.admin.cluster.node.shutdown.TransportNodesShutdown;
+import org.elasticsearch.action.admin.cluster.node.shutdown.TransportNodesShutdownAction;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingRequest;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingResponse;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.TransportBroadcastPingAction;
@@ -64,17 +67,20 @@ public class NodeClusterAdminClient extends AbstractComponent implements Cluster
 
     private final TransportNodesInfo nodesInfo;
 
-    private final TransportNodesShutdown nodesShutdown;
+    private final TransportNodesShutdownAction nodesShutdown;
+
+    private final TransportNodesRestartAction nodesRestart;
 
     @Inject public NodeClusterAdminClient(Settings settings,
                                           TransportClusterHealthAction clusterHealthAction, TransportClusterStateAction clusterStateAction,
                                           TransportSinglePingAction singlePingAction, TransportBroadcastPingAction broadcastPingAction, TransportReplicationPingAction replicationPingAction,
-                                          TransportNodesInfo nodesInfo, TransportNodesShutdown nodesShutdown) {
+                                          TransportNodesInfo nodesInfo, TransportNodesShutdownAction nodesShutdown, TransportNodesRestartAction nodesRestart) {
         super(settings);
         this.clusterHealthAction = clusterHealthAction;
         this.clusterStateAction = clusterStateAction;
         this.nodesInfo = nodesInfo;
         this.nodesShutdown = nodesShutdown;
+        this.nodesRestart = nodesRestart;
         this.singlePingAction = singlePingAction;
         this.broadcastPingAction = broadcastPingAction;
         this.replicationPingAction = replicationPingAction;
@@ -134,5 +140,13 @@ public class NodeClusterAdminClient extends AbstractComponent implements Cluster
 
     @Override public void nodesShutdown(NodesShutdownRequest request, ActionListener<NodesShutdownResponse> listener) {
         nodesShutdown.execute(request, listener);
+    }
+
+    @Override public ActionFuture<NodesRestartResponse> nodesRestart(NodesRestartRequest request) {
+        return nodesRestart.execute(request);
+    }
+
+    @Override public void nodesRestart(NodesRestartRequest request, ActionListener<NodesRestartResponse> listener) {
+        nodesRestart.execute(request, listener);
     }
 }

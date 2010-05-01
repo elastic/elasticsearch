@@ -54,6 +54,8 @@ public class Bootstrap {
 
     private Node node;
 
+    private static Thread keepAliveThread;
+
     private void setup(boolean addShutdownHook, Tuple<Settings, Environment> tuple) throws Exception {
         tuple = setupJmx(tuple);
 
@@ -167,22 +169,25 @@ public class Bootstrap {
                 System.err.close();
             }
 
-            // keep this thread alive (non daemon thread) until we shutdown
             final CountDownLatch latch = new CountDownLatch(1);
+            // keep this thread alive (non daemon thread) until we shutdown
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override public void run() {
                     latch.countDown();
                 }
             });
 
-            while (true) {
-                try {
-                    latch.await();
-                } catch (InterruptedException e) {
-                    // bail out
+            keepAliveThread = new Thread(new Runnable() {
+                @Override public void run() {
+                    try {
+                        latch.await();
+                    } catch (InterruptedException e) {
+                        // bail out
+                    }
                 }
-                break;
-            }
+            }, "es[keepAlive]");
+            keepAliveThread.setDaemon(false);
+            keepAliveThread.start();
         } catch (Throwable e) {
             ESLogger logger = Loggers.getLogger(Bootstrap.class);
             if (bootstrap.node != null) {

@@ -20,7 +20,7 @@
 package org.elasticsearch.util.settings.loader;
 
 import org.elasticsearch.util.io.FastByteArrayInputStream;
-import org.elasticsearch.util.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.Yaml;
 
 import java.io.IOException;
 import java.util.List;

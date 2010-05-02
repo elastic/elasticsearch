@@ -149,8 +149,8 @@ uploadArchives {
             pom.dependencies = pom.dependencies.findAll {dep -> !dep.artifactId.contains('jackson') }
             pom.dependencies = pom.dependencies.findAll {dep -> !dep.artifactId.contains('joda') }
             pom.dependencies = pom.dependencies.findAll {dep -> !dep.artifactId.contains('snakeyaml') }
-            pom.dependencies.findAll {dep -> dep.groupId == 'jgroups' }*.scope = 'runtime'
-            pom.dependencies.findAll {dep -> dep.groupId == 'org.jboss.netty' }*.scope = 'runtime'
+            // keep netty required for simpler usage
+//            pom.dependencies.findAll {dep -> dep.groupId == 'org.jboss.netty' }*.scope = 'runtime'
         }
     }
 }

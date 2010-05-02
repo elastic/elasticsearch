@@ -20,6 +20,7 @@
 package org.elasticsearch.cloud.compute;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cloud.jclouds.JCloudsUtils;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.guice.inject.Inject;
@@ -78,6 +79,9 @@ public class CloudComputeService extends AbstractLifecycleComponent<CloudCompute
     }
 
     public ComputeServiceContext context() {
+        if (computeServiceContext == null) {
+            throw new ElasticSearchIllegalStateException("No cloud compute service started, have you configured the 'cloud.type' setting?");
+        }
         return this.computeServiceContext;
     }
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.gcommon.collect.ImmutableList;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 /**
@@ -34,8 +35,8 @@ import org.elasticsearch.util.settings.Settings;
  */
 public class CloudDiscovery extends ZenDiscovery {
 
-    public CloudDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool, TransportService transportService,
-                          ClusterService clusterService, ZenPingService pingService, CloudComputeService computeService) {
+    @Inject public CloudDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool, TransportService transportService,
+                                  ClusterService clusterService, ZenPingService pingService, CloudComputeService computeService) {
         super(settings, clusterName, threadPool, transportService, clusterService, pingService);
         if (settings.getAsBoolean("cloud.enabled", true)) {
             pingService.zenPings(ImmutableList.of(new CloudZenPing(settings, threadPool, transportService, clusterName, computeService)));

@@ -20,6 +20,7 @@
 package org.elasticsearch.cloud.blobstore;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cloud.jclouds.JCloudsUtils;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.guice.inject.Inject;
@@ -78,6 +79,9 @@ public class CloudBlobStoreService extends AbstractLifecycleComponent<CloudBlobS
     }
 
     public BlobStoreContext context() {
+        if (blobStoreContext == null) {
+            throw new ElasticSearchIllegalStateException("No cloud blobstore service started, have you configured the 'cloud.type' setting?");
+        }
         return blobStoreContext;
     }
 }

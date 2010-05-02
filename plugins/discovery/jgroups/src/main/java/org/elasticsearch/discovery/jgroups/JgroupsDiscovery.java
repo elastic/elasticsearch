@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.jgroups;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.*;
@@ -31,9 +30,11 @@ import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
-import org.elasticsearch.util.io.NetworkUtils;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.io.stream.BytesStreamInput;
 import org.elasticsearch.util.io.stream.BytesStreamOutput;
+import org.elasticsearch.util.network.NetworkService;
+import org.elasticsearch.util.network.NetworkUtils;
 import org.elasticsearch.util.settings.Settings;
 import org.jgroups.*;
 
@@ -47,10 +48,10 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.util.gcommon.collect.Maps.*;
-import static org.elasticsearch.util.gcommon.collect.Sets.*;
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.node.DiscoveryNode.*;
+import static org.elasticsearch.util.gcommon.collect.Maps.*;
+import static org.elasticsearch.util.gcommon.collect.Sets.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -67,6 +68,8 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
 
     private final ClusterService clusterService;
 
+    private final NetworkService networkService;
+
     private final Channel channel;
 
     private volatile boolean addressSet = false;
@@ -80,11 +83,12 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
     private final CopyOnWriteArrayList<InitialStateDiscoveryListener> initialStateListeners = new CopyOnWriteArrayList<InitialStateDiscoveryListener>();
 
     @Inject public JgroupsDiscovery(Settings settings, Environment environment, ClusterName clusterName,
-                                    TransportService transportService, ClusterService clusterService) {
+                                    TransportService transportService, ClusterService clusterService, NetworkService networkService) {
         super(settings);
         this.clusterName = clusterName;
         this.transportService = transportService;
         this.clusterService = clusterService;
+        this.networkService = networkService;
 
         String config = componentSettings.get("config", "udp");
         String actualConfig = config;
@@ -110,7 +114,7 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
             if (System.getProperty("jgroups.bind_addr") == null) {
                 // automatically set the bind address based on ElasticSearch default bindings...
                 try {
-                    InetAddress bindAddress = NetworkUtils.resolveBindHostAddress(null, settings, NetworkUtils.LOCAL);
+                    InetAddress bindAddress = networkService.resolveBindHostAddress(null, NetworkService.LOCAL);
                     if ((bindAddress instanceof Inet4Address && NetworkUtils.isIPv4()) || (bindAddress instanceof Inet6Address && !NetworkUtils.isIPv4())) {
                         sysPropsSet.put("jgroups.bind_addr", bindAddress.getHostAddress());
                         System.setProperty("jgroups.bind_addr", bindAddress.getHostAddress());

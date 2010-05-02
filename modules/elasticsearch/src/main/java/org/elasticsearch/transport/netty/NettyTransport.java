@@ -19,21 +19,22 @@
 
 package org.elasticsearch.transport.netty;
 
-import org.elasticsearch.util.Strings;
-import org.elasticsearch.util.gcommon.collect.Lists;
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.util.SizeValue;
+import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
-import org.elasticsearch.util.io.NetworkUtils;
+import org.elasticsearch.util.gcommon.collect.Lists;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.io.stream.BytesStreamOutput;
 import org.elasticsearch.util.io.stream.HandlesStreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
+import org.elasticsearch.util.network.NetworkService;
+import org.elasticsearch.util.network.NetworkUtils;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.transport.BoundTransportAddress;
 import org.elasticsearch.util.transport.InetSocketTransportAddress;
@@ -63,12 +64,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static org.elasticsearch.transport.Transport.Helper.*;
 import static org.elasticsearch.util.TimeValue.*;
 import static org.elasticsearch.util.concurrent.ConcurrentMaps.*;
 import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
-import static org.elasticsearch.util.io.NetworkUtils.*;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.util.transport.NetworkExceptionHelper.*;
 
@@ -84,6 +84,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             }
         });
     }
+
+    private final NetworkService networkService;
 
     final int workerCount;
 
@@ -126,12 +128,17 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     private volatile BoundTransportAddress boundAddress;
 
     public NettyTransport(ThreadPool threadPool) {
-        this(EMPTY_SETTINGS, threadPool);
+        this(EMPTY_SETTINGS, threadPool, new NetworkService(EMPTY_SETTINGS));
     }
 
-    @Inject public NettyTransport(Settings settings, ThreadPool threadPool) {
+    public NettyTransport(Settings settings, ThreadPool threadPool) {
+        this(settings, threadPool, new NetworkService(settings));
+    }
+
+    @Inject public NettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService) {
         super(settings);
         this.threadPool = threadPool;
+        this.networkService = networkService;
 
         this.workerCount = componentSettings.getAsInt("worker_count", Runtime.getRuntime().availableProcessors());
         this.port = componentSettings.get("port", "9300-9400");
@@ -232,7 +239,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         // Bind and start to accept incoming connections.
         InetAddress hostAddressX;
         try {
-            hostAddressX = resolveBindHostAddress(bindHost, settings);
+            hostAddressX = networkService.resolveBindHostAddress(bindHost);
         } catch (IOException e) {
             throw new BindTransportException("Failed to resolve host [" + bindHost + "]", e);
         }
@@ -260,7 +267,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         InetSocketAddress boundAddress = (InetSocketAddress) serverChannel.getLocalAddress();
         InetSocketAddress publishAddress;
         try {
-            publishAddress = new InetSocketAddress(resolvePublishHostAddress(publishHost, settings), boundAddress.getPort());
+            publishAddress = new InetSocketAddress(networkService.resolvePublishHostAddress(publishHost), boundAddress.getPort());
         } catch (Exception e) {
             throw new BindTransportException("Failed to resolve publish address", e);
         }
@@ -337,7 +344,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             }
             String host = address.substring(0, index);
             int port = Integer.parseInt(address.substring(index + 1));
-            return new TransportAddress[] {new InetSocketTransportAddress(host, port)};
+            return new TransportAddress[]{new InetSocketTransportAddress(host, port)};
         }
     }
 

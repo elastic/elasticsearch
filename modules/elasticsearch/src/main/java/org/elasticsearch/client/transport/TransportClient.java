@@ -59,6 +59,7 @@ import org.elasticsearch.util.gcommon.collect.ImmutableList;
 import org.elasticsearch.util.guice.inject.Guice;
 import org.elasticsearch.util.guice.inject.Injector;
 import org.elasticsearch.util.guice.inject.Module;
+import org.elasticsearch.util.network.NetworkModule;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.settings.SettingsModule;
@@ -127,6 +128,7 @@ public class TransportClient implements InternalClient {
         ArrayList<Module> modules = new ArrayList<Module>();
         modules.add(new EnvironmentModule(environment));
         modules.add(new SettingsModule(settings));
+        modules.add(new NetworkModule());
         modules.add(new ClusterNameModule(settings));
         modules.add(new TimerModule());
         modules.add(new ThreadPoolModule(settings));

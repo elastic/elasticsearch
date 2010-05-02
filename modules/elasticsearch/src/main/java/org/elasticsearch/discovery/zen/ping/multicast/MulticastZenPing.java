@@ -33,7 +33,7 @@ import org.elasticsearch.transport.*;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.io.stream.*;
-import org.elasticsearch.util.settings.ImmutableSettings;
+import org.elasticsearch.util.network.NetworkService;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
@@ -49,7 +49,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.cluster.node.DiscoveryNode.*;
 import static org.elasticsearch.util.concurrent.ConcurrentMaps.*;
 import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
-import static org.elasticsearch.util.io.NetworkUtils.*;
+import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -71,6 +71,8 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     private final TransportService transportService;
 
     private final ClusterName clusterName;
+
+    private final NetworkService networkService;
 
 
     private volatile DiscoveryNodesProvider nodesProvider;
@@ -94,14 +96,15 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     private final Object receiveMutex = new Object();
 
     public MulticastZenPing(ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {
-        this(ImmutableSettings.Builder.EMPTY_SETTINGS, threadPool, transportService, clusterName);
+        this(EMPTY_SETTINGS, threadPool, transportService, clusterName, new NetworkService(EMPTY_SETTINGS));
     }
 
-    public MulticastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {
+    public MulticastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName, NetworkService networkService) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterName = clusterName;
+        this.networkService = networkService;
 
         this.address = componentSettings.get("address");
         this.port = componentSettings.getAsInt("port", 54328);
@@ -134,7 +137,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             multicastSocket.bind(new InetSocketAddress(port));
             multicastSocket.setTimeToLive(ttl);
             // set the send interface
-            InetAddress multicastInterface = resolvePublishHostAddress(address, settings);
+            InetAddress multicastInterface = networkService.resolvePublishHostAddress(address);
             multicastSocket.setInterface(multicastInterface);
             multicastSocket.setReceiveBufferSize(bufferSize);
             multicastSocket.setSendBufferSize(bufferSize);

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.http.netty;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.http.*;
 import org.elasticsearch.transport.BindTransportException;
@@ -27,7 +26,9 @@ import org.elasticsearch.transport.netty.NettyInternalESLoggerFactory;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
-import org.elasticsearch.util.io.NetworkUtils;
+import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.network.NetworkService;
+import org.elasticsearch.util.network.NetworkUtils;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.transport.BoundTransportAddress;
 import org.elasticsearch.util.transport.InetSocketTransportAddress;
@@ -50,7 +51,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
-import static org.elasticsearch.util.io.NetworkUtils.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -64,6 +64,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
             }
         });
     }
+
+    private final NetworkService networkService;
 
     private final SizeValue maxContentLength;
 
@@ -95,8 +97,9 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     private volatile HttpServerAdapter httpServerAdapter;
 
-    @Inject public NettyHttpServerTransport(Settings settings) {
+    @Inject public NettyHttpServerTransport(Settings settings, NetworkService networkService) {
         super(settings);
+        this.networkService = networkService;
         SizeValue maxContentLength = componentSettings.getAsSize("max_content_length", new SizeValue(100, SizeUnit.MB));
         this.workerCount = componentSettings.getAsInt("worker_count", Runtime.getRuntime().availableProcessors());
         this.port = componentSettings.get("port", "9200-9300");
@@ -164,7 +167,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         // Bind and start to accept incoming connections.
         InetAddress hostAddressX;
         try {
-            hostAddressX = resolveBindHostAddress(bindHost, settings);
+            hostAddressX = networkService.resolveBindHostAddress(bindHost);
         } catch (IOException e) {
             throw new BindHttpException("Failed to resolve host [" + bindHost + "]", e);
         }
@@ -190,7 +193,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         InetSocketAddress boundAddress = (InetSocketAddress) serverChannel.getLocalAddress();
         InetSocketAddress publishAddress;
         try {
-            publishAddress = new InetSocketAddress(resolvePublishHostAddress(publishHost, settings), boundAddress.getPort());
+            publishAddress = new InetSocketAddress(networkService.resolvePublishHostAddress(publishHost), boundAddress.getPort());
         } catch (Exception e) {
             throw new BindTransportException("Failed to resolve publish address", e);
         }

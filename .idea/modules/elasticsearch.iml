@@ -17,6 +17,15 @@
     <orderEntry type="library" exported="" name="lucene" level="project" />
     <orderEntry type="library" exported="" name="joda-time" level="project" />
     <orderEntry type="library" exported="" name="jackson" level="project" />
+    <orderEntry type="module-library" exported="">
+      <library name="snakeyaml">
+        <CLASSES>
+          <root url="jar://$GRADLE_REPOSITORY$/org.yaml/snakeyaml/jars/snakeyaml-1.6.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
     <orderEntry type="library" exported="" name="jline" level="project" />
     <orderEntry type="library" exported="" name="netty" level="project" />
     <orderEntry type="library" scope="TEST" name="testng" level="project" />

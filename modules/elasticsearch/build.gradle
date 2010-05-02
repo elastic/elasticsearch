@@ -34,6 +34,7 @@ dependencies {
     compile 'joda-time:joda-time:1.6'
 
     compile 'org.codehaus.jackson:jackson-core-asl:1.5.2'
+    compile 'org.yaml:snakeyaml:1.6'
 
     compile 'org.apache.lucene:lucene-core:3.0.1'
     compile 'org.apache.lucene:lucene-analyzers:3.0.1'
@@ -69,7 +70,7 @@ jar << {
         jarjar(jarfile: jarjarArchivePath) {
             zipfileset(src: jar.archivePath)
             configurations.compile.files.findAll {file ->
-                ['jackson', 'joda'].any { file.name.contains(it) }
+                ['jackson', 'joda', 'snakeyaml'].any { file.name.contains(it) }
             }.each { jarjarFile ->
                 zipfileset(src: jarjarFile) {
                     exclude(name: "META-INF/**")
@@ -77,6 +78,7 @@ jar << {
             }
             rule pattern: "org.codehaus.jackson.**", result: "org.elasticsearch.util.jackson.@1"
             rule pattern: "org.joda.**", result: "org.elasticsearch.util.joda.@1"
+            rule pattern: "org.yaml.**", result: "org.elasticsearch.util.yaml.@1"
         }
         delete(file: jar.archivePath)
         copy(file: jarjarArchivePath, tofile: jar.archivePath)
@@ -146,6 +148,7 @@ uploadArchives {
             pom.dependencies = pom.dependencies.findAll {dep -> !dep.artifactId.contains('jline') }
             pom.dependencies = pom.dependencies.findAll {dep -> !dep.artifactId.contains('jackson') }
             pom.dependencies = pom.dependencies.findAll {dep -> !dep.artifactId.contains('joda') }
+            pom.dependencies = pom.dependencies.findAll {dep -> !dep.artifactId.contains('snakeyaml') }
             pom.dependencies.findAll {dep -> dep.groupId == 'jgroups' }*.scope = 'runtime'
             pom.dependencies.findAll {dep -> dep.groupId == 'org.jboss.netty' }*.scope = 'runtime'
         }

@@ -1,6 +1,5 @@
 rootLogger: INFO, console, file
 logger:
-  jgroups: WARN
   # log action execution errors for easier debugging
   action : DEBUG
 

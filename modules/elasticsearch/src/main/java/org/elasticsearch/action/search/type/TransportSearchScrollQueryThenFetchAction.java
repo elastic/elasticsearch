@@ -235,9 +235,9 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
             if (request.scroll() != null) {
                 scrollId = request.scrollId();
             }
+            invokeListener(new SearchResponse(internalResponse, scrollId, this.scrollId.values().length, successfulOps.get(), buildShardFailures(shardFailures, searchCache)));
             searchCache.releaseQueryResults(queryResults);
             searchCache.releaseFetchResults(fetchResults);
-            invokeListener(new SearchResponse(internalResponse, scrollId, this.scrollId.values().length, successfulOps.get(), buildShardFailures(shardFailures, searchCache)));
         }
 
         protected void invokeListener(final SearchResponse response) {

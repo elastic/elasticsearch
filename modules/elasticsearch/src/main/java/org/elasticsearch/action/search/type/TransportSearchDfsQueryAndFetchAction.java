@@ -157,6 +157,9 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
                 innerFinishHim();
             } catch (Exception e) {
                 invokeListener(new ReduceSearchPhaseException("query_fetch", "", e, buildShardFailures()));
+            } finally {
+                searchCache.releaseDfsResults(dfsResults);
+                searchCache.releaseQueryFetchResults(queryFetchResults);
             }
         }
 
@@ -167,8 +170,6 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
             if (request.scroll() != null) {
                 scrollId = buildScrollId(request.searchType(), dfsResults);
             }
-            searchCache.releaseDfsResults(dfsResults);
-            searchCache.releaseQueryFetchResults(queryFetchResults);
             invokeListener(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildShardFailures()));
         }
     }

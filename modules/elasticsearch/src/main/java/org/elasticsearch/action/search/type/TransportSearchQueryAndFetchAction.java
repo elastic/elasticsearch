@@ -83,8 +83,8 @@ public class TransportSearchQueryAndFetchAction extends TransportSearchTypeActio
             if (request.scroll() != null) {
                 scrollId = buildScrollId(request.searchType(), queryFetchResults.values());
             }
-            searchCache.releaseQueryFetchResults(queryFetchResults);
             invokeListener(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildShardFailures()));
+            searchCache.releaseQueryFetchResults(queryFetchResults);
         }
     }
 }

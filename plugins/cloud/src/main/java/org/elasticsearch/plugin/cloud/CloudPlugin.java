@@ -20,7 +20,7 @@
 package org.elasticsearch.plugin.cloud;
 
 import org.elasticsearch.cloud.CloudModule;
-import org.elasticsearch.cloud.blobstore.CloudBlobstoreService;
+import org.elasticsearch.cloud.blobstore.CloudBlobStoreService;
 import org.elasticsearch.cloud.compute.CloudComputeService;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.util.component.LifecycleComponent;
@@ -62,7 +62,7 @@ public class CloudPlugin extends AbstractPlugin {
         Collection<Class<? extends LifecycleComponent>> services = newArrayList();
         if (settings.getAsBoolean("cloud.enabled", true)) {
             services.add(CloudComputeService.class);
-            services.add(CloudBlobstoreService.class);
+            services.add(CloudBlobStoreService.class);
         }
         return services;
     }

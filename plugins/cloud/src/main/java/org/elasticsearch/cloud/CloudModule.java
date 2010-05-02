@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cloud;
 
-import org.elasticsearch.cloud.blobstore.CloudBlobstoreService;
+import org.elasticsearch.cloud.blobstore.CloudBlobStoreService;
 import org.elasticsearch.cloud.compute.CloudComputeService;
 import org.elasticsearch.util.guice.inject.AbstractModule;
 
@@ -30,6 +30,6 @@ public class CloudModule extends AbstractModule {
 
     @Override protected void configure() {
         bind(CloudComputeService.class).asEagerSingleton();
-        bind(CloudBlobstoreService.class).asEagerSingleton();
+        bind(CloudBlobStoreService.class).asEagerSingleton();
     }
 }

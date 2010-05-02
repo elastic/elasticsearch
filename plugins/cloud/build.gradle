@@ -30,13 +30,20 @@ configurations {
 
 repositories {
     mavenRepo urls: "http://jclouds.googlecode.com/svn/repo"
+    mavenRepo urls: "http://jclouds.rimuhosting.com/maven2/snapshots"
     mavenRepo urls: "http://java-xmlbuilder.googlecode.com/svn/repo"
 }
 
+jcloudsVersion = "1.0-beta-4"
+
 dependencies {
     compile project(':elasticsearch')
-    compile('org.jclouds:jclouds-aws:1.0-beta-4')
-    distLib('org.jclouds:jclouds-aws:1.0-beta-4')
+    compile("org.jclouds:jclouds-httpnio:$jcloudsVersion")
+    compile("org.jclouds:jclouds-blobstore:$jcloudsVersion")
+    compile("org.jclouds:jclouds-aws:$jcloudsVersion")
+    distLib("org.jclouds:jclouds-httpnio:$jcloudsVersion")
+    distLib("org.jclouds:jclouds-blobstore:$jcloudsVersion")
+    distLib("org.jclouds:jclouds-aws:$jcloudsVersion")
 
     testCompile project(':test-testng')
     testCompile('org.testng:testng:5.10:jdk15') { transitive = false }

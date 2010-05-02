@@ -23,6 +23,9 @@
           <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-scriptbuilder/jars/jclouds-scriptbuilder-1.0-beta-4.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-blobstore/jars/jclouds-blobstore-1.0-beta-4.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-core/jars/jclouds-core-1.0-beta-4.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.apache.httpcomponents/httpcore/jars/httpcore-4.1-alpha1.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.apache.httpcomponents/httpcore-nio/jars/httpcore-nio-4.1-alpha1.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-httpnio/jars/jclouds-httpnio-1.0-beta-4.jar!/" />
         </CLASSES>
         <JAVADOC>
           <root url="http://jclouds.rimuhosting.com/apidocs/" />

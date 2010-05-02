@@ -19,18 +19,18 @@
 
 package org.elasticsearch.util.logging;
 
-import org.elasticsearch.util.gcommon.collect.Lists;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.util.Classes;
+import org.elasticsearch.util.gcommon.collect.Lists;
 import org.elasticsearch.util.settings.Settings;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
 
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static java.util.Arrays.asList;
+import static org.elasticsearch.util.gcommon.collect.Lists.*;
 
 /**
  * A set of utilities around Logging.
@@ -62,6 +62,10 @@ public class Loggers {
     }
 
     public static ESLogger getLogger(Class clazz, Settings settings, String... prefixes) {
+        return getLogger(getLoggerName(clazz), settings, prefixes);
+    }
+
+    public static ESLogger getLogger(String loggerName, Settings settings, String... prefixes) {
         List<String> prefixesList = newArrayList();
         if (settings.getAsBoolean("logger.logHostAddress", false)) {
             try {
@@ -84,7 +88,7 @@ public class Loggers {
         if (prefixes != null && prefixes.length > 0) {
             prefixesList.addAll(asList(prefixes));
         }
-        return getLogger(getLoggerName(clazz), prefixesList.toArray(new String[prefixesList.size()]));
+        return getLogger(getLoggerName(loggerName), prefixesList.toArray(new String[prefixesList.size()]));
     }
 
     public static ESLogger getLogger(ESLogger parentLogger, String s) {

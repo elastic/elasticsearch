@@ -48,10 +48,13 @@ public class CloudZenPing extends UnicastZenPing {
 
     private final String ports;
 
+    private final String tag;
+
     public CloudZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName,
                         CloudComputeService computeService) {
         super(settings, threadPool, transportService, clusterName);
         this.computeService = computeService;
+        this.tag = componentSettings.get("tag");
         this.ports = componentSettings.get("ports", "9300-9302");
         // parse the ports just to see that they are valid
         new PortsRange(ports).ports();
@@ -62,6 +65,9 @@ public class CloudZenPing extends UnicastZenPing {
         Map<String, ? extends ComputeMetadata> nodes = computeService.context().getComputeService().getNodes();
         for (Map.Entry<String, ? extends ComputeMetadata> node : nodes.entrySet()) {
             NodeMetadata nodeMetadata = computeService.context().getComputeService().getNodeMetadata(node.getValue());
+            if (tag != null && !nodeMetadata.getTag().equals(tag)) {
+                continue;
+            }
             if (nodeMetadata.getState() == NodeState.PENDING || nodeMetadata.getState() == NodeState.RUNNING) {
                 logger.debug("Adding {}/{}", nodeMetadata.getName(), nodeMetadata.getPrivateAddresses());
                 for (InetAddress inetAddress : nodeMetadata.getPrivateAddresses()) {

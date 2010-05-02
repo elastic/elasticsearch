@@ -28,6 +28,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.transport.InetSocketTransportAddress;
 import org.elasticsearch.util.transport.PortsRange;
+import org.jclouds.compute.ComputeService;
 import org.jclouds.compute.domain.ComputeMetadata;
 import org.jclouds.compute.domain.NodeMetadata;
 import org.jclouds.compute.domain.NodeState;
@@ -44,7 +45,7 @@ import static org.elasticsearch.util.gcommon.collect.Lists.*;
  */
 public class CloudZenPing extends UnicastZenPing {
 
-    private final CloudComputeService computeService;
+    private final ComputeService computeService;
 
     private final String ports;
 
@@ -53,7 +54,7 @@ public class CloudZenPing extends UnicastZenPing {
     public CloudZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName,
                         CloudComputeService computeService) {
         super(settings, threadPool, transportService, clusterName);
-        this.computeService = computeService;
+        this.computeService = computeService.context().getComputeService();
         this.tag = componentSettings.get("tag");
         this.ports = componentSettings.get("ports", "9300-9302");
         // parse the ports just to see that they are valid
@@ -62,9 +63,9 @@ public class CloudZenPing extends UnicastZenPing {
 
     @Override protected List<DiscoveryNode> buildDynamicNodes() {
         List<DiscoveryNode> discoNodes = newArrayList();
-        Map<String, ? extends ComputeMetadata> nodes = computeService.context().getComputeService().getNodes();
+        Map<String, ? extends ComputeMetadata> nodes = computeService.getNodes();
         for (Map.Entry<String, ? extends ComputeMetadata> node : nodes.entrySet()) {
-            NodeMetadata nodeMetadata = computeService.context().getComputeService().getNodeMetadata(node.getValue());
+            NodeMetadata nodeMetadata = computeService.getNodeMetadata(node.getValue());
             if (tag != null && !nodeMetadata.getTag().equals(tag)) {
                 continue;
             }

@@ -19,9 +19,6 @@
 
 package org.elasticsearch.node.internal;
 
-import org.elasticsearch.util.guice.inject.Guice;
-import org.elasticsearch.util.guice.inject.Injector;
-import org.elasticsearch.util.guice.inject.Module;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.TransportActionModule;
@@ -65,9 +62,14 @@ import org.elasticsearch.util.Tuple;
 import org.elasticsearch.util.component.Lifecycle;
 import org.elasticsearch.util.component.LifecycleComponent;
 import org.elasticsearch.util.guice.Injectors;
+import org.elasticsearch.util.guice.inject.Guice;
+import org.elasticsearch.util.guice.inject.Injector;
+import org.elasticsearch.util.guice.inject.Module;
 import org.elasticsearch.util.io.FileSystemUtils;
 import org.elasticsearch.util.logging.ESLogger;
 import org.elasticsearch.util.logging.Loggers;
+import org.elasticsearch.util.network.NetworkModule;
+import org.elasticsearch.util.network.NetworkService;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.settings.SettingsModule;
 
@@ -111,6 +113,7 @@ public final class InternalNode implements Node {
         ArrayList<Module> modules = new ArrayList<Module>();
         modules.add(new PluginsModule(settings, pluginsService));
         modules.add(new NodeModule(this));
+        modules.add(new NetworkModule());
         modules.add(new JmxModule(settings));
         modules.add(new EnvironmentModule(environment));
         modules.add(new ClusterNameModule(settings));
@@ -175,7 +178,7 @@ public final class InternalNode implements Node {
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).start();
         }
-        injector.getInstance(JmxService.class).connectAndRegister(discoService.nodeDescription());
+        injector.getInstance(JmxService.class).connectAndRegister(discoService.nodeDescription(), injector.getInstance(NetworkService.class));
 
         logger.info("{{}}[{}]: Started", Version.full(), JvmConfig.jvmConfig().pid());
 

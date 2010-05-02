@@ -19,8 +19,6 @@
 
 package org.elasticsearch.discovery.zen.ping;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.ClusterName;
@@ -32,6 +30,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
+import org.elasticsearch.util.gcommon.collect.ImmutableList;
+import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.network.NetworkService;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.concurrent.ConcurrentHashMap;
@@ -47,12 +48,12 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
 
     private volatile ImmutableList<? extends ZenPing> zenPings = ImmutableList.of();
 
-    @Inject public ZenPingService(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {
+    @Inject public ZenPingService(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName, NetworkService networkService) {
         super(settings);
 
         ImmutableList.Builder<ZenPing> zenPingsBuilder = ImmutableList.builder();
         if (componentSettings.getAsBoolean("multicast.enabled", true)) {
-            zenPingsBuilder.add(new MulticastZenPing(settings, threadPool, transportService, clusterName));
+            zenPingsBuilder.add(new MulticastZenPing(settings, threadPool, transportService, clusterName, networkService));
         }
         if (componentSettings.get("unicast.hosts") != null || componentSettings.getAsArray("unicast.hosts").length > 0) {
             zenPingsBuilder.add(new UnicastZenPing(settings, threadPool, transportService, clusterName));

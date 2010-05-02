@@ -19,7 +19,6 @@
 
 package org.elasticsearch.memcached.netty;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.memcached.MemcachedServerTransport;
@@ -28,7 +27,9 @@ import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.netty.NettyInternalESLoggerFactory;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
-import org.elasticsearch.util.io.NetworkUtils;
+import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.network.NetworkService;
+import org.elasticsearch.util.network.NetworkUtils;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.transport.BoundTransportAddress;
 import org.elasticsearch.util.transport.InetSocketTransportAddress;
@@ -49,7 +50,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
-import static org.elasticsearch.util.io.NetworkUtils.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -65,6 +65,8 @@ public class NettyMemcachedServerTransport extends AbstractLifecycleComponent<Me
     }
 
     private final RestController restController;
+
+    private final NetworkService networkService;
 
     private final int workerCount;
 
@@ -92,9 +94,10 @@ public class NettyMemcachedServerTransport extends AbstractLifecycleComponent<Me
 
     private volatile OpenChannelsHandler serverOpenChannels;
 
-    @Inject public NettyMemcachedServerTransport(Settings settings, RestController restController) {
+    @Inject public NettyMemcachedServerTransport(Settings settings, RestController restController, NetworkService networkService) {
         super(settings);
         this.restController = restController;
+        this.networkService = networkService;
 
         this.workerCount = componentSettings.getAsInt("worker_count", Runtime.getRuntime().availableProcessors());
         this.port = componentSettings.get("port", "11211-11311");
@@ -151,7 +154,7 @@ public class NettyMemcachedServerTransport extends AbstractLifecycleComponent<Me
         // Bind and start to accept incoming connections.
         InetAddress hostAddressX;
         try {
-            hostAddressX = resolveBindHostAddress(bindHost, settings);
+            hostAddressX = networkService.resolveBindHostAddress(bindHost);
         } catch (IOException e) {
             throw new BindHttpException("Failed to resolve host [" + bindHost + "]", e);
         }
@@ -177,7 +180,7 @@ public class NettyMemcachedServerTransport extends AbstractLifecycleComponent<Me
         InetSocketAddress boundAddress = (InetSocketAddress) serverChannel.getLocalAddress();
         InetSocketAddress publishAddress;
         try {
-            publishAddress = new InetSocketAddress(resolvePublishHostAddress(publishHost, settings), boundAddress.getPort());
+            publishAddress = new InetSocketAddress(networkService.resolvePublishHostAddress(publishHost), boundAddress.getPort());
         } catch (Exception e) {
             throw new BindTransportException("Failed to resolve publish address", e);
         }

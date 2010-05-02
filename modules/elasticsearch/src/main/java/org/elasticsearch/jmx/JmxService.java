@@ -19,8 +19,8 @@
 
 package org.elasticsearch.jmx;
 
-import org.elasticsearch.util.io.NetworkUtils;
 import org.elasticsearch.util.logging.ESLogger;
+import org.elasticsearch.util.network.NetworkService;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.transport.PortsRange;
 
@@ -91,7 +91,7 @@ public class JmxService {
         return this.publishUrl;
     }
 
-    public void connectAndRegister(String nodeDescription) {
+    public void connectAndRegister(String nodeDescription, final NetworkService networkService) {
         if (started) {
             return;
         }
@@ -114,7 +114,7 @@ public class JmxService {
                         connectorServer.start();
 
                         // create the publish url
-                        String publishHost = NetworkUtils.resolvePublishHostAddress(settings.get("jmx.publishHost"), settings).getHostAddress();
+                        String publishHost = networkService.resolvePublishHostAddress(settings.get("jmx.publishHost")).getHostAddress();
                         publishUrl = settings.get("jmx.publishUrl", JMXRMI_PUBLISH_URI_PATTERN).replace("{jmx.port}", Integer.toString(portNumber)).replace("{jmx.host}", publishHost);
                     } catch (Exception e) {
                         lastException.set(e);

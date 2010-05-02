@@ -17,14 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.util.io;
+package org.elasticsearch.util.network;
 
 import org.elasticsearch.util.OsUtils;
 import org.elasticsearch.util.logging.ESLogger;
 import org.elasticsearch.util.logging.Loggers;
-import org.elasticsearch.util.settings.Settings;
 
-import java.io.IOException;
 import java.net.*;
 import java.util.*;
 
@@ -43,10 +41,6 @@ public abstract class NetworkUtils {
     public static final String IPv6_SETTING = "java.net.preferIPv6Addresses";
 
     public static final String NON_LOOPBACK_ADDRESS = "non_loopback_address";
-    public static final String LOCAL = "#local#";
-
-    public static final String GLOBAL_NETWORK_BINDHOST_SETTING = "network.bind_host";
-    public static final String GLOBAL_NETWORK_PUBLISHHOST_SETTING = "network.publish_host";
 
     private final static InetAddress localAddress;
 
@@ -68,56 +62,6 @@ public abstract class NetworkUtils {
         return System.getProperty("java.net.preferIPv4Stack") != null && System.getProperty("java.net.preferIPv4Stack").equals("true");
     }
 
-    public static InetAddress resolveBindHostAddress(String bindHost, Settings settings) throws IOException {
-        return resolveBindHostAddress(bindHost, settings, null);
-    }
-
-    public static InetAddress resolveBindHostAddress(String bindHost, Settings settings, String defaultValue2) throws IOException {
-        return resolveInetAddress(bindHost, settings.get(GLOBAL_NETWORK_BINDHOST_SETTING), defaultValue2);
-    }
-
-    public static InetAddress resolvePublishHostAddress(String publishHost, Settings settings) throws IOException {
-        InetAddress address = resolvePublishHostAddress(publishHost, settings, null);
-        // verify that its not a local address
-        if (address == null || address.isAnyLocalAddress()) {
-            address = localAddress;
-        }
-        return address;
-    }
-
-    public static InetAddress resolvePublishHostAddress(String publishHost, Settings settings, String defaultValue2) throws IOException {
-        return resolveInetAddress(publishHost, settings.get(GLOBAL_NETWORK_PUBLISHHOST_SETTING), defaultValue2);
-    }
-
-    public static InetAddress resolveInetAddress(String host, String defaultValue1, String defaultValue2) throws UnknownHostException, IOException {
-        if (host == null) {
-            host = defaultValue1;
-        }
-        if (host == null) {
-            host = defaultValue2;
-        }
-        if (host == null) {
-            return null;
-        }
-        if (host.startsWith("#") && host.endsWith("#")) {
-            host = host.substring(1, host.length() - 1);
-            if (host.equals("local")) {
-                return localAddress;
-            } else {
-                Collection<NetworkInterface> allInterfs = getAllAvailableInterfaces();
-                for (NetworkInterface ni : allInterfs) {
-                    if (!ni.isUp() || ni.isLoopback()) {
-                        continue;
-                    }
-                    if (host.equals(ni.getName()) || host.equals(ni.getDisplayName())) {
-                        return getFirstNonLoopbackAddress(ni, getIpStackType());
-                    }
-                }
-            }
-            throw new IOException("Failed to find network interface for [" + host + "]");
-        }
-        return InetAddress.getByName(host);
-    }
 
     public static InetAddress getIPv4Localhost() throws UnknownHostException {
         return getLocalhost(StackType.IPv4);
@@ -125,6 +69,10 @@ public abstract class NetworkUtils {
 
     public static InetAddress getIPv6Localhost() throws UnknownHostException {
         return getLocalhost(StackType.IPv6);
+    }
+
+    public static InetAddress getLocalAddress() {
+        return localAddress;
     }
 
     public static InetAddress getLocalhost(StackType ip_version) throws UnknownHostException {

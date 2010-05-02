@@ -76,4 +76,8 @@ public class CloudBlobStoreService extends AbstractLifecycleComponent<CloudBlobS
             blobStoreContext.close();
         }
     }
+
+    public BlobStoreContext context() {
+        return blobStoreContext;
+    }
 }

@@ -31,13 +31,13 @@ import java.io.IOException;
 /**
  * @author kimchy (shay.banon)
  */
-public class CloudBlobstoreService extends AbstractLifecycleComponent<CloudBlobstoreService> {
+public class CloudBlobStoreService extends AbstractLifecycleComponent<CloudBlobStoreService> {
 
     private final String type;
 
     private final BlobStoreContext blobStoreContext;
 
-    @Inject public CloudBlobstoreService(Settings settings) throws IOException {
+    @Inject public CloudBlobStoreService(Settings settings) throws IOException {
         super(settings);
 
         String type = componentSettings.get("type");

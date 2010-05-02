@@ -20,6 +20,7 @@
 package org.elasticsearch.cloud.compute;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.cloud.jclouds.JCloudsUtils;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
@@ -57,7 +58,7 @@ public class CloudComputeService extends AbstractLifecycleComponent<CloudCompute
         String key = componentSettings.get("key", settings.get("cloud.key"));
 
         if (type != null) {
-            computeServiceContext = new ComputeServiceContextFactory().createContext(type, account, key);
+            computeServiceContext = new ComputeServiceContextFactory().createContext(type, account, key, JCloudsUtils.buildModules(settings));
             logger.info("Connected to [{}] compute service");
         } else {
             computeServiceContext = null;

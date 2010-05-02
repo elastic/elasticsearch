@@ -164,6 +164,10 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
                 innerFinishHim();
             } catch (Exception e) {
                 invokeListener(new ReduceSearchPhaseException("fetch", "", e, buildShardFailures()));
+            } finally {
+                releaseIrrelevantSearchContexts(queryResults, docIdsToLoad);
+                searchCache.releaseQueryResults(queryResults);
+                searchCache.releaseFetchResults(fetchResults);
             }
         }
 
@@ -173,9 +177,6 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
             if (request.scroll() != null) {
                 scrollId = TransportSearchHelper.buildScrollId(request.searchType(), queryResults.values());
             }
-            releaseIrrelevantSearchContexts(queryResults, docIdsToLoad);
-            searchCache.releaseQueryResults(queryResults);
-            searchCache.releaseFetchResults(fetchResults);
             invokeListener(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildShardFailures()));
         }
     }

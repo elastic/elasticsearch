@@ -52,7 +52,7 @@ public abstract class XContentBuilder<T extends XContentBuilder> {
         CAMELCASE
     }
 
-    private final static DateTimeFormatter defaultDatePrinter = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
+    public final static DateTimeFormatter defaultDatePrinter = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
 
     protected static FieldCaseConversion globalFieldCaseConversion = FieldCaseConversion.NONE;
 

@@ -89,9 +89,9 @@ class GClient {
         }
     }
 
-    static XContentType contentType = XContentType.XSON;
+    public static XContentType contentType = XContentType.XSON;
 
-    static XContentType indexContentType = XContentType.JSON;
+    public static XContentType indexContentType = XContentType.JSON;
 
     final Client client;
 

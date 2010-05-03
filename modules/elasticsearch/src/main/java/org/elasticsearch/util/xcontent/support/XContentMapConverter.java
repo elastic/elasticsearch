@@ -21,12 +21,10 @@ package org.elasticsearch.util.xcontent.support;
 
 import org.elasticsearch.util.xcontent.XContentGenerator;
 import org.elasticsearch.util.xcontent.XContentParser;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -143,6 +141,10 @@ public class XContentMapConverter {
             writeObjectArray(gen, (Object[]) value);
         } else if (type == byte[].class) {
             gen.writeBinary((byte[]) value);
+        } else if (type == Date.class) {
+            gen.writeString(XContentBuilder.defaultDatePrinter.print(((Date) value).getTime()));
+        } else if (type == java.sql.Date.class) {
+            gen.writeString(XContentBuilder.defaultDatePrinter.print(((java.sql.Date) value).getTime()));
         } else {
             gen.writeString(value.toString());
         }

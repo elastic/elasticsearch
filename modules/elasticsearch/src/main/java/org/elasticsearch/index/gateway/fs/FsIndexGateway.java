@@ -86,6 +86,9 @@ public class FsIndexGateway extends AbstractIndexComponent implements IndexGatew
     }
 
     @Override public void close(boolean delete) {
+        if (!delete) {
+            return;
+        }
         try {
             String[] files = indexGatewayHome.list();
             if (files == null || files.length == 0) {

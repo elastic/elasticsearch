@@ -19,6 +19,8 @@
 
 package org.elasticsearch.deps.joda;
 
+import org.elasticsearch.util.joda.FormatDateTimeFormatter;
+import org.elasticsearch.util.joda.Joda;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
@@ -62,5 +64,10 @@ public class SimpleJodaTests {
         DateTimeFormatter formatter = ISODateTimeFormat.dateOptionalTimeParser().withZone(DateTimeZone.UTC);
         Date date = new Date();
         assertThat(formatter.parseMillis(dateTimeWriter.print(date.getTime())), equalTo(date.getTime()));
+    }
+
+    @Test public void testSlashInFormat() {
+        FormatDateTimeFormatter formatter = Joda.forPattern("MM/yyyy");
+        formatter.parser().parseMillis("01/2001");
     }
 }

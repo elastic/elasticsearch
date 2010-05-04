@@ -19,7 +19,6 @@ package org.elasticsearch.util.guice.inject.multibindings;
 import org.elasticsearch.util.collect.ImmutableSet;
 import org.elasticsearch.util.guice.inject.*;
 import org.elasticsearch.util.guice.inject.binder.LinkedBindingBuilder;
-import org.elasticsearch.util.guice.inject.multibindings.Multibinder.*;
 import org.elasticsearch.util.guice.inject.spi.Dependency;
 import org.elasticsearch.util.guice.inject.spi.ProviderWithDependencies;
 import org.elasticsearch.util.guice.inject.util.Types;
@@ -31,6 +30,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
+import static org.elasticsearch.util.guice.inject.multibindings.Multibinder.*;
 import static org.elasticsearch.util.guice.inject.util.Types.*;
 
 /**

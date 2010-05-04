@@ -22,11 +22,15 @@ package org.elasticsearch.gateway.cloud;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cloud.blobstore.CloudBlobStoreService;
+import org.elasticsearch.cloud.jclouds.JCloudsUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.GatewayException;
+import org.elasticsearch.index.gateway.cloud.CloudIndexGatewayModule;
+import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.guice.inject.Module;
 import org.elasticsearch.util.io.FastByteArrayInputStream;
 import org.elasticsearch.util.settings.Settings;
@@ -39,6 +43,7 @@ import org.jclouds.blobstore.BlobStoreContext;
 import org.jclouds.blobstore.domain.Blob;
 import org.jclouds.blobstore.domain.PageSet;
 import org.jclouds.blobstore.domain.StorageMetadata;
+import org.jclouds.domain.Location;
 
 import java.io.IOException;
 
@@ -47,33 +52,61 @@ import java.io.IOException;
  */
 public class CloudGateway extends AbstractLifecycleComponent<Gateway> implements Gateway {
 
-    private final ClusterName clusterName;
-
     private final BlobStoreContext blobStoreContext;
 
 
     private final String container;
 
-    private final String location;
+    private final Location location;
 
+    private final SizeValue chunkSize;
+
+    private final String metadataContainer;
 
     private volatile int currentIndex;
 
-    public CloudGateway(Settings settings, ClusterName clusterName, CloudBlobStoreService blobStoreService) {
+    @Inject public CloudGateway(Settings settings, ClusterName clusterName, CloudBlobStoreService blobStoreService) {
         super(settings);
-        this.clusterName = clusterName;
         this.blobStoreContext = blobStoreService.context();
+
+        this.chunkSize = componentSettings.getAsSize("chunk_size", null);
+
+        String location = componentSettings.get("location");
+        if (location == null) {
+            this.location = null;
+        } else {
+            this.location = blobStoreContext.getBlobStore().getAssignableLocations().get(location);
+            if (this.location == null) {
+                throw new ElasticSearchIllegalArgumentException("Not a valid location [" + location + "], available locations " + blobStoreContext.getBlobStore().getAssignableLocations().keySet());
+            }
+        }
 
         String container = componentSettings.get("container");
         if (container == null) {
             throw new ElasticSearchIllegalArgumentException("Cloud gateway requires 'container' setting");
         }
-        this.location = componentSettings.get("location");
-        this.container = container + "." + clusterName.value();
-        blobStoreContext.getBlobStore().createContainerInLocation(location, container);
+        this.container = container + JCloudsUtils.BLOB_CONTAINER_SEP + clusterName.value();
+
+        this.metadataContainer = this.container + JCloudsUtils.BLOB_CONTAINER_SEP + "metadata";
+
+        logger.debug("Using location [{}], container [{}], metadata_container [{}]", this.location, this.container, metadataContainer);
+
+        blobStoreContext.getBlobStore().createContainerInLocation(this.location, metadataContainer);
 
         this.currentIndex = findLatestIndex();
         logger.debug("Latest metadata found at index [" + currentIndex + "]");
+    }
+
+    public String container() {
+        return this.container;
+    }
+
+    public Location location() {
+        return this.location;
+    }
+
+    public SizeValue chunkSize() {
+        return this.chunkSize;
     }
 
     @Override protected void doStart() throws ElasticSearchException {
@@ -99,14 +132,14 @@ public class CloudGateway extends AbstractLifecycleComponent<Gateway> implements
             blob.setPayload(new FastByteArrayInputStream(builder.unsafeBytes(), 0, builder.unsafeBytesLength()));
             blob.setContentLength(builder.unsafeBytesLength());
 
-            blobStoreContext.getBlobStore().putBlob(container, blob);
+            blobStoreContext.getBlobStore().putBlob(metadataContainer, blob);
 
             currentIndex++;
 
-            PageSet<? extends StorageMetadata> pageSet = blobStoreContext.getBlobStore().list(container);
+            PageSet<? extends StorageMetadata> pageSet = blobStoreContext.getBlobStore().list(metadataContainer);
             for (StorageMetadata storageMetadata : pageSet) {
                 if (storageMetadata.getName().startsWith("metadata-") && !name.equals(storageMetadata.getName())) {
-                    blobStoreContext.getBlobStore().removeBlob(container, storageMetadata.getName());
+                    blobStoreContext.getAsyncBlobStore().removeBlob(metadataContainer, storageMetadata.getName());
                 }
             }
         } catch (IOException e) {
@@ -128,14 +161,14 @@ public class CloudGateway extends AbstractLifecycleComponent<Gateway> implements
     }
 
     @Override public Class<? extends Module> suggestIndexGateway() {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        return CloudIndexGatewayModule.class;
     }
 
     @Override public void reset() {
-        PageSet<? extends StorageMetadata> pageSet = blobStoreContext.getBlobStore().list(container);
+        PageSet<? extends StorageMetadata> pageSet = blobStoreContext.getBlobStore().list(metadataContainer);
         for (StorageMetadata storageMetadata : pageSet) {
             if (storageMetadata.getName().startsWith("metadata-")) {
-                blobStoreContext.getBlobStore().removeBlob(container, storageMetadata.getName());
+                blobStoreContext.getBlobStore().removeBlob(metadataContainer, storageMetadata.getName());
             }
         }
         currentIndex = -1;
@@ -143,7 +176,7 @@ public class CloudGateway extends AbstractLifecycleComponent<Gateway> implements
 
     private int findLatestIndex() {
         int index = -1;
-        PageSet<? extends StorageMetadata> pageSet = blobStoreContext.getBlobStore().list(container);
+        PageSet<? extends StorageMetadata> pageSet = blobStoreContext.getBlobStore().list(metadataContainer);
         for (StorageMetadata storageMetadata : pageSet) {
             if (logger.isTraceEnabled()) {
                 logger.trace("[findLatestMetadata]: Processing blob [" + storageMetadata.getName() + "]");
@@ -168,7 +201,7 @@ public class CloudGateway extends AbstractLifecycleComponent<Gateway> implements
     private MetaData readMetaData(String name) throws IOException {
         XContentParser parser = null;
         try {
-            Blob blob = blobStoreContext.getBlobStore().getBlob(container, name);
+            Blob blob = blobStoreContext.getBlobStore().getBlob(metadataContainer, name);
             parser = XContentFactory.xContent(XContentType.JSON).createParser(blob.getContent());
             return MetaData.Builder.fromXContent(parser, settings);
         } finally {

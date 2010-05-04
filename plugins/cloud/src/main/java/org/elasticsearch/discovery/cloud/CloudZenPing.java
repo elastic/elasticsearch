@@ -32,6 +32,8 @@ import org.jclouds.compute.ComputeService;
 import org.jclouds.compute.domain.ComputeMetadata;
 import org.jclouds.compute.domain.NodeMetadata;
 import org.jclouds.compute.domain.NodeState;
+import org.jclouds.compute.options.GetNodesOptions;
+import org.jclouds.domain.Location;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -51,11 +53,14 @@ public class CloudZenPing extends UnicastZenPing {
 
     private final String tag;
 
+    private final String location;
+
     public CloudZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName,
                         CloudComputeService computeService) {
         super(settings, threadPool, transportService, clusterName);
         this.computeService = computeService.context().getComputeService();
         this.tag = componentSettings.get("tag");
+        this.location = componentSettings.get("location");
         this.ports = componentSettings.get("ports", "9300-9302");
         // parse the ports just to see that they are valid
         new PortsRange(ports).ports();
@@ -63,10 +68,31 @@ public class CloudZenPing extends UnicastZenPing {
 
     @Override protected List<DiscoveryNode> buildDynamicNodes() {
         List<DiscoveryNode> discoNodes = newArrayList();
-        Map<String, ? extends ComputeMetadata> nodes = computeService.getNodes();
+        Map<String, ? extends ComputeMetadata> nodes = computeService.getNodes(GetNodesOptions.Builder.withDetails());
+        logger.trace("Processing Nodes {}", nodes);
         for (Map.Entry<String, ? extends ComputeMetadata> node : nodes.entrySet()) {
-            NodeMetadata nodeMetadata = computeService.getNodeMetadata(node.getValue());
+            NodeMetadata nodeMetadata = (NodeMetadata) node.getValue();
             if (tag != null && !nodeMetadata.getTag().equals(tag)) {
+                logger.trace("Filtering node {} with unmatched tag {}", nodeMetadata.getName(), nodeMetadata.getTag());
+                continue;
+            }
+            boolean filteredByLocation = true;
+            if (location != null) {
+                Location nodeLocation = nodeMetadata.getLocation();
+                if (location.equals(nodeLocation.getId())) {
+                    filteredByLocation = false;
+                } else {
+                    if (nodeLocation.getParent() != null) {
+                        if (location.equals(nodeLocation.getParent().getId())) {
+                            filteredByLocation = false;
+                        }
+                    }
+                }
+            } else {
+                filteredByLocation = false;
+            }
+            if (filteredByLocation) {
+                logger.trace("Filtering node {} with unmatched location {}", nodeMetadata.getName(), nodeMetadata.getLocation());
                 continue;
             }
             if (nodeMetadata.getState() == NodeState.PENDING || nodeMetadata.getState() == NodeState.RUNNING) {

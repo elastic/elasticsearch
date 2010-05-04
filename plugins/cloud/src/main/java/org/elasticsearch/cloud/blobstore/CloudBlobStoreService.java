@@ -60,7 +60,7 @@ public class CloudBlobStoreService extends AbstractLifecycleComponent<CloudBlobS
 
         if (type != null) {
             blobStoreContext = new BlobStoreContextFactory().createContext(type, account, key, JCloudsUtils.buildModules(settings));
-            logger.info("Connected to [{}] blob store service");
+            logger.info("Connected to {}/{} blob store service", type, account);
         } else {
             blobStoreContext = null;
         }

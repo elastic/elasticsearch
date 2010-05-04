@@ -16,7 +16,6 @@
       <library name="jclouds">
         <CLASSES>
           <root url="jar://$GRADLE_REPOSITORY$/com.google.code.gson/gson/jars/gson-1.4.jar!/" />
-          <root url="jar://$GRADLE_REPOSITORY$/com.google.code.guice/guice/jars/guice-2.1-r1128.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-rackspace/jars/jclouds-rackspace-1.0-SNAPSHOT.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-compute/jars/jclouds-compute-1.0-SNAPSHOT.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-blobstore/jars/jclouds-blobstore-1.0-SNAPSHOT.jar!/" />
@@ -30,6 +29,12 @@
           <root url="jar://$GRADLE_REPOSITORY$/aopalliance/aopalliance/jars/aopalliance-1.0.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/org.jboss.resteasy/resteasy-jaxrs-client/jars/resteasy-jaxrs-client-1.2.1.GA-SNAPSHOT.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/org.jboss.resteasy/jaxrs-api/jars/jaxrs-api-1.2.1.GA.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/com.google.guava/guava-io/jars/guava-io-r03.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/com.google.guava/guava-primitives/jars/guava-primitives-r03.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/com.google.guava/guava-concurrent/jars/guava-concurrent-r03.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/com.google.guava/guava-annotations/jars/guava-annotations-r03.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/com.google.guava/guava-base/jars/guava-base-r03.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/com.google.guava/guava-collections/jars/guava-collections-r03.jar!/" />
         </CLASSES>
         <JAVADOC>
           <root url="http://jclouds.rimuhosting.com/apidocs/" />

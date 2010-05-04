@@ -410,7 +410,7 @@ public class XContentObjectMapper implements XContentMapper, XContentIncludeInAl
                 // check if it fits one of the date formats
                 boolean isDate = false;
                 // a safe check since "1" gets parsed as well
-                if (text.contains(":") || text.contains("-")) {
+                if (text.contains(":") || text.contains("-") || text.contains("/")) {
                     for (FormatDateTimeFormatter dateTimeFormatter : dateTimeFormatters) {
                         try {
                             dateTimeFormatter.parser().parseMillis(text);

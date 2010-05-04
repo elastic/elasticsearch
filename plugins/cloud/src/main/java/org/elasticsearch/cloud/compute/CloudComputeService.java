@@ -60,7 +60,7 @@ public class CloudComputeService extends AbstractLifecycleComponent<CloudCompute
 
         if (type != null) {
             computeServiceContext = new ComputeServiceContextFactory().createContext(type, account, key, JCloudsUtils.buildModules(settings));
-            logger.info("Connected to [{}] compute service");
+            logger.info("Connected to {}/{} compute service", type, account);
         } else {
             computeServiceContext = null;
         }

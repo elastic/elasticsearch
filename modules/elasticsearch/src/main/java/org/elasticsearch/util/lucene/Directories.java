@@ -131,8 +131,57 @@ public class Directories {
             }
             copyFile(copyFrom, destinationFile);
         } else {
-            copyToDirectory(new FileInputStream(copyFrom), dir.createOutput(fileName));
+            FileInputStream is = null;
+            IndexOutput output = null;
+            try {
+                is = new FileInputStream(copyFrom);
+                output = dir.createOutput(fileName);
+                copyToDirectory(is, output);
+            } finally {
+                if (is != null) {
+                    try {
+                        is.close();
+                    } catch (IOException e) {
+                        // ignore
+                    }
+                }
+                if (output != null) {
+                    try {
+                        output.close();
+                    } catch (IOException e) {
+                        // ignore
+                    }
+                }
+            }
         }
+        sync(dir, fileName);
+    }
+
+    public static void copyToDirectory(InputStream is, Directory dir, String fileName) throws IOException {
+        IndexOutput output = null;
+        try {
+            output = dir.createOutput(fileName);
+            copyToDirectory(is, output);
+        } finally {
+            if (is != null) {
+                try {
+                    is.close();
+                } catch (IOException e) {
+                    // ignore
+                }
+            }
+            if (output != null) {
+                try {
+                    output.close();
+                } catch (IOException e) {
+                    // ignore
+                }
+            }
+        }
+        sync(dir, fileName);
+    }
+
+    public static void sync(Directory dir, String fileName) throws IOException {
         if (dir instanceof ForceSyncDirectory) {
             ((ForceSyncDirectory) dir).forceSync(fileName);
         } else {

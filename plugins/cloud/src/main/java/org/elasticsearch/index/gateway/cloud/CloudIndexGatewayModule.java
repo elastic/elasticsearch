@@ -17,21 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.jclouds;
+package org.elasticsearch.index.gateway.cloud;
 
-import com.google.inject.Module;
-import org.elasticsearch.cloud.jclouds.logging.JCloudsLoggingModule;
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
-import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.index.gateway.IndexGateway;
+import org.elasticsearch.util.guice.inject.AbstractModule;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class JCloudsUtils {
+public class CloudIndexGatewayModule extends AbstractModule {
 
-    public static final String BLOB_CONTAINER_SEP = "-";
-
-    public static Iterable<? extends Module> buildModules(Settings settings) {
-        return ImmutableList.of(new JCloudsLoggingModule(settings));
+    @Override protected void configure() {
+        bind(IndexGateway.class).to(CloudIndexGateway.class).asEagerSingleton();
     }
 }

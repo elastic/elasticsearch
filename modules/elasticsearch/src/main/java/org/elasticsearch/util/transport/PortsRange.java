@@ -19,10 +19,8 @@
 
 package org.elasticsearch.util.transport;
 
-import org.elasticsearch.util.gcommon.collect.Lists;
 import org.elasticsearch.util.gnu.trove.TIntArrayList;
 
-import java.util.List;
 import java.util.StringTokenizer;
 
 /**

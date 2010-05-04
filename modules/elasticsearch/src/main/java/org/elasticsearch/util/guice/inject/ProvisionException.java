@@ -16,13 +16,14 @@
 
 package org.elasticsearch.util.guice.inject;
 
+import org.elasticsearch.util.collect.ImmutableList;
+import org.elasticsearch.util.collect.ImmutableSet;
 import org.elasticsearch.util.guice.inject.internal.Errors;
-import static org.elasticsearch.util.guice.inject.internal.Preconditions.checkArgument;
 import org.elasticsearch.util.guice.inject.spi.Message;
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
 
 import java.util.Collection;
+
+import static org.elasticsearch.util.guice.inject.internal.Preconditions.*;
 
 /**
  * Indicates that there was a runtime failure while providing an instance.

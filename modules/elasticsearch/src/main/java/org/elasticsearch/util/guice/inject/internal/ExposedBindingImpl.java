@@ -16,6 +16,7 @@
 
 package org.elasticsearch.util.guice.inject.internal;
 
+import org.elasticsearch.util.collect.ImmutableSet;
 import org.elasticsearch.util.guice.inject.Binder;
 import org.elasticsearch.util.guice.inject.Injector;
 import org.elasticsearch.util.guice.inject.Key;
@@ -23,7 +24,6 @@ import org.elasticsearch.util.guice.inject.spi.BindingTargetVisitor;
 import org.elasticsearch.util.guice.inject.spi.Dependency;
 import org.elasticsearch.util.guice.inject.spi.ExposedBinding;
 import org.elasticsearch.util.guice.inject.spi.PrivateElements;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
 
 import java.util.Set;
 

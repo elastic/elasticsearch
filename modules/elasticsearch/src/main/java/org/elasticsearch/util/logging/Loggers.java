@@ -22,15 +22,15 @@ package org.elasticsearch.util.logging;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.util.Classes;
-import org.elasticsearch.util.gcommon.collect.Lists;
+import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.settings.Settings;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static java.util.Arrays.*;
+import static org.elasticsearch.util.collect.Lists.*;
 
 /**
  * A set of utilities around Logging.

@@ -16,11 +16,11 @@
 
 package org.elasticsearch.util.guice.inject;
 
+import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.guice.inject.internal.Errors;
 import org.elasticsearch.util.guice.inject.spi.Element;
 import org.elasticsearch.util.guice.inject.spi.MembersInjectorLookup;
 import org.elasticsearch.util.guice.inject.spi.ProviderLookup;
-import org.elasticsearch.util.gcommon.collect.Lists;
 
 import java.util.List;
 

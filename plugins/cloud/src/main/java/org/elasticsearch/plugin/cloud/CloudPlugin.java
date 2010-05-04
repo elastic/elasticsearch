@@ -29,7 +29,7 @@ import org.elasticsearch.util.settings.Settings;
 
 import java.util.Collection;
 
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.collect.Lists.*;
 
 /**
  * @author kimchy (shay.banon)

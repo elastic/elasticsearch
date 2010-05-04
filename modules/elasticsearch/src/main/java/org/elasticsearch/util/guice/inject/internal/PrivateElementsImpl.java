@@ -16,24 +16,23 @@
 
 package org.elasticsearch.util.guice.inject.internal;
 
+import org.elasticsearch.util.collect.ImmutableList;
+import org.elasticsearch.util.collect.ImmutableMap;
+import org.elasticsearch.util.collect.Lists;
+import org.elasticsearch.util.collect.Maps;
 import org.elasticsearch.util.guice.inject.Binder;
 import org.elasticsearch.util.guice.inject.Injector;
 import org.elasticsearch.util.guice.inject.Key;
 import org.elasticsearch.util.guice.inject.PrivateBinder;
-import static org.elasticsearch.util.guice.inject.internal.Preconditions.checkArgument;
-import static org.elasticsearch.util.guice.inject.internal.Preconditions.checkNotNull;
-import static org.elasticsearch.util.guice.inject.internal.Preconditions.checkState;
 import org.elasticsearch.util.guice.inject.spi.Element;
 import org.elasticsearch.util.guice.inject.spi.ElementVisitor;
 import org.elasticsearch.util.guice.inject.spi.PrivateElements;
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import org.elasticsearch.util.gcommon.collect.Lists;
-import org.elasticsearch.util.gcommon.collect.Maps;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.util.guice.inject.internal.Preconditions.*;
 
 /**
  * @author jessewilson@google.com (Jesse Wilson)

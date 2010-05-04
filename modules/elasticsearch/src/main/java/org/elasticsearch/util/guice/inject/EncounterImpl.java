@@ -16,16 +16,16 @@
 
 package org.elasticsearch.util.guice.inject;
 
+import org.elasticsearch.util.collect.ImmutableList;
+import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.guice.inject.internal.Errors;
-import static org.elasticsearch.util.guice.inject.internal.Preconditions.checkState;
-
 import org.elasticsearch.util.guice.inject.spi.InjectionListener;
 import org.elasticsearch.util.guice.inject.spi.Message;
 import org.elasticsearch.util.guice.inject.spi.TypeEncounter;
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
-import org.elasticsearch.util.gcommon.collect.Lists;
 
 import java.util.List;
+
+import static org.elasticsearch.util.guice.inject.internal.Preconditions.*;
 
 /**
  * @author jessewilson@google.com (Jesse Wilson)

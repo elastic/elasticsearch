@@ -16,14 +16,10 @@
 
 package org.elasticsearch.util.guice.inject;
 
-import org.elasticsearch.util.guice.inject.internal.BindingImpl;
-import org.elasticsearch.util.guice.inject.internal.Errors;
-import org.elasticsearch.util.guice.inject.internal.ErrorsException;
-import org.elasticsearch.util.guice.inject.internal.InternalContext;
-import org.elasticsearch.util.guice.inject.internal.Stopwatch;
+import org.elasticsearch.util.collect.ImmutableSet;
+import org.elasticsearch.util.collect.Iterables;
+import org.elasticsearch.util.guice.inject.internal.*;
 import org.elasticsearch.util.guice.inject.spi.Dependency;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
-import org.elasticsearch.util.gcommon.collect.Iterables;
 
 import java.util.Collection;
 import java.util.List;

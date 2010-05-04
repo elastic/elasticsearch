@@ -16,41 +16,20 @@
 
 package org.elasticsearch.util.guice.inject.spi;
 
-import org.elasticsearch.util.guice.inject.AbstractModule;
-import org.elasticsearch.util.guice.inject.Binder;
-import org.elasticsearch.util.guice.inject.Binding;
-import org.elasticsearch.util.guice.inject.Key;
-import org.elasticsearch.util.guice.inject.MembersInjector;
-import org.elasticsearch.util.guice.inject.Module;
-import org.elasticsearch.util.guice.inject.PrivateBinder;
-import org.elasticsearch.util.guice.inject.PrivateModule;
-import org.elasticsearch.util.guice.inject.Provider;
-import org.elasticsearch.util.guice.inject.Scope;
-import org.elasticsearch.util.guice.inject.Stage;
-import org.elasticsearch.util.guice.inject.TypeLiteral;
+import org.elasticsearch.util.collect.ImmutableList;
+import org.elasticsearch.util.collect.Lists;
+import org.elasticsearch.util.collect.Sets;
+import org.elasticsearch.util.guice.inject.*;
 import org.elasticsearch.util.guice.inject.binder.AnnotatedBindingBuilder;
 import org.elasticsearch.util.guice.inject.binder.AnnotatedConstantBindingBuilder;
 import org.elasticsearch.util.guice.inject.binder.AnnotatedElementBuilder;
-import org.elasticsearch.util.guice.inject.internal.AbstractBindingBuilder;
-import org.elasticsearch.util.guice.inject.internal.BindingBuilder;
-import org.elasticsearch.util.guice.inject.internal.ConstantBindingBuilderImpl;
-import org.elasticsearch.util.guice.inject.internal.Errors;
-import static org.elasticsearch.util.guice.inject.internal.Preconditions.checkArgument;
-import org.elasticsearch.util.guice.inject.internal.PrivateElementsImpl;
-import org.elasticsearch.util.guice.inject.internal.ProviderMethodsModule;
-import org.elasticsearch.util.guice.inject.internal.SourceProvider;
-import org.elasticsearch.util.guice.inject.internal.ExposureBuilder;
+import org.elasticsearch.util.guice.inject.internal.*;
 import org.elasticsearch.util.guice.inject.matcher.Matcher;
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
-import org.elasticsearch.util.gcommon.collect.Lists;
-import org.elasticsearch.util.gcommon.collect.Sets;
 
 import java.lang.annotation.Annotation;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+
+import static org.elasticsearch.util.guice.inject.internal.Preconditions.*;
 
 /**
  * Exposes elements of a module so they can be inspected, validated or {@link

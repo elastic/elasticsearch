@@ -16,9 +16,9 @@
 
 package org.elasticsearch.util.guice.inject;
 
+import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.guice.inject.internal.Errors;
 import org.elasticsearch.util.guice.inject.spi.PrivateElements;
-import org.elasticsearch.util.gcommon.collect.Lists;
 
 import java.util.List;
 

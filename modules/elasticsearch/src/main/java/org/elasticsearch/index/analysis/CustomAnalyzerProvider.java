@@ -29,7 +29,7 @@ import org.elasticsearch.util.settings.Settings;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.collect.Lists.*;
 
 /**
  * A custom analyzer that is built out of a single {@link org.apache.lucene.analysis.Tokenizer} and a list

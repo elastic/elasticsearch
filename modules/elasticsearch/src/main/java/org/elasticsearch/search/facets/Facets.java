@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facets;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
+import org.elasticsearch.util.collect.ImmutableList;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
@@ -32,8 +32,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.search.facets.CountFacet.*;
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
-import static org.elasticsearch.util.gcommon.collect.Maps.*;
+import static org.elasticsearch.util.collect.Lists.*;
+import static org.elasticsearch.util.collect.Maps.*;
 
 /**
  * Facets of search action.

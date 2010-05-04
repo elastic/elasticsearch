@@ -51,7 +51,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.translog.TranslogStreams.*;
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.collect.Lists.*;
 import static org.elasticsearch.util.io.FileSystemUtils.*;
 import static org.elasticsearch.util.lucene.Directories.*;
 

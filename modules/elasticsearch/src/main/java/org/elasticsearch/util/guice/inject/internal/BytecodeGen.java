@@ -16,10 +16,9 @@
 
 package org.elasticsearch.util.guice.inject.internal;
 
-import org.elasticsearch.util.gcommon.base.Function;
-import org.elasticsearch.util.gcommon.collect.MapMaker;
+import org.elasticsearch.util.base.Function;
+import org.elasticsearch.util.collect.MapMaker;
 
-import static org.elasticsearch.util.guice.inject.internal.Preconditions.checkNotNull;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
@@ -28,6 +27,8 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Map;
 import java.util.logging.Logger;
+
+import static org.elasticsearch.util.guice.inject.internal.Preconditions.*;
 
 /**
  * Utility methods for runtime code generation and class loading. We use this stuff for {@link

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.util.guice;
 
+import org.elasticsearch.util.collect.Sets;
 import org.elasticsearch.util.guice.inject.*;
 import org.elasticsearch.util.guice.inject.matcher.Matcher;
 import org.elasticsearch.util.guice.inject.name.Names;
-import org.elasticsearch.util.gcommon.collect.Sets;
 
 import java.lang.reflect.Type;
 import java.util.Map;

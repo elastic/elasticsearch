@@ -16,19 +16,20 @@
 
 package org.elasticsearch.util.guice.inject;
 
+import org.elasticsearch.util.collect.Lists;
+import org.elasticsearch.util.collect.Maps;
 import org.elasticsearch.util.guice.inject.internal.BindingImpl;
 import org.elasticsearch.util.guice.inject.internal.Errors;
 import org.elasticsearch.util.guice.inject.internal.MatcherAndConverter;
-import static org.elasticsearch.util.guice.inject.internal.Preconditions.checkNotNull;
 import org.elasticsearch.util.guice.inject.spi.TypeListenerBinding;
-import org.elasticsearch.util.gcommon.collect.Lists;
-import org.elasticsearch.util.gcommon.collect.Maps;
 
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.util.guice.inject.internal.Preconditions.*;
 
 /**
  * @author jessewilson@google.com (Jesse Wilson)

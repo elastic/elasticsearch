@@ -24,7 +24,7 @@ import org.elasticsearch.util.guice.inject.Module;
 
 import java.util.Collection;
 
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.collect.Lists.*;
 
 /**
  * @author kimchy (shay.banon)

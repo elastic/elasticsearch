@@ -16,16 +16,12 @@ limitations under the License.
 
 package org.elasticsearch.util.guice.inject.internal;
 
+import org.elasticsearch.util.collect.ImmutableSet;
+import org.elasticsearch.util.guice.inject.Binder;
 import org.elasticsearch.util.guice.inject.Injector;
 import org.elasticsearch.util.guice.inject.Key;
 import org.elasticsearch.util.guice.inject.Provider;
-import org.elasticsearch.util.guice.inject.Binder;
-import org.elasticsearch.util.guice.inject.spi.BindingTargetVisitor;
-import org.elasticsearch.util.guice.inject.spi.Dependency;
-import org.elasticsearch.util.guice.inject.spi.HasDependencies;
-import org.elasticsearch.util.guice.inject.spi.InjectionPoint;
-import org.elasticsearch.util.guice.inject.spi.ProviderInstanceBinding;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
+import org.elasticsearch.util.guice.inject.spi.*;
 
 import java.util.Set;
 

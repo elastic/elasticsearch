@@ -19,7 +19,7 @@
 
 package org.elasticsearch.util.path;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.collect.ImmutableMap;
 
 import java.util.Map;
 import java.util.regex.Pattern;

@@ -16,12 +16,12 @@
 
 package org.elasticsearch.util.guice.inject;
 
+import org.elasticsearch.util.collect.ImmutableList;
+import org.elasticsearch.util.collect.ImmutableSet;
 import org.elasticsearch.util.guice.inject.internal.BindingImpl;
 import org.elasticsearch.util.guice.inject.internal.Errors;
 import org.elasticsearch.util.guice.inject.internal.MatcherAndConverter;
 import org.elasticsearch.util.guice.inject.spi.TypeListenerBinding;
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
 
 import java.lang.annotation.Annotation;
 import java.util.List;

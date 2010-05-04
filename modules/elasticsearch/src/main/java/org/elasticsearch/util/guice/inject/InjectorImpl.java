@@ -16,44 +16,23 @@
 
 package org.elasticsearch.util.guice.inject;
 
-import org.elasticsearch.util.guice.inject.internal.Annotations;
-import static org.elasticsearch.util.guice.inject.internal.Annotations.findScopeAnnotation;
-import org.elasticsearch.util.guice.inject.internal.BindingImpl;
-import org.elasticsearch.util.guice.inject.internal.Errors;
-import org.elasticsearch.util.guice.inject.internal.ErrorsException;
-import org.elasticsearch.util.guice.inject.internal.InstanceBindingImpl;
-import org.elasticsearch.util.guice.inject.internal.InternalContext;
-import org.elasticsearch.util.guice.inject.internal.InternalFactory;
-import org.elasticsearch.util.guice.inject.internal.LinkedBindingImpl;
-import org.elasticsearch.util.guice.inject.internal.LinkedProviderBindingImpl;
-import org.elasticsearch.util.guice.inject.internal.MatcherAndConverter;
-import org.elasticsearch.util.guice.inject.internal.Nullable;
-import org.elasticsearch.util.guice.inject.internal.Scoping;
-import org.elasticsearch.util.guice.inject.internal.SourceProvider;
-import org.elasticsearch.util.guice.inject.internal.ToStringBuilder;
-import org.elasticsearch.util.guice.inject.spi.BindingTargetVisitor;
-import org.elasticsearch.util.guice.inject.spi.ConvertedConstantBinding;
-import org.elasticsearch.util.guice.inject.spi.Dependency;
-import org.elasticsearch.util.guice.inject.spi.InjectionPoint;
-import org.elasticsearch.util.guice.inject.spi.ProviderBinding;
-import org.elasticsearch.util.guice.inject.spi.ProviderKeyBinding;
-import org.elasticsearch.util.guice.inject.util.Providers;
 import org.elasticsearch.util.Classes;
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
-import org.elasticsearch.util.gcommon.collect.Lists;
-import org.elasticsearch.util.gcommon.collect.Maps;
+import org.elasticsearch.util.collect.ImmutableList;
+import org.elasticsearch.util.collect.ImmutableSet;
+import org.elasticsearch.util.collect.Lists;
+import org.elasticsearch.util.collect.Maps;
+import org.elasticsearch.util.guice.inject.internal.*;
+import org.elasticsearch.util.guice.inject.spi.*;
+import org.elasticsearch.util.guice.inject.util.Providers;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.GenericArrayType;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
+import java.lang.reflect.*;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.util.guice.inject.internal.Annotations.*;
 
 /**
  * Default {@link Injector} implementation.

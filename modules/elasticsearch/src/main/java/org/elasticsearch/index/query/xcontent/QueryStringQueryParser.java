@@ -33,7 +33,7 @@ import org.elasticsearch.index.query.support.MapperQueryParser;
 import org.elasticsearch.index.query.support.MultiFieldMapperQueryParser;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.Strings;
-import org.elasticsearch.util.gcommon.collect.Lists;
+import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.trove.ExtTObjectFloatHashMap;

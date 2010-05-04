@@ -23,11 +23,11 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.util.MapBuilder;
+import org.elasticsearch.util.collect.ImmutableMap;
+import org.elasticsearch.util.collect.ImmutableSet;
+import org.elasticsearch.util.collect.Lists;
+import org.elasticsearch.util.collect.UnmodifiableIterator;
 import org.elasticsearch.util.concurrent.Immutable;
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
-import org.elasticsearch.util.gcommon.collect.Lists;
-import org.elasticsearch.util.gcommon.collect.UnmodifiableIterator;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.settings.Settings;
@@ -43,8 +43,8 @@ import java.io.IOException;
 import java.util.*;
 
 import static org.elasticsearch.util.MapBuilder.*;
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
-import static org.elasticsearch.util.gcommon.collect.Sets.*;
+import static org.elasticsearch.util.collect.Lists.*;
+import static org.elasticsearch.util.collect.Sets.*;
 
 /**
  * @author kimchy (shay.banon)

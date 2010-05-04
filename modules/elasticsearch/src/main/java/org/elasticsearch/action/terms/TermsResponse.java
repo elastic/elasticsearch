@@ -21,7 +21,7 @@ package org.elasticsearch.action.terms;
 
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
-import org.elasticsearch.util.gcommon.collect.Iterators;
+import org.elasticsearch.util.collect.Iterators;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 

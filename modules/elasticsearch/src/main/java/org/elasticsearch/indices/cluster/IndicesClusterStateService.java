@@ -19,8 +19,6 @@
 
 package org.elasticsearch.indices.cluster;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
@@ -50,14 +48,16 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.util.collect.ImmutableMap;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.util.gcommon.collect.Sets.*;
 import static org.elasticsearch.ExceptionsHelper.*;
+import static org.elasticsearch.util.collect.Sets.*;
 
 /**
  * @author kimchy (shay.banon)

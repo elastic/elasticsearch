@@ -16,27 +16,14 @@
 
 package org.elasticsearch.util.guice.inject.assistedinject;
 
-import org.elasticsearch.util.guice.inject.AbstractModule;
-import org.elasticsearch.util.guice.inject.Binder;
-import org.elasticsearch.util.guice.inject.Binding;
-import org.elasticsearch.util.guice.inject.ConfigurationException;
-import org.elasticsearch.util.guice.inject.Inject;
-import org.elasticsearch.util.guice.inject.Injector;
-import org.elasticsearch.util.guice.inject.Key;
-import org.elasticsearch.util.guice.inject.Module;
-import org.elasticsearch.util.guice.inject.Provider;
-import org.elasticsearch.util.guice.inject.ProvisionException;
-import org.elasticsearch.util.guice.inject.TypeLiteral;
-import static org.elasticsearch.util.guice.inject.internal.Annotations.getKey;
+import org.elasticsearch.util.collect.ImmutableList;
+import org.elasticsearch.util.collect.ImmutableMap;
+import org.elasticsearch.util.collect.Lists;
+import org.elasticsearch.util.guice.inject.*;
 import org.elasticsearch.util.guice.inject.internal.Errors;
 import org.elasticsearch.util.guice.inject.internal.ErrorsException;
-import static org.elasticsearch.util.gcommon.collect.Iterables.getOnlyElement;
-import static org.elasticsearch.util.guice.inject.internal.Preconditions.checkState;
 import org.elasticsearch.util.guice.inject.spi.Message;
 import org.elasticsearch.util.guice.inject.util.Providers;
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import org.elasticsearch.util.gcommon.collect.Lists;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationHandler;
@@ -44,6 +31,10 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.Arrays;
 import java.util.List;
+
+import static org.elasticsearch.util.collect.Iterables.*;
+import static org.elasticsearch.util.guice.inject.internal.Annotations.*;
+import static org.elasticsearch.util.guice.inject.internal.Preconditions.*;
 
 /**
  * The newer implementation of factory provider. This implementation uses a child injector to

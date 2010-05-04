@@ -19,10 +19,6 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import org.elasticsearch.util.gcommon.collect.UnmodifiableIterator;
-import org.elasticsearch.util.guice.inject.Inject;
-import org.elasticsearch.util.guice.inject.Injector;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -43,10 +39,14 @@ import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.plugins.IndicesPluginsModule;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.util.collect.ImmutableMap;
+import org.elasticsearch.util.collect.UnmodifiableIterator;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.component.CloseableIndexComponent;
 import org.elasticsearch.util.concurrent.ThreadSafe;
 import org.elasticsearch.util.guice.Injectors;
+import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.guice.inject.Injector;
 import org.elasticsearch.util.guice.inject.Module;
 import org.elasticsearch.util.settings.Settings;
 
@@ -55,10 +55,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.util.gcommon.collect.Maps.*;
-import static org.elasticsearch.util.gcommon.collect.Sets.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.util.MapBuilder.*;
+import static org.elasticsearch.util.collect.Maps.*;
+import static org.elasticsearch.util.collect.Sets.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.*;
 
 /**

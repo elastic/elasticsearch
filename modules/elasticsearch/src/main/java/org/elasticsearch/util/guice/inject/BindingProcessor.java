@@ -16,33 +16,10 @@
 
 package org.elasticsearch.util.guice.inject;
 
-import org.elasticsearch.util.guice.inject.internal.Annotations;
-import org.elasticsearch.util.guice.inject.internal.BindingImpl;
-import org.elasticsearch.util.guice.inject.internal.Errors;
-import org.elasticsearch.util.guice.inject.internal.ErrorsException;
-import org.elasticsearch.util.guice.inject.internal.ExposedBindingImpl;
-import org.elasticsearch.util.guice.inject.internal.InstanceBindingImpl;
-import org.elasticsearch.util.guice.inject.internal.InternalFactory;
-import org.elasticsearch.util.guice.inject.internal.LinkedBindingImpl;
-import org.elasticsearch.util.guice.inject.internal.LinkedProviderBindingImpl;
-import org.elasticsearch.util.guice.inject.internal.ProviderInstanceBindingImpl;
-import org.elasticsearch.util.guice.inject.internal.ProviderMethod;
-import org.elasticsearch.util.guice.inject.internal.Scoping;
-import org.elasticsearch.util.guice.inject.internal.UntargettedBindingImpl;
-import org.elasticsearch.util.guice.inject.spi.BindingTargetVisitor;
-import org.elasticsearch.util.guice.inject.spi.ConstructorBinding;
-import org.elasticsearch.util.guice.inject.spi.ConvertedConstantBinding;
-import org.elasticsearch.util.guice.inject.spi.ExposedBinding;
-import org.elasticsearch.util.guice.inject.spi.InjectionPoint;
-import org.elasticsearch.util.guice.inject.spi.InstanceBinding;
-import org.elasticsearch.util.guice.inject.spi.LinkedKeyBinding;
-import org.elasticsearch.util.guice.inject.spi.PrivateElements;
-import org.elasticsearch.util.guice.inject.spi.ProviderBinding;
-import org.elasticsearch.util.guice.inject.spi.ProviderInstanceBinding;
-import org.elasticsearch.util.guice.inject.spi.ProviderKeyBinding;
-import org.elasticsearch.util.guice.inject.spi.UntargettedBinding;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
-import org.elasticsearch.util.gcommon.collect.Lists;
+import org.elasticsearch.util.collect.ImmutableSet;
+import org.elasticsearch.util.collect.Lists;
+import org.elasticsearch.util.guice.inject.internal.*;
+import org.elasticsearch.util.guice.inject.spi.*;
 
 import java.util.List;
 import java.util.Set;

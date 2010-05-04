@@ -20,14 +20,14 @@
 package org.elasticsearch.action.admin.indices.status;
 
 import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.gcommon.collect.Maps;
+import org.elasticsearch.util.collect.Maps;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.collect.Lists.*;
 
 /**
  * @author kimchy (shay.banon)

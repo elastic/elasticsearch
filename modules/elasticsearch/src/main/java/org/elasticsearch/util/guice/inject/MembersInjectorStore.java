@@ -16,13 +16,13 @@
 
 package org.elasticsearch.util.guice.inject;
 
+import org.elasticsearch.util.collect.ImmutableList;
+import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.guice.inject.internal.Errors;
 import org.elasticsearch.util.guice.inject.internal.ErrorsException;
 import org.elasticsearch.util.guice.inject.internal.FailableCache;
 import org.elasticsearch.util.guice.inject.spi.InjectionPoint;
 import org.elasticsearch.util.guice.inject.spi.TypeListenerBinding;
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
-import org.elasticsearch.util.gcommon.collect.Lists;
 
 import java.lang.reflect.Field;
 import java.util.List;

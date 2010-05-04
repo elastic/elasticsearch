@@ -42,7 +42,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.BoundedTreeSet;
-import org.elasticsearch.util.gcommon.collect.Maps;
+import org.elasticsearch.util.collect.Maps;
 import org.elasticsearch.util.gnu.trove.TObjectIntHashMap;
 import org.elasticsearch.util.gnu.trove.TObjectIntIterator;
 import org.elasticsearch.util.guice.inject.Inject;
@@ -54,7 +54,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.collect.Lists.*;
 
 /**
  * @author kimchy (shay.banon)

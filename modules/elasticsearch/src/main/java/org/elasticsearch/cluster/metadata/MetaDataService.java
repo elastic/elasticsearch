@@ -43,8 +43,8 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.Tuple;
+import org.elasticsearch.util.collect.Maps;
 import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.gcommon.collect.Maps;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.io.Streams;
 import org.elasticsearch.util.settings.ImmutableSettings;
@@ -63,8 +63,8 @@ import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.cluster.metadata.MetaData.*;
 import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.*;
-import static org.elasticsearch.util.gcommon.collect.Maps.*;
-import static org.elasticsearch.util.gcommon.collect.Sets.*;
+import static org.elasticsearch.util.collect.Maps.*;
+import static org.elasticsearch.util.collect.Sets.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.*;
 
 /**

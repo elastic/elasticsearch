@@ -16,24 +16,16 @@
 
 package org.elasticsearch.util.guice.inject.multibindings;
 
-import org.elasticsearch.util.guice.inject.Binder;
-import org.elasticsearch.util.guice.inject.Binding;
-import org.elasticsearch.util.guice.inject.ConfigurationException;
-import org.elasticsearch.util.guice.inject.Inject;
-import org.elasticsearch.util.guice.inject.Injector;
-import org.elasticsearch.util.guice.inject.Key;
-import org.elasticsearch.util.guice.inject.Module;
-import org.elasticsearch.util.guice.inject.Provider;
-import org.elasticsearch.util.guice.inject.TypeLiteral;
+import org.elasticsearch.util.collect.ImmutableList;
+import org.elasticsearch.util.collect.ImmutableSet;
+import org.elasticsearch.util.collect.Lists;
+import org.elasticsearch.util.guice.inject.*;
 import org.elasticsearch.util.guice.inject.binder.LinkedBindingBuilder;
 import org.elasticsearch.util.guice.inject.internal.Errors;
 import org.elasticsearch.util.guice.inject.spi.Dependency;
 import org.elasticsearch.util.guice.inject.spi.HasDependencies;
 import org.elasticsearch.util.guice.inject.spi.Message;
 import org.elasticsearch.util.guice.inject.util.Types;
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
-import org.elasticsearch.util.gcommon.collect.Lists;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;

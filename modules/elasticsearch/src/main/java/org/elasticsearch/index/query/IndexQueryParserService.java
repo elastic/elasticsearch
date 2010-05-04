@@ -27,7 +27,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.collect.ImmutableMap;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
@@ -35,7 +35,7 @@ import org.elasticsearch.util.settings.Settings;
 import javax.annotation.Nullable;
 import java.util.Map;
 
-import static org.elasticsearch.util.gcommon.collect.Maps.*;
+import static org.elasticsearch.util.collect.Maps.*;
 
 /**
  * @author kimchy (Shay Banon)

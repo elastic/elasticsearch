@@ -26,8 +26,8 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import org.elasticsearch.util.gcommon.collect.Lists;
+import org.elasticsearch.util.collect.ImmutableMap;
+import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.lucene.Lucene;
 
 import java.io.IOException;

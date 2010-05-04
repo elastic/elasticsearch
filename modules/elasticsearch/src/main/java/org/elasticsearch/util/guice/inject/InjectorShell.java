@@ -16,29 +16,16 @@
 
 package org.elasticsearch.util.guice.inject;
 
-import static org.elasticsearch.util.guice.inject.Scopes.SINGLETON;
-import org.elasticsearch.util.guice.inject.internal.Errors;
-import org.elasticsearch.util.guice.inject.internal.ErrorsException;
-import org.elasticsearch.util.guice.inject.internal.InternalContext;
-import org.elasticsearch.util.guice.inject.internal.InternalFactory;
-import static org.elasticsearch.util.guice.inject.internal.Preconditions.checkNotNull;
-import static org.elasticsearch.util.guice.inject.internal.Preconditions.checkState;
-import org.elasticsearch.util.guice.inject.internal.PrivateElementsImpl;
-import org.elasticsearch.util.guice.inject.internal.ProviderInstanceBindingImpl;
-import org.elasticsearch.util.guice.inject.internal.Scoping;
-import org.elasticsearch.util.guice.inject.internal.SourceProvider;
-import org.elasticsearch.util.guice.inject.internal.Stopwatch;
-import org.elasticsearch.util.guice.inject.spi.Dependency;
-import org.elasticsearch.util.guice.inject.spi.Element;
-import org.elasticsearch.util.guice.inject.spi.Elements;
-import org.elasticsearch.util.guice.inject.spi.InjectionPoint;
-import org.elasticsearch.util.guice.inject.spi.PrivateElements;
-import org.elasticsearch.util.guice.inject.spi.TypeListenerBinding;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
-import org.elasticsearch.util.gcommon.collect.Lists;
+import org.elasticsearch.util.collect.ImmutableSet;
+import org.elasticsearch.util.collect.Lists;
+import org.elasticsearch.util.guice.inject.internal.*;
+import org.elasticsearch.util.guice.inject.spi.*;
 
 import java.util.List;
 import java.util.logging.Logger;
+
+import static org.elasticsearch.util.guice.inject.Scopes.*;
+import static org.elasticsearch.util.guice.inject.internal.Preconditions.*;
 
 /**
  * A partially-initialized injector. See {@link InjectorBuilder}, which uses this to build a tree

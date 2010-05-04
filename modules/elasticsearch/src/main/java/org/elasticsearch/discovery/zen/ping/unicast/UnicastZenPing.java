@@ -19,8 +19,6 @@
 
 package org.elasticsearch.discovery.zen.ping.unicast;
 
-import org.elasticsearch.util.Strings;
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cluster.ClusterName;
@@ -30,10 +28,12 @@ import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
+import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.collect.ImmutableList;
+import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.concurrent.jsr166y.LinkedTransferQueue;
-import org.elasticsearch.util.gcommon.collect.Lists;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
@@ -50,9 +50,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static org.elasticsearch.discovery.zen.ping.ZenPing.PingResponse.*;
 import static org.elasticsearch.util.TimeValue.*;
+import static org.elasticsearch.util.collect.Lists.*;
 import static org.elasticsearch.util.concurrent.ConcurrentMaps.*;
 
 /**

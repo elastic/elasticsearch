@@ -16,16 +16,17 @@
 
 package org.elasticsearch.util.guice.inject.spi;
 
+import org.elasticsearch.util.base.Objects;
+import org.elasticsearch.util.collect.ImmutableList;
 import org.elasticsearch.util.guice.inject.Binder;
 import org.elasticsearch.util.guice.inject.internal.Errors;
-import static org.elasticsearch.util.guice.inject.internal.Preconditions.checkNotNull;
 import org.elasticsearch.util.guice.inject.internal.SourceProvider;
-import org.elasticsearch.util.gcommon.base.Objects;
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
 
 import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.util.List;
+
+import static org.elasticsearch.util.guice.inject.internal.Preconditions.*;
 
 /**
  * An error message and the context in which it occured. Messages are usually created internally by

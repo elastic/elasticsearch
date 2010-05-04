@@ -41,7 +41,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
 import static jline.ANSIBuffer.ANSICodes.*;
-import static org.elasticsearch.util.gcommon.collect.Sets.*;
+import static org.elasticsearch.util.collect.Sets.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.*;
 

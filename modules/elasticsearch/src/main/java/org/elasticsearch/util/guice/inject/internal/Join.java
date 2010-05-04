@@ -16,13 +16,14 @@
 
 package org.elasticsearch.util.guice.inject.internal;
 
-import org.elasticsearch.util.gcommon.collect.Lists;
+import org.elasticsearch.util.collect.Lists;
 
-import static org.elasticsearch.util.guice.inject.internal.Preconditions.checkNotNull;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
+
+import static org.elasticsearch.util.guice.inject.internal.Preconditions.*;
 
 /**
  * Utility for joining pieces of text separated by a delimiter. It can handle

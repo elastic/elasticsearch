@@ -46,7 +46,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.routing.ImmutableShardRouting.*;
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.collect.Lists.*;
 
 /**
  * @author kimchy (Shay Banon)

@@ -33,7 +33,7 @@ import org.elasticsearch.util.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.collect.Lists.*;
 import static org.elasticsearch.util.lucene.search.Queries.*;
 
 /**

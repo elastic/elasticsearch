@@ -19,7 +19,7 @@
 
 package org.elasticsearch.monitor.dump;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.collect.ImmutableMap;
 
 import javax.annotation.Nullable;
 import java.io.*;

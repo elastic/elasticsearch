@@ -20,8 +20,8 @@
 package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
-import org.elasticsearch.util.gcommon.collect.Maps;
+import org.elasticsearch.util.collect.ImmutableList;
+import org.elasticsearch.util.collect.Maps;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 
@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.admin.cluster.health.ClusterIndexHealth.*;
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.collect.Lists.*;
 
 /**
  * @author kimchy (shay.banon)

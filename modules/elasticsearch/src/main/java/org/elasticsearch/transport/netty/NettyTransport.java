@@ -27,8 +27,8 @@ import org.elasticsearch.transport.*;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
-import org.elasticsearch.util.gcommon.collect.Lists;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.io.stream.BytesStreamOutput;
 import org.elasticsearch.util.io.stream.HandlesStreamOutput;
@@ -66,9 +66,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.transport.Transport.Helper.*;
 import static org.elasticsearch.util.TimeValue.*;
+import static org.elasticsearch.util.collect.Lists.*;
 import static org.elasticsearch.util.concurrent.ConcurrentMaps.*;
 import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.util.transport.NetworkExceptionHelper.*;
 

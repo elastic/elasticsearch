@@ -16,23 +16,12 @@
 
 package org.elasticsearch.util.guice.inject.util;
 
-import org.elasticsearch.util.guice.inject.AbstractModule;
-import org.elasticsearch.util.guice.inject.Binder;
-import org.elasticsearch.util.guice.inject.Binding;
-import org.elasticsearch.util.guice.inject.Key;
-import org.elasticsearch.util.guice.inject.Module;
-import org.elasticsearch.util.guice.inject.Scope;
-import org.elasticsearch.util.guice.inject.PrivateBinder;
-import org.elasticsearch.util.guice.inject.spi.DefaultBindingScopingVisitor;
-import org.elasticsearch.util.guice.inject.spi.DefaultElementVisitor;
-import org.elasticsearch.util.guice.inject.spi.Element;
-import org.elasticsearch.util.guice.inject.spi.Elements;
-import org.elasticsearch.util.guice.inject.spi.ScopeBinding;
-import org.elasticsearch.util.guice.inject.spi.PrivateElements;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
-import org.elasticsearch.util.gcommon.collect.Lists;
-import org.elasticsearch.util.gcommon.collect.Maps;
-import org.elasticsearch.util.gcommon.collect.Sets;
+import org.elasticsearch.util.collect.ImmutableSet;
+import org.elasticsearch.util.collect.Lists;
+import org.elasticsearch.util.collect.Maps;
+import org.elasticsearch.util.collect.Sets;
+import org.elasticsearch.util.guice.inject.*;
+import org.elasticsearch.util.guice.inject.spi.*;
 
 import java.lang.annotation.Annotation;
 import java.util.Arrays;

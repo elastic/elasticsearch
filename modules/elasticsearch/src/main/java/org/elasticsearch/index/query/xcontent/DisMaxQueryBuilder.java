@@ -24,7 +24,7 @@ import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.collect.Lists.*;
 
 /**
  * A query that generates the union of documents produced by its sub-queries, and that scores each document

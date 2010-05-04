@@ -35,10 +35,10 @@ import java.net.URL;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static org.elasticsearch.util.SizeValue.*;
 import static org.elasticsearch.util.Strings.*;
 import static org.elasticsearch.util.TimeValue.*;
+import static org.elasticsearch.util.collect.Lists.*;
 
 /**
  * An immutable implementation of {@link Settings}.

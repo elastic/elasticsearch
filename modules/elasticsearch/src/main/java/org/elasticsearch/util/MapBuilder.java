@@ -19,11 +19,11 @@
 
 package org.elasticsearch.util;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.collect.ImmutableMap;
 
 import java.util.Map;
 
-import static org.elasticsearch.util.gcommon.collect.Maps.*;
+import static org.elasticsearch.util.collect.Maps.*;
 
 /**
  * @author kimchy (Shay Banon)

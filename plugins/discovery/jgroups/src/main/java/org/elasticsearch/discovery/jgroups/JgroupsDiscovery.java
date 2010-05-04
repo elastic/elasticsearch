@@ -50,8 +50,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.node.DiscoveryNode.*;
-import static org.elasticsearch.util.gcommon.collect.Maps.*;
-import static org.elasticsearch.util.gcommon.collect.Sets.*;
+import static org.elasticsearch.util.collect.Maps.*;
+import static org.elasticsearch.util.collect.Sets.*;
 
 /**
  * @author kimchy (Shay Banon)

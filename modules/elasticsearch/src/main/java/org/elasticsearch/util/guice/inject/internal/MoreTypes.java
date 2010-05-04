@@ -17,29 +17,20 @@
 
 package org.elasticsearch.util.guice.inject.internal;
 
+import org.elasticsearch.util.base.Objects;
+import org.elasticsearch.util.collect.ImmutableMap;
+import org.elasticsearch.util.collect.ImmutableSet;
 import org.elasticsearch.util.guice.inject.ConfigurationException;
 import org.elasticsearch.util.guice.inject.TypeLiteral;
-import static org.elasticsearch.util.guice.inject.internal.Preconditions.checkArgument;
-import static org.elasticsearch.util.guice.inject.internal.Preconditions.checkNotNull;
 import org.elasticsearch.util.guice.inject.spi.Message;
-import org.elasticsearch.util.gcommon.base.Objects;
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
 
 import java.io.Serializable;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.GenericArrayType;
-import java.lang.reflect.GenericDeclaration;
-import java.lang.reflect.Member;
-import java.lang.reflect.Method;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
-import java.lang.reflect.TypeVariable;
-import java.lang.reflect.WildcardType;
+import java.lang.reflect.*;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.NoSuchElementException;
+
+import static org.elasticsearch.util.guice.inject.internal.Preconditions.*;
 
 /**
  * Static methods for working with types that we aren't publishing in the

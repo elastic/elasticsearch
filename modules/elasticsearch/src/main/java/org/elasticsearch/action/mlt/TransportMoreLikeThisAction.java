@@ -51,7 +51,7 @@ import java.util.Set;
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.*;
-import static org.elasticsearch.util.gcommon.collect.Sets.*;
+import static org.elasticsearch.util.collect.Sets.*;
 
 /**
  * The more like this action.

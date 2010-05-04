@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.local;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.*;
@@ -30,6 +29,7 @@ import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.concurrent.jsr166y.LinkedTransferQueue;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.Queue;
@@ -40,9 +40,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.util.gcommon.collect.Sets.*;
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.node.DiscoveryNode.*;
+import static org.elasticsearch.util.collect.Sets.*;
 
 /**
  * @author kimchy (Shay Banon)

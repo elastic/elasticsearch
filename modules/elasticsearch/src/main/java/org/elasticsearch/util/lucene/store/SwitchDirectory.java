@@ -19,11 +19,11 @@
 
 package org.elasticsearch.util.lucene.store;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.index.store.support.ForceSyncDirectory;
+import org.elasticsearch.util.collect.ImmutableSet;
 
 import java.io.IOException;
 import java.util.Set;

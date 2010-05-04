@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.zen;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.*;
@@ -39,6 +38,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.UUID;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.List;
@@ -46,11 +46,11 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.node.DiscoveryNode.*;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.*;
 import static org.elasticsearch.util.TimeValue.*;
+import static org.elasticsearch.util.collect.Lists.*;
 
 /**
  * @author kimchy (shay.banon)

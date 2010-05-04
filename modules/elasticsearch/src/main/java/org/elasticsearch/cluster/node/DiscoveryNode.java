@@ -20,9 +20,9 @@
 package org.elasticsearch.cluster.node;
 
 import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import org.elasticsearch.util.gcommon.collect.Maps;
+import org.elasticsearch.util.collect.ImmutableList;
+import org.elasticsearch.util.collect.ImmutableMap;
+import org.elasticsearch.util.collect.Maps;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;

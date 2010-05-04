@@ -24,7 +24,7 @@ import org.elasticsearch.index.mapper.FieldMapperListener;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.util.Strings;
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.collect.ImmutableMap;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ import java.util.Map;
 import static org.elasticsearch.index.mapper.xcontent.XContentMapperBuilders.*;
 import static org.elasticsearch.index.mapper.xcontent.XContentTypeParsers.*;
 import static org.elasticsearch.util.MapBuilder.*;
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.collect.Lists.*;
 
 /**
  * @author kimchy (shay.banon)

@@ -33,7 +33,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.collect.Lists.*;
 
 /**
  * A search source builder allowing to easily build search source. Simple construction

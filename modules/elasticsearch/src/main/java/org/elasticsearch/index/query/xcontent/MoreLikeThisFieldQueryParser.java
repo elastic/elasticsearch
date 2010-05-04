@@ -26,7 +26,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.Strings;
-import org.elasticsearch.util.gcommon.collect.Sets;
+import org.elasticsearch.util.collect.Sets;
 import org.elasticsearch.util.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.xcontent.XContentParser;

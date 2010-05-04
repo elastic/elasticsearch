@@ -16,8 +16,8 @@
 
 package org.elasticsearch.util.guice.inject.internal;
 
-import org.elasticsearch.util.gcommon.base.Function;
-import org.elasticsearch.util.gcommon.collect.MapMaker;
+import org.elasticsearch.util.base.Function;
+import org.elasticsearch.util.collect.MapMaker;
 
 import java.util.Map;
 

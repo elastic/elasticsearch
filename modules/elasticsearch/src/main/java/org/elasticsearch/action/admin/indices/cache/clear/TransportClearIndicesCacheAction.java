@@ -39,7 +39,7 @@ import org.elasticsearch.util.settings.Settings;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.collect.Lists.*;
 
 /**
  * Indices clear cache action.

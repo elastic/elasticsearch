@@ -22,8 +22,8 @@ package org.elasticsearch.index.mapper.xcontent;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.util.Strings;
+import org.elasticsearch.util.collect.ImmutableMap;
 import org.elasticsearch.util.concurrent.ThreadSafe;
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.elasticsearch.util.joda.FormatDateTimeFormatter;
 import org.elasticsearch.util.xcontent.XContentParser;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;
@@ -36,8 +36,8 @@ import java.util.Map;
 import static org.elasticsearch.index.mapper.xcontent.XContentMapperBuilders.*;
 import static org.elasticsearch.index.mapper.xcontent.XContentTypeParsers.*;
 import static org.elasticsearch.util.MapBuilder.*;
-import static org.elasticsearch.util.gcommon.collect.ImmutableMap.*;
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.collect.ImmutableMap.*;
+import static org.elasticsearch.util.collect.Lists.*;
 import static org.elasticsearch.util.xcontent.support.XContentMapValues.*;
 
 /**

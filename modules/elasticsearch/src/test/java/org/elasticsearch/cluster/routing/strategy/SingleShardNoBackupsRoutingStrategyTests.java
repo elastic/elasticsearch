@@ -35,14 +35,14 @@ import org.testng.annotations.Test;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
-import static org.elasticsearch.util.gcommon.collect.Sets.*;
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.cluster.metadata.MetaData.*;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.*;
 import static org.elasticsearch.cluster.routing.RoutingBuilders.*;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+import static org.elasticsearch.util.collect.Lists.*;
+import static org.elasticsearch.util.collect.Sets.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

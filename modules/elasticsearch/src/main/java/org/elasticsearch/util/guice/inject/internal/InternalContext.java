@@ -16,8 +16,8 @@
 
 package org.elasticsearch.util.guice.inject.internal;
 
+import org.elasticsearch.util.collect.Maps;
 import org.elasticsearch.util.guice.inject.spi.Dependency;
-import org.elasticsearch.util.gcommon.collect.Maps;
 
 import java.util.Map;
 

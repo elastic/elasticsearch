@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
-import org.elasticsearch.util.gcommon.collect.Maps;
+import org.elasticsearch.util.collect.ImmutableList;
+import org.elasticsearch.util.collect.Maps;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;

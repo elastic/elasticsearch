@@ -16,29 +16,22 @@
 
 package org.elasticsearch.util.guice.inject.multibindings;
 
-import org.elasticsearch.util.guice.inject.Binder;
-import org.elasticsearch.util.guice.inject.Inject;
-import org.elasticsearch.util.guice.inject.Key;
-import org.elasticsearch.util.guice.inject.Module;
-import org.elasticsearch.util.guice.inject.Provider;
-import org.elasticsearch.util.guice.inject.TypeLiteral;
+import org.elasticsearch.util.collect.ImmutableSet;
+import org.elasticsearch.util.guice.inject.*;
 import org.elasticsearch.util.guice.inject.binder.LinkedBindingBuilder;
-import org.elasticsearch.util.guice.inject.multibindings.Multibinder.RealMultibinder;
-import static org.elasticsearch.util.guice.inject.multibindings.Multibinder.checkConfiguration;
-import static org.elasticsearch.util.guice.inject.multibindings.Multibinder.checkNotNull;
+import org.elasticsearch.util.guice.inject.multibindings.Multibinder.*;
 import org.elasticsearch.util.guice.inject.spi.Dependency;
 import org.elasticsearch.util.guice.inject.spi.ProviderWithDependencies;
 import org.elasticsearch.util.guice.inject.util.Types;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
 
-import static org.elasticsearch.util.guice.inject.util.Types.newParameterizedType;
-import static org.elasticsearch.util.guice.inject.util.Types.newParameterizedTypeWithOwner;
 import java.lang.annotation.Annotation;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+
+import static org.elasticsearch.util.guice.inject.util.Types.*;
 
 /**
  * An API to bind multiple map entries separately, only to later inject them as

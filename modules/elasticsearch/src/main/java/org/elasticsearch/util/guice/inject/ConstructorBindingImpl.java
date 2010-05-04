@@ -16,21 +16,16 @@
 
 package org.elasticsearch.util.guice.inject;
 
-import org.elasticsearch.util.guice.inject.internal.BindingImpl;
-import org.elasticsearch.util.guice.inject.internal.Errors;
-import org.elasticsearch.util.guice.inject.internal.ErrorsException;
-import org.elasticsearch.util.guice.inject.internal.InternalContext;
-import org.elasticsearch.util.guice.inject.internal.InternalFactory;
-import static org.elasticsearch.util.guice.inject.internal.Preconditions.checkState;
-import org.elasticsearch.util.guice.inject.internal.Scoping;
-import org.elasticsearch.util.guice.inject.internal.ToStringBuilder;
+import org.elasticsearch.util.collect.ImmutableSet;
+import org.elasticsearch.util.guice.inject.internal.*;
 import org.elasticsearch.util.guice.inject.spi.BindingTargetVisitor;
 import org.elasticsearch.util.guice.inject.spi.ConstructorBinding;
 import org.elasticsearch.util.guice.inject.spi.Dependency;
 import org.elasticsearch.util.guice.inject.spi.InjectionPoint;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
 
 import java.util.Set;
+
+import static org.elasticsearch.util.guice.inject.internal.Preconditions.*;
 
 class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBinding<T> {
 

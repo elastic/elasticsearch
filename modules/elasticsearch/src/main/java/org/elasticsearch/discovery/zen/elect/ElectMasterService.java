@@ -19,8 +19,8 @@
 
 package org.elasticsearch.discovery.zen.elect;
 
-import org.elasticsearch.util.gcommon.collect.Lists;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.settings.Settings;
 
@@ -29,7 +29,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.collect.Lists.*;
 
 /**
  * @author kimchy (shay.banon)

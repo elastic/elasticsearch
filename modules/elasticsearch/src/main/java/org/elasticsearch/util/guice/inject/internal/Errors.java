@@ -16,22 +16,11 @@
 
 package org.elasticsearch.util.guice.inject.internal;
 
-import org.elasticsearch.util.guice.inject.ConfigurationException;
-import org.elasticsearch.util.guice.inject.CreationException;
-import org.elasticsearch.util.guice.inject.Key;
-import org.elasticsearch.util.guice.inject.MembersInjector;
-import org.elasticsearch.util.guice.inject.Provider;
-import org.elasticsearch.util.guice.inject.ProvisionException;
-import org.elasticsearch.util.guice.inject.Scope;
-import org.elasticsearch.util.guice.inject.TypeLiteral;
-import org.elasticsearch.util.guice.inject.spi.Dependency;
-import org.elasticsearch.util.guice.inject.spi.InjectionListener;
-import org.elasticsearch.util.guice.inject.spi.InjectionPoint;
-import org.elasticsearch.util.guice.inject.spi.Message;
-import org.elasticsearch.util.guice.inject.spi.TypeListenerBinding;
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
-import org.elasticsearch.util.gcommon.collect.Lists;
+import org.elasticsearch.util.collect.ImmutableList;
+import org.elasticsearch.util.collect.ImmutableSet;
+import org.elasticsearch.util.collect.Lists;
+import org.elasticsearch.util.guice.inject.*;
+import org.elasticsearch.util.guice.inject.spi.*;
 
 import java.io.PrintWriter;
 import java.io.Serializable;
@@ -41,11 +30,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Member;
 import java.lang.reflect.Type;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Formatter;
-import java.util.List;
+import java.util.*;
 
 /**
  * A collection of error messages. If this type is passed as a method parameter, the method is

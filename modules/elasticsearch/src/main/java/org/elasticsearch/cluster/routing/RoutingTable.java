@@ -23,10 +23,10 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.util.collect.ImmutableMap;
+import org.elasticsearch.util.collect.Lists;
+import org.elasticsearch.util.collect.UnmodifiableIterator;
 import org.elasticsearch.util.concurrent.Immutable;
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import org.elasticsearch.util.gcommon.collect.Lists;
-import org.elasticsearch.util.gcommon.collect.UnmodifiableIterator;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 
@@ -34,7 +34,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.util.gcommon.collect.Maps.*;
+import static org.elasticsearch.util.collect.Maps.*;
 
 /**
  * @author kimchy (Shay Banon)

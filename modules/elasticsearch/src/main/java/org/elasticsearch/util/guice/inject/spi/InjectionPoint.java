@@ -16,32 +16,20 @@
 
 package org.elasticsearch.util.guice.inject.spi;
 
+import org.elasticsearch.util.collect.ImmutableList;
+import org.elasticsearch.util.collect.ImmutableSet;
+import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.guice.inject.ConfigurationException;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.guice.inject.Key;
 import org.elasticsearch.util.guice.inject.TypeLiteral;
-import org.elasticsearch.util.guice.inject.internal.Annotations;
-import org.elasticsearch.util.guice.inject.internal.Errors;
-import org.elasticsearch.util.guice.inject.internal.ErrorsException;
-import org.elasticsearch.util.guice.inject.internal.MoreTypes;
-import static org.elasticsearch.util.guice.inject.internal.MoreTypes.getRawType;
-import org.elasticsearch.util.guice.inject.internal.Nullability;
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
-import org.elasticsearch.util.gcommon.collect.Lists;
+import org.elasticsearch.util.guice.inject.internal.*;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.AnnotatedElement;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.Member;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
+import java.lang.reflect.*;
+import java.util.*;
+
+import static org.elasticsearch.util.guice.inject.internal.MoreTypes.*;
 
 /**
  * A constructor, field or method that can receive injections. Typically this is a member with the

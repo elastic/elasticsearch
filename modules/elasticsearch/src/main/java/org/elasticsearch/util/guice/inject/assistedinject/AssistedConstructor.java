@@ -16,19 +16,15 @@
 
 package org.elasticsearch.util.guice.inject.assistedinject;
 
+import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.guice.inject.TypeLiteral;
-import org.elasticsearch.util.gcommon.collect.Lists;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Internal respresentation of a constructor annotated with

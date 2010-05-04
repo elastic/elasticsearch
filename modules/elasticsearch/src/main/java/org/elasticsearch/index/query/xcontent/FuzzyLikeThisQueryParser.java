@@ -26,7 +26,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.gcommon.collect.Lists;
+import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.xcontent.XContentParser;
 

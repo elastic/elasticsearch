@@ -16,11 +16,12 @@
 
 package org.elasticsearch.util.guice.inject.internal;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
-import org.elasticsearch.util.gcommon.collect.Lists;
+import org.elasticsearch.util.collect.ImmutableSet;
+import org.elasticsearch.util.collect.Lists;
 
-import static org.elasticsearch.util.gcommon.collect.Iterables.concat;
 import java.util.List;
+
+import static org.elasticsearch.util.collect.Iterables.*;
 
 /**
  * Provides access to the calling line of code.

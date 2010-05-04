@@ -29,7 +29,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.util.Unicode;
-import org.elasticsearch.util.gcommon.collect.Sets;
+import org.elasticsearch.util.collect.Sets;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;

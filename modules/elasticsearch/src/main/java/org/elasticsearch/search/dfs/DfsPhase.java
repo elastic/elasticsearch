@@ -23,7 +23,7 @@ import org.apache.lucene.index.Term;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.collect.ImmutableMap;
 import org.elasticsearch.util.gnu.trove.THashSet;
 
 import java.util.Map;

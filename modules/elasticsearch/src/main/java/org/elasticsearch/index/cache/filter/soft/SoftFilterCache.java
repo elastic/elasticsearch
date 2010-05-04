@@ -25,7 +25,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.support.AbstractConcurrentMapFilterCache;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.util.gcommon.collect.MapMaker;
+import org.elasticsearch.util.collect.MapMaker;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 

@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper.xcontent;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.util.Strings;
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
+import org.elasticsearch.util.collect.ImmutableMap;
 
 import java.util.Map;
 

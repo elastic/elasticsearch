@@ -24,7 +24,7 @@ import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.util.gcommon.collect.Lists;
+import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.xcontent.XContentParser;
 
 import java.util.List;

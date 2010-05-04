@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.util.gcommon.collect.Lists;
+import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.guice.inject.AbstractModule;
 import org.elasticsearch.util.guice.inject.Scopes;
 import org.elasticsearch.util.guice.inject.assistedinject.FactoryProvider;

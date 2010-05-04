@@ -26,7 +26,7 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.util.Booleans;
-import org.elasticsearch.util.gcommon.collect.Lists;
+import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.gnu.trove.TObjectIntHashMap;
 import org.elasticsearch.util.trove.ExtTObjectIntHasMap;
 import org.elasticsearch.util.xcontent.XContentParser;

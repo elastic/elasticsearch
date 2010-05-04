@@ -20,8 +20,8 @@
 package org.elasticsearch.util.network;
 
 import org.elasticsearch.util.MapBuilder;
+import org.elasticsearch.util.collect.ImmutableMap;
 import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 

@@ -16,13 +16,13 @@
 
 package org.elasticsearch.util.guice.inject.internal;
 
+import org.elasticsearch.util.collect.ImmutableSet;
 import org.elasticsearch.util.guice.inject.Binder;
 import org.elasticsearch.util.guice.inject.Key;
 import org.elasticsearch.util.guice.inject.binder.AnnotatedConstantBindingBuilder;
 import org.elasticsearch.util.guice.inject.binder.ConstantBindingBuilder;
 import org.elasticsearch.util.guice.inject.spi.Element;
 import org.elasticsearch.util.guice.inject.spi.InjectionPoint;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
 
 import java.lang.annotation.Annotation;
 import java.util.List;

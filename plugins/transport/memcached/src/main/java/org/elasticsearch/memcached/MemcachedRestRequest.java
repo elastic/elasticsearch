@@ -22,8 +22,8 @@ package org.elasticsearch.memcached;
 import org.elasticsearch.rest.support.AbstractRestRequest;
 import org.elasticsearch.rest.support.RestUtils;
 import org.elasticsearch.util.Unicode;
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
+import org.elasticsearch.util.collect.ImmutableList;
+import org.elasticsearch.util.collect.ImmutableSet;
 
 import java.util.HashMap;
 import java.util.List;

@@ -16,10 +16,10 @@
 
 package org.elasticsearch.util.guice.inject.spi;
 
+import org.elasticsearch.util.base.Objects;
+import org.elasticsearch.util.collect.ImmutableSet;
+import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.guice.inject.Key;
-import org.elasticsearch.util.gcommon.base.Objects;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
-import org.elasticsearch.util.gcommon.collect.Lists;
 
 import java.util.List;
 import java.util.Set;

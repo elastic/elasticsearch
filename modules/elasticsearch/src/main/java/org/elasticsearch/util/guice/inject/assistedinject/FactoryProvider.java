@@ -16,27 +16,18 @@
 
 package org.elasticsearch.util.guice.inject.assistedinject;
 
-import org.elasticsearch.util.guice.inject.ConfigurationException;
-import org.elasticsearch.util.guice.inject.Inject;
-import org.elasticsearch.util.guice.inject.Injector;
-import org.elasticsearch.util.guice.inject.Key;
-import org.elasticsearch.util.guice.inject.Provider;
-import org.elasticsearch.util.guice.inject.TypeLiteral;
+import org.elasticsearch.util.collect.ImmutableMap;
+import org.elasticsearch.util.collect.ImmutableSet;
+import org.elasticsearch.util.collect.Lists;
+import org.elasticsearch.util.collect.Maps;
+import org.elasticsearch.util.guice.inject.*;
 import org.elasticsearch.util.guice.inject.internal.Errors;
 import org.elasticsearch.util.guice.inject.spi.Dependency;
 import org.elasticsearch.util.guice.inject.spi.HasDependencies;
 import org.elasticsearch.util.guice.inject.spi.Message;
-import org.elasticsearch.util.gcommon.collect.ImmutableMap;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
-import org.elasticsearch.util.gcommon.collect.Lists;
-import org.elasticsearch.util.gcommon.collect.Maps;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
-import java.lang.reflect.Type;
+import java.lang.reflect.*;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;

@@ -16,12 +16,13 @@
 
 package org.elasticsearch.util.guice.inject;
 
+import org.elasticsearch.util.collect.ImmutableSet;
 import org.elasticsearch.util.guice.inject.internal.Errors;
-import static org.elasticsearch.util.guice.inject.internal.Preconditions.checkArgument;
 import org.elasticsearch.util.guice.inject.spi.Message;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
 
 import java.util.Collection;
+
+import static org.elasticsearch.util.guice.inject.internal.Preconditions.*;
 
 /**
  * Thrown when errors occur while creating a {@link Injector}. Includes a list of encountered

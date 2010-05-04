@@ -22,12 +22,12 @@ package org.elasticsearch.search.highlight;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.util.gcommon.collect.Lists;
+import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.xcontent.XContentParser;
 
 import java.util.List;
 
-import static org.elasticsearch.util.gcommon.collect.Lists.*;
+import static org.elasticsearch.util.collect.Lists.*;
 
 /**
  * <pre>

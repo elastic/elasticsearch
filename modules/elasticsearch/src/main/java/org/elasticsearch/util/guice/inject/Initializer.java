@@ -16,16 +16,17 @@
 
 package org.elasticsearch.util.guice.inject;
 
+import org.elasticsearch.util.collect.Lists;
+import org.elasticsearch.util.collect.Maps;
 import org.elasticsearch.util.guice.inject.internal.Errors;
 import org.elasticsearch.util.guice.inject.internal.ErrorsException;
-import static org.elasticsearch.util.guice.inject.internal.Preconditions.checkNotNull;
 import org.elasticsearch.util.guice.inject.spi.InjectionPoint;
-import org.elasticsearch.util.gcommon.collect.Lists;
-import org.elasticsearch.util.gcommon.collect.Maps;
 
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+
+import static org.elasticsearch.util.guice.inject.internal.Preconditions.*;
 
 /**
  * Manages and injects instances at injector-creation time. This is made more complicated by

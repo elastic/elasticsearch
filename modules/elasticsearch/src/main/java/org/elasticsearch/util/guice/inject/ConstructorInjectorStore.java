@@ -19,8 +19,9 @@ package org.elasticsearch.util.guice.inject;
 import org.elasticsearch.util.guice.inject.internal.Errors;
 import org.elasticsearch.util.guice.inject.internal.ErrorsException;
 import org.elasticsearch.util.guice.inject.internal.FailableCache;
-import static org.elasticsearch.util.gcommon.collect.Iterables.concat;
 import org.elasticsearch.util.guice.inject.spi.InjectionPoint;
+
+import static org.elasticsearch.util.collect.Iterables.*;
 
 /**
  * Constructor injectors by type.

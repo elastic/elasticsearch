@@ -16,7 +16,7 @@
 
 package org.elasticsearch.util.guice.inject;
 
-import org.elasticsearch.util.gcommon.collect.Sets;
+import org.elasticsearch.util.collect.Sets;
 
 import java.util.Set;
 

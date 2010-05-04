@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.terms;
 
-import org.elasticsearch.util.gcommon.collect.Iterators;
+import org.elasticsearch.util.collect.Iterators;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;

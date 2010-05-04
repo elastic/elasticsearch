@@ -55,7 +55,7 @@ import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.Tuple;
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
+import org.elasticsearch.util.collect.ImmutableList;
 import org.elasticsearch.util.guice.inject.Guice;
 import org.elasticsearch.util.guice.inject.Injector;
 import org.elasticsearch.util.guice.inject.Module;

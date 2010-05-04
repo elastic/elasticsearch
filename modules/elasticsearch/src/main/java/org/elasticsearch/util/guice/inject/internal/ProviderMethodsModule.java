@@ -16,23 +16,19 @@
 
 package org.elasticsearch.util.guice.inject.internal;
 
-import org.elasticsearch.util.guice.inject.Binder;
-import org.elasticsearch.util.guice.inject.Key;
-import org.elasticsearch.util.guice.inject.Module;
-import org.elasticsearch.util.guice.inject.Provider;
-import org.elasticsearch.util.guice.inject.Provides;
-import org.elasticsearch.util.guice.inject.TypeLiteral;
-import static org.elasticsearch.util.guice.inject.internal.Preconditions.checkNotNull;
+import org.elasticsearch.util.collect.ImmutableSet;
+import org.elasticsearch.util.collect.Lists;
+import org.elasticsearch.util.guice.inject.*;
 import org.elasticsearch.util.guice.inject.spi.Dependency;
 import org.elasticsearch.util.guice.inject.spi.Message;
 import org.elasticsearch.util.guice.inject.util.Modules;
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
-import org.elasticsearch.util.gcommon.collect.Lists;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.util.List;
+
+import static org.elasticsearch.util.guice.inject.internal.Preconditions.*;
 
 /**
  * Creates bindings to methods annotated with {@literal @}{@link Provides}. Use the scope and

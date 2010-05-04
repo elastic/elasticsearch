@@ -16,14 +16,14 @@
 
 package org.elasticsearch.util.guice.inject;
 
+import org.elasticsearch.util.collect.ImmutableList;
+import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.guice.inject.internal.Errors;
 import org.elasticsearch.util.guice.inject.internal.ErrorsException;
 import org.elasticsearch.util.guice.inject.internal.InternalContext;
 import org.elasticsearch.util.guice.inject.spi.InjectionPoint;
 import org.elasticsearch.util.guice.inject.spi.InjectionRequest;
 import org.elasticsearch.util.guice.inject.spi.StaticInjectionRequest;
-import org.elasticsearch.util.gcommon.collect.ImmutableList;
-import org.elasticsearch.util.gcommon.collect.Lists;
 
 import java.util.List;
 import java.util.Set;

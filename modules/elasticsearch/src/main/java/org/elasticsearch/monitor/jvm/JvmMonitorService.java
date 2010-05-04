@@ -19,14 +19,14 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import org.elasticsearch.util.gcommon.collect.ImmutableSet;
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.monitor.dump.DumpGenerator;
 import org.elasticsearch.monitor.dump.DumpMonitorService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.collect.ImmutableSet;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.HashSet;

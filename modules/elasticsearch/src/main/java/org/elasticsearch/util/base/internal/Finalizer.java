@@ -53,7 +53,7 @@ public class Finalizer extends Thread {
 
   /** Name of FinalizableReference.class. */
   private static final String FINALIZABLE_REFERENCE
-      = "org.elasticsearch.util.gcommon.base.FinalizableReference";
+      = "org.elasticsearch.util.base.FinalizableReference";
 
   /**
    * Starts the Finalizer thread. FinalizableReferenceQueue calls this method

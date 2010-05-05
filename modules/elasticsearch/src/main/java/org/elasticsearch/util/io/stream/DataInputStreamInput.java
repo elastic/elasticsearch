@@ -34,6 +34,10 @@ public class DataInputStreamInput extends StreamInput {
         this.in = in;
     }
 
+    @Override public int read() throws IOException {
+        return in.readByte() & 0xFF;
+    }
+
     @Override public byte readByte() throws IOException {
         return in.readByte();
     }

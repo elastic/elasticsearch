@@ -84,6 +84,18 @@ public class HandlesStreamInput extends StreamInput {
         }
     }
 
+    @Override public int read() throws IOException {
+        return in.read();
+    }
+
+    @Override public int read(byte[] b) throws IOException {
+        return in.read(b);
+    }
+
+    @Override public int read(byte[] b, int off, int len) throws IOException {
+        return in.read(b, off, len);
+    }
+
     @Override public byte readByte() throws IOException {
         return in.readByte();
     }

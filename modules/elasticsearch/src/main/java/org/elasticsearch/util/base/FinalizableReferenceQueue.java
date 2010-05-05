@@ -92,7 +92,7 @@ public class FinalizableReferenceQueue {
       = Logger.getLogger(FinalizableReferenceQueue.class.getName());
 
   private static final String FINALIZER_CLASS_NAME
-      = "org.elasticsearch.util.gcommon.base.internal.Finalizer";
+      = "org.elasticsearch.util.base.internal.Finalizer";
 
   /** Reference to Finalizer.startFinalizer(). */
   private static final Method startFinalizer;

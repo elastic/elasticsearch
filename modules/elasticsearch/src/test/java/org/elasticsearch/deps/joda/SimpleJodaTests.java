@@ -69,5 +69,9 @@ public class SimpleJodaTests {
     @Test public void testSlashInFormat() {
         FormatDateTimeFormatter formatter = Joda.forPattern("MM/yyyy");
         formatter.parser().parseMillis("01/2001");
+
+        formatter = Joda.forPattern("yyyy/MM/dd HH:mm:ss");
+        long millis = formatter.parser().parseMillis("2001/01/01 00:00:00");
+        formatter.printer().print(millis);
     }
 }

@@ -16,12 +16,6 @@
       <library name="jclouds">
         <CLASSES>
           <root url="jar://$GRADLE_REPOSITORY$/com.google.code.gson/gson/jars/gson-1.4.jar!/" />
-          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-rackspace/jars/jclouds-rackspace-1.0-SNAPSHOT.jar!/" />
-          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-compute/jars/jclouds-compute-1.0-SNAPSHOT.jar!/" />
-          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-blobstore/jars/jclouds-blobstore-1.0-SNAPSHOT.jar!/" />
-          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-scriptbuilder/jars/jclouds-scriptbuilder-1.0-SNAPSHOT.jar!/" />
-          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-core/jars/jclouds-core-1.0-SNAPSHOT.jar!/" />
-          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-aws/jars/jclouds-aws-1.0-SNAPSHOT.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/com.jamesmurty.utils/java-xmlbuilder/jars/java-xmlbuilder-0.3.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/javax.annotation/jsr250-api/jars/jsr250-api-1.0.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/javax.inject/inject/jars/inject-1.0.jar!/" />
@@ -35,6 +29,21 @@
           <root url="jar://$GRADLE_REPOSITORY$/com.google.guava/guava-base/jars/guava-base-r03.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/com.google.guava/guava-collections/jars/guava-collections-r03.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/com.google.code.guice/guice/jars/guice-2.1-r1128.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-compute/jars/jclouds-compute-1.0-beta-5.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-bluelock/jars/jclouds-bluelock-1.0-beta-5.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-core/jars/jclouds-core-1.0-beta-5.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-aws/jars/jclouds-aws-1.0-beta-5.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-terremark/jars/jclouds-terremark-1.0-beta-5.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-gogrid/jars/jclouds-gogrid-1.0-beta-5.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-atmos/jars/jclouds-atmos-1.0-beta-5.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-jsch/jars/jclouds-jsch-1.0-beta-5.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-blobstore/jars/jclouds-blobstore-1.0-beta-5.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-hostingdotcom/jars/jclouds-hostingdotcom-1.0-beta-5.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-azure/jars/jclouds-azure-1.0-beta-5.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-rimuhosting/jars/jclouds-rimuhosting-1.0-beta-5.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-scriptbuilder/jars/jclouds-scriptbuilder-1.0-beta-5.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-vcloud/jars/jclouds-vcloud-1.0-beta-5.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-rackspace/jars/jclouds-rackspace-1.0-beta-5.jar!/" />
         </CLASSES>
         <JAVADOC>
           <root url="http://jclouds.rimuhosting.com/apidocs/" />

@@ -37,6 +37,8 @@ import org.elasticsearch.util.settings.Settings;
 import org.jclouds.blobstore.BlobStoreContext;
 import org.jclouds.domain.Location;
 
+import java.util.Set;
+
 /**
  * @author kimchy (shay.banon)
  */
@@ -51,7 +53,6 @@ public class CloudIndexGateway extends AbstractIndexComponent implements IndexGa
     private final SizeValue chunkSize;
 
     private final BlobStoreContext blobStoreContext;
-
 
     @Inject public CloudIndexGateway(Index index, @IndexSettings Settings indexSettings, CloudBlobStoreService blobStoreService, Gateway gateway) {
         super(index, indexSettings);
@@ -84,9 +85,17 @@ public class CloudIndexGateway extends AbstractIndexComponent implements IndexGa
                 this.location = null;
             }
         } else {
-            this.location = blobStoreContext.getBlobStore().getAssignableLocations().get(location);
+            Location matchedLocation = null;
+            Set<? extends Location> assignableLocations = blobStoreContext.getBlobStore().listAssignableLocations();
+            for (Location oLocation : assignableLocations) {
+                if (oLocation.getId().equals(location)) {
+                    matchedLocation = oLocation;
+                    break;
+                }
+            }
+            this.location = matchedLocation;
             if (this.location == null) {
-                throw new ElasticSearchIllegalArgumentException("Not a valid location [" + location + "], available locations " + blobStoreContext.getBlobStore().getAssignableLocations().keySet());
+                throw new ElasticSearchIllegalArgumentException("Not a valid location [" + location + "], available locations " + assignableLocations);
             }
         }
         this.indexContainer = container;

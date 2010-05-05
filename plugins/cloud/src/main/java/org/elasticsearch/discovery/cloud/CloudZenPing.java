@@ -38,7 +38,7 @@ import org.jclouds.domain.Location;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.util.collect.Lists.*;
 
@@ -68,10 +68,10 @@ public class CloudZenPing extends UnicastZenPing {
 
     @Override protected List<DiscoveryNode> buildDynamicNodes() {
         List<DiscoveryNode> discoNodes = newArrayList();
-        Map<String, ? extends ComputeMetadata> nodes = computeService.getNodes(GetNodesOptions.Builder.withDetails());
+        Set<? extends ComputeMetadata> nodes = computeService.listNodes(GetNodesOptions.Builder.withDetails());
         logger.trace("Processing Nodes {}", nodes);
-        for (Map.Entry<String, ? extends ComputeMetadata> node : nodes.entrySet()) {
-            NodeMetadata nodeMetadata = (NodeMetadata) node.getValue();
+        for (ComputeMetadata node : nodes) {
+            NodeMetadata nodeMetadata = (NodeMetadata) node;
             if (tag != null && !nodeMetadata.getTag().equals(tag)) {
                 logger.trace("Filtering node {} with unmatched tag {}", nodeMetadata.getName(), nodeMetadata.getTag());
                 continue;

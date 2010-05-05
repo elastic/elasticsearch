@@ -46,6 +46,7 @@ import org.jclouds.blobstore.domain.StorageMetadata;
 import org.jclouds.domain.Location;
 
 import java.io.IOException;
+import java.util.Set;
 
 /**
  * @author kimchy (shay.banon)
@@ -75,9 +76,17 @@ public class CloudGateway extends AbstractLifecycleComponent<Gateway> implements
         if (location == null) {
             this.location = null;
         } else {
-            this.location = blobStoreContext.getBlobStore().getAssignableLocations().get(location);
+            Location matchedLocation = null;
+            Set<? extends Location> assignableLocations = blobStoreContext.getBlobStore().listAssignableLocations();
+            for (Location oLocation : assignableLocations) {
+                if (oLocation.getId().equals(location)) {
+                    matchedLocation = oLocation;
+                    break;
+                }
+            }
+            this.location = matchedLocation;
             if (this.location == null) {
-                throw new ElasticSearchIllegalArgumentException("Not a valid location [" + location + "], available locations " + blobStoreContext.getBlobStore().getAssignableLocations().keySet());
+                throw new ElasticSearchIllegalArgumentException("Not a valid location [" + location + "], available locations " + assignableLocations);
             }
         }
 

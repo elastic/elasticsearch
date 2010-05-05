@@ -20,7 +20,6 @@
 package org.elasticsearch.deps.jackson;
 
 import org.codehaus.jackson.*;
-import org.elasticsearch.util.io.FastByteArrayInputStream;
 import org.elasticsearch.util.io.FastByteArrayOutputStream;
 import org.testng.annotations.Test;
 
@@ -57,20 +56,19 @@ public class JacksonLocationTests {
         gen.close();
 
         byte[] data = os.copiedByteArray();
-        FastByteArrayInputStream is = new FastByteArrayInputStream(data);
-        JsonParser parser = new JsonFactory().createJsonParser(is);
+        JsonParser parser = new JsonFactory().createJsonParser(data);
 
         assertThat(parser.nextToken(), equalTo(JsonToken.START_OBJECT));
         assertThat(parser.nextToken(), equalTo(JsonToken.FIELD_NAME)); // "index"
         assertThat(parser.nextToken(), equalTo(JsonToken.VALUE_STRING));
         assertThat(parser.nextToken(), equalTo(JsonToken.FIELD_NAME)); // "source"
-        assertThat(parser.nextToken(), equalTo(JsonToken.START_OBJECT));
-//        int location1 = is.position();
+//        JsonLocation location1 = parser.getCurrentLocation();
 //        parser.skipChildren();
-//        int location2 = is.position();
-//        byte[] sourceData = new byte[location2 - location1];
-//        System.arraycopy(data, location1, sourceData, 0, sourceData.length);
-//        System.out.println(Unicode.fromBytes(sourceData));
+//        JsonLocation location2 = parser.getCurrentLocation();
+//
+//        byte[] sourceData = new byte[(int) (location2.getByteOffset() - location1.getByteOffset())];
+//        System.arraycopy(data, (int) location1.getByteOffset(), sourceData, 0, sourceData.length);
+//
 //        JsonParser sourceParser = new JsonFactory().createJsonParser(new FastByteArrayInputStream(sourceData));
 //        assertThat(sourceParser.nextToken(), equalTo(JsonToken.START_OBJECT));
 //        assertThat(sourceParser.nextToken(), equalTo(JsonToken.FIELD_NAME)); // "value"

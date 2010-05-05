@@ -147,16 +147,16 @@ public abstract class StreamInput extends InputStream {
      */
     public abstract void close() throws IOException;
 
-    // IS
-
-    @Override public int read() throws IOException {
-        return readByte();
-    }
-
-    // Here, we assume that we always can read the full byte array
-
-    @Override public int read(byte[] b, int off, int len) throws IOException {
-        readBytes(b, off, len);
-        return len;
-    }
+//    // IS
+//
+//    @Override public int read() throws IOException {
+//        return readByte();
+//    }
+//
+//    // Here, we assume that we always can read the full byte array
+//
+//    @Override public int read(byte[] b, int off, int len) throws IOException {
+//        readBytes(b, off, len);
+//        return len;
+//    }
 }

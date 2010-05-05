@@ -37,6 +37,16 @@ public class ChannelBufferStreamInput extends StreamInput {
         this.buffer = buffer;
     }
 
+    // Not really maps to InputStream, but good enough for us
+    @Override public int read() throws IOException {
+        return buffer.readByte() & 0xFF;
+    }
+
+    @Override public int read(byte[] b, int off, int len) throws IOException {
+        readBytes(b, off, len);
+        return len;
+    }
+
     @Override public byte readByte() throws IOException {
         return buffer.readByte();
     }

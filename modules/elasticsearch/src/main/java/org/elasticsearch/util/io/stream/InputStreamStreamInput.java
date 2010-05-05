@@ -34,6 +34,18 @@ public class InputStreamStreamInput extends StreamInput {
         this.is = is;
     }
 
+    @Override public int read() throws IOException {
+        return is.read();
+    }
+
+    @Override public int read(byte[] b) throws IOException {
+        return is.read(b);
+    }
+
+    @Override public int read(byte[] b, int off, int len) throws IOException {
+        return is.read(b, off, len);
+    }
+
     @Override public byte readByte() throws IOException {
         return (byte) is.read();
     }

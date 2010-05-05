@@ -214,6 +214,10 @@ public class FastByteArrayInputStream extends InputStream {
         return count - pos;
     }
 
+    public int position() {
+        return pos;
+    }
+
     /**
      * Tests if this <code>InputStream</code> supports mark/reset. The
      * <code>markSupported</code> method of <code>ByteArrayInputStream</code>

@@ -25,6 +25,7 @@ import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.collect.ImmutableMap;
 import org.elasticsearch.util.concurrent.ThreadSafe;
 import org.elasticsearch.util.joda.FormatDateTimeFormatter;
+import org.elasticsearch.util.joda.Joda;
 import org.elasticsearch.util.xcontent.XContentParser;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
@@ -52,7 +53,12 @@ public class XContentObjectMapper implements XContentMapper, XContentIncludeInAl
         public static final boolean ENABLED = true;
         public static final boolean DYNAMIC = true;
         public static final ContentPath.Type PATH_TYPE = ContentPath.Type.FULL;
-        public static final FormatDateTimeFormatter[] DATE_TIME_FORMATTERS = new FormatDateTimeFormatter[]{XContentDateFieldMapper.Defaults.DATE_TIME_FORMATTER};
+        public static final FormatDateTimeFormatter[] DATE_TIME_FORMATTERS =
+                new FormatDateTimeFormatter[]{
+                        XContentDateFieldMapper.Defaults.DATE_TIME_FORMATTER,
+                        Joda.forPattern("yyyy/MM/dd HH:mm:ss"),
+                        Joda.forPattern("yyyy/MM/dd")
+                };
     }
 
     public static class Builder extends XContentMapper.Builder<Builder, XContentObjectMapper> {

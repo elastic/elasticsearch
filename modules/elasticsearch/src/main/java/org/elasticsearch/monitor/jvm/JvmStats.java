@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class JvmStats implements Streamable, Serializable {
 
@@ -108,27 +108,55 @@ public class JvmStats implements Streamable, Serializable {
         return timestamp;
     }
 
-    public long uptime() {
-        return uptime;
+    public long getTimestamp() {
+        return timestamp;
+    }
+
+    public TimeValue uptime() {
+        return new TimeValue(uptime);
+    }
+
+    public TimeValue getUptime() {
+        return uptime();
     }
 
     public SizeValue memoryHeapCommitted() {
         return new SizeValue(memoryHeapCommitted);
     }
 
+    public SizeValue getMemoryHeapCommitted() {
+        return memoryHeapCommitted();
+    }
+
     public SizeValue memoryHeapUsed() {
         return new SizeValue(memoryHeapUsed);
+    }
+
+    public SizeValue getMemoryHeapUsed() {
+        return memoryHeapUsed();
     }
 
     public SizeValue memoryNonHeapCommitted() {
         return new SizeValue(memoryNonHeapCommitted);
     }
 
+    public SizeValue getMemoryNonHeapCommitted() {
+        return memoryNonHeapCommitted();
+    }
+
     public SizeValue memoryNonHeapUsed() {
         return new SizeValue(memoryNonHeapUsed);
     }
 
+    public SizeValue getMemoryNonHeapUsed() {
+        return memoryNonHeapUsed();
+    }
+
     public int threadCount() {
+        return threadCount;
+    }
+
+    public int getThreadCount() {
         return threadCount;
     }
 
@@ -136,12 +164,24 @@ public class JvmStats implements Streamable, Serializable {
         return peakThreadCount;
     }
 
+    public int getPeakThreadCount() {
+        return peakThreadCount;
+    }
+
     public long gcCollectionCount() {
+        return gcCollectionCount;
+    }
+
+    public long getGcCollectionCount() {
         return gcCollectionCount;
     }
 
     public TimeValue gcCollectionTime() {
         return new TimeValue(gcCollectionTime, TimeUnit.MILLISECONDS);
+    }
+
+    public TimeValue getGcCollectionTime() {
+        return gcCollectionTime();
     }
 
     public static JvmStats readJvmStats(StreamInput in) throws IOException {

@@ -29,7 +29,10 @@
       <w>flushable</w>
       <w>formatter</w>
       <w>formatters</w>
+      <w>frac</w>
       <w>freqs</w>
+      <w>hpux</w>
+      <w>hyperic</w>
       <w>indices</w>
       <w>inet</w>
       <w>infos</w>
@@ -69,7 +72,9 @@
       <w>sbuf</w>
       <w>searchable</w>
       <w>serializers</w>
+      <w>sigar</w>
       <w>snapshotting</w>
+      <w>solaris</w>
       <w>stopwords</w>
       <w>streamable</w>
       <w>successul</w>
@@ -84,6 +89,7 @@
       <w>tuple</w>
       <w>unicast</w>
       <w>unregister</w>
+      <w>uptime</w>
       <w>uuid</w>
       <w>versioned</w>
       <w>wildcards</w>

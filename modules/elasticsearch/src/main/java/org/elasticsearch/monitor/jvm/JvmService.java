@@ -17,8 +17,29 @@
  * under the License.
  */
 
+package org.elasticsearch.monitor.jvm;
+
+import org.elasticsearch.util.component.AbstractComponent;
+import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.settings.Settings;
+
 /**
- * Allow to build a {@link org.elasticsearch.node.Node} using {@link org.elasticsearch.node.NodeBuilder} which is a
- * node within the cluster.
+ * @author kimchy (shay.banon)
  */
-package org.elasticsearch.node;
+public class JvmService extends AbstractComponent {
+
+    private final JvmInfo jvmInfo;
+
+    @Inject public JvmService(Settings settings) {
+        super(settings);
+        this.jvmInfo = JvmInfo.jvmInfo();
+    }
+
+    public JvmInfo info() {
+        return this.jvmInfo;
+    }
+
+    public JvmStats state() {
+        return JvmStats.jvmStats();
+    }
+}

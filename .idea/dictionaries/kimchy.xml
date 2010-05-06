@@ -21,6 +21,7 @@
       <w>committable</w>
       <w>configurator</w>
       <w>coord</w>
+      <w>cpus</w>
       <w>datagram</w>
       <w>desc</w>
       <w>deserialize</w>

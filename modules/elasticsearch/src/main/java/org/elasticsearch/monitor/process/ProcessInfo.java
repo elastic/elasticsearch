@@ -33,7 +33,7 @@ public class ProcessInfo implements Streamable, Serializable {
 
     private long id;
 
-    private ProcessInfo() {
+    ProcessInfo() {
 
     }
 

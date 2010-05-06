@@ -37,13 +37,14 @@ public class SigarProcessProbe extends AbstractComponent implements ProcessProbe
         this.sigarService = sigarService;
     }
 
-    @Override public ProcessInfo processInfo() {
+    @Override public synchronized ProcessInfo processInfo() {
         return new ProcessInfo(sigarService.sigar().getPid());
     }
 
-    @Override public ProcessStats processStats() {
+    @Override public synchronized ProcessStats processStats() {
         Sigar sigar = sigarService.sigar();
         ProcessStats stats = new ProcessStats();
+        stats.timestamp = System.currentTimeMillis();
         
         try {
             ProcCpu cpu = sigar.getProcCpu(sigar.getPid());

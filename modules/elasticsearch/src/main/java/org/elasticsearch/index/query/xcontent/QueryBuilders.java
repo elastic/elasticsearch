@@ -262,6 +262,15 @@ public abstract class QueryBuilders {
     }
 
     /**
+     * A query that simply applies the boost fact to the wrapped query (multiplies it).
+     *
+     * @param queryBuilder The query to apply the boost factor to.
+     */
+    public static CustomBoostFactorQueryBuilder customBoostFactorQuery(XContentQueryBuilder queryBuilder) {
+        return new CustomBoostFactorQueryBuilder(queryBuilder);
+    }
+
+    /**
      * A more like this query that finds documents that are "like" the provided {@link MoreLikeThisQueryBuilder#likeText(String)}
      * which is checked against the fields the query is constructed with.
      *

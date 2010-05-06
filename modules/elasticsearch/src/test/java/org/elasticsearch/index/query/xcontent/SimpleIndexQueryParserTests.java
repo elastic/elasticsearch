@@ -29,6 +29,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParser;
+import org.elasticsearch.util.lucene.search.CustomBoostFactorQuery;
 import org.elasticsearch.util.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.util.lucene.search.Queries;
 import org.elasticsearch.util.lucene.search.TermFilter;
@@ -598,6 +599,26 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
         ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
         assertThat(((TermFilter) constantScoreQuery.getFilter()).getTerm(), equalTo(new Term("name.last", "banon")));
+    }
+
+    @Test public void testCustomBoostFactorQueryBuilder() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        Query parsedQuery = queryParser.parse(customBoostFactorQuery(termQuery("name.last", "banon")).boostFactor(1.3f));
+        assertThat(parsedQuery, instanceOf(CustomBoostFactorQuery.class));
+        CustomBoostFactorQuery customBoostFactorQuery = (CustomBoostFactorQuery) parsedQuery;
+        assertThat(((TermQuery) customBoostFactorQuery.getSubQuery()).getTerm(), equalTo(new Term("name.last", "banon")));
+        assertThat((double) customBoostFactorQuery.getBoostFactor(), closeTo(1.3, 0.001));
+    }
+
+
+    @Test public void testCustomBoostFactorQuery() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/custom-boost-factor-query.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(CustomBoostFactorQuery.class));
+        CustomBoostFactorQuery customBoostFactorQuery = (CustomBoostFactorQuery) parsedQuery;
+        assertThat(((TermQuery) customBoostFactorQuery.getSubQuery()).getTerm(), equalTo(new Term("name.last", "banon")));
+        assertThat((double) customBoostFactorQuery.getBoostFactor(), closeTo(1.3, 0.001));
     }
 
     @Test public void testSpanTermQueryBuilder() throws IOException {

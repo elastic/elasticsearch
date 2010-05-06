@@ -59,6 +59,7 @@ public class XContentQueryParserRegistry {
         add(queryParsersMap, new WildcardQueryParser(index, indexSettings));
         add(queryParsersMap, new FilteredQueryParser(index, indexSettings));
         add(queryParsersMap, new ConstantScoreQueryParser(index, indexSettings));
+        add(queryParsersMap, new CustomBoostFactorQueryParser(index, indexSettings));
         add(queryParsersMap, new SpanTermQueryParser(index, indexSettings));
         add(queryParsersMap, new SpanNotQueryParser(index, indexSettings));
         add(queryParsersMap, new SpanFirstQueryParser(index, indexSettings));

@@ -49,11 +49,13 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.discovery.zen.ping.ZenPing.PingResponse.*;
 import static org.elasticsearch.util.TimeValue.*;
 import static org.elasticsearch.util.collect.Lists.*;
 import static org.elasticsearch.util.concurrent.ConcurrentMaps.*;
+import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -77,6 +79,10 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     // a list of temporal responses a node will return for a request (holds requests from other nodes)
     private final Queue<PingResponse> temporalResponses = new LinkedTransferQueue<PingResponse>();
+
+    public UnicastZenPing(ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {
+        this(EMPTY_SETTINGS, threadPool, transportService, clusterName);
+    }
 
     public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {
         super(settings);
@@ -120,6 +126,23 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     @Override public void setNodesProvider(DiscoveryNodesProvider nodesProvider) {
         this.nodesProvider = nodesProvider;
+    }
+
+    public PingResponse[] pingAndWait(TimeValue timeout) {
+        final AtomicReference<PingResponse[]> response = new AtomicReference<PingResponse[]>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        ping(new PingListener() {
+            @Override public void onPing(PingResponse[] pings) {
+                response.set(pings);
+                latch.countDown();
+            }
+        }, timeout);
+        try {
+            latch.await();
+            return response.get();
+        } catch (InterruptedException e) {
+            return null;
+        }
     }
 
     @Override public void ping(final PingListener listener, final TimeValue timeout) throws ElasticSearchException {

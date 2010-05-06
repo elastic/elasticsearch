@@ -20,11 +20,19 @@
 package org.elasticsearch.util.xcontent;
 
 /**
+ * The content type of {@link org.elasticsearch.util.xcontent.XContent}.
+ *
  * @author kimchy (shay.banon)
  */
 public enum XContentType {
 
+    /**
+     * A JSON based content type.
+     */
     JSON(0),
+    /**
+     * An optimized binary form of JSON.
+     */
     XSON(1);
 
     public static XContentType fromRestContentType(String contentType) {

@@ -214,13 +214,22 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     }
 
     /**
-     * Writes the JSON as a {@link Map}.
+     * Writes the Map as a JSON.
      *
      * @param source The map to index
      */
     @Required public IndexRequest source(Map source) throws ElasticSearchGenerationException {
+        return source(source, XContentType.JSON);
+    }
+
+    /**
+     * Writes the JSON as the provided content type.
+     *
+     * @param source The map to index
+     */
+    @Required public IndexRequest source(Map source, XContentType contentType) throws ElasticSearchGenerationException {
         try {
-            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(XContentType.JSON);
+            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
             builder.map(source);
             this.source = builder.copiedBytes();
         } catch (IOException e) {

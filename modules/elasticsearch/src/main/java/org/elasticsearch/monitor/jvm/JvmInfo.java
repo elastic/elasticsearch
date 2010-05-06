@@ -33,11 +33,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class JvmConfig implements Streamable, Serializable {
+public class JvmInfo implements Streamable, Serializable {
 
-    private static JvmConfig INSTANCE;
+    private static JvmInfo INSTANCE;
 
     static {
         RuntimeMXBean runtimeMXBean = ManagementFactory.getRuntimeMXBean();
@@ -52,14 +52,14 @@ public class JvmConfig implements Streamable, Serializable {
         } catch (Exception e) {
             pid = -1;
         }
-        INSTANCE = new JvmConfig(pid, runtimeMXBean.getVmName(), System.getProperty("java.version"), System.getProperty("java.vendor"),
+        INSTANCE = new JvmInfo(pid, runtimeMXBean.getVmName(), System.getProperty("java.version"), System.getProperty("java.vendor"),
                 runtimeMXBean.getStartTime(),
                 memoryMXBean.getHeapMemoryUsage().getInit(), memoryMXBean.getHeapMemoryUsage().getMax(),
                 memoryMXBean.getNonHeapMemoryUsage().getInit(), memoryMXBean.getNonHeapMemoryUsage().getMax(),
                 runtimeMXBean.getInputArguments().toArray(new String[runtimeMXBean.getInputArguments().size()]), runtimeMXBean.getBootClassPath(), runtimeMXBean.getClassPath(), runtimeMXBean.getSystemProperties());
     }
 
-    public static JvmConfig jvmConfig() {
+    public static JvmInfo jvmInfo() {
         return INSTANCE;
     }
 
@@ -89,12 +89,12 @@ public class JvmConfig implements Streamable, Serializable {
 
     private Map<String, String> systemProperties;
 
-    private JvmConfig() {
+    private JvmInfo() {
     }
 
-    public JvmConfig(long pid, String vmName, String vmVersion, String vmVendor, long startTime,
-                     long memoryHeapInit, long memoryHeapMax, long memoryNonHeapInit, long memoryNonHeapMax,
-                     String[] inputArguments, String bootClassPath, String classPath, Map<String, String> systemProperties) {
+    public JvmInfo(long pid, String vmName, String vmVersion, String vmVendor, long startTime,
+                   long memoryHeapInit, long memoryHeapMax, long memoryNonHeapInit, long memoryNonHeapMax,
+                   String[] inputArguments, String bootClassPath, String classPath, Map<String, String> systemProperties) {
         this.pid = pid;
         this.vmName = vmName;
         this.vmVersion = vmVersion;
@@ -110,11 +110,25 @@ public class JvmConfig implements Streamable, Serializable {
         this.systemProperties = systemProperties;
     }
 
+    /**
+     * The process id.
+     */
     public long pid() {
         return this.pid;
     }
 
+    /**
+     * The process id.
+     */
+    public long getPid() {
+        return pid;
+    }
+
     public String vmName() {
+        return vmName;
+    }
+
+    public String getVmName() {
         return vmName;
     }
 
@@ -122,7 +136,15 @@ public class JvmConfig implements Streamable, Serializable {
         return vmVersion;
     }
 
+    public String getVmVersion() {
+        return vmVersion;
+    }
+
     public String vmVendor() {
+        return vmVendor;
+    }
+
+    public String getVmVendor() {
         return vmVendor;
     }
 
@@ -130,23 +152,47 @@ public class JvmConfig implements Streamable, Serializable {
         return startTime;
     }
 
+    public long getStartTime() {
+        return startTime;
+    }
+
     public SizeValue memoryHeapInit() {
         return new SizeValue(memoryHeapInit);
+    }
+
+    public SizeValue getMemoryHeapInit() {
+        return memoryHeapInit();
     }
 
     public SizeValue memoryHeapMax() {
         return new SizeValue(memoryHeapMax);
     }
 
+    public SizeValue getMemoryHeapMax() {
+        return memoryHeapMax();
+    }
+
     public SizeValue memoryNonHeapInit() {
         return new SizeValue(memoryNonHeapInit);
+    }
+
+    public SizeValue getMemoryNonHeapInit() {
+        return memoryNonHeapInit();
     }
 
     public SizeValue memoryNonHeapMax() {
         return new SizeValue(memoryNonHeapMax);
     }
 
+    public SizeValue getMemoryNonHeapMax() {
+        return memoryNonHeapMax();
+    }
+
     public String[] inputArguments() {
+        return inputArguments;
+    }
+
+    public String[] getInputArguments() {
         return inputArguments;
     }
 
@@ -154,7 +200,15 @@ public class JvmConfig implements Streamable, Serializable {
         return bootClassPath;
     }
 
+    public String getBootClassPath() {
+        return bootClassPath;
+    }
+
     public String classPath() {
+        return classPath;
+    }
+
+    public String getClassPath() {
         return classPath;
     }
 
@@ -162,10 +216,14 @@ public class JvmConfig implements Streamable, Serializable {
         return systemProperties;
     }
 
-    public static JvmConfig readJvmComing(StreamInput in) throws IOException {
-        JvmConfig jvmConfig = new JvmConfig();
-        jvmConfig.readFrom(in);
-        return jvmConfig;
+    public Map<String, String> getSystemProperties() {
+        return systemProperties;
+    }
+
+    public static JvmInfo readJvmInfo(StreamInput in) throws IOException {
+        JvmInfo jvmInfo = new JvmInfo();
+        jvmInfo.readFrom(in);
+        return jvmInfo;
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {

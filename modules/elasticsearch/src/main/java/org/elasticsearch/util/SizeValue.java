@@ -53,28 +53,56 @@ public class SizeValue implements Serializable, Streamable {
         return sizeUnit.toBytes(size);
     }
 
+    public long getBytes() {
+        return bytes();
+    }
+
     public long kb() {
         return sizeUnit.toKB(size);
+    }
+
+    public long getKb() {
+        return kb();
     }
 
     public long mb() {
         return sizeUnit.toMB(size);
     }
 
+    public long getMb() {
+        return mb();
+    }
+
     public long gb() {
         return sizeUnit.toGB(size);
+    }
+
+    public long getGb() {
+        return gb();
     }
 
     public double kbFrac() {
         return ((double) bytes()) / SizeUnit.C1;
     }
 
+    public double getKbFrac() {
+        return kbFrac();
+    }
+
     public double mbFrac() {
         return ((double) bytes()) / SizeUnit.C2;
     }
 
+    public double getMbFrac() {
+        return mbFrac();
+    }
+
     public double gbFrac() {
         return ((double) bytes()) / SizeUnit.C3;
+    }
+
+    public double getGbFrac() {
+        return gbFrac();
     }
 
     @Override public String toString() {

@@ -1,4 +1,4 @@
-CLASSPATH=$CLASSPATH:$ES_HOME/lib/*
+CLASSPATH=$CLASSPATH:$ES_HOME/lib/*:$ES_HOME/lib/sigar/*
 
 if [ "x$ES_MIN_MEM" = "x" ]; then
     ES_MIN_MEM=256

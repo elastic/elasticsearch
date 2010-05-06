@@ -64,6 +64,7 @@ task explodedDist(dependsOn: [configurations.distLib], description: 'Builds a mi
 
     copy { from('bin'); into explodedDistBinDir }
     copy { from('config'); into explodedDistConfigDir }
+    copy { from('lib'); into explodedDistLibDir }
 
     copy {
         from('.')
@@ -79,6 +80,7 @@ task explodedDist(dependsOn: [configurations.distLib], description: 'Builds a mi
     ant.delete { fileset(dir: explodedDistLibDir, includes: "jackson-*.jar") } // no need jackson, we jarjar it
     ant.delete { fileset(dir: explodedDistLibDir, includes: "joda-*.jar") } // no need joda, we jarjar it
     ant.delete { fileset(dir: explodedDistLibDir, includes: "snakeyaml-*.jar") } // no need snakeyaml, we jarjar it
+    ant.delete { fileset(dir: explodedDistLibDir, includes: "sigar-*.jar") } // no need sigar directly under lib...
 
     ant.chmod(dir: "$explodedDistDir/bin", perm: "ugo+rx", includes: "**/*")
 }

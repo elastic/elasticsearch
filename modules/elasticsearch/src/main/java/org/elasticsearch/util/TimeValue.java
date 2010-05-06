@@ -70,52 +70,104 @@ public class TimeValue implements Serializable, Streamable {
         return timeUnit.toNanos(duration);
     }
 
+    public long getNanos() {
+        return nanos();
+    }
+
     public long micros() {
         return timeUnit.toMicros(duration);
+    }
+
+    public long getMicros() {
+        return micros();
     }
 
     public long millis() {
         return timeUnit.toMillis(duration);
     }
 
+    public long getMillis() {
+        return millis();
+    }
+
     public long seconds() {
         return timeUnit.toSeconds(duration);
+    }
+
+    public long getSeconds() {
+        return seconds();
     }
 
     public long minutes() {
         return timeUnit.toMinutes(duration);
     }
 
+    public long getMinutes() {
+        return minutes();
+    }
+
     public long hours() {
         return timeUnit.toHours(duration);
+    }
+
+    public long getHours() {
+        return hours();
     }
 
     public long days() {
         return timeUnit.toDays(duration);
     }
 
+    public long getDays() {
+        return days();
+    }
+
     public double microsFrac() {
         return ((double) nanos()) / C1;
+    }
+
+    public double getMicrosFrac() {
+        return microsFrac();
     }
 
     public double millisFrac() {
         return ((double) nanos()) / C2;
     }
 
+    public double getMillisFrac() {
+        return millisFrac();
+    }
+
     public double secondsFrac() {
         return ((double) nanos()) / C3;
+    }
+
+    public double getSecondsFrac() {
+        return secondsFrac();
     }
 
     public double minutesFrac() {
         return ((double) nanos()) / C4;
     }
 
+    public double getMinutesFrac() {
+        return minutesFrac();
+    }
+
     public double hoursFrac() {
         return ((double) nanos()) / C5;
     }
 
+    public double getHoursFrac() {
+        return hoursFrac();
+    }
+
     public double daysFrac() {
         return ((double) nanos()) / C6;
+    }
+
+    public double getDaysFrac() {
+        return daysFrac();
     }
 
     @Override public String toString() {

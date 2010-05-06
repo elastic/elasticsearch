@@ -17,8 +17,14 @@
  * under the License.
  */
 
+package org.elasticsearch.monitor.process;
+
 /**
- * Allow to build a {@link org.elasticsearch.node.Node} using {@link org.elasticsearch.node.NodeBuilder} which is a
- * node within the cluster.
+ * @author kimchy (shay.banon)
  */
-package org.elasticsearch.node;
+public interface ProcessProbe {
+
+    ProcessInfo processInfo();
+
+    ProcessStats processStats();
+}

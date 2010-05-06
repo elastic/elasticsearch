@@ -19,10 +19,6 @@
 
 package org.elasticsearch.monitor;
 
-import org.elasticsearch.util.guice.inject.AbstractModule;
-import org.elasticsearch.util.guice.inject.Scopes;
-import org.elasticsearch.util.guice.inject.assistedinject.FactoryProvider;
-import org.elasticsearch.util.guice.inject.multibindings.MapBinder;
 import org.elasticsearch.monitor.dump.DumpContributorFactory;
 import org.elasticsearch.monitor.dump.DumpMonitorService;
 import org.elasticsearch.monitor.dump.cluster.ClusterDumpContributor;
@@ -30,9 +26,19 @@ import org.elasticsearch.monitor.dump.heap.HeapDumpContributor;
 import org.elasticsearch.monitor.dump.summary.SummaryDumpContributor;
 import org.elasticsearch.monitor.dump.thread.ThreadDumpContributor;
 import org.elasticsearch.monitor.jvm.JvmMonitorService;
+import org.elasticsearch.monitor.jvm.JvmService;
 import org.elasticsearch.monitor.memory.MemoryMonitor;
 import org.elasticsearch.monitor.memory.MemoryMonitorService;
 import org.elasticsearch.monitor.memory.alpha.AlphaMemoryMonitor;
+import org.elasticsearch.monitor.process.JmxProcessProbe;
+import org.elasticsearch.monitor.process.ProcessProbe;
+import org.elasticsearch.monitor.process.ProcessService;
+import org.elasticsearch.monitor.process.SigarProcessProbe;
+import org.elasticsearch.monitor.sigar.SigarService;
+import org.elasticsearch.util.guice.inject.AbstractModule;
+import org.elasticsearch.util.guice.inject.Scopes;
+import org.elasticsearch.util.guice.inject.assistedinject.FactoryProvider;
+import org.elasticsearch.util.guice.inject.multibindings.MapBinder;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.Map;
@@ -62,6 +68,26 @@ public class MonitorModule extends AbstractModule {
                 .to(settings.getAsClass(MonitorSettings.MEMORY_MANAGER_TYPE, AlphaMemoryMonitor.class, "org.elasticsearch.monitor.memory.", "MemoryMonitor"))
                 .asEagerSingleton();
         bind(MemoryMonitorService.class).asEagerSingleton();
+
+        boolean sigarLoaded = false;
+        try {
+            settings.getClassLoader().loadClass("org.hyperic.sigar.Sigar");
+            SigarService sigarService = new SigarService(settings);
+            if (sigarService.sigarAvailable()) {
+                bind(SigarService.class).toInstance(sigarService);
+                bind(ProcessProbe.class).to(SigarProcessProbe.class).asEagerSingleton();
+                sigarLoaded = true;
+            }
+        } catch (Throwable e) {
+            // no sigar
+        }
+        if (!sigarLoaded) {
+            // bind non sigar implementations
+            bind(ProcessProbe.class).to(JmxProcessProbe.class).asEagerSingleton();
+        }
+        // bind other services
+        bind(ProcessService.class).asEagerSingleton();
+        bind(JvmService.class).asEagerSingleton();
 
         bind(JvmMonitorService.class).asEagerSingleton();
 

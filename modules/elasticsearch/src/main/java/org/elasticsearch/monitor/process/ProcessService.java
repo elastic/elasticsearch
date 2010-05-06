@@ -17,8 +17,34 @@
  * under the License.
  */
 
+package org.elasticsearch.monitor.process;
+
+import org.elasticsearch.util.component.AbstractComponent;
+import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.settings.Settings;
+
 /**
- * Allow to build a {@link org.elasticsearch.node.Node} using {@link org.elasticsearch.node.NodeBuilder} which is a
- * node within the cluster.
+ * @author kimchy (shay.banon)
  */
-package org.elasticsearch.node;
+public class ProcessService extends AbstractComponent {
+
+    private final ProcessProbe probe;
+
+    private final ProcessInfo info;
+
+    @Inject public ProcessService(Settings settings, ProcessProbe probe) {
+        super(settings);
+        this.probe = probe;
+        this.info = probe.processInfo();
+
+        logger.trace("Using probe [{}]", probe);
+    }
+
+    public ProcessInfo info() {
+        return this.info;
+    }
+
+    public ProcessStats stats() {
+        return probe.processStats();
+    }
+}

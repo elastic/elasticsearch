@@ -28,6 +28,15 @@
     </orderEntry>
     <orderEntry type="library" exported="" name="jline" level="project" />
     <orderEntry type="library" exported="" name="netty" level="project" />
+    <orderEntry type="module-library" exported="">
+      <library name="sigar">
+        <CLASSES>
+          <root url="jar://$MODULE_DIR$/../../lib/sigar/sigar-1.6.3.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
     <orderEntry type="library" scope="TEST" name="testng" level="project" />
     <orderEntry type="library" scope="TEST" name="hamcrest" level="project" />
     <orderEntry type="module" module-name="test-testng" scope="TEST" />

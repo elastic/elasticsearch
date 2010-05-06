@@ -59,7 +59,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
                 indexSettings = ImmutableSettings.settingsBuilder().loadFromSource(bodySettings).build();
             } catch (Exception e) {
                 try {
-                    channel.sendResponse(new JsonThrowableRestResponse(request, BAD_REQUEST, new SettingsException("Failed to parse index settings", e)));
+                    channel.sendResponse(new XContentThrowableRestResponse(request, BAD_REQUEST, new SettingsException("Failed to parse index settings", e)));
                 } catch (IOException e1) {
                     logger.warn("Failed to send response", e1);
                     return;
@@ -76,7 +76,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
                             .field("ok", true)
                             .field("acknowledged", response.acknowledged())
                             .endObject();
-                    channel.sendResponse(new JsonRestResponse(request, OK, builder));
+                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (Exception e) {
                     onFailure(e);
                 }
@@ -87,9 +87,9 @@ public class RestCreateIndexAction extends BaseRestHandler {
                     Throwable t = unwrapCause(e);
                     if (t instanceof IndexAlreadyExistsException || t instanceof InvalidIndexNameException) {
                         XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                        channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, builder.startObject().field("error", t.getMessage()).endObject()));
+                        channel.sendResponse(new XContentRestResponse(request, BAD_REQUEST, builder.startObject().field("error", t.getMessage()).endObject()));
                     } else {
-                        channel.sendResponse(new JsonThrowableRestResponse(request, e));
+                        channel.sendResponse(new XContentThrowableRestResponse(request, e));
                     }
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);

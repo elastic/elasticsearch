@@ -55,7 +55,7 @@ public class RestSinglePingAction extends BaseRestHandler {
                 try {
                     XContentBuilder generator = RestXContentBuilder.restContentBuilder(request);
                     generator.startObject().field("ok", true).endObject();
-                    channel.sendResponse(new JsonRestResponse(request, OK, generator));
+                    channel.sendResponse(new XContentRestResponse(request, OK, generator));
                 } catch (Exception e) {
                     onFailure(e);
                 }
@@ -63,7 +63,7 @@ public class RestSinglePingAction extends BaseRestHandler {
 
             @Override public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new JsonThrowableRestResponse(request, e));
+                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

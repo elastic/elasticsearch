@@ -24,7 +24,9 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cloud.jclouds.JCloudsUtils;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.settings.SettingsFilter;
 import org.jclouds.blobstore.BlobStoreContext;
 import org.jclouds.blobstore.BlobStoreContextFactory;
 
@@ -39,7 +41,7 @@ public class CloudBlobStoreService extends AbstractLifecycleComponent<CloudBlobS
 
     private final BlobStoreContext blobStoreContext;
 
-    @Inject public CloudBlobStoreService(Settings settings) throws IOException {
+    @Inject public CloudBlobStoreService(Settings settings, SettingsFilter settingsFilter) throws IOException {
         super(settings);
 
         String type = componentSettings.get("type");
@@ -64,6 +66,8 @@ public class CloudBlobStoreService extends AbstractLifecycleComponent<CloudBlobS
         } else {
             blobStoreContext = null;
         }
+
+        settingsFilter.addFilter(new BlobStorSettingsFilter());
     }
 
     @Override protected void doStart() throws ElasticSearchException {
@@ -83,5 +87,15 @@ public class CloudBlobStoreService extends AbstractLifecycleComponent<CloudBlobS
             throw new ElasticSearchIllegalStateException("No cloud blobstore service started, have you configured the 'cloud.type' setting?");
         }
         return blobStoreContext;
+    }
+
+
+    private static class BlobStorSettingsFilter implements SettingsFilter.Filter {
+        @Override public void filter(ImmutableSettings.Builder settings) {
+            settings.remove("cloud.key");
+            settings.remove("cloud.account");
+            settings.remove("cloud.blobstore.key");
+            settings.remove("cloud.blobstore.account");
+        }
     }
 }

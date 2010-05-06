@@ -36,5 +36,6 @@ public class SettingsModule extends AbstractModule {
 
     @Override protected void configure() {
         bind(Settings.class).toInstance(settings);
+        bind(SettingsFilter.class).asEagerSingleton();
     }
 }

@@ -82,7 +82,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
             handler.handleRequest(request, channel);
         } catch (Exception e) {
             try {
-                channel.sendResponse(new JsonThrowableRestResponse(request, e));
+                channel.sendResponse(new XContentThrowableRestResponse(request, e));
             } catch (IOException e1) {
                 logger.error("Failed to send failure response for uri [" + request.uri() + "]", e1);
             }

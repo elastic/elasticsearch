@@ -24,7 +24,9 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cloud.jclouds.JCloudsUtils;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.settings.SettingsFilter;
 import org.jclouds.compute.ComputeServiceContext;
 import org.jclouds.compute.ComputeServiceContextFactory;
 
@@ -39,7 +41,7 @@ public class CloudComputeService extends AbstractLifecycleComponent<CloudCompute
 
     private final ComputeServiceContext computeServiceContext;
 
-    @Inject public CloudComputeService(Settings settings) throws IOException {
+    @Inject public CloudComputeService(Settings settings, SettingsFilter filter) throws IOException {
         super(settings);
 
         String type = componentSettings.get("type");
@@ -64,6 +66,8 @@ public class CloudComputeService extends AbstractLifecycleComponent<CloudCompute
         } else {
             computeServiceContext = null;
         }
+
+        filter.addFilter(new ComputeSettingsFilter());
     }
 
     @Override protected void doStart() throws ElasticSearchException {
@@ -83,5 +87,14 @@ public class CloudComputeService extends AbstractLifecycleComponent<CloudCompute
             throw new ElasticSearchIllegalStateException("No cloud compute service started, have you configured the 'cloud.type' setting?");
         }
         return this.computeServiceContext;
+    }
+
+    private static class ComputeSettingsFilter implements SettingsFilter.Filter {
+        @Override public void filter(ImmutableSettings.Builder settings) {
+            settings.remove("cloud.key");
+            settings.remove("cloud.account");
+            settings.remove("cloud.compute.key");
+            settings.remove("cloud.compute.account");
+        }
     }
 }

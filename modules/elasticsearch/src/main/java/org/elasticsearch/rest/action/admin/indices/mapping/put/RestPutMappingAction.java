@@ -69,7 +69,7 @@ public class RestPutMappingAction extends BaseRestHandler {
                             .field("ok", true)
                             .field("acknowledged", response.acknowledged());
                     builder.endObject();
-                    channel.sendResponse(new JsonRestResponse(request, OK, builder));
+                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (IOException e) {
                     onFailure(e);
                 }
@@ -80,9 +80,9 @@ public class RestPutMappingAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     Throwable t = unwrapCause(e);
                     if (t instanceof IndexMissingException || t instanceof InvalidTypeNameException || t instanceof MergeMappingException) {
-                        channel.sendResponse(new JsonRestResponse(request, BAD_REQUEST, builder.startObject().field("error", t.getMessage()).endObject()));
+                        channel.sendResponse(new XContentRestResponse(request, BAD_REQUEST, builder.startObject().field("error", t.getMessage()).endObject()));
                     } else {
-                        channel.sendResponse(new JsonThrowableRestResponse(request, e));
+                        channel.sendResponse(new XContentThrowableRestResponse(request, e));
                     }
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);

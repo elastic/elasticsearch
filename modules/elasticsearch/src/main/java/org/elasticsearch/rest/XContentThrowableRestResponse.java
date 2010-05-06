@@ -27,15 +27,15 @@ import static org.elasticsearch.ExceptionsHelper.*;
 import static org.elasticsearch.rest.action.support.RestXContentBuilder.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class JsonThrowableRestResponse extends JsonRestResponse {
+public class XContentThrowableRestResponse extends XContentRestResponse {
 
-    public JsonThrowableRestResponse(RestRequest request, Throwable t) throws IOException {
+    public XContentThrowableRestResponse(RestRequest request, Throwable t) throws IOException {
         this(request, Status.INTERNAL_SERVER_ERROR, t);
     }
 
-    public JsonThrowableRestResponse(RestRequest request, Status status, Throwable t) throws IOException {
+    public XContentThrowableRestResponse(RestRequest request, Status status, Throwable t) throws IOException {
         super(request, status, convert(request, t));
     }
 

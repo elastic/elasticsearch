@@ -66,7 +66,7 @@ public class RestNodesRestartAction extends BaseRestHandler {
                     builder.endObject();
 
                     builder.endObject();
-                    channel.sendResponse(new JsonRestResponse(request, RestResponse.Status.OK, builder));
+                    channel.sendResponse(new XContentRestResponse(request, RestResponse.Status.OK, builder));
                 } catch (Exception e) {
                     onFailure(e);
                 }
@@ -74,7 +74,7 @@ public class RestNodesRestartAction extends BaseRestHandler {
 
             @Override public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new JsonThrowableRestResponse(request, e));
+                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

@@ -96,10 +96,10 @@ public class RestMainAction extends BaseRestHandler {
                 builder.endObject();
             }
             builder.endObject();
-            channel.sendResponse(new JsonRestResponse(request, RestResponse.Status.OK, builder));
+            channel.sendResponse(new XContentRestResponse(request, RestResponse.Status.OK, builder));
         } catch (Exception e) {
             try {
-                channel.sendResponse(new JsonThrowableRestResponse(request, e));
+                channel.sendResponse(new XContentThrowableRestResponse(request, e));
             } catch (IOException e1) {
                 logger.warn("Failed to send response", e);
             }

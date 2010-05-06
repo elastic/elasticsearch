@@ -19,13 +19,13 @@
 
 package org.elasticsearch.http;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfo;
-import org.elasticsearch.rest.JsonThrowableRestResponse;
 import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.path.PathTrie;
 import org.elasticsearch.util.settings.Settings;
 
@@ -110,7 +110,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
                             httpHandler.handleRequest(request, channel);
                         } catch (Exception e) {
                             try {
-                                channel.sendResponse(new JsonThrowableRestResponse(request, e));
+                                channel.sendResponse(new XContentThrowableRestResponse(request, e));
                             } catch (IOException e1) {
                                 logger.error("Failed to send failure response for uri [" + request.uri() + "]", e1);
                             }
@@ -122,7 +122,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
                     httpHandler.handleRequest(request, channel);
                 } catch (Exception e) {
                     try {
-                        channel.sendResponse(new JsonThrowableRestResponse(request, e));
+                        channel.sendResponse(new XContentThrowableRestResponse(request, e));
                     } catch (IOException e1) {
                         logger.error("Failed to send failure response for uri [" + request.uri() + "]", e1);
                     }

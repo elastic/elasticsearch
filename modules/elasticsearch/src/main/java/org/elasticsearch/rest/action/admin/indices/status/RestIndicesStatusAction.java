@@ -27,6 +27,7 @@ import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.settings.SettingsFilter;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
@@ -41,10 +42,15 @@ import static org.elasticsearch.rest.action.support.RestActions.*;
  */
 public class RestIndicesStatusAction extends BaseRestHandler {
 
-    @Inject public RestIndicesStatusAction(Settings settings, Client client, RestController controller) {
+    private final SettingsFilter settingsFilter;
+
+    @Inject public RestIndicesStatusAction(Settings settings, Client client, RestController controller,
+                                           SettingsFilter settingsFilter) {
         super(settings, client);
         controller.registerHandler(GET, "/_status", this);
         controller.registerHandler(GET, "/{index}/_status", this);
+
+        this.settingsFilter = settingsFilter;
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
@@ -73,7 +79,8 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                         builder.array("aliases", indexStatus.settings().getAsArray("index.aliases"));
 
                         builder.startObject("settings");
-                        for (Map.Entry<String, String> entry : indexStatus.settings().getAsMap().entrySet()) {
+                        Settings settings = settingsFilter.filterSettings(indexStatus.settings());
+                        for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
                             builder.field(entry.getKey(), entry.getValue());
                         }
                         builder.endObject();
@@ -150,7 +157,7 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                     builder.endObject();
 
                     builder.endObject();
-                    channel.sendResponse(new JsonRestResponse(request, OK, builder));
+                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (Exception e) {
                     onFailure(e);
                 }
@@ -158,7 +165,7 @@ public class RestIndicesStatusAction extends BaseRestHandler {
 
             @Override public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new JsonThrowableRestResponse(request, e));
+                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

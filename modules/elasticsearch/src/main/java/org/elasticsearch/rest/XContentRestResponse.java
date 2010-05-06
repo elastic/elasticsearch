@@ -28,7 +28,7 @@ import java.io.IOException;
 /**
  * @author kimchy (shay.banon)
  */
-public class JsonRestResponse extends AbstractRestResponse {
+public class XContentRestResponse extends AbstractRestResponse {
 
     private static final byte[] END_JSONP;
 
@@ -51,13 +51,13 @@ public class JsonRestResponse extends AbstractRestResponse {
 
     private final XContentBuilder builder;
 
-    public JsonRestResponse(RestRequest request, Status status) {
+    public XContentRestResponse(RestRequest request, Status status) {
         this.builder = null;
         this.status = status;
         this.prefixUtf8Result = startJsonp(request);
     }
 
-    public JsonRestResponse(RestRequest request, Status status, XContentBuilder builder) throws IOException {
+    public XContentRestResponse(RestRequest request, Status status, XContentBuilder builder) throws IOException {
         this.builder = builder;
         this.status = status;
         this.prefixUtf8Result = startJsonp(request);

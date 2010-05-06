@@ -346,6 +346,13 @@ public class ImmutableSettings implements Settings {
         }
 
         /**
+         * Removes the provided setting.
+         */
+        public String remove(String key) {
+            return map.remove(key);
+        }
+
+        /**
          * Returns a setting value based on the setting key.
          */
         public String get(String key) {

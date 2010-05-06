@@ -29,6 +29,7 @@ import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.settings.SettingsFilter;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
@@ -39,11 +40,15 @@ import java.util.Map;
  */
 public class RestNodesInfoAction extends BaseRestHandler {
 
-    @Inject public RestNodesInfoAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    private final SettingsFilter settingsFilter;
 
+    @Inject public RestNodesInfoAction(Settings settings, Client client, RestController controller,
+                                       SettingsFilter settingsFilter) {
+        super(settings, client);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes", this);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/{nodeId}", this);
+
+        this.settingsFilter = settingsFilter;
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
@@ -77,7 +82,8 @@ public class RestNodesInfoAction extends BaseRestHandler {
 
                         if (includeSettings) {
                             builder.startObject("settings");
-                            for (Map.Entry<String, String> entry : nodeInfo.settings().getAsMap().entrySet()) {
+                            Settings settings = settingsFilter.filterSettings(nodeInfo.settings());
+                            for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
                                 builder.field(entry.getKey(), entry.getValue());
                             }
                             builder.endObject();
@@ -88,7 +94,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
                     builder.endObject();
 
                     builder.endObject();
-                    channel.sendResponse(new JsonRestResponse(request, RestResponse.Status.OK, builder));
+                    channel.sendResponse(new XContentRestResponse(request, RestResponse.Status.OK, builder));
                 } catch (Exception e) {
                     onFailure(e);
                 }
@@ -96,7 +102,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
 
             @Override public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new JsonThrowableRestResponse(request, e));
+                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

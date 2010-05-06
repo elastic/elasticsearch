@@ -64,7 +64,7 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
         } catch (Exception e) {
             try {
                 XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                channel.sendResponse(new JsonRestResponse(request, PRECONDITION_FAILED, builder.startObject().field("error", e.getMessage()).endObject()));
+                channel.sendResponse(new XContentRestResponse(request, PRECONDITION_FAILED, builder.startObject().field("error", e.getMessage()).endObject()));
             } catch (IOException e1) {
                 logger.error("Failed to send failure response", e1);
             }
@@ -91,7 +91,7 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
                     builder.endObject();
 
                     builder.endObject();
-                    channel.sendResponse(new JsonRestResponse(request, OK, builder));
+                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (Exception e) {
                     onFailure(e);
                 }
@@ -99,7 +99,7 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
 
             @Override public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new JsonThrowableRestResponse(request, e));
+                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

@@ -30,6 +30,10 @@ import org.elasticsearch.monitor.jvm.JvmService;
 import org.elasticsearch.monitor.memory.MemoryMonitor;
 import org.elasticsearch.monitor.memory.MemoryMonitorService;
 import org.elasticsearch.monitor.memory.alpha.AlphaMemoryMonitor;
+import org.elasticsearch.monitor.os.JmxOsProbe;
+import org.elasticsearch.monitor.os.OsProbe;
+import org.elasticsearch.monitor.os.OsService;
+import org.elasticsearch.monitor.os.SigarOsProbe;
 import org.elasticsearch.monitor.process.JmxProcessProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.monitor.process.ProcessService;
@@ -76,6 +80,7 @@ public class MonitorModule extends AbstractModule {
             if (sigarService.sigarAvailable()) {
                 bind(SigarService.class).toInstance(sigarService);
                 bind(ProcessProbe.class).to(SigarProcessProbe.class).asEagerSingleton();
+                bind(OsProbe.class).to(SigarOsProbe.class).asEagerSingleton();
                 sigarLoaded = true;
             }
         } catch (Throwable e) {
@@ -84,9 +89,11 @@ public class MonitorModule extends AbstractModule {
         if (!sigarLoaded) {
             // bind non sigar implementations
             bind(ProcessProbe.class).to(JmxProcessProbe.class).asEagerSingleton();
+            bind(OsProbe.class).to(JmxOsProbe.class).asEagerSingleton();
         }
         // bind other services
         bind(ProcessService.class).asEagerSingleton();
+        bind(OsService.class).asEagerSingleton();
         bind(JvmService.class).asEagerSingleton();
 
         bind(JvmMonitorService.class).asEagerSingleton();

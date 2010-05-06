@@ -22,11 +22,19 @@ package org.elasticsearch.monitor.process;
 import org.elasticsearch.util.Percent;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
+
+import java.io.IOException;
+import java.io.Serializable;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class ProcessStats {
+public class ProcessStats implements Streamable, Serializable {
+
+    long timestamp = -1;
 
     double cpuPercent = -1;
 
@@ -43,6 +51,17 @@ public class ProcessStats {
     long memShare = -1;
 
     long fd;
+
+    ProcessStats() {
+    }
+
+    public long timestamp() {
+        return this.timestamp;
+    }
+
+    public long getTimestamp() {
+        return timestamp();
+    }
 
     /**
      * Get the Process cpu usage.
@@ -151,5 +170,35 @@ public class ProcessStats {
 
     public long getFd() {
         return fd();
+    }
+
+    public static ProcessStats readProcessStats(StreamInput in) throws IOException {
+        ProcessStats stats = new ProcessStats();
+        stats.readFrom(in);
+        return stats;
+    }
+
+    @Override public void readFrom(StreamInput in) throws IOException {
+        timestamp = in.readVLong();
+        cpuPercent = in.readDouble();
+        cpuSys = in.readLong();
+        cpuUser = in.readLong();
+        cpuTotal = in.readLong();
+        memTotalVirtual = in.readLong();
+        memResident = in.readLong();
+        memShare = in.readLong();
+        fd = in.readLong();
+    }
+
+    @Override public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(timestamp);
+        out.writeDouble(cpuPercent);
+        out.writeLong(cpuSys);
+        out.writeLong(cpuUser);
+        out.writeLong(cpuTotal);
+        out.writeLong(memTotalVirtual);
+        out.writeLong(memResident);
+        out.writeLong(memShare);
+        out.writeLong(fd);
     }
 }

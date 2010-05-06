@@ -34,7 +34,10 @@
           <root url="jar://$MODULE_DIR$/../../lib/sigar/sigar-1.6.3.jar!/" />
         </CLASSES>
         <JAVADOC />
-        <SOURCES />
+        <SOURCES>
+          <root url="file://$MODULE_DIR$/../../../../../opt/sigar/1.6.3-src/bindings/java/src" />
+          <root url="file://$MODULE_DIR$/../../../../../opt/sigar/1.6.3-src/bindings/java/hyperic_jni/src" />
+        </SOURCES>
       </library>
     </orderEntry>
     <orderEntry type="library" scope="TEST" name="testng" level="project" />

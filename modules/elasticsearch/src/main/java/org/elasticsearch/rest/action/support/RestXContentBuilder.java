@@ -23,6 +23,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.util.xcontent.XContentFactory;
 import org.elasticsearch.util.xcontent.XContentType;
 import org.elasticsearch.util.xcontent.builder.BinaryXContentBuilder;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 
@@ -46,6 +47,14 @@ public class RestXContentBuilder {
         BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
         if (request.paramAsBoolean("pretty", false)) {
             builder.prettyPrint();
+        }
+        String casing = request.param("case");
+        if (casing != null && "camelCase".equals(casing)) {
+            builder.fieldCaseConversion(XContentBuilder.FieldCaseConversion.CAMELCASE);
+        } else {
+            // we expect all REST interfaces to write results in underscore casing, so
+            // no need for double casing
+            builder.fieldCaseConversion(XContentBuilder.FieldCaseConversion.NONE);
         }
         return builder;
     }

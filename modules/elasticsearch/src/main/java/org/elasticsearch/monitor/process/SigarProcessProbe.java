@@ -45,28 +45,33 @@ public class SigarProcessProbe extends AbstractComponent implements ProcessProbe
         Sigar sigar = sigarService.sigar();
         ProcessStats stats = new ProcessStats();
         stats.timestamp = System.currentTimeMillis();
-        
+
         try {
             ProcCpu cpu = sigar.getProcCpu(sigar.getPid());
-            stats.cpuPercent = cpu.getPercent();
-            stats.cpuSys = cpu.getSys();
-            stats.cpuUser = cpu.getUser();
+            stats.cpu = new ProcessStats.Cpu();
+            stats.cpu.percent = cpu.getPercent();
+            stats.cpu.sys = cpu.getSys();
+            stats.cpu.user = cpu.getUser();
         } catch (SigarException e) {
             // ignore
         }
 
         try {
             ProcMem mem = sigar.getProcMem(sigar.getPid());
-            stats.memTotalVirtual = mem.getSize();
-            stats.memResident = mem.getResident();
-            stats.memShare = mem.getShare();
+            stats.mem = new ProcessStats.Mem();
+            stats.mem.totalVirtual = mem.getSize();
+            stats.mem.resident = mem.getResident();
+            stats.mem.share = mem.getShare();
         } catch (SigarException e) {
             // ignore
         }
 
         try {
             ProcFd fd = sigar.getProcFd(sigar.getPid());
-            stats.fd = fd.getTotal();
+            if (fd.getTotal() != Sigar.FIELD_NOTIMPL) {
+                stats.fd = new ProcessStats.Fd();
+                stats.fd.total = fd.getTotal();
+            }
         } catch (SigarException e) {
             // ignore
         }

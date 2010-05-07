@@ -39,7 +39,9 @@ public class CloudDiscovery extends ZenDiscovery {
                                   ClusterService clusterService, ZenPingService pingService, CloudComputeService computeService) {
         super(settings, clusterName, threadPool, transportService, clusterService, pingService);
         if (settings.getAsBoolean("cloud.enabled", true)) {
-            pingService.zenPings(ImmutableList.of(new CloudZenPing(settings, threadPool, transportService, clusterName, computeService)));
+            CloudZenPing cloudPing = new CloudZenPing(settings, threadPool, transportService, clusterName, computeService);
+            cloudPing.setNodesProvider(this);
+            pingService.zenPings(ImmutableList.of(cloudPing));
         }
     }
 }

@@ -36,21 +36,11 @@ public class ProcessStats implements Streamable, Serializable {
 
     long timestamp = -1;
 
-    double cpuPercent = -1;
+    Cpu cpu = null;
 
-    long cpuSys = -1;
+    Mem mem = null;
 
-    long cpuUser = -1;
-
-    long cpuTotal = -1;
-
-    long memTotalVirtual = -1;
-
-    long memResident = -1;
-
-    long memShare = -1;
-
-    long fd;
+    Fd fd;
 
     ProcessStats() {
     }
@@ -63,112 +53,27 @@ public class ProcessStats implements Streamable, Serializable {
         return timestamp();
     }
 
-    /**
-     * Get the Process cpu usage.
-     *
-     * <p>Supported Platforms: All.
-     */
-    public Percent cpuPercent() {
-        return new Percent(cpuPercent);
+    public Cpu cpu() {
+        return cpu;
     }
 
-    /**
-     * Get the Process cpu usage.
-     *
-     * <p>Supported Platforms: All.
-     */
-    public Percent getCpuPercent() {
-        return cpuPercent();
+    public Cpu getCpu() {
+        return cpu();
     }
 
-    /**
-     * Get the Process cpu kernel time.
-     *
-     * <p>Supported Platforms: All.
-     */
-    public TimeValue cpuSys() {
-        return new TimeValue(cpuSys);
+    public Mem mem() {
+        return mem;
     }
 
-    /**
-     * Get the Process cpu kernel time.
-     *
-     * <p>Supported Platforms: All.
-     */
-    public TimeValue getCpuSys() {
-        return cpuSys();
+    public Mem getMem() {
+        return mem();
     }
 
-    /**
-     * Get the Process cpu user time.
-     *
-     * <p>Supported Platforms: All.
-     */
-    public TimeValue cpuUser() {
-        return new TimeValue(cpuUser);
-    }
-
-    /**
-     * Get the Process cpu time (sum of User and Sys).
-     *
-     * Supported Platforms: All.
-     */
-    public TimeValue cpuTotal() {
-        return new TimeValue(cpuTotal);
-    }
-
-    /**
-     * Get the Process cpu time (sum of User and Sys).
-     *
-     * Supported Platforms: All.
-     */
-    public TimeValue getCpuTotal() {
-        return cpuTotal();
-    }
-
-    /**
-     * Get the Process cpu user time.
-     *
-     * <p>Supported Platforms: All.
-     */
-    public TimeValue getCpuUser() {
-        return cpuUser();
-    }
-
-    public SizeValue memTotalVirtual() {
-        return new SizeValue(memTotalVirtual);
-    }
-
-    public SizeValue getMemTotalVirtual() {
-        return memTotalVirtual();
-    }
-
-    public SizeValue memResident() {
-        return new SizeValue(memResident);
-    }
-
-    public SizeValue getMemResident() {
-        return memResident();
-    }
-
-    public SizeValue memShare() {
-        return new SizeValue(memShare);
-    }
-
-    public SizeValue getMemShare() {
-        return memShare();
-    }
-
-    /**
-     * Get the Total number of open file descriptors.
-     *
-     * <p>Supported Platforms: AIX, HPUX, Linux, Solaris, Win32.
-     */
-    public long fd() {
+    public Fd fd() {
         return fd;
     }
 
-    public long getFd() {
+    public Fd getFd() {
         return fd();
     }
 
@@ -180,25 +85,228 @@ public class ProcessStats implements Streamable, Serializable {
 
     @Override public void readFrom(StreamInput in) throws IOException {
         timestamp = in.readVLong();
-        cpuPercent = in.readDouble();
-        cpuSys = in.readLong();
-        cpuUser = in.readLong();
-        cpuTotal = in.readLong();
-        memTotalVirtual = in.readLong();
-        memResident = in.readLong();
-        memShare = in.readLong();
-        fd = in.readLong();
+        if (in.readBoolean()) {
+            cpu = Cpu.readCpu(in);
+        }
+        if (in.readBoolean()) {
+            mem = Mem.readMem(in);
+        }
+        if (in.readBoolean()) {
+            fd = Fd.readFd(in);
+        }
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(timestamp);
-        out.writeDouble(cpuPercent);
-        out.writeLong(cpuSys);
-        out.writeLong(cpuUser);
-        out.writeLong(cpuTotal);
-        out.writeLong(memTotalVirtual);
-        out.writeLong(memResident);
-        out.writeLong(memShare);
-        out.writeLong(fd);
+        if (cpu == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            cpu.writeTo(out);
+        }
+        if (mem == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            mem.writeTo(out);
+        }
+        if (fd == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            fd.writeTo(out);
+        }
+    }
+
+    public static class Fd implements Streamable, Serializable {
+
+        long total = -1;
+
+        Fd() {
+        }
+
+        public static Fd readFd(StreamInput in) throws IOException {
+            Fd fd = new Fd();
+            fd.readFrom(in);
+            return fd;
+        }
+
+        @Override public void readFrom(StreamInput in) throws IOException {
+            total = in.readLong();
+        }
+
+        @Override public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(total);
+        }
+
+        /**
+         * Get the Total number of open file descriptors.
+         *
+         * <p>Supported Platforms: AIX, HPUX, Linux, Solaris, Win32.
+         */
+        public long total() {
+            return total;
+        }
+
+        public long getTotal() {
+            return total();
+        }
+    }
+
+    public static class Mem implements Streamable, Serializable {
+
+        long totalVirtual = -1;
+        long resident = -1;
+        long share = -1;
+
+        Mem() {
+        }
+
+        public static Mem readMem(StreamInput in) throws IOException {
+            Mem mem = new Mem();
+            mem.readFrom(in);
+            return mem;
+        }
+
+        @Override public void readFrom(StreamInput in) throws IOException {
+            totalVirtual = in.readLong();
+            resident = in.readLong();
+            share = in.readLong();
+        }
+
+        @Override public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(totalVirtual);
+            out.writeLong(resident);
+            out.writeLong(share);
+        }
+
+        public SizeValue totalVirtual() {
+            return new SizeValue(totalVirtual);
+        }
+
+        public SizeValue getTotalVirtual() {
+            return totalVirtual();
+        }
+
+        public SizeValue resident() {
+            return new SizeValue(resident);
+        }
+
+        public SizeValue getResident() {
+            return resident();
+        }
+
+        public SizeValue share() {
+            return new SizeValue(share);
+        }
+
+        public SizeValue getShare() {
+            return share();
+        }
+    }
+
+    public static class Cpu implements Streamable, Serializable {
+
+        double percent = -1;
+        long sys = -1;
+        long user = -1;
+        long total = -1;
+
+        Cpu() {
+
+        }
+
+        public static Cpu readCpu(StreamInput in) throws IOException {
+            Cpu cpu = new Cpu();
+            cpu.readFrom(in);
+            return cpu;
+        }
+
+        @Override public void readFrom(StreamInput in) throws IOException {
+            percent = in.readDouble();
+            sys = in.readLong();
+            user = in.readLong();
+            total = in.readLong();
+        }
+
+        @Override public void writeTo(StreamOutput out) throws IOException {
+            out.writeDouble(percent);
+            out.writeLong(sys);
+            out.writeLong(user);
+            out.writeLong(total);
+        }
+
+        /**
+         * Get the Process cpu usage.
+         *
+         * <p>Supported Platforms: All.
+         */
+        public Percent percent() {
+            return new Percent(percent);
+        }
+
+        /**
+         * Get the Process cpu usage.
+         *
+         * <p>Supported Platforms: All.
+         */
+        public Percent getPercent() {
+            return percent();
+        }
+
+        /**
+         * Get the Process cpu kernel time.
+         *
+         * <p>Supported Platforms: All.
+         */
+        public TimeValue sys() {
+            return new TimeValue(sys);
+        }
+
+        /**
+         * Get the Process cpu kernel time.
+         *
+         * <p>Supported Platforms: All.
+         */
+        public TimeValue getSys() {
+            return sys();
+        }
+
+        /**
+         * Get the Process cpu user time.
+         *
+         * <p>Supported Platforms: All.
+         */
+        public TimeValue user() {
+            return new TimeValue(user);
+        }
+
+        /**
+         * Get the Process cpu time (sum of User and Sys).
+         *
+         * Supported Platforms: All.
+         */
+        public TimeValue total() {
+            return new TimeValue(total);
+        }
+
+        /**
+         * Get the Process cpu time (sum of User and Sys).
+         *
+         * Supported Platforms: All.
+         */
+        public TimeValue getTotal() {
+            return total();
+        }
+
+        /**
+         * Get the Process cpu user time.
+         *
+         * <p>Supported Platforms: All.
+         */
+        public TimeValue getUser() {
+            return user();
+        }
+
     }
 }

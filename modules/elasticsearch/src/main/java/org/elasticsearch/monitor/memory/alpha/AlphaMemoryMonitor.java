@@ -19,7 +19,6 @@
 
 package org.elasticsearch.monitor.memory.alpha;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.indices.IndicesMemoryCleaner;
 import org.elasticsearch.monitor.memory.MemoryMonitor;
@@ -29,6 +28,7 @@ import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.StopWatch;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.concurrent.ScheduledFuture;
@@ -39,8 +39,7 @@ import static org.elasticsearch.util.TimeValue.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class
-        AlphaMemoryMonitor extends AbstractLifecycleComponent<MemoryMonitor> implements MemoryMonitor {
+public class AlphaMemoryMonitor extends AbstractLifecycleComponent<MemoryMonitor> implements MemoryMonitor {
 
     private final double upperMemoryThreshold;
 

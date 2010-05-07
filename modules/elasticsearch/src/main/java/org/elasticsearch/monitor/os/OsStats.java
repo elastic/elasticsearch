@@ -44,27 +44,11 @@ public class OsStats implements Streamable, Serializable {
 
     long uptime = -1;
 
-    double cpuSys = -1;
+    Cpu cpu = null;
 
-    double cpuUser = -1;
+    Mem mem = null;
 
-    double cpuIdle = -1;
-
-    long memFree = -1;
-
-    double memFreePercent = -1;
-
-    long memUsed = -1;
-
-    double memUsedPercent = -1;
-
-    long memActualFree = -1;
-
-    long memActualUsed = -1;
-
-    long swapFree = -1;
-
-    long swapUsed = -1;
+    Swap swap = null;
 
     OsStats() {
     }
@@ -93,92 +77,28 @@ public class OsStats implements Streamable, Serializable {
         return uptime();
     }
 
-    public Percent cpuSys() {
-        return new Percent(cpuSys);
+    public Cpu cpu() {
+        return this.cpu;
     }
 
-    public Percent getCpuSys() {
-        return cpuSys();
+    public Cpu getCpu() {
+        return cpu();
     }
 
-    public Percent cpuUser() {
-        return new Percent(cpuUser);
+    public Mem mem() {
+        return this.mem;
     }
 
-    public Percent getCpuUser() {
-        return cpuUser();
+    public Mem getMem() {
+        return mem();
     }
 
-    public Percent cpuIdle() {
-        return new Percent(cpuIdle);
+    public Swap swap() {
+        return this.swap;
     }
 
-    public Percent getCpuIdle() {
-        return cpuIdle();
-    }
-
-    public SizeValue memUsed() {
-        return new SizeValue(memUsed);
-    }
-
-    public SizeValue getMemUsed() {
-        return memUsed();
-    }
-
-    public Percent memUsedPercent() {
-        return new Percent(memUsedPercent);
-    }
-
-    public Percent getMemUsedPercent() {
-        return memUsedPercent();
-    }
-
-    public SizeValue memFree() {
-        return new SizeValue(memFree);
-    }
-
-    public SizeValue getMemFree() {
-        return memFree();
-    }
-
-    public Percent memFreePercent() {
-        return new Percent(memFreePercent);
-    }
-
-    public Percent getMemFreePercent() {
-        return memFreePercent();
-    }
-
-    public SizeValue memActualFree() {
-        return new SizeValue(memActualFree);
-    }
-
-    public SizeValue getMemActualFree() {
-        return memActualFree();
-    }
-
-    public SizeValue memActualUsed() {
-        return new SizeValue(memActualUsed);
-    }
-
-    public SizeValue getMemActualUsed() {
-        return memActualUsed();
-    }
-
-    public SizeValue swapUsed() {
-        return new SizeValue(swapUsed);
-    }
-
-    public SizeValue getSwapUsed() {
-        return swapUsed();
-    }
-
-    public SizeValue swapFree() {
-        return new SizeValue(swapFree);
-    }
-
-    public SizeValue getSwapFree() {
-        return swapFree();
+    public Swap getSwap() {
+        return swap();
     }
 
     public static OsStats readOsStats(StreamInput in) throws IOException {
@@ -194,17 +114,15 @@ public class OsStats implements Streamable, Serializable {
             loadAverage[i] = in.readDouble();
         }
         uptime = in.readLong();
-        cpuSys = in.readDouble();
-        cpuUser = in.readDouble();
-        cpuIdle = in.readDouble();
-        memFree = in.readLong();
-        memFreePercent = in.readDouble();
-        memUsed = in.readLong();
-        memUsedPercent = in.readDouble();
-        memActualFree = in.readLong();
-        memActualUsed = in.readLong();
-        swapFree = in.readLong();
-        swapUsed = in.readLong();
+        if (in.readBoolean()) {
+            cpu = Cpu.readCpu(in);
+        }
+        if (in.readBoolean()) {
+            mem = Mem.readMem(in);
+        }
+        if (in.readBoolean()) {
+            swap = Swap.readSwap(in);
+        }
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -214,16 +132,180 @@ public class OsStats implements Streamable, Serializable {
             out.writeDouble(val);
         }
         out.writeLong(uptime);
-        out.writeDouble(cpuSys);
-        out.writeDouble(cpuUser);
-        out.writeDouble(cpuIdle);
-        out.writeLong(memFree);
-        out.writeDouble(memFreePercent);
-        out.writeLong(memUsed);
-        out.writeDouble(memUsedPercent);
-        out.writeLong(memActualFree);
-        out.writeLong(memActualUsed);
-        out.writeLong(swapFree);
-        out.writeLong(swapFree);
+        if (cpu == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            cpu.writeTo(out);
+        }
+        if (mem == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            mem.writeTo(out);
+        }
+        if (swap == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            swap.writeTo(out);
+        }
+    }
+
+    public static class Swap implements Streamable, Serializable {
+
+        long free = -1;
+        long used = -1;
+
+        public static Swap readSwap(StreamInput in) throws IOException {
+            Swap swap = new Swap();
+            swap.readFrom(in);
+            return swap;
+        }
+
+        @Override public void readFrom(StreamInput in) throws IOException {
+            free = in.readLong();
+            used = in.readLong();
+        }
+
+        @Override public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(free);
+            out.writeLong(used);
+        }
+    }
+
+    public static class Mem implements Streamable, Serializable {
+
+        long free = -1;
+        double freePercent = -1;
+        long used = -1;
+        double usedPercent = -1;
+        long actualFree = -1;
+        long actualUsed = -1;
+
+        public static Mem readMem(StreamInput in) throws IOException {
+            Mem mem = new Mem();
+            mem.readFrom(in);
+            return mem;
+        }
+
+        @Override public void readFrom(StreamInput in) throws IOException {
+            free = in.readLong();
+            freePercent = in.readDouble();
+            used = in.readLong();
+            usedPercent = in.readDouble();
+            actualFree = in.readLong();
+            actualUsed = in.readLong();
+        }
+
+        @Override public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(free);
+            out.writeDouble(freePercent);
+            out.writeLong(used);
+            out.writeDouble(usedPercent);
+            out.writeLong(actualFree);
+            out.writeLong(actualUsed);
+        }
+
+        public SizeValue used() {
+            return new SizeValue(used);
+        }
+
+        public SizeValue getUsed() {
+            return used();
+        }
+
+        public Percent usedPercent() {
+            return new Percent(usedPercent);
+        }
+
+        public Percent getUsedPercent() {
+            return usedPercent();
+        }
+
+        public SizeValue free() {
+            return new SizeValue(free);
+        }
+
+        public SizeValue getFree() {
+            return free();
+        }
+
+        public Percent freePercent() {
+            return new Percent(freePercent);
+        }
+
+        public Percent getFreePercent() {
+            return freePercent();
+        }
+
+        public SizeValue actualFree() {
+            return new SizeValue(actualFree);
+        }
+
+        public SizeValue getActualFree() {
+            return actualFree();
+        }
+
+        public SizeValue actualUsed() {
+            return new SizeValue(actualUsed);
+        }
+
+        public SizeValue getActualUsed() {
+            return actualUsed();
+        }
+    }
+
+    public static class Cpu implements Streamable, Serializable {
+
+        double sys = -1;
+        double user = -1;
+        double idle = -1;
+
+        Cpu() {
+
+        }
+
+        public static Cpu readCpu(StreamInput in) throws IOException {
+            Cpu cpu = new Cpu();
+            cpu.readFrom(in);
+            return cpu;
+        }
+
+        @Override public void readFrom(StreamInput in) throws IOException {
+            sys = in.readDouble();
+            user = in.readDouble();
+            idle = in.readDouble();
+        }
+
+        @Override public void writeTo(StreamOutput out) throws IOException {
+            out.writeDouble(sys);
+            out.writeDouble(user);
+            out.writeDouble(idle);
+        }
+
+        public Percent sys() {
+            return new Percent(sys);
+        }
+
+        public Percent getSys() {
+            return sys();
+        }
+
+        public Percent user() {
+            return new Percent(user);
+        }
+
+        public Percent getUser() {
+            return user();
+        }
+
+        public Percent idle() {
+            return new Percent(idle);
+        }
+
+        public Percent getIdle() {
+            return idle();
+        }
     }
 }

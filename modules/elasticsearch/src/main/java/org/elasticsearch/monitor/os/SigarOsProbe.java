@@ -42,14 +42,15 @@ public class SigarOsProbe extends AbstractComponent implements OsProbe {
         OsInfo info = new OsInfo();
         try {
             CpuInfo[] infos = sigar.getCpuInfoList();
-            info.cpuVendor = infos[0].getVendor();
-            info.cpuModel = infos[0].getModel();
-            info.cpuMhz = infos[0].getMhz();
-            info.cpuTotalCores = infos[0].getTotalCores();
-            info.cpuTotalSockets = infos[0].getTotalSockets();
-            info.cpuCoresPerSocket = infos[0].getCoresPerSocket();
+            info.cpu = new OsInfo.Cpu();
+            info.cpu.vendor = infos[0].getVendor();
+            info.cpu.model = infos[0].getModel();
+            info.cpu.mhz = infos[0].getMhz();
+            info.cpu.totalCores = infos[0].getTotalCores();
+            info.cpu.totalSockets = infos[0].getTotalSockets();
+            info.cpu.coresPerSocket = infos[0].getCoresPerSocket();
             if (infos[0].getCacheSize() != Sigar.FIELD_NOTIMPL) {
-                info.cpuCacheSize = infos[0].getCacheSize();
+                info.cpu.cacheSize = infos[0].getCacheSize();
             }
         } catch (SigarException e) {
             // ignore
@@ -57,14 +58,16 @@ public class SigarOsProbe extends AbstractComponent implements OsProbe {
 
         try {
             Mem mem = sigar.getMem();
-            info.memTotal = mem.getTotal();
+            info.mem = new OsInfo.Mem();
+            info.mem.total = mem.getTotal();
         } catch (SigarException e) {
             // ignore
         }
 
         try {
             Swap swap = sigar.getSwap();
-            info.swapTotal = swap.getTotal();
+            info.swap = new OsInfo.Swap();
+            info.swap.total = swap.getTotal();
         } catch (SigarException e) {
             // ignore
         }
@@ -91,29 +94,32 @@ public class SigarOsProbe extends AbstractComponent implements OsProbe {
 
         try {
             CpuPerc cpuPerc = sigar.getCpuPerc();
-            stats.cpuSys = cpuPerc.getSys();
-            stats.cpuUser = cpuPerc.getUser();
-            stats.cpuIdle = cpuPerc.getIdle();
+            stats.cpu = new OsStats.Cpu();
+            stats.cpu.sys = cpuPerc.getSys();
+            stats.cpu.user = cpuPerc.getUser();
+            stats.cpu.idle = cpuPerc.getIdle();
         } catch (SigarException e) {
             // ignore
         }
 
         try {
             Mem mem = sigar.getMem();
-            stats.memFree = mem.getFree();
-            stats.memFreePercent = mem.getFreePercent() / 100;
-            stats.memUsed = mem.getUsed();
-            stats.memUsedPercent = mem.getUsedPercent() / 100;
-            stats.memActualFree = mem.getActualFree();
-            stats.memActualUsed = mem.getActualUsed();
+            stats.mem = new OsStats.Mem();
+            stats.mem.free = mem.getFree();
+            stats.mem.freePercent = mem.getFreePercent() / 100;
+            stats.mem.used = mem.getUsed();
+            stats.mem.usedPercent = mem.getUsedPercent() / 100;
+            stats.mem.actualFree = mem.getActualFree();
+            stats.mem.actualUsed = mem.getActualUsed();
         } catch (SigarException e) {
             // ignore
         }
 
         try {
             Swap swap = sigar.getSwap();
-            stats.swapFree = swap.getFree();
-            stats.swapUsed = swap.getUsed();
+            stats.swap = new OsStats.Swap();
+            stats.swap.free = swap.getFree();
+            stats.swap.used = swap.getUsed();
         } catch (SigarException e) {
             // ignore
         }

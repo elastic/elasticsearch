@@ -32,97 +32,37 @@ import java.io.Serializable;
  */
 public class OsInfo implements Streamable, Serializable {
 
-    String cpuVendor = "";
+    Cpu cpu = null;
 
-    String cpuModel = "";
+    Mem mem = null;
 
-    int cpuMhz = -1;
-
-    int cpuTotalCores = -1;
-
-    int cpuTotalSockets = -1;
-
-    int cpuCoresPerSocket = -1;
-
-    long cpuCacheSize = -1;
-
-    long memTotal = -1;
-
-    long swapTotal = -1;
+    Swap swap = null;
 
     OsInfo() {
     }
 
-    public String cpuVendor() {
-        return cpuVendor;
+    public Cpu cpu() {
+        return this.cpu;
     }
 
-    public String getCpuVendor() {
-        return cpuVendor();
+    public Cpu getCpu() {
+        return cpu();
     }
 
-    public String cpuModel() {
-        return cpuModel;
+    public Mem mem() {
+        return this.mem;
     }
 
-    public String getCpuModel() {
-        return cpuModel();
+    public Mem getMem() {
+        return mem();
     }
 
-    public int cpuMhz() {
-        return cpuMhz;
+    public Swap swap() {
+        return this.swap;
     }
 
-    public int getCpuMhz() {
-        return cpuMhz();
-    }
-
-    public int cpuTotalCores() {
-        return cpuTotalCores;
-    }
-
-    public int getCpuTotalCores() {
-        return cpuTotalCores();
-    }
-
-    public int cpuTotalSockets() {
-        return cpuTotalSockets;
-    }
-
-    public int getCpuTotalSockets() {
-        return cpuTotalSockets();
-    }
-
-    public int cpuCoresPerSocket() {
-        return cpuCoresPerSocket;
-    }
-
-    public int getCpuCoresPerSocket() {
-        return cpuCoresPerSocket();
-    }
-
-    public SizeValue cpuCacheSize() {
-        return new SizeValue(cpuCacheSize);
-    }
-
-    public SizeValue getCpuCacheSize() {
-        return cpuCacheSize();
-    }
-
-    public SizeValue memTotal() {
-        return new SizeValue(memTotal);
-    }
-
-    public SizeValue getMemTotal() {
-        return memTotal();
-    }
-
-    public SizeValue swapTotal() {
-        return new SizeValue(swapTotal);
-    }
-
-    public SizeValue getSwapTotal() {
-        return swapTotal();
+    public Swap getSwap() {
+        return swap();
     }
 
     public static OsInfo readOsInfo(StreamInput in) throws IOException {
@@ -132,26 +72,140 @@ public class OsInfo implements Streamable, Serializable {
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
-        cpuVendor = in.readUTF();
-        cpuModel = in.readUTF();
-        cpuMhz = in.readInt();
-        cpuTotalCores = in.readInt();
-        cpuTotalSockets = in.readInt();
-        cpuCoresPerSocket = in.readInt();
-        cpuCacheSize = in.readLong();
-        memTotal = in.readLong();
-        swapTotal = in.readLong();
+        if (in.readBoolean()) {
+            cpu = Cpu.readCpu(in);
+        }
+        if (in.readBoolean()) {
+            mem = Mem.readMem(in);
+        }
+        if (in.readBoolean()) {
+            swap = Swap.readSwap(in);
+        }
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(cpuVendor);
-        out.writeUTF(cpuModel);
-        out.writeInt(cpuMhz);
-        out.writeInt(cpuTotalCores);
-        out.writeInt(cpuTotalSockets);
-        out.writeInt(cpuCoresPerSocket);
-        out.writeLong(cpuCacheSize);
-        out.writeLong(memTotal);
-        out.writeLong(swapTotal);
+        if (cpu == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            cpu.writeTo(out);
+        }
+        if (mem == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            mem.writeTo(out);
+        }
+        if (swap == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            swap.writeTo(out);
+        }
+    }
+
+    public static class Swap implements Streamable, Serializable {
+
+        long total = -1;
+
+        Swap() {
+
+        }
+
+        public static Swap readSwap(StreamInput in) throws IOException {
+            Swap swap = new Swap();
+            swap.readFrom(in);
+            return swap;
+        }
+
+        @Override public void readFrom(StreamInput in) throws IOException {
+            total = in.readLong();
+        }
+
+        @Override public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(total);
+        }
+
+        public SizeValue total() {
+            return new SizeValue(total);
+        }
+
+        public SizeValue getTotal() {
+            return total();
+        }
+
+    }
+
+    public static class Mem implements Streamable, Serializable {
+
+        long total = -1;
+
+        Mem() {
+
+        }
+
+        public static Mem readMem(StreamInput in) throws IOException {
+            Mem mem = new Mem();
+            mem.readFrom(in);
+            return mem;
+        }
+
+        @Override public void readFrom(StreamInput in) throws IOException {
+            total = in.readLong();
+        }
+
+        @Override public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(total);
+        }
+
+        public SizeValue total() {
+            return new SizeValue(total);
+        }
+
+        public SizeValue getTotal() {
+            return total();
+        }
+
+    }
+
+    public static class Cpu implements Streamable, Serializable {
+
+        String vendor = "";
+        String model = "";
+        int mhz = -1;
+        int totalCores = -1;
+        int totalSockets = -1;
+        int coresPerSocket = -1;
+        long cacheSize = -1;
+
+        Cpu() {
+
+        }
+
+        public static Cpu readCpu(StreamInput in) throws IOException {
+            Cpu cpu = new Cpu();
+            cpu.readFrom(in);
+            return cpu;
+        }
+
+        @Override public void readFrom(StreamInput in) throws IOException {
+            vendor = in.readUTF();
+            model = in.readUTF();
+            mhz = in.readInt();
+            totalCores = in.readInt();
+            totalSockets = in.readInt();
+            coresPerSocket = in.readInt();
+            cacheSize = in.readLong();
+        }
+
+        @Override public void writeTo(StreamOutput out) throws IOException {
+            out.writeUTF(vendor);
+            out.writeUTF(model);
+            out.writeInt(mhz);
+            out.writeInt(totalCores);
+            out.writeInt(totalSockets);
+            out.writeInt(coresPerSocket);
+            out.writeLong(cacheSize);
+        }
     }
 }

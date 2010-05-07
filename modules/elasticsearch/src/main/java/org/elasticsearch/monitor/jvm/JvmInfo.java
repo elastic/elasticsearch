@@ -19,7 +19,6 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
@@ -52,62 +51,48 @@ public class JvmInfo implements Streamable, Serializable {
         } catch (Exception e) {
             pid = -1;
         }
-        INSTANCE = new JvmInfo(pid, runtimeMXBean.getVmName(), System.getProperty("java.version"), System.getProperty("java.vendor"),
-                runtimeMXBean.getStartTime(),
-                memoryMXBean.getHeapMemoryUsage().getInit(), memoryMXBean.getHeapMemoryUsage().getMax(),
-                memoryMXBean.getNonHeapMemoryUsage().getInit(), memoryMXBean.getNonHeapMemoryUsage().getMax(),
-                runtimeMXBean.getInputArguments().toArray(new String[runtimeMXBean.getInputArguments().size()]), runtimeMXBean.getBootClassPath(), runtimeMXBean.getClassPath(), runtimeMXBean.getSystemProperties());
+        JvmInfo info = new JvmInfo();
+        info.pid = pid;
+        info.startTime = runtimeMXBean.getStartTime();
+        info.vmName = runtimeMXBean.getVmName();
+        info.vmVendor = runtimeMXBean.getVmVendor();
+        info.vmVersion = runtimeMXBean.getVmVersion();
+        info.mem = new Mem();
+        info.mem.heapInit = memoryMXBean.getHeapMemoryUsage().getInit();
+        info.mem.heapMax = memoryMXBean.getHeapMemoryUsage().getMax();
+        info.mem.nonHeapInit = memoryMXBean.getNonHeapMemoryUsage().getInit();
+        info.mem.nonHeapMax = memoryMXBean.getNonHeapMemoryUsage().getMax();
+        info.inputArguments = runtimeMXBean.getInputArguments().toArray(new String[runtimeMXBean.getInputArguments().size()]);
+        info.bootClassPath = runtimeMXBean.getBootClassPath();
+        info.classPath = runtimeMXBean.getClassPath();
+        info.systemProperties = runtimeMXBean.getSystemProperties();
+
+        INSTANCE = info;
     }
 
     public static JvmInfo jvmInfo() {
         return INSTANCE;
     }
 
-    private long pid = -1;
+    long pid = -1;
 
-    private String vmName = "";
+    String vmName = "";
+    String vmVersion = "";
+    String vmVendor = "";
 
-    private String vmVersion = "";
+    long startTime = -1;
 
-    private String vmVendor = "";
+    Mem mem;
 
-    private long startTime = -1;
+    String[] inputArguments;
 
-    private long memoryHeapInit = -1;
+    String bootClassPath;
 
-    private long memoryHeapMax = -1;
+    String classPath;
 
-    private long memoryNonHeapInit = -1;
-
-    private long memoryNonHeapMax = -1;
-
-    private String[] inputArguments;
-
-    private String bootClassPath;
-
-    private String classPath;
-
-    private Map<String, String> systemProperties;
+    Map<String, String> systemProperties;
 
     private JvmInfo() {
-    }
-
-    public JvmInfo(long pid, String vmName, String vmVersion, String vmVendor, long startTime,
-                   long memoryHeapInit, long memoryHeapMax, long memoryNonHeapInit, long memoryNonHeapMax,
-                   String[] inputArguments, String bootClassPath, String classPath, Map<String, String> systemProperties) {
-        this.pid = pid;
-        this.vmName = vmName;
-        this.vmVersion = vmVersion;
-        this.vmVendor = vmVendor;
-        this.startTime = startTime;
-        this.memoryHeapInit = memoryHeapInit;
-        this.memoryHeapMax = memoryHeapMax;
-        this.memoryNonHeapInit = memoryNonHeapInit;
-        this.memoryNonHeapMax = memoryNonHeapMax;
-        this.inputArguments = inputArguments;
-        this.bootClassPath = bootClassPath;
-        this.classPath = classPath;
-        this.systemProperties = systemProperties;
     }
 
     /**
@@ -156,36 +141,12 @@ public class JvmInfo implements Streamable, Serializable {
         return startTime;
     }
 
-    public SizeValue memoryHeapInit() {
-        return new SizeValue(memoryHeapInit);
+    public Mem mem() {
+        return mem;
     }
 
-    public SizeValue getMemoryHeapInit() {
-        return memoryHeapInit();
-    }
-
-    public SizeValue memoryHeapMax() {
-        return new SizeValue(memoryHeapMax);
-    }
-
-    public SizeValue getMemoryHeapMax() {
-        return memoryHeapMax();
-    }
-
-    public SizeValue memoryNonHeapInit() {
-        return new SizeValue(memoryNonHeapInit);
-    }
-
-    public SizeValue getMemoryNonHeapInit() {
-        return memoryNonHeapInit();
-    }
-
-    public SizeValue memoryNonHeapMax() {
-        return new SizeValue(memoryNonHeapMax);
-    }
-
-    public SizeValue getMemoryNonHeapMax() {
-        return memoryNonHeapMax();
+    public Mem getMem() {
+        return mem();
     }
 
     public String[] inputArguments() {
@@ -232,10 +193,6 @@ public class JvmInfo implements Streamable, Serializable {
         vmVersion = in.readUTF();
         vmVendor = in.readUTF();
         startTime = in.readLong();
-        memoryHeapInit = in.readLong();
-        memoryHeapMax = in.readLong();
-        memoryNonHeapInit = in.readLong();
-        memoryNonHeapMax = in.readLong();
         inputArguments = new String[in.readInt()];
         for (int i = 0; i < inputArguments.length; i++) {
             inputArguments[i] = in.readUTF();
@@ -255,10 +212,6 @@ public class JvmInfo implements Streamable, Serializable {
         out.writeUTF(vmVersion);
         out.writeUTF(vmVendor);
         out.writeLong(startTime);
-        out.writeLong(memoryHeapInit);
-        out.writeLong(memoryHeapMax);
-        out.writeLong(memoryNonHeapInit);
-        out.writeLong(memoryNonHeapMax);
         out.writeInt(inputArguments.length);
         for (String inputArgument : inputArguments) {
             out.writeUTF(inputArgument);
@@ -269,6 +222,37 @@ public class JvmInfo implements Streamable, Serializable {
         for (Map.Entry<String, String> entry : systemProperties.entrySet()) {
             out.writeUTF(entry.getKey());
             out.writeUTF(entry.getValue());
+        }
+    }
+
+    public static class Mem implements Streamable, Serializable {
+
+        long heapInit = -1;
+        long heapMax = -1;
+        long nonHeapInit = -1;
+        long nonHeapMax = -1;
+
+        Mem() {
+        }
+
+        public static Mem readMem(StreamInput in) throws IOException {
+            Mem mem = new Mem();
+            mem.readFrom(in);
+            return mem;
+        }
+
+        @Override public void readFrom(StreamInput in) throws IOException {
+            heapInit = in.readVLong();
+            heapMax = in.readVLong();
+            nonHeapInit = in.readVLong();
+            nonHeapMax = in.readVLong();
+        }
+
+        @Override public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(heapInit);
+            out.writeVLong(heapMax);
+            out.writeVLong(nonHeapInit);
+            out.writeVLong(nonHeapMax);
         }
     }
 }

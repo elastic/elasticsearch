@@ -99,7 +99,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
 
         private void monitorLongGc() {
             JvmStats currentJvmStats = jvmStats();
-            long collectionTime = currentJvmStats.gcCollectionTime().millis() - lastJvmStats.gcCollectionTime().millis();
+            long collectionTime = currentJvmStats.gc().collectionTime().millis() - lastJvmStats.gc().collectionTime().millis();
             if (collectionTime > gcCollectionWarning.millis()) {
                 logger.warn("Long GC collection occurred, took [" + new TimeValue(collectionTime) + "], breached threshold [" + gcCollectionWarning + "]");
             }

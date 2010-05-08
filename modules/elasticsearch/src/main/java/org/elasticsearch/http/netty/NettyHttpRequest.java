@@ -41,6 +41,8 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
 
     private final String path;
 
+    private byte[] data;
+
     public NettyHttpRequest(org.jboss.netty.handler.codec.http.HttpRequest request) {
         this.request = request;
         this.params = new HashMap<String, String>();
@@ -89,7 +91,10 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
     }
 
     @Override public byte[] contentAsBytes() {
-        byte[] data = new byte[request.getContent().readableBytes()];
+        if (this.data != null) {
+            return this.data;
+        }
+        data = new byte[request.getContent().readableBytes()];
         request.getContent().getBytes(request.getContent().readerIndex(), data);
         return data;
     }

@@ -5,9 +5,11 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPerparer;
 import org.elasticsearch.util.Tuple;
 import org.elasticsearch.util.http.HttpDownloadHelper;
+import org.elasticsearch.util.io.FileSystemUtils;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URL;
 
@@ -34,6 +36,15 @@ public class PluginManager {
         downloadHelper.download(pluginUrl, new File(environment.pluginsFile(), name + ".zip"), new HttpDownloadHelper.VerboseProgress(System.out));
     }
 
+    public void removePlugin(String name) throws IOException {
+        File pluginToDelete = new File(environment.pluginsFile(), name + ".zip");
+        if (!pluginToDelete.exists()) {
+            throw new FileNotFoundException("Plugin [" + name + "] does not exists");
+        }
+        pluginToDelete.delete();
+        FileSystemUtils.deleteRecursively(new File(new File(environment.workFile(), "plugins"), name), true);
+    }
+
     public static void main(String[] args) {
         Tuple<Settings, Environment> initialSettings = InternalSettingsPerparer.prepareSettings(EMPTY_SETTINGS, true);
 
@@ -45,21 +56,35 @@ public class PluginManager {
 
         if (args.length < 1) {
             System.out.println("Usage:");
-            System.out.println("    - get [list of plugin names]: Downloads all the listed plugins");
+            System.out.println("    - install [list of plugin names]: Downloads and installs listed plugins");
+            System.out.println("    - remove [list of plugin names]: Removes listed plugins");
         }
         String command = args[0];
-        if (command.equals("get") || command.equals("-get") || command.equals("-g") || command.equals("--get")) {
+        if (command.equals("install")) {
             if (args.length < 2) {
-                System.out.println("'get' requires an additional parameter with the plugin name");
+                System.out.println("'install' requires an additional parameter with the plugin name");
             }
             for (int i = 1; i < args.length; i++) {
                 String pluginName = args[i];
-                System.out.print("-> Downloading " + pluginName + " ");
+                System.out.print("-> Installing " + pluginName + " ");
                 try {
                     pluginManager.downloadPlugin(pluginName);
                     System.out.println(" DONE");
                 } catch (IOException e) {
-                    System.out.println("Failed to download " + pluginName + ", reason: " + e.getMessage());
+                    System.out.println("Failed to install " + pluginName + ", reason: " + e.getMessage());
+                }
+            }
+        } else if (command.equals("remove")) {
+            if (args.length < 2) {
+                System.out.println("'remove' requires an additional parameter with the plugin name");
+            }
+            for (int i = 1; i < args.length; i++) {
+                String pluginName = args[i];
+                System.out.println("-> Removing " + pluginName + " ");
+                try {
+                    pluginManager.removePlugin(pluginName);
+                } catch (IOException e) {
+                    System.out.println("Failed to remove " + pluginName + ", reason: " + e.getMessage());
                 }
             }
         } else {

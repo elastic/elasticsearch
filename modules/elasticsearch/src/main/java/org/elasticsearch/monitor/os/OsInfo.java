@@ -23,6 +23,8 @@ import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
+import org.elasticsearch.util.xcontent.ToXContent;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -30,7 +32,7 @@ import java.io.Serializable;
 /**
  * @author kimchy (shay.banon)
  */
-public class OsInfo implements Streamable, Serializable {
+public class OsInfo implements Streamable, Serializable, ToXContent {
 
     Cpu cpu = null;
 
@@ -63,6 +65,35 @@ public class OsInfo implements Streamable, Serializable {
 
     public Swap getSwap() {
         return swap();
+    }
+
+    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject("os");
+        if (cpu != null) {
+            builder.startObject("cpu");
+            builder.field("vendor", cpu.vendor());
+            builder.field("model", cpu.model());
+            builder.field("mhz", cpu.mhz());
+            builder.field("total_cores", cpu.totalCores());
+            builder.field("total_sockets", cpu.totalSockets());
+            builder.field("cores_per_socket", cpu.coresPerSocket());
+            builder.field("cache_size", cpu.cacheSize().toString());
+            builder.field("cache_size_in_bytes", cpu.cacheSize().bytes());
+            builder.endObject();
+        }
+        if (mem != null) {
+            builder.startObject("mem");
+            builder.field("total", mem.total().toString());
+            builder.field("total_in_bytes", mem.total().bytes());
+            builder.endObject();
+        }
+        if (swap != null) {
+            builder.startObject("swap");
+            builder.field("total", swap.total().toString());
+            builder.field("total_in_bytes", swap.total().bytes());
+            builder.endObject();
+        }
+        builder.endObject();
     }
 
     public static OsInfo readOsInfo(StreamInput in) throws IOException {
@@ -180,6 +211,62 @@ public class OsInfo implements Streamable, Serializable {
 
         Cpu() {
 
+        }
+
+        public String vendor() {
+            return this.vendor;
+        }
+
+        public String getVendor() {
+            return vendor();
+        }
+
+        public String model() {
+            return model;
+        }
+
+        public String getModel() {
+            return model;
+        }
+
+        public int mhz() {
+            return mhz;
+        }
+
+        public int getMhz() {
+            return mhz;
+        }
+
+        public int totalCores() {
+            return totalCores;
+        }
+
+        public int getTotalCores() {
+            return totalCores();
+        }
+
+        public int totalSockets() {
+            return totalSockets;
+        }
+
+        public int getTotalSockets() {
+            return totalSockets();
+        }
+
+        public int coresPerSocket() {
+            return coresPerSocket;
+        }
+
+        public int getCoresPerSocket() {
+            return coresPerSocket();
+        }
+
+        public SizeValue cacheSize() {
+            return new SizeValue(cacheSize);
+        }
+
+        public SizeValue getCacheSize() {
+            return cacheSize();
         }
 
         public static Cpu readCpu(StreamInput in) throws IOException {

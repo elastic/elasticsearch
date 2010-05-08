@@ -89,6 +89,19 @@ public class RestNodesInfoAction extends BaseRestHandler {
                             builder.endObject();
                         }
 
+                        if (nodeInfo.os() != null) {
+                            nodeInfo.os().toXContent(builder, request);
+                        }
+                        if (nodeInfo.process() != null) {
+                            nodeInfo.process().toXContent(builder, request);
+                        }
+                        if (nodeInfo.jvm() != null) {
+                            nodeInfo.jvm().toXContent(builder, request);
+                        }
+                        if (nodeInfo.network() != null) {
+                            nodeInfo.network().toXContent(builder, request);
+                        }
+
                         builder.endObject();
                     }
                     builder.endObject();

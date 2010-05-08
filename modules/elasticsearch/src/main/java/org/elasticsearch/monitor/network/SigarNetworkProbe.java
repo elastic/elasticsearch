@@ -46,8 +46,8 @@ public class SigarNetworkProbe extends AbstractComponent implements NetworkProbe
         NetworkInfo networkInfo = new NetworkInfo();
 
         try {
-            NetInterfaceConfig netInterfaceConfig = sigar.getNetInterfaceConfig();
-            networkInfo.primary = new NetworkInfo.Interface(netInterfaceConfig.getName(), netInterfaceConfig.getAddress(), netInterfaceConfig.getAddress());
+            NetInterfaceConfig netInterfaceConfig = sigar.getNetInterfaceConfig(null);
+            networkInfo.primary = new NetworkInfo.Interface(netInterfaceConfig.getName(), netInterfaceConfig.getAddress(), netInterfaceConfig.getHwaddr());
         } catch (SigarException e) {
             // ignore
         }

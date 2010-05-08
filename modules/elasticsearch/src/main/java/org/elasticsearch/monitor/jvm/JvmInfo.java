@@ -22,6 +22,8 @@ package org.elasticsearch.monitor.jvm;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
+import org.elasticsearch.util.xcontent.ToXContent;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -34,7 +36,7 @@ import java.util.Map;
 /**
  * @author kimchy (shay.banon)
  */
-public class JvmInfo implements Streamable, Serializable {
+public class JvmInfo implements Streamable, Serializable, ToXContent {
 
     private static JvmInfo INSTANCE;
 
@@ -179,6 +181,16 @@ public class JvmInfo implements Streamable, Serializable {
 
     public Map<String, String> getSystemProperties() {
         return systemProperties;
+    }
+
+    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject("jvm");
+        builder.field("pid", pid);
+        builder.field("vm_name", vmName);
+        builder.field("vm_version", vmVersion);
+        builder.field("vm_vendor", vmVendor);
+        builder.field("start_time", startTime);
+        builder.endObject();
     }
 
     public static JvmInfo readJvmInfo(StreamInput in) throws IOException {

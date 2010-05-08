@@ -111,13 +111,13 @@ public class SizeValue implements Serializable, Streamable {
         String suffix = "b";
         if (bytes >= SizeUnit.C3) {
             value = gbFrac();
-            suffix = "gb";
+            suffix = "g";
         } else if (bytes >= SizeUnit.C2) {
             value = mbFrac();
-            suffix = "mb";
+            suffix = "m";
         } else if (bytes >= SizeUnit.C1) {
             value = kbFrac();
-            suffix = "kb";
+            suffix = "k";
         }
         return Strings.format1Decimals(value, suffix);
     }

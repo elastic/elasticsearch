@@ -19,11 +19,15 @@
 
 package org.elasticsearch.monitor;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.monitor.jvm.JvmMonitorService;
+import org.elasticsearch.monitor.jvm.JvmService;
 import org.elasticsearch.monitor.memory.MemoryMonitorService;
+import org.elasticsearch.monitor.network.NetworkService;
+import org.elasticsearch.monitor.os.OsService;
+import org.elasticsearch.monitor.process.ProcessService;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 /**
@@ -35,10 +39,39 @@ public class MonitorService extends AbstractLifecycleComponent<MonitorService> {
 
     private final JvmMonitorService jvmMonitorService;
 
-    @Inject public MonitorService(Settings settings, MemoryMonitorService memoryMonitorService, JvmMonitorService jvmMonitorService) {
+    private final OsService osService;
+
+    private final ProcessService processService;
+
+    private final JvmService jvmService;
+
+    private final NetworkService networkService;
+
+    @Inject public MonitorService(Settings settings, MemoryMonitorService memoryMonitorService, JvmMonitorService jvmMonitorService,
+                                  OsService osService, ProcessService processService, JvmService jvmService, NetworkService networkService) {
         super(settings);
         this.memoryMonitorService = memoryMonitorService;
         this.jvmMonitorService = jvmMonitorService;
+        this.osService = osService;
+        this.processService = processService;
+        this.jvmService = jvmService;
+        this.networkService = networkService;
+    }
+
+    public OsService osService() {
+        return this.osService;
+    }
+
+    public ProcessService processService() {
+        return this.processService;
+    }
+
+    public JvmService jvmService() {
+        return this.jvmService;
+    }
+
+    public NetworkService networkService() {
+        return this.networkService;
     }
 
     @Override protected void doStart() throws ElasticSearchException {

@@ -22,6 +22,8 @@ package org.elasticsearch.monitor.network;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
+import org.elasticsearch.util.xcontent.ToXContent;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -29,7 +31,7 @@ import java.io.Serializable;
 /**
  * @author kimchy (shay.banon)
  */
-public class NetworkInfo implements Streamable, Serializable {
+public class NetworkInfo implements Streamable, Serializable, ToXContent {
 
     public static final Interface NA_INTERFACE = new Interface();
 
@@ -41,6 +43,24 @@ public class NetworkInfo implements Streamable, Serializable {
 
     public Interface getPrimaryInterface() {
         return primaryInterface();
+    }
+
+    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject("network");
+        if (primary != NA_INTERFACE) {
+            builder.startObject("primary_interface");
+            builder.field("address", primary.address());
+            builder.field("name", primary.name());
+            builder.field("mac_address", primary.macAddress());
+            builder.endObject();
+        }
+        builder.endObject();
+    }
+
+    public static NetworkInfo readNetworkInfo(StreamInput in) throws IOException {
+        NetworkInfo info = new NetworkInfo();
+        info.readFrom(in);
+        return info;
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {

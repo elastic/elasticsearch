@@ -21,6 +21,10 @@ package org.elasticsearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.action.support.nodes.NodeOperationResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.network.NetworkInfo;
+import org.elasticsearch.monitor.os.OsInfo;
+import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.util.collect.ImmutableMap;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
@@ -39,17 +43,26 @@ public class NodeInfo extends NodeOperationResponse {
 
     private Settings settings;
 
+    private OsInfo os;
+
+    private ProcessInfo process;
+
+    private JvmInfo jvm;
+
+    private NetworkInfo network;
+
     NodeInfo() {
     }
 
-    public NodeInfo(DiscoveryNode node, Map<String, String> attributes, Settings settings) {
-        this(node, ImmutableMap.copyOf(attributes), settings);
-    }
-
-    public NodeInfo(DiscoveryNode node, ImmutableMap<String, String> attributes, Settings settings) {
+    public NodeInfo(DiscoveryNode node, ImmutableMap<String, String> attributes, Settings settings,
+                    OsInfo os, ProcessInfo process, JvmInfo jvm, NetworkInfo network) {
         super(node);
         this.attributes = attributes;
         this.settings = settings;
+        this.os = os;
+        this.process = process;
+        this.jvm = jvm;
+        this.network = network;
     }
 
     public ImmutableMap<String, String> attributes() {
@@ -68,6 +81,38 @@ public class NodeInfo extends NodeOperationResponse {
         return settings();
     }
 
+    public OsInfo os() {
+        return this.os;
+    }
+
+    public OsInfo getOs() {
+        return os();
+    }
+
+    public ProcessInfo process() {
+        return process;
+    }
+
+    public ProcessInfo getProcess() {
+        return process();
+    }
+
+    public JvmInfo jvm() {
+        return jvm;
+    }
+
+    public JvmInfo getJvm() {
+        return jvm();
+    }
+
+    public NetworkInfo network() {
+        return network;
+    }
+
+    public NetworkInfo getNetwork() {
+        return network();
+    }
+
     public static NodeInfo readNodeInfo(StreamInput in) throws IOException {
         NodeInfo nodeInfo = new NodeInfo();
         nodeInfo.readFrom(in);
@@ -83,6 +128,18 @@ public class NodeInfo extends NodeOperationResponse {
         }
         attributes = builder.build();
         settings = ImmutableSettings.readSettingsFromStream(in);
+        if (in.readBoolean()) {
+            os = OsInfo.readOsInfo(in);
+        }
+        if (in.readBoolean()) {
+            process = ProcessInfo.readProcessInfo(in);
+        }
+        if (in.readBoolean()) {
+            jvm = JvmInfo.readJvmInfo(in);
+        }
+        if (in.readBoolean()) {
+            network = NetworkInfo.readNetworkInfo(in);
+        }
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -93,5 +150,29 @@ public class NodeInfo extends NodeOperationResponse {
             out.writeUTF(entry.getValue());
         }
         ImmutableSettings.writeSettingsToStream(settings, out);
+        if (os == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            os.writeTo(out);
+        }
+        if (process == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            process.writeTo(out);
+        }
+        if (jvm == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            jvm.writeTo(out);
+        }
+        if (network == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            network.writeTo(out);
+        }
     }
 }

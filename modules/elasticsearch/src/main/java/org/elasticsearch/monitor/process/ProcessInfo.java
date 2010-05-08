@@ -22,6 +22,8 @@ package org.elasticsearch.monitor.process;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
+import org.elasticsearch.util.xcontent.ToXContent;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -29,7 +31,7 @@ import java.io.Serializable;
 /**
  * @author kimchy (shay.banon)
  */
-public class ProcessInfo implements Streamable, Serializable {
+public class ProcessInfo implements Streamable, Serializable, ToXContent {
 
     private long id;
 
@@ -53,6 +55,12 @@ public class ProcessInfo implements Streamable, Serializable {
      */
     public long getId() {
         return id();
+    }
+
+    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject("process");
+        builder.field("id", id);
+        builder.endObject();
     }
 
     public static ProcessInfo readProcessInfo(StreamInput in) throws IOException {

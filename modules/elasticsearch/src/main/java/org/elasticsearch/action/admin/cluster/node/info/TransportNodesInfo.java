@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.nodes.NodeOperationRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.MapBuilder;
@@ -37,15 +38,19 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TransportNodesInfo extends TransportNodesOperationAction<NodesInfoRequest, NodesInfoResponse, TransportNodesInfo.NodeInfoRequest, NodeInfo> {
+
+    private final MonitorService monitorService;
 
     private volatile ImmutableMap<String, String> nodeAttributes = ImmutableMap.of();
 
     @Inject public TransportNodesInfo(Settings settings, ClusterName clusterName, ThreadPool threadPool,
-                                      ClusterService clusterService, TransportService transportService) {
+                                      ClusterService clusterService, TransportService transportService,
+                                      MonitorService monitorService) {
         super(settings, clusterName, threadPool, clusterService, transportService);
+        this.monitorService = monitorService;
     }
 
     public synchronized void putNodeAttribute(String key, String value) {
@@ -92,7 +97,9 @@ public class TransportNodesInfo extends TransportNodesOperationAction<NodesInfoR
     }
 
     @Override protected NodeInfo nodeOperation(NodeInfoRequest nodeInfoRequest) throws ElasticSearchException {
-        return new NodeInfo(clusterService.state().nodes().localNode(), nodeAttributes, settings);
+        return new NodeInfo(clusterService.state().nodes().localNode(), nodeAttributes, settings,
+                monitorService.osService().info(), monitorService.processService().info(),
+                monitorService.jvmService().info(), monitorService.networkService().info());
     }
 
     @Override protected boolean accumulateExceptions() {

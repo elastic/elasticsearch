@@ -20,6 +20,7 @@
 package org.elasticsearch.util.concurrent;
 
 import org.elasticsearch.util.concurrent.highscalelib.NonBlockingHashMap;
+import org.elasticsearch.util.concurrent.highscalelib.NonBlockingHashMapLong;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -36,6 +37,13 @@ public abstract class ConcurrentMaps {
             return new NonBlockingHashMap<K, V>();
         }
         return new ConcurrentHashMap<K, V>();
+    }
+
+    public static <V> ConcurrentMapLong<V> newConcurrentMapLong() {
+        if (useNonBlockingMap) {
+            return new NonBlockingHashMapLong<V>();
+        }
+        return new ConcurrentHashMapLong<V>();
     }
 
 

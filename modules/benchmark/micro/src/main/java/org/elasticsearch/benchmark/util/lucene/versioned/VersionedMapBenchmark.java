@@ -22,8 +22,8 @@ package org.elasticsearch.benchmark.util.lucene.versioned;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.StopWatch;
 import org.elasticsearch.util.lucene.versioned.ConcurrentVersionedMap;
+import org.elasticsearch.util.lucene.versioned.ConcurrentVersionedMapLong;
 import org.elasticsearch.util.lucene.versioned.NativeVersionedMap;
-import org.elasticsearch.util.lucene.versioned.NonBlockingVersionedMap;
 import org.elasticsearch.util.lucene.versioned.VersionedMap;
 
 import java.lang.management.ManagementFactory;
@@ -188,7 +188,7 @@ public class VersionedMapBenchmark {
         String type = args.length > 0 ? args[0] : "nb";
         VersionedMap versionedMap;
         if ("nb".equalsIgnoreCase(type)) {
-            versionedMap = new NonBlockingVersionedMap();
+            versionedMap = new ConcurrentVersionedMapLong();
         } else if ("native".equalsIgnoreCase(type)) {
             versionedMap = new NativeVersionedMap();
         } else if ("concurrent".equalsIgnoreCase(type)) {

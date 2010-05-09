@@ -38,9 +38,9 @@ public class SizeValueTests {
 
     @Test public void testToString() {
         assertThat("10b", is(new SizeValue(10, SizeUnit.BYTES).toString()));
-        assertThat("1.5kb", is(new SizeValue((long) (1024 * 1.5), SizeUnit.BYTES).toString()));
-        assertThat("1.5mb", is(new SizeValue((long) (1024 * 1.5), SizeUnit.KB).toString()));
-        assertThat("1.5gb", is(new SizeValue((long) (1024 * 1.5), SizeUnit.MB).toString()));
-        assertThat("1536gb", is(new SizeValue((long) (1024 * 1.5), SizeUnit.GB).toString()));
+        assertThat("1.5k", is(new SizeValue((long) (1024 * 1.5), SizeUnit.BYTES).toString()));
+        assertThat("1.5m", is(new SizeValue((long) (1024 * 1.5), SizeUnit.KB).toString()));
+        assertThat("1.5g", is(new SizeValue((long) (1024 * 1.5), SizeUnit.MB).toString()));
+        assertThat("1536g", is(new SizeValue((long) (1024 * 1.5), SizeUnit.GB).toString()));
     }
 }

@@ -19,18 +19,19 @@
 
 package org.elasticsearch.util.lucene.versioned;
 
+import org.elasticsearch.util.concurrent.ConcurrentMapLong;
+import org.elasticsearch.util.concurrent.ConcurrentMaps;
 import org.elasticsearch.util.concurrent.ThreadSafe;
-import org.elasticsearch.util.concurrent.highscalelib.NonBlockingHashMapLong;
 
 /**
- * An implementation of {@link VersionedMap} based on {@link NonBlockingHashMapLong}.
+ * An implementation of {@link VersionedMap} based on {@link ConcurrentMapLong}.
  *
  * @author kimchy (Shay Banon)
  */
 @ThreadSafe
-public class NonBlockingVersionedMap implements VersionedMap {
+public class ConcurrentVersionedMapLong implements VersionedMap {
 
-    private final NonBlockingHashMapLong<Integer> map = new NonBlockingHashMapLong<Integer>();
+    private final ConcurrentMapLong<Integer> map = ConcurrentMaps.newConcurrentMapLong();
 
     @Override public boolean beforeVersion(int key, int versionToCheck) {
         Integer result = map.get(key);

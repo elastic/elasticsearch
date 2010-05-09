@@ -19,14 +19,15 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
-import org.elasticsearch.util.concurrent.highscalelib.NonBlockingHashMapLong;
+import org.elasticsearch.util.concurrent.ConcurrentMapLong;
+import org.elasticsearch.util.concurrent.ConcurrentMaps;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.timer.Timeout;
@@ -55,7 +56,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     final ConcurrentMap<String, TransportRequestHandler> serverHandlers = newConcurrentMap();
 
-    final NonBlockingHashMapLong<RequestHolder> clientHandlers = new NonBlockingHashMapLong<RequestHolder>();
+    final ConcurrentMapLong<RequestHolder> clientHandlers = ConcurrentMaps.newConcurrentMapLong();
 
     final AtomicLong requestIds = new AtomicLong();
 

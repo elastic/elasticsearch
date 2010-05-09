@@ -17,14 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.util.lucene.versioned;
+package org.elasticsearch.util.concurrent;
+
+import java.util.concurrent.ConcurrentMap;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class NonBlockingVersionedMapTests extends AbstractVersionedMapTests {
+public interface ConcurrentMapLong<T> extends ConcurrentMap<Long, T> {
 
-    @Override protected VersionedMap create() {
-        return new ConcurrentVersionedMapLong();
-    }
+    T get(long key);
+
+    T remove(long key);
+
+    T put(long key, T value);
+
+    T putIfAbsent(long key, T value);
 }

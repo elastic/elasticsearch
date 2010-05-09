@@ -30,6 +30,8 @@ import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartRequest;
 import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartResponse;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownResponse;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingRequest;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingResponse;
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingRequest;
@@ -44,6 +46,7 @@ import org.elasticsearch.client.transport.action.admin.cluster.health.ClientTran
 import org.elasticsearch.client.transport.action.admin.cluster.node.info.ClientTransportNodesInfoAction;
 import org.elasticsearch.client.transport.action.admin.cluster.node.restart.ClientTransportNodesRestartAction;
 import org.elasticsearch.client.transport.action.admin.cluster.node.shutdown.ClientTransportNodesShutdownAction;
+import org.elasticsearch.client.transport.action.admin.cluster.node.stats.ClientTransportNodesStatsAction;
 import org.elasticsearch.client.transport.action.admin.cluster.ping.broadcast.ClientTransportBroadcastPingAction;
 import org.elasticsearch.client.transport.action.admin.cluster.ping.replication.ClientTransportReplicationPingAction;
 import org.elasticsearch.client.transport.action.admin.cluster.ping.single.ClientTransportSinglePingAction;
@@ -72,6 +75,8 @@ public class InternalTransportClusterAdminClient extends AbstractComponent imple
 
     private final ClientTransportNodesInfoAction nodesInfoAction;
 
+    private final ClientTransportNodesStatsAction nodesStatsAction;
+
     private final ClientTransportNodesShutdownAction nodesShutdownAction;
 
     private final ClientTransportNodesRestartAction nodesRestartAction;
@@ -79,7 +84,7 @@ public class InternalTransportClusterAdminClient extends AbstractComponent imple
     @Inject public InternalTransportClusterAdminClient(Settings settings, TransportClientNodesService nodesService,
                                                        ClientTransportClusterHealthAction clusterHealthAction, ClientTransportClusterStateAction clusterStateAction,
                                                        ClientTransportSinglePingAction singlePingAction, ClientTransportReplicationPingAction replicationPingAction, ClientTransportBroadcastPingAction broadcastPingAction,
-                                                       ClientTransportNodesInfoAction nodesInfoAction, ClientTransportNodesShutdownAction nodesShutdownAction, ClientTransportNodesRestartAction nodesRestartAction) {
+                                                       ClientTransportNodesInfoAction nodesInfoAction, ClientTransportNodesShutdownAction nodesShutdownAction, ClientTransportNodesRestartAction nodesRestartAction, ClientTransportNodesStatsAction nodesStatsAction) {
         super(settings);
         this.nodesService = nodesService;
         this.clusterHealthAction = clusterHealthAction;
@@ -90,6 +95,7 @@ public class InternalTransportClusterAdminClient extends AbstractComponent imple
         this.singlePingAction = singlePingAction;
         this.replicationPingAction = replicationPingAction;
         this.broadcastPingAction = broadcastPingAction;
+        this.nodesStatsAction = nodesStatsAction;
     }
 
     @Override public ActionFuture<ClusterHealthResponse> health(final ClusterHealthRequest request) {
@@ -189,6 +195,23 @@ public class InternalTransportClusterAdminClient extends AbstractComponent imple
         nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
             @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
                 nodesInfoAction.execute(node, request, listener);
+                return null;
+            }
+        });
+    }
+
+    @Override public ActionFuture<NodesStatsResponse> nodesStats(final NodesStatsRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<NodesStatsResponse>>() {
+            @Override public ActionFuture<NodesStatsResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+                return nodesStatsAction.execute(node, request);
+            }
+        });
+    }
+
+    @Override public void nodesStats(final NodesStatsRequest request, final ActionListener<NodesStatsResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
+            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+                nodesStatsAction.execute(node, request, listener);
                 return null;
             }
         });

@@ -22,6 +22,8 @@ package org.elasticsearch.monitor.network;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
+import org.elasticsearch.util.xcontent.ToXContent;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -29,11 +31,40 @@ import java.io.Serializable;
 /**
  * @author kimchy (shay.banon)
  */
-public class NetworkStats implements Streamable, Serializable {
+public class NetworkStats implements Streamable, Serializable, ToXContent {
 
     long timestamp;
 
     Tcp tcp = null;
+
+    NetworkStats() {
+
+    }
+
+    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject("network");
+        if (tcp != null) {
+            builder.startObject("tcp");
+            builder.field("active_opens", tcp.getActiveOpens());
+            builder.field("passive_opens", tcp.getPassiveOpens());
+            builder.field("curr_estab", tcp.getCurrEstab());
+            builder.field("in_segs", tcp.getInSegs());
+            builder.field("out_segs", tcp.getOutSegs());
+            builder.field("retrans_segs", tcp.getRetransSegs());
+            builder.field("estab_resets", tcp.getEstabResets());
+            builder.field("attempt_fails", tcp.getAttemptFails());
+            builder.field("in_errs", tcp.getInErrs());
+            builder.field("out_rsts", tcp.getOutRsts());
+            builder.endObject();
+        }
+        builder.endObject();
+    }
+
+    public static NetworkStats readNetworkStats(StreamInput in) throws IOException {
+        NetworkStats stats = new NetworkStats();
+        stats.readFrom(in);
+        return stats;
+    }
 
     @Override public void readFrom(StreamInput in) throws IOException {
         timestamp = in.readVLong();

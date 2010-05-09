@@ -37,6 +37,8 @@ import java.util.Map;
 import static org.elasticsearch.util.transport.TransportAddressSerializers.*;
 
 /**
+ * A discovery node represents a node that is part of the cluster.
+ *
  * @author kimchy (shay.banon)
  */
 public class DiscoveryNode implements Streamable, Serializable {

@@ -33,6 +33,9 @@ import org.elasticsearch.action.admin.cluster.node.restart.TransportNodesRestart
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownResponse;
 import org.elasticsearch.action.admin.cluster.node.shutdown.TransportNodesShutdownAction;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStats;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingRequest;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingResponse;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.TransportBroadcastPingAction;
@@ -67,6 +70,8 @@ public class NodeClusterAdminClient extends AbstractComponent implements Cluster
 
     private final TransportNodesInfo nodesInfo;
 
+    private final TransportNodesStats nodesStats;
+
     private final TransportNodesShutdownAction nodesShutdown;
 
     private final TransportNodesRestartAction nodesRestart;
@@ -74,7 +79,7 @@ public class NodeClusterAdminClient extends AbstractComponent implements Cluster
     @Inject public NodeClusterAdminClient(Settings settings,
                                           TransportClusterHealthAction clusterHealthAction, TransportClusterStateAction clusterStateAction,
                                           TransportSinglePingAction singlePingAction, TransportBroadcastPingAction broadcastPingAction, TransportReplicationPingAction replicationPingAction,
-                                          TransportNodesInfo nodesInfo, TransportNodesShutdownAction nodesShutdown, TransportNodesRestartAction nodesRestart) {
+                                          TransportNodesInfo nodesInfo, TransportNodesShutdownAction nodesShutdown, TransportNodesRestartAction nodesRestart, TransportNodesStats nodesStats) {
         super(settings);
         this.clusterHealthAction = clusterHealthAction;
         this.clusterStateAction = clusterStateAction;
@@ -84,6 +89,7 @@ public class NodeClusterAdminClient extends AbstractComponent implements Cluster
         this.singlePingAction = singlePingAction;
         this.broadcastPingAction = broadcastPingAction;
         this.replicationPingAction = replicationPingAction;
+        this.nodesStats = nodesStats;
     }
 
     @Override public ActionFuture<ClusterHealthResponse> health(ClusterHealthRequest request) {
@@ -132,6 +138,14 @@ public class NodeClusterAdminClient extends AbstractComponent implements Cluster
 
     @Override public void nodesInfo(NodesInfoRequest request, ActionListener<NodesInfoResponse> listener) {
         nodesInfo.execute(request, listener);
+    }
+
+    @Override public ActionFuture<NodesStatsResponse> nodesStats(NodesStatsRequest request) {
+        return nodesStats.execute(request);
+    }
+
+    @Override public void nodesStats(NodesStatsRequest request, ActionListener<NodesStatsResponse> listener) {
+        nodesStats.execute(request, listener);
     }
 
     @Override public ActionFuture<NodesShutdownResponse> nodesShutdown(NodesShutdownRequest request) {

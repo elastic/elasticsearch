@@ -28,6 +28,8 @@ import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartRequest
 import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartResponse
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownResponse
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse
 import org.elasticsearch.client.ClusterAdminClient
@@ -109,6 +111,26 @@ class GClusterAdminClient {
 
     void nodesInfo(NodesInfoRequest request, ActionListener<NodesInfoResponse> listener) {
         clusterAdminClient.nodesInfo(request, listener)
+    }
+
+    // NODES STATS
+
+    GActionFuture<NodesStatsResponse> nodesStats(Closure c) {
+        NodesStatsRequest request = new NodesStatsRequest()
+        c.setDelegate request
+        c.resolveStrategy = gClient.resolveStrategy
+        c.call()
+        nodesStats(request)
+    }
+
+    GActionFuture<NodesStatsResponse> nodesStats(NodesStatsRequest request) {
+        GActionFuture<NodesStatsResponse> future = new GActionFuture<NodesStatsResponse>(internalClient.threadPool(), request);
+        clusterAdminClient.nodesStats(request, future)
+        return future
+    }
+
+    void nodesStats(NodesStatsRequest request, ActionListener<NodesStatsResponse> listener) {
+        clusterAdminClient.nodesStats(request, listener)
     }
 
     // NODES SHUTDOWN

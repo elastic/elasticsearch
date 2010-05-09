@@ -108,7 +108,7 @@ public class SizeValue implements Serializable, Streamable {
     @Override public String toString() {
         long bytes = bytes();
         double value = bytes;
-        String suffix = "b";
+        String suffix = "";
         if (bytes >= SizeUnit.C3) {
             value = gbFrac();
             suffix = "g";

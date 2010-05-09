@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartRequest;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingRequest;
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingRequest;
 import org.elasticsearch.action.admin.cluster.ping.single.SinglePingRequest;
@@ -314,10 +315,21 @@ public class Requests {
      *
      * @param nodesIds The nodes ids to get the status for
      * @return The nodes info request
-     * @see org.elasticsearch.client.ClusterAdminClient#nodesInfo(org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest)
+     * @see org.elasticsearch.client.ClusterAdminClient#nodesStats(org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest)
      */
     public static NodesInfoRequest nodesInfo(String... nodesIds) {
         return new NodesInfoRequest(nodesIds);
+    }
+
+    /**
+     * Creates a nodes stats request against one or more nodes. Pass <tt>null</tt> or an empty array for all nodes.
+     *
+     * @param nodesIds The nodes ids to get the stats for
+     * @return The nodes info request
+     * @see org.elasticsearch.client.ClusterAdminClient#nodesStats(org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest)
+     */
+    public static NodesStatsRequest nodesStats(String... nodesIds) {
+        return new NodesStatsRequest(nodesIds);
     }
 
     /**

@@ -23,6 +23,10 @@ import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
+import org.joda.time.Period;
+import org.joda.time.PeriodType;
+import org.joda.time.format.PeriodFormat;
+import org.joda.time.format.PeriodFormatter;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -168,6 +172,19 @@ public class TimeValue implements Serializable, Streamable {
 
     public double getDaysFrac() {
         return daysFrac();
+    }
+
+    private final PeriodFormatter defaultFormatter = PeriodFormat.getDefault()
+            .withParseType(PeriodType.standard());
+
+    public String format() {
+        Period period = new Period(millis());
+        return defaultFormatter.print(period);
+    }
+
+    public String format(PeriodType type) {
+        Period period = new Period(millis());
+        return PeriodFormat.getDefault().withParseType(type).print(period);
     }
 
     @Override public String toString() {

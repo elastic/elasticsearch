@@ -17,29 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.monitor.jvm;
+package org.elasticsearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.guice.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.action.support.nodes.NodesOperationRequest;
 
 /**
+ * A request to get node (cluster) level stats.
+ *
  * @author kimchy (shay.banon)
  */
-public class JvmService extends AbstractComponent {
+public class NodesStatsRequest extends NodesOperationRequest {
 
-    private final JvmInfo jvmInfo;
-
-    @Inject public JvmService(Settings settings) {
-        super(settings);
-        this.jvmInfo = JvmInfo.jvmInfo();
+    protected NodesStatsRequest() {
     }
 
-    public JvmInfo info() {
-        return this.jvmInfo;
-    }
-
-    public JvmStats stats() {
-        return JvmStats.jvmStats();
+    /**
+     * Get stats from nodes based on the nodes ids specified. If none are passed, stats
+     * for all nodes will be returned.
+     */
+    public NodesStatsRequest(String... nodesIds) {
+        super(nodesIds);
     }
 }

@@ -19,12 +19,13 @@
 
 package org.elasticsearch.monitor.os;
 
-import org.elasticsearch.util.Percent;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
+import org.elasticsearch.util.xcontent.ToXContent;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -33,7 +34,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author kimchy (shay.banon)
  */
-public class OsStats implements Streamable, Serializable {
+public class OsStats implements Streamable, Serializable, ToXContent {
 
     public static final double[] EMPTY_LOAD = new double[0];
 
@@ -101,6 +102,57 @@ public class OsStats implements Streamable, Serializable {
         return swap();
     }
 
+    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject("os");
+        builder.field("timestamp", timestamp);
+
+        builder.field("uptime", uptime().format());
+        builder.field("uptime_in_millis", uptime().millis());
+
+        builder.startArray("load_average");
+        for (double value : loadAverage) {
+            builder.value(value);
+        }
+        builder.endArray();
+
+        if (cpu != null) {
+            builder.startObject("cpu");
+            builder.field("sys", cpu.sys());
+            builder.field("user", cpu.user());
+            builder.field("idle", cpu.idle());
+            builder.endObject();
+        }
+
+        if (mem != null) {
+            builder.startObject("mem");
+            builder.field("free", mem.free().toString());
+            builder.field("free_in_bytes", mem.free().bytes());
+            builder.field("used", mem.used().toString());
+            builder.field("used_in_bytes", mem.used().bytes());
+
+            builder.field("free_percent", mem.freePercent());
+            builder.field("used_percent", mem.usedPercent());
+
+            builder.field("actual_free", mem.actualFree().toString());
+            builder.field("actual_free_in_bytes", mem.actualFree().bytes());
+            builder.field("actual_used", mem.actualUsed().toString());
+            builder.field("actual_used_in_bytes", mem.actualUsed().bytes());
+
+            builder.endObject();
+        }
+
+        if (swap != null) {
+            builder.startObject("swap");
+            builder.field("used", swap.used().toString());
+            builder.field("used_in_bytes", swap.used().bytes());
+            builder.field("free", swap.free().toString());
+            builder.field("free_in_bytes", swap.free().bytes());
+            builder.endObject();
+        }
+
+        builder.endObject();
+    }
+
     public static OsStats readOsStats(StreamInput in) throws IOException {
         OsStats stats = new OsStats();
         stats.readFrom(in);
@@ -157,6 +209,22 @@ public class OsStats implements Streamable, Serializable {
         long free = -1;
         long used = -1;
 
+        public SizeValue free() {
+            return new SizeValue(free);
+        }
+
+        public SizeValue getFree() {
+            return free();
+        }
+
+        public SizeValue used() {
+            return new SizeValue(used);
+        }
+
+        public SizeValue getUsed() {
+            return used();
+        }
+
         public static Swap readSwap(StreamInput in) throws IOException {
             Swap swap = new Swap();
             swap.readFrom(in);
@@ -177,9 +245,9 @@ public class OsStats implements Streamable, Serializable {
     public static class Mem implements Streamable, Serializable {
 
         long free = -1;
-        double freePercent = -1;
+        short freePercent = -1;
         long used = -1;
-        double usedPercent = -1;
+        short usedPercent = -1;
         long actualFree = -1;
         long actualUsed = -1;
 
@@ -191,18 +259,18 @@ public class OsStats implements Streamable, Serializable {
 
         @Override public void readFrom(StreamInput in) throws IOException {
             free = in.readLong();
-            freePercent = in.readDouble();
+            freePercent = in.readShort();
             used = in.readLong();
-            usedPercent = in.readDouble();
+            usedPercent = in.readShort();
             actualFree = in.readLong();
             actualUsed = in.readLong();
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
             out.writeLong(free);
-            out.writeDouble(freePercent);
+            out.writeShort(freePercent);
             out.writeLong(used);
-            out.writeDouble(usedPercent);
+            out.writeShort(usedPercent);
             out.writeLong(actualFree);
             out.writeLong(actualUsed);
         }
@@ -215,11 +283,11 @@ public class OsStats implements Streamable, Serializable {
             return used();
         }
 
-        public Percent usedPercent() {
-            return new Percent(usedPercent);
+        public short usedPercent() {
+            return usedPercent;
         }
 
-        public Percent getUsedPercent() {
+        public short getUsedPercent() {
             return usedPercent();
         }
 
@@ -231,11 +299,11 @@ public class OsStats implements Streamable, Serializable {
             return free();
         }
 
-        public Percent freePercent() {
-            return new Percent(freePercent);
+        public short freePercent() {
+            return freePercent;
         }
 
-        public Percent getFreePercent() {
+        public short getFreePercent() {
             return freePercent();
         }
 
@@ -258,9 +326,9 @@ public class OsStats implements Streamable, Serializable {
 
     public static class Cpu implements Streamable, Serializable {
 
-        double sys = -1;
-        double user = -1;
-        double idle = -1;
+        short sys = -1;
+        short user = -1;
+        short idle = -1;
 
         Cpu() {
 
@@ -273,38 +341,38 @@ public class OsStats implements Streamable, Serializable {
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {
-            sys = in.readDouble();
-            user = in.readDouble();
-            idle = in.readDouble();
+            sys = in.readShort();
+            user = in.readShort();
+            idle = in.readShort();
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
-            out.writeDouble(sys);
-            out.writeDouble(user);
-            out.writeDouble(idle);
+            out.writeShort(sys);
+            out.writeShort(user);
+            out.writeShort(idle);
         }
 
-        public Percent sys() {
-            return new Percent(sys);
+        public short sys() {
+            return sys;
         }
 
-        public Percent getSys() {
+        public short getSys() {
             return sys();
         }
 
-        public Percent user() {
-            return new Percent(user);
+        public short user() {
+            return user;
         }
 
-        public Percent getUser() {
+        public short getUser() {
             return user();
         }
 
-        public Percent idle() {
-            return new Percent(idle);
+        public short idle() {
+            return idle;
         }
 
-        public Percent getIdle() {
+        public short getIdle() {
             return idle();
         }
     }

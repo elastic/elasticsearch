@@ -26,6 +26,7 @@
       <w>desc</w>
       <w>deserialize</w>
       <w>elasticsearch</w>
+      <w>estab</w>
       <w>failover</w>
       <w>flushable</w>
       <w>formatter</w>
@@ -70,8 +71,12 @@
       <w>queryparser</w>
       <w>rackspace</w>
       <w>rebalance</w>
+      <w>retrans</w>
+      <w>retval</w>
+      <w>rsts</w>
       <w>sbuf</w>
       <w>searchable</w>
+      <w>segs</w>
       <w>serializers</w>
       <w>sigar</w>
       <w>snapshotting</w>

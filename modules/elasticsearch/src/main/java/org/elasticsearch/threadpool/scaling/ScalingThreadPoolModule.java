@@ -17,28 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.threadpool;
+package org.elasticsearch.threadpool.scaling;
 
-import org.elasticsearch.threadpool.cached.CachedThreadPoolModule;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.guice.inject.AbstractModule;
-import org.elasticsearch.util.guice.inject.Module;
-import org.elasticsearch.util.settings.Settings;
-
-import static org.elasticsearch.util.guice.ModulesFactory.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class ThreadPoolModule extends AbstractModule {
-
-    private final Settings settings;
-
-    public ThreadPoolModule(Settings settings) {
-        this.settings = settings;
-    }
+public class ScalingThreadPoolModule extends AbstractModule {
 
     @Override protected void configure() {
-        Class<? extends Module> moduleClass = settings.getAsClass("transport.type", CachedThreadPoolModule.class, "org.elasticsearch.threadpool.", "ThreadPoolModule");
-        createModule(moduleClass, settings).configure(binder());
+        bind(ThreadPool.class).to(ScalingThreadPool.class).asEagerSingleton();
+        bind(ScalingThreadPoolManagement.class).asEagerSingleton();
     }
 }

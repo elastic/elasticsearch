@@ -28,6 +28,28 @@ import java.util.concurrent.*;
  */
 public interface ThreadPool {
 
+    /**
+     * Returns the current number of threads in the pool.
+     *
+     * @return the number of threads
+     */
+    int getPoolSize();
+
+    /**
+     * Returns the approximate number of threads that are actively
+     * executing tasks.
+     *
+     * @return the number of threads
+     */
+    int getActiveCount();
+
+    int getSchedulerPoolSize();
+
+    int getSchedulerActiveCount();
+
+    /**
+     * Returns <tt>true</tt> if the thread pool has started.
+     */
     boolean isStarted();
 
     /**

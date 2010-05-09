@@ -41,6 +41,7 @@
       <w>intf</w>
       <w>iter</w>
       <w>iterable</w>
+      <w>javax</w>
       <w>jclouds</w>
       <w>jgroups</w>
       <w>joda</w>
@@ -85,6 +86,7 @@
       <w>streamable</w>
       <w>successul</w>
       <w>tagline</w>
+      <w>threadpool</w>
       <w>throwable</w>
       <w>tika</w>
       <w>timestamp</w>

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.settings;
 
-import org.elasticsearch.util.guice.inject.AbstractModule;
+import org.elasticsearch.util.inject.AbstractModule;
 import org.elasticsearch.util.settings.Settings;
 
 /**

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.monitor.dump.cluster;
 
-import org.elasticsearch.util.guice.inject.Inject;
-import org.elasticsearch.util.guice.inject.assistedinject.Assisted;
+import org.elasticsearch.util.inject.Inject;
+import org.elasticsearch.util.inject.assistedinject.Assisted;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;

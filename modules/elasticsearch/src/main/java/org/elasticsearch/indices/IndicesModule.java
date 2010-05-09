@@ -19,7 +19,7 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.util.guice.inject.AbstractModule;
+import org.elasticsearch.util.inject.AbstractModule;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.util.settings.Settings;
 

@@ -20,7 +20,7 @@
 package org.elasticsearch.gateway.cloud;
 
 import org.elasticsearch.gateway.Gateway;
-import org.elasticsearch.util.guice.inject.AbstractModule;
+import org.elasticsearch.util.inject.AbstractModule;
 
 /**
  * @author kimchy (shay.banon)

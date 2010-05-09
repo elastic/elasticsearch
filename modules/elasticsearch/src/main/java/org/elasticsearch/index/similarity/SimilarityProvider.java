@@ -21,7 +21,7 @@ package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.Similarity;
 import org.elasticsearch.index.IndexComponent;
-import org.elasticsearch.util.guice.inject.Provider;
+import org.elasticsearch.util.inject.Provider;
 
 /**
  * @author kimchy (Shay Banon)

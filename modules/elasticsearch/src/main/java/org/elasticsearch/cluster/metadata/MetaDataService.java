@@ -45,7 +45,7 @@ import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.Tuple;
 import org.elasticsearch.util.collect.Maps;
 import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.io.Streams;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;

@@ -22,7 +22,7 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.util.collect.ImmutableList;
 import org.elasticsearch.util.component.CloseableIndexComponent;
 import org.elasticsearch.util.component.LifecycleComponent;
-import org.elasticsearch.util.guice.inject.Module;
+import org.elasticsearch.util.inject.Module;
 
 import java.util.Collection;
 

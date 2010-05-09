@@ -43,10 +43,10 @@ import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.monitor.process.ProcessService;
 import org.elasticsearch.monitor.process.SigarProcessProbe;
 import org.elasticsearch.monitor.sigar.SigarService;
-import org.elasticsearch.util.guice.inject.AbstractModule;
-import org.elasticsearch.util.guice.inject.Scopes;
-import org.elasticsearch.util.guice.inject.assistedinject.FactoryProvider;
-import org.elasticsearch.util.guice.inject.multibindings.MapBinder;
+import org.elasticsearch.util.inject.AbstractModule;
+import org.elasticsearch.util.inject.Scopes;
+import org.elasticsearch.util.inject.assistedinject.FactoryProvider;
+import org.elasticsearch.util.inject.multibindings.MapBinder;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.Map;

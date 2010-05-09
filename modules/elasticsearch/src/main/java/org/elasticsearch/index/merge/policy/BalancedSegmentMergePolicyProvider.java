@@ -27,7 +27,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.util.Preconditions;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 
 /**
  * @author kimchy (shay.banon)

@@ -21,7 +21,7 @@ package org.elasticsearch.discovery.cloud;
 
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
-import org.elasticsearch.util.guice.inject.AbstractModule;
+import org.elasticsearch.util.inject.AbstractModule;
 
 /**
  * @author kimchy (shay.banon)

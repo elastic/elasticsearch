@@ -22,8 +22,8 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.SimpleAnalyzer;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.guice.inject.Inject;
-import org.elasticsearch.util.guice.inject.assistedinject.Assisted;
+import org.elasticsearch.util.inject.Inject;
+import org.elasticsearch.util.inject.assistedinject.Assisted;
 import org.elasticsearch.util.settings.Settings;
 
 /**

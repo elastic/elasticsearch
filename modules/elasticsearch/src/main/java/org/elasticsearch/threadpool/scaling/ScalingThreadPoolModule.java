@@ -20,7 +20,7 @@
 package org.elasticsearch.threadpool.scaling;
 
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.util.guice.inject.AbstractModule;
+import org.elasticsearch.util.inject.AbstractModule;
 
 /**
  * @author kimchy (shay.banon)

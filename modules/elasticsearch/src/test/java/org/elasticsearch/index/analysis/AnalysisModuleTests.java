@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.util.guice.inject.Guice;
-import org.elasticsearch.util.guice.inject.Injector;
+import org.elasticsearch.util.inject.Guice;
+import org.elasticsearch.util.inject.Injector;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;

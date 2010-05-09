@@ -25,7 +25,7 @@ import org.elasticsearch.jmx.JmxService;
 import org.elasticsearch.jmx.MBean;
 import org.elasticsearch.jmx.ManagedAttribute;
 import org.elasticsearch.util.component.CloseableComponent;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 /**

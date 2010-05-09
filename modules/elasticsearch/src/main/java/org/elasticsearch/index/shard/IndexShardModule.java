@@ -22,7 +22,7 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.index.shard.recovery.RecoveryAction;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
-import org.elasticsearch.util.guice.inject.AbstractModule;
+import org.elasticsearch.util.inject.AbstractModule;
 
 /**
  * @author kimchy (shay.banon)

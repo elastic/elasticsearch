@@ -26,7 +26,7 @@ import org.elasticsearch.search.facets.FacetsPhase;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.query.QueryPhase;
-import org.elasticsearch.util.guice.inject.AbstractModule;
+import org.elasticsearch.util.inject.AbstractModule;
 
 /**
  * @author kimchy (Shay Banon)

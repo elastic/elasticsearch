@@ -1,7 +1,7 @@
 package org.elasticsearch.util.settings;
 
 import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 
 import java.util.concurrent.CopyOnWriteArrayList;
 

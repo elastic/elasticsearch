@@ -19,7 +19,7 @@
 
 package org.elasticsearch.monitor.memory;
 
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.settings.Settings;

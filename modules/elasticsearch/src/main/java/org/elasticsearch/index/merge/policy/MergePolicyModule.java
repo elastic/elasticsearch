@@ -20,7 +20,7 @@
 package org.elasticsearch.index.merge.policy;
 
 import org.apache.lucene.index.LogMergePolicy;
-import org.elasticsearch.util.guice.inject.AbstractModule;
+import org.elasticsearch.util.inject.AbstractModule;
 import org.elasticsearch.util.settings.Settings;
 
 /**

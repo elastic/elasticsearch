@@ -30,7 +30,7 @@ import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.io.stream.BytesStreamInput;
 import org.elasticsearch.util.io.stream.BytesStreamOutput;
 import org.elasticsearch.util.network.NetworkService;

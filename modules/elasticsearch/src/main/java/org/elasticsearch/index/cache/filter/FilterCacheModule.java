@@ -20,8 +20,8 @@
 package org.elasticsearch.index.cache.filter;
 
 import org.elasticsearch.index.cache.filter.soft.SoftFilterCache;
-import org.elasticsearch.util.guice.inject.AbstractModule;
-import org.elasticsearch.util.guice.inject.Scopes;
+import org.elasticsearch.util.inject.AbstractModule;
+import org.elasticsearch.util.inject.Scopes;
 import org.elasticsearch.util.settings.Settings;
 
 /**

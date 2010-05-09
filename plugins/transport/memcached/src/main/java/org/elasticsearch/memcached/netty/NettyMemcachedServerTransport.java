@@ -27,7 +27,7 @@ import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.netty.NettyInternalESLoggerFactory;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.network.NetworkService;
 import org.elasticsearch.util.network.NetworkUtils;
 import org.elasticsearch.util.settings.Settings;

@@ -55,9 +55,9 @@ import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.collect.UnmodifiableIterator;
 import org.elasticsearch.util.component.CloseableIndexComponent;
 import org.elasticsearch.util.guice.Injectors;
-import org.elasticsearch.util.guice.inject.Inject;
-import org.elasticsearch.util.guice.inject.Injector;
-import org.elasticsearch.util.guice.inject.Module;
+import org.elasticsearch.util.inject.Inject;
+import org.elasticsearch.util.inject.Injector;
+import org.elasticsearch.util.inject.Module;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;

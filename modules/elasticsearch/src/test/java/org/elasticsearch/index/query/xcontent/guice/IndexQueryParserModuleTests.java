@@ -20,8 +20,8 @@
 package org.elasticsearch.index.query.xcontent.guice;
 
 import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
-import org.elasticsearch.util.guice.inject.Guice;
-import org.elasticsearch.util.guice.inject.Injector;
+import org.elasticsearch.util.inject.Guice;
+import org.elasticsearch.util.inject.Injector;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;

@@ -20,10 +20,10 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.index.query.xcontent.*;
-import org.elasticsearch.util.guice.inject.AbstractModule;
-import org.elasticsearch.util.guice.inject.Scopes;
-import org.elasticsearch.util.guice.inject.assistedinject.FactoryProvider;
-import org.elasticsearch.util.guice.inject.multibindings.MapBinder;
+import org.elasticsearch.util.inject.AbstractModule;
+import org.elasticsearch.util.inject.Scopes;
+import org.elasticsearch.util.inject.assistedinject.FactoryProvider;
+import org.elasticsearch.util.inject.multibindings.MapBinder;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.Map;

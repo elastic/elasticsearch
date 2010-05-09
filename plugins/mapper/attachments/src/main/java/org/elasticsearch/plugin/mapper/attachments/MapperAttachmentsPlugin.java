@@ -20,7 +20,7 @@
 package org.elasticsearch.plugin.mapper.attachments;
 
 import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.util.guice.inject.Module;
+import org.elasticsearch.util.inject.Module;
 
 import java.util.Collection;
 

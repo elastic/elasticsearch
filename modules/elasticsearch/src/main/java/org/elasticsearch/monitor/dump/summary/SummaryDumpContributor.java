@@ -19,8 +19,8 @@
 
 package org.elasticsearch.monitor.dump.summary;
 
-import org.elasticsearch.util.guice.inject.Inject;
-import org.elasticsearch.util.guice.inject.assistedinject.Assisted;
+import org.elasticsearch.util.inject.Inject;
+import org.elasticsearch.util.inject.assistedinject.Assisted;
 import org.elasticsearch.monitor.dump.Dump;
 import org.elasticsearch.monitor.dump.DumpContributionFailedException;
 import org.elasticsearch.monitor.dump.DumpContributor;

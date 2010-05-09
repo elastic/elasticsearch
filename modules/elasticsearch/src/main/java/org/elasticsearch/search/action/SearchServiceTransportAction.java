@@ -32,7 +32,7 @@ import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.io.stream.LongStreamable;
 import org.elasticsearch.util.io.stream.VoidStreamable;
 import org.elasticsearch.util.logging.ESLogger;

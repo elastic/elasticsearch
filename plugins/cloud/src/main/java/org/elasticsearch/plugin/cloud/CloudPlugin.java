@@ -24,7 +24,7 @@ import org.elasticsearch.cloud.blobstore.CloudBlobStoreService;
 import org.elasticsearch.cloud.compute.CloudComputeService;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.util.component.LifecycleComponent;
-import org.elasticsearch.util.guice.inject.Module;
+import org.elasticsearch.util.inject.Module;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.Collection;

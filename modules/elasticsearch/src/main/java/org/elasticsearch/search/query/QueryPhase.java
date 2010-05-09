@@ -27,7 +27,7 @@ import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.facets.FacetsPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.util.collect.ImmutableMap;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.lucene.search.CustomBoostFactorQuery;
 import org.elasticsearch.util.lucene.search.TermFilter;
 

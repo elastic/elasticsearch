@@ -26,8 +26,8 @@ import org.elasticsearch.index.store.memory.MemoryStoreModule;
 import org.elasticsearch.index.store.ram.RamStoreModule;
 import org.elasticsearch.util.OsUtils;
 import org.elasticsearch.util.guice.ModulesFactory;
-import org.elasticsearch.util.guice.inject.AbstractModule;
-import org.elasticsearch.util.guice.inject.Module;
+import org.elasticsearch.util.inject.AbstractModule;
+import org.elasticsearch.util.inject.Module;
 import org.elasticsearch.util.settings.Settings;
 
 /**

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.memcached;
 
-import org.elasticsearch.util.guice.inject.AbstractModule;
-import org.elasticsearch.util.guice.inject.Module;
+import org.elasticsearch.util.inject.AbstractModule;
+import org.elasticsearch.util.inject.Module;
 import org.elasticsearch.util.Classes;
 import org.elasticsearch.util.settings.Settings;
 

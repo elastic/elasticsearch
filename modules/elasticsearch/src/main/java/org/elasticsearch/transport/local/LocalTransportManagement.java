@@ -19,8 +19,9 @@
 
 package org.elasticsearch.transport.local;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.jmx.MBean;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.util.guice.inject.Inject;
 
 /**
  * @author kimchy (Shay Banon)
@@ -30,7 +31,7 @@ public class LocalTransportManagement {
 
     private final LocalTransport transport;
 
-    @Inject public LocalTransportManagement(LocalTransport transport) {
-        this.transport = transport;
+    @Inject public LocalTransportManagement(Transport transport) {
+        this.transport = (LocalTransport) transport;
     }
 }

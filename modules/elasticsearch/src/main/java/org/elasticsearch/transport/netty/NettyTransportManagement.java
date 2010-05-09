@@ -19,9 +19,10 @@
 
 package org.elasticsearch.transport.netty;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.jmx.MBean;
 import org.elasticsearch.jmx.ManagedAttribute;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.util.guice.inject.Inject;
 
 /**
  * @author kimchy (Shay Banon)
@@ -31,8 +32,8 @@ public class NettyTransportManagement {
 
     private final NettyTransport transport;
 
-    @Inject public NettyTransportManagement(NettyTransport transport) {
-        this.transport = transport;
+    @Inject public NettyTransportManagement(Transport transport) {
+        this.transport = (NettyTransport) transport;
     }
 
     @ManagedAttribute(description = "Number of connections this node has to other nodes")

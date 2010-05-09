@@ -20,7 +20,7 @@
 package org.elasticsearch.util.xcontent.xson;
 
 import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.util.ThreadLocals;
+import org.elasticsearch.util.Bytes;
 import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.xcontent.XContentType;
 import org.elasticsearch.util.xcontent.support.AbstractXContentParser;
@@ -33,12 +33,6 @@ import java.io.InputStream;
  * @author kimchy (shay.banon)
  */
 public class XsonXContentParser extends AbstractXContentParser {
-
-    private static ThreadLocal<ThreadLocals.CleanableValue<byte[]>> cachedBytes = new ThreadLocal<ThreadLocals.CleanableValue<byte[]>>() {
-        @Override protected ThreadLocals.CleanableValue<byte[]> initialValue() {
-            return new ThreadLocals.CleanableValue<byte[]>(new byte[256]);
-        }
-    };
 
     private final InputStream is;
 
@@ -350,10 +344,10 @@ public class XsonXContentParser extends AbstractXContentParser {
      */
     private void inUtf16() throws IOException {
         int length = inVInt();
-        byte[] bytes = cachedBytes.get().get();
+        byte[] bytes = Bytes.cachedBytes.get().get();
         if (bytes == null || length > bytes.length) {
             bytes = new byte[(int) (length * 1.25)];
-            cachedBytes.get().set(bytes);
+            Bytes.cachedBytes.get().set(bytes);
         }
         inBytes(bytes, 0, length);
         utf16Result = Unicode.fromBytesAsUtf16(bytes, 0, length);

@@ -19,12 +19,13 @@
 
 package org.elasticsearch.monitor.process;
 
-import org.elasticsearch.util.Percent;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
+import org.elasticsearch.util.xcontent.ToXContent;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -32,7 +33,7 @@ import java.io.Serializable;
 /**
  * @author kimchy (shay.banon)
  */
-public class ProcessStats implements Streamable, Serializable {
+public class ProcessStats implements Streamable, Serializable, ToXContent {
 
     long timestamp = -1;
 
@@ -75,6 +76,38 @@ public class ProcessStats implements Streamable, Serializable {
 
     public Fd getFd() {
         return fd();
+    }
+
+    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject("process");
+        builder.field("timestamp", timestamp);
+        if (cpu != null) {
+            builder.startObject("cpu");
+            builder.field("percent", cpu.percent());
+            builder.field("sys", cpu.sys().format());
+            builder.field("sys_in_millis", cpu.sys().millis());
+            builder.field("user", cpu.user().format());
+            builder.field("user_in_millis", cpu.user().millis());
+            builder.field("total", cpu.total().format());
+            builder.field("total_in_millis", cpu.total().millis());
+            builder.endObject();
+        }
+        if (mem != null) {
+            builder.startObject("mem");
+            builder.field("resident", mem.resident().toString());
+            builder.field("resident_in_bytes", mem.resident().bytes());
+            builder.field("share", mem.share().toString());
+            builder.field("share_in_bytes", mem.share().bytes());
+            builder.field("total_virtual", mem.totalVirtual().toString());
+            builder.field("total_virtual_in_bytes", mem.totalVirtual().bytes());
+            builder.endObject();
+        }
+        if (fd != null) {
+            builder.startObject("fd");
+            builder.field("total", fd.total());
+            builder.endObject();
+        }
+        builder.endObject();
     }
 
     public static ProcessStats readProcessStats(StreamInput in) throws IOException {
@@ -207,7 +240,7 @@ public class ProcessStats implements Streamable, Serializable {
 
     public static class Cpu implements Streamable, Serializable {
 
-        double percent = -1;
+        short percent = -1;
         long sys = -1;
         long user = -1;
         long total = -1;
@@ -223,14 +256,14 @@ public class ProcessStats implements Streamable, Serializable {
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {
-            percent = in.readDouble();
+            percent = in.readShort();
             sys = in.readLong();
             user = in.readLong();
             total = in.readLong();
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
-            out.writeDouble(percent);
+            out.writeShort(percent);
             out.writeLong(sys);
             out.writeLong(user);
             out.writeLong(total);
@@ -241,8 +274,8 @@ public class ProcessStats implements Streamable, Serializable {
          *
          * <p>Supported Platforms: All.
          */
-        public Percent percent() {
-            return new Percent(percent);
+        public short percent() {
+            return percent;
         }
 
         /**
@@ -250,7 +283,7 @@ public class ProcessStats implements Streamable, Serializable {
          *
          * <p>Supported Platforms: All.
          */
-        public Percent getPercent() {
+        public short getPercent() {
             return percent();
         }
 

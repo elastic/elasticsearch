@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthActio
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfo;
 import org.elasticsearch.action.admin.cluster.node.restart.TransportNodesRestartAction;
 import org.elasticsearch.action.admin.cluster.node.shutdown.TransportNodesShutdownAction;
+import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStats;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.TransportBroadcastPingAction;
 import org.elasticsearch.action.admin.cluster.ping.replication.TransportIndexReplicationPingAction;
 import org.elasticsearch.action.admin.cluster.ping.replication.TransportReplicationPingAction;
@@ -63,6 +64,7 @@ public class TransportActionModule extends AbstractModule {
     @Override protected void configure() {
 
         bind(TransportNodesInfo.class).asEagerSingleton();
+        bind(TransportNodesStats.class).asEagerSingleton();
         bind(TransportNodesShutdownAction.class).asEagerSingleton();
         bind(TransportNodesRestartAction.class).asEagerSingleton();
         bind(TransportClusterStateAction.class).asEagerSingleton();

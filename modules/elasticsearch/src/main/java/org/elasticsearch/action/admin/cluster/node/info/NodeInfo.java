@@ -35,6 +35,8 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
+ * Node information (static, does not change over time).
+ *
  * @author kimchy (shay.banon)
  */
 public class NodeInfo extends NodeOperationResponse {
@@ -65,50 +67,86 @@ public class NodeInfo extends NodeOperationResponse {
         this.network = network;
     }
 
+    /**
+     * The attributes of the node.
+     */
     public ImmutableMap<String, String> attributes() {
         return this.attributes;
     }
 
+    /**
+     * The attributes of the node.
+     */
     public ImmutableMap<String, String> getAttributes() {
         return attributes();
     }
 
+    /**
+     * The settings of the node.
+     */
     public Settings settings() {
         return this.settings;
     }
 
+    /**
+     * The settings of the node.
+     */
     public Settings getSettings() {
         return settings();
     }
 
+    /**
+     * Operating System level information.
+     */
     public OsInfo os() {
         return this.os;
     }
 
+    /**
+     * Operating System level information.
+     */
     public OsInfo getOs() {
         return os();
     }
 
+    /**
+     * Process level information.
+     */
     public ProcessInfo process() {
         return process;
     }
 
+    /**
+     * Process level information.
+     */
     public ProcessInfo getProcess() {
         return process();
     }
 
+    /**
+     * JVM level information.
+     */
     public JvmInfo jvm() {
         return jvm;
     }
 
+    /**
+     * JVM level information.
+     */
     public JvmInfo getJvm() {
         return jvm();
     }
 
+    /**
+     * Network level information.
+     */
     public NetworkInfo network() {
         return network;
     }
 
+    /**
+     * Network level information.
+     */
     public NetworkInfo getNetwork() {
         return network();
     }

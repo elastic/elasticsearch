@@ -17,50 +17,40 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support.nodes;
+package org.elasticsearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.action.support.nodes.NodesOperationResponse;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.io.stream.Streamable;
 
 import java.io.IOException;
 
 /**
- * A base class for node level operations.
- *
  * @author kimchy (shay.banon)
  */
-public abstract class NodeOperationResponse implements Streamable {
+public class NodesStatsResponse extends NodesOperationResponse<NodeStats> {
 
-    private DiscoveryNode node;
-
-    protected NodeOperationResponse() {
+    public NodesStatsResponse() {
     }
 
-    protected NodeOperationResponse(DiscoveryNode node) {
-        this.node = node;
-    }
-
-    /**
-     * The node this information relates to.
-     */
-    public DiscoveryNode node() {
-        return node;
-    }
-
-    /**
-     * The node this information relates to.
-     */
-    public DiscoveryNode getNode() {
-        return node();
+    public NodesStatsResponse(ClusterName clusterName, NodeStats[] nodes) {
+        super(clusterName, nodes);
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
-        node = DiscoveryNode.readNode(in);
+        super.readFrom(in);
+        nodes = new NodeStats[in.readVInt()];
+        for (int i = 0; i < nodes.length; i++) {
+            nodes[i] = NodeStats.readNodeStats(in);
+        }
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
-        node.writeTo(out);
+        super.writeTo(out);
+        out.writeVInt(nodes.length);
+        for (NodeStats node : nodes) {
+            node.writeTo(out);
+        }
     }
 }

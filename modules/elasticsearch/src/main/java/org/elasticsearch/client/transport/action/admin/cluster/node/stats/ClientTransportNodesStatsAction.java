@@ -17,29 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.monitor.jvm;
+package org.elasticsearch.client.transport.action.admin.cluster.node.stats;
 
-import org.elasticsearch.util.component.AbstractComponent;
+import org.elasticsearch.action.TransportActions;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.client.transport.action.support.BaseClientTransportAction;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class JvmService extends AbstractComponent {
+public class ClientTransportNodesStatsAction extends BaseClientTransportAction<NodesStatsRequest, NodesStatsResponse> {
 
-    private final JvmInfo jvmInfo;
-
-    @Inject public JvmService(Settings settings) {
-        super(settings);
-        this.jvmInfo = JvmInfo.jvmInfo();
+    @Inject public ClientTransportNodesStatsAction(Settings settings, TransportService transportService) {
+        super(settings, transportService, NodesStatsResponse.class);
     }
 
-    public JvmInfo info() {
-        return this.jvmInfo;
-    }
-
-    public JvmStats stats() {
-        return JvmStats.jvmStats();
+    @Override protected String action() {
+        return TransportActions.Admin.Cluster.Node.STATS;
     }
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthActio
 import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.node.restart.RestNodesRestartAction;
 import org.elasticsearch.rest.action.admin.cluster.node.shutdown.RestNodesShutdownAction;
+import org.elasticsearch.rest.action.admin.cluster.node.stats.RestNodesStatsAction;
 import org.elasticsearch.rest.action.admin.cluster.ping.broadcast.RestBroadcastPingAction;
 import org.elasticsearch.rest.action.admin.cluster.ping.replication.RestReplicationPingAction;
 import org.elasticsearch.rest.action.admin.cluster.ping.single.RestSinglePingAction;
@@ -58,6 +59,7 @@ public class RestActionModule extends AbstractModule {
         bind(RestMainAction.class).asEagerSingleton();
 
         bind(RestNodesInfoAction.class).asEagerSingleton();
+        bind(RestNodesStatsAction.class).asEagerSingleton();
         bind(RestNodesShutdownAction.class).asEagerSingleton();
         bind(RestNodesRestartAction.class).asEagerSingleton();
         bind(RestClusterStateAction.class).asEagerSingleton();

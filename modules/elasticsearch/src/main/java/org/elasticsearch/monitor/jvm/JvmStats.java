@@ -25,6 +25,8 @@ import org.elasticsearch.util.collect.Iterators;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
+import org.elasticsearch.util.xcontent.ToXContent;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -36,7 +38,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author kimchy (shay.banon)
  */
-public class JvmStats implements Streamable, Serializable {
+public class JvmStats implements Streamable, Serializable, ToXContent {
 
     private static RuntimeMXBean runtimeMXBean;
     private static MemoryMXBean memoryMXBean;
@@ -134,6 +136,51 @@ public class JvmStats implements Streamable, Serializable {
         return gc();
     }
 
+    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject("jvm");
+        builder.field("timestamp", timestamp);
+        builder.field("uptime", uptime().format());
+        builder.field("uptime_in_millis", uptime().millis());
+        if (mem != null) {
+            builder.startObject("mem");
+            builder.field("heap_used", mem.heapUsed().toString());
+            builder.field("heap_used_in_bytes", mem.heapUsed().bytes());
+            builder.field("heap_committed", mem.heapCommitted().toString());
+            builder.field("heap_committed_in_bytes", mem.heapCommitted().bytes());
+
+            builder.field("non_heap_used", mem.nonHeapUsed().toString());
+            builder.field("non_heap_used_in_bytes", mem.nonHeapUsed().bytes());
+            builder.field("non_heap_committed", mem.nonHeapCommitted().toString());
+            builder.field("non_heap_committed_in_bytes", mem.nonHeapCommitted().bytes());
+            builder.endObject();
+        }
+        if (threads != null) {
+            builder.startObject("threads");
+            builder.field("count", threads.count());
+            builder.field("peak_count", threads.peakCount());
+            builder.endObject();
+        }
+        if (gc != null) {
+            builder.startObject("gc");
+            builder.field("collection_count", gc.collectionCount());
+            builder.field("collection_time", gc.collectionTime().format());
+            builder.field("collection_time_in_millis", gc.collectionTime().millis());
+
+            builder.startObject("collectors");
+            for (GarbageCollector collector : gc) {
+                builder.startObject(collector.name());
+                builder.field("collection_count", collector.collectionCount());
+                builder.field("collection_time", collector.collectionTime().format());
+                builder.field("collection_time_in_millis", collector.collectionTime().millis());
+                builder.endObject();
+            }
+            builder.endObject();
+            
+            builder.endObject();
+        }
+        builder.endObject();
+    }
+
     public static JvmStats readJvmStats(StreamInput in) throws IOException {
         JvmStats jvmStats = new JvmStats();
         jvmStats.readFrom(in);
@@ -158,7 +205,7 @@ public class JvmStats implements Streamable, Serializable {
         gc.writeTo(out);
     }
 
-    public static class GarbageCollectors implements Streamable, Serializable, Iterable {
+    public static class GarbageCollectors implements Streamable, Serializable, Iterable<GarbageCollector> {
 
         private GarbageCollector[] collectors;
 
@@ -264,6 +311,22 @@ public class JvmStats implements Streamable, Serializable {
         int peakCount;
 
         Threads() {
+        }
+
+        public int count() {
+            return count;
+        }
+
+        public int getCount() {
+            return count();
+        }
+
+        public int peakCount() {
+            return peakCount;
+        }
+
+        public int getPeakCount() {
+            return peakCount();
         }
 
         public static Threads readThreads(StreamInput in) throws IOException {

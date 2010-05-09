@@ -19,6 +19,7 @@
 
 package org.elasticsearch.util;
 
+import org.joda.time.PeriodType;
 import org.testng.annotations.Test;
 
 import java.util.concurrent.TimeUnit;
@@ -27,7 +28,7 @@ import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TimeValueTests {
 
@@ -47,5 +48,12 @@ public class TimeValueTests {
         assertThat("1.5h", equalTo(new TimeValue(90, TimeUnit.MINUTES).toString()));
         assertThat("1.5d", equalTo(new TimeValue(36, TimeUnit.HOURS).toString()));
         assertThat("1000d", equalTo(new TimeValue(1000, TimeUnit.DAYS).toString()));
+    }
+
+    @Test public void testFormat() {
+        assertThat(new TimeValue(1025, TimeUnit.MILLISECONDS).format(PeriodType.dayTime()), equalTo("1 second and 25 milliseconds"));
+        assertThat(new TimeValue(1, TimeUnit.MINUTES).format(PeriodType.dayTime()), equalTo("1 minute"));
+        assertThat(new TimeValue(65, TimeUnit.MINUTES).format(PeriodType.dayTime()), equalTo("1 hour and 5 minutes"));
+        assertThat(new TimeValue(24 * 600 + 85, TimeUnit.MINUTES).format(PeriodType.dayTime()), equalTo("241 hours and 25 minutes"));
     }
 }

@@ -95,9 +95,9 @@ public class SigarOsProbe extends AbstractComponent implements OsProbe {
         try {
             CpuPerc cpuPerc = sigar.getCpuPerc();
             stats.cpu = new OsStats.Cpu();
-            stats.cpu.sys = cpuPerc.getSys();
-            stats.cpu.user = cpuPerc.getUser();
-            stats.cpu.idle = cpuPerc.getIdle();
+            stats.cpu.sys = (short) (cpuPerc.getSys() * 100);
+            stats.cpu.user = (short) (cpuPerc.getUser() * 100);
+            stats.cpu.idle = (short) (cpuPerc.getIdle() * 100);
         } catch (SigarException e) {
             // ignore
         }
@@ -106,9 +106,9 @@ public class SigarOsProbe extends AbstractComponent implements OsProbe {
             Mem mem = sigar.getMem();
             stats.mem = new OsStats.Mem();
             stats.mem.free = mem.getFree();
-            stats.mem.freePercent = mem.getFreePercent() / 100;
+            stats.mem.freePercent = (short) mem.getFreePercent();
             stats.mem.used = mem.getUsed();
-            stats.mem.usedPercent = mem.getUsedPercent() / 100;
+            stats.mem.usedPercent = (short) mem.getUsedPercent();
             stats.mem.actualFree = mem.getActualFree();
             stats.mem.actualUsed = mem.getActualUsed();
         } catch (SigarException e) {

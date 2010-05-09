@@ -23,6 +23,7 @@ import org.elasticsearch.client.transport.action.admin.cluster.health.ClientTran
 import org.elasticsearch.client.transport.action.admin.cluster.node.info.ClientTransportNodesInfoAction;
 import org.elasticsearch.client.transport.action.admin.cluster.node.restart.ClientTransportNodesRestartAction;
 import org.elasticsearch.client.transport.action.admin.cluster.node.shutdown.ClientTransportNodesShutdownAction;
+import org.elasticsearch.client.transport.action.admin.cluster.node.stats.ClientTransportNodesStatsAction;
 import org.elasticsearch.client.transport.action.admin.cluster.ping.broadcast.ClientTransportBroadcastPingAction;
 import org.elasticsearch.client.transport.action.admin.cluster.ping.replication.ClientTransportReplicationPingAction;
 import org.elasticsearch.client.transport.action.admin.cluster.ping.single.ClientTransportSinglePingAction;
@@ -74,6 +75,7 @@ public class ClientTransportActionModule extends AbstractModule {
         bind(ClientTransportClearIndicesCacheAction.class).asEagerSingleton();
 
         bind(ClientTransportNodesInfoAction.class).asEagerSingleton();
+        bind(ClientTransportNodesStatsAction.class).asEagerSingleton();
         bind(ClientTransportNodesShutdownAction.class).asEagerSingleton();
         bind(ClientTransportNodesRestartAction.class).asEagerSingleton();
         bind(ClientTransportSinglePingAction.class).asEagerSingleton();

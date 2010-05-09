@@ -28,7 +28,7 @@ import org.elasticsearch.util.settings.Settings;
 import java.util.concurrent.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class AbstractThreadPool extends AbstractComponent implements ThreadPool {
 

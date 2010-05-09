@@ -19,15 +19,16 @@
 
 package org.elasticsearch.threadpool.blocking;
 
-import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.threadpool.support.AbstractThreadPool;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.concurrent.DynamicExecutors;
+import org.elasticsearch.util.guice.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 
 import static org.elasticsearch.util.TimeValue.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
@@ -39,13 +40,13 @@ import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
  */
 public class BlockingThreadPool extends AbstractThreadPool {
 
-    private final int min;
-    private final int max;
-    private final int capacity;
-    private final TimeValue waitTime;
-    private final TimeValue keepAlive;
+    final int min;
+    final int max;
+    final int capacity;
+    final TimeValue waitTime;
+    final TimeValue keepAlive;
 
-    private final int scheduledSize;
+    final int scheduledSize;
 
     public BlockingThreadPool() {
         this(EMPTY_SETTINGS);
@@ -67,5 +68,21 @@ public class BlockingThreadPool extends AbstractThreadPool {
 
     @Override public String getType() {
         return "blocking";
+    }
+
+    @Override public int getPoolSize() {
+        return ((ThreadPoolExecutor) executorService).getPoolSize();
+    }
+
+    @Override public int getActiveCount() {
+        return ((ThreadPoolExecutor) executorService).getActiveCount();
+    }
+
+    @Override public int getSchedulerPoolSize() {
+        return ((ThreadPoolExecutor) scheduledExecutorService).getPoolSize();
+    }
+
+    @Override public int getSchedulerActiveCount() {
+        return ((ThreadPoolExecutor) scheduledExecutorService).getActiveCount();
     }
 }

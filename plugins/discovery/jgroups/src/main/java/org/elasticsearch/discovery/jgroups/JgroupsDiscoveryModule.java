@@ -19,7 +19,7 @@
 
 package org.elasticsearch.discovery.jgroups;
 
-import org.elasticsearch.util.guice.inject.AbstractModule;
+import org.elasticsearch.util.inject.AbstractModule;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.util.settings.Settings;
 

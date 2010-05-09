@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.util.guice.inject.BindingAnnotation;
+import org.elasticsearch.util.inject.BindingAnnotation;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;

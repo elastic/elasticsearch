@@ -48,7 +48,7 @@ import org.elasticsearch.rest.action.mlt.RestMoreLikeThisAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.rest.action.terms.RestTermsAction;
-import org.elasticsearch.util.guice.inject.AbstractModule;
+import org.elasticsearch.util.inject.AbstractModule;
 
 /**
  * @author kimchy (Shay Banon)

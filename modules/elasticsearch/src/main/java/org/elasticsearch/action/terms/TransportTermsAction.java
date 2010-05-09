@@ -45,7 +45,7 @@ import org.elasticsearch.util.BoundedTreeSet;
 import org.elasticsearch.util.collect.Maps;
 import org.elasticsearch.util.gnu.trove.TObjectIntHashMap;
 import org.elasticsearch.util.gnu.trove.TObjectIntIterator;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 import javax.annotation.Nullable;

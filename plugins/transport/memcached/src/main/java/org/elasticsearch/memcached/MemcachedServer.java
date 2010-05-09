@@ -19,7 +19,7 @@
 
 package org.elasticsearch.memcached;
 
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfo;
 import org.elasticsearch.rest.RestController;

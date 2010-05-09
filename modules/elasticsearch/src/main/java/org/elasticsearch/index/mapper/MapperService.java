@@ -31,7 +31,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.collect.ImmutableMap;
 import org.elasticsearch.util.collect.UnmodifiableIterator;
 import org.elasticsearch.util.concurrent.ThreadSafe;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.io.Streams;
 import org.elasticsearch.util.settings.Settings;
 

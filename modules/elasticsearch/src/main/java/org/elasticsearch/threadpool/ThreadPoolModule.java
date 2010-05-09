@@ -20,8 +20,8 @@
 package org.elasticsearch.threadpool;
 
 import org.elasticsearch.threadpool.cached.CachedThreadPoolModule;
-import org.elasticsearch.util.guice.inject.AbstractModule;
-import org.elasticsearch.util.guice.inject.Module;
+import org.elasticsearch.util.inject.AbstractModule;
+import org.elasticsearch.util.inject.Module;
 import org.elasticsearch.util.settings.Settings;
 
 import static org.elasticsearch.util.guice.ModulesFactory.*;

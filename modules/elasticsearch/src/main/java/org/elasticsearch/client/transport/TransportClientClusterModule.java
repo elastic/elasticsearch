@@ -22,7 +22,7 @@ package org.elasticsearch.client.transport;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.util.guice.inject.AbstractModule;
+import org.elasticsearch.util.inject.AbstractModule;
 import org.elasticsearch.util.logging.Loggers;
 import org.elasticsearch.util.settings.NoClassSettingsException;
 import org.elasticsearch.util.settings.Settings;

@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.transport.action.support.BaseClientTransportAction;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 /**

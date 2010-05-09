@@ -42,7 +42,7 @@ import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.collect.Maps;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.io.FastByteArrayInputStream;
 import org.elasticsearch.util.io.stream.BytesStreamOutput;
 import org.elasticsearch.util.io.stream.InputStreamStreamInput;

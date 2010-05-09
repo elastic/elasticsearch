@@ -27,8 +27,8 @@ import org.elasticsearch.util.collect.Maps;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.component.CloseableIndexComponent;
 import org.elasticsearch.util.component.LifecycleComponent;
-import org.elasticsearch.util.guice.inject.Inject;
-import org.elasticsearch.util.guice.inject.Module;
+import org.elasticsearch.util.inject.Inject;
+import org.elasticsearch.util.inject.Module;
 import org.elasticsearch.util.io.Streams;
 import org.elasticsearch.util.settings.Settings;
 

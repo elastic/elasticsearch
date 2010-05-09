@@ -50,7 +50,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 /**

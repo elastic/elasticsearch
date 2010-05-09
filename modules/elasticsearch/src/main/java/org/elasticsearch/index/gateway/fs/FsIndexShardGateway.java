@@ -36,7 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.io.stream.DataInputStreamInput;
 import org.elasticsearch.util.io.stream.DataOutputStreamOutput;
 import org.elasticsearch.util.io.stream.StreamOutput;

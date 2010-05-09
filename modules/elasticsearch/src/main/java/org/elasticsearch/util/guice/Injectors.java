@@ -20,9 +20,9 @@
 package org.elasticsearch.util.guice;
 
 import org.elasticsearch.util.collect.Sets;
-import org.elasticsearch.util.guice.inject.*;
-import org.elasticsearch.util.guice.inject.matcher.Matcher;
-import org.elasticsearch.util.guice.inject.name.Names;
+import org.elasticsearch.util.inject.*;
+import org.elasticsearch.util.inject.matcher.Matcher;
+import org.elasticsearch.util.inject.name.Names;
 
 import java.lang.reflect.Type;
 import java.util.Map;
@@ -35,7 +35,7 @@ import java.util.Set;
 public class Injectors {
 
     /**
-     * Returns an instance of the given type with the {@link org.elasticsearch.util.guice.inject.name.Named}
+     * Returns an instance of the given type with the {@link org.elasticsearch.util.inject.name.Named}
      * annotation value.
      * <p/>
      * This method allows you to switch this code

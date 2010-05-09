@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport.local;
 
-import org.elasticsearch.util.guice.inject.AbstractModule;
+import org.elasticsearch.util.inject.AbstractModule;
 import org.elasticsearch.transport.Transport;
 
 /**

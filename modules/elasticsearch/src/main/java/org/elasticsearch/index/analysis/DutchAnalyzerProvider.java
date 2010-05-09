@@ -25,8 +25,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.collect.ImmutableSet;
 import org.elasticsearch.util.collect.Iterators;
-import org.elasticsearch.util.guice.inject.Inject;
-import org.elasticsearch.util.guice.inject.assistedinject.Assisted;
+import org.elasticsearch.util.inject.Inject;
+import org.elasticsearch.util.inject.assistedinject.Assisted;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.Set;

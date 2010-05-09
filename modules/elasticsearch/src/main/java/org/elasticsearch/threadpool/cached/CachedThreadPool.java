@@ -22,7 +22,7 @@ package org.elasticsearch.threadpool.cached;
 import org.elasticsearch.threadpool.support.AbstractThreadPool;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.concurrent.DynamicExecutors;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.concurrent.Executors;

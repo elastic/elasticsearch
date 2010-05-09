@@ -29,7 +29,7 @@ import org.elasticsearch.index.routing.OperationRouting;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.util.component.CloseableIndexComponent;
-import org.elasticsearch.util.guice.inject.Injector;
+import org.elasticsearch.util.inject.Injector;
 
 import java.util.Set;
 

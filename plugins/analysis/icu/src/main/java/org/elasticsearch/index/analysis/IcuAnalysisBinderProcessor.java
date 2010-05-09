@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.util.guice.inject.Scopes;
-import org.elasticsearch.util.guice.inject.assistedinject.FactoryProvider;
-import org.elasticsearch.util.guice.inject.multibindings.MapBinder;
+import org.elasticsearch.util.inject.Scopes;
+import org.elasticsearch.util.inject.assistedinject.FactoryProvider;
+import org.elasticsearch.util.inject.multibindings.MapBinder;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.Map;

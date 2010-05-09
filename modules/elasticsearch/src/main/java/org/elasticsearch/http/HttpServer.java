@@ -25,7 +25,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.path.PathTrie;
 import org.elasticsearch.util.settings.Settings;
 

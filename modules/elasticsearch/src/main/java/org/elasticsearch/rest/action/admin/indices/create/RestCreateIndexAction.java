@@ -28,7 +28,7 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.util.Strings;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.settings.SettingsException;

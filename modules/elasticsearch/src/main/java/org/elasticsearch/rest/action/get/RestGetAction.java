@@ -25,7 +25,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.xcontent.XContentFactory;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;

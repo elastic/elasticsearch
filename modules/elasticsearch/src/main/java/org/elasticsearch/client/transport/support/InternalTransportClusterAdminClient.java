@@ -53,7 +53,7 @@ import org.elasticsearch.client.transport.action.admin.cluster.ping.single.Clien
 import org.elasticsearch.client.transport.action.admin.cluster.state.ClientTransportClusterStateAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 /**

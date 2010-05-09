@@ -21,7 +21,7 @@ package org.elasticsearch.transport.local;
 
 import org.elasticsearch.jmx.MBean;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 
 /**
  * @author kimchy (Shay Banon)

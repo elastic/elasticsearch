@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.query.xcontent.guice;
 
-import org.elasticsearch.util.guice.inject.Inject;
-import org.elasticsearch.util.guice.inject.assistedinject.Assisted;
+import org.elasticsearch.util.inject.Inject;
+import org.elasticsearch.util.inject.assistedinject.Assisted;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;

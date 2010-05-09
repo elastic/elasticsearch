@@ -32,7 +32,7 @@ import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.util.collect.ImmutableMap;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 
 import java.io.IOException;
 import java.util.ArrayList;

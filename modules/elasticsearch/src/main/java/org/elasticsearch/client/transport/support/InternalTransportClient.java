@@ -53,7 +53,7 @@ import org.elasticsearch.client.transport.action.terms.ClientTransportTermsActio
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 /**

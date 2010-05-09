@@ -20,7 +20,7 @@
 package org.elasticsearch.index.cache;
 
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
-import org.elasticsearch.util.guice.inject.AbstractModule;
+import org.elasticsearch.util.inject.AbstractModule;
 import org.elasticsearch.util.settings.Settings;
 
 /**

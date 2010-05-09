@@ -36,7 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.StopWatch;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.component.CloseableIndexComponent;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;

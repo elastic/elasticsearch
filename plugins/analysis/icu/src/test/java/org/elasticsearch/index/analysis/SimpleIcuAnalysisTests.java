@@ -22,8 +22,8 @@ package org.elasticsearch.index.analysis;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.util.guice.inject.Guice;
-import org.elasticsearch.util.guice.inject.Injector;
+import org.elasticsearch.util.inject.Guice;
+import org.elasticsearch.util.inject.Injector;
 import org.hamcrest.MatcherAssert;
 import org.testng.annotations.Test;
 

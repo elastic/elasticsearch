@@ -49,7 +49,7 @@ import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.concurrent.ThreadSafe;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.lucene.Lucene;
 import org.elasticsearch.util.lucene.search.TermFilter;
 import org.elasticsearch.util.settings.Settings;

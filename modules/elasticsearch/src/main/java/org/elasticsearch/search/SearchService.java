@@ -50,7 +50,7 @@ import org.elasticsearch.util.collect.ImmutableMap;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.util.concurrent.ConcurrentMaps;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.timer.Timeout;
 import org.elasticsearch.util.timer.TimerTask;

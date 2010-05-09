@@ -19,7 +19,7 @@
 
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.util.guice.inject.Module;
+import org.elasticsearch.util.inject.Module;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.util.component.LifecycleComponent;
 

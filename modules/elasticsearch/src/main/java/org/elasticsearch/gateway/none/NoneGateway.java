@@ -19,8 +19,8 @@
 
 package org.elasticsearch.gateway.none;
 
-import org.elasticsearch.util.guice.inject.Inject;
-import org.elasticsearch.util.guice.inject.Module;
+import org.elasticsearch.util.inject.Inject;
+import org.elasticsearch.util.inject.Module;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.gateway.Gateway;

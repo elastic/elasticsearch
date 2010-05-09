@@ -22,7 +22,7 @@ package org.elasticsearch.index.store;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.jmx.MBean;
 import org.elasticsearch.jmx.ManagedAttribute;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 
 import java.io.IOException;
 

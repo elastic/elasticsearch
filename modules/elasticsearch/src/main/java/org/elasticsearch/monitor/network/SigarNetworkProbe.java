@@ -21,7 +21,7 @@ package org.elasticsearch.monitor.network;
 
 import org.elasticsearch.monitor.sigar.SigarService;
 import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.guice.inject.Inject;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 import org.hyperic.sigar.NetInterfaceConfig;
 import org.hyperic.sigar.Sigar;

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.jmx;
 
-import org.elasticsearch.util.guice.inject.AbstractModule;
-import org.elasticsearch.util.guice.inject.TypeLiteral;
-import org.elasticsearch.util.guice.inject.matcher.Matchers;
-import org.elasticsearch.util.guice.inject.spi.InjectionListener;
-import org.elasticsearch.util.guice.inject.spi.TypeEncounter;
-import org.elasticsearch.util.guice.inject.spi.TypeListener;
+import org.elasticsearch.util.inject.AbstractModule;
+import org.elasticsearch.util.inject.TypeLiteral;
+import org.elasticsearch.util.inject.matcher.Matchers;
+import org.elasticsearch.util.inject.spi.InjectionListener;
+import org.elasticsearch.util.inject.spi.TypeEncounter;
+import org.elasticsearch.util.inject.spi.TypeListener;
 import org.elasticsearch.jmx.action.GetJmxServiceUrlAction;
 import org.elasticsearch.util.logging.Loggers;
 import org.elasticsearch.util.settings.Settings;

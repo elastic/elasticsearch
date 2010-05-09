@@ -45,7 +45,7 @@ public class VersionedIndexReaderTests {
     private VersionedMap versionedMap;
 
     @BeforeTest public void setUp() throws Exception {
-        versionedMap = new NonBlockingVersionedMap();
+        versionedMap = new ConcurrentVersionedMapLong();
         dir = new RAMDirectory();
         indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
         indexWriter.addDocument(doc().add(field("value", "0")).build());

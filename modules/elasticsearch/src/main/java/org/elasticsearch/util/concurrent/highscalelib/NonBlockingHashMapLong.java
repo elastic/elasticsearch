@@ -24,6 +24,7 @@
 
 package org.elasticsearch.util.concurrent.highscalelib;
 
+import org.elasticsearch.util.concurrent.ConcurrentMapLong;
 import sun.misc.Unsafe;
 
 import java.io.IOException;
@@ -97,7 +98,7 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 public class NonBlockingHashMapLong<TypeV>
         extends AbstractMap<Long, TypeV>
-        implements ConcurrentMap<Long, TypeV>, Serializable {
+        implements ConcurrentMap<Long, TypeV>, Serializable, ConcurrentMapLong<TypeV> {
 
     private static final long serialVersionUID = 1234123412341234124L;
 

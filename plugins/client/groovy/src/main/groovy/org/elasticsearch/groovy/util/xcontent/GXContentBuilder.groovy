@@ -36,7 +36,7 @@ class GXContentBuilder {
 
     static NODE_ELEMENT = "element"
 
-    static int rootResolveStrategy = Closure.OWNER_FIRST; // the default
+    static int rootResolveStrategy = Closure.DELEGATE_FIRST; // the default
 
     def root
 

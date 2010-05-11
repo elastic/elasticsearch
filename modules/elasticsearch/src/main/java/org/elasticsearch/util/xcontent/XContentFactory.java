@@ -156,7 +156,7 @@ public class XContentFactory {
      */
     public static XContentType xContentType(byte[] data, int offset, int length) {
         length = length < GUESS_HEADER_LENGTH ? length : GUESS_HEADER_LENGTH;
-        if (length > 1 && data[0] == 0x00 && data[1] == 0x00) {
+        if (length > 1 && data[offset] == 0x00 && data[offset + 1] == 0x00) {
             return XContentType.XSON;
         }
         for (int i = offset; i < length; i++) {

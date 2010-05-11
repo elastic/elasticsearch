@@ -39,11 +39,11 @@ public enum XContentType {
         if (contentType == null) {
             return null;
         }
-        if ("application/json".equals(contentType)) {
+        if ("application/json".equals(contentType) || "json".equalsIgnoreCase(contentType)) {
             return JSON;
         }
 
-        if ("application/xson".equals(contentType)) {
+        if ("application/xson".equals(contentType) || "xson".equalsIgnoreCase(contentType)) {
             return XSON;
         }
 

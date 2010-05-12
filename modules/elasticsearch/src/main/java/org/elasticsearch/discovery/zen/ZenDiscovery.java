@@ -105,6 +105,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         this.initialPingTimeout = componentSettings.getAsTime("initial_ping_timeout", timeValueSeconds(3));
 
+        logger.debug("Using initial_ping_timeout [{}]", initialPingTimeout);
+
         this.electMaster = new ElectMasterService(settings);
 
         this.masterFD = new MasterFaultDetection(settings, threadPool, transportService, this);

@@ -88,6 +88,8 @@ public class MasterFaultDetection extends AbstractComponent {
         this.pingRetryTimeout = componentSettings.getAsTime("ping_timeout", timeValueSeconds(6));
         this.pingRetryCount = componentSettings.getAsInt("ping_retries", 5);
 
+        logger.debug("Master FD uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
+
         this.connectionListener = new FDConnectionListener();
         transportService.addConnectionListener(connectionListener);
 

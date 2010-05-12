@@ -94,6 +94,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         if (componentSettings.get("hosts") != null) {
             hosts.addAll(Strings.commaDelimitedListToSet(componentSettings.get("hosts")));
         }
+
+        logger.debug("Using hosts ", hosts);
+
         List<DiscoveryNode> nodes = Lists.newArrayList();
         int idCounter = 0;
         for (String host : hosts) {

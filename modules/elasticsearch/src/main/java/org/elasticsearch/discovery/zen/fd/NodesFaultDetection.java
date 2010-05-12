@@ -39,6 +39,8 @@ import static org.elasticsearch.util.TimeValue.*;
 import static org.elasticsearch.util.concurrent.ConcurrentCollections.*;
 
 /**
+ * A fault detection of multiple nodes.
+ *
  * @author kimchy (shay.banon)
  */
 public class NodesFaultDetection extends AbstractComponent {

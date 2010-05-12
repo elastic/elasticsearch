@@ -39,6 +39,8 @@ import static org.elasticsearch.cluster.node.DiscoveryNode.*;
 import static org.elasticsearch.util.TimeValue.*;
 
 /**
+ * A fault detection that pings the master periodically to see if its alive.
+ *
  * @author kimchy (shay.banon)
  */
 public class MasterFaultDetection extends AbstractComponent {
@@ -191,6 +193,8 @@ public class MasterFaultDetection extends AbstractComponent {
                             }
 
                             @Override public void handleResponse(MasterPingResponseResponse response) {
+                                // reset the counter, we got a good result
+                                MasterFaultDetection.this.retryCount = 0;
                                 // check if the master node did not get switched on us...
                                 if (sentToNode.equals(MasterFaultDetection.this.masterNode())) {
                                     if (!response.connectedToMaster) {

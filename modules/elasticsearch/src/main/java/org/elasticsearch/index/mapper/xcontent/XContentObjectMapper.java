@@ -56,8 +56,7 @@ public class XContentObjectMapper implements XContentMapper, XContentIncludeInAl
         public static final FormatDateTimeFormatter[] DATE_TIME_FORMATTERS =
                 new FormatDateTimeFormatter[]{
                         XContentDateFieldMapper.Defaults.DATE_TIME_FORMATTER,
-                        Joda.forPattern("yyyy/MM/dd HH:mm:ss"),
-                        Joda.forPattern("yyyy/MM/dd")
+                        Joda.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd")
                 };
     }
 

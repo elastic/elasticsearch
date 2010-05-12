@@ -19,10 +19,9 @@
 
 package org.elasticsearch.util.joda;
 
+import org.elasticsearch.util.Strings;
 import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
-import org.joda.time.format.ISODateTimeFormat;
+import org.joda.time.format.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -118,9 +117,19 @@ public class Joda {
         } else if ("yearMonthDay".equals(input) || "year_month_day".equals(input)) {
             formatter = ISODateTimeFormat.yearMonthDay();
         } else {
-            formatter = DateTimeFormat.forPattern(input);
+            String[] formats = Strings.split(input, "||");
+            if (formats == null || formats.length == 1) {
+                formatter = DateTimeFormat.forPattern(input);
+            } else {
+                DateTimeParser[] parsers = new DateTimeParser[formats.length];
+                for (int i = 0; i < formats.length; i++) {
+                    parsers[i] = DateTimeFormat.forPattern(formats[i]).withZone(DateTimeZone.UTC).getParser();
+                }
+                DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder()
+                        .append(DateTimeFormat.forPattern(formats[0]).withZone(DateTimeZone.UTC).getPrinter(), parsers);
+                formatter = builder.toFormatter();
+            }
         }
-        formatter.withZone(DateTimeZone.UTC);
-        return new FormatDateTimeFormatter(input, formatter);
+        return new FormatDateTimeFormatter(input, formatter.withZone(DateTimeZone.UTC));
     }
 }

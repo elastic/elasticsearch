@@ -22,6 +22,7 @@ package org.elasticsearch.deps.joda;
 import org.elasticsearch.util.joda.FormatDateTimeFormatter;
 import org.elasticsearch.util.joda.Joda;
 import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 import org.testng.annotations.Test;
@@ -57,6 +58,30 @@ public class SimpleJodaTests {
         assertThat(millis, equalTo(0l));
         millis = formatter.parseMillis("1970-01-01");
         assertThat(millis, equalTo(0l));
+
+        millis = formatter.parseMillis("1970");
+        assertThat(millis, equalTo(0l));
+
+        try {
+            formatter.parseMillis("1970 kuku");
+            assert false : "formatting should fail";
+        } catch (IllegalArgumentException e) {
+            // all is well
+        }
+    }
+
+    @Test public void testIsoVsCustom() {
+        DateTimeFormatter formatter = ISODateTimeFormat.dateOptionalTimeParser().withZone(DateTimeZone.UTC);
+        long millis = formatter.parseMillis("1970-01-01T00:00:00");
+        assertThat(millis, equalTo(0l));
+
+        formatter = DateTimeFormat.forPattern("yyyy/MM/dd HH:mm:ss").withZone(DateTimeZone.UTC);
+        millis = formatter.parseMillis("1970/01/01 00:00:00");
+        assertThat(millis, equalTo(0l));
+
+        FormatDateTimeFormatter formatter2 = Joda.forPattern("yyyy/MM/dd HH:mm:ss");
+        millis = formatter2.parser().parseMillis("1970/01/01 00:00:00");
+        assertThat(millis, equalTo(0l));
     }
 
     @Test public void testWriteAndParse() {
@@ -71,7 +96,23 @@ public class SimpleJodaTests {
         formatter.parser().parseMillis("01/2001");
 
         formatter = Joda.forPattern("yyyy/MM/dd HH:mm:ss");
-        long millis = formatter.parser().parseMillis("2001/01/01 00:00:00");
+        long millis = formatter.parser().parseMillis("1970/01/01 00:00:00");
         formatter.printer().print(millis);
+
+        try {
+            millis = formatter.parser().parseMillis("1970/01/01");
+            assert false;
+        } catch (IllegalArgumentException e) {
+            // it really can't parse this one
+        }
+    }
+
+    @Test public void testMultipleFormats() {
+        FormatDateTimeFormatter formatter = Joda.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd");
+        long millis = formatter.parser().parseMillis("1970/01/01 00:00:00");
+        millis = formatter.parser().parseMillis("1970/01/01");
+//        System.out.println("" + millis);
+
+        System.out.println(formatter.printer().print(millis));
     }
 }

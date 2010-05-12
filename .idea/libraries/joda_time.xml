@@ -4,6 +4,8 @@
       <root url="jar://$GRADLE_REPOSITORY$/joda-time/joda-time/jars/joda-time-1.6.jar!/" />
     </CLASSES>
     <JAVADOC />
-    <SOURCES />
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/../../../opt/joda/1.6/joda-time-1.6-sources.jar!/" />
+    </SOURCES>
   </library>
 </component>

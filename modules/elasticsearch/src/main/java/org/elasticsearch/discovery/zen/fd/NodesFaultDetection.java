@@ -36,7 +36,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodes.*;
 import static org.elasticsearch.util.TimeValue.*;
-import static org.elasticsearch.util.concurrent.ConcurrentMaps.*;
+import static org.elasticsearch.util.concurrent.ConcurrentCollections.*;
 
 /**
  * @author kimchy (shay.banon)

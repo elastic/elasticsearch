@@ -19,8 +19,8 @@
 
 package org.elasticsearch.util.lucene.versioned;
 
+import org.elasticsearch.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.util.concurrent.ConcurrentMapLong;
-import org.elasticsearch.util.concurrent.ConcurrentMaps;
 import org.elasticsearch.util.concurrent.ThreadSafe;
 
 /**
@@ -31,7 +31,7 @@ import org.elasticsearch.util.concurrent.ThreadSafe;
 @ThreadSafe
 public class ConcurrentVersionedMapLong implements VersionedMap {
 
-    private final ConcurrentMapLong<Integer> map = ConcurrentMaps.newConcurrentMapLong();
+    private final ConcurrentMapLong<Integer> map = ConcurrentCollections.newConcurrentMapLong();
 
     @Override public boolean beforeVersion(int key, int versionToCheck) {
         Integer result = map.get(key);

@@ -47,7 +47,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.node.DiscoveryNode.*;
-import static org.elasticsearch.util.concurrent.ConcurrentMaps.*;
+import static org.elasticsearch.util.concurrent.ConcurrentCollections.*;
 import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 

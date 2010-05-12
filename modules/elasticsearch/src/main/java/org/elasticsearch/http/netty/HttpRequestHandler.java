@@ -26,7 +26,7 @@ import org.jboss.netty.handler.codec.http.HttpRequest;
 /**
  * @author kimchy (Shay Banon)
  */
-@ChannelPipelineCoverage(ChannelPipelineCoverage.ALL)
+@ChannelHandler.Sharable
 public class HttpRequestHandler extends SimpleChannelUpstreamHandler {
 
     private final NettyHttpServerTransport serverTransport;

@@ -25,7 +25,7 @@ import org.jboss.netty.channel.*;
 /**
  * @author kimchy (shay.banon)
  */
-@ChannelPipelineCoverage(ChannelPipelineCoverage.ALL)
+@ChannelHandler.Sharable
 public class OpenChannelsHandler implements ChannelUpstreamHandler {
 
     private NonBlockingHashSet<Channel> openChannels = new NonBlockingHashSet<Channel>();

@@ -22,14 +22,12 @@ package org.elasticsearch.memcached.netty;
 import org.elasticsearch.memcached.MemcachedRestRequest;
 import org.elasticsearch.rest.RestController;
 import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ChannelPipelineCoverage;
 import org.jboss.netty.channel.MessageEvent;
 import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
 
 /**
  * @author kimchy (shay.banon)
  */
-@ChannelPipelineCoverage(ChannelPipelineCoverage.ONE)
 public class MemcachedDispatcher extends SimpleChannelUpstreamHandler {
 
     private final RestController restController;

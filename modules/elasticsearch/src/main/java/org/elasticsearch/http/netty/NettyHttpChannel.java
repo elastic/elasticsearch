@@ -154,7 +154,7 @@ public class NettyHttpChannel implements HttpChannel {
             case BAD_REQUEST:
                 return HttpResponseStatus.BAD_REQUEST;
             case UNAUTHORIZED:
-                return HttpResponseStatus.UNUATHORIZED;
+                return HttpResponseStatus.UNAUTHORIZED;
             case PAYMENT_REQUIRED:
                 return HttpResponseStatus.PAYMENT_REQUIRED;
             case FORBIDDEN:

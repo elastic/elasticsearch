@@ -27,7 +27,10 @@ import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.logging.ESLogger;
 import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.*;
+import org.jboss.netty.channel.ChannelHandlerContext;
+import org.jboss.netty.channel.ExceptionEvent;
+import org.jboss.netty.channel.MessageEvent;
+import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
 
 import java.io.IOException;
 
@@ -36,7 +39,6 @@ import static org.elasticsearch.transport.Transport.Helper.*;
 /**
  * @author kimchy (shay.banon)
  */
-@ChannelPipelineCoverage("one")
 public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
     private final ESLogger logger;

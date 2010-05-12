@@ -261,7 +261,7 @@ public class Requests {
     /**
      * Creates a gateway snapshot indices request.
      *
-     * @param indices The indices the gateway wil be performed ont. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @param indices The indices the gateway snapshot will be performed on. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
      * @return The gateway snapshot request
      * @see org.elasticsearch.client.IndicesAdminClient#gatewaySnapshot(org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequest)
      */
@@ -272,7 +272,7 @@ public class Requests {
     /**
      * Creates a clean indices cache request.
      *
-     * @param indices The indices the gateway wil be performed ont. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @param indices The indices the gateway snapshot will be performed on. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
      * @return The request
      */
     public static ClearIndicesCacheRequest clearIndicesCache(String... indices) {

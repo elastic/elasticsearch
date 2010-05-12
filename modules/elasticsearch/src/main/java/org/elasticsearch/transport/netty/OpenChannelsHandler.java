@@ -19,8 +19,10 @@
 
 package org.elasticsearch.transport.netty;
 
-import org.elasticsearch.util.concurrent.highscalelib.NonBlockingHashSet;
+import org.elasticsearch.util.concurrent.ConcurrentCollections;
 import org.jboss.netty.channel.*;
+
+import java.util.Set;
 
 /**
  * @author kimchy (Shay Banon)
@@ -28,7 +30,7 @@ import org.jboss.netty.channel.*;
 @ChannelHandler.Sharable
 public class OpenChannelsHandler implements ChannelUpstreamHandler {
 
-    private NonBlockingHashSet<Channel> openChannels = new NonBlockingHashSet<Channel>();
+    private Set<Channel> openChannels = ConcurrentCollections.newConcurrentSet();
 
     private final ChannelFutureListener remover = new ChannelFutureListener() {
         public void operationComplete(ChannelFuture future) throws Exception {

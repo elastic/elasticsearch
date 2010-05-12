@@ -25,8 +25,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
+import org.elasticsearch.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.util.concurrent.ConcurrentMapLong;
-import org.elasticsearch.util.concurrent.ConcurrentMaps;
 import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.settings.Settings;
@@ -40,7 +40,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.util.concurrent.ConcurrentMaps.*;
+import static org.elasticsearch.util.concurrent.ConcurrentCollections.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 
 /**
@@ -56,7 +56,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     final ConcurrentMap<String, TransportRequestHandler> serverHandlers = newConcurrentMap();
 
-    final ConcurrentMapLong<RequestHolder> clientHandlers = ConcurrentMaps.newConcurrentMapLong();
+    final ConcurrentMapLong<RequestHolder> clientHandlers = ConcurrentCollections.newConcurrentMapLong();
 
     final AtomicLong requestIds = new AtomicLong();
 

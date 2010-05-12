@@ -48,8 +48,8 @@ import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.collect.ImmutableMap;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
+import org.elasticsearch.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.util.concurrent.ConcurrentMapLong;
-import org.elasticsearch.util.concurrent.ConcurrentMaps;
 import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.timer.Timeout;
@@ -90,7 +90,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private final CleanContextOnIndicesLifecycleListener indicesLifecycleListener = new CleanContextOnIndicesLifecycleListener();
 
-    private final ConcurrentMapLong<SearchContext> activeContexts = ConcurrentMaps.newConcurrentMapLong();
+    private final ConcurrentMapLong<SearchContext> activeContexts = ConcurrentCollections.newConcurrentMapLong();
 
     private final ImmutableMap<String, SearchParseElement> elementParsers;
 

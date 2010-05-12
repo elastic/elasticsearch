@@ -19,12 +19,12 @@
 
 package org.elasticsearch.transport.local;
 
-import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.io.ThrowableObjectInputStream;
 import org.elasticsearch.util.io.stream.*;
 import org.elasticsearch.util.settings.ImmutableSettings;
@@ -40,7 +40,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.transport.Transport.Helper.*;
-import static org.elasticsearch.util.concurrent.ConcurrentMaps.*;
+import static org.elasticsearch.util.concurrent.ConcurrentCollections.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -71,7 +71,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override public TransportAddress[] addressesFromString(String address) {
-        return new TransportAddress[] {new LocalTransportAddress(address)};
+        return new TransportAddress[]{new LocalTransportAddress(address)};
     }
 
     @Override public boolean addressSupported(Class<? extends TransportAddress> address) {

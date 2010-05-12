@@ -67,7 +67,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.transport.Transport.Helper.*;
 import static org.elasticsearch.util.TimeValue.*;
 import static org.elasticsearch.util.collect.Lists.*;
-import static org.elasticsearch.util.concurrent.ConcurrentMaps.*;
+import static org.elasticsearch.util.concurrent.ConcurrentCollections.*;
 import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.util.transport.NetworkExceptionHelper.*;

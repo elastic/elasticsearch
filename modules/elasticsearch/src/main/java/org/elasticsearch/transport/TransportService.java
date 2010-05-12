@@ -35,6 +35,8 @@ import org.elasticsearch.util.timer.TimerTask;
 import org.elasticsearch.util.transport.BoundTransportAddress;
 import org.elasticsearch.util.transport.TransportAddress;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -61,6 +63,14 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     final AtomicLong requestIds = new AtomicLong();
 
     final CopyOnWriteArrayList<TransportConnectionListener> connectionListeners = new CopyOnWriteArrayList<TransportConnectionListener>();
+
+    // An LRU (don't really care about concurrency here) that holds the latest timed out requests so if they
+    // do show up, we can print more descriptive information about them
+    final Map<Long, TimeoutInfoHolder> timeoutInfoHandlers = Collections.synchronizedMap(new LinkedHashMap<Long, TimeoutInfoHolder>(100, .75F, true) {
+        protected boolean removeEldestEntry(Map.Entry eldest) {
+            return size() > 100;
+        }
+    });
 
     private boolean throwConnectException = false;
 
@@ -208,6 +218,13 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         @Override public TransportResponseHandler remove(long requestId) {
             RequestHolder holder = clientHandlers.remove(requestId);
             if (holder == null) {
+                // lets see if its in the timeout holder
+                TimeoutInfoHolder timeoutInfoHolder = timeoutInfoHandlers.remove(requestId);
+                if (timeoutInfoHolder != null) {
+                    logger.warn("Transport response handler timed out, action [{}], node [{}]", timeoutInfoHolder.action(), timeoutInfoHolder.node());
+                } else {
+                    logger.warn("Transport response handler not found of id [{}]", requestId);
+                }
                 return null;
             }
             if (holder.timeout() != null) {
@@ -253,8 +270,31 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             }
             RequestHolder holder = clientHandlers.remove(requestId);
             if (holder != null) {
+                // add it to the timeout information holder, in case we are going to get a response later
+                timeoutInfoHandlers.put(requestId, new TimeoutInfoHolder(holder.node(), holder.action()));
                 holder.handler().handleException(new ReceiveTimeoutTransportException(holder.node(), holder.action()));
             }
+        }
+    }
+
+
+    static class TimeoutInfoHolder {
+
+        private final DiscoveryNode node;
+
+        private final String action;
+
+        TimeoutInfoHolder(DiscoveryNode node, String action) {
+            this.node = node;
+            this.action = action;
+        }
+
+        public DiscoveryNode node() {
+            return node;
+        }
+
+        public String action() {
+            return action;
         }
     }
 

@@ -176,13 +176,13 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
                 handleRequest(stream, requestId, sourceTransport);
             } else {
                 final TransportResponseHandler handler = transportServiceAdapter.remove(requestId);
-                if (handler == null) {
-                    throw new ResponseHandlerNotFoundTransportException(requestId);
-                }
-                if (Transport.Helper.isError(status)) {
-                    handlerResponseError(stream, handler);
-                } else {
-                    handleResponse(stream, handler);
+                // ignore if its null, the adapter logs it
+                if (handler != null) {
+                    if (Transport.Helper.isError(status)) {
+                        handlerResponseError(stream, handler);
+                    } else {
+                        handleResponse(stream, handler);
+                    }
                 }
             }
         } catch (Exception e) {

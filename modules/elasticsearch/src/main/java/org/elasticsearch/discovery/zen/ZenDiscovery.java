@@ -390,7 +390,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 @Override public ClusterState execute(ClusterState currentState) {
                     if (currentState.nodes().nodeExists(node.id())) {
                         // no change, the node already exists in the cluster
-                        logger.warn("Received an existing node [{}]", node);
+                        logger.warn("Received a join request for an existing node [{}]", node);
                         return currentState;
                     }
                     return newClusterStateBuilder().state(currentState).nodes(currentState.nodes().newNode(node)).build();

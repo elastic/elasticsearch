@@ -36,7 +36,6 @@ import org.jclouds.compute.options.GetNodesOptions;
 import org.jclouds.domain.Location;
 
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Set;
 
@@ -99,7 +98,7 @@ public class CloudZenPing extends UnicastZenPing {
                 logger.debug("Adding {}/{}", nodeMetadata.getName(), nodeMetadata.getPrivateAddresses());
                 for (InetAddress inetAddress : nodeMetadata.getPrivateAddresses()) {
                     for (int port : new PortsRange(ports).ports()) {
-                        discoNodes.add(new DiscoveryNode("#cloud-" + inetAddress.getHostAddress() + "-" + port, new InetSocketTransportAddress(new InetSocketAddress(inetAddress, port))));
+                        discoNodes.add(new DiscoveryNode("#cloud-" + inetAddress.getHostAddress() + "-" + port, new InetSocketTransportAddress(inetAddress, port)));
                     }
                 }
             }

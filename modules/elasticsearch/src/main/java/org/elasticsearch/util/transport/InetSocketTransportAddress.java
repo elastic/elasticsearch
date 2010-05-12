@@ -23,9 +23,12 @@ import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 
 /**
+ * A transport address used for IP socket address (wraps {@link java.net.InetSocketAddress}).
+ *
  * @author kimchy (shay.banon)
  */
 public class InetSocketTransportAddress implements TransportAddress {
@@ -38,6 +41,10 @@ public class InetSocketTransportAddress implements TransportAddress {
 
     public InetSocketTransportAddress(String hostname, int port) {
         this(new InetSocketAddress(hostname, port));
+    }
+
+    public InetSocketTransportAddress(InetAddress address, int port) {
+        this(new InetSocketAddress(address, port));
     }
 
     public InetSocketTransportAddress(InetSocketAddress address) {

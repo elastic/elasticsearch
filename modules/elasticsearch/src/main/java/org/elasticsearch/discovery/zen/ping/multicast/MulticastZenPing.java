@@ -112,6 +112,8 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         this.bufferSize = componentSettings.getAsInt("buffer_size", 2048);
         this.ttl = componentSettings.getAsInt("ttl", 3);
 
+        logger.debug("Using group [{}], with port [{}], ttl [{}], and address [{}]", group, port, ttl, address);
+
         this.transportService.registerHandler(MulticastPingResponseRequestHandler.ACTION, new MulticastPingResponseRequestHandler());
     }
 

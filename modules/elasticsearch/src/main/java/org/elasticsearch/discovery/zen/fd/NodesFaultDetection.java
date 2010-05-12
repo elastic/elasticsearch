@@ -84,6 +84,8 @@ public class NodesFaultDetection extends AbstractComponent {
         this.pingRetryTimeout = componentSettings.getAsTime("ping_timeout", timeValueSeconds(6));
         this.pingRetryCount = componentSettings.getAsInt("ping_retries", 5);
 
+        logger.debug("Nodes FD uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
+
         transportService.registerHandler(PingRequestHandler.ACTION, new PingRequestHandler());
 
         this.connectionListener = new FDConnectionListener();

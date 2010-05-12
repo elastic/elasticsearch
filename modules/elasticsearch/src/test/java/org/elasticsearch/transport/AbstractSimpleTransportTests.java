@@ -173,8 +173,8 @@ public abstract class AbstractSimpleTransportTests {
         assertThat(latch.await(5, TimeUnit.SECONDS), equalTo(true));
     }
 
-    @Test public void testTimeoutSendException() throws Exception {
-        serviceA.registerHandler("sayHelloTimeout", new BaseTransportRequestHandler<StringMessage>() {
+    @Test public void testTimeoutSendExceptionWithNeverSendingBackResponse() throws Exception {
+        serviceA.registerHandler("sayHelloTimeoutNoResponse", new BaseTransportRequestHandler<StringMessage>() {
             @Override public StringMessage newInstance() {
                 return new StringMessage();
             }
@@ -192,7 +192,7 @@ public abstract class AbstractSimpleTransportTests {
             }
         });
 
-        TransportFuture<StringMessage> res = serviceB.submitRequest(serviceANode, "sayHelloTimeout",
+        TransportFuture<StringMessage> res = serviceB.submitRequest(serviceANode, "sayHelloTimeoutNoResponse",
                 new StringMessage("moshe"), TimeValue.timeValueMillis(100), new BaseTransportResponseHandler<StringMessage>() {
                     @Override public StringMessage newInstance() {
                         return new StringMessage();
@@ -214,7 +214,84 @@ public abstract class AbstractSimpleTransportTests {
             assertThat(e, instanceOf(ReceiveTimeoutTransportException.class));
         }
 
-        serviceA.removeHandler("sayHelloTimeout");
+        serviceA.removeHandler("sayHelloTimeoutNoResponse");
+
+        System.out.println("after ...");
+    }
+
+    @Test public void testTimeoutSendExceptionWithDelayedResponse() throws Exception {
+        serviceA.registerHandler("sayHelloTimeoutDelayedResponse", new BaseTransportRequestHandler<StringMessage>() {
+            @Override public StringMessage newInstance() {
+                return new StringMessage();
+            }
+
+            @Override public void messageReceived(StringMessage request, TransportChannel channel) {
+                System.out.println("got message: " + request.message);
+                TimeValue sleep = TimeValue.parseTimeValue(request.message, null);
+                try {
+                    Thread.sleep(sleep.millis());
+                } catch (InterruptedException e) {
+                    // ignore
+                }
+                try {
+                    channel.sendResponse(new StringMessage("hello " + request.message));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    assertThat(e.getMessage(), false, equalTo(true));
+                }
+            }
+        });
+
+        TransportFuture<StringMessage> res = serviceB.submitRequest(serviceANode, "sayHelloTimeoutDelayedResponse",
+                new StringMessage("300ms"), TimeValue.timeValueMillis(100), new BaseTransportResponseHandler<StringMessage>() {
+                    @Override public StringMessage newInstance() {
+                        return new StringMessage();
+                    }
+
+                    @Override public void handleResponse(StringMessage response) {
+                        assertThat("got response instead of exception", false, equalTo(true));
+                    }
+
+                    @Override public void handleException(RemoteTransportException exp) {
+                        assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
+                    }
+                });
+
+        try {
+            StringMessage message = res.txGet();
+            assertThat("exception should be thrown", false, equalTo(true));
+        } catch (Exception e) {
+            assertThat(e, instanceOf(ReceiveTimeoutTransportException.class));
+        }
+
+        // sleep for 400 millis to make sure we get back the response
+        Thread.sleep(400);
+
+        for (int i = 0; i < 10; i++) {
+            final int counter = i;
+            // now, try and send another request, this times, with a short timeout
+            res = serviceB.submitRequest(serviceANode, "sayHelloTimeoutDelayedResponse",
+                    new StringMessage(counter + "ms"), TimeValue.timeValueMillis(100), new BaseTransportResponseHandler<StringMessage>() {
+                        @Override public StringMessage newInstance() {
+                            return new StringMessage();
+                        }
+
+                        @Override public void handleResponse(StringMessage response) {
+                            System.out.println("got response: " + response.message);
+                            assertThat("hello " + counter + "ms", equalTo(response.message));
+                        }
+
+                        @Override public void handleException(RemoteTransportException exp) {
+                            exp.printStackTrace();
+                            assertThat("got exception instead of a response for " + counter + ": " + exp.getDetailedMessage(), false, equalTo(true));
+                        }
+                    });
+
+            StringMessage message = res.txGet();
+            assertThat(message.message, equalTo("hello " + counter + "ms"));
+        }
+
+        serviceA.removeHandler("sayHelloTimeoutDelayedResponse");
 
         System.out.println("after ...");
     }

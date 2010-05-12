@@ -58,6 +58,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
     @Override public void messageReceived(ChannelHandlerContext ctx, MessageEvent event) throws Exception {
         ChannelBuffer buffer = (ChannelBuffer) event.getMessage();
+
         StreamInput streamIn = new ChannelBufferStreamInput(buffer);
         streamIn = HandlesStreamInput.Cached.cached(streamIn);
 
@@ -66,25 +67,29 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         boolean isRequest = isRequest(status);
 
         if (isRequest) {
-            handleRequest(event, streamIn, requestId);
+            handleRequest(buffer, event, streamIn, requestId);
         } else {
             final TransportResponseHandler handler = transportServiceAdapter.remove(requestId);
-            if (handler == null) {
-                throw new ResponseHandlerNotFoundTransportException(requestId);
-            }
-            if (isError(status)) {
-                handlerResponseError(streamIn, handler);
+            // ignore if its null, the adapter logs it
+            if (handler != null) {
+                if (isError(status)) {
+                    handlerResponseError(buffer, streamIn, handler);
+                } else {
+                    handleResponse(buffer, streamIn, handler);
+                }
             } else {
-                handleResponse(streamIn, handler);
+                // if its null, skip those bytes (remove 8 for the request id, and 1 for the status)
+                buffer.skipBytes(buffer.readableBytes());
             }
         }
     }
 
-    private void handleResponse(StreamInput buffer, final TransportResponseHandler handler) {
+    private void handleResponse(ChannelBuffer channelBuffer, StreamInput buffer, final TransportResponseHandler handler) {
         final Streamable streamable = handler.newInstance();
         try {
             streamable.readFrom(buffer);
         } catch (Exception e) {
+            channelBuffer.skipBytes(channelBuffer.readableBytes());
             handleException(handler, new TransportSerializationException("Failed to deserialize response of type [" + streamable.getClass().getName() + "]", e));
             return;
         }
@@ -108,12 +113,13 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         }
     }
 
-    private void handlerResponseError(StreamInput buffer, final TransportResponseHandler handler) {
+    private void handlerResponseError(ChannelBuffer channelBuffer, StreamInput buffer, final TransportResponseHandler handler) {
         Throwable error;
         try {
             ThrowableObjectInputStream ois = new ThrowableObjectInputStream(buffer);
             error = (Throwable) ois.readObject();
         } catch (Exception e) {
+            channelBuffer.skipBytes(channelBuffer.readableBytes());
             error = new TransportSerializationException("Failed to deserialize exception response from stream", e);
         }
         handleException(handler, error);
@@ -139,7 +145,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         }
     }
 
-    private void handleRequest(MessageEvent event, StreamInput buffer, long requestId) throws IOException {
+    private void handleRequest(ChannelBuffer channelBuffer, MessageEvent event, StreamInput buffer, long requestId) throws IOException {
         final String action = buffer.readUTF();
 
         final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, action, event.getChannel(), requestId);
@@ -170,6 +176,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 handler.messageReceived(streamable, transportChannel);
             }
         } catch (Exception e) {
+            channelBuffer.skipBytes(channelBuffer.readableBytes());
             try {
                 transportChannel.sendResponse(e);
             } catch (IOException e1) {

@@ -38,6 +38,7 @@ allprojects {
         mavenCentral()
         mavenRepo urls: 'https://repository.jboss.org/nexus/content/repositories/releases/'
         mavenRepo urls: 'http://elasticsearch.googlecode.com/svn/maven'
+        mavenRepo urls: 'http://repository.jboss.org/maven2' // (this one has jarjar version 1.0)
     }
 }
 

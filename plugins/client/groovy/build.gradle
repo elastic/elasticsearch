@@ -7,8 +7,6 @@ archivesBaseName = "elasticsearch-client-groovy"
 
 explodedDistDir = new File(distsDir, 'exploded')
 
-manifest.mainAttributes("Implementation-Title": "ElasticSearch::Plugins::Client::Groovy", "Implementation-Version": rootProject.version, "Implementation-Date": buildTimeStr)
-
 configurations.compile.transitive = true
 configurations.testCompile.transitive = true
 
@@ -98,6 +96,14 @@ task javadocJar(type: Jar, dependsOn: javadoc) {
     classifier = 'javadoc'
     from javadoc.destinationDir
 }
+
+jar {
+//    from sourceSets.main.allJava
+    manifest {
+        attributes("Implementation-Title": "ElasticSearch", "Implementation-Version": rootProject.version, "Implementation-Date": buildTimeStr)
+    }
+}
+
 
 artifacts {
     archives sourcesJar

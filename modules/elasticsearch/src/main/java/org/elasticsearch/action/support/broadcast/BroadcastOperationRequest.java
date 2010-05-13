@@ -103,6 +103,10 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
         return operationThreading(BroadcastOperationThreading.fromString(operationThreading, this.operationThreading));
     }
 
+    protected void beforeLocalFork() {
+
+    }
+
     @Override public void writeTo(StreamOutput out) throws IOException {
         if (indices == null) {
             out.writeVInt(0);

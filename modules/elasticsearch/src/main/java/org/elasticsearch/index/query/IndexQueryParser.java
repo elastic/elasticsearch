@@ -32,6 +32,8 @@ public interface IndexQueryParser extends IndexComponent {
 
     Query parse(byte[] source) throws ElasticSearchException;
 
+    Query parse(byte[] source, int offset, int length) throws ElasticSearchException;
+
     Query parse(String source) throws ElasticSearchException;
 
     Query parse(QueryBuilder queryBuilder) throws ElasticSearchException;

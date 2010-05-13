@@ -35,7 +35,11 @@ import java.io.IOException;
 class ShardCountRequest extends BroadcastShardOperationRequest {
 
     private float minScore;
+
     private byte[] querySource;
+    private int querySourceOffset;
+    private int querySourceLength;
+
     private String[] types = Strings.EMPTY_ARRAY;
     @Nullable private String queryParserName;
 
@@ -47,6 +51,8 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
         super(index, shardId);
         this.minScore = request.minScore();
         this.querySource = request.querySource();
+        this.querySourceOffset = request.querySourceOffset();
+        this.querySourceLength = request.querySourceLength();
         this.queryParserName = request.queryParserName();
         this.types = request.types();
     }
@@ -57,6 +63,14 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
 
     public byte[] querySource() {
         return querySource;
+    }
+
+    public int querySourceOffset() {
+        return querySourceOffset;
+    }
+
+    public int querySourceLength() {
+        return querySourceLength;
     }
 
     public String queryParserName() {

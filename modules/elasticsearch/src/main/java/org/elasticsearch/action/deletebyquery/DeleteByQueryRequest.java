@@ -167,7 +167,17 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
      * The query source to execute.
      */
     @Required public DeleteByQueryRequest query(byte[] querySource) {
+        return query(querySource, 0, querySource.length);
+    }
+
+    /**
+     * The query source to execute.
+     */
+    @Required public DeleteByQueryRequest query(byte[] querySource, int offset, int length) {
         this.querySource = querySource;
+        this.querySourceOffset = offset;
+        this.querySourceLength = length;
+        this.querySourceUnsafe = false;
         return this;
     }
 

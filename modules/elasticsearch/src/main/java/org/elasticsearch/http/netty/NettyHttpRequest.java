@@ -25,6 +25,7 @@ import org.elasticsearch.rest.support.RestUtils;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
 import org.jboss.netty.handler.codec.http.HttpMethod;
 
+import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -99,8 +100,10 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
         return data;
     }
 
+    private static Charset UTF8 = Charset.forName("UTF-8");
+
     @Override public String contentAsString() {
-        return request.getContent().toString("UTF-8");
+        return request.getContent().toString(UTF8);
     }
 
     @Override public Set<String> headerNames() {

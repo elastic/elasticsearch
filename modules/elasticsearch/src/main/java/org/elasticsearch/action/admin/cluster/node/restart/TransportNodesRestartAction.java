@@ -52,6 +52,8 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
 
     private final boolean disabled;
 
+    private volatile boolean restartRequested = false;
+
     @Inject public TransportNodesRestartAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                                ClusterService clusterService, TransportService transportService,
                                                Node node) {
@@ -99,6 +101,10 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
         if (disabled) {
             throw new ElasticSearchIllegalStateException("Restart is disabled");
         }
+        if (restartRequested) {
+            return new NodesRestartResponse.NodeRestartResponse(clusterService.state().nodes().localNode());
+        }
+        restartRequested = true;
         logger.info("Restarting in [{}]", request.delay);
         threadPool.schedule(new Runnable() {
             @Override public void run() {
@@ -120,6 +126,8 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
                         node.start();
                     } catch (Exception e) {
                         logger.warn("Failed to restart", e);
+                    } finally {
+                        restartRequested = false;
                     }
                 }
             }

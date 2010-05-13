@@ -68,7 +68,13 @@ public class CloudZenPing extends UnicastZenPing {
     @Override protected List<DiscoveryNode> buildDynamicNodes() {
         List<DiscoveryNode> discoNodes = newArrayList();
         Set<? extends ComputeMetadata> nodes = computeService.listNodes(GetNodesOptions.Builder.withDetails());
-        logger.trace("Processing Nodes {}", nodes);
+        if (logger.isTraceEnabled()) {
+            StringBuilder sb = new StringBuilder("Processing Nodes:");
+            for (ComputeMetadata node : nodes) {
+                sb.append("\n   -> ").append(node);
+            }
+            logger.trace(sb.toString());
+        }
         for (ComputeMetadata node : nodes) {
             NodeMetadata nodeMetadata = (NodeMetadata) node;
             if (tag != null && !nodeMetadata.getTag().equals(tag)) {

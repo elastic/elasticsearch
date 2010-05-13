@@ -96,8 +96,10 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
                 .fields(getFields.toArray(new String[getFields.size()]))
                 .type(request.type())
                 .id(request.id())
-                .listenerThreaded(false);
+                .listenerThreaded(false)
+                .operationThreaded(true);
 
+        request.beforeLocalFork();
         getAction.execute(getRequest, new ActionListener<GetResponse>() {
             @Override public void onResponse(GetResponse getResponse) {
                 if (!getResponse.exists()) {
@@ -172,7 +174,7 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
                         )
                         .listenerThreaded(request.listenerThreaded());
                 if (request.searchSource() != null) {
-                    searchRequest.source(request.searchSource());
+                    searchRequest.source(request.searchSource(), request.searchSourceOffset(), request.searchSourceLength());
                 }
                 searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
                     @Override public void onResponse(SearchResponse response) {

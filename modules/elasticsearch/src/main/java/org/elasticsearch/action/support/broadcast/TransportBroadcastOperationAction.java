@@ -163,6 +163,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             }
             // we have local operations, perform them now
             if (localOperations > 0) {
+                request.beforeLocalFork();
                 if (request.operationThreading() == BroadcastOperationThreading.SINGLE_THREAD) {
                     threadPool.execute(new Runnable() {
                         @Override public void run() {

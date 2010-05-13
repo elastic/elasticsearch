@@ -113,7 +113,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         return translog;
     }
 
-    public ShardRouting routingEntry() {
+    @Override public ShardRouting routingEntry() {
         return this.shardRouting;
     }
 
@@ -193,19 +193,19 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         return this;
     }
 
-    public IndexShardState state() {
+    @Override public IndexShardState state() {
         return state;
     }
 
     /**
      * Returns the estimated flushable memory size. Returns <tt>null</tt> if not available.
      */
-    public SizeValue estimateFlushableMemorySize() throws ElasticSearchException {
+    @Override public SizeValue estimateFlushableMemorySize() throws ElasticSearchException {
         writeAllowed();
         return engine.estimateFlushableMemorySize();
     }
 
-    public ParsedDocument create(String type, String id, byte[] source) throws ElasticSearchException {
+    @Override public ParsedDocument create(String type, String id, byte[] source) throws ElasticSearchException {
         writeAllowed();
         return innerCreate(type, id, source);
     }
@@ -223,7 +223,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         return doc;
     }
 
-    public ParsedDocument index(String type, String id, byte[] source) throws ElasticSearchException {
+    @Override public ParsedDocument index(String type, String id, byte[] source) throws ElasticSearchException {
         writeAllowed();
         return innerIndex(type, id, source);
     }
@@ -241,7 +241,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         return doc;
     }
 
-    public void delete(String type, String id) {
+    @Override public void delete(String type, String id) {
         writeAllowed();
         DocumentMapper docMapper = mapperService.type(type);
         if (docMapper == null) {
@@ -250,7 +250,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         innerDelete(docMapper.uidMapper().term(type, id));
     }
 
-    public void delete(Term uid) {
+    @Override public void delete(Term uid) {
         writeAllowed();
         innerDelete(uid);
     }
@@ -262,7 +262,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         engine.delete(new Engine.Delete(uid));
     }
 
-    public void deleteByQuery(byte[] querySource, @Nullable String queryParserName, String... types) throws ElasticSearchException {
+    @Override public void deleteByQuery(byte[] querySource, @Nullable String queryParserName, String... types) throws ElasticSearchException {
         writeAllowed();
         if (types == null) {
             types = Strings.EMPTY_ARRAY;
@@ -288,7 +288,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         engine.delete(new Engine.DeleteByQuery(query, querySource, queryParserName, types));
     }
 
-    public byte[] get(String type, String id) throws ElasticSearchException {
+    @Override public byte[] get(String type, String id) throws ElasticSearchException {
         readAllowed();
         DocumentMapper docMapper = mapperService.type(type);
         if (docMapper == null) {
@@ -315,7 +315,12 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
     }
 
-    public long count(float minScore, byte[] querySource, @Nullable String queryParserName, String... types) throws ElasticSearchException {
+    @Override public long count(float minScore, byte[] querySource, @Nullable String queryParserName, String... types) throws ElasticSearchException {
+        return count(minScore, querySource, 0, querySource.length, queryParserName, types);
+    }
+
+    @Override public long count(float minScore, byte[] querySource, int querySourceOffset, int querySourceLength,
+                                @Nullable String queryParserName, String... types) throws ElasticSearchException {
         readAllowed();
         IndexQueryParser queryParser = queryParserService.defaultIndexQueryParser();
         if (queryParserName != null) {
@@ -343,7 +348,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
     }
 
-    public void refresh(Engine.Refresh refresh) throws ElasticSearchException {
+    @Override public void refresh(Engine.Refresh refresh) throws ElasticSearchException {
         writeAllowed();
         if (logger.isTraceEnabled()) {
             logger.trace("Refresh with {}", refresh);
@@ -351,7 +356,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         engine.refresh(refresh);
     }
 
-    public void flush(Engine.Flush flush) throws ElasticSearchException {
+    @Override public void flush(Engine.Flush flush) throws ElasticSearchException {
         writeAllowed();
         if (logger.isTraceEnabled()) {
             logger.trace("Flush");
@@ -367,22 +372,22 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         engine.optimize(optimize);
     }
 
-    public <T> T snapshot(Engine.SnapshotHandler<T> snapshotHandler) throws EngineException {
+    @Override public <T> T snapshot(Engine.SnapshotHandler<T> snapshotHandler) throws EngineException {
         readAllowed();
         return engine.snapshot(snapshotHandler);
     }
 
-    public void recover(Engine.RecoveryHandler recoveryHandler) throws EngineException {
+    @Override public void recover(Engine.RecoveryHandler recoveryHandler) throws EngineException {
         writeAllowed();
         engine.recover(recoveryHandler);
     }
 
-    public Engine.Searcher searcher() {
+    @Override public Engine.Searcher searcher() {
         readAllowed();
         return engine.searcher();
     }
 
-    public void close() {
+    @Override public void close() {
         synchronized (mutex) {
             if (state != IndexShardState.CLOSED) {
                 if (refreshScheduledFuture != null) {

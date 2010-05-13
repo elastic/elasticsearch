@@ -138,9 +138,13 @@ public class XContentIndexQueryParser extends AbstractIndexComponent implements 
     }
 
     @Override public Query parse(byte[] source) throws ElasticSearchException {
+        return parse(source, 0, source.length);
+    }
+
+    @Override public Query parse(byte[] source, int offset, int length) throws ElasticSearchException {
         XContentParser parser = null;
         try {
-            parser = XContentFactory.xContent(source).createParser(source);
+            parser = XContentFactory.xContent(source, offset, length).createParser(source, offset, length);
             return parse(cache.get().get(), parser);
         } catch (QueryParsingException e) {
             throw e;

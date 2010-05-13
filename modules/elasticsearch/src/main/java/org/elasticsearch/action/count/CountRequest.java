@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.count;
 
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.Actions;
@@ -35,8 +36,8 @@ import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.xcontent.XContentFactory;
 import org.elasticsearch.util.xcontent.XContentType;
 import org.elasticsearch.util.xcontent.builder.BinaryXContentBuilder;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
@@ -60,11 +61,14 @@ public class CountRequest extends BroadcastOperationRequest {
     public static final float DEFAULT_MIN_SCORE = -1f;
 
     private float minScore = DEFAULT_MIN_SCORE;
-    @Required private byte[] querySource;
-    private String[] types = Strings.EMPTY_ARRAY;
-    @Nullable private String queryParserName;
 
-    private transient QueryBuilder queryBuilder = null;
+    private byte[] querySource;
+    private int querySourceOffset;
+    private int querySourceLength;
+    private boolean querySourceUnsafe;
+
+    private String[] types = Strings.EMPTY_ARRAY;
+    private String queryParserName;
 
     CountRequest() {
     }
@@ -79,7 +83,7 @@ public class CountRequest extends BroadcastOperationRequest {
 
     @Override public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (querySource == null && queryBuilder == null) {
+        if (querySource == null) {
             validationException = Actions.addValidationError("query is missing", validationException);
         }
         return validationException;
@@ -91,6 +95,14 @@ public class CountRequest extends BroadcastOperationRequest {
     @Override public CountRequest operationThreading(BroadcastOperationThreading operationThreading) {
         super.operationThreading(operationThreading);
         return this;
+    }
+
+    @Override protected void beforeLocalFork() {
+        if (querySourceUnsafe) {
+            querySource = Arrays.copyOfRange(querySource, querySourceOffset, querySourceLength);
+            querySourceOffset = 0;
+            querySourceUnsafe = false;
+        }
     }
 
     /**
@@ -134,11 +146,15 @@ public class CountRequest extends BroadcastOperationRequest {
      * The query source to execute.
      */
     byte[] querySource() {
-        if (querySource == null && queryBuilder != null) {
-            // did not get serialized...
-            querySource = queryBuilder.buildAsBytes(contentType);
-        }
         return querySource;
+    }
+
+    int querySourceOffset() {
+        return querySourceOffset;
+    }
+
+    int querySourceLength() {
+        return querySourceLength;
     }
 
     /**
@@ -147,7 +163,11 @@ public class CountRequest extends BroadcastOperationRequest {
      * @see org.elasticsearch.index.query.xcontent.QueryBuilders
      */
     @Required public CountRequest query(QueryBuilder queryBuilder) {
-        this.queryBuilder = queryBuilder;
+        FastByteArrayOutputStream bos = queryBuilder.buildAsUnsafeBytes();
+        this.querySource = bos.unsafeByteArray();
+        this.querySourceOffset = 0;
+        this.querySourceLength = bos.size();
+        this.querySourceUnsafe = true;
         return this;
     }
 
@@ -158,11 +178,22 @@ public class CountRequest extends BroadcastOperationRequest {
         try {
             BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
             builder.map(querySource);
-            this.querySource = builder.copiedBytes();
+            return query(builder);
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + querySource + "]", e);
         }
-        return this;
+    }
+
+    @Required public CountRequest query(XContentBuilder builder) {
+        try {
+            this.querySource = builder.unsafeBytes();
+            this.querySourceOffset = 0;
+            this.querySourceLength = builder.unsafeBytesLength();
+            this.querySourceUnsafe = true;
+            return this;
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate [" + builder + "]", e);
+        }
     }
 
     /**
@@ -170,14 +201,29 @@ public class CountRequest extends BroadcastOperationRequest {
      * or {@link #query(org.elasticsearch.index.query.QueryBuilder)}.
      */
     @Required public CountRequest query(String querySource) {
-        return query(Unicode.fromStringAsBytes(querySource));
+        UnicodeUtil.UTF8Result result = Unicode.fromStringAsUtf8(querySource);
+        this.querySource = result.result;
+        this.querySourceOffset = 0;
+        this.querySourceLength = result.length;
+        this.querySourceUnsafe = true;
+        return this;
     }
 
     /**
      * The query source to execute.
      */
     @Required public CountRequest query(byte[] querySource) {
+        return query(querySource, 0, querySource.length);
+    }
+
+    /**
+     * The query source to execute.
+     */
+    @Required public CountRequest query(byte[] querySource, int offset, int length) {
         this.querySource = querySource;
+        this.querySourceOffset = offset;
+        this.querySourceLength = length;
+        this.querySourceUnsafe = false;
         return this;
     }
 
@@ -214,8 +260,13 @@ public class CountRequest extends BroadcastOperationRequest {
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         minScore = in.readFloat();
-        querySource = new byte[in.readVInt()];
-        in.readFully(querySource());
+
+        querySourceUnsafe = false;
+        querySourceOffset = 0;
+        querySourceLength = in.readVInt();
+        querySource = new byte[querySourceLength];
+        in.readFully(querySource);
+
         if (in.readBoolean()) {
             queryParserName = in.readUTF();
         }
@@ -231,14 +282,10 @@ public class CountRequest extends BroadcastOperationRequest {
     @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeFloat(minScore);
-        if (querySource != null) {
-            out.writeVInt(querySource.length);
-            out.writeBytes(querySource);
-        } else {
-            FastByteArrayOutputStream os = queryBuilder.buildAsUnsafeBytes(contentType);
-            out.writeVInt(os.size());
-            out.writeBytes(os.unsafeByteArray(), 0, os.size());
-        }
+
+        out.writeVInt(querySourceLength);
+        out.writeBytes(querySource, querySourceOffset, querySourceLength);
+
         if (queryParserName == null) {
             out.writeBoolean(false);
         } else {

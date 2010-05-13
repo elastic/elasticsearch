@@ -67,7 +67,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
     }
 
     @Override protected ShardCountRequest newShardRequest(ShardRouting shard, CountRequest request) {
-        return new ShardCountRequest(shard.index(), shard.id(), request.querySource(), request.minScore(), request.queryParserName(), request.types());
+        return new ShardCountRequest(shard.index(), shard.id(), request);
     }
 
     @Override protected ShardCountResponse newShardResponse() {

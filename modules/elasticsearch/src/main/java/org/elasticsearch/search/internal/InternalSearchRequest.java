@@ -66,20 +66,23 @@ public class InternalSearchRequest implements Streamable {
     private String[] types = Strings.EMPTY_ARRAY;
 
     private byte[] source;
+    private int sourceOffset;
+    private int sourceLength;
 
     private byte[] extraSource;
+    private int extraSourceOffset;
+    private int extraSourceLength;
 
     public InternalSearchRequest() {
     }
 
-    public InternalSearchRequest(ShardRouting shardRouting, byte[] source) {
-        this(shardRouting.index(), shardRouting.id(), source);
+    public InternalSearchRequest(ShardRouting shardRouting) {
+        this(shardRouting.index(), shardRouting.id());
     }
 
-    public InternalSearchRequest(String index, int shardId, byte[] source) {
+    public InternalSearchRequest(String index, int shardId) {
         this.index = index;
         this.shardId = shardId;
-        this.source = source;
     }
 
     public String index() {
@@ -94,12 +97,41 @@ public class InternalSearchRequest implements Streamable {
         return this.source;
     }
 
+    public int sourceOffset() {
+        return sourceOffset;
+    }
+
+    public int sourceLength() {
+        return sourceLength;
+    }
+
     public byte[] extraSource() {
         return this.extraSource;
     }
 
-    public InternalSearchRequest extraSource(byte[] extraSource) {
+    public int extraSourceOffset() {
+        return extraSourceOffset;
+    }
+
+    public int extraSourceLength() {
+        return extraSourceLength;
+    }
+
+    public InternalSearchRequest source(byte[] source) {
+        return source(source, 0, source.length);
+    }
+
+    public InternalSearchRequest source(byte[] source, int offset, int length) {
+        this.source = source;
+        this.sourceOffset = offset;
+        this.sourceLength = length;
+        return this;
+    }
+
+    public InternalSearchRequest extraSource(byte[] extraSource, int offset, int length) {
         this.extraSource = extraSource;
+        this.extraSourceOffset = offset;
+        this.extraSourceLength = length;
         return this;
     }
 
@@ -138,18 +170,20 @@ public class InternalSearchRequest implements Streamable {
         if (in.readBoolean()) {
             timeout = readTimeValue(in);
         }
-        int size = in.readVInt();
-        if (size == 0) {
+        sourceOffset = 0;
+        sourceLength = in.readVInt();
+        if (sourceLength == 0) {
             source = Bytes.EMPTY_ARRAY;
         } else {
-            source = new byte[size];
+            source = new byte[sourceLength];
             in.readFully(source);
         }
-        size = in.readVInt();
-        if (size == 0) {
+        extraSourceOffset = 0;
+        extraSourceLength = in.readVInt();
+        if (extraSourceLength == 0) {
             extraSource = Bytes.EMPTY_ARRAY;
         } else {
-            extraSource = new byte[size];
+            extraSource = new byte[extraSourceLength];
             in.readFully(extraSource);
         }
         int typesSize = in.readVInt();
@@ -179,14 +213,14 @@ public class InternalSearchRequest implements Streamable {
         if (source == null) {
             out.writeVInt(0);
         } else {
-            out.writeVInt(source.length);
-            out.writeBytes(source);
+            out.writeVInt(sourceLength);
+            out.writeBytes(source, sourceOffset, sourceLength);
         }
         if (extraSource == null) {
             out.writeVInt(0);
         } else {
-            out.writeVInt(extraSource.length);
-            out.writeBytes(extraSource);
+            out.writeVInt(extraSourceLength);
+            out.writeBytes(extraSource, extraSourceOffset, extraSourceLength);
         }
         out.writeVInt(types.length);
         for (String type : types) {

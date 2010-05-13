@@ -132,6 +132,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             // we have local operations, perform them now
             if (localOperations > 0) {
                 if (request.operationThreading() == SearchOperationThreading.SINGLE_THREAD) {
+                    request.beforeLocalFork();
                     threadPool.execute(new Runnable() {
                         @Override public void run() {
                             for (final ShardsIterator shardIt : shardsIts) {
@@ -146,6 +147,9 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                     });
                 } else {
                     boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
+                    if (localAsync) {
+                        request.beforeLocalFork();
+                    }
                     for (final ShardsIterator shardIt : shardsIts) {
                         final ShardRouting shard = shardIt.reset().nextActiveOrNull();
                         if (shard != null) {

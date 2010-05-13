@@ -194,7 +194,7 @@ public class SingleInstanceEmbeddedSearchTests extends AbstractNodesTests {
 
 
     private InternalSearchRequest searchRequest(SearchSourceBuilder builder) {
-        return new InternalSearchRequest("test", 0, builder.buildAsBytes());
+        return new InternalSearchRequest("test", 0).source(builder.buildAsBytes());
     }
 
     private void index(Client client, String id, String nameValue, int age) {

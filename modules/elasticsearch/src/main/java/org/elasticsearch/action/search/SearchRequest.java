@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequest;
@@ -36,8 +37,10 @@ import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.xcontent.XContentFactory;
 import org.elasticsearch.util.xcontent.XContentType;
 import org.elasticsearch.util.xcontent.builder.BinaryXContentBuilder;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 
 import static org.elasticsearch.action.Actions.*;
@@ -69,8 +72,14 @@ public class SearchRequest implements ActionRequest {
     private String queryHint;
 
     private byte[] source;
+    private int sourceOffset;
+    private int sourceLength;
+    private boolean sourceUnsafe;
 
     private byte[] extraSource;
+    private int extraSourceOffset;
+    private int extraSourceLength;
+    private boolean extraSourceUnsafe;
 
     private Scroll scroll;
 
@@ -80,9 +89,6 @@ public class SearchRequest implements ActionRequest {
 
     private boolean listenerThreaded = false;
     private SearchOperationThreading operationThreading = SearchOperationThreading.SINGLE_THREAD;
-
-    private transient SearchSourceBuilder sourceBuilder;
-    private transient SearchSourceBuilder extraSourceBuilder;
 
     SearchRequest() {
     }
@@ -105,10 +111,26 @@ public class SearchRequest implements ActionRequest {
 
     @Override public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (source == null && sourceBuilder == null && extraSource == null && extraSourceBuilder == null) {
+        if (source == null && extraSource == null) {
             validationException = addValidationError("search source is missing", validationException);
         }
         return validationException;
+    }
+
+    /**
+     * Internal.
+     */
+    public void beforeLocalFork() {
+        if (source != null && sourceUnsafe) {
+            source = Arrays.copyOfRange(source, sourceOffset, sourceLength);
+            sourceOffset = 0;
+            sourceUnsafe = false;
+        }
+        if (extraSource != null && extraSourceUnsafe) {
+            extraSource = Arrays.copyOfRange(extraSource, extraSourceOffset, extraSourceLength);
+            extraSourceOffset = 0;
+            extraSourceUnsafe = false;
+        }
     }
 
     /**
@@ -195,7 +217,11 @@ public class SearchRequest implements ActionRequest {
      * The source of the search request.
      */
     public SearchRequest source(SearchSourceBuilder sourceBuilder) {
-        this.sourceBuilder = sourceBuilder;
+        FastByteArrayOutputStream bos = sourceBuilder.buildAsUnsafeBytes();
+        this.source = bos.unsafeByteArray();
+        this.sourceOffset = 0;
+        this.sourceLength = bos.size();
+        this.sourceUnsafe = true;
         return this;
     }
 
@@ -204,7 +230,12 @@ public class SearchRequest implements ActionRequest {
      * {@link #source(org.elasticsearch.search.builder.SearchSourceBuilder)}.
      */
     public SearchRequest source(String source) {
-        return source(Unicode.fromStringAsBytes(source));
+        UnicodeUtil.UTF8Result result = Unicode.fromStringAsUtf8(source);
+        this.source = result.result;
+        this.sourceOffset = 0;
+        this.sourceLength = result.length;
+        this.sourceUnsafe = true;
+        return this;
     }
 
     /**
@@ -214,18 +245,39 @@ public class SearchRequest implements ActionRequest {
         try {
             BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
             builder.map(source);
-            this.source = builder.copiedBytes();
+            return source(builder);
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
         }
-        return this;
+    }
+
+    public SearchRequest source(XContentBuilder builder) {
+        try {
+            this.source = builder.unsafeBytes();
+            this.sourceOffset = 0;
+            this.sourceLength = builder.unsafeBytesLength();
+            this.sourceUnsafe = true;
+            return this;
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate [" + builder + "]", e);
+        }
     }
 
     /**
      * The search source to execute.
      */
     public SearchRequest source(byte[] source) {
+        return source(source, 0, source.length);
+    }
+
+    /**
+     * The search source to execute.
+     */
+    public SearchRequest source(byte[] source, int offset, int length) {
         this.source = source;
+        this.sourceOffset = offset;
+        this.sourceLength = length;
+        this.sourceUnsafe = false;
         return this;
     }
 
@@ -233,17 +285,26 @@ public class SearchRequest implements ActionRequest {
      * The search source to execute.
      */
     public byte[] source() {
-        if (source == null && sourceBuilder != null) {
-            source = sourceBuilder.buildAsBytes(contentType);
-        }
         return source;
+    }
+
+    public int sourceOffset() {
+        return sourceOffset;
+    }
+
+    public int sourceLength() {
+        return sourceLength;
     }
 
     /**
      * Allows to provide additional source that will be used as well.
      */
     public SearchRequest extraSource(SearchSourceBuilder sourceBuilder) {
-        this.extraSourceBuilder = sourceBuilder;
+        FastByteArrayOutputStream bos = sourceBuilder.buildAsUnsafeBytes();
+        this.extraSource = bos.unsafeByteArray();
+        this.extraSourceOffset = 0;
+        this.extraSourceLength = bos.size();
+        this.extraSourceUnsafe = true;
         return this;
     }
 
@@ -251,25 +312,51 @@ public class SearchRequest implements ActionRequest {
         try {
             BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
             builder.map(extraSource);
-            this.extraSource = builder.copiedBytes();
+            return extraSource(builder);
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
         }
-        return this;
+    }
+
+    public SearchRequest extraSource(XContentBuilder builder) {
+        try {
+            this.extraSource = builder.unsafeBytes();
+            this.extraSourceOffset = 0;
+            this.extraSourceLength = builder.unsafeBytesLength();
+            this.extraSourceUnsafe = true;
+            return this;
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate [" + builder + "]", e);
+        }
     }
 
     /**
      * Allows to provide additional source that will use used as well.
      */
     public SearchRequest extraSource(String source) {
-        return extraSource(Unicode.fromStringAsBytes(source));
+        UnicodeUtil.UTF8Result result = Unicode.fromStringAsUtf8(source);
+        this.extraSource = result.result;
+        this.extraSourceOffset = 0;
+        this.extraSourceLength = result.length;
+        this.extraSourceUnsafe = true;
+        return this;
     }
 
     /**
      * Allows to provide additional source that will be used as well.
      */
     public SearchRequest extraSource(byte[] source) {
+        return extraSource(source, 0, source.length);
+    }
+
+    /**
+     * Allows to provide additional source that will be used as well.
+     */
+    public SearchRequest extraSource(byte[] source, int offset, int length) {
         this.extraSource = source;
+        this.extraSourceOffset = offset;
+        this.extraSourceLength = length;
+        this.extraSourceUnsafe = false;
         return this;
     }
 
@@ -277,10 +364,15 @@ public class SearchRequest implements ActionRequest {
      * Additional search source to execute.
      */
     public byte[] extraSource() {
-        if (extraSource == null && extraSourceBuilder != null) {
-            extraSource = extraSourceBuilder.buildAsBytes(contentType);
-        }
         return this.extraSource;
+    }
+
+    public int extraSourceOffset() {
+        return extraSourceOffset;
+    }
+
+    public int extraSourceLength() {
+        return extraSourceLength;
     }
 
     /**
@@ -368,18 +460,24 @@ public class SearchRequest implements ActionRequest {
         if (in.readBoolean()) {
             timeout = readTimeValue(in);
         }
-        int size = in.readVInt();
-        if (size == 0) {
+
+        sourceUnsafe = false;
+        sourceOffset = 0;
+        sourceLength = in.readVInt();
+        if (sourceLength == 0) {
             source = Bytes.EMPTY_ARRAY;
         } else {
-            source = new byte[size];
+            source = new byte[sourceLength];
             in.readFully(source);
         }
-        size = in.readVInt();
-        if (size == 0) {
+
+        extraSourceUnsafe = false;
+        extraSourceOffset = 0;
+        extraSourceLength = in.readVInt();
+        if (extraSourceLength == 0) {
             extraSource = Bytes.EMPTY_ARRAY;
         } else {
-            extraSource = new byte[size];
+            extraSource = new byte[extraSourceLength];
             in.readFully(extraSource);
         }
 
@@ -420,29 +518,17 @@ public class SearchRequest implements ActionRequest {
             out.writeBoolean(true);
             timeout.writeTo(out);
         }
-        if (source == null && sourceBuilder == null) {
+        if (source == null) {
             out.writeVInt(0);
         } else {
-            if (source != null) {
-                out.writeVInt(source.length);
-                out.writeBytes(source);
-            } else {
-                FastByteArrayOutputStream os = sourceBuilder.buildAsUnsafeBytes(contentType);
-                out.writeVInt(os.size());
-                out.writeBytes(os.unsafeByteArray(), 0, os.size());
-            }
+            out.writeVInt(sourceLength);
+            out.writeBytes(source, sourceOffset, sourceLength);
         }
-        if (extraSource == null && extraSourceBuilder == null) {
+        if (extraSource == null) {
             out.writeVInt(0);
         } else {
-            if (extraSource != null) {
-                out.writeVInt(extraSource.length);
-                out.writeBytes(extraSource);
-            } else {
-                FastByteArrayOutputStream os = extraSourceBuilder.buildAsUnsafeBytes(contentType);
-                out.writeVInt(os.size());
-                out.writeBytes(os.unsafeByteArray(), 0, os.size());
-            }
+            out.writeVInt(extraSourceLength);
+            out.writeBytes(extraSource, extraSourceOffset, extraSourceLength);
         }
         out.writeVInt(types.length);
         for (String type : types) {

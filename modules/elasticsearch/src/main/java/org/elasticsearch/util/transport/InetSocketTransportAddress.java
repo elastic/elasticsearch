@@ -70,6 +70,7 @@ public class InetSocketTransportAddress implements TransportAddress {
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
+        // prefer host address if possible, better than hostname (for example, on rackspace cloud)
         if (address.getAddress() != null) {
             if (address.getAddress().getHostAddress() != null) {
                 out.writeUTF(address.getAddress().getHostAddress());

@@ -56,7 +56,8 @@ public class RestIndexAction extends BaseRestHandler {
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
-        IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"), request.contentAsBytes());
+        IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"));
+        indexRequest.source(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
         String sOpType = request.param("op_type");
         if (sOpType != null) {

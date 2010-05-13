@@ -50,7 +50,11 @@ public interface RestRequest extends ToXContent.Params {
 
     boolean hasContent();
 
-    byte[] contentAsBytes();
+    byte[] contentByteArray();
+
+    int contentByteArrayOffset();
+
+    int contentLength();
 
     String contentAsString();
 

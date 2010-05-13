@@ -64,7 +64,16 @@ public class RestCountAction extends BaseRestHandler {
                 operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
             }
             countRequest.operationThreading(operationThreading);
-            countRequest.query(RestActions.parseQuerySource(request));
+            if (request.hasContent()) {
+                countRequest.query(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
+            } else {
+                String source = request.param("source");
+                if (source != null) {
+                    countRequest.query(source);
+                } else {
+                    countRequest.query(RestActions.parseQuerySource(request));
+                }
+            }
             countRequest.queryParserName(request.param("query_parser_name"));
             countRequest.queryHint(request.param("query_hint"));
             countRequest.minScore(request.paramAsFloat("min_score", DEFAULT_MIN_SCORE));

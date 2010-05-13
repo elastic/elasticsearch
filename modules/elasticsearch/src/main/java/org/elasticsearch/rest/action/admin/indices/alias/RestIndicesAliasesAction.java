@@ -57,8 +57,8 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
             //         { remove : { index : "test1", alias : "alias1" } }
             //     ]
             // }
-            byte[] content = request.contentAsBytes();
-            XContentParser parser = XContentFactory.xContent(content).createParser(content);
+            XContentParser parser = XContentFactory.xContent(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength())
+                    .createParser(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
             XContentParser.Token token = parser.nextToken();
             if (token == null) {
                 throw new ElasticSearchIllegalArgumentException("No action is specified");

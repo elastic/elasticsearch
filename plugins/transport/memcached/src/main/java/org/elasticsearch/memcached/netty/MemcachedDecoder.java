@@ -180,10 +180,6 @@ public class MemcachedDecoder extends FrameDecoder {
         return null;
     }
 
-    private void readTextHeader(ChannelHandlerContext ctx, Channel channel, ChannelBuffer buffer) throws Exception {
-
-    }
-
     @Override public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
         this.request = null;
         sb.setLength(0);

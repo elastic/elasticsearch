@@ -131,11 +131,10 @@ public class IndexRequest extends ShardReplicationOperationRequest {
      * @param id     The id of document
      * @param source The JSON source document
      */
-    public IndexRequest(String index, String type, String id, byte[] source) {
+    public IndexRequest(String index, String type, String id) {
         this.index = index;
         this.type = type;
         this.id = id;
-        this.source = source;
     }
 
     @Override public ActionRequestValidationException validate() {

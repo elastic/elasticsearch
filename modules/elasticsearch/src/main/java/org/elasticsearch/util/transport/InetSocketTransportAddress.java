@@ -70,7 +70,15 @@ public class InetSocketTransportAddress implements TransportAddress {
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(address.getHostName());
+        if (address.getAddress() != null) {
+            if (address.getAddress().getHostAddress() != null) {
+                out.writeUTF(address.getAddress().getHostAddress());
+            } else {
+                out.writeUTF(address.getHostName());
+            }
+        } else {
+            out.writeUTF(address.getHostName());
+        }
         out.writeInt(address.getPort());
     }
 

@@ -246,6 +246,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     foundPrimary = true;
                     if (shard.currentNodeId().equals(nodes.localNodeId())) {
                         if (request.operationThreaded()) {
+                            request.beforeLocalFork();
                             threadPool.execute(new Runnable() {
                                 @Override public void run() {
                                     performOnPrimary(shard.id(), fromClusterEvent, true, shard);
@@ -434,6 +435,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 });
             } else {
                 if (request.operationThreaded()) {
+                    request.beforeLocalFork();
                     threadPool.execute(new Runnable() {
                         @Override public void run() {
                             try {

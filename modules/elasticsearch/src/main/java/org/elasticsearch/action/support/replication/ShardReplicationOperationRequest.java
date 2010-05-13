@@ -107,4 +107,11 @@ public abstract class ShardReplicationOperationRequest implements ActionRequest 
         timeout.writeTo(out);
         out.writeUTF(index);
     }
+
+    /**
+     * Called before the request gets forked into a local thread.
+     */
+    protected void beforeLocalFork() {
+
+    }
 }

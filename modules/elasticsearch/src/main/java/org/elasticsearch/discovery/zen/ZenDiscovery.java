@@ -133,6 +133,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             }
         }
         localNode = new DiscoveryNode(settings.get("name"), UUID.randomUUID().toString(), transportService.boundAddress().publishAddress(), nodeAttributes);
+        latestDiscoNodes = new DiscoveryNodes.Builder().put(localNode).localNodeId(localNode.id()).build();
         pingService.start();
 
         if (nodeAttributes.containsKey("zen.master") && nodeAttributes.get("zen.master").equals("false")) {

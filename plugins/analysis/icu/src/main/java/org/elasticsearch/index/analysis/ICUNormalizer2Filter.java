@@ -42,11 +42,7 @@ import java.io.IOException;
  * in a language-independent way for search:
  * <ul>
  * <li> The case folding that it does can be seen as a replacement for
- * LowerCaseFilter: For example, it handles cases such as the Greek sigma, so that
- * "Μάϊος" and "ΜΆΪΟΣ" will match correctly.
- * <li> The normalization will standardizes different forms of the same
- * character in Unicode. For example, CJK full-width numbers will be standardized
- * to their ASCII forms.
+ * LowerCaseFilter.
  * <li> Ignorables such as Zero-Width Joiner and Variation Selectors are removed.
  * These are typically modifier characters that affect display.
  * </ul>

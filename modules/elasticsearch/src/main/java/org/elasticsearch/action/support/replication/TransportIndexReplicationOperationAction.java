@@ -68,8 +68,11 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
 
         for (final ShardsIterator shards : groups) {
             ShardRequest shardRequest = newShardRequestInstance(request, shards.shardId().id());
+
             // TODO for now, we fork operations on shards of the index
+            shardRequest.beforeLocalFork(); // optimize for local fork
             shardRequest.operationThreaded(true);
+
             // no need for threaded listener, we will fork when its done based on the index request
             shardRequest.listenerThreaded(false);
             shardAction.execute(shardRequest, new ActionListener<ShardResponse>() {

@@ -27,7 +27,7 @@ import org.elasticsearch.util.settings.Settings
 import org.elasticsearch.util.settings.loader.JsonSettingsLoader
 
 /**
- * The node builder allow to build a     {@link GNode}     instance.
+ * The node builder allow to build a      {@link GNode}      instance.
  *
  * @author kimchy (shay.banon)
  */
@@ -39,6 +39,10 @@ public class GNodeBuilder {
 
     public static GNodeBuilder nodeBuilder() {
         new GNodeBuilder()
+    }
+
+    public ImmutableSettings.Builder getSettings() {
+        return settingsBuilder;
     }
 
     def settings(Settings.Builder settings) {

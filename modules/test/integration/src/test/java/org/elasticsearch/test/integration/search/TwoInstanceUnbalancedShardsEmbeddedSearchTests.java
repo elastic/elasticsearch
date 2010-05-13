@@ -360,7 +360,7 @@ public class TwoInstanceUnbalancedShardsEmbeddedSearchTests extends AbstractNode
     }
 
     private static InternalSearchRequest searchRequest(ShardRouting shardRouting, SearchSourceBuilder builder) {
-        return new InternalSearchRequest(shardRouting, builder.buildAsBytes());
+        return new InternalSearchRequest(shardRouting).source(builder.buildAsBytes());
     }
 
     private void index(Client client, String id, String nameValue, int age) {

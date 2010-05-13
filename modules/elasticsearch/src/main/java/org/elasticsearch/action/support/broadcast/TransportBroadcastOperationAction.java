@@ -163,8 +163,8 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             }
             // we have local operations, perform them now
             if (localOperations > 0) {
-                request.beforeLocalFork();
                 if (request.operationThreading() == BroadcastOperationThreading.SINGLE_THREAD) {
+                    request.beforeLocalFork();
                     threadPool.execute(new Runnable() {
                         @Override public void run() {
                             for (final ShardsIterator shardIt : shardsIts) {
@@ -179,6 +179,9 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                     });
                 } else {
                     boolean localAsync = request.operationThreading() == BroadcastOperationThreading.THREAD_PER_SHARD;
+                    if (localAsync) {
+                        request.beforeLocalFork();
+                    }
                     for (final ShardsIterator shardIt : shardsIts) {
                         final ShardRouting shard = shardIt.reset().nextActiveOrNull();
                         if (shard != null) {

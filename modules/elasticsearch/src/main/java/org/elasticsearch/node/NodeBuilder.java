@@ -69,6 +69,20 @@ public class NodeBuilder {
     }
 
     /**
+     * Set addition settings simply by working directly against the settings builder.
+     */
+    public ImmutableSettings.Builder settings() {
+        return settings;
+    }
+
+    /**
+     * Set addition settings simply by working directly against the settings builder.
+     */
+    public ImmutableSettings.Builder getSettings() {
+        return settings;
+    }
+
+    /**
      * Explicit node settings to set.
      */
     public NodeBuilder settings(Settings.Builder settings) {

@@ -26,7 +26,6 @@ import org.elasticsearch.index.query.xcontent.QueryBuilders;
 import org.elasticsearch.index.query.xcontent.QueryStringQueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.util.Strings;
-import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
@@ -65,13 +64,6 @@ public class RestActions {
     }
 
     public static byte[] parseQuerySource(RestRequest request) {
-        if (request.hasContent()) {
-            return request.contentAsBytes();
-        }
-        String source = request.param("source");
-        if (source != null) {
-            return Unicode.fromStringAsBytes(source);
-        }
         String queryString = request.param("q");
         if (queryString == null) {
             throw new ElasticSearchIllegalArgumentException("No query to execute, not in body, and not bounded to 'q' parameter");

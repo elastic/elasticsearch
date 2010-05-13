@@ -109,8 +109,16 @@ public class MemcachedRestRequest extends AbstractRestRequest {
         return data != null;
     }
 
-    @Override public byte[] contentAsBytes() {
+    @Override public byte[] contentByteArray() {
         return data;
+    }
+
+    @Override public int contentByteArrayOffset() {
+        return 0;
+    }
+
+    @Override public int contentLength() {
+        return dataSize;
     }
 
     @Override public String contentAsString() {

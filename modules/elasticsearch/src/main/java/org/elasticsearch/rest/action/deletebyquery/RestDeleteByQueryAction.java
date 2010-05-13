@@ -54,7 +54,16 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
         // we just build a response and send it, no need to fork a thread
         deleteByQueryRequest.listenerThreaded(false);
         try {
-            deleteByQueryRequest.query(RestActions.parseQuerySource(request));
+            if (request.hasContent()) {
+                deleteByQueryRequest.query(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
+            } else {
+                String source = request.param("source");
+                if (source != null) {
+                    deleteByQueryRequest.query(source);
+                } else {
+                    deleteByQueryRequest.query(RestActions.parseQuerySource(request));
+                }
+            }
             deleteByQueryRequest.queryParserName(request.param("query_parser_name"));
             String typesParam = request.param("type");
             if (typesParam != null) {

@@ -26,7 +26,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.search.Scroll;
-import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;
@@ -73,11 +72,11 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
                 mltRequest.searchScroll(new Scroll(parseTimeValue(searchScroll, null)));
             }
             if (request.hasContent()) {
-                mltRequest.searchSource(request.contentAsBytes());
+                mltRequest.searchSource(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
             } else {
                 String searchSource = request.param("search_source");
                 if (searchSource != null) {
-                    mltRequest.searchSource(Unicode.fromStringAsBytes(searchSource));
+                    mltRequest.searchSource(searchSource);
                 }
             }
         } catch (Exception e) {

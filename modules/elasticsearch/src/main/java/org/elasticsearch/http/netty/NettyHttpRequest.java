@@ -42,7 +42,7 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
 
     private final String path;
 
-    private byte[] data;
+    private byte[] cachedData;
 
     public NettyHttpRequest(org.jboss.netty.handler.codec.http.HttpRequest request) {
         this.request = request;
@@ -91,13 +91,27 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
         return request.getContent().readableBytes() > 0;
     }
 
-    @Override public byte[] contentAsBytes() {
-        if (this.data != null) {
-            return this.data;
+    @Override public int contentLength() {
+        return request.getContent().readableBytes();
+    }
+
+    @Override public byte[] contentByteArray() {
+        if (request.getContent().hasArray()) {
+            return request.getContent().array();
         }
-        data = new byte[request.getContent().readableBytes()];
-        request.getContent().getBytes(request.getContent().readerIndex(), data);
-        return data;
+        if (cachedData != null) {
+            return cachedData;
+        }
+        cachedData = new byte[request.getContent().readableBytes()];
+        request.getContent().getBytes(request.getContent().readerIndex(), cachedData);
+        return cachedData;
+    }
+
+    @Override public int contentByteArrayOffset() {
+        if (request.getContent().hasArray()) {
+            return request.getContent().arrayOffset();
+        }
+        return 0;
     }
 
     private static Charset UTF8 = Charset.forName("UTF-8");

@@ -101,7 +101,7 @@ public class CloudZenPing extends UnicastZenPing {
                 continue;
             }
             if (nodeMetadata.getState() == NodeState.PENDING || nodeMetadata.getState() == NodeState.RUNNING) {
-                logger.debug("Adding {}/{}", nodeMetadata.getName(), nodeMetadata.getPrivateAddresses());
+                logger.debug("Adding {}, addresses {}", nodeMetadata.getName(), nodeMetadata.getPrivateAddresses());
                 for (InetAddress inetAddress : nodeMetadata.getPrivateAddresses()) {
                     for (int port : new PortsRange(ports).ports()) {
                         discoNodes.add(new DiscoveryNode("#cloud-" + inetAddress.getHostAddress() + "-" + port, new InetSocketTransportAddress(inetAddress, port)));

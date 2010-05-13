@@ -53,6 +53,7 @@ dependencies {
 }
 
 task explodedDist(dependsOn: [configurations.distLib], description: 'Builds a minimal distribution image') << {
+    ant.delete(dir: explodedDistDir) // clean the exploded dir
     [explodedDistDir, explodedDistLibDir, explodedDistBinDir, explodedDistConfigDir]*.mkdirs()
     // remove old elasticsearch files
     ant.delete { fileset(dir: explodedDistLibDir, includes: "$archivesBaseName-*.jar") }
@@ -81,6 +82,7 @@ task explodedDist(dependsOn: [configurations.distLib], description: 'Builds a mi
     ant.delete { fileset(dir: explodedDistLibDir, includes: "joda-*.jar") } // no need joda, we jarjar it
     ant.delete { fileset(dir: explodedDistLibDir, includes: "snakeyaml-*.jar") } // no need snakeyaml, we jarjar it
     ant.delete { fileset(dir: explodedDistLibDir, includes: "sigar-*.jar") } // no need sigar directly under lib...
+    ant.delete { fileset(dir: explodedDistLibDir, includes: "netty-*.jar") } // no need sigar directly under lib...
 
     ant.chmod(dir: "$explodedDistDir/bin", perm: "ugo+rx", includes: "**/*")
 }

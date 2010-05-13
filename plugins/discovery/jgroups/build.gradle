@@ -7,8 +7,6 @@ archivesBaseName = "elasticsearch-discovery-jgroups"
 
 explodedDistDir = new File(distsDir, 'exploded')
 
-manifest.mainAttributes("Implementation-Title": "ElasticSearch::Plugins::Discovery::Jgrorups", "Implementation-Version": rootProject.version, "Implementation-Date": buildTimeStr)
-
 configurations.compile.transitive = true
 configurations.testCompile.transitive = true
 
@@ -16,10 +14,12 @@ configurations.testCompile.transitive = true
 sourceSets.main.resources.srcDirs 'src/main/java'
 sourceSets.test.resources.srcDirs 'src/test/java'
 
-// add the source files to the dist jar
-//jar {
+jar {
 //    from sourceSets.main.allJava
-//}
+    manifest {
+        attributes("Implementation-Title": "ElasticSearch", "Implementation-Version": rootProject.version, "Implementation-Date": buildTimeStr)
+    }
+}
 
 configurations {
     dists

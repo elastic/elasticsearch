@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.mlt;
 
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequest;
@@ -38,8 +39,10 @@ import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.xcontent.XContentFactory;
 import org.elasticsearch.util.xcontent.XContentType;
 import org.elasticsearch.util.xcontent.builder.BinaryXContentBuilder;
+import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 
 import static org.elasticsearch.search.Scroll.*;
@@ -82,9 +85,11 @@ public class MoreLikeThisRequest implements ActionRequest {
     private String[] searchIndices;
     private String[] searchTypes;
     private Scroll searchScroll;
-    private byte[] searchSource;
 
-    private transient SearchSourceBuilder searchSourceBuiler;
+    private byte[] searchSource;
+    private int searchSourceOffset;
+    private int searchSourceLength;
+    private boolean searchSourceUnsafe;
 
     private boolean threadedListener = false;
 
@@ -306,12 +311,24 @@ public class MoreLikeThisRequest implements ActionRequest {
         return this.boostTerms;
     }
 
+    void beforeLocalFork() {
+        if (searchSourceUnsafe) {
+            searchSource = Arrays.copyOfRange(searchSource, searchSourceOffset, searchSourceLength);
+            searchSourceOffset = 0;
+            searchSourceUnsafe = false;
+        }
+    }
+
     /**
      * An optional search source request allowing to control the search request for the
      * more like this documents.
      */
     public MoreLikeThisRequest searchSource(SearchSourceBuilder sourceBuilder) {
-        this.searchSourceBuiler = sourceBuilder;
+        FastByteArrayOutputStream bos = sourceBuilder.buildAsUnsafeBytes();
+        this.searchSource = bos.unsafeByteArray();
+        this.searchSourceOffset = 0;
+        this.searchSourceLength = bos.size();
+        this.searchSourceUnsafe = true;
         return this;
     }
 
@@ -320,18 +337,34 @@ public class MoreLikeThisRequest implements ActionRequest {
      * more like this documents.
      */
     public MoreLikeThisRequest searchSource(String searchSource) {
-        return searchSource(Unicode.fromStringAsBytes(searchSource));
+        UnicodeUtil.UTF8Result result = Unicode.fromStringAsUtf8(searchSource);
+        this.searchSource = result.result;
+        this.searchSourceOffset = 0;
+        this.searchSourceLength = result.length;
+        this.searchSourceUnsafe = true;
+        return this;
     }
 
     public MoreLikeThisRequest searchSource(Map searchSource) {
         try {
-            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(XContentType.JSON);
+            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
             builder.map(searchSource);
-            this.searchSource = builder.copiedBytes();
+            return searchSource(builder);
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + searchSource + "]", e);
         }
-        return this;
+    }
+
+    public MoreLikeThisRequest searchSource(XContentBuilder builder) {
+        try {
+            this.searchSource = builder.unsafeBytes();
+            this.searchSourceOffset = 0;
+            this.searchSourceLength = builder.unsafeBytesLength();
+            this.searchSourceUnsafe = true;
+            return this;
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate [" + builder + "]", e);
+        }
     }
 
     /**
@@ -339,7 +372,18 @@ public class MoreLikeThisRequest implements ActionRequest {
      * more like this documents.
      */
     public MoreLikeThisRequest searchSource(byte[] searchSource) {
+        return searchSource(searchSource, 0, searchSource.length);
+    }
+
+    /**
+     * An optional search source request allowing to control the search request for the
+     * more like this documents.
+     */
+    public MoreLikeThisRequest searchSource(byte[] searchSource, int offset, int length) {
         this.searchSource = searchSource;
+        this.searchSourceOffset = offset;
+        this.searchSourceLength = length;
+        this.searchSourceUnsafe = false;
         return this;
     }
 
@@ -348,10 +392,15 @@ public class MoreLikeThisRequest implements ActionRequest {
      * more like this documents.
      */
     public byte[] searchSource() {
-        if (searchSource == null && searchSourceBuiler != null) {
-            searchSource = searchSourceBuiler.buildAsBytes(contentType);
-        }
         return this.searchSource;
+    }
+
+    public int searchSourceOffset() {
+        return searchSourceOffset;
+    }
+
+    public int searchSourceLength() {
+        return searchSourceLength;
     }
 
     /**
@@ -530,11 +579,14 @@ public class MoreLikeThisRequest implements ActionRequest {
         if (in.readBoolean()) {
             searchScroll = readScroll(in);
         }
-        size = in.readVInt();
-        if (size == 0) {
+
+        searchSourceUnsafe = false;
+        searchSourceOffset = 0;
+        searchSourceLength = in.readVInt();
+        if (searchSourceLength == 0) {
             searchSource = Bytes.EMPTY_ARRAY;
         } else {
-            searchSource = new byte[in.readVInt()];
+            searchSource = new byte[searchSourceLength];
             in.readFully(searchSource);
         }
     }
@@ -598,17 +650,11 @@ public class MoreLikeThisRequest implements ActionRequest {
             out.writeBoolean(true);
             searchScroll.writeTo(out);
         }
-        if (searchSource == null && searchSourceBuiler == null) {
+        if (searchSource == null) {
             out.writeVInt(0);
         } else {
-            if (searchSource != null) {
-                out.writeVInt(searchSource.length);
-                out.writeBytes(searchSource);
-            } else {
-                FastByteArrayOutputStream os = searchSourceBuiler.buildAsUnsafeBytes(contentType);
-                out.writeVInt(os.size());
-                out.writeBytes(os.unsafeByteArray(), 0, os.size());
-            }
+            out.writeVInt(searchSourceLength);
+            out.writeBytes(searchSource, searchSourceOffset, searchSourceLength);
         }
     }
 }

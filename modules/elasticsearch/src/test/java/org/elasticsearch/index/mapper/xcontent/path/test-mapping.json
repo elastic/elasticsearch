@@ -1,0 +1,22 @@
+{
+    "person" : {
+        "properties" : {
+            "name1" : {
+                "type" : "object",
+                "path" : "just_name",
+                "properties" : {
+                    "first1" : {"type" : "string", "store" : "yes"},
+                    "last1" : {"type" : "string", "index" : "not_analyzed"}
+                }
+            },
+            "name2" : {
+                "type" : "object",
+                "path" : "full",
+                "properties" : {
+                    "first2" : {"type" : "string", "store" : "yes"},
+                    "last2" : {"type" : "string", "index" : "not_analyzed"}
+                }
+            }
+        }
+    }
+}

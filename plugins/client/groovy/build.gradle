@@ -30,7 +30,7 @@ configurations {
 dependencies {
     compile project(':elasticsearch')
 
-    groovy group: 'org.codehaus.groovy', name: 'groovy', version: '1.7.2'
+    groovy group: 'org.codehaus.groovy', name: 'groovy-all', version: '1.7.2'
 
     testCompile project(':test-testng')
     testCompile('org.testng:testng:5.10:jdk15') { transitive = false }

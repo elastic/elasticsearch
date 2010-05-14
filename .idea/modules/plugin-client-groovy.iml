@@ -12,11 +12,28 @@
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="library" name="groovy-1.7.2" level="application" />
+    <orderEntry type="module-library">
+      <library name="groovy">
+        <CLASSES>
+          <root url="jar://$GRADLE_REPOSITORY$/org.codehaus.groovy/groovy-all/jars/groovy-all-1.7.2.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
     <orderEntry type="module" module-name="elasticsearch" />
     <orderEntry type="module" module-name="test-testng" scope="TEST" />
     <orderEntry type="library" scope="TEST" name="testng" level="project" />
     <orderEntry type="library" scope="TEST" name="hamcrest" level="project" />
+    <orderEntry type="module-library" scope="TEST">
+      <library name="junit">
+        <CLASSES>
+          <root url="jar://$GRADLE_REPOSITORY$/junit/junit/jars/junit-4.8.1.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
   </component>
 </module>
 

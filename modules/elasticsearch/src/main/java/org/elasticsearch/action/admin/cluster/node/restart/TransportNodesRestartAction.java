@@ -38,6 +38,7 @@ import org.elasticsearch.util.settings.Settings;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static org.elasticsearch.util.TimeValue.*;
@@ -52,7 +53,7 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
 
     private final boolean disabled;
 
-    private volatile boolean restartRequested = false;
+    private AtomicBoolean restartRequested = new AtomicBoolean();
 
     @Inject public TransportNodesRestartAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                                ClusterService clusterService, TransportService transportService,
@@ -101,10 +102,9 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
         if (disabled) {
             throw new ElasticSearchIllegalStateException("Restart is disabled");
         }
-        if (restartRequested) {
+        if (!restartRequested.compareAndSet(false, true)) {
             return new NodesRestartResponse.NodeRestartResponse(clusterService.state().nodes().localNode());
         }
-        restartRequested = true;
         logger.info("Restarting in [{}]", request.delay);
         threadPool.schedule(new Runnable() {
             @Override public void run() {
@@ -127,7 +127,7 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
                     } catch (Exception e) {
                         logger.warn("Failed to restart", e);
                     } finally {
-                        restartRequested = false;
+                        restartRequested.set(false);
                     }
                 }
             }

@@ -38,8 +38,9 @@ public class NetworkService extends AbstractComponent {
 
     public static final String LOCAL = "#local#";
 
-    public static final String GLOBAL_NETWORK_BINDHOST_SETTING = "network.bind_host";
-    public static final String GLOBAL_NETWORK_PUBLISHHOST_SETTING = "network.publish_host";
+    private static final String GLOBAL_NETWORK_HOST_SETTING = "network.host";
+    private static final String GLOBAL_NETWORK_BINDHOST_SETTING = "network.bind_host";
+    private static final String GLOBAL_NETWORK_PUBLISHHOST_SETTING = "network.publish_host";
 
     public static interface CustomNameResolver {
         InetAddress resolve();
@@ -64,7 +65,7 @@ public class NetworkService extends AbstractComponent {
     }
 
     public InetAddress resolveBindHostAddress(String bindHost, String defaultValue2) throws IOException {
-        return resolveInetAddress(bindHost, settings.get(GLOBAL_NETWORK_BINDHOST_SETTING), defaultValue2);
+        return resolveInetAddress(bindHost, settings.get(settings.get(GLOBAL_NETWORK_BINDHOST_SETTING), settings.get(GLOBAL_NETWORK_HOST_SETTING)), defaultValue2);
     }
 
     public InetAddress resolvePublishHostAddress(String publishHost) throws IOException {
@@ -77,7 +78,7 @@ public class NetworkService extends AbstractComponent {
     }
 
     public InetAddress resolvePublishHostAddress(String publishHost, String defaultValue2) throws IOException {
-        return resolveInetAddress(publishHost, settings.get(GLOBAL_NETWORK_PUBLISHHOST_SETTING), defaultValue2);
+        return resolveInetAddress(publishHost, settings.get(settings.get(GLOBAL_NETWORK_PUBLISHHOST_SETTING), settings.get(GLOBAL_NETWORK_HOST_SETTING)), defaultValue2);
     }
 
     public InetAddress resolveInetAddress(String host, String defaultValue1, String defaultValue2) throws UnknownHostException, IOException {

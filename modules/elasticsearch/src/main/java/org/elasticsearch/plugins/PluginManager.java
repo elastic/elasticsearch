@@ -60,7 +60,7 @@ public class PluginManager {
             System.out.println("    - remove [list of plugin names]: Removes listed plugins");
         }
         String command = args[0];
-        if (command.equals("install")) {
+        if (command.equals("install") || command.equals("-install")) {
             if (args.length < 2) {
                 System.out.println("'install' requires an additional parameter with the plugin name");
             }
@@ -74,7 +74,7 @@ public class PluginManager {
                     System.out.println("Failed to install " + pluginName + ", reason: " + e.getMessage());
                 }
             }
-        } else if (command.equals("remove")) {
+        } else if (command.equals("remove") || command.equals("-remove")) {
             if (args.length < 2) {
                 System.out.println("'remove' requires an additional parameter with the plugin name");
             }

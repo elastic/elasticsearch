@@ -88,7 +88,7 @@ public class TransportNodesStatsAction extends TransportNodesOperationAction<Nod
         return new NodeStats(clusterService.state().nodes().localNode(),
                 monitorService.osService().stats(), monitorService.processService().stats(),
                 monitorService.jvmService().stats(), monitorService.networkService().stats(),
-                threadPool.stats());
+                threadPool.stats(), transportService.stats());
     }
 
     @Override protected boolean accumulateExceptions() {

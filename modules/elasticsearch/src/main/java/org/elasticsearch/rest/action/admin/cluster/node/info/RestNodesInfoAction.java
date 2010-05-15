@@ -104,6 +104,9 @@ public class RestNodesInfoAction extends BaseRestHandler {
                         if (nodeInfo.threadPool() != null) {
                             nodeInfo.threadPool().toXContent(builder, request);
                         }
+                        if (nodeInfo.transport() != null) {
+                            nodeInfo.transport().toXContent(builder, request);
+                        }
 
                         builder.endObject();
                     }

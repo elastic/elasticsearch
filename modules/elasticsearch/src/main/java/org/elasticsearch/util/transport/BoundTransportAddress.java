@@ -19,6 +19,12 @@
 
 package org.elasticsearch.util.transport;
 
+import org.elasticsearch.util.io.stream.StreamInput;
+import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.io.stream.Streamable;
+
+import java.io.IOException;
+
 /**
  * A bounded transport address is a tuple of two {@link TransportAddress}, one that represents
  * the address the transport is bounded on, the the published one represents the one clients should
@@ -26,11 +32,14 @@ package org.elasticsearch.util.transport;
  *
  * @author kimchy (shay.banon)
  */
-public class BoundTransportAddress {
+public class BoundTransportAddress implements Streamable {
 
-    private final TransportAddress boundAddress;
+    private TransportAddress boundAddress;
 
-    private final TransportAddress publishAddress;
+    private TransportAddress publishAddress;
+
+    BoundTransportAddress() {
+    }
 
     public BoundTransportAddress(TransportAddress boundAddress, TransportAddress publishAddress) {
         this.boundAddress = boundAddress;
@@ -43,6 +52,22 @@ public class BoundTransportAddress {
 
     public TransportAddress publishAddress() {
         return publishAddress;
+    }
+
+    public static BoundTransportAddress readBoundTransportAddress(StreamInput in) throws IOException {
+        BoundTransportAddress addr = new BoundTransportAddress();
+        addr.readFrom(in);
+        return addr;
+    }
+
+    @Override public void readFrom(StreamInput in) throws IOException {
+        boundAddress = TransportAddressSerializers.addressFromStream(in);
+        publishAddress = TransportAddressSerializers.addressFromStream(in);
+    }
+
+    @Override public void writeTo(StreamOutput out) throws IOException {
+        TransportAddressSerializers.addressToStream(out, boundAddress);
+        TransportAddressSerializers.addressToStream(out, publishAddress);
     }
 
     @Override public String toString() {

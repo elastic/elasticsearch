@@ -33,4 +33,8 @@ public interface TransportServiceAdapter {
     void raiseNodeConnected(DiscoveryNode node);
 
     void raiseNodeDisconnected(DiscoveryNode node);
+
+    void received(long size);
+
+    void sent(long size);
 }

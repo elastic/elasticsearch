@@ -247,7 +247,7 @@ public class NodesFaultDetection extends AbstractComponent {
     }
 
 
-    private class PingRequest implements Streamable {
+    private static class PingRequest implements Streamable {
 
         private PingRequest() {
         }
@@ -259,7 +259,7 @@ public class NodesFaultDetection extends AbstractComponent {
         }
     }
 
-    private class PingResponse implements Streamable {
+    private static class PingResponse implements Streamable {
 
         private PingResponse() {
         }

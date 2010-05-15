@@ -240,7 +240,7 @@ public class MasterFaultDetection extends AbstractComponent {
     }
 
 
-    private class MasterPingRequest implements Streamable {
+    private static class MasterPingRequest implements Streamable {
 
         private DiscoveryNode node;
 
@@ -260,7 +260,7 @@ public class MasterFaultDetection extends AbstractComponent {
         }
     }
 
-    private class MasterPingResponseResponse implements Streamable {
+    private static class MasterPingResponseResponse implements Streamable {
 
         private boolean connectedToMaster;
 

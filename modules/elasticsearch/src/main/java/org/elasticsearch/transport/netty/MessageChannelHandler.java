@@ -63,7 +63,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
         int size = buffer.getInt(buffer.readerIndex() - 4);
 
-        transportServiceAdapter.received(size);
+        transportServiceAdapter.received(size + 4);
 
         int markedReaderIndex = buffer.readerIndex();
         int expectedIndexReader = markedReaderIndex + size;

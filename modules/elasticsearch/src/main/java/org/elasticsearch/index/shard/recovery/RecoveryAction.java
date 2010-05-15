@@ -273,7 +273,7 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
                         }
                         recoveryStatus.phase1TotalSize = totalSize;
 
-                        logger.trace("Recovery [phase1] to {}: recovering [{}] files with total size of [{}]", new Object[]{node, snapshot.getFiles().length, new SizeValue(totalSize)});
+                        logger.trace("Recovery [phase1] to {}: recovering [{}] files with total size of [{}]", node, snapshot.getFiles().length, new SizeValue(totalSize));
 
                         final CountDownLatch latch = new CountDownLatch(snapshot.getFiles().length);
                         final AtomicReference<Exception> lastException = new AtomicReference<Exception>();

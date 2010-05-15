@@ -226,7 +226,7 @@ public class MetaDataService extends AbstractComponent {
                         .initializeEmpty(newMetaData.index(index));
                 routingTableBuilder.add(indexRoutingBuilder);
 
-                logger.info("Creating Index [{}], cause [{}], shards [{}]/[{}], mappings {}", new Object[]{index, cause, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), fMappings.keySet()});
+                logger.info("Creating Index [{}], cause [{}], shards [{}]/[{}], mappings {}", index, cause, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), fMappings.keySet());
                 RoutingTable newRoutingTable = shardsRoutingStrategy.reroute(newClusterStateBuilder().state(currentState).routingTable(routingTableBuilder).metaData(newMetaData).build());
                 return newClusterStateBuilder().state(currentState).routingTable(newRoutingTable).metaData(newMetaData).build();
             }

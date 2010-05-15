@@ -27,10 +27,7 @@ import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.logging.ESLogger;
 import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ExceptionEvent;
-import org.jboss.netty.channel.MessageEvent;
-import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
+import org.jboss.netty.channel.*;
 
 import java.io.IOException;
 
@@ -56,10 +53,18 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         this.logger = logger;
     }
 
+    @Override public void writeComplete(ChannelHandlerContext ctx, WriteCompletionEvent e) throws Exception {
+        transportServiceAdapter.sent(e.getWrittenAmount());
+        super.writeComplete(ctx, e);
+    }
+
     @Override public void messageReceived(ChannelHandlerContext ctx, MessageEvent event) throws Exception {
         ChannelBuffer buffer = (ChannelBuffer) event.getMessage();
 
         int size = buffer.getInt(buffer.readerIndex() - 4);
+
+        transportServiceAdapter.received(size);
+
         int markedReaderIndex = buffer.readerIndex();
         int expectedIndexReader = markedReaderIndex + size;
 

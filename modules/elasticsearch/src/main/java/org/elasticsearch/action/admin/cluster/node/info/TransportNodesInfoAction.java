@@ -100,7 +100,7 @@ public class TransportNodesInfoAction extends TransportNodesOperationAction<Node
         return new NodeInfo(clusterService.state().nodes().localNode(), nodeAttributes, settings,
                 monitorService.osService().info(), monitorService.processService().info(),
                 monitorService.jvmService().info(), monitorService.networkService().info(),
-                threadPool.info());
+                threadPool.info(), transportService.info());
     }
 
     @Override protected boolean accumulateExceptions() {

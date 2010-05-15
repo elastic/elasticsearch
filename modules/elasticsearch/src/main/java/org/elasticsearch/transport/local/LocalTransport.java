@@ -152,6 +152,9 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         }
 
         final byte[] data = ((BytesStreamOutput) stream.wrappedOut()).copiedByteArray();
+
+        transportServiceAdapter.sent(data.length);
+
         threadPool.execute(new Runnable() {
             @Override public void run() {
                 targetTransport.messageReceived(data, action, LocalTransport.this, handler);
@@ -164,6 +167,8 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     void messageReceived(byte[] data, String action, LocalTransport sourceTransport, @Nullable final TransportResponseHandler responseHandler) {
+        transportServiceAdapter.received(data.length);
+
         StreamInput stream = new BytesStreamInput(data);
         stream = HandlesStreamInput.Cached.cached(stream);
 

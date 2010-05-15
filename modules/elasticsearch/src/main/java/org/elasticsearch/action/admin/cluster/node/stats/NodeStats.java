@@ -26,6 +26,7 @@ import org.elasticsearch.monitor.network.NetworkStats;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.threadpool.ThreadPoolStats;
+import org.elasticsearch.transport.TransportStats;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 
@@ -48,18 +49,21 @@ public class NodeStats extends NodeOperationResponse {
 
     private ThreadPoolStats threadPool;
 
+    private TransportStats transport;
+
     NodeStats() {
     }
 
     public NodeStats(DiscoveryNode node,
                      OsStats os, ProcessStats process, JvmStats jvm, NetworkStats network,
-                     ThreadPoolStats threadPool) {
+                     ThreadPoolStats threadPool, TransportStats transport) {
         super(node);
         this.os = os;
         this.process = process;
         this.jvm = jvm;
         this.network = network;
         this.threadPool = threadPool;
+        this.transport = transport;
     }
 
     /**
@@ -132,6 +136,14 @@ public class NodeStats extends NodeOperationResponse {
         return threadPool();
     }
 
+    public TransportStats transport() {
+        return transport;
+    }
+
+    public TransportStats getTransport() {
+        return transport();
+    }
+
     public static NodeStats readNodeStats(StreamInput in) throws IOException {
         NodeStats nodeInfo = new NodeStats();
         nodeInfo.readFrom(in);
@@ -154,6 +166,9 @@ public class NodeStats extends NodeOperationResponse {
         }
         if (in.readBoolean()) {
             threadPool = ThreadPoolStats.readThreadPoolStats(in);
+        }
+        if (in.readBoolean()) {
+            transport = TransportStats.readTransportStats(in);
         }
     }
 
@@ -188,6 +203,12 @@ public class NodeStats extends NodeOperationResponse {
         } else {
             out.writeBoolean(true);
             threadPool.writeTo(out);
+        }
+        if (transport == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            transport.writeTo(out);
         }
     }
 }

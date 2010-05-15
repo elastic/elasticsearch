@@ -65,6 +65,18 @@ public class CachedThreadPool extends AbstractThreadPool {
         return "cached";
     }
 
+    @Override public int getMinThreads() {
+        return 0;
+    }
+
+    @Override public int getMaxThreads() {
+        return -1;
+    }
+
+    @Override public int getSchedulerThreads() {
+        return scheduledSize;
+    }
+
     @Override public int getPoolSize() {
         return ((ThreadPoolExecutor) executorService).getPoolSize();
     }

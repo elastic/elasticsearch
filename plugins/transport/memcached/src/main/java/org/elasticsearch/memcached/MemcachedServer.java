@@ -19,11 +19,11 @@
 
 package org.elasticsearch.memcached;
 
-import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfo;
+import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 /**
@@ -33,16 +33,16 @@ public class MemcachedServer extends AbstractLifecycleComponent<MemcachedServer>
 
     private final MemcachedServerTransport transport;
 
-    private final TransportNodesInfo nodesInfo;
+    private final TransportNodesInfoAction nodesInfoAction;
 
     private final RestController restController;
 
     @Inject public MemcachedServer(Settings settings, MemcachedServerTransport transport,
-                                   RestController restController, TransportNodesInfo nodesInfo) {
+                                   RestController restController, TransportNodesInfoAction nodesInfoAction) {
         super(settings);
         this.transport = transport;
         this.restController = restController;
-        this.nodesInfo = nodesInfo;
+        this.nodesInfoAction = nodesInfoAction;
     }
 
     @Override protected void doStart() throws ElasticSearchException {
@@ -50,11 +50,11 @@ public class MemcachedServer extends AbstractLifecycleComponent<MemcachedServer>
         if (logger.isInfoEnabled()) {
             logger.info("{}", transport.boundAddress());
         }
-        nodesInfo.putNodeAttribute("memcached_address", transport.boundAddress().publishAddress().toString());
+        nodesInfoAction.putNodeAttribute("memcached_address", transport.boundAddress().publishAddress().toString());
     }
 
     @Override protected void doStop() throws ElasticSearchException {
-        nodesInfo.removeNodeAttribute("memcached_address");
+        nodesInfoAction.removeNodeAttribute("memcached_address");
         transport.stop();
     }
 

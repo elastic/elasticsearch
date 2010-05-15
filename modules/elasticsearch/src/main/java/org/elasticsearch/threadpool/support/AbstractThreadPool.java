@@ -21,6 +21,8 @@ package org.elasticsearch.threadpool.support;
 
 import org.elasticsearch.threadpool.FutureListener;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolInfo;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.settings.Settings;
@@ -43,6 +45,14 @@ public abstract class AbstractThreadPool extends AbstractComponent implements Th
     }
 
     public abstract String getType();
+
+    @Override public ThreadPoolInfo info() {
+        return new ThreadPoolInfo(getType(), getMinThreads(), getMaxThreads(), getSchedulerThreads());
+    }
+
+    @Override public ThreadPoolStats stats() {
+        return new ThreadPoolStats(getPoolSize(), getActiveCount(), getSchedulerPoolSize(), getSchedulerActiveCount());
+    }
 
     @Override public boolean isStarted() {
         return started;

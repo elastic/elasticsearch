@@ -38,13 +38,13 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  * @author kimchy (shay.banon)
  */
-public class TransportNodesStats extends TransportNodesOperationAction<NodesStatsRequest, NodesStatsResponse, TransportNodesStats.NodeStatsRequest, NodeStats> {
+public class TransportNodesStatsAction extends TransportNodesOperationAction<NodesStatsRequest, NodesStatsResponse, TransportNodesStatsAction.NodeStatsRequest, NodeStats> {
 
     private final MonitorService monitorService;
 
-    @Inject public TransportNodesStats(Settings settings, ClusterName clusterName, ThreadPool threadPool,
-                                       ClusterService clusterService, TransportService transportService,
-                                       MonitorService monitorService) {
+    @Inject public TransportNodesStatsAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+                                             ClusterService clusterService, TransportService transportService,
+                                             MonitorService monitorService) {
         super(settings, clusterName, threadPool, clusterService, transportService);
         this.monitorService = monitorService;
     }
@@ -87,7 +87,8 @@ public class TransportNodesStats extends TransportNodesOperationAction<NodesStat
     @Override protected NodeStats nodeOperation(NodeStatsRequest request) throws ElasticSearchException {
         return new NodeStats(clusterService.state().nodes().localNode(),
                 monitorService.osService().stats(), monitorService.processService().stats(),
-                monitorService.jvmService().stats(), monitorService.networkService().stats());
+                monitorService.jvmService().stats(), monitorService.networkService().stats(),
+                threadPool.stats());
     }
 
     @Override protected boolean accumulateExceptions() {

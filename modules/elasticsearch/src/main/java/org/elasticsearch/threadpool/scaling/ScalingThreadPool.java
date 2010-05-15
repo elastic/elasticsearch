@@ -62,6 +62,18 @@ public class ScalingThreadPool extends AbstractThreadPool {
         started = true;
     }
 
+    @Override public int getMinThreads() {
+        return min;
+    }
+
+    @Override public int getMaxThreads() {
+        return max;
+    }
+
+    @Override public int getSchedulerThreads() {
+        return scheduledSize;
+    }
+
     @Override public int getPoolSize() {
         return ((ScalingThreadPoolExecutor) executorService).getPoolSize();
     }

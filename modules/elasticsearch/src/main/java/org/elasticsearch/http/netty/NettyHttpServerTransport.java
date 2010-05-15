@@ -51,6 +51,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
+import static org.elasticsearch.util.network.NetworkService.TcpSettings.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -102,14 +103,14 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         this.networkService = networkService;
         SizeValue maxContentLength = componentSettings.getAsSize("max_content_length", new SizeValue(100, SizeUnit.MB));
         this.workerCount = componentSettings.getAsInt("worker_count", Runtime.getRuntime().availableProcessors());
-        this.port = componentSettings.get("port", "9200-9300");
+        this.port = componentSettings.get("port", settings.get("http.port", "9200-9300"));
         this.bindHost = componentSettings.get("bind_host");
         this.publishHost = componentSettings.get("publish_host");
-        this.tcpNoDelay = componentSettings.getAsBoolean("tcp_no_delay", true);
-        this.tcpKeepAlive = componentSettings.getAsBoolean("tcp_keep_alive", null);
-        this.reuseAddress = componentSettings.getAsBoolean("reuse_address", NetworkUtils.defaultReuseAddress());
-        this.tcpSendBufferSize = componentSettings.getAsSize("tcp_send_buffer_size", null);
-        this.tcpReceiveBufferSize = componentSettings.getAsSize("tcp_receive_buffer_size", null);
+        this.tcpNoDelay = componentSettings.getAsBoolean("tcp_no_delay", settings.getAsBoolean(TCP_NO_DELAY, true));
+        this.tcpKeepAlive = componentSettings.getAsBoolean("tcp_keep_alive", settings.getAsBoolean(TCP_KEEP_ALIVE, null));
+        this.reuseAddress = componentSettings.getAsBoolean("reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
+        this.tcpSendBufferSize = componentSettings.getAsSize("tcp_send_buffer_size", settings.getAsSize(TCP_SEND_BUFFER_SIZE, null));
+        this.tcpReceiveBufferSize = componentSettings.getAsSize("tcp_receive_buffer_size", settings.getAsSize(TCP_RECEIVE_BUFFER_SIZE, null));
 
         // validate max content length
         if (maxContentLength.bytes() > Integer.MAX_VALUE) {

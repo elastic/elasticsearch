@@ -60,7 +60,7 @@ public class BlockingThreadPool extends AbstractThreadPool {
         this.capacity = (int) componentSettings.getAsSize("capacity", new SizeValue(1, SizeUnit.KB)).bytes();
         this.waitTime = componentSettings.getAsTime("wait_time", timeValueSeconds(60));
         this.keepAlive = componentSettings.getAsTime("keep_alive", timeValueSeconds(60));
-        logger.debug("Initializing {} thread pool with min[{}], max[{}], keep_alive[{}], capacity[{}], wait_time[{}], scheduled_size[{}]", new Object[]{getType(), min, max, keepAlive, capacity, waitTime, scheduledSize});
+        logger.debug("Initializing {} thread pool with min[{}], max[{}], keep_alive[{}], capacity[{}], wait_time[{}], scheduled_size[{}]", getType(), min, max, keepAlive, capacity, waitTime, scheduledSize);
         executorService = DynamicExecutors.newBlockingThreadPool(min, max, keepAlive.millis(), capacity, waitTime.millis(), DynamicExecutors.daemonThreadFactory(settings, "[tp]"));
         scheduledExecutorService = Executors.newScheduledThreadPool(scheduledSize, DynamicExecutors.daemonThreadFactory(settings, "[sc]"));
         started = true;
@@ -68,6 +68,18 @@ public class BlockingThreadPool extends AbstractThreadPool {
 
     @Override public String getType() {
         return "blocking";
+    }
+
+    @Override public int getMinThreads() {
+        return min;
+    }
+
+    @Override public int getMaxThreads() {
+        return max;
+    }
+
+    @Override public int getSchedulerThreads() {
+        return scheduledSize;
     }
 
     @Override public int getPoolSize() {

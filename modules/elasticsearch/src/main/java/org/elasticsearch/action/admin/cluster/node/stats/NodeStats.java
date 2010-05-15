@@ -25,6 +25,7 @@ import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.network.NetworkStats;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 
@@ -45,16 +46,20 @@ public class NodeStats extends NodeOperationResponse {
 
     private NetworkStats network;
 
+    private ThreadPoolStats threadPool;
+
     NodeStats() {
     }
 
     public NodeStats(DiscoveryNode node,
-                     OsStats os, ProcessStats process, JvmStats jvm, NetworkStats network) {
+                     OsStats os, ProcessStats process, JvmStats jvm, NetworkStats network,
+                     ThreadPoolStats threadPool) {
         super(node);
         this.os = os;
         this.process = process;
         this.jvm = jvm;
         this.network = network;
+        this.threadPool = threadPool;
     }
 
     /**
@@ -113,6 +118,20 @@ public class NodeStats extends NodeOperationResponse {
         return network();
     }
 
+    /**
+     * Thread Pool level stats.
+     */
+    public ThreadPoolStats threadPool() {
+        return threadPool;
+    }
+
+    /**
+     * Thread Pool level stats.
+     */
+    public ThreadPoolStats getThreadPool() {
+        return threadPool();
+    }
+
     public static NodeStats readNodeStats(StreamInput in) throws IOException {
         NodeStats nodeInfo = new NodeStats();
         nodeInfo.readFrom(in);
@@ -132,6 +151,9 @@ public class NodeStats extends NodeOperationResponse {
         }
         if (in.readBoolean()) {
             network = NetworkStats.readNetworkStats(in);
+        }
+        if (in.readBoolean()) {
+            threadPool = ThreadPoolStats.readThreadPoolStats(in);
         }
     }
 
@@ -160,6 +182,12 @@ public class NodeStats extends NodeOperationResponse {
         } else {
             out.writeBoolean(true);
             network.writeTo(out);
+        }
+        if (threadPool == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            threadPool.writeTo(out);
         }
     }
 }

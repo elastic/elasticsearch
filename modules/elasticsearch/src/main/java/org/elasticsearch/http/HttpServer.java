@@ -20,7 +20,7 @@
 package org.elasticsearch.http;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfo;
+import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -42,7 +42,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
 
     private final RestController restController;
 
-    private final TransportNodesInfo nodesInfo;
+    private final TransportNodesInfoAction nodesInfoAction;
 
     private final PathTrie<HttpServerHandler> getHandlers;
     private final PathTrie<HttpServerHandler> postHandlers;
@@ -50,12 +50,12 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
     private final PathTrie<HttpServerHandler> deleteHandlers;
 
     @Inject public HttpServer(Settings settings, HttpServerTransport transport, ThreadPool threadPool,
-                              RestController restController, TransportNodesInfo nodesInfo) {
+                              RestController restController, TransportNodesInfoAction nodesInfoAction) {
         super(settings);
         this.transport = transport;
         this.threadPool = threadPool;
         this.restController = restController;
-        this.nodesInfo = nodesInfo;
+        this.nodesInfoAction = nodesInfoAction;
 
         getHandlers = new PathTrie<HttpServerHandler>();
         postHandlers = new PathTrie<HttpServerHandler>();
@@ -86,11 +86,11 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         if (logger.isInfoEnabled()) {
             logger.info("{}", transport.boundAddress());
         }
-        nodesInfo.putNodeAttribute("http_address", transport.boundAddress().publishAddress().toString());
+        nodesInfoAction.putNodeAttribute("http_address", transport.boundAddress().publishAddress().toString());
     }
 
     @Override protected void doStop() throws ElasticSearchException {
-        nodesInfo.removeNodeAttribute("http_address");
+        nodesInfoAction.removeNodeAttribute("http_address");
         transport.stop();
     }
 

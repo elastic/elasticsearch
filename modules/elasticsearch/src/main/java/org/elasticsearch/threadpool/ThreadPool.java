@@ -28,6 +28,25 @@ import java.util.concurrent.*;
  */
 public interface ThreadPool {
 
+    ThreadPoolInfo info();
+
+    ThreadPoolStats stats();
+
+    /**
+     * The minimum number of threads in the thread pool.
+     */
+    int getMinThreads();
+
+    /**
+     * The maximum number of threads in the thread pool.
+     */
+    int getMaxThreads();
+
+    /**
+     * The size of scheduler threads.
+     */
+    int getSchedulerThreads();
+
     /**
      * Returns the current number of threads in the pool.
      *
@@ -43,8 +62,15 @@ public interface ThreadPool {
      */
     int getActiveCount();
 
+    /**
+     * The size of the scheduler thread pool.
+     */
     int getSchedulerPoolSize();
 
+    /**
+     * The approximate number of threads that are actively executing scheduled
+     * tasks.
+     */
     int getSchedulerActiveCount();
 
     /**

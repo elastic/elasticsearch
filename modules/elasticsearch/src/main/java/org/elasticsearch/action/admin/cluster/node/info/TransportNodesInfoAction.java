@@ -40,15 +40,15 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  * @author kimchy (shay.banon)
  */
-public class TransportNodesInfo extends TransportNodesOperationAction<NodesInfoRequest, NodesInfoResponse, TransportNodesInfo.NodeInfoRequest, NodeInfo> {
+public class TransportNodesInfoAction extends TransportNodesOperationAction<NodesInfoRequest, NodesInfoResponse, TransportNodesInfoAction.NodeInfoRequest, NodeInfo> {
 
     private final MonitorService monitorService;
 
     private volatile ImmutableMap<String, String> nodeAttributes = ImmutableMap.of();
 
-    @Inject public TransportNodesInfo(Settings settings, ClusterName clusterName, ThreadPool threadPool,
-                                      ClusterService clusterService, TransportService transportService,
-                                      MonitorService monitorService) {
+    @Inject public TransportNodesInfoAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+                                            ClusterService clusterService, TransportService transportService,
+                                            MonitorService monitorService) {
         super(settings, clusterName, threadPool, clusterService, transportService);
         this.monitorService = monitorService;
     }
@@ -99,7 +99,8 @@ public class TransportNodesInfo extends TransportNodesOperationAction<NodesInfoR
     @Override protected NodeInfo nodeOperation(NodeInfoRequest nodeInfoRequest) throws ElasticSearchException {
         return new NodeInfo(clusterService.state().nodes().localNode(), nodeAttributes, settings,
                 monitorService.osService().info(), monitorService.processService().info(),
-                monitorService.jvmService().info(), monitorService.networkService().info());
+                monitorService.jvmService().info(), monitorService.networkService().info(),
+                threadPool.info());
     }
 
     @Override protected boolean accumulateExceptions() {

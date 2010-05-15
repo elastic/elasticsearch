@@ -69,6 +69,7 @@ import static org.elasticsearch.util.TimeValue.*;
 import static org.elasticsearch.util.collect.Lists.*;
 import static org.elasticsearch.util.concurrent.ConcurrentCollections.*;
 import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
+import static org.elasticsearch.util.network.NetworkService.TcpSettings.*;
 import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.util.transport.NetworkExceptionHelper.*;
 
@@ -141,16 +142,16 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         this.networkService = networkService;
 
         this.workerCount = componentSettings.getAsInt("worker_count", Runtime.getRuntime().availableProcessors());
-        this.port = componentSettings.get("port", "9300-9400");
+        this.port = componentSettings.get("port", settings.get("transport.tcp.port", "9300-9400"));
         this.bindHost = componentSettings.get("bind_host");
         this.connectionsPerNode = componentSettings.getAsInt("connections_per_node", 5);
         this.publishHost = componentSettings.get("publish_host");
         this.connectTimeout = componentSettings.getAsTime("connect_timeout", timeValueSeconds(1));
-        this.tcpNoDelay = componentSettings.getAsBoolean("tcp_no_delay", true);
-        this.tcpKeepAlive = componentSettings.getAsBoolean("tcp_keep_alive", null);
-        this.reuseAddress = componentSettings.getAsBoolean("reuse_address", NetworkUtils.defaultReuseAddress());
-        this.tcpSendBufferSize = componentSettings.getAsSize("tcp_send_buffer_size", null);
-        this.tcpReceiveBufferSize = componentSettings.getAsSize("tcp_receive_buffer_size", null);
+        this.tcpNoDelay = componentSettings.getAsBoolean("tcp_no_delay", settings.getAsBoolean(TCP_NO_DELAY, true));
+        this.tcpKeepAlive = componentSettings.getAsBoolean("tcp_keep_alive", settings.getAsBoolean(TCP_KEEP_ALIVE, null));
+        this.reuseAddress = componentSettings.getAsBoolean("reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
+        this.tcpSendBufferSize = componentSettings.getAsSize("tcp_send_buffer_size", settings.getAsSize(TCP_SEND_BUFFER_SIZE, null));
+        this.tcpReceiveBufferSize = componentSettings.getAsSize("tcp_receive_buffer_size", settings.getAsSize(TCP_RECEIVE_BUFFER_SIZE, null));
     }
 
     public Settings settings() {

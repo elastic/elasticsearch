@@ -42,6 +42,14 @@ public class NetworkService extends AbstractComponent {
     private static final String GLOBAL_NETWORK_BINDHOST_SETTING = "network.bind_host";
     private static final String GLOBAL_NETWORK_PUBLISHHOST_SETTING = "network.publish_host";
 
+    public static final class TcpSettings {
+        public static final String TCP_NO_DELAY = "network.tcp.no_delay";
+        public static final String TCP_KEEP_ALIVE = "network.tcp.keep_alive";
+        public static final String TCP_REUSE_ADDRESS = "network.tcp.reuse_address";
+        public static final String TCP_SEND_BUFFER_SIZE = "network.tcp.send_buffer_size";
+        public static final String TCP_RECEIVE_BUFFER_SIZE = "network.tcp.receive_buffer_size";
+    }
+
     public static interface CustomNameResolver {
         InetAddress resolve();
     }

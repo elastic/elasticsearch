@@ -214,7 +214,7 @@ public class MasterFaultDetection extends AbstractComponent {
                                     int retryCount = ++MasterFaultDetection.this.retryCount;
                                     logger.trace("Master [{}] failed to ping, retry [{}] out of [{}]", exp, masterNode, retryCount, pingRetryCount);
                                     if (retryCount >= pingRetryCount) {
-                                        logger.trace("Master [{}] failed on ping", masterNode);
+                                        logger.debug("Master [{}] failed on ping, tried [{}] times, each with [{}] timeout", masterNode, pingRetryCount, pingRetryTimeout);
                                         // not good, failure
                                         notifyMasterFailure(sentToNode);
                                     }

@@ -206,7 +206,7 @@ public class NodesFaultDetection extends AbstractComponent {
                                     int retryCount = ++nodeFD.retryCount;
                                     logger.trace("Node [{}] failed to ping, retry [{}] out of [{}]", exp, node, retryCount, pingRetryCount);
                                     if (retryCount >= pingRetryCount) {
-                                        logger.trace("Node [{}] failed on ping", node);
+                                        logger.debug("Node [{}] failed on ping, tried [{}] times, each with [{}] timeout", node, pingRetryCount, pingRetryTimeout);
                                         // not good, failure
                                         if (nodesFD.remove(node) != null) {
                                             notifyNodeFailure(node);

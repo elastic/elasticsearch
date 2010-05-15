@@ -65,11 +65,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     final CopyOnWriteArrayList<TransportConnectionListener> connectionListeners = new CopyOnWriteArrayList<TransportConnectionListener>();
 
     final AtomicLong rxBytes = new AtomicLong();
-
     final AtomicLong rxCount = new AtomicLong();
-
     final AtomicLong txBytes = new AtomicLong();
-
     final AtomicLong txCount = new AtomicLong();
 
     // An LRU (don't really care about concurrency here) that holds the latest timed out requests so if they

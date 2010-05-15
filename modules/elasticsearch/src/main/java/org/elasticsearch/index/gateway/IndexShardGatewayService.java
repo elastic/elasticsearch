@@ -121,9 +121,9 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             stopWatch.stop();
             if (logger.isDebugEnabled()) {
                 StringBuilder sb = new StringBuilder();
-                sb.append("Recovery completed from ").append(shardGateway).append(", took[").append(stopWatch.totalTime()).append("]\n");
-                sb.append("    Index    : number_of_files[").append(recoveryStatus.index().numberOfFiles()).append("] with total_size[").append(recoveryStatus.index().totalSize()).append("]\n");
-                sb.append("    Translog : translog_id[").append(recoveryStatus.translog().translogId()).append("], number_of_operations[").append(recoveryStatus.translog().numberOfOperations()).append("] with total_size[").append(recoveryStatus.translog().totalSize()).append("]");
+                sb.append("Recovery completed from ").append(shardGateway).append(", took [").append(stopWatch.totalTime()).append("]\n");
+                sb.append("    Index    : number_of_files [").append(recoveryStatus.index().numberOfFiles()).append("] with total_size [").append(recoveryStatus.index().totalSize()).append("]\n");
+                sb.append("    Translog : translog_id [").append(recoveryStatus.translog().translogId()).append("], number_of_operations [").append(recoveryStatus.translog().numberOfOperations()).append("] with total_size[").append(recoveryStatus.translog().totalSize()).append("]");
                 logger.debug(sb.toString());
             }
             // refresh the shard
@@ -165,9 +165,9 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             if (snapshotStatus != IndexShardGateway.SnapshotStatus.NA) {
                 if (logger.isDebugEnabled()) {
                     StringBuilder sb = new StringBuilder();
-                    sb.append("Snapshot completed to ").append(shardGateway).append(", took[").append(snapshotStatus.totalTime()).append("]\n");
-                    sb.append("    Index    : number_of_files[").append(snapshotStatus.index().numberOfFiles()).append("] with total_size[").append(snapshotStatus.index().totalSize()).append("], took[").append(snapshotStatus.index().time()).append("]\n");
-                    sb.append("    Translog : number_of_operations[").append(snapshotStatus.translog().numberOfOperations()).append("], took[").append(snapshotStatus.translog().time()).append("]");
+                    sb.append("Snapshot completed to ").append(shardGateway).append(", took [").append(snapshotStatus.totalTime()).append("]\n");
+                    sb.append("    Index    : number_of_files [").append(snapshotStatus.index().numberOfFiles()).append("] with total_size [").append(snapshotStatus.index().totalSize()).append("], took [").append(snapshotStatus.index().time()).append("]\n");
+                    sb.append("    Translog : number_of_operations [").append(snapshotStatus.translog().numberOfOperations()).append("], took [").append(snapshotStatus.translog().time()).append("]");
                     logger.debug(sb.toString());
                 }
             }

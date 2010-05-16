@@ -96,6 +96,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     private volatile ImmutableMap<Integer, IndexShard> shards = ImmutableMap.of();
 
+    private final CleanCacheOnIndicesLifecycleListener cleanCacheOnIndicesLifecycleListener = new CleanCacheOnIndicesLifecycleListener();
+
     @Inject public InternalIndexService(Injector injector, Index index, @IndexSettings Settings indexSettings,
                                         MapperService mapperService, IndexQueryParserService queryParserService, SimilarityService similarityService,
                                         IndexCache indexCache, OperationRouting operationRouting) {
@@ -110,6 +112,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
         this.pluginsService = injector.getInstance(PluginsService.class);
         this.indicesLifecycle = (InternalIndicesLifecycle) injector.getInstance(IndicesLifecycle.class);
+
+        this.indicesLifecycle.addListener(cleanCacheOnIndicesLifecycleListener);
     }
 
     @Override public int numberOfShards() {
@@ -165,8 +169,12 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     }
 
     @Override public synchronized void close(boolean delete) {
-        for (int shardId : shardIds()) {
-            deleteShard(shardId, delete);
+        try {
+            for (int shardId : shardIds()) {
+                deleteShard(shardId, delete);
+            }
+        } finally {
+            indicesLifecycle.removeListener(cleanCacheOnIndicesLifecycleListener);
         }
     }
 
@@ -267,6 +275,9 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         Engine engine = shardInjector.getInstance(Engine.class);
         engine.close();
 
+        // call this before we close the store, so we can release resources for it
+        indicesLifecycle.afterIndexShardClosed(indexShard.shardId(), delete);
+
         Store store = shardInjector.getInstance(Store.class);
         try {
             store.fullDelete();
@@ -280,8 +291,16 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         }
 
         Injectors.close(injector);
-
-        indicesLifecycle.afterIndexShardClosed(indexShard.shardId(), delete);
     }
 
+    class CleanCacheOnIndicesLifecycleListener extends IndicesLifecycle.Listener {
+
+        @Override public void beforeIndexShardClosed(IndexShard indexShard, boolean delete) {
+            indexCache.clearUnreferenced();
+        }
+
+        @Override public void afterIndexShardClosed(ShardId shardId, boolean delete) {
+            indexCache.clearUnreferenced();
+        }
+    }
 }

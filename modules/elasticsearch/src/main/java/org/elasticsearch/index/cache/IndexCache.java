@@ -48,4 +48,12 @@ public class IndexCache extends AbstractIndexComponent {
     public FilterCache filter() {
         return filterCache;
     }
+
+    public void clear() {
+        filterCache.clear();
+    }
+
+    public void clearUnreferenced() {
+        filterCache.clearUnreferenced();
+    }
 }

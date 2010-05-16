@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.cache.filter.weak;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.index.Index;
@@ -32,19 +33,17 @@ import org.elasticsearch.util.settings.Settings;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * @author kimchy (Shay Banon)
+ * A weak reference based filter cache that has weak keys on the <tt>IndexReader</tt>.
+ *
+ * @author kimchy (shay.banon)
  */
 public class WeakFilterCache extends AbstractConcurrentMapFilterCache {
 
     @Inject public WeakFilterCache(Index index, @IndexSettings Settings indexSettings, ThreadPool threadPool) {
-        super(index, indexSettings, threadPool);
+        super(index, indexSettings, threadPool, new MapMaker().weakKeys().<IndexReader, ConcurrentMap<Filter, DocIdSet>>makeMap());
     }
 
     @Override public String type() {
         return "weak";
-    }
-
-    @Override protected ConcurrentMap<Filter, DocIdSet> buildMap() {
-        return new MapMaker().weakValues().makeMap();
     }
 }

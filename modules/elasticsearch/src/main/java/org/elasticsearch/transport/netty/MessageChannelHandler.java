@@ -112,7 +112,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                     try {
                         handler.handleResponse(streamable);
                     } catch (Exception e) {
-                        handleException(handler, new ResponseHandlerFailureTransportException("Failed to handler response", e));
+                        handleException(handler, new ResponseHandlerFailureTransportException("Failed to handle response", e));
                     }
                 }
             });
@@ -121,7 +121,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 //noinspection unchecked
                 handler.handleResponse(streamable);
             } catch (Exception e) {
-                handleException(handler, new ResponseHandlerFailureTransportException("Failed to handler response", e));
+                handleException(handler, new ResponseHandlerFailureTransportException("Failed to handle response", e));
             }
         }
     }

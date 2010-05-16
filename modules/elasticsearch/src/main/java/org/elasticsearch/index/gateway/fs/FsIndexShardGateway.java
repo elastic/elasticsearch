@@ -32,6 +32,7 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.recovery.throttler.RecoveryThrottler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
@@ -48,6 +49,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.translog.TranslogStreams.*;
@@ -64,6 +66,8 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
 
     private final ThreadPool threadPool;
 
+    private final RecoveryThrottler recoveryThrottler;
+
     private final Store store;
 
     private final File location;
@@ -72,11 +76,14 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
 
     private final File locationTranslog;
 
-    @Inject public FsIndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool, FsIndexGateway fsIndexGateway, IndexShard indexShard, Store store) {
+    @Inject public FsIndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool, FsIndexGateway fsIndexGateway,
+                                       IndexShard indexShard, Store store, RecoveryThrottler recoveryThrottler) {
         super(shardId, indexSettings);
         this.threadPool = threadPool;
         this.indexShard = (InternalIndexShard) indexShard;
         this.store = store;
+        this.recoveryThrottler = recoveryThrottler;
+
         this.location = new File(fsIndexGateway.indexGatewayHome(), Integer.toString(shardId.id()));
         this.locationIndex = new File(location, "index");
         this.locationTranslog = new File(location, "translog");
@@ -157,10 +164,11 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
                 }
                 threadPool.execute(new Runnable() {
                     @Override public void run() {
+                        File copyTo = new File(locationIndex, fileName);
                         try {
-                            copyFromDirectory(snapshotIndexCommit.getDirectory(), fileName, new File(locationIndex, fileName));
+                            copyFromDirectory(snapshotIndexCommit.getDirectory(), fileName, copyTo);
                         } catch (Exception e) {
-                            lastException.set(e);
+                            lastException.set(new IndexShardGatewaySnapshotFailedException(shardId, "Failed to copy to [" + copyTo + "], from dir [" + snapshotIndexCommit.getDirectory() + "] and file [" + fileName + "]", e));
                         } finally {
                             latch.countDown();
                         }
@@ -200,7 +208,9 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
                 translogTime = System.currentTimeMillis() - time;
             } catch (Exception e) {
                 try {
-                    translogRaf.close();
+                    if (translogRaf != null) {
+                        translogRaf.close();
+                    }
                 } catch (IOException e1) {
                     // ignore
                 }
@@ -303,15 +313,22 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
         File[] files = locationIndex.listFiles();
         final CountDownLatch latch = new CountDownLatch(files.length);
         final AtomicReference<Exception> lastException = new AtomicReference<Exception>();
+        final AtomicLong throttlingWaitTime = new AtomicLong();
         for (final File file : files) {
             threadPool.execute(new Runnable() {
                 @Override public void run() {
                     try {
+                        long throttlingStartTime = System.currentTimeMillis();
+                        while (!recoveryThrottler.tryStream(shardId, file.getName())) {
+                            Thread.sleep(recoveryThrottler.throttleInterval().millis());
+                        }
+                        throttlingWaitTime.addAndGet(System.currentTimeMillis() - throttlingStartTime);
                         copyToDirectory(file, store.directory(), file.getName());
                     } catch (Exception e) {
                         logger.debug("Failed to read [" + file + "] into [" + store + "]", e);
                         lastException.set(e);
                     } finally {
+                        recoveryThrottler.streamDone(shardId, file.getName());
                         latch.countDown();
                     }
                 }
@@ -339,7 +356,7 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
             throw new IndexShardGatewayRecoveryException(shardId(), "Failed to fetch index version after copying it over", e);
         }
 
-        return new RecoveryStatus.Index(version, files.length, new SizeValue(totalSize, SizeUnit.BYTES));
+        return new RecoveryStatus.Index(version, files.length, new SizeValue(totalSize, SizeUnit.BYTES), TimeValue.timeValueMillis(throttlingWaitTime.get()));
     }
 
     private RecoveryStatus.Translog recoverTranslog() throws IndexShardGatewayRecoveryException {

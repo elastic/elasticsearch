@@ -235,11 +235,13 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
             private long version;
             private int numberOfFiles;
             private SizeValue totalSize;
+            private TimeValue throttlingWaitTime;
 
-            public Index(long version, int numberOfFiles, SizeValue totalSize) {
+            public Index(long version, int numberOfFiles, SizeValue totalSize, TimeValue throttlingWaitTime) {
                 this.version = version;
                 this.numberOfFiles = numberOfFiles;
                 this.totalSize = totalSize;
+                this.throttlingWaitTime = throttlingWaitTime;
             }
 
             public long version() {
@@ -252,6 +254,10 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
 
             public SizeValue totalSize() {
                 return totalSize;
+            }
+
+            public TimeValue throttlingWaitTime() {
+                return throttlingWaitTime;
             }
         }
     }

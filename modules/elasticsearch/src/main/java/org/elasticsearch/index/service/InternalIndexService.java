@@ -171,7 +171,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     @Override public synchronized void close(boolean delete) {
         try {
             for (int shardId : shardIds()) {
-                deleteShard(shardId, delete);
+                deleteShard(shardId, delete, delete);
             }
         } finally {
             indicesLifecycle.removeListener(cleanCacheOnIndicesLifecycleListener);
@@ -234,11 +234,11 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         return indexShard;
     }
 
-    @Override public synchronized void deleteShard(int shardId) throws ElasticSearchException {
-        deleteShard(shardId, true);
+    @Override public synchronized void cleanShard(int shardId) throws ElasticSearchException {
+        deleteShard(shardId, true, false);
     }
 
-    private synchronized void deleteShard(int shardId, boolean delete) throws ElasticSearchException {
+    private synchronized void deleteShard(int shardId, boolean delete, boolean deleteGateway) throws ElasticSearchException {
         Map<Integer, Injector> tmpShardInjectors = newHashMap(shardsInjectors);
         Injector shardInjector = tmpShardInjectors.remove(shardId);
         if (shardInjector == null) {
@@ -268,7 +268,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         RecoveryAction recoveryAction = shardInjector.getInstance(RecoveryAction.class);
         if (recoveryAction != null) recoveryAction.close();
 
-        shardInjector.getInstance(IndexShardGatewayService.class).close(delete);
+        shardInjector.getInstance(IndexShardGatewayService.class).close(deleteGateway);
 
         indexShard.close();
 

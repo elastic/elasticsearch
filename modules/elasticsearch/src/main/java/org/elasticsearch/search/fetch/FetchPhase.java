@@ -66,9 +66,8 @@ public class FetchPhase implements SearchPhase {
         FieldSelector fieldSelector = buildFieldSelectors(context);
 
         InternalSearchHit[] hits = new InternalSearchHit[context.docIdsToLoadSize()];
-        int index = 0;
-        for (int docIdIdx = context.docIdsToLoadFrom(); docIdIdx < context.docIdsToLoadSize(); docIdIdx++) {
-            int docId = context.docIdsToLoad()[docIdIdx];
+        for (int index = 0; index < context.docIdsToLoadSize(); index++) {
+            int docId = context.docIdsToLoad()[context.docIdsToLoadFrom() + index];
             Document doc = loadDocument(context, fieldSelector, docId);
             Uid uid = extractUid(context, doc);
 

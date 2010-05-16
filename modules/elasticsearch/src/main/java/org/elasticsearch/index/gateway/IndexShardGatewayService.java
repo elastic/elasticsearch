@@ -32,6 +32,7 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.recovery.throttler.RecoveryThrottler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.StopWatch;
 import org.elasticsearch.util.TimeValue;
@@ -58,6 +59,8 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
 
     private final Store store;
 
+    private final RecoveryThrottler recoveryThrottler;
+
 
     private volatile long lastIndexVersion;
 
@@ -73,12 +76,13 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
 
     @Inject public IndexShardGatewayService(ShardId shardId, @IndexSettings Settings indexSettings,
                                             ThreadPool threadPool, IndexShard indexShard, IndexShardGateway shardGateway,
-                                            Store store) {
+                                            Store store, RecoveryThrottler recoveryThrottler) {
         super(shardId, indexSettings);
         this.threadPool = threadPool;
         this.indexShard = (InternalIndexShard) indexShard;
         this.shardGateway = shardGateway;
         this.store = store;
+        this.recoveryThrottler = recoveryThrottler;
 
         this.snapshotOnClose = componentSettings.getAsBoolean("snapshot_on_close", true);
         this.snapshotInterval = componentSettings.getAsTime("snapshot_interval", TimeValue.timeValueSeconds(10));
@@ -99,6 +103,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             if (!indexShard.routingEntry().primary()) {
                 throw new ElasticSearchIllegalStateException("Trying to recover when the shard is in backup state");
             }
+
             // clear the store, we are going to recover into it
             try {
                 store.deleteContent();
@@ -106,29 +111,49 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                 logger.debug("Failed to delete store before recovery from gateway", e);
             }
             indexShard.recovering();
-            logger.debug("Starting recovery from {}", shardGateway);
-            StopWatch stopWatch = new StopWatch().start();
-            IndexShardGateway.RecoveryStatus recoveryStatus = shardGateway.recover();
 
-            lastIndexVersion = recoveryStatus.index().version();
-            lastTranslogId = recoveryStatus.translog().translogId();
-            lastTranslogSize = recoveryStatus.translog().numberOfOperations();
+            StopWatch throttlingWaitTime = new StopWatch().start();
+            // we know we are on a thread, we can spin till we can engage in recovery
+            while (!recoveryThrottler.tryRecovery(shardId, "gateway")) {
+                try {
+                    Thread.sleep(recoveryThrottler.throttleInterval().millis());
+                } catch (InterruptedException e) {
+                    if (indexShard.ignoreRecoveryAttempt()) {
+                        throw new IgnoreGatewayRecoveryException(shardId, "Interrupted while waiting for recovery, but we should ignore ...");
+                    }
+                    // we got interrupted, mark it as failed
+                    throw new IndexShardGatewayRecoveryException(shardId, "Interrupted while waiting to recovery", e);
+                }
+            }
+            throttlingWaitTime.stop();
 
-            // start the shard if the gateway has not started it already
-            if (indexShard.state() != IndexShardState.STARTED) {
-                indexShard.start();
+            try {
+                logger.debug("Starting recovery from {}", shardGateway);
+                StopWatch stopWatch = new StopWatch().start();
+                IndexShardGateway.RecoveryStatus recoveryStatus = shardGateway.recover();
+
+                lastIndexVersion = recoveryStatus.index().version();
+                lastTranslogId = recoveryStatus.translog().translogId();
+                lastTranslogSize = recoveryStatus.translog().numberOfOperations();
+
+                // start the shard if the gateway has not started it already
+                if (indexShard.state() != IndexShardState.STARTED) {
+                    indexShard.start();
+                }
+                stopWatch.stop();
+                if (logger.isDebugEnabled()) {
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("Recovery completed from ").append(shardGateway).append(", took [").append(stopWatch.totalTime()).append("], throttling_wait [").append(throttlingWaitTime.totalTime()).append("]\n");
+                    sb.append("    Index    : number_of_files [").append(recoveryStatus.index().numberOfFiles()).append("] with total_size [").append(recoveryStatus.index().totalSize()).append("], throttling_wait [").append(recoveryStatus.index().throttlingWaitTime()).append("]\n");
+                    sb.append("    Translog : translog_id [").append(recoveryStatus.translog().translogId()).append("], number_of_operations [").append(recoveryStatus.translog().numberOfOperations()).append("] with total_size[").append(recoveryStatus.translog().totalSize()).append("]");
+                    logger.debug(sb.toString());
+                }
+                // refresh the shard
+                indexShard.refresh(new Engine.Refresh(false));
+                scheduleSnapshotIfNeeded();
+            } finally {
+                recoveryThrottler.recoveryDone(shardId, "gateway");
             }
-            stopWatch.stop();
-            if (logger.isDebugEnabled()) {
-                StringBuilder sb = new StringBuilder();
-                sb.append("Recovery completed from ").append(shardGateway).append(", took [").append(stopWatch.totalTime()).append("]\n");
-                sb.append("    Index    : number_of_files [").append(recoveryStatus.index().numberOfFiles()).append("] with total_size [").append(recoveryStatus.index().totalSize()).append("]\n");
-                sb.append("    Translog : translog_id [").append(recoveryStatus.translog().translogId()).append("], number_of_operations [").append(recoveryStatus.translog().numberOfOperations()).append("] with total_size[").append(recoveryStatus.translog().totalSize()).append("]");
-                logger.debug(sb.toString());
-            }
-            // refresh the shard
-            indexShard.refresh(new Engine.Refresh(false));
-            scheduleSnapshotIfNeeded();
         } else {
             throw new IgnoreGatewayRecoveryException(shardId, "Already recovered");
         }

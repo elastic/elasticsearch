@@ -36,6 +36,7 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.recovery.throttler.RecoveryThrottler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
@@ -61,6 +62,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.translog.TranslogStreams.*;
@@ -73,6 +75,8 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
     private final InternalIndexShard indexShard;
 
     private final ThreadPool threadPool;
+
+    private final RecoveryThrottler recoveryThrottler;
 
     private final Store store;
 
@@ -91,10 +95,11 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
     private volatile int currentTranslogPartToWrite = 1;
 
     @Inject public CloudIndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, IndexShard indexShard, ThreadPool threadPool,
-                                          Store store, CloudIndexGateway cloudIndexGateway, CloudBlobStoreService blobStoreService) {
+                                          Store store, RecoveryThrottler recoveryThrottler, CloudIndexGateway cloudIndexGateway, CloudBlobStoreService blobStoreService) {
         super(shardId, indexSettings);
         this.indexShard = (InternalIndexShard) indexShard;
         this.threadPool = threadPool;
+        this.recoveryThrottler = recoveryThrottler;
         this.store = store;
         this.blobStoreContext = blobStoreService.context();
 
@@ -345,15 +350,22 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
 
         final CountDownLatch latch = new CountDownLatch(filesMetaDatas.size());
         final AtomicReference<Exception> lastException = new AtomicReference<Exception>();
+        final AtomicLong throttlingWaitTime = new AtomicLong();
         for (final Map.Entry<String, StorageMetadata> entry : filesMetaDatas.entrySet()) {
             threadPool.execute(new Runnable() {
                 @Override public void run() {
                     try {
+                        long throttlingStartTime = System.currentTimeMillis();
+                        while (!recoveryThrottler.tryStream(shardId, entry.getKey())) {
+                            Thread.sleep(recoveryThrottler.throttleInterval().millis());
+                        }
+                        throttlingWaitTime.addAndGet(System.currentTimeMillis() - throttlingStartTime);
                         copyToDirectory(entry.getValue(), allMetaDatas);
                     } catch (Exception e) {
                         logger.debug("Failed to read [" + entry.getKey() + "] into [" + store + "]", e);
                         lastException.set(e);
                     } finally {
+                        recoveryThrottler.streamDone(shardId, entry.getKey());
                         latch.countDown();
                     }
                 }
@@ -379,7 +391,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
             throw new IndexShardGatewayRecoveryException(shardId(), "Failed to fetch index version after copying it over", e);
         }
 
-        return new RecoveryStatus.Index(version, filesMetaDatas.size(), new SizeValue(totalSize, SizeUnit.BYTES));
+        return new RecoveryStatus.Index(version, filesMetaDatas.size(), new SizeValue(totalSize, SizeUnit.BYTES), TimeValue.timeValueMillis(throttlingWaitTime.get()));
     }
 
     private RecoveryStatus.Translog recoverTranslog() throws IndexShardGatewayRecoveryException {

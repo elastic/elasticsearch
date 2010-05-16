@@ -44,6 +44,8 @@ public class ClusterHealthRequest extends MasterNodeOperationRequest {
 
     private int waitForRelocatingShards = -1;
 
+    private int waitForActiveShards = -1;
+
     ClusterHealthRequest() {
     }
 
@@ -95,6 +97,15 @@ public class ClusterHealthRequest extends MasterNodeOperationRequest {
         return this;
     }
 
+    public int waitForActiveShards() {
+        return waitForActiveShards;
+    }
+
+    public ClusterHealthRequest waitForActiveShards(int waitForActiveShards) {
+        this.waitForActiveShards = waitForActiveShards;
+        return this;
+    }
+
     @Override public ActionRequestValidationException validate() {
         return null;
     }
@@ -115,6 +126,7 @@ public class ClusterHealthRequest extends MasterNodeOperationRequest {
             waitForStatus = ClusterHealthStatus.fromValue(in.readByte());
         }
         waitForRelocatingShards = in.readInt();
+        waitForActiveShards = in.readInt();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -135,5 +147,6 @@ public class ClusterHealthRequest extends MasterNodeOperationRequest {
             out.writeByte(waitForStatus.value());
         }
         out.writeInt(waitForRelocatingShards);
+        out.writeInt(waitForActiveShards);
     }
 }

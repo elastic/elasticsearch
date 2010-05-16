@@ -28,6 +28,7 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
+import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
@@ -46,7 +47,7 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
     @Override public RecoveryStatus recover() throws IndexShardGatewayRecoveryException {
         // in the none case, we simply start the shard
         indexShard.start();
-        return new RecoveryStatus(new RecoveryStatus.Index(-1, 0, new SizeValue(0, SizeUnit.BYTES)), new RecoveryStatus.Translog(-1, 0, new SizeValue(0, SizeUnit.BYTES)));
+        return new RecoveryStatus(new RecoveryStatus.Index(-1, 0, new SizeValue(0, SizeUnit.BYTES), TimeValue.timeValueMillis(0)), new RecoveryStatus.Translog(-1, 0, new SizeValue(0, SizeUnit.BYTES)));
     }
 
     @Override public SnapshotStatus snapshot(Snapshot snapshot) {

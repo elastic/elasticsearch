@@ -39,7 +39,9 @@ import static org.elasticsearch.util.concurrent.ConcurrentCollections.*;
 import static org.elasticsearch.util.lucene.docidset.DocIdSets.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * A base concurrent filter cache that accepts the actual cache to use.
+ *
+ * @author kimchy (shay.banon)
  */
 public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComponent implements FilterCache {
 
@@ -49,14 +51,15 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
 
     private final Future scheduleFuture;
 
-    protected AbstractConcurrentMapFilterCache(Index index, @IndexSettings Settings indexSettings, ThreadPool threadPool) {
+    protected AbstractConcurrentMapFilterCache(Index index, @IndexSettings Settings indexSettings, ThreadPool threadPool,
+                                               ConcurrentMap<IndexReader, ConcurrentMap<Filter, DocIdSet>> cache) {
         super(index, indexSettings);
+        this.cache = cache;
 
         this.readerCleanerSchedule = componentSettings.getAsTime("reader_cleaner_schedule", TimeValue.timeValueMinutes(1));
 
-        logger.debug("Using [" + type() + "] filter cache with reader_cleaner_schedule[{}]", readerCleanerSchedule);
+        logger.debug("Using [" + type() + "] filter cache with reader_cleaner_schedule [{}]", readerCleanerSchedule);
 
-        this.cache = newConcurrentMap();
         this.scheduleFuture = threadPool.scheduleWithFixedDelay(new IndexReaderCleaner(), readerCleanerSchedule);
     }
 
@@ -88,7 +91,9 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         }
     }
 
-    protected abstract ConcurrentMap<Filter, DocIdSet> buildMap();
+    protected ConcurrentMap<Filter, DocIdSet> buildFilterMap() {
+        return newConcurrentMap();
+    }
 
     private class FilterCacheFilterWrapper extends Filter {
 
@@ -101,7 +106,7 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
             ConcurrentMap<Filter, DocIdSet> cachedFilters = cache.get(reader);
             if (cachedFilters == null) {
-                cachedFilters = buildMap();
+                cachedFilters = buildFilterMap();
                 cache.putIfAbsent(reader, cachedFilters);
             }
             DocIdSet docIdSet = cachedFilters.get(filter);

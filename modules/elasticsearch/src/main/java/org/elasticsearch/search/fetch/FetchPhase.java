@@ -110,8 +110,6 @@ public class FetchPhase implements SearchPhase {
                 hitField.values().add(value);
             }
             doExplanation(context, docId, searchHit);
-
-            index++;
         }
         context.fetchResult().hits(new InternalSearchHits(hits, context.queryResult().topDocs().totalHits));
 

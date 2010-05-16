@@ -174,12 +174,18 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
 
         @Override public ShardRouting nextActiveOrNull() throws NoSuchElementException {
+            int counter = this.counter;
+            int index = this.index;
             while (counter++ < size()) {
                 ShardRouting shardRouting = shardModulo(index++);
                 if (shardRouting.active()) {
+                    this.counter = counter;
+                    this.index = index;
                     return shardRouting;
                 }
             }
+            this.counter = counter;
+            this.index = index;
             return null;
         }
 

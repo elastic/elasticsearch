@@ -55,7 +55,7 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
         deleteByQueryRequest.listenerThreaded(false);
         try {
             if (request.hasContent()) {
-                deleteByQueryRequest.query(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength());
+                deleteByQueryRequest.query(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength(), request.contentUnsafe());
             } else {
                 String source = request.param("source");
                 if (source != null) {

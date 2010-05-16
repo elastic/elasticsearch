@@ -174,7 +174,7 @@ public class TransportMoreLikeThisAction extends BaseAction<MoreLikeThisRequest,
                         )
                         .listenerThreaded(request.listenerThreaded());
                 if (request.searchSource() != null) {
-                    searchRequest.source(request.searchSource(), request.searchSourceOffset(), request.searchSourceLength());
+                    searchRequest.source(request.searchSource(), request.searchSourceOffset(), request.searchSourceLength(), request.searchSourceUnsafe());
                 }
                 searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
                     @Override public void onResponse(SearchResponse response) {

@@ -372,18 +372,18 @@ public class MoreLikeThisRequest implements ActionRequest {
      * more like this documents.
      */
     public MoreLikeThisRequest searchSource(byte[] searchSource) {
-        return searchSource(searchSource, 0, searchSource.length);
+        return searchSource(searchSource, 0, searchSource.length, false);
     }
 
     /**
      * An optional search source request allowing to control the search request for the
      * more like this documents.
      */
-    public MoreLikeThisRequest searchSource(byte[] searchSource, int offset, int length) {
+    public MoreLikeThisRequest searchSource(byte[] searchSource, int offset, int length, boolean unsafe) {
         this.searchSource = searchSource;
         this.searchSourceOffset = offset;
         this.searchSourceLength = length;
-        this.searchSourceUnsafe = false;
+        this.searchSourceUnsafe = unsafe;
         return this;
     }
 
@@ -401,6 +401,10 @@ public class MoreLikeThisRequest implements ActionRequest {
 
     public int searchSourceLength() {
         return searchSourceLength;
+    }
+
+    public boolean searchSourceUnsafe() {
+        return searchSourceUnsafe;
     }
 
     /**

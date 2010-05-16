@@ -103,7 +103,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
      * The query source to execute.
      */
     byte[] querySource() {
-        if (querySourceUnsafe) {
+        if (querySourceUnsafe || querySourceOffset > 0) {
             querySource = Arrays.copyOfRange(querySource, querySourceOffset, querySourceLength);
             querySourceOffset = 0;
             querySourceUnsafe = false;
@@ -167,17 +167,17 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
      * The query source to execute.
      */
     @Required public DeleteByQueryRequest query(byte[] querySource) {
-        return query(querySource, 0, querySource.length);
+        return query(querySource, 0, querySource.length, false);
     }
 
     /**
      * The query source to execute.
      */
-    @Required public DeleteByQueryRequest query(byte[] querySource, int offset, int length) {
+    @Required public DeleteByQueryRequest query(byte[] querySource, int offset, int length, boolean unsafe) {
         this.querySource = querySource;
         this.querySourceOffset = offset;
         this.querySourceLength = length;
-        this.querySourceUnsafe = false;
+        this.querySourceUnsafe = unsafe;
         return this;
     }
 

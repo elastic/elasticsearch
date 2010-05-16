@@ -126,10 +126,9 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     /**
      * Constructs a new index request against the index, type, id and using the source.
      *
-     * @param index  The index to index into
-     * @param type   The type to index into
-     * @param id     The id of document
-     * @param source The JSON source document
+     * @param index The index to index into
+     * @param type  The type to index into
+     * @param id    The id of document
      */
     public IndexRequest(String index, String type, String id) {
         this.index = index;
@@ -214,7 +213,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
      * The source of the JSON document to index.
      */
     byte[] source() {
-        if (sourceUnsafe) {
+        if (sourceUnsafe || sourceOffset > 0) {
             source = Arrays.copyOfRange(source, sourceOffset, sourceLength);
             sourceOffset = 0;
             sourceUnsafe = false;

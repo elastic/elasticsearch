@@ -19,8 +19,9 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.util.inject.AbstractModule;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
+import org.elasticsearch.indices.recovery.throttler.RecoveryThrottler;
+import org.elasticsearch.util.inject.AbstractModule;
 import org.elasticsearch.util.settings.Settings;
 
 /**
@@ -37,6 +38,7 @@ public class IndicesModule extends AbstractModule {
     @Override protected void configure() {
         bind(IndicesLifecycle.class).to(InternalIndicesLifecycle.class).asEagerSingleton();
         bind(IndicesService.class).to(InternalIndicesService.class).asEagerSingleton();
+        bind(RecoveryThrottler.class).asEagerSingleton();
         bind(IndicesClusterStateService.class).asEagerSingleton();
         bind(IndicesMemoryCleaner.class).asEagerSingleton();
     }

@@ -65,11 +65,14 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
     }
 
     @Override protected ClusterHealthResponse masterOperation(ClusterHealthRequest request) throws ElasticSearchException {
-        int waitFor = 2;
+        int waitFor = 3;
         if (request.waitForStatus() == null) {
             waitFor--;
         }
         if (request.waitForRelocatingShards() == -1) {
+            waitFor--;
+        }
+        if (request.waitForActiveShards() == -1) {
             waitFor--;
         }
         if (waitFor == 0) {
@@ -84,6 +87,9 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
                 waitForCounter++;
             }
             if (request.waitForRelocatingShards() != -1 && response.relocatingShards() <= request.waitForRelocatingShards()) {
+                waitForCounter++;
+            }
+            if (request.waitForActiveShards() != -1 && response.activeShards() >= request.waitForActiveShards()) {
                 waitForCounter++;
             }
             if (waitForCounter == waitFor) {

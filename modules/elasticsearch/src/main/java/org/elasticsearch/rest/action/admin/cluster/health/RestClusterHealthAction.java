@@ -56,6 +56,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
                 clusterHealthRequest.waitForStatus(ClusterHealthStatus.valueOf(waitForStatus.toUpperCase()));
             }
             clusterHealthRequest.waitForRelocatingShards(request.paramAsInt("wait_for_relocating_shards", clusterHealthRequest.waitForRelocatingShards()));
+            clusterHealthRequest.waitForActiveShards(request.paramAsInt("wait_for_active_shards", clusterHealthRequest.waitForActiveShards()));
             String sLevel = request.param("level");
             if (sLevel != null) {
                 if ("cluster".equals("sLevel")) {

@@ -153,7 +153,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                         if (logger.isDebugEnabled()) {
                             logger.debug("Index [{}]: Deleting shard [{}]", index, existingShardId);
                         }
-                        indexService.deleteShard(existingShardId);
+                        indexService.cleanShard(existingShardId);
                     }
                 }
             }
@@ -290,7 +290,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             } catch (Exception e) {
                 logger.warn("Failed to create shard for index [" + indexService.index().name() + "] and shard id [" + shardRouting.id() + "]", e);
                 try {
-                    indexService.deleteShard(shardId);
+                    indexService.cleanShard(shardId);
                 } catch (IndexShardMissingException e1) {
                     // ignore
                 } catch (Exception e1) {
@@ -361,7 +361,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     logger.warn("Failed to start shard for index [" + indexService.index().name() + "] and shard id [" + shardRouting.id() + "]", e);
                     if (indexService.hasShard(shardId)) {
                         try {
-                            indexService.deleteShard(shardId);
+                            indexService.cleanShard(shardId);
                         } catch (Exception e1) {
                             logger.warn("Failed to delete shard after failed startup for index [" + indexService.index().name() + "] and shard id [" + shardRouting.id() + "]", e1);
                         }

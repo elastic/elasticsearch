@@ -85,8 +85,8 @@ public class MasterFaultDetection extends AbstractComponent {
 
         this.connectOnNetworkDisconnect = componentSettings.getAsBoolean("connect_on_network_disconnect", false);
         this.pingInterval = componentSettings.getAsTime("ping_interval", timeValueSeconds(1));
-        this.pingRetryTimeout = componentSettings.getAsTime("ping_timeout", timeValueSeconds(6));
-        this.pingRetryCount = componentSettings.getAsInt("ping_retries", 5);
+        this.pingRetryTimeout = componentSettings.getAsTime("ping_timeout", timeValueSeconds(30));
+        this.pingRetryCount = componentSettings.getAsInt("ping_retries", 3);
 
         logger.debug("Master FD uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
 

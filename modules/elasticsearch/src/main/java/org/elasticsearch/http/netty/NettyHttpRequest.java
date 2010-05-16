@@ -95,6 +95,10 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
         return request.getContent().readableBytes();
     }
 
+    @Override public boolean contentUnsafe() {
+        return request.getContent().hasArray();
+    }
+
     @Override public byte[] contentByteArray() {
         if (request.getContent().hasArray()) {
             return request.getContent().array();
@@ -109,7 +113,8 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
 
     @Override public int contentByteArrayOffset() {
         if (request.getContent().hasArray()) {
-            return request.getContent().arrayOffset();
+            // get the array offset, and the reader index offset within it
+            return request.getContent().arrayOffset() + request.getContent().readerIndex();
         }
         return 0;
     }

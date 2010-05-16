@@ -267,17 +267,17 @@ public class SearchRequest implements ActionRequest {
      * The search source to execute.
      */
     public SearchRequest source(byte[] source) {
-        return source(source, 0, source.length);
+        return source(source, 0, source.length, false);
     }
 
     /**
      * The search source to execute.
      */
-    public SearchRequest source(byte[] source, int offset, int length) {
+    public SearchRequest source(byte[] source, int offset, int length, boolean unsafe) {
         this.source = source;
         this.sourceOffset = offset;
         this.sourceLength = length;
-        this.sourceUnsafe = false;
+        this.sourceUnsafe = unsafe;
         return this;
     }
 
@@ -346,17 +346,17 @@ public class SearchRequest implements ActionRequest {
      * Allows to provide additional source that will be used as well.
      */
     public SearchRequest extraSource(byte[] source) {
-        return extraSource(source, 0, source.length);
+        return extraSource(source, 0, source.length, false);
     }
 
     /**
      * Allows to provide additional source that will be used as well.
      */
-    public SearchRequest extraSource(byte[] source, int offset, int length) {
+    public SearchRequest extraSource(byte[] source, int offset, int length, boolean unsafe) {
         this.extraSource = source;
         this.extraSourceOffset = offset;
         this.extraSourceLength = length;
-        this.extraSourceUnsafe = false;
+        this.extraSourceUnsafe = unsafe;
         return this;
     }
 

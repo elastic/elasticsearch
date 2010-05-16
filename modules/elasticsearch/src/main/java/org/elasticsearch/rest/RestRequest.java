@@ -50,6 +50,11 @@ public interface RestRequest extends ToXContent.Params {
 
     boolean hasContent();
 
+    /**
+     * Is the byte array content safe or unsafe for usage on other threads
+     */
+    boolean contentUnsafe();
+
     byte[] contentByteArray();
 
     int contentByteArrayOffset();

@@ -213,17 +213,17 @@ public class CountRequest extends BroadcastOperationRequest {
      * The query source to execute.
      */
     @Required public CountRequest query(byte[] querySource) {
-        return query(querySource, 0, querySource.length);
+        return query(querySource, 0, querySource.length, false);
     }
 
     /**
      * The query source to execute.
      */
-    @Required public CountRequest query(byte[] querySource, int offset, int length) {
+    @Required public CountRequest query(byte[] querySource, int offset, int length, boolean unsafe) {
         this.querySource = querySource;
         this.querySourceOffset = offset;
         this.querySourceLength = length;
-        this.querySourceUnsafe = false;
+        this.querySourceUnsafe = unsafe;
         return this;
     }
 

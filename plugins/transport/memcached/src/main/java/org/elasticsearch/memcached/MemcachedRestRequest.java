@@ -109,6 +109,10 @@ public class MemcachedRestRequest extends AbstractRestRequest {
         return data != null;
     }
 
+    @Override public boolean contentUnsafe() {
+        return false;
+    }
+
     @Override public byte[] contentByteArray() {
         return data;
     }

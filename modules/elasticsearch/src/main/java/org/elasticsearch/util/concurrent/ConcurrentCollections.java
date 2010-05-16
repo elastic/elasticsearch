@@ -33,7 +33,7 @@ import java.util.concurrent.ConcurrentMap;
  */
 public abstract class ConcurrentCollections {
 
-    private final static boolean useNonBlockingMap = Boolean.parseBoolean(System.getProperty("elasticsearch.useNonBlockingMap", "true"));
+    private final static boolean useNonBlockingMap = Boolean.parseBoolean(System.getProperty("elasticsearch.useNonBlockingMap", "false"));
 
     public static <K, V> ConcurrentMap<K, V> newConcurrentMap() {
         if (useNonBlockingMap) {

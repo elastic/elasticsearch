@@ -27,11 +27,13 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.lucene.Lucene;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.util.lucene.DocumentBuilder.*;
 import static org.hamcrest.MatcherAssert.*;
@@ -116,6 +118,35 @@ public class SimpleLuceneTests {
             Document doc = searcher.doc(topDocs.scoreDocs[i].doc);
 //            System.out.println(doc.get("id") + ": " + searcher.explain(query, topDocs.scoreDocs[i].doc));
             assertThat(doc.get("id"), equalTo(Integer.toString(100 - i - 1)));
+        }
+
+        indexWriter.close();
+    }
+
+    @Test public void testNRT() throws Exception {
+        Directory dir = new RAMDirectory();
+        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+        IndexReader reader = indexWriter.getReader();
+
+        List<IndexReader> readers = Lists.newArrayList();
+        for (int i = 0; i < 100; i++) {
+            readers.add(reader);
+            indexWriter.addDocument(doc()
+                    .add(field("id", Integer.toString(i)))
+                    .boost(i).build());
+
+            reader = refreshReader(reader);
+        }
+        reader.close();
+
+        // verify that all readers are closed
+        for (IndexReader reader1 : readers) {
+            assertThat(reader1.getRefCount(), equalTo(0));
+            if (reader1.getSequentialSubReaders() != null) {
+                for (IndexReader reader2 : reader1.getSequentialSubReaders()) {
+                    assertThat(reader2.getRefCount(), equalTo(0));
+                }
+            }
         }
 
         indexWriter.close();

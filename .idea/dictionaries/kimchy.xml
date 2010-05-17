@@ -100,6 +100,7 @@
       <w>uptime</w>
       <w>uuid</w>
       <w>versioned</w>
+      <w>warmup</w>
       <w>wildcards</w>
       <w>xcontent</w>
       <w>xson</w>

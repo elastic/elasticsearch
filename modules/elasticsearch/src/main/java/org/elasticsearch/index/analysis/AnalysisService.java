@@ -39,8 +39,6 @@ import static org.elasticsearch.util.collect.Maps.*;
  */
 public class AnalysisService extends AbstractIndexComponent implements CloseableComponent {
 
-    private final ImmutableMap<String, AnalyzerProvider> analyzerProviders;
-
     private final ImmutableMap<String, NamedAnalyzer> analyzers;
 
     private final ImmutableMap<String, TokenizerFactory> tokenizers;
@@ -83,8 +81,6 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         if (!analyzerProviders.containsKey("default_search")) {
             analyzerProviders.put("default_search", analyzerProviders.get("default"));
         }
-
-        this.analyzerProviders = ImmutableMap.copyOf(analyzerProviders);
 
         Map<String, NamedAnalyzer> analyzers = newHashMap();
         for (AnalyzerProvider analyzerFactory : analyzerProviders.values()) {
@@ -149,10 +145,6 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
     public NamedAnalyzer defaultSearchAnalyzer() {
         return defaultAnalyzer();
-    }
-
-    public AnalyzerProvider analyzerProvider(String name) {
-        return analyzerProviders.get(name);
     }
 
     public TokenizerFactory tokenizer(String name) {

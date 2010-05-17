@@ -21,13 +21,13 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.StopAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.collect.ImmutableSet;
 import org.elasticsearch.util.collect.Iterators;
 import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.inject.assistedinject.Assisted;
+import org.elasticsearch.util.lucene.Lucene;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.Set;
@@ -52,7 +52,7 @@ public class StandardAnalyzerProvider extends AbstractAnalyzerProvider<StandardA
             this.stopWords = ImmutableSet.copyOf((Iterable<? extends String>) StopAnalyzer.ENGLISH_STOP_WORDS_SET);
         }
         maxTokenLength = settings.getAsInt("max_token_length", StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
-        standardAnalyzer = new StandardAnalyzer(Version.LUCENE_CURRENT, this.stopWords);
+        standardAnalyzer = new StandardAnalyzer(Lucene.ANALYZER_VERSION, this.stopWords);
         standardAnalyzer.setMaxTokenLength(maxTokenLength);
     }
 

@@ -26,11 +26,11 @@ import org.apache.lucene.queryParser.QueryParser;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.util.lucene.Lucene;
 
 import javax.annotation.Nullable;
 import java.util.List;
@@ -58,7 +58,7 @@ public class MapperQueryParser extends QueryParser {
     public MapperQueryParser(String defaultField, Analyzer analyzer,
                              @Nullable MapperService mapperService,
                              @Nullable IndexCache indexCache) {
-        super(Version.LUCENE_CURRENT, defaultField, analyzer);
+        super(Lucene.QUERYPARSER_VERSION, defaultField, analyzer);
         this.mapperService = mapperService;
         this.indexCache = indexCache;
         setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT);

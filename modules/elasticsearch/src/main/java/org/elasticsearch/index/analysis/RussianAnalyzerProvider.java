@@ -20,13 +20,13 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.ru.RussianAnalyzer;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.collect.ImmutableSet;
 import org.elasticsearch.util.collect.Iterators;
 import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.inject.assistedinject.Assisted;
+import org.elasticsearch.util.lucene.Lucene;
 import org.elasticsearch.util.settings.Settings;
 
 /**
@@ -40,9 +40,9 @@ public class RussianAnalyzerProvider extends AbstractAnalyzerProvider<RussianAna
         super(index, indexSettings, name);
         String[] stopWords = settings.getAsArray("stopwords");
         if (stopWords.length > 0) {
-            analyzer = new RussianAnalyzer(Version.LUCENE_CURRENT, ImmutableSet.copyOf(Iterators.forArray(stopWords)));
+            analyzer = new RussianAnalyzer(Lucene.ANALYZER_VERSION, ImmutableSet.copyOf(Iterators.forArray(stopWords)));
         } else {
-            analyzer = new RussianAnalyzer(Version.LUCENE_CURRENT);
+            analyzer = new RussianAnalyzer(Lucene.ANALYZER_VERSION);
         }
     }
 

@@ -20,13 +20,13 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.StopAnalyzer;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.collect.ImmutableSet;
 import org.elasticsearch.util.collect.Iterators;
 import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.inject.assistedinject.Assisted;
+import org.elasticsearch.util.lucene.Lucene;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.Set;
@@ -48,7 +48,7 @@ public class StopAnalyzerProvider extends AbstractAnalyzerProvider<StopAnalyzer>
         } else {
             this.stopWords = ImmutableSet.copyOf((Iterable<? extends String>) StopAnalyzer.ENGLISH_STOP_WORDS_SET);
         }
-        this.stopAnalyzer = new StopAnalyzer(Version.LUCENE_CURRENT, this.stopWords);
+        this.stopAnalyzer = new StopAnalyzer(Lucene.ANALYZER_VERSION, this.stopWords);
     }
 
     @Override public StopAnalyzer get() {

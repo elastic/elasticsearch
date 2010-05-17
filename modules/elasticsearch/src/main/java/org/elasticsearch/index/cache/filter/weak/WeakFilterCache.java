@@ -25,7 +25,6 @@ import org.apache.lucene.search.Filter;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.support.AbstractConcurrentMapFilterCache;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.collect.MapMaker;
 import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
@@ -39,8 +38,8 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class WeakFilterCache extends AbstractConcurrentMapFilterCache {
 
-    @Inject public WeakFilterCache(Index index, @IndexSettings Settings indexSettings, ThreadPool threadPool) {
-        super(index, indexSettings, threadPool, new MapMaker().weakKeys().<IndexReader, ConcurrentMap<Filter, DocIdSet>>makeMap());
+    @Inject public WeakFilterCache(Index index, @IndexSettings Settings indexSettings) {
+        super(index, indexSettings, new MapMaker().weakKeys().<IndexReader, ConcurrentMap<Filter, DocIdSet>>makeMap());
     }
 
     @Override public String type() {

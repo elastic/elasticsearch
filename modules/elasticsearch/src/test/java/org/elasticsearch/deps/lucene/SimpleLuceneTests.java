@@ -33,6 +33,7 @@ import org.testng.annotations.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
 
 import static org.elasticsearch.util.lucene.DocumentBuilder.*;
@@ -139,12 +140,22 @@ public class SimpleLuceneTests {
         }
         reader.close();
 
+
         // verify that all readers are closed
+        // also, SADLY, verifies that new readers are always created, meaning that caching based on index reader are useless
+        IdentityHashMap<IndexReader, Boolean> identityReaders = new IdentityHashMap<IndexReader, Boolean>();
         for (IndexReader reader1 : readers) {
             assertThat(reader1.getRefCount(), equalTo(0));
+            assertThat(identityReaders.containsKey(reader1), equalTo(false));
+            identityReaders.put(reader1, Boolean.TRUE);
+
             if (reader1.getSequentialSubReaders() != null) {
                 for (IndexReader reader2 : reader1.getSequentialSubReaders()) {
                     assertThat(reader2.getRefCount(), equalTo(0));
+                    assertThat(reader2.getSequentialSubReaders(), nullValue());
+
+                    assertThat(identityReaders.containsKey(reader2), equalTo(false));
+                    identityReaders.put(reader2, Boolean.TRUE);
                 }
             }
         }

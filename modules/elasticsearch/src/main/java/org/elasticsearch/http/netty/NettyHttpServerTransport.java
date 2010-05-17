@@ -101,7 +101,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     @Inject public NettyHttpServerTransport(Settings settings, NetworkService networkService) {
         super(settings);
         this.networkService = networkService;
-        SizeValue maxContentLength = componentSettings.getAsSize("max_content_length", new SizeValue(100, SizeUnit.MB));
+        SizeValue maxContentLength = componentSettings.getAsSize("max_content_length", settings.getAsSize("http.max_content_length", new SizeValue(100, SizeUnit.MB)));
         this.workerCount = componentSettings.getAsInt("worker_count", Runtime.getRuntime().availableProcessors());
         this.port = componentSettings.get("port", settings.get("http.port", "9200-9300"));
         this.bindHost = componentSettings.get("bind_host");

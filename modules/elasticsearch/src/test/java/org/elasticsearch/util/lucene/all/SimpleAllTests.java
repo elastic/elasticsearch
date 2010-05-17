@@ -50,7 +50,7 @@ public class SimpleAllTests {
         allEntries.addText("field1", "something", 1.0f);
         allEntries.addText("field2", "else", 1.0f);
         allEntries.reset();
-        doc.add(new Field("_all", AllTokenFilter.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+        doc.add(new Field("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
 
         indexWriter.addDocument(doc);
 
@@ -60,7 +60,7 @@ public class SimpleAllTests {
         allEntries.addText("field1", "else", 1.0f);
         allEntries.addText("field2", "something", 1.0f);
         allEntries.reset();
-        doc.add(new Field("_all", AllTokenFilter.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+        doc.add(new Field("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
 
         indexWriter.addDocument(doc);
 
@@ -92,7 +92,7 @@ public class SimpleAllTests {
         allEntries.addText("field1", "something", 1.0f);
         allEntries.addText("field2", "else", 1.0f);
         allEntries.reset();
-        doc.add(new Field("_all", AllTokenFilter.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+        doc.add(new Field("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
 
         indexWriter.addDocument(doc);
 
@@ -102,7 +102,7 @@ public class SimpleAllTests {
         allEntries.addText("field1", "else", 2.0f);
         allEntries.addText("field2", "something", 1.0f);
         allEntries.reset();
-        doc.add(new Field("_all", AllTokenFilter.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+        doc.add(new Field("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
 
         indexWriter.addDocument(doc);
 
@@ -135,7 +135,7 @@ public class SimpleAllTests {
         allEntries.addText("field1", "something moo", 1.0f);
         allEntries.addText("field2", "else koo", 1.0f);
         allEntries.reset();
-        doc.add(new Field("_all", AllTokenFilter.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+        doc.add(new Field("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
 
         indexWriter.addDocument(doc);
 
@@ -145,7 +145,7 @@ public class SimpleAllTests {
         allEntries.addText("field1", "else koo", 1.0f);
         allEntries.addText("field2", "something moo", 1.0f);
         allEntries.reset();
-        doc.add(new Field("_all", AllTokenFilter.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+        doc.add(new Field("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
 
         indexWriter.addDocument(doc);
 
@@ -187,7 +187,7 @@ public class SimpleAllTests {
         allEntries.addText("field1", "something moo", 1.0f);
         allEntries.addText("field2", "else koo", 1.0f);
         allEntries.reset();
-        doc.add(new Field("_all", AllTokenFilter.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+        doc.add(new Field("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
 
         indexWriter.addDocument(doc);
 
@@ -197,7 +197,7 @@ public class SimpleAllTests {
         allEntries.addText("field1", "else koo", 2.0f);
         allEntries.addText("field2", "something moo", 1.0f);
         allEntries.reset();
-        doc.add(new Field("_all", AllTokenFilter.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+        doc.add(new Field("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
 
         indexWriter.addDocument(doc);
 

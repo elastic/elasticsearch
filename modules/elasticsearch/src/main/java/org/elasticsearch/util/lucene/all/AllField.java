@@ -21,39 +21,45 @@ package org.elasticsearch.util.lucene.all;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.document.AbstractField;
+import org.apache.lucene.document.Field;
+import org.elasticsearch.ElasticSearchException;
 
 import java.io.IOException;
 import java.io.Reader;
 
 /**
- * An all analyzer.
- *
  * @author kimchy (shay.banon)
  */
-public class AllAnalyzer extends Analyzer {
+public class AllField extends AbstractField {
+
+    private final AllEntries allEntries;
 
     private final Analyzer analyzer;
 
-    public AllAnalyzer(Analyzer analyzer) {
+    public AllField(String name, Field.Store store, Field.TermVector termVector, AllEntries allEntries, Analyzer analyzer) {
+        super(name, store, Field.Index.ANALYZED, termVector);
+
+        this.allEntries = allEntries;
         this.analyzer = analyzer;
     }
 
-    @Override public TokenStream tokenStream(String fieldName, Reader reader) {
-        AllEntries allEntries = (AllEntries) reader;
-        return new AllTokenFilter(analyzer.tokenStream(fieldName, reader), allEntries);
+    @Override public String stringValue() {
+        if (isStored()) {
+            return allEntries.buildText();
+        }
+        return null;
     }
 
-    @Override public TokenStream reusableTokenStream(String fieldName, Reader reader) throws IOException {
-        AllEntries allEntries = (AllEntries) reader;
-        return new AllTokenFilter(analyzer.reusableTokenStream(fieldName, reader), allEntries);
+    @Override public Reader readerValue() {
+        return null;
     }
 
-    @Override public int getPositionIncrementGap(String fieldName) {
-        return analyzer.getPositionIncrementGap(fieldName);
-    }
-
-    @Override public int getOffsetGap(Fieldable field) {
-        return analyzer.getOffsetGap(field);
+    @Override public TokenStream tokenStreamValue() {
+        try {
+            return AllTokenStream.allTokenStream(name, allEntries, analyzer);
+        } catch (IOException e) {
+            throw new ElasticSearchException("Failed to create token stream");
+        }
     }
 }

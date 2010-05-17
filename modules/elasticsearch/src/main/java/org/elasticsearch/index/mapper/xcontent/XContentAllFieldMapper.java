@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.xcontent;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
@@ -30,12 +29,11 @@ import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.util.lucene.Lucene;
+import org.elasticsearch.util.lucene.all.AllField;
 import org.elasticsearch.util.lucene.all.AllTermQuery;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
-
-import static org.elasticsearch.util.lucene.all.AllTokenFilter.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -114,7 +112,7 @@ public class XContentAllFieldMapper extends XContentFieldMapper<Void> implements
         return new AllTermQuery(new Term(names.indexName(), value));
     }
 
-    @Override protected Field parseCreateField(ParseContext context) throws IOException {
+    @Override protected Fieldable parseCreateField(ParseContext context) throws IOException {
         if (!enabled) {
             return null;
         }
@@ -122,15 +120,7 @@ public class XContentAllFieldMapper extends XContentFieldMapper<Void> implements
         context.allEntries().reset();
 
         Analyzer analyzer = findAnalyzer(context.docMapper());
-        TokenStream tokenStream = allTokenStream(names.indexName(), context.allEntries(), analyzer);
-        if (stored()) {
-            // TODO when its possible to pass char[] to field, we can optimize
-            Field field = new Field(names.indexName(), context.allEntries().buildText(), store, index, termVector);
-            field.setTokenStream(tokenStream);
-            return field;
-        } else {
-            return new Field(names.indexName(), tokenStream, termVector);
-        }
+        return new AllField(names.indexName(), store, termVector, context.allEntries(), analyzer);
     }
 
     private Analyzer findAnalyzer(DocumentMapper docMapper) {

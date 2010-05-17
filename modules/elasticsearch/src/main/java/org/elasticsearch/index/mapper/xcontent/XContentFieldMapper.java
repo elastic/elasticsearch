@@ -267,7 +267,7 @@ public abstract class XContentFieldMapper<T> implements FieldMapper<T>, XContent
     }
 
     @Override public void parse(ParseContext context) throws IOException {
-        Field field = parseCreateField(context);
+        Fieldable field = parseCreateField(context);
         if (field == null) {
             return;
         }
@@ -279,7 +279,7 @@ public abstract class XContentFieldMapper<T> implements FieldMapper<T>, XContent
         }
     }
 
-    protected abstract Field parseCreateField(ParseContext context) throws IOException;
+    protected abstract Fieldable parseCreateField(ParseContext context) throws IOException;
 
     @Override public void traverse(FieldMapperListener fieldMapperListener) {
         fieldMapperListener.fieldMapper(this);

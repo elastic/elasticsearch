@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.service.IndexService;
@@ -32,6 +31,7 @@ import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.Tuple;
 import org.elasticsearch.util.component.AbstractComponent;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.ArrayList;
@@ -69,6 +69,18 @@ public class IndicesMemoryCleaner extends AbstractComponent {
             }
         }
         return new TranslogCleanResult(totalShards, cleanedShards, new SizeValue(cleaned, SizeUnit.BYTES));
+    }
+
+    public void cacheClearUnreferenced() {
+        for (IndexService indexService : indicesService) {
+            indexService.cache().clearUnreferenced();
+        }
+    }
+
+    public void cacheClear() {
+        for (IndexService indexService : indicesService) {
+            indexService.cache().clear();
+        }
     }
 
     /**
@@ -145,7 +157,7 @@ public class IndicesMemoryCleaner extends AbstractComponent {
         }
 
         @Override public String toString() {
-            return "cleaned[" + cleaned + "], cleaned_shards[" + cleanedShards + "], total_shards[" + totalShards + "]";
+            return "cleaned [" + cleaned + "], cleaned_shards [" + cleanedShards + "], total_shards [" + totalShards + "]";
         }
     }
 
@@ -179,7 +191,7 @@ public class IndicesMemoryCleaner extends AbstractComponent {
         }
 
         @Override public String toString() {
-            return "cleaned[" + cleaned + "], estimated_flushable_size[" + estimatedFlushableSize + "], cleaned_shards[" + cleanedShards + "], total_shards[" + totalShards + "]";
+            return "cleaned [" + cleaned + "], estimated_flushable_size [" + estimatedFlushableSize + "], cleaned_shards [" + cleanedShards + "], total_shards [" + totalShards + "]";
         }
     }
 }

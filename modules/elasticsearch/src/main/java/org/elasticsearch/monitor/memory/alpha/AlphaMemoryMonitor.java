@@ -23,10 +23,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.indices.IndicesMemoryCleaner;
 import org.elasticsearch.monitor.memory.MemoryMonitor;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.util.SizeUnit;
-import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.StopWatch;
-import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.*;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
@@ -47,7 +44,7 @@ public class AlphaMemoryMonitor extends AbstractLifecycleComponent<MemoryMonitor
 
     private final TimeValue interval;
 
-    private final int gcThreshold;
+    private final int clearCacheThreshold;
 
     private final int cleanThreshold;
 
@@ -68,7 +65,7 @@ public class AlphaMemoryMonitor extends AbstractLifecycleComponent<MemoryMonitor
     private volatile ScheduledFuture scheduledFuture;
 
     private AtomicLong totalCleans = new AtomicLong();
-    private AtomicLong totalGCs = new AtomicLong();
+    private AtomicLong totalClearCache = new AtomicLong();
 
     @Inject public AlphaMemoryMonitor(Settings settings, ThreadPool threadPool, IndicesMemoryCleaner indicesMemoryCleaner) {
         super(settings);
@@ -78,12 +75,12 @@ public class AlphaMemoryMonitor extends AbstractLifecycleComponent<MemoryMonitor
         this.upperMemoryThreshold = componentSettings.getAsDouble("upper_memory_threshold", 0.8);
         this.lowerMemoryThreshold = componentSettings.getAsDouble("lower_memory_threshold", 0.5);
         this.interval = componentSettings.getAsTime("interval", timeValueMillis(500));
-        this.gcThreshold = componentSettings.getAsInt("gc_threshold", 5);
+        this.clearCacheThreshold = componentSettings.getAsInt("clear_cache_threshold", 2);
         this.cleanThreshold = componentSettings.getAsInt("clean_threshold", 10);
         this.minimumFlushableSizeToClean = componentSettings.getAsSize("minimum_flushable_size_to_clean", new SizeValue(5, SizeUnit.MB));
         this.translogNumberOfOperationsThreshold = componentSettings.getAsInt("translog_number_of_operations_threshold", 5000);
 
-        logger.debug("interval[" + interval + "], upper_memory_threshold[" + upperMemoryThreshold + "], lower_memory_threshold[" + lowerMemoryThreshold + "], translog_number_of_operations_threshold[" + translogNumberOfOperationsThreshold + "]");
+        logger.debug("interval [" + interval + "], upper_memory_threshold [" + upperMemoryThreshold + "], lower_memory_threshold [" + lowerMemoryThreshold + "], translog_number_of_operations_threshold [" + translogNumberOfOperationsThreshold + "]");
 
         this.runtime = Runtime.getRuntime();
         this.maxMemory = new SizeValue(runtime.maxMemory());
@@ -111,7 +108,7 @@ public class AlphaMemoryMonitor extends AbstractLifecycleComponent<MemoryMonitor
 
     private class MemoryCleaner implements Runnable {
 
-        private int gcCounter;
+        private int clearCacheCounter;
 
         private boolean performedClean;
 
@@ -120,12 +117,15 @@ public class AlphaMemoryMonitor extends AbstractLifecycleComponent<MemoryMonitor
         private StopWatch stopWatch = new StopWatch().keepTaskList(false);
 
         @Override public void run() {
+            // clear unreferenced in the cache
+            indicesMemoryCleaner.cacheClearUnreferenced();
+
             // try and clean translog based on a threshold, since we don't want to get a very large transaction log
-            // which means recovery it will take a long time (since the target reindex all this data)
+            // which means recovery it will take a long time (since the target re-index all this data)
             IndicesMemoryCleaner.TranslogCleanResult translogCleanResult = indicesMemoryCleaner.cleanTranslog(translogNumberOfOperationsThreshold);
             if (translogCleanResult.cleanedShards() > 0) {
                 long totalClean = totalCleans.incrementAndGet();
-                logger.debug("[" + totalClean + "] Translog Clean: " + translogCleanResult);
+                logger.debug("[" + totalClean + "] [Translog] " + translogCleanResult);
             }
 
             // the logic is simple, if the used memory is above the upper threshold, we need to clean
@@ -142,7 +142,7 @@ public class AlphaMemoryMonitor extends AbstractLifecycleComponent<MemoryMonitor
             long upperThresholdMemory = (long) (upperMemory * upperMemoryThreshold);
 
             if (usedMemory - upperThresholdMemory <= 0) {
-                gcCounter = 0;
+                clearCacheCounter = 0;
                 performedClean = false;
                 cleanCounter = 0;
                 return;
@@ -160,30 +160,31 @@ public class AlphaMemoryMonitor extends AbstractLifecycleComponent<MemoryMonitor
             long memoryToClean = usedMemory - lowerThresholdMemory;
             if (logger.isDebugEnabled()) {
                 StringBuilder sb = new StringBuilder();
-                sb.append('[').append(totalClean).append("]: ");
-                sb.append("Cleaning, memoryToClean[").append(new SizeValue(memoryToClean)).append(']');
-                sb.append(", lowerMemoryThreshold[").append(new SizeValue(lowerThresholdMemory)).append(']');
-                sb.append(", upperMemoryThreshold[").append(new SizeValue(upperThresholdMemory)).append(']');
-                sb.append(", usedMemory[").append(new SizeValue(usedMemory)).append(']');
-                sb.append(", totalMemory[").append(new SizeValue(totalMemory)).append(']');
-                sb.append(", maxMemory[").append(maxMemory).append(']');
+                sb.append('[').append(totalClean).append("] ");
+                sb.append("[Cleaning] memory_to_clean [").append(new SizeValue(memoryToClean)).append(']');
+                sb.append(", lower_memory_threshold [").append(new SizeValue(lowerThresholdMemory)).append(']');
+                sb.append(", upper_memory_threshold [").append(new SizeValue(upperThresholdMemory)).append(']');
+                sb.append(", used_memory [").append(new SizeValue(usedMemory)).append(']');
+                sb.append(", total_memory[").append(new SizeValue(totalMemory)).append(']');
+                sb.append(", max_memory[").append(maxMemory).append(']');
                 logger.debug(sb.toString());
             }
 
             IndicesMemoryCleaner.MemoryCleanResult memoryCleanResult = indicesMemoryCleaner.cleanMemory(memoryToClean, minimumFlushableSizeToClean);
             if (logger.isDebugEnabled()) {
-                logger.debug("[" + totalClean + "] Memory Clean: " + memoryCleanResult);
+                logger.debug("[" + totalClean + "] [Cleaned ] " + memoryCleanResult);
             }
+
+            if (++clearCacheCounter >= clearCacheThreshold) {
+                long totalClear = totalClearCache.incrementAndGet();
+                logger.debug("[" + totalClear + "] [Cache   ] cleared after [" + (cleanCounter / cleanThreshold) + "] memory clean swipes");
+                indicesMemoryCleaner.cacheClear();
+                ThreadLocals.clearReferencesThreadLocals();
+                clearCacheCounter = 0;
+            }
+
             performedClean = true;
             cleanCounter = 0;
-
-            if (++gcCounter >= gcThreshold) {
-                long totalGc = totalGCs.incrementAndGet();
-                logger.debug("[" + totalGc + "]: Running GC after [" + gcCounter + "] memory clean swipes");
-                System.gc();
-                gcCounter = 0;
-            }
-
         }
     }
 }

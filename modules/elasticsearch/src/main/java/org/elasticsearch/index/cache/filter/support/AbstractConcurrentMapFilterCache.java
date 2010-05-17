@@ -26,14 +26,11 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.Future;
 
 import static org.elasticsearch.util.concurrent.ConcurrentCollections.*;
 import static org.elasticsearch.util.lucene.docidset.DocIdSets.*;
@@ -47,24 +44,13 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
 
     private final ConcurrentMap<IndexReader, ConcurrentMap<Filter, DocIdSet>> cache;
 
-    private final TimeValue readerCleanerSchedule;
-
-    private final Future scheduleFuture;
-
-    protected AbstractConcurrentMapFilterCache(Index index, @IndexSettings Settings indexSettings, ThreadPool threadPool,
+    protected AbstractConcurrentMapFilterCache(Index index, @IndexSettings Settings indexSettings,
                                                ConcurrentMap<IndexReader, ConcurrentMap<Filter, DocIdSet>> cache) {
         super(index, indexSettings);
         this.cache = cache;
-
-        this.readerCleanerSchedule = componentSettings.getAsTime("reader_cleaner_schedule", TimeValue.timeValueSeconds(10));
-
-        logger.debug("Using [" + type() + "] filter cache with reader_cleaner_schedule [{}]", readerCleanerSchedule);
-
-        this.scheduleFuture = threadPool.scheduleWithFixedDelay(new IndexReaderCleaner(), readerCleanerSchedule);
     }
 
     @Override public void close() {
-        scheduleFuture.cancel(false);
         cache.clear();
     }
 
@@ -82,7 +68,13 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
                 cleaned++;
             }
         }
-        logger.trace("Cleaned [{}] out of estimated total [{}]", cleaned, totalCount);
+        if (logger.isDebugEnabled()) {
+            if (cleaned > 0) {
+                logger.debug("Cleaned [{}] out of estimated total [{}]", cleaned, totalCount);
+            }
+        } else if (logger.isTraceEnabled()) {
+            logger.trace("Cleaned [{}] out of estimated total [{}]", cleaned, totalCount);
+        }
     }
 
     @Override public Filter cache(Filter filterToCache) {

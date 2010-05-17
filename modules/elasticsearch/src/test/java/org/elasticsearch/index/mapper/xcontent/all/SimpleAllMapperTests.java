@@ -20,13 +20,13 @@
 package org.elasticsearch.index.mapper.xcontent.all;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapperParser;
 import org.elasticsearch.util.lucene.all.AllEntries;
-import org.elasticsearch.util.lucene.all.AllTokenFilter;
+import org.elasticsearch.util.lucene.all.AllField;
+import org.elasticsearch.util.lucene.all.AllTokenStream;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.util.io.Streams.*;
@@ -44,8 +44,8 @@ public class SimpleAllMapperTests {
         XContentDocumentMapper docMapper = (XContentDocumentMapper) new XContentDocumentMapperParser(new AnalysisService(new Index("test"))).parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/all/test1.json");
         Document doc = docMapper.parse(json).doc();
-        Field field = doc.getField("_all");
-        AllEntries allEntries = ((AllTokenFilter) field.tokenStreamValue()).allEntries();
+        AllField field = (AllField) doc.getFieldable("_all");
+        AllEntries allEntries = ((AllTokenStream) field.tokenStreamValue()).allEntries();
         assertThat(allEntries.fields().size(), equalTo(2));
         assertThat(allEntries.fields().contains("name.last"), equalTo(true));
         assertThat(allEntries.fields().contains("simple1"), equalTo(true));
@@ -61,8 +61,8 @@ public class SimpleAllMapperTests {
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/all/test1.json");
         Document doc = builtDocMapper.parse(json).doc();
 
-        Field field = doc.getField("_all");
-        AllEntries allEntries = ((AllTokenFilter) field.tokenStreamValue()).allEntries();
+        AllField field = (AllField) doc.getFieldable("_all");
+        AllEntries allEntries = ((AllTokenStream) field.tokenStreamValue()).allEntries();
         assertThat(allEntries.fields().size(), equalTo(2));
         assertThat(allEntries.fields().contains("name.last"), equalTo(true));
         assertThat(allEntries.fields().contains("simple1"), equalTo(true));
@@ -73,8 +73,8 @@ public class SimpleAllMapperTests {
         XContentDocumentMapper docMapper = (XContentDocumentMapper) new XContentDocumentMapperParser(new AnalysisService(new Index("test"))).parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/all/test1.json");
         Document doc = docMapper.parse(json).doc();
-        Field field = doc.getField("_all");
-        AllEntries allEntries = ((AllTokenFilter) field.tokenStreamValue()).allEntries();
+        AllField field = (AllField) doc.getFieldable("_all");
+        AllEntries allEntries = ((AllTokenStream) field.tokenStreamValue()).allEntries();
         assertThat(allEntries.fields().size(), equalTo(2));
         assertThat(allEntries.fields().contains("name.last"), equalTo(true));
         assertThat(allEntries.fields().contains("simple1"), equalTo(true));
@@ -93,8 +93,8 @@ public class SimpleAllMapperTests {
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/all/test1.json");
         Document doc = builtDocMapper.parse(json).doc();
 
-        Field field = doc.getField("_all");
-        AllEntries allEntries = ((AllTokenFilter) field.tokenStreamValue()).allEntries();
+        AllField field = (AllField) doc.getFieldable("_all");
+        AllEntries allEntries = ((AllTokenStream) field.tokenStreamValue()).allEntries();
         assertThat(allEntries.fields().size(), equalTo(2));
         assertThat(allEntries.fields().contains("name.last"), equalTo(true));
         assertThat(allEntries.fields().contains("simple1"), equalTo(true));

@@ -32,17 +32,17 @@ import static org.apache.lucene.analysis.payloads.PayloadHelper.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class AllTokenFilter extends TokenFilter {
+public class AllTokenStream extends TokenFilter {
 
     public static TokenStream allTokenStream(String allFieldName, AllEntries allEntries, Analyzer analyzer) throws IOException {
-        return new AllTokenFilter(analyzer.reusableTokenStream(allFieldName, allEntries), allEntries);
+        return new AllTokenStream(analyzer.reusableTokenStream(allFieldName, allEntries), allEntries);
     }
 
     private final AllEntries allEntries;
 
     private final PayloadAttribute payloadAttribute;
 
-    AllTokenFilter(TokenStream input, AllEntries allEntries) {
+    AllTokenStream(TokenStream input, AllEntries allEntries) {
         super(input);
         this.allEntries = allEntries;
         payloadAttribute = addAttribute(PayloadAttribute.class);

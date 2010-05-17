@@ -20,11 +20,11 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.inject.assistedinject.Assisted;
+import org.elasticsearch.util.lucene.Lucene;
 import org.elasticsearch.util.settings.Settings;
 
 /**
@@ -36,7 +36,7 @@ public class ThaiAnalyzerProvider extends AbstractAnalyzerProvider<ThaiAnalyzer>
 
     @Inject public ThaiAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name);
-        analyzer = new ThaiAnalyzer(Version.LUCENE_CURRENT);
+        analyzer = new ThaiAnalyzer(Lucene.ANALYZER_VERSION);
     }
 
     @Override public ThaiAnalyzer get() {

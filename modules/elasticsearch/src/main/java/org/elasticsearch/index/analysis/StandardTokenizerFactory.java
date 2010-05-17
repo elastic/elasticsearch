@@ -22,11 +22,11 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.inject.assistedinject.Assisted;
+import org.elasticsearch.util.lucene.Lucene;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.Reader;
@@ -44,7 +44,7 @@ public class StandardTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     @Override public Tokenizer create(Reader reader) {
-        StandardTokenizer tokenizer = new StandardTokenizer(Version.LUCENE_CURRENT, reader);
+        StandardTokenizer tokenizer = new StandardTokenizer(Lucene.ANALYZER_VERSION, reader);
         tokenizer.setMaxTokenLength(maxTokenLength);
         return tokenizer;
     }

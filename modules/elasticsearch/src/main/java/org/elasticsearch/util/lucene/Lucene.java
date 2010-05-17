@@ -39,7 +39,11 @@ import java.io.IOException;
  */
 public class Lucene {
 
-    public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", new StandardAnalyzer(Version.LUCENE_CURRENT));
+    public static Version VERSION = Version.LUCENE_CURRENT;
+    public static Version ANALYZER_VERSION = VERSION;
+    public static Version QUERYPARSER_VERSION = VERSION;
+
+    public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", new StandardAnalyzer(ANALYZER_VERSION));
     public static final NamedAnalyzer KEYWORD_ANALYZER = new NamedAnalyzer("_keyword", new KeywordAnalyzer());
 
     public static final int NO_DOC = -1;

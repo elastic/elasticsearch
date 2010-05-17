@@ -20,13 +20,13 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.fr.FrenchAnalyzer;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.collect.ImmutableSet;
 import org.elasticsearch.util.collect.Iterators;
 import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.inject.assistedinject.Assisted;
+import org.elasticsearch.util.lucene.Lucene;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.Set;
@@ -57,7 +57,7 @@ public class FrenchAnalyzerProvider extends AbstractAnalyzerProvider<FrenchAnaly
         } else {
             this.stemExclusion = ImmutableSet.of();
         }
-        analyzer = new FrenchAnalyzer(Version.LUCENE_CURRENT, this.stopWords, this.stemExclusion);
+        analyzer = new FrenchAnalyzer(Lucene.ANALYZER_VERSION, this.stopWords, this.stemExclusion);
     }
 
     @Override public FrenchAnalyzer get() {

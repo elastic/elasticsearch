@@ -31,21 +31,18 @@ import org.elasticsearch.util.lease.Releasable;
  */
 public class ReaderSearcherHolder implements Releasable {
 
-    private final IndexReader indexReader;
-
     private final IndexSearcher indexSearcher;
 
     public ReaderSearcherHolder(IndexReader indexReader) {
-        this(indexReader, new IndexSearcher(indexReader));
+        this(new IndexSearcher(indexReader));
     }
 
-    public ReaderSearcherHolder(IndexReader indexReader, IndexSearcher indexSearcher) {
-        this.indexReader = indexReader;
+    public ReaderSearcherHolder(IndexSearcher indexSearcher) {
         this.indexSearcher = indexSearcher;
     }
 
     public IndexReader reader() {
-        return indexReader;
+        return indexSearcher.getIndexReader();
     }
 
     public IndexSearcher searcher() {
@@ -59,7 +56,7 @@ public class ReaderSearcherHolder implements Releasable {
             // do nothing
         }
         try {
-            indexReader.close();
+            indexSearcher.getIndexReader().close();
         } catch (Exception e) {
             // do nothing
         }

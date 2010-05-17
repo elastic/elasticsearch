@@ -150,7 +150,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             IndexReader indexReader = indexWriter.getReader();
             IndexSearcher indexSearcher = new IndexSearcher(indexReader);
             indexSearcher.setSimilarity(similarityService.defaultSearchSimilarity());
-            this.nrtResource = newAcquirableResource(new ReaderSearcherHolder(indexReader, indexSearcher));
+            this.nrtResource = newAcquirableResource(new ReaderSearcherHolder(indexSearcher));
         } catch (IOException e) {
             try {
                 indexWriter.rollback();
@@ -257,7 +257,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
                     AcquirableResource<ReaderSearcherHolder> current = nrtResource;
                     IndexReader newReader = current.resource().reader().reopen(true);
                     if (newReader != current.resource().reader()) {
-                        nrtResource = newAcquirableResource(new ReaderSearcherHolder(newReader));
+                        IndexSearcher indexSearcher = new IndexSearcher(newReader);
+                        indexSearcher.setSimilarity(similarityService.defaultSearchSimilarity());
+                        nrtResource = newAcquirableResource(new ReaderSearcherHolder(indexSearcher));
                         current.markForClose();
                     }
                 }

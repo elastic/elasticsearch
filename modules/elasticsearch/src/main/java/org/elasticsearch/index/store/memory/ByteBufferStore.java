@@ -50,8 +50,7 @@ public class ByteBufferStore extends AbstractStore<ByteBufferDirectory> {
         this.direct = componentSettings.getAsBoolean("direct", true);
         this.warmCache = componentSettings.getAsBoolean("warm_cache", true);
         this.directory = new ByteBufferDirectory((int) bufferSize.bytes(), (int) cacheSize.bytes(), direct, warmCache);
-        logger.debug("Using [byte_buffer] store with buffer_size[{}], cache_size[{}], direct[{}], warm_cache[{}]",
-                new Object[]{bufferSize, cacheSize, directory.isDirect(), warmCache});
+        logger.debug("Using [byte_buffer] store with buffer_size[{}], cache_size[{}], direct[{}], warm_cache[{}]", bufferSize, cacheSize, directory.isDirect(), warmCache);
     }
 
     @Override public ByteBufferDirectory directory() {

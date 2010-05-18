@@ -26,7 +26,7 @@ import org.elasticsearch.util.inject.assistedinject.FactoryProvider;
 import org.elasticsearch.util.inject.multibindings.MapBinder;
 import org.elasticsearch.util.settings.Settings;
 
-import java.util.List;
+import java.util.LinkedList;
 import java.util.Map;
 
 /**
@@ -44,7 +44,7 @@ public class AnalysisModule extends AbstractModule {
 
     private final Settings settings;
 
-    private final List<AnalysisBinderProcessor> processors = Lists.newArrayList();
+    private final LinkedList<AnalysisBinderProcessor> processors = Lists.newLinkedList();
 
     public AnalysisModule(Settings settings) {
         this.settings = settings;
@@ -57,7 +57,7 @@ public class AnalysisModule extends AbstractModule {
     }
 
     public AnalysisModule addProcessor(AnalysisBinderProcessor processor) {
-        processors.add(processor);
+        processors.addFirst(processor);
         return this;
     }
 

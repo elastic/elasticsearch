@@ -143,6 +143,10 @@ public class SimpleHeapStoreTests {
         indexInput.seek(30);
         assertThat(indexInput.readByte(), equalTo((byte) 6));
 
+        indexInput.seek(0);
+        indexInput.readBytes(test, 0, 5);
+        assertThat(test[0], equalTo((byte) 8));
+
         indexInput.close();
 
         indexInput = dir.openInput("value1");

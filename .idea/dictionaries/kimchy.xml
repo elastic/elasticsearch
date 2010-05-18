@@ -23,6 +23,7 @@
       <w>coord</w>
       <w>cpus</w>
       <w>datagram</w>
+      <w>datas</w>
       <w>desc</w>
       <w>deserialize</w>
       <w>elasticsearch</w>

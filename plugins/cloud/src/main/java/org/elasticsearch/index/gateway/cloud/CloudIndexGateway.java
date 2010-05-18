@@ -22,7 +22,7 @@ package org.elasticsearch.index.gateway.cloud;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cloud.blobstore.CloudBlobStoreService;
-import org.elasticsearch.cloud.jclouds.JCloudsUtils;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.cloud.CloudGateway;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -48,13 +48,15 @@ public class CloudIndexGateway extends AbstractIndexComponent implements IndexGa
 
     private final String indexContainer;
 
+    private final String indexDirectory;
+
     private final Location location;
 
     private final SizeValue chunkSize;
 
     private final BlobStoreContext blobStoreContext;
 
-    @Inject public CloudIndexGateway(Index index, @IndexSettings Settings indexSettings, CloudBlobStoreService blobStoreService, Gateway gateway) {
+    @Inject public CloudIndexGateway(Index index, @IndexSettings Settings indexSettings, ClusterName clusterName, CloudBlobStoreService blobStoreService, Gateway gateway) {
         super(index, indexSettings);
         this.blobStoreContext = blobStoreService.context();
         this.gateway = gateway;
@@ -66,7 +68,7 @@ public class CloudIndexGateway extends AbstractIndexComponent implements IndexGa
         if (gateway instanceof CloudGateway) {
             CloudGateway cloudGateway = (CloudGateway) gateway;
             if (container == null) {
-                container = cloudGateway.container() + JCloudsUtils.BLOB_CONTAINER_SEP + index.name();
+                container = cloudGateway.container();
             }
             if (chunkSize == null) {
                 chunkSize = cloudGateway.chunkSize();
@@ -99,11 +101,10 @@ public class CloudIndexGateway extends AbstractIndexComponent implements IndexGa
             }
         }
         this.indexContainer = container;
+        this.indexDirectory = clusterName.value() + "/" + index.name();
         this.chunkSize = chunkSize;
 
-        logger.debug("Using location [{}], container [{}], chunk_size [{}]", this.location, this.indexContainer, this.chunkSize);
-
-//        blobStoreContext.getBlobStore().createContainerInLocation(this.location, this.indexContainer);
+        logger.debug("Using location [{}], container [{}], index_directory [{}], chunk_size [{}]", this.location, this.indexContainer, this.indexDirectory, this.chunkSize);
     }
 
     public Location indexLocation() {
@@ -112,6 +113,10 @@ public class CloudIndexGateway extends AbstractIndexComponent implements IndexGa
 
     public String indexContainer() {
         return this.indexContainer;
+    }
+
+    public String indexDirectory() {
+        return this.indexDirectory;
     }
 
     public SizeValue chunkSize() {
@@ -126,6 +131,5 @@ public class CloudIndexGateway extends AbstractIndexComponent implements IndexGa
         if (!delete) {
             return;
         }
-//        blobStoreContext.getBlobStore().deleteContainer(indexContainer);
     }
 }

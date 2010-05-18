@@ -24,7 +24,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.cloud.blobstore.CloudBlobStoreService;
-import org.elasticsearch.cloud.jclouds.JCloudsUtils;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
@@ -82,11 +81,13 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
 
     private final Location shardLocation;
 
-    private final String shardContainer;
+    private final String container;
 
-    private final String shardIndexContainer;
+    private final String shardDirectory;
 
-    private final String shardTranslogContainer;
+    private final String shardIndexDirectory;
+
+    private final String shardTranslogDirectory;
 
     private final BlobStoreContext blobStoreContext;
 
@@ -105,15 +106,13 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
 
         this.chunkSize = cloudIndexGateway.chunkSize();
         this.shardLocation = cloudIndexGateway.indexLocation();
-        this.shardContainer = cloudIndexGateway.indexContainer() + JCloudsUtils.BLOB_CONTAINER_SEP + shardId.id();
+        this.container = cloudIndexGateway.indexContainer();
 
-        this.shardIndexContainer = shardContainer + JCloudsUtils.BLOB_CONTAINER_SEP + "index";
-        this.shardTranslogContainer = shardContainer + JCloudsUtils.BLOB_CONTAINER_SEP + "translog";
+        this.shardDirectory = cloudIndexGateway.indexDirectory() + "/" + shardId.id();
+        this.shardIndexDirectory = shardDirectory + "/index";
+        this.shardTranslogDirectory = shardDirectory + "/translog";
 
-        logger.trace("Using location [{}], container [{}]", this.shardLocation, this.shardContainer);
-
-        blobStoreContext.getBlobStore().createContainerInLocation(this.shardLocation, this.shardTranslogContainer);
-        blobStoreContext.getBlobStore().createContainerInLocation(this.shardLocation, this.shardIndexContainer);
+        logger.trace("Using location [{}], container [{}], shard_directory [{}]", this.shardLocation, this.container, this.shardDirectory);
     }
 
     @Override public boolean requiresSnapshotScheduling() {
@@ -125,7 +124,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
         if (shardLocation != null) {
             sb.append(shardLocation).append("/");
         }
-        sb.append(shardContainer).append("]");
+        sb.append(container).append("]");
         return sb.toString();
     }
 
@@ -133,8 +132,15 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
         if (!delete) {
             return;
         }
-        blobStoreContext.getBlobStore().deleteContainer(shardIndexContainer);
-        blobStoreContext.getBlobStore().deleteContainer(shardTranslogContainer);
+
+        Map<String, StorageMetadata> metaDatas = listAllMetadatas(container, shardIndexDirectory);
+        for (Map.Entry<String, StorageMetadata> entry : metaDatas.entrySet()) {
+            blobStoreContext.getAsyncBlobStore().removeBlob(container, entry.getKey());
+        }
+        metaDatas = listAllMetadatas(container, shardTranslogDirectory);
+        for (Map.Entry<String, StorageMetadata> entry : metaDatas.entrySet()) {
+            blobStoreContext.getAsyncBlobStore().removeBlob(container, entry.getKey());
+        }
     }
 
     @Override public RecoveryStatus recover() throws IndexShardGatewayRecoveryException {
@@ -158,7 +164,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
         if (snapshot.indexChanged()) {
             long time = System.currentTimeMillis();
             indexDirty = true;
-            allIndicesMetadata = listAllMetadatas(shardIndexContainer);
+            allIndicesMetadata = listAllMetadatas(container, shardIndexDirectory);
             final Map<String, StorageMetadata> allIndicesMetadataF = allIndicesMetadata;
             // snapshot into the index
             final CountDownLatch latch = new CountDownLatch(snapshotIndexCommit.getFiles().length);
@@ -196,7 +202,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
                 } catch (IOException e) {
                     // ignore...
                 }
-                deleteFile(fileName, allIndicesMetadata);
+                deleteFile(shardIndexDirectory + "/" + fileName, allIndicesMetadata);
                 threadPool.execute(new Runnable() {
                     @Override public void run() {
                         try {
@@ -224,7 +230,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
         long translogTime = 0;
         if (snapshot.newTranslogCreated()) {
             currentTranslogPartToWrite = 1;
-            String translogBlobName = String.valueOf(translogSnapshot.translogId()) + "." + currentTranslogPartToWrite;
+            String translogBlobName = shardTranslogDirectory + "/" + String.valueOf(translogSnapshot.translogId()) + "." + currentTranslogPartToWrite;
 
             try {
                 long time = System.currentTimeMillis();
@@ -239,7 +245,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
                 Blob blob = blobStoreContext.getBlobStore().newBlob(translogBlobName);
                 blob.setContentLength(streamOutput.size());
                 blob.setPayload(new FastByteArrayInputStream(streamOutput.unsafeByteArray(), 0, streamOutput.size()));
-                blobStoreContext.getBlobStore().putBlob(shardTranslogContainer, blob);
+                blobStoreContext.getBlobStore().putBlob(container, blob);
 
                 currentTranslogPartToWrite++;
 
@@ -248,7 +254,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
                 throw new IndexShardGatewaySnapshotFailedException(shardId(), "Failed to snapshot translog into [" + translogBlobName + "]", e);
             }
         } else if (snapshot.sameTranslogNewOperations()) {
-            String translogBlobName = String.valueOf(translogSnapshot.translogId()) + "." + currentTranslogPartToWrite;
+            String translogBlobName = shardTranslogDirectory + "/" + String.valueOf(translogSnapshot.translogId()) + "." + currentTranslogPartToWrite;
             try {
                 long time = System.currentTimeMillis();
 
@@ -262,7 +268,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
                 Blob blob = blobStoreContext.getBlobStore().newBlob(translogBlobName);
                 blob.setContentLength(streamOutput.size());
                 blob.setPayload(new FastByteArrayInputStream(streamOutput.unsafeByteArray(), 0, streamOutput.size()));
-                blobStoreContext.getBlobStore().putBlob(shardTranslogContainer, blob);
+                blobStoreContext.getBlobStore().putBlob(container, blob);
 
                 currentTranslogPartToWrite++;
 
@@ -283,11 +289,11 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
 
                 IndexInput indexInput = snapshotIndexCommit.getDirectory().openInput(snapshotIndexCommit.getSegmentsFileName());
                 try {
-                    Blob blob = blobStoreContext.getBlobStore().newBlob(snapshotIndexCommit.getSegmentsFileName());
+                    Blob blob = blobStoreContext.getBlobStore().newBlob(shardIndexDirectory + "/" + snapshotIndexCommit.getSegmentsFileName());
                     InputStreamIndexInput is = new InputStreamIndexInput(indexInput, Long.MAX_VALUE);
                     blob.setPayload(is);
                     blob.setContentLength(is.actualSizeToRead());
-                    blobStoreContext.getBlobStore().putBlob(shardIndexContainer, blob);
+                    blobStoreContext.getBlobStore().putBlob(container, blob);
                 } finally {
                     try {
                         indexInput.close();
@@ -303,30 +309,32 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
 
         // delete the old translog
         if (snapshot.newTranslogCreated()) {
-            String currentTranslogPrefix = String.valueOf(translogSnapshot.translogId()) + ".";
-            Map<String, StorageMetadata> allMetadatas = listAllMetadatas(shardTranslogContainer);
+            String currentTranslogPrefix = shardTranslogDirectory + "/" + String.valueOf(translogSnapshot.translogId()) + ".";
+            Map<String, StorageMetadata> allMetadatas = listAllMetadatas(container, shardTranslogDirectory);
             for (Map.Entry<String, StorageMetadata> entry : allMetadatas.entrySet()) {
                 if (!entry.getKey().startsWith(currentTranslogPrefix)) {
-                    blobStoreContext.getAsyncBlobStore().removeBlob(shardTranslogContainer, entry.getKey());
+                    blobStoreContext.getAsyncBlobStore().removeBlob(container, entry.getKey());
                 }
             }
         }
 
         if (indexDirty) {
             for (Map.Entry<String, StorageMetadata> entry : allIndicesMetadata.entrySet()) {
-                String blobName = entry.getKey();
-                if (blobName.contains(".part")) {
-                    blobName = blobName.substring(0, blobName.indexOf(".part"));
+                String blobNameToMatch = entry.getKey();
+                if (blobNameToMatch.contains(".part")) {
+                    blobNameToMatch = blobNameToMatch.substring(0, blobNameToMatch.indexOf(".part"));
                 }
+                // remove the directory prefix
+                blobNameToMatch = blobNameToMatch.substring(shardIndexDirectory.length() + 1);
                 boolean found = false;
                 for (final String fileName : snapshotIndexCommit.getFiles()) {
-                    if (blobName.equals(fileName)) {
+                    if (blobNameToMatch.equals(fileName)) {
                         found = true;
                         break;
                     }
                 }
                 if (!found) {
-                    blobStoreContext.getAsyncBlobStore().removeBlob(shardIndexContainer, entry.getKey());
+                    blobStoreContext.getAsyncBlobStore().removeBlob(container, entry.getKey());
                 }
             }
         }
@@ -337,7 +345,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
     }
 
     private RecoveryStatus.Index recoverIndex() throws IndexShardGatewayRecoveryException {
-        final Map<String, StorageMetadata> allMetaDatas = listAllMetadatas(shardIndexContainer);
+        final Map<String, StorageMetadata> allMetaDatas = listAllMetadatas(container, shardIndexDirectory);
 
         // filter out to only have actual files
         final Map<String, StorageMetadata> filesMetaDatas = Maps.newHashMap();
@@ -395,11 +403,12 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
     }
 
     private RecoveryStatus.Translog recoverTranslog() throws IndexShardGatewayRecoveryException {
-        final Map<String, StorageMetadata> allMetaDatas = listAllMetadatas(shardTranslogContainer);
+        final Map<String, StorageMetadata> allMetaDatas = listAllMetadatas(container, shardTranslogDirectory);
 
         long latestTranslogId = -1;
         for (String name : allMetaDatas.keySet()) {
-            long translogId = Long.parseLong(name.substring(0, name.indexOf('.')));
+            String translogName = name.substring(shardTranslogDirectory.length() + 1);
+            long translogId = Long.parseLong(translogName.substring(0, translogName.lastIndexOf('.')));
             if (translogId > latestTranslogId) {
                 latestTranslogId = translogId;
             }
@@ -418,11 +427,11 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
             long size = 0;
             int index = 1;
             while (true) {
-                String translogPartName = String.valueOf(latestTranslogId) + "." + index;
+                String translogPartName = shardTranslogDirectory + "/" + String.valueOf(latestTranslogId) + "." + index;
                 if (!allMetaDatas.containsKey(translogPartName)) {
                     break;
                 }
-                Blob blob = blobStoreContext.getBlobStore().getBlob(shardTranslogContainer, translogPartName);
+                Blob blob = blobStoreContext.getBlobStore().getBlob(container, translogPartName);
                 if (blob == null) {
                     break;
                 }
@@ -443,12 +452,12 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
         }
     }
 
-    private Map<String, StorageMetadata> listAllMetadatas(String container) {
+    private Map<String, StorageMetadata> listAllMetadatas(String container, String directory) {
         final Map<String, StorageMetadata> allMetaDatas = Maps.newHashMap();
 
         String nextMarker = null;
         while (true) {
-            ListContainerOptions options = ListContainerOptions.Builder.maxResults(10000);
+            ListContainerOptions options = ListContainerOptions.Builder.inDirectory(directory).maxResults(10000);
             if (nextMarker != null) {
                 options.afterMarker(nextMarker);
             }
@@ -472,7 +481,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
                 blobName = blobName.substring(0, blobName.indexOf(".part"));
             }
             if (blobName.equals(fileName)) {
-                blobStoreContext.getBlobStore().removeBlob(shardIndexContainer, blobName);
+                blobStoreContext.getBlobStore().removeBlob(container, blobName);
             }
         }
     }
@@ -482,11 +491,11 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
         IndexInput indexInput = dir.openInput(fileName);
 
         try {
-            Blob blob = blobStoreContext.getBlobStore().newBlob(fileName);
+            Blob blob = blobStoreContext.getBlobStore().newBlob(shardIndexDirectory + "/" + fileName);
             InputStreamIndexInput is = new InputStreamIndexInput(indexInput, chunkSize.bytes());
             blob.setPayload(is);
             blob.setContentLength(is.actualSizeToRead());
-            blobStoreContext.getBlobStore().putBlob(shardIndexContainer, blob);
+            blobStoreContext.getBlobStore().putBlob(container, blob);
 
             int part = 1;
             while (indexInput.getFilePointer() < indexInput.length()) {
@@ -494,10 +503,10 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
                 if (is.actualSizeToRead() <= 0) {
                     break;
                 }
-                blob = blobStoreContext.getBlobStore().newBlob(fileName + ".part" + part);
+                blob = blobStoreContext.getBlobStore().newBlob(shardIndexDirectory + "/" + fileName + ".part" + part);
                 blob.setPayload(is);
                 blob.setContentLength(is.actualSizeToRead());
-                blobStoreContext.getBlobStore().putBlob(shardIndexContainer, blob);
+                blobStoreContext.getBlobStore().putBlob(container, blob);
                 part++;
             }
         } finally {
@@ -510,10 +519,12 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
     }
 
     private void copyToDirectory(StorageMetadata metadata, Map<String, StorageMetadata> allMetadatas) throws IOException {
-        Blob blob = blobStoreContext.getBlobStore().getBlob(shardIndexContainer, metadata.getName());
+        String fileName = metadata.getName().substring(shardIndexDirectory.length() + 1);
+
+        Blob blob = blobStoreContext.getBlobStore().getBlob(container, metadata.getName());
 
         byte[] buffer = new byte[16384];
-        IndexOutput indexOutput = store.directory().createOutput(metadata.getName());
+        IndexOutput indexOutput = store.directory().createOutput(fileName);
 
         copy(blob.getContent(), indexOutput, buffer);
         blob.getContent().close();
@@ -525,7 +536,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
             if (!allMetadatas.containsKey(partName)) {
                 break;
             }
-            blob = blobStoreContext.getBlobStore().getBlob(shardIndexContainer, partName);
+            blob = blobStoreContext.getBlobStore().getBlob(container, partName);
             copy(blob.getContent(), indexOutput, buffer);
             blob.getContent().close();
             part++;
@@ -533,7 +544,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
 
         indexOutput.close();
 
-        Directories.sync(store.directory(), metadata.getName());
+        Directories.sync(store.directory(), fileName);
     }
 
     private void copy(InputStream is, IndexOutput indexOutput, byte[] buffer) throws IOException {

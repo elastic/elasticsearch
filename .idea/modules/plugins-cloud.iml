@@ -20,7 +20,6 @@
           <root url="jar://$GRADLE_REPOSITORY$/javax.annotation/jsr250-api/jars/jsr250-api-1.0.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/javax.inject/inject/jars/inject-1.0.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/aopalliance/aopalliance/jars/aopalliance-1.0.jar!/" />
-          <root url="jar://$GRADLE_REPOSITORY$/org.jboss.resteasy/resteasy-jaxrs-client/jars/resteasy-jaxrs-client-1.2.1.GA-SNAPSHOT.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/org.jboss.resteasy/jaxrs-api/jars/jaxrs-api-1.2.1.GA.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/com.google.guava/guava-io/jars/guava-io-r03.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/com.google.guava/guava-primitives/jars/guava-primitives-r03.jar!/" />
@@ -44,6 +43,8 @@
           <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-scriptbuilder/jars/jclouds-scriptbuilder-1.0-beta-5.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-vcloud/jars/jclouds-vcloud-1.0-beta-5.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-rackspace/jars/jclouds-rackspace-1.0-beta-5.jar!/" />
+          <root url="file://$GRADLE_REPOSITORY$/org.jboss.resteasy/resteasy-jaxrs-all" />
+          <root url="jar://$GRADLE_REPOSITORY$/org.jboss.resteasy/resteasy-jaxrs-client/jars/resteasy-jaxrs-client-1.2.1.GA.jar!/" />
         </CLASSES>
         <JAVADOC>
           <root url="http://jclouds.rimuhosting.com/apidocs/" />

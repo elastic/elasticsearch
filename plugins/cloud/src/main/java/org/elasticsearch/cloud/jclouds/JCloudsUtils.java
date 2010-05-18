@@ -29,8 +29,6 @@ import org.elasticsearch.util.settings.Settings;
  */
 public class JCloudsUtils {
 
-    public static final String BLOB_CONTAINER_SEP = "-";
-
     public static Iterable<? extends Module> buildModules(Settings settings) {
         return ImmutableList.of(new JCloudsLoggingModule(settings));
     }

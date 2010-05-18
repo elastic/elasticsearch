@@ -64,6 +64,7 @@ public class NodesStressTest {
     private Indexer[] indexThreads = new Indexer[1];
 
     private TimeValue sleepAfterDone = TimeValue.timeValueMillis(0);
+    private TimeValue sleepBeforeClose = TimeValue.timeValueMillis(0);
 
     private CountDownLatch latch;
     private CyclicBarrier barrier1;
@@ -104,6 +105,11 @@ public class NodesStressTest {
 
     public NodesStressTest sleepAfterDone(TimeValue time) {
         this.sleepAfterDone = time;
+        return this;
+    }
+
+    public NodesStressTest sleepBeforeClose(TimeValue time) {
+        this.sleepBeforeClose = time;
         return this;
     }
 
@@ -166,6 +172,10 @@ public class NodesStressTest {
         latch.await();
         stopWatch.stop();
 
+        System.out.println("Done, took [" + stopWatch.totalTime() + "]");
+        System.out.println("Sleeping before close: " + sleepBeforeClose);
+        Thread.sleep(sleepBeforeClose.millis());
+
         for (Client client : clients) {
             client.close();
         }
@@ -173,7 +183,7 @@ public class NodesStressTest {
             node.close();
         }
 
-        System.out.println("Done, took [" + stopWatch.totalTime() + "]");
+        System.out.println("Sleeping before exit: " + sleepBeforeClose);
         Thread.sleep(sleepAfterDone.millis());
     }
 
@@ -260,6 +270,7 @@ public class NodesStressTest {
                 .indexIterations(10 * 1000)
                 .searcherThreads(5)
                 .searchIterations(10 * 1000)
+                .sleepBeforeClose(TimeValue.timeValueMinutes(10))
                 .sleepAfterDone(TimeValue.timeValueMinutes(10))
                 .build(EMPTY_SETTINGS);
 

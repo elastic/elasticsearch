@@ -81,12 +81,6 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         return new FilterCacheFilterWrapper(filterToCache);
     }
 
-    private class IndexReaderCleaner implements Runnable {
-        @Override public void run() {
-            clearUnreferenced();
-        }
-    }
-
     protected ConcurrentMap<Filter, DocIdSet> buildFilterMap() {
         return newConcurrentMap();
     }

@@ -29,7 +29,6 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.concurrent.ConcurrentMap;
 
 import static org.elasticsearch.util.concurrent.ConcurrentCollections.*;
@@ -42,10 +41,10 @@ import static org.elasticsearch.util.lucene.docidset.DocIdSets.*;
  */
 public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComponent implements FilterCache {
 
-    private final ConcurrentMap<IndexReader, ConcurrentMap<Filter, DocIdSet>> cache;
+    private final ConcurrentMap<Object, ConcurrentMap<Filter, DocIdSet>> cache;
 
     protected AbstractConcurrentMapFilterCache(Index index, @IndexSettings Settings indexSettings,
-                                               ConcurrentMap<IndexReader, ConcurrentMap<Filter, DocIdSet>> cache) {
+                                               ConcurrentMap<Object, ConcurrentMap<Filter, DocIdSet>> cache) {
         super(index, indexSettings);
         this.cache = cache;
     }
@@ -59,22 +58,23 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
     }
 
     @Override public void clearUnreferenced() {
-        int totalCount = cache.size();
-        int cleaned = 0;
-        for (Iterator<IndexReader> readerIt = cache.keySet().iterator(); readerIt.hasNext();) {
-            IndexReader reader = readerIt.next();
-            if (reader.getRefCount() <= 0) {
-                readerIt.remove();
-                cleaned++;
-            }
-        }
-        if (logger.isDebugEnabled()) {
-            if (cleaned > 0) {
-                logger.debug("Cleaned [{}] out of estimated total [{}]", cleaned, totalCount);
-            }
-        } else if (logger.isTraceEnabled()) {
-            logger.trace("Cleaned [{}] out of estimated total [{}]", cleaned, totalCount);
-        }
+        // can't do this, since we cache on cacheKey...
+//        int totalCount = cache.size();
+//        int cleaned = 0;
+//        for (Iterator<IndexReader> readerIt = cache.keySet().iterator(); readerIt.hasNext();) {
+//            IndexReader reader = readerIt.next();
+//            if (reader.getRefCount() <= 0) {
+//                readerIt.remove();
+//                cleaned++;
+//            }
+//        }
+//        if (logger.isDebugEnabled()) {
+//            if (cleaned > 0) {
+//                logger.debug("Cleaned [{}] out of estimated total [{}]", cleaned, totalCount);
+//            }
+//        } else if (logger.isTraceEnabled()) {
+//            logger.trace("Cleaned [{}] out of estimated total [{}]", cleaned, totalCount);
+//        }
     }
 
     @Override public Filter cache(Filter filterToCache) {
@@ -98,10 +98,10 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         }
 
         @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-            ConcurrentMap<Filter, DocIdSet> cachedFilters = cache.get(reader);
+            ConcurrentMap<Filter, DocIdSet> cachedFilters = cache.get(reader.getFieldCacheKey());
             if (cachedFilters == null) {
                 cachedFilters = buildFilterMap();
-                cache.putIfAbsent(reader, cachedFilters);
+                cache.putIfAbsent(reader.getFieldCacheKey(), cachedFilters);
             }
             DocIdSet docIdSet = cachedFilters.get(filter);
             if (docIdSet != null) {

@@ -26,13 +26,26 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
+import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
+
 /**
  * @author kimchy (shay.banon)
  */
 public class RobinIndexEngine extends AbstractIndexComponent implements IndexEngine {
 
+    public RobinIndexEngine(Index index) {
+        this(index, EMPTY_SETTINGS);
+    }
+
     @Inject public RobinIndexEngine(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
+    }
+
+    /**
+     * With NRT, readers are cloned on deletions... .
+     */
+    @Override public boolean readerClonedOnDeletion() {
+        return true;
     }
 
     @Override public void close() {

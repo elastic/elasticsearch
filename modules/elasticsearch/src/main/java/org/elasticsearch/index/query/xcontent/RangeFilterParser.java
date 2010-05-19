@@ -108,6 +108,6 @@ public class RangeFilterParser extends AbstractIndexComponent implements XConten
         if (filter == null) {
             filter = new TermRangeFilter(fieldName, from, to, includeLower, includeUpper);
         }
-        return wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext.indexCache());
+        return wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
     }
 }

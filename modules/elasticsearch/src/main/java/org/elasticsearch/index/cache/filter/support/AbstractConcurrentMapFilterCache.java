@@ -81,6 +81,10 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         return new FilterCacheFilterWrapper(filterToCache);
     }
 
+    @Override public boolean isCached(Filter filter) {
+        return filter instanceof FilterCacheFilterWrapper;
+    }
+
     protected ConcurrentMap<Filter, DocIdSet> buildFilterMap() {
         return newConcurrentMap();
     }

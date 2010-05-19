@@ -22,8 +22,7 @@ package org.elasticsearch.index.query.support;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queryParser.ParseException;
 import org.apache.lucene.search.*;
-import org.elasticsearch.index.cache.IndexCache;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.xcontent.QueryParseContext;
 import org.elasticsearch.util.trove.ExtTObjectFloatHashMap;
 
 import javax.annotation.Nullable;
@@ -43,8 +42,8 @@ public class MultiFieldMapperQueryParser extends MapperQueryParser {
 
     private boolean useDisMax = true;
 
-    public MultiFieldMapperQueryParser(List<String> fields, @Nullable ExtTObjectFloatHashMap<String> boosts, Analyzer analyzer, @Nullable MapperService mapperService, @Nullable IndexCache indexCache) {
-        super(null, analyzer, mapperService, indexCache);
+    public MultiFieldMapperQueryParser(List<String> fields, @Nullable ExtTObjectFloatHashMap<String> boosts, Analyzer analyzer, QueryParseContext parseContext) {
+        super(null, analyzer, parseContext);
         this.fields = fields;
         this.boosts = boosts;
         if (this.boosts != null) {

@@ -122,6 +122,6 @@ public class FuzzyLikeThisFieldQueryParser extends AbstractIndexComponent implem
         token = parser.nextToken();
         assert token == XContentParser.Token.END_OBJECT;
 
-        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext.indexCache());
+        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
     }
 }

@@ -96,6 +96,6 @@ public class WildcardQueryParser extends AbstractIndexComponent implements XCont
         WildcardQuery query = new WildcardQuery(new Term(fieldName, value));
         query.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT);
         query.setBoost(boost);
-        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext.indexCache());
+        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
     }
 }

@@ -168,15 +168,15 @@ public class QueryStringQueryParser extends AbstractIndexComponent implements XC
         MapperQueryParser queryParser;
         if (fields != null) {
             if (fields.size() == 1) {
-                queryParser = new MapperQueryParser(fields.get(0), analyzer, parseContext.mapperService(), parseContext.indexCache());
+                queryParser = new MapperQueryParser(fields.get(0), analyzer, parseContext);
             } else {
-                MultiFieldMapperQueryParser mQueryParser = new MultiFieldMapperQueryParser(fields, boosts, analyzer, parseContext.mapperService(), parseContext.indexCache());
+                MultiFieldMapperQueryParser mQueryParser = new MultiFieldMapperQueryParser(fields, boosts, analyzer, parseContext);
                 mQueryParser.setTieBreaker(tieBreaker);
                 mQueryParser.setUseDisMax(useDisMax);
                 queryParser = mQueryParser;
             }
         } else {
-            queryParser = new MapperQueryParser(defaultField, analyzer, parseContext.mapperService(), parseContext.indexCache());
+            queryParser = new MapperQueryParser(defaultField, analyzer, parseContext);
         }
         queryParser.setEnablePositionIncrements(enablePositionIncrements);
         queryParser.setLowercaseExpandedTerms(lowercaseExpandedTerms);

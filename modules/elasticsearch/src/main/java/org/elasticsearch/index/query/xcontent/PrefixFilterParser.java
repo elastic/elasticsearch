@@ -73,7 +73,6 @@ public class PrefixFilterParser extends AbstractIndexComponent implements XConte
         }
 
         Filter prefixFilter = new PrefixFilter(new Term(fieldName, value));
-        prefixFilter = parseContext.cacheFilterIfPossible(prefixFilter);
-        return wrapSmartNameFilter(prefixFilter, smartNameFieldMappers, parseContext.indexCache());
+        return wrapSmartNameFilter(prefixFilter, smartNameFieldMappers, parseContext);
     }
 }

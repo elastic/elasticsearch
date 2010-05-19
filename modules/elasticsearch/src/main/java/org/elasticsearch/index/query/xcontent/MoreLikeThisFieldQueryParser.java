@@ -121,6 +121,6 @@ public class MoreLikeThisFieldQueryParser extends AbstractIndexComponent impleme
             mltQuery.setAnalyzer(parseContext.mapperService().searchAnalyzer());
         }
         mltQuery.setMoreLikeFields(new String[]{fieldName});
-        return wrapSmartNameQuery(mltQuery, smartNameFieldMappers, parseContext.indexCache());
+        return wrapSmartNameQuery(mltQuery, smartNameFieldMappers, parseContext);
     }
 }

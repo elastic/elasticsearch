@@ -25,6 +25,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
+import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -58,7 +59,7 @@ public class XContentIndexQueryParser extends AbstractIndexComponent implements 
 
     private ThreadLocal<ThreadLocals.CleanableValue<QueryParseContext>> cache = new ThreadLocal<ThreadLocals.CleanableValue<QueryParseContext>>() {
         @Override protected ThreadLocals.CleanableValue<QueryParseContext> initialValue() {
-            return new ThreadLocals.CleanableValue<QueryParseContext>(new QueryParseContext(index, queryParserRegistry, mapperService, similarityService, indexCache));
+            return new ThreadLocals.CleanableValue<QueryParseContext>(new QueryParseContext(index, queryParserRegistry, mapperService, similarityService, indexCache, indexEngine));
         }
     };
 
@@ -70,11 +71,13 @@ public class XContentIndexQueryParser extends AbstractIndexComponent implements 
 
     private final IndexCache indexCache;
 
+    private final IndexEngine indexEngine;
+
     private final XContentQueryParserRegistry queryParserRegistry;
 
     @Inject public XContentIndexQueryParser(Index index,
                                             @IndexSettings Settings indexSettings,
-                                            MapperService mapperService, IndexCache indexCache,
+                                            MapperService mapperService, IndexCache indexCache, IndexEngine indexEngine,
                                             AnalysisService analysisService, @Nullable SimilarityService similarityService,
                                             @Nullable Map<String, XContentQueryParserFactory> namedQueryParsers,
                                             @Nullable Map<String, XContentFilterParserFactory> namedFilterParsers,
@@ -84,6 +87,7 @@ public class XContentIndexQueryParser extends AbstractIndexComponent implements 
         this.mapperService = mapperService;
         this.similarityService = similarityService;
         this.indexCache = indexCache;
+        this.indexEngine = indexEngine;
 
         List<XContentQueryParser> queryParsers = newArrayList();
         if (namedQueryParsers != null) {

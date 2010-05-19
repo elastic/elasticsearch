@@ -108,6 +108,6 @@ public class RangeQueryParser extends AbstractIndexComponent implements XContent
             query = new TermRangeQuery(fieldName, from, to, includeLower, includeUpper);
         }
         query.setBoost(boost);
-        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext.indexCache());
+        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
     }
 }

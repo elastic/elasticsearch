@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.cache.IndexCache;
+import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.routing.OperationRouting;
@@ -49,6 +50,8 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard>, Clos
     IndexQueryParserService queryParserService();
 
     SimilarityService similarityService();
+
+    IndexEngine indexEngine();
 
     IndexShard createShard(int sShardId) throws ElasticSearchException;
 

@@ -53,6 +53,7 @@ public class ConstantScoreQueryParser extends AbstractIndexComponent implements 
 
         Filter filter = null;
         float boost = 1.0f;
+        boolean cache = true;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -66,13 +67,20 @@ public class ConstantScoreQueryParser extends AbstractIndexComponent implements 
             } else if (token.isValue()) {
                 if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else if ("cache".equals(currentFieldName)) {
+                    cache = parser.booleanValue();
                 }
             }
         }
         if (filter == null) {
             throw new QueryParsingException(index, "[constant_score] requires 'filter' element");
         }
-        // we don't cache the filter, we assume it is already cached in the filter parsers...
+
+        // cache the filter if possible
+        if (cache) {
+            filter = parseContext.cacheFilterIfPossible(filter);
+        }
+
         ConstantScoreQuery query = new ConstantScoreQuery(filter);
         query.setBoost(boost);
         return query;

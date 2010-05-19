@@ -49,6 +49,10 @@ public class NoneFilterCache extends AbstractIndexComponent implements FilterCac
         return filterToCache;
     }
 
+    @Override public boolean isCached(Filter filter) {
+        return false;
+    }
+
     @Override public void clear() {
         // nothing to do here
     }

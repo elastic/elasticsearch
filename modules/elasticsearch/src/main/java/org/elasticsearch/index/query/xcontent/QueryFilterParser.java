@@ -52,7 +52,6 @@ public class QueryFilterParser extends AbstractIndexComponent implements XConten
 
         Query query = parseContext.parseInnerQuery();
         Filter filter = new QueryWrapperFilter(query);
-        filter = parseContext.cacheFilterIfPossible(filter);
         return filter;
     }
 }

@@ -19,18 +19,19 @@
 
 package org.elasticsearch.index.query.xcontent.guice;
 
-import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
-import org.elasticsearch.util.inject.Guice;
-import org.elasticsearch.util.inject.Injector;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
+import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.index.query.xcontent.XContentQueryParserRegistry;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
+import org.elasticsearch.util.inject.Guice;
+import org.elasticsearch.util.inject.Injector;
 import org.elasticsearch.util.settings.Settings;
 import org.testng.annotations.Test;
 
@@ -57,6 +58,7 @@ public class IndexQueryParserModuleTests {
                 new IndexSettingsModule(settings),
                 new FilterCacheModule(settings),
                 new AnalysisModule(settings),
+                new IndexEngineModule(settings),
                 new SimilarityModule(settings),
                 new IndexQueryParserModule(settings),
                 new IndexNameModule(index)

@@ -60,4 +60,9 @@ public interface IndicesService extends Iterable<IndexService>, LifecycleCompone
     IndexService createIndex(String index, Settings settings, String localNodeId) throws ElasticSearchException;
 
     void deleteIndex(String index) throws ElasticSearchException;
+
+    /**
+     * Cleans the index without actually deleting any content for it.
+     */
+    void cleanIndex(String index) throws ElasticSearchException;
 }

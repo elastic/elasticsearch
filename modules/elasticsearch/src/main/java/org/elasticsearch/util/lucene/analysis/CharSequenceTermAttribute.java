@@ -24,7 +24,7 @@ import org.apache.lucene.analysis.tokenattributes.TermAttribute;
 /**
  * @author kimchy (shay.banon)
  */
-// TODO Lucene Monitor: Once 3.1 is out, no need for this class anymore, use CharTermAttribute
+// LUCENE MONITOR: Once 3.1 is out, no need for this class anymore, use CharTermAttribute
 public class CharSequenceTermAttribute implements CharSequence {
 
     private final TermAttribute termAtt;

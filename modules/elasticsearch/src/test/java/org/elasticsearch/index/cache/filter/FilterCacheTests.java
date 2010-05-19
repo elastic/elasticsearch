@@ -22,10 +22,7 @@ package org.elasticsearch.index.cache.filter;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.FilteredQuery;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.index.Index;
@@ -80,8 +77,13 @@ public class FilterCacheTests {
         indexWriter.deleteDocuments(new Term("id", "1"));
         reader = refreshReader(reader);
         searcher = new IndexSearcher(reader);
-        assertThat(Lucene.count(searcher, new ConstantScoreQuery(filterCache.cache(new TermFilter(new Term("id", "1")))), -1), equalTo(0l));
-        assertThat(Lucene.count(searcher, new FilteredQuery(new MatchAllDocsQuery(), filterCache.cache(new TermFilter(new Term("id", "1")))), -1), equalTo(0l));
+        TermFilter filter = new TermFilter(new Term("id", "1"));
+        Filter cachedFilter = filterCache.cache(filter);
+        long constantScoreCount = filter == cachedFilter ? 0 : 1;
+        // sadly, when caching based on cacheKey with NRT, this fails, that's why we have DeletionAware one
+        assertThat(Lucene.count(searcher, new ConstantScoreQuery(cachedFilter), -1), equalTo(constantScoreCount));
+        assertThat(Lucene.count(searcher, new DeletionAwareConstantScoreQuery(cachedFilter, true), -1), equalTo(0l));
+        assertThat(Lucene.count(searcher, new FilteredQuery(new MatchAllDocsQuery(), cachedFilter), -1), equalTo(0l));
 
         indexWriter.close();
     }

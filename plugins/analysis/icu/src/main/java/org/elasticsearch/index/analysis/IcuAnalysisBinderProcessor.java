@@ -19,44 +19,19 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.util.inject.Scopes;
-import org.elasticsearch.util.inject.assistedinject.FactoryProvider;
-import org.elasticsearch.util.inject.multibindings.MapBinder;
-import org.elasticsearch.util.settings.Settings;
-
-import java.util.Map;
-
 /**
  * @author kimchy (shay.banon)
  */
-public class IcuAnalysisBinderProcessor implements AnalysisModule.AnalysisBinderProcessor {
+public class IcuAnalysisBinderProcessor extends AnalysisModule.AnalysisBinderProcessor {
 
-    @Override public void processTokenFilters(MapBinder<String, TokenFilterFactoryFactory> binder, Map<String, Settings> groupSettings) {
-        if (!groupSettings.containsKey("icuNormalizer")) {
-            binder.addBinding("icuNormalizer").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, IcuNormalizerTokenFilterFactory.class)).in(Scopes.SINGLETON);
-        }
-        if (!groupSettings.containsKey("icu_normalizer")) {
-            binder.addBinding("icu_normalizer").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, IcuNormalizerTokenFilterFactory.class)).in(Scopes.SINGLETON);
-        }
+    @Override public void processTokenFilters(TokenFiltersBindings tokenFiltersBindings) {
+        tokenFiltersBindings.processTokenFilter("icuNormalizer", IcuNormalizerTokenFilterFactory.class);
+        tokenFiltersBindings.processTokenFilter("icu_normalizer", IcuNormalizerTokenFilterFactory.class);
 
-        if (!groupSettings.containsKey("icuFolding")) {
-            binder.addBinding("icuFolding").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, IcuFoldingTokenFilterFactory.class)).in(Scopes.SINGLETON);
-        }
-        if (!groupSettings.containsKey("icu_folding")) {
-            binder.addBinding("icu_folding").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, IcuFoldingTokenFilterFactory.class)).in(Scopes.SINGLETON);
-        }
+        tokenFiltersBindings.processTokenFilter("icuFolding", IcuFoldingTokenFilterFactory.class);
+        tokenFiltersBindings.processTokenFilter("icu_folding", IcuFoldingTokenFilterFactory.class);
 
-        if (!groupSettings.containsKey("icuCollation")) {
-            binder.addBinding("icuCollation").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, IcuCollationTokenFilterFactory.class)).in(Scopes.SINGLETON);
-        }
-        if (!groupSettings.containsKey("icu_collation")) {
-            binder.addBinding("icu_collation").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, IcuCollationTokenFilterFactory.class)).in(Scopes.SINGLETON);
-        }
-    }
-
-    @Override public void processTokenizers(MapBinder<String, TokenizerFactoryFactory> binder, Map<String, Settings> groupSettings) {
-    }
-
-    @Override public void processAnalyzers(MapBinder<String, AnalyzerProviderFactory> binder, Map<String, Settings> groupSettings) {
+        tokenFiltersBindings.processTokenFilter("icuCollation", IcuCollationTokenFilterFactory.class);
+        tokenFiltersBindings.processTokenFilter("icu_collation", IcuCollationTokenFilterFactory.class);
     }
 }

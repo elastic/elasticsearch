@@ -19,26 +19,10 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.KeywordAnalyzer;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.inject.assistedinject.Assisted;
-import org.elasticsearch.util.settings.Settings;
-
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class KeywordAnalyzerProvider extends AbstractIndexAnalyzerProvider<KeywordAnalyzer> {
-
-    private final KeywordAnalyzer keywordAnalyzer;
-
-    @Inject public KeywordAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
-        this.keywordAnalyzer = new KeywordAnalyzer();
-    }
-
-    @Override public KeywordAnalyzer get() {
-        return this.keywordAnalyzer;
-    }
+public enum AnalyzerScope {
+    INDEX,
+    INDICES
 }

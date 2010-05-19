@@ -34,7 +34,7 @@ import java.util.Set;
 /**
  * @author kimchy (shay.banon)
  */
-public class PersianAnalyzerProvider extends AbstractAnalyzerProvider<PersianAnalyzer> {
+public class PersianAnalyzerProvider extends AbstractIndexAnalyzerProvider<PersianAnalyzer> {
 
     private final Set<?> stopWords;
 

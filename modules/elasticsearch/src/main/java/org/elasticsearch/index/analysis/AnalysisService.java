@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -84,7 +83,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
         Map<String, NamedAnalyzer> analyzers = newHashMap();
         for (AnalyzerProvider analyzerFactory : analyzerProviders.values()) {
-            analyzers.put(analyzerFactory.name(), new NamedAnalyzer(analyzerFactory.name(), analyzerFactory.get()));
+            analyzers.put(analyzerFactory.name(), new NamedAnalyzer(analyzerFactory.name(), analyzerFactory.scope(), analyzerFactory.get()));
         }
         this.analyzers = ImmutableMap.copyOf(analyzers);
 
@@ -126,8 +125,10 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
     }
 
     public void close() {
-        for (Analyzer analyzer : analyzers.values()) {
-            analyzer.close();
+        for (NamedAnalyzer analyzer : analyzers.values()) {
+            if (analyzer.scope() == AnalyzerScope.INDEX) {
+                analyzer.close();
+            }
         }
     }
 

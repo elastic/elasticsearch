@@ -34,7 +34,7 @@ import java.util.Set;
 /**
  * @author kimchy (shay.banon)
  */
-public class CjkAnalyzerProvider extends AbstractAnalyzerProvider<CJKAnalyzer> {
+public class CjkAnalyzerProvider extends AbstractIndexAnalyzerProvider<CJKAnalyzer> {
 
     private final Set<?> stopWords;
 

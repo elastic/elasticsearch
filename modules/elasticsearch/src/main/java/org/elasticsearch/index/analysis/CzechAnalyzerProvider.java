@@ -34,7 +34,7 @@ import java.util.Set;
 /**
  * @author kimchy (shay.banon)
  */
-public class CzechAnalyzerProvider extends AbstractAnalyzerProvider<CzechAnalyzer> {
+public class CzechAnalyzerProvider extends AbstractIndexAnalyzerProvider<CzechAnalyzer> {
 
     private final Set<?> stopWords;
 

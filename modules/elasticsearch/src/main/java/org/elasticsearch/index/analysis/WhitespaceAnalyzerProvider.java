@@ -29,7 +29,7 @@ import org.elasticsearch.util.settings.Settings;
 /**
  * @author kimchy (Shay Banon)
  */
-public class WhitespaceAnalyzerProvider extends AbstractAnalyzerProvider<WhitespaceAnalyzer> {
+public class WhitespaceAnalyzerProvider extends AbstractIndexAnalyzerProvider<WhitespaceAnalyzer> {
 
     private final WhitespaceAnalyzer analyzer;
 

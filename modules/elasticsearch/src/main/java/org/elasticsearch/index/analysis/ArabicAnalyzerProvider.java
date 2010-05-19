@@ -34,7 +34,7 @@ import java.util.Set;
 /**
  * @author kimchy (shay.banon)
  */
-public class ArabicAnalyzerProvider extends AbstractAnalyzerProvider<ArabicAnalyzer> {
+public class ArabicAnalyzerProvider extends AbstractIndexAnalyzerProvider<ArabicAnalyzer> {
 
     private final Set<String> stopWords;
 

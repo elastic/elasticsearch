@@ -37,7 +37,7 @@ import static org.elasticsearch.util.collect.Lists.*;
  *
  * @author kimchy (Shay Banon)
  */
-public class CustomAnalyzerProvider extends AbstractAnalyzerProvider<CustomAnalyzer> {
+public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<CustomAnalyzer> {
 
     private final TokenizerFactory tokenizerFactory;
 

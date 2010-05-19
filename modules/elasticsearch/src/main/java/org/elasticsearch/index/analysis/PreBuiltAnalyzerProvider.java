@@ -20,24 +20,33 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.settings.Settings;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public abstract class AbstractAnalyzerProvider<T extends Analyzer> extends AbstractIndexComponent implements AnalyzerProvider<T> {
+public class PreBuiltAnalyzerProvider<T extends Analyzer> implements AnalyzerProvider<T> {
 
     private final String name;
 
-    public AbstractAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, String name) {
-        super(index, indexSettings);
+    private final AnalyzerScope scope;
+
+    private final T analyzer;
+
+    public PreBuiltAnalyzerProvider(String name, AnalyzerScope scope, T analyzer) {
         this.name = name;
+        this.scope = scope;
+        this.analyzer = analyzer;
     }
 
     @Override public String name() {
-        return this.name;
+        return name;
+    }
+
+    @Override public AnalyzerScope scope() {
+        return scope;
+    }
+
+    @Override public T get() {
+        return analyzer;
     }
 }

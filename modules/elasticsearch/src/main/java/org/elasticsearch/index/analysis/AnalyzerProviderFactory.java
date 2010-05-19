@@ -22,7 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.elasticsearch.util.settings.Settings;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public interface AnalyzerProviderFactory {
 

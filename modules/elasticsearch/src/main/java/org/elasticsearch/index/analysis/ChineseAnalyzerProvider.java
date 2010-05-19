@@ -29,7 +29,7 @@ import org.elasticsearch.util.settings.Settings;
 /**
  * @author kimchy (shay.banon)
  */
-public class ChineseAnalyzerProvider extends AbstractAnalyzerProvider<ChineseAnalyzer> {
+public class ChineseAnalyzerProvider extends AbstractIndexAnalyzerProvider<ChineseAnalyzer> {
 
     private final ChineseAnalyzer analyzer;
 

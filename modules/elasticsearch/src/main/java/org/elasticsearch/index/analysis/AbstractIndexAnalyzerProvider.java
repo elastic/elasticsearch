@@ -19,26 +19,29 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.KeywordAnalyzer;
+import org.apache.lucene.analysis.Analyzer;
+import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.inject.assistedinject.Assisted;
 import org.elasticsearch.util.settings.Settings;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class KeywordAnalyzerProvider extends AbstractIndexAnalyzerProvider<KeywordAnalyzer> {
+public abstract class AbstractIndexAnalyzerProvider<T extends Analyzer> extends AbstractIndexComponent implements AnalyzerProvider<T> {
 
-    private final KeywordAnalyzer keywordAnalyzer;
+    private final String name;
 
-    @Inject public KeywordAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
-        this.keywordAnalyzer = new KeywordAnalyzer();
+    public AbstractIndexAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, String name) {
+        super(index, indexSettings);
+        this.name = name;
     }
 
-    @Override public KeywordAnalyzer get() {
-        return this.keywordAnalyzer;
+    @Override public String name() {
+        return this.name;
+    }
+
+    @Override public AnalyzerScope scope() {
+        return AnalyzerScope.INDEX;
     }
 }

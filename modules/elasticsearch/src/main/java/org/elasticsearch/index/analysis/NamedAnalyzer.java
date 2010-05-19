@@ -38,10 +38,17 @@ public class NamedAnalyzer extends Analyzer {
 
     private final String name;
 
+    private final AnalyzerScope scope;
+
     private final Analyzer analyzer;
 
     public NamedAnalyzer(String name, Analyzer analyzer) {
+        this(name, AnalyzerScope.INDEX, analyzer);
+    }
+
+    public NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer) {
         this.name = name;
+        this.scope = scope;
         this.analyzer = analyzer;
     }
 
@@ -50,6 +57,13 @@ public class NamedAnalyzer extends Analyzer {
      */
     public String name() {
         return this.name;
+    }
+
+    /**
+     * The scope of the analyzer.
+     */
+    public AnalyzerScope scope() {
+        return this.scope;
     }
 
     /**

@@ -34,7 +34,7 @@ import java.util.Set;
 /**
  * @author kimchy (shay.banon)
  */
-public class GreekAnalyzerProvider extends AbstractAnalyzerProvider<GreekAnalyzer> {
+public class GreekAnalyzerProvider extends AbstractIndexAnalyzerProvider<GreekAnalyzer> {
 
     private final Set<?> stopWords;
 

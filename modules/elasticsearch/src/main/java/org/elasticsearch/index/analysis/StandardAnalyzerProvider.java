@@ -35,7 +35,7 @@ import java.util.Set;
 /**
  * @author kimchy (Shay Banon)
  */
-public class StandardAnalyzerProvider extends AbstractAnalyzerProvider<StandardAnalyzer> {
+public class StandardAnalyzerProvider extends AbstractIndexAnalyzerProvider<StandardAnalyzer> {
 
     private final Set<String> stopWords;
 

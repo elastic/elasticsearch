@@ -30,7 +30,7 @@ import org.elasticsearch.util.settings.Settings;
 /**
  * @author kimchy (shay.banon)
  */
-public class ThaiAnalyzerProvider extends AbstractAnalyzerProvider<ThaiAnalyzer> {
+public class ThaiAnalyzerProvider extends AbstractIndexAnalyzerProvider<ThaiAnalyzer> {
 
     private final ThaiAnalyzer analyzer;
 

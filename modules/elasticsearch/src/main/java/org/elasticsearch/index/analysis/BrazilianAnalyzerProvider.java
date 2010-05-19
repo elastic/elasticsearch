@@ -34,7 +34,7 @@ import java.util.Set;
 /**
  * @author kimchy (shay.banon)
  */
-public class BrazilianAnalyzerProvider extends AbstractAnalyzerProvider<BrazilianAnalyzer> {
+public class BrazilianAnalyzerProvider extends AbstractIndexAnalyzerProvider<BrazilianAnalyzer> {
 
     private final Set<?> stopWords;
 

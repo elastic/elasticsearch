@@ -20,15 +20,16 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.util.inject.Provider;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public interface AnalyzerProvider<T extends Analyzer> extends IndexComponent, Provider<T> {
+public interface AnalyzerProvider<T extends Analyzer> extends Provider<T> {
 
     String name();
+
+    AnalyzerScope scope();
 
     T get();
 }

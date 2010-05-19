@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.throttler.RecoveryThrottler;
 import org.elasticsearch.util.inject.AbstractModule;
@@ -41,5 +42,6 @@ public class IndicesModule extends AbstractModule {
         bind(RecoveryThrottler.class).asEagerSingleton();
         bind(IndicesClusterStateService.class).asEagerSingleton();
         bind(IndicesMemoryCleaner.class).asEagerSingleton();
+        bind(IndicesAnalysisService.class).asEagerSingleton();
     }
 }

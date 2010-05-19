@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.inject.AbstractModule;
 import org.elasticsearch.util.inject.Scopes;
@@ -34,20 +35,116 @@ import java.util.Map;
  */
 public class AnalysisModule extends AbstractModule {
 
-    public static interface AnalysisBinderProcessor {
-        void processTokenFilters(MapBinder<String, TokenFilterFactoryFactory> binder, Map<String, Settings> groupSettings);
+    public static class AnalysisBinderProcessor {
 
-        void processTokenizers(MapBinder<String, TokenizerFactoryFactory> binder, Map<String, Settings> groupSettings);
+        public void processTokenFilters(TokenFiltersBindings tokenFiltersBindings) {
 
-        void processAnalyzers(MapBinder<String, AnalyzerProviderFactory> binder, Map<String, Settings> groupSettings);
+        }
+
+        public static class TokenFiltersBindings {
+            private final MapBinder<String, TokenFilterFactoryFactory> binder;
+            private final Map<String, Settings> groupSettings;
+
+            public TokenFiltersBindings(MapBinder<String, TokenFilterFactoryFactory> binder, Map<String, Settings> groupSettings) {
+                this.binder = binder;
+                this.groupSettings = groupSettings;
+            }
+
+            public MapBinder<String, TokenFilterFactoryFactory> binder() {
+                return binder;
+            }
+
+            public Map<String, Settings> groupSettings() {
+                return groupSettings;
+            }
+
+            public void processTokenFilter(String name, Class<? extends TokenFilterFactory> tokenFilterFactory) {
+                if (!groupSettings.containsKey(name)) {
+                    binder.addBinding(name).toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, tokenFilterFactory)).in(Scopes.SINGLETON);
+                }
+            }
+        }
+
+        public void processTokenizers(TokenizersBindings tokenizersBindings) {
+
+        }
+
+        public static class TokenizersBindings {
+            private final MapBinder<String, TokenizerFactoryFactory> binder;
+            private final Map<String, Settings> groupSettings;
+
+            public TokenizersBindings(MapBinder<String, TokenizerFactoryFactory> binder, Map<String, Settings> groupSettings) {
+                this.binder = binder;
+                this.groupSettings = groupSettings;
+            }
+
+            public MapBinder<String, TokenizerFactoryFactory> binder() {
+                return binder;
+            }
+
+            public Map<String, Settings> groupSettings() {
+                return groupSettings;
+            }
+
+            public void processTokenizer(String name, Class<? extends TokenizerFactory> tokenizerFactory) {
+                if (!groupSettings.containsKey(name)) {
+                    binder.addBinding(name).toProvider(FactoryProvider.newFactory(TokenizerFactoryFactory.class, tokenizerFactory)).in(Scopes.SINGLETON);
+                }
+            }
+        }
+
+        public void processAnalyzers(AnalyzersBindings analyzersBindings) {
+
+        }
+
+        public static class AnalyzersBindings {
+            private final MapBinder<String, AnalyzerProviderFactory> binder;
+            private final Map<String, Settings> groupSettings;
+            private final IndicesAnalysisService indicesAnalysisService;
+
+            public AnalyzersBindings(MapBinder<String, AnalyzerProviderFactory> binder, Map<String, Settings> groupSettings, IndicesAnalysisService indicesAnalysisService) {
+                this.binder = binder;
+                this.groupSettings = groupSettings;
+                this.indicesAnalysisService = indicesAnalysisService;
+            }
+
+            public MapBinder<String, AnalyzerProviderFactory> binder() {
+                return binder;
+            }
+
+            public Map<String, Settings> groupSettings() {
+                return groupSettings;
+            }
+
+            public IndicesAnalysisService indicesAnalysisService() {
+                return indicesAnalysisService;
+            }
+
+            public void processAnalyzer(String name, Class<? extends AnalyzerProvider> analyzerProvider) {
+                if (!groupSettings.containsKey(name)) {
+                    if (indicesAnalysisService != null && indicesAnalysisService.hasAnalyzer(name)) {
+                        binder.addBinding(name).toInstance(indicesAnalysisService.analyzerProviderFactory(name));
+                    } else {
+                        binder.addBinding(name).toProvider(FactoryProvider.newFactory(AnalyzerProviderFactory.class, analyzerProvider)).in(Scopes.SINGLETON);
+                    }
+                }
+            }
+        }
     }
 
     private final Settings settings;
 
+    private final IndicesAnalysisService indicesAnalysisService;
+
     private final LinkedList<AnalysisBinderProcessor> processors = Lists.newLinkedList();
 
     public AnalysisModule(Settings settings) {
+        this(settings, null);
+    }
+
+    public AnalysisModule(Settings settings, IndicesAnalysisService indicesAnalysisService) {
         this.settings = settings;
+        this.indicesAnalysisService = indicesAnalysisService;
         processors.add(new DefaultProcessor());
         try {
             processors.add(new ExtendedProcessor());
@@ -77,8 +174,9 @@ public class AnalysisModule extends AbstractModule {
             tokenFilterBinder.addBinding(tokenFilterName).toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, type)).in(Scopes.SINGLETON);
         }
 
+        AnalysisBinderProcessor.TokenFiltersBindings tokenFiltersBindings = new AnalysisBinderProcessor.TokenFiltersBindings(tokenFilterBinder, tokenFiltersSettings);
         for (AnalysisBinderProcessor processor : processors) {
-            processor.processTokenFilters(tokenFilterBinder, tokenFiltersSettings);
+            processor.processTokenFilters(tokenFiltersBindings);
         }
 
         MapBinder<String, TokenizerFactoryFactory> tokenizerBinder
@@ -96,8 +194,9 @@ public class AnalysisModule extends AbstractModule {
             tokenizerBinder.addBinding(tokenizerName).toProvider(FactoryProvider.newFactory(TokenizerFactoryFactory.class, type)).in(Scopes.SINGLETON);
         }
 
+        AnalysisBinderProcessor.TokenizersBindings tokenizersBindings = new AnalysisBinderProcessor.TokenizersBindings(tokenizerBinder, tokenizersSettings);
         for (AnalysisBinderProcessor processor : processors) {
-            processor.processTokenizers(tokenizerBinder, tokenizersSettings);
+            processor.processTokenizers(tokenizersBindings);
         }
 
         MapBinder<String, AnalyzerProviderFactory> analyzerBinder
@@ -121,184 +220,84 @@ public class AnalysisModule extends AbstractModule {
             analyzerBinder.addBinding(analyzerName).toProvider(FactoryProvider.newFactory(AnalyzerProviderFactory.class, type)).in(Scopes.SINGLETON);
         }
 
+        AnalysisBinderProcessor.AnalyzersBindings analyzersBindings = new AnalysisBinderProcessor.AnalyzersBindings(analyzerBinder, analyzersSettings, indicesAnalysisService);
         for (AnalysisBinderProcessor processor : processors) {
-            processor.processAnalyzers(analyzerBinder, analyzersSettings);
+            processor.processAnalyzers(analyzersBindings);
         }
 
         bind(AnalysisService.class).in(Scopes.SINGLETON);
     }
 
-    private static class DefaultProcessor implements AnalysisBinderProcessor {
-        @Override public void processTokenFilters(MapBinder<String, TokenFilterFactoryFactory> binder, Map<String, Settings> groupSettings) {
-            // add defaults
-            if (!groupSettings.containsKey("stop")) {
-                binder.addBinding("stop").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, StopTokenFilterFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("asciifolding")) {
-                binder.addBinding("asciifolding").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, ASCIIFoldingTokenFilterFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("length")) {
-                binder.addBinding("length").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, LengthTokenFilterFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("lowercase")) {
-                binder.addBinding("lowercase").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, LowerCaseTokenFilterFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("porterStem")) {
-                binder.addBinding("porterStem").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, PorterStemTokenFilterFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("porter_stem")) {
-                binder.addBinding("porter_stem").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, PorterStemTokenFilterFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("standard")) {
-                binder.addBinding("standard").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, StandardTokenFilterFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("nGram")) {
-                binder.addBinding("nGram").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, NGramTokenFilterFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("ngram")) {
-                binder.addBinding("ngram").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, NGramTokenFilterFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("edgeNGram")) {
-                binder.addBinding("edgeNGram").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, EdgeNGramTokenFilterFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("edge_ngram")) {
-                binder.addBinding("edge_ngram").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, EdgeNGramTokenFilterFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("shingle")) {
-                binder.addBinding("shingle").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, ShingleTokenFilterFactory.class)).in(Scopes.SINGLETON);
-            }
+    private static class DefaultProcessor extends AnalysisBinderProcessor {
+
+        @Override public void processTokenFilters(TokenFiltersBindings tokenFiltersBindings) {
+            tokenFiltersBindings.processTokenFilter("stop", StopTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("asciifolding", ASCIIFoldingTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("length", LengthTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("lowercase", LowerCaseTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("porterStem", PorterStemTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("porter_stem", PorterStemTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("standard", StandardTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("nGram", NGramTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("ngram", NGramTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("edgeNGram", EdgeNGramTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("edge_ngram", EdgeNGramTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("shingle", ShingleTokenFilterFactory.class);
         }
 
-        @Override public void processTokenizers(MapBinder<String, TokenizerFactoryFactory> binder, Map<String, Settings> groupSettings) {
-            // add defaults
-            if (!groupSettings.containsKey("standard")) {
-                binder.addBinding("standard").toProvider(FactoryProvider.newFactory(TokenizerFactoryFactory.class, StandardTokenizerFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("keyword")) {
-                binder.addBinding("keyword").toProvider(FactoryProvider.newFactory(TokenizerFactoryFactory.class, KeywordTokenizerFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("letter")) {
-                binder.addBinding("letter").toProvider(FactoryProvider.newFactory(TokenizerFactoryFactory.class, LetterTokenizerFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("lowercase")) {
-                binder.addBinding("lowercase").toProvider(FactoryProvider.newFactory(TokenizerFactoryFactory.class, LowerCaseTokenizerFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("whitespace")) {
-                binder.addBinding("whitespace").toProvider(FactoryProvider.newFactory(TokenizerFactoryFactory.class, WhitespaceTokenizerFactory.class)).in(Scopes.SINGLETON);
-            }
+        @Override public void processTokenizers(TokenizersBindings tokenizersBindings) {
+            tokenizersBindings.processTokenizer("standard", StandardTokenizerFactory.class);
+            tokenizersBindings.processTokenizer("keyword", KeywordTokenizerFactory.class);
+            tokenizersBindings.processTokenizer("letter", LetterTokenizerFactory.class);
+            tokenizersBindings.processTokenizer("lowercase", LowerCaseTokenizerFactory.class);
+            tokenizersBindings.processTokenizer("whitespace", WhitespaceTokenizerFactory.class);
         }
 
-        @Override public void processAnalyzers(MapBinder<String, AnalyzerProviderFactory> binder, Map<String, Settings> groupSettings) {
-            if (!groupSettings.containsKey("standard")) {
-                binder.addBinding("standard").toProvider(FactoryProvider.newFactory(AnalyzerProviderFactory.class, StandardAnalyzerProvider.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("simple")) {
-                binder.addBinding("simple").toProvider(FactoryProvider.newFactory(AnalyzerProviderFactory.class, SimpleAnalyzerProvider.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("stop")) {
-                binder.addBinding("stop").toProvider(FactoryProvider.newFactory(AnalyzerProviderFactory.class, StopAnalyzerProvider.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("whitespace")) {
-                binder.addBinding("whitespace").toProvider(FactoryProvider.newFactory(AnalyzerProviderFactory.class, WhitespaceAnalyzerProvider.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("keyword")) {
-                binder.addBinding("keyword").toProvider(FactoryProvider.newFactory(AnalyzerProviderFactory.class, KeywordAnalyzerProvider.class)).in(Scopes.SINGLETON);
-            }
+        @Override public void processAnalyzers(AnalyzersBindings analyzersBindings) {
+            analyzersBindings.processAnalyzer("standard", StandardAnalyzerProvider.class);
+            analyzersBindings.processAnalyzer("simple", SimpleAnalyzerProvider.class);
+            analyzersBindings.processAnalyzer("stop", StopAnalyzerProvider.class);
+            analyzersBindings.processAnalyzer("whitespace", WhitespaceAnalyzerProvider.class);
+            analyzersBindings.processAnalyzer("keyword", KeywordAnalyzerProvider.class);
         }
     }
 
-    private static class ExtendedProcessor implements AnalysisBinderProcessor {
-        @Override public void processTokenFilters(MapBinder<String, TokenFilterFactoryFactory> binder, Map<String, Settings> groupSettings) {
-            if (!groupSettings.containsKey("arabicStem")) {
-                binder.addBinding("arabicStem").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, ArabicStemTokenFilterFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("arabic_stem")) {
-                binder.addBinding("arabic_stem").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, ArabicStemTokenFilterFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("brazilianStem")) {
-                binder.addBinding("brazilianStem").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, BrazilianStemTokenFilterFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("brazilian_stem")) {
-                binder.addBinding("brazilian_stem").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, BrazilianStemTokenFilterFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("dutchStem")) {
-                binder.addBinding("dutchStem").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, DutchStemTokenFilterFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("dutch_stem")) {
-                binder.addBinding("dutch_stem").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, DutchStemTokenFilterFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("frenchStem")) {
-                binder.addBinding("frenchStem").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, FrenchStemTokenFilterFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("french_stem")) {
-                binder.addBinding("french_stem").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, FrenchStemTokenFilterFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("germanStem")) {
-                binder.addBinding("germanStem").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, GermanStemTokenFilterFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("german_stem")) {
-                binder.addBinding("german_stem").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, GermanStemTokenFilterFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("russianStem")) {
-                binder.addBinding("russianStem").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, RussianStemTokenFilterFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("russian_stem")) {
-                binder.addBinding("russian_stem").toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, RussianStemTokenFilterFactory.class)).in(Scopes.SINGLETON);
-            }
+    private static class ExtendedProcessor extends AnalysisBinderProcessor {
+        @Override public void processTokenFilters(TokenFiltersBindings tokenFiltersBindings) {
+            tokenFiltersBindings.processTokenFilter("arabicStem", ArabicStemTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("arabic_stem", ArabicStemTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("brazilianStem", BrazilianStemTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("brazilian_stem", BrazilianStemTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("dutchStem", DutchStemTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("dutch_stem", DutchStemTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("frenchStem", FrenchStemTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("french_stem", FrenchStemTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("germanStem", GermanStemTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("german_stem", GermanStemTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("russianStem", RussianStemTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("russian_stem", RussianStemTokenFilterFactory.class);
         }
 
-        @Override public void processTokenizers(MapBinder<String, TokenizerFactoryFactory> binder, Map<String, Settings> groupSettings) {
-            if (!groupSettings.containsKey("nGram")) {
-                binder.addBinding("nGram").toProvider(FactoryProvider.newFactory(TokenizerFactoryFactory.class, NGramTokenizerFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("ngram")) {
-                binder.addBinding("ngram").toProvider(FactoryProvider.newFactory(TokenizerFactoryFactory.class, NGramTokenizerFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("edgeNGram")) {
-                binder.addBinding("edgeNGram").toProvider(FactoryProvider.newFactory(TokenizerFactoryFactory.class, EdgeNGramTokenizerFactory.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("edge_ngram")) {
-                binder.addBinding("edge_ngram").toProvider(FactoryProvider.newFactory(TokenizerFactoryFactory.class, EdgeNGramTokenizerFactory.class)).in(Scopes.SINGLETON);
-            }
+        @Override public void processTokenizers(TokenizersBindings tokenizersBindings) {
+            tokenizersBindings.processTokenizer("nGram", NGramTokenizerFactory.class);
+            tokenizersBindings.processTokenizer("ngram", NGramTokenizerFactory.class);
+            tokenizersBindings.processTokenizer("edgeNGram", EdgeNGramTokenizerFactory.class);
+            tokenizersBindings.processTokenizer("edge_ngram", EdgeNGramTokenizerFactory.class);
         }
 
-        @Override public void processAnalyzers(MapBinder<String, AnalyzerProviderFactory> binder, Map<String, Settings> groupSettings) {
-            if (!groupSettings.containsKey("arabic")) {
-                binder.addBinding("arabic").toProvider(FactoryProvider.newFactory(AnalyzerProviderFactory.class, ArabicAnalyzerProvider.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("brazilian")) {
-                binder.addBinding("brazilian").toProvider(FactoryProvider.newFactory(AnalyzerProviderFactory.class, BrazilianAnalyzerProvider.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("chinese")) {
-                binder.addBinding("chinese").toProvider(FactoryProvider.newFactory(AnalyzerProviderFactory.class, ChineseAnalyzerProvider.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("cjk")) {
-                binder.addBinding("cjk").toProvider(FactoryProvider.newFactory(AnalyzerProviderFactory.class, ChineseAnalyzerProvider.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("czech")) {
-                binder.addBinding("czech").toProvider(FactoryProvider.newFactory(AnalyzerProviderFactory.class, CzechAnalyzerProvider.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("dutch")) {
-                binder.addBinding("dutch").toProvider(FactoryProvider.newFactory(AnalyzerProviderFactory.class, DutchAnalyzerProvider.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("french")) {
-                binder.addBinding("french").toProvider(FactoryProvider.newFactory(AnalyzerProviderFactory.class, FrenchAnalyzerProvider.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("german")) {
-                binder.addBinding("german").toProvider(FactoryProvider.newFactory(AnalyzerProviderFactory.class, GermanAnalyzerProvider.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("greek")) {
-                binder.addBinding("greek").toProvider(FactoryProvider.newFactory(AnalyzerProviderFactory.class, GreekAnalyzerProvider.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("persian")) {
-                binder.addBinding("persian").toProvider(FactoryProvider.newFactory(AnalyzerProviderFactory.class, PersianAnalyzerProvider.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("russian")) {
-                binder.addBinding("russian").toProvider(FactoryProvider.newFactory(AnalyzerProviderFactory.class, RussianAnalyzerProvider.class)).in(Scopes.SINGLETON);
-            }
-            if (!groupSettings.containsKey("thai")) {
-                binder.addBinding("thai").toProvider(FactoryProvider.newFactory(AnalyzerProviderFactory.class, ThaiAnalyzerProvider.class)).in(Scopes.SINGLETON);
-            }
+        @Override public void processAnalyzers(AnalyzersBindings analyzersBindings) {
+            analyzersBindings.processAnalyzer("arabic", ArabicAnalyzerProvider.class);
+            analyzersBindings.processAnalyzer("brazilian", BrazilianAnalyzerProvider.class);
+            analyzersBindings.processAnalyzer("chinese", ChineseAnalyzerProvider.class);
+            analyzersBindings.processAnalyzer("cjk", ChineseAnalyzerProvider.class);
+            analyzersBindings.processAnalyzer("czech", CzechAnalyzerProvider.class);
+            analyzersBindings.processAnalyzer("dutch", DutchAnalyzerProvider.class);
+            analyzersBindings.processAnalyzer("french", FrenchAnalyzerProvider.class);
+            analyzersBindings.processAnalyzer("german", GermanAnalyzerProvider.class);
+            analyzersBindings.processAnalyzer("greek", GreekAnalyzerProvider.class);
+            analyzersBindings.processAnalyzer("persian", PersianAnalyzerProvider.class);
+            analyzersBindings.processAnalyzer("russian", RussianAnalyzerProvider.class);
+            analyzersBindings.processAnalyzer("thai", ThaiAnalyzerProvider.class);
         }
     }
 }

@@ -38,6 +38,7 @@ import org.elasticsearch.index.routing.OperationRoutingModule;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
+import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.plugins.IndicesPluginsModule;
 import org.elasticsearch.plugins.PluginsService;
@@ -73,6 +74,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     private final InternalIndicesLifecycle indicesLifecycle;
 
+    private final IndicesAnalysisService indicesAnalysisService;
+
     private final Injector injector;
 
     private final PluginsService pluginsService;
@@ -81,10 +84,12 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     private volatile ImmutableMap<String, IndexService> indices = ImmutableMap.of();
 
-    @Inject public InternalIndicesService(Settings settings, IndicesClusterStateService clusterStateService, IndicesLifecycle indicesLifecycle, Injector injector) {
+    @Inject public InternalIndicesService(Settings settings, IndicesClusterStateService clusterStateService,
+                                          IndicesLifecycle indicesLifecycle, IndicesAnalysisService indicesAnalysisService, Injector injector) {
         super(settings);
         this.clusterStateService = clusterStateService;
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
+        this.indicesAnalysisService = indicesAnalysisService;
         this.injector = injector;
 
         this.pluginsService = injector.getInstance(PluginsService.class);
@@ -103,6 +108,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     @Override protected void doClose() throws ElasticSearchException {
         clusterStateService.close();
+        indicesAnalysisService.close();
     }
 
     @Override public IndicesLifecycle indicesLifecycle() {
@@ -177,7 +183,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         modules.add(new IndexSettingsModule(indexSettings));
         modules.add(new IndicesPluginsModule(indexSettings, pluginsService));
         modules.add(new IndexEngineModule(indexSettings));
-        modules.add(new AnalysisModule(indexSettings));
+        modules.add(new AnalysisModule(indexSettings, indicesAnalysisService));
         modules.add(new SimilarityModule(indexSettings));
         modules.add(new IndexCacheModule(indexSettings));
         modules.add(new IndexQueryParserModule(indexSettings));

@@ -32,7 +32,7 @@ import org.elasticsearch.util.settings.Settings;
 /**
  * @author kimchy (shay.banon)
  */
-public class RussianAnalyzerProvider extends AbstractAnalyzerProvider<RussianAnalyzer> {
+public class RussianAnalyzerProvider extends AbstractIndexAnalyzerProvider<RussianAnalyzer> {
 
     private final RussianAnalyzer analyzer;
 

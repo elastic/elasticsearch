@@ -29,7 +29,7 @@ import org.elasticsearch.util.settings.Settings;
 /**
  * @author kimchy (Shay Banon)
  */
-public class SimpleAnalyzerProvider extends AbstractAnalyzerProvider<SimpleAnalyzer> {
+public class SimpleAnalyzerProvider extends AbstractIndexAnalyzerProvider<SimpleAnalyzer> {
 
     private final SimpleAnalyzer simpleAnalyzer;
 

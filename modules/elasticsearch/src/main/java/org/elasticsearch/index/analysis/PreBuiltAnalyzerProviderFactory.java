@@ -19,26 +19,29 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.KeywordAnalyzer;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.inject.assistedinject.Assisted;
+import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.util.settings.Settings;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class KeywordAnalyzerProvider extends AbstractIndexAnalyzerProvider<KeywordAnalyzer> {
+public class PreBuiltAnalyzerProviderFactory implements AnalyzerProviderFactory {
 
-    private final KeywordAnalyzer keywordAnalyzer;
+    private final PreBuiltAnalyzerProvider analyzerProvider;
 
-    @Inject public KeywordAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
-        this.keywordAnalyzer = new KeywordAnalyzer();
+    public PreBuiltAnalyzerProviderFactory(String name, AnalyzerScope scope, Analyzer analyzer) {
+        this(new PreBuiltAnalyzerProvider<Analyzer>(name, scope, analyzer));
     }
 
-    @Override public KeywordAnalyzer get() {
-        return this.keywordAnalyzer;
+    public PreBuiltAnalyzerProviderFactory(PreBuiltAnalyzerProvider<Analyzer> analyzerProvider) {
+        this.analyzerProvider = analyzerProvider;
+    }
+
+    @Override public AnalyzerProvider<Analyzer> create(String name, Settings settings) {
+        return analyzerProvider;
+    }
+
+    public Analyzer analyzer() {
+        return analyzerProvider.get();
     }
 }

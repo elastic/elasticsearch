@@ -34,7 +34,7 @@ import java.util.Set;
 /**
  * @author kimchy (shay.banon)
  */
-public class DutchAnalyzerProvider extends AbstractAnalyzerProvider<DutchAnalyzer> {
+public class DutchAnalyzerProvider extends AbstractIndexAnalyzerProvider<DutchAnalyzer> {
 
     private final Set<?> stopWords;
 

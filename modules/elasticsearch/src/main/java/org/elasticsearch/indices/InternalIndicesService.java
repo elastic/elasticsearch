@@ -201,7 +201,11 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         return indexService;
     }
 
-    public synchronized void deleteIndex(String index) throws ElasticSearchException {
+    @Override public synchronized void cleanIndex(String index) throws ElasticSearchException {
+        deleteIndex(index, false);
+    }
+
+    @Override public synchronized void deleteIndex(String index) throws ElasticSearchException {
         deleteIndex(index, true);
     }
 

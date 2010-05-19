@@ -19,22 +19,32 @@
 
 package org.elasticsearch.index.engine;
 
-import org.elasticsearch.util.guice.ModulesFactory;
+import org.elasticsearch.index.engine.robin.RobinEngineModule;
+import org.elasticsearch.index.engine.robin.RobinIndexEngineModule;
 import org.elasticsearch.util.inject.AbstractModule;
+import org.elasticsearch.util.inject.Module;
 import org.elasticsearch.util.settings.Settings;
 
+import static org.elasticsearch.util.guice.ModulesFactory.*;
+
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class EngineModule extends AbstractModule {
+public class IndexEngineModule extends AbstractModule {
+
+    public static final class EngineSettings {
+        public static final String ENGINE_TYPE = "index.engine.type";
+        public static final Class<? extends Module> DEFAULT_INDEX_ENGINE = RobinIndexEngineModule.class;
+        public static final Class<? extends Module> DEFAULT_ENGINE = RobinEngineModule.class;
+    }
 
     private final Settings settings;
 
-    public EngineModule(Settings settings) {
+    public IndexEngineModule(Settings settings) {
         this.settings = settings;
     }
 
     @Override protected void configure() {
-        ModulesFactory.createModule(settings.getAsClass(IndexEngineModule.EngineSettings.ENGINE_TYPE, IndexEngineModule.EngineSettings.DEFAULT_ENGINE, "org.elasticsearch.index.engine.", "EngineModule"), settings).configure(binder());
+        createModule(settings.getAsClass(EngineSettings.ENGINE_TYPE, EngineSettings.DEFAULT_INDEX_ENGINE, "org.elasticsearch.index.engine.", "IndexEngineModule"), settings).configure(binder());
     }
 }

@@ -17,24 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine;
+package org.elasticsearch.index.engine.robin;
 
-import org.elasticsearch.util.guice.ModulesFactory;
+import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.util.inject.AbstractModule;
-import org.elasticsearch.util.settings.Settings;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class EngineModule extends AbstractModule {
-
-    private final Settings settings;
-
-    public EngineModule(Settings settings) {
-        this.settings = settings;
-    }
+public class RobinIndexEngineModule extends AbstractModule {
 
     @Override protected void configure() {
-        ModulesFactory.createModule(settings.getAsClass(IndexEngineModule.EngineSettings.ENGINE_TYPE, IndexEngineModule.EngineSettings.DEFAULT_ENGINE, "org.elasticsearch.index.engine.", "EngineModule"), settings).configure(binder());
+        bind(IndexEngine.class).to(RobinIndexEngine.class).asEagerSingleton();
     }
 }

@@ -19,22 +19,15 @@
 
 package org.elasticsearch.index.engine;
 
-import org.elasticsearch.util.guice.ModulesFactory;
-import org.elasticsearch.util.inject.AbstractModule;
-import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.index.IndexComponent;
 
 /**
- * @author kimchy (Shay Banon)
+ * An "index" scoped engine that provides some meta engine for the engine, and can be used to store
+ * index level data structures that an engine requires.
+ *
+ * @author kimchy (shay.banon)
  */
-public class EngineModule extends AbstractModule {
+public interface IndexEngine extends IndexComponent {
 
-    private final Settings settings;
-
-    public EngineModule(Settings settings) {
-        this.settings = settings;
-    }
-
-    @Override protected void configure() {
-        ModulesFactory.createModule(settings.getAsClass(IndexEngineModule.EngineSettings.ENGINE_TYPE, IndexEngineModule.EngineSettings.DEFAULT_ENGINE, "org.elasticsearch.index.engine.", "EngineModule"), settings).configure(binder());
-    }
+    void close();
 }

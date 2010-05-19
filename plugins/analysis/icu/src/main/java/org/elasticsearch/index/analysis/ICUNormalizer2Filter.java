@@ -50,7 +50,7 @@ import java.io.IOException;
  * @see com.ibm.icu.text.Normalizer2
  * @see com.ibm.icu.text.FilteredNormalizer2
  */
-// TODO Lucene Monitor: Once 3.1 is released use it instead
+// LUCENE MONITOR: Once 3.1 is released use it instead
 public class ICUNormalizer2Filter extends TokenFilter {
 
     private final TermAttribute termAtt = addAttribute(TermAttribute.class);

@@ -30,22 +30,24 @@ import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
 
+import java.nio.charset.Charset;
+
 /**
  * @author kimchy (shay.banon)
  */
 public class MemcachedRestChannel implements RestChannel {
 
-    public static final ChannelBuffer CRLF = ChannelBuffers.copiedBuffer("\r\n", "US-ASCII");
-    private static final ChannelBuffer VALUE = ChannelBuffers.copiedBuffer("VALUE ", "US-ASCII");
-    private static final ChannelBuffer EXISTS = ChannelBuffers.copiedBuffer("EXISTS\r\n", "US-ASCII");
-    private static final ChannelBuffer NOT_FOUND = ChannelBuffers.copiedBuffer("NOT_FOUND\r\n", "US-ASCII");
-    private static final ChannelBuffer NOT_STORED = ChannelBuffers.copiedBuffer("NOT_STORED\r\n", "US-ASCII");
-    private static final ChannelBuffer STORED = ChannelBuffers.copiedBuffer("STORED\r\n", "US-ASCII");
-    private static final ChannelBuffer DELETED = ChannelBuffers.copiedBuffer("DELETED\r\n", "US-ASCII");
-    private static final ChannelBuffer END = ChannelBuffers.copiedBuffer("END\r\n", "US-ASCII");
-    private static final ChannelBuffer OK = ChannelBuffers.copiedBuffer("OK\r\n", "US-ASCII");
-    private static final ChannelBuffer ERROR = ChannelBuffers.copiedBuffer("ERROR\r\n", "US-ASCII");
-    private static final ChannelBuffer CLIENT_ERROR = ChannelBuffers.copiedBuffer("CLIENT_ERROR\r\n", "US-ASCII");
+    public static final ChannelBuffer CRLF = ChannelBuffers.copiedBuffer("\r\n", Charset.forName("US-ASCII"));
+    private static final ChannelBuffer VALUE = ChannelBuffers.copiedBuffer("VALUE ", Charset.forName("US-ASCII"));
+    private static final ChannelBuffer EXISTS = ChannelBuffers.copiedBuffer("EXISTS\r\n", Charset.forName("US-ASCII"));
+    private static final ChannelBuffer NOT_FOUND = ChannelBuffers.copiedBuffer("NOT_FOUND\r\n", Charset.forName("US-ASCII"));
+    private static final ChannelBuffer NOT_STORED = ChannelBuffers.copiedBuffer("NOT_STORED\r\n", Charset.forName("US-ASCII"));
+    private static final ChannelBuffer STORED = ChannelBuffers.copiedBuffer("STORED\r\n", Charset.forName("US-ASCII"));
+    private static final ChannelBuffer DELETED = ChannelBuffers.copiedBuffer("DELETED\r\n", Charset.forName("US-ASCII"));
+    private static final ChannelBuffer END = ChannelBuffers.copiedBuffer("END\r\n", Charset.forName("US-ASCII"));
+    private static final ChannelBuffer OK = ChannelBuffers.copiedBuffer("OK\r\n", Charset.forName("US-ASCII"));
+    private static final ChannelBuffer ERROR = ChannelBuffers.copiedBuffer("ERROR\r\n", Charset.forName("US-ASCII"));
+    private static final ChannelBuffer CLIENT_ERROR = ChannelBuffers.copiedBuffer("CLIENT_ERROR\r\n", Charset.forName("US-ASCII"));
 
     private final Channel channel;
 

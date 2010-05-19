@@ -125,7 +125,7 @@ public class FieldQueryParser extends AbstractIndexComponent implements XContent
             throw new QueryParsingException(index, "No value specified for term query");
         }
 
-        MapperQueryParser queryParser = new MapperQueryParser(fieldName, analyzer, parseContext.mapperService(), parseContext.indexCache());
+        MapperQueryParser queryParser = new MapperQueryParser(fieldName, analyzer, parseContext);
         queryParser.setEnablePositionIncrements(enablePositionIncrements);
         queryParser.setLowercaseExpandedTerms(lowercaseExpandedTerms);
         queryParser.setPhraseSlop(phraseSlop);

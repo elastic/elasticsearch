@@ -24,6 +24,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Similarity;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.IndexCache;
+import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
@@ -47,17 +48,21 @@ public class QueryParseContext {
 
     private final IndexCache indexCache;
 
+    private final IndexEngine indexEngine;
+
     private final XContentQueryParserRegistry queryParserRegistry;
 
     private XContentParser parser;
 
     public QueryParseContext(Index index, XContentQueryParserRegistry queryParserRegistry,
-                             MapperService mapperService, SimilarityService similarityService, IndexCache indexCache) {
+                             MapperService mapperService, SimilarityService similarityService,
+                             IndexCache indexCache, IndexEngine indexEngine) {
         this.index = index;
         this.queryParserRegistry = queryParserRegistry;
         this.mapperService = mapperService;
         this.similarityService = similarityService;
         this.indexCache = indexCache;
+        this.indexEngine = indexEngine;
     }
 
     public void reset(XContentParser jp) {
@@ -70,6 +75,10 @@ public class QueryParseContext {
 
     public MapperService mapperService() {
         return mapperService;
+    }
+
+    public IndexEngine indexEngine() {
+        return this.indexEngine;
     }
 
     @Nullable public SimilarityService similarityService() {

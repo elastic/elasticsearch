@@ -27,6 +27,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
+import org.elasticsearch.index.engine.robin.RobinIndexEngine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParser;
 import org.elasticsearch.util.lucene.search.CustomBoostFactorQuery;
@@ -836,7 +837,7 @@ public class SimpleIndexQueryParserTests {
 
     private XContentIndexQueryParser newQueryParser() throws IOException {
         return new XContentIndexQueryParser(new Index("test"), EMPTY_SETTINGS,
-                newMapperService(), new IndexCache(index), new AnalysisService(index), null, null, null, "test", null);
+                newMapperService(), new IndexCache(index), new RobinIndexEngine(index), new AnalysisService(index), null, null, null, "test", null);
     }
 
     private MapperService newMapperService() throws IOException {

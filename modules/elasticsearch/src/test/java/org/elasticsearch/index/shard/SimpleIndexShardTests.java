@@ -26,6 +26,7 @@ import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.robin.RobinEngine;
+import org.elasticsearch.index.engine.robin.RobinIndexEngine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.SerialMergeSchedulerProvider;
@@ -64,7 +65,7 @@ public class SimpleIndexShardTests {
         ShardId shardId = new ShardId("test", 1);
         AnalysisService analysisService = new AnalysisService(shardId.index());
         MapperService mapperService = new MapperService(shardId.index(), settings, environment, analysisService);
-        IndexQueryParserService queryParserService = new IndexQueryParserService(shardId.index(), mapperService, new IndexCache(shardId.index()), analysisService);
+        IndexQueryParserService queryParserService = new IndexQueryParserService(shardId.index(), mapperService, new IndexCache(shardId.index()), new RobinIndexEngine(shardId.index()), analysisService);
         IndexCache indexCache = new IndexCache(shardId.index());
 
         SnapshotDeletionPolicy policy = new SnapshotDeletionPolicy(new KeepOnlyLastDeletionPolicy(shardId, settings));

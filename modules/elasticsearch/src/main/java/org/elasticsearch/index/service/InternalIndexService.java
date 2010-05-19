@@ -28,6 +28,7 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineModule;
+import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayModule;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
@@ -90,6 +91,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     private final IndexCache indexCache;
 
+    private final IndexEngine indexEngine;
+
     private final OperationRouting operationRouting;
 
     private volatile ImmutableMap<Integer, Injector> shardsInjectors = ImmutableMap.of();
@@ -100,7 +103,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     @Inject public InternalIndexService(Injector injector, Index index, @IndexSettings Settings indexSettings,
                                         MapperService mapperService, IndexQueryParserService queryParserService, SimilarityService similarityService,
-                                        IndexCache indexCache, OperationRouting operationRouting) {
+                                        IndexCache indexCache, IndexEngine indexEngine, OperationRouting operationRouting) {
         super(index, indexSettings);
         this.injector = injector;
         this.indexSettings = indexSettings;
@@ -108,6 +111,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         this.queryParserService = queryParserService;
         this.similarityService = similarityService;
         this.indexCache = indexCache;
+        this.indexEngine = indexEngine;
         this.operationRouting = operationRouting;
 
         this.pluginsService = injector.getInstance(PluginsService.class);
@@ -166,6 +170,10 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     @Override public SimilarityService similarityService() {
         return similarityService;
+    }
+
+    @Override public IndexEngine indexEngine() {
+        return indexEngine;
     }
 
     @Override public synchronized void close(boolean delete) {

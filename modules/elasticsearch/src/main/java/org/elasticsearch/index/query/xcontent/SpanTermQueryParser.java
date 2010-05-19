@@ -98,6 +98,6 @@ public class SpanTermQueryParser extends AbstractIndexComponent implements XCont
 
         SpanTermQuery query = new SpanTermQuery(new Term(fieldName, value));
         query.setBoost(boost);
-        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext.indexCache());
+        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
     }
 }

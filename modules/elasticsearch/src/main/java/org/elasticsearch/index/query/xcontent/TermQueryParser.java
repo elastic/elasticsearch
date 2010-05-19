@@ -95,6 +95,6 @@ public class TermQueryParser extends AbstractIndexComponent implements XContentQ
             query = new TermQuery(new Term(fieldName, value));
         }
         query.setBoost(boost);
-        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext.indexCache());
+        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
     }
 }

@@ -95,6 +95,6 @@ public class PrefixQueryParser extends AbstractIndexComponent implements XConten
         PrefixQuery query = new PrefixQuery(new Term(fieldName, value));
         query.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT);
         query.setBoost(boost);
-        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext.indexCache());
+        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
     }
 }

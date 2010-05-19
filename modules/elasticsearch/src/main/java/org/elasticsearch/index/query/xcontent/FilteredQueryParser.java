@@ -53,6 +53,7 @@ public class FilteredQueryParser extends AbstractIndexComponent implements XCont
         Query query = null;
         Filter filter = null;
         float boost = 1.0f;
+        boolean cache = true;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -68,6 +69,8 @@ public class FilteredQueryParser extends AbstractIndexComponent implements XCont
             } else if (token.isValue()) {
                 if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else if ("cache".equals(currentFieldName)) {
+                    cache = parser.booleanValue();
                 }
             }
         }
@@ -77,6 +80,12 @@ public class FilteredQueryParser extends AbstractIndexComponent implements XCont
         if (filter == null) {
             throw new QueryParsingException(index, "[filtered] requires 'filter' element");
         }
+
+        // cache if required
+        if (cache) {
+            filter = parseContext.cacheFilterIfPossible(filter);
+        }
+
         // we don't cache the filter, we assume it is already cached in the filter parsers...
         FilteredQuery filteredQuery = new FilteredQuery(query, filter);
         filteredQuery.setBoost(boost);

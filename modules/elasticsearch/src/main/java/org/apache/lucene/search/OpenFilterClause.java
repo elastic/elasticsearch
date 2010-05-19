@@ -17,23 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine;
-
-import org.elasticsearch.index.IndexComponent;
+package org.apache.lucene.search;
 
 /**
- * An "index" scoped engine that provides some meta engine for the engine, and can be used to store
- * index level data structures that an engine requires.
- *
  * @author kimchy (shay.banon)
  */
-public interface IndexEngine extends IndexComponent {
+public class OpenFilterClause extends FilterClause {
 
-    /**
-     * Are readers cloned on deletion? If this is the case, then some specific
-     * needs to be taken.
-     */
-    boolean readerClonedOnDeletion();
+    public OpenFilterClause(Filter filter, BooleanClause.Occur occur) {
+        super(filter, occur);
+    }
 
-    void close();
+    public void setFilter(Filter filter) {
+        this.filter = filter;
+    }
 }

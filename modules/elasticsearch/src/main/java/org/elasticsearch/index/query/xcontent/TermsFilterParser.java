@@ -87,7 +87,6 @@ public class TermsFilterParser extends AbstractIndexComponent implements XConten
         parser.nextToken();
 
 
-        Filter filter = parseContext.cacheFilterIfPossible(termsFilter);
-        return wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext.indexCache());
+        return wrapSmartNameFilter(termsFilter, smartNameFieldMappers, parseContext);
     }
 }

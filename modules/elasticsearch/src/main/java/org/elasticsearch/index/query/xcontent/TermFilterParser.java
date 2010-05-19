@@ -77,7 +77,6 @@ public class TermFilterParser extends AbstractIndexComponent implements XContent
         if (filter == null) {
             filter = new TermFilter(new Term(fieldName, value));
         }
-        filter = parseContext.cacheFilterIfPossible(filter);
-        return wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext.indexCache());
+        return wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
     }
 }

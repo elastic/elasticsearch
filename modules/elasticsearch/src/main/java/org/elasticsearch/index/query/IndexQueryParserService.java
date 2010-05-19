@@ -23,6 +23,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
+import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -51,13 +52,13 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     private final Map<String, IndexQueryParser> indexQueryParsers;
 
-    public IndexQueryParserService(Index index, MapperService mapperService, IndexCache indexCache, AnalysisService analysisService) {
-        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, mapperService, indexCache, analysisService, null, null);
+    public IndexQueryParserService(Index index, MapperService mapperService, IndexCache indexCache, IndexEngine indexEngine, AnalysisService analysisService) {
+        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, mapperService, indexCache, indexEngine, analysisService, null, null);
     }
 
     @Inject public IndexQueryParserService(Index index, @IndexSettings Settings indexSettings,
                                            MapperService mapperService, IndexCache indexCache,
-                                           AnalysisService analysisService,
+                                           IndexEngine indexEngine, AnalysisService analysisService,
                                            @Nullable SimilarityService similarityService,
                                            @Nullable Map<String, IndexQueryParserFactory> indexQueryParsersFactories) {
         super(index, indexSettings);
@@ -76,7 +77,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
             }
         }
         if (!qparsers.containsKey(Defaults.DEFAULT)) {
-            IndexQueryParser defaultQueryParser = new XContentIndexQueryParser(index, indexSettings, mapperService, indexCache, analysisService, similarityService, null, null, Defaults.DEFAULT, null);
+            IndexQueryParser defaultQueryParser = new XContentIndexQueryParser(index, indexSettings, mapperService, indexCache, indexEngine, analysisService, similarityService, null, null, Defaults.DEFAULT, null);
             qparsers.put(Defaults.DEFAULT, defaultQueryParser);
         }
 

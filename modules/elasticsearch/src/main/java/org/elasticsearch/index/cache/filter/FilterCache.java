@@ -32,6 +32,8 @@ public interface FilterCache extends IndexComponent, CloseableComponent {
 
     Filter cache(Filter filterToCache);
 
+    boolean isCached(Filter filter);
+
     void clear();
 
     /**

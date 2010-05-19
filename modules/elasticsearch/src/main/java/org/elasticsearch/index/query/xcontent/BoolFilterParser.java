@@ -49,7 +49,9 @@ public class BoolFilterParser extends AbstractIndexComponent implements XContent
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        List<FilterClause> clauses = newArrayList();
+        List<OpenFilterClause> clauses = newArrayList();
+
+        boolean cache = true;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -58,34 +60,43 @@ public class BoolFilterParser extends AbstractIndexComponent implements XContent
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("must".equals(currentFieldName)) {
-                    clauses.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST));
+                    clauses.add(new OpenFilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST));
                 } else if ("must_not".equals(currentFieldName) || "mustNot".equals(currentFieldName)) {
-                    clauses.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST_NOT));
+                    clauses.add(new OpenFilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST_NOT));
                 } else if ("should".equals(currentFieldName)) {
-                    clauses.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.SHOULD));
+                    clauses.add(new OpenFilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.SHOULD));
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("must".equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        clauses.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST));
+                        clauses.add(new OpenFilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST));
                     }
                 } else if ("must_not".equals(currentFieldName) || "mustNot".equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        clauses.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST_NOT));
+                        clauses.add(new OpenFilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.MUST_NOT));
                     }
                 } else if ("should".equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        clauses.add(new FilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.SHOULD));
+                        clauses.add(new OpenFilterClause(parseContext.parseInnerFilter(), BooleanClause.Occur.SHOULD));
                     }
+                }
+            } else if (token.isValue()) {
+                if ("cache".equals(currentFieldName)) {
+                    cache = parser.booleanValue();
                 }
             }
         }
 
         BooleanFilter booleanFilter = new PublicBooleanFilter();
-        for (FilterClause filterClause : clauses) {
+        for (OpenFilterClause filterClause : clauses) {
+
+            if (cache) {
+                filterClause.setFilter(parseContext.cacheFilterIfPossible(filterClause.getFilter()));
+            }
+
             booleanFilter.add(filterClause);
         }
-        // no need to cache this one, inner queries will be cached and thats good enough (I think...)
+        // no need to cache this one, inner queries will be cached and that's is  good enough (I think...)
         return booleanFilter;
     }
 }

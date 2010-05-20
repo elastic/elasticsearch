@@ -27,4 +27,6 @@ public interface OsProbe {
     OsInfo osInfo();
 
     OsStats osStats();
+
+    String ifconfig();
 }

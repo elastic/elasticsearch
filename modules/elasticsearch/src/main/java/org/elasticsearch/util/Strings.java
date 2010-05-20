@@ -20,6 +20,7 @@
 package org.elasticsearch.util;
 
 import org.elasticsearch.util.collect.ImmutableSet;
+import org.elasticsearch.util.collect.Iterables;
 
 import java.util.*;
 
@@ -1071,8 +1072,8 @@ public class Strings {
      * @param suffix the String to end each element with
      * @return the delimited String
      */
-    public static String collectionToDelimitedString(Collection coll, String delim, String prefix, String suffix) {
-        if (isEmpty(coll)) {
+    public static String collectionToDelimitedString(Iterable coll, String delim, String prefix, String suffix) {
+        if (Iterables.isEmpty(coll)) {
             return "";
         }
         StringBuilder sb = new StringBuilder();
@@ -1094,7 +1095,7 @@ public class Strings {
      * @param delim the delimiter to use (probably a ",")
      * @return the delimited String
      */
-    public static String collectionToDelimitedString(Collection coll, String delim) {
+    public static String collectionToDelimitedString(Iterable coll, String delim) {
         return collectionToDelimitedString(coll, delim, "", "");
     }
 
@@ -1105,7 +1106,7 @@ public class Strings {
      * @param coll the Collection to display
      * @return the delimited String
      */
-    public static String collectionToCommaDelimitedString(Collection coll) {
+    public static String collectionToCommaDelimitedString(Iterable coll) {
         return collectionToDelimitedString(coll, ",");
     }
 

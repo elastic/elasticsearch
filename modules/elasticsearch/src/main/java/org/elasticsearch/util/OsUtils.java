@@ -31,15 +31,23 @@ public class OsUtils {
     /**
      * True iff running on Linux.
      */
-    public static final boolean LINUX = OS_NAME.startsWith("Linux");
+    public static final boolean LINUX = OS_NAME.trim().toLowerCase().startsWith("linux");
     /**
      * True iff running on Windows.
      */
-    public static final boolean WINDOWS = OS_NAME.startsWith("Windows");
+    public static final boolean WINDOWS = OS_NAME.trim().toLowerCase().startsWith("windows");
     /**
      * True iff running on SunOS.
      */
-    public static final boolean SUN_OS = OS_NAME.startsWith("SunOS");
+    public static final boolean SOLARIS = OS_NAME.trim().toLowerCase().startsWith("sun");
+    /**
+     * True iff running on Mac.
+     */
+    public static final boolean MAC = OS_NAME.trim().toLowerCase().startsWith("mac");
+    /**
+     * True iff running on HP.
+     */
+    public static final boolean HP = OS_NAME.trim().toLowerCase().startsWith("hp");
 
 
     private OsUtils() {

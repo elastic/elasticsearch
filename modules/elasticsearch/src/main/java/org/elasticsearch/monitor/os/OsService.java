@@ -48,4 +48,8 @@ public class OsService extends AbstractComponent {
     public OsStats stats() {
         return probe.osStats();
     }
+
+    public String ifconfig() {
+        return probe.ifconfig();
+    }
 }

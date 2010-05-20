@@ -117,7 +117,13 @@ public class NetworkService extends AbstractComponent {
         InetAddress address = resolvePublishHostAddress(publishHost, null);
         // verify that its not a local address
         if (address == null || address.isAnyLocalAddress()) {
-            address = NetworkUtils.getLocalAddress();
+            address = NetworkUtils.getFirstNonLoopbackAddress(NetworkUtils.StackType.IPv4);
+            if (address == null) {
+                address = NetworkUtils.getFirstNonLoopbackAddress(NetworkUtils.getIpStackType());
+                if (address == null) {
+                    return NetworkUtils.getLocalAddress();
+                }
+            }
         }
         return address;
     }
@@ -146,6 +152,14 @@ public class NetworkService extends AbstractComponent {
 
             if (host.equals("local")) {
                 return NetworkUtils.getLocalAddress();
+            } else if (host.startsWith("non_loopback")) {
+                if (host.toLowerCase().endsWith(":ipv4")) {
+                    return NetworkUtils.getFirstNonLoopbackAddress(NetworkUtils.StackType.IPv4);
+                } else if (host.toLowerCase().endsWith(":ipv6")) {
+                    return NetworkUtils.getFirstNonLoopbackAddress(NetworkUtils.StackType.IPv6);
+                } else {
+                    return NetworkUtils.getFirstNonLoopbackAddress(NetworkUtils.getIpStackType());
+                }
             } else {
                 Collection<NetworkInterface> allInterfs = NetworkUtils.getAllAvailableInterfaces();
                 for (NetworkInterface ni : allInterfs) {

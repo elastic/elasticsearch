@@ -276,12 +276,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
     }
 
-    private void handleNodeFailure(final DiscoveryNode node) {
+    private void handleNodeFailure(final DiscoveryNode node, String reason) {
         if (!master) {
             // nothing to do here...
             return;
         }
-        clusterService.submitStateUpdateTask("zen-disco-node_failed(" + node + ")", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("zen-disco-node_failed(" + node + "), reason " + reason, new ProcessedClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
                 DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder()
                         .putAll(currentState.nodes())
@@ -457,15 +457,15 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private class NodeFailureListener implements NodesFaultDetection.Listener {
 
-        @Override public void onNodeFailure(DiscoveryNode node) {
-            handleNodeFailure(node);
+        @Override public void onNodeFailure(DiscoveryNode node, String reason) {
+            handleNodeFailure(node, reason);
         }
     }
 
     private class MasterNodeFailureListener implements MasterFaultDetection.Listener {
 
-        @Override public void onMasterFailure(DiscoveryNode masterNode) {
-            handleMasterGone(masterNode, "failure");
+        @Override public void onMasterFailure(DiscoveryNode masterNode, String reason) {
+            handleMasterGone(masterNode, reason);
         }
 
         @Override public void onDisconnectedFromMaster() {

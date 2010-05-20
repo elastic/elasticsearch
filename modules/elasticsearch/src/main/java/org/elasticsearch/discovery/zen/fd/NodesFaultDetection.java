@@ -47,7 +47,7 @@ public class NodesFaultDetection extends AbstractComponent {
 
     public static interface Listener {
 
-        void onNodeFailure(DiscoveryNode node);
+        void onNodeFailure(DiscoveryNode node, String reason);
     }
 
     private final ThreadPool threadPool;
@@ -108,6 +108,10 @@ public class NodesFaultDetection extends AbstractComponent {
         }
         DiscoveryNodes.Delta delta = nodes.delta(prevNodes);
         for (DiscoveryNode newNode : delta.addedNodes()) {
+            if (newNode.id().equals(nodes.localNodeId())) {
+                // no need to monitor the local node
+                continue;
+            }
             if (!nodesFD.containsKey(newNode)) {
                 nodesFD.put(newNode, new NodeFD());
                 threadPool.schedule(new SendPingRequest(newNode), pingInterval);
@@ -156,17 +160,17 @@ public class NodesFaultDetection extends AbstractComponent {
                 transportService.connectToNode(node);
             } catch (Exception e) {
                 logger.trace("Node [{}] failed on disconnect (with verified connect)", node);
-                notifyNodeFailure(node);
+                notifyNodeFailure(node, "Failed on disconnect (with verified connect)");
             }
         } else {
             logger.trace("Node [{}] failed on disconnect", node);
-            notifyNodeFailure(node);
+            notifyNodeFailure(node, "Failed on disconnect");
         }
     }
 
-    private void notifyNodeFailure(DiscoveryNode node) {
+    private void notifyNodeFailure(DiscoveryNode node, String reason) {
         for (Listener listener : listeners) {
-            listener.onNodeFailure(node);
+            listener.onNodeFailure(node, reason);
         }
     }
 
@@ -209,8 +213,11 @@ public class NodesFaultDetection extends AbstractComponent {
                                         logger.debug("Node [{}] failed on ping, tried [{}] times, each with [{}] timeout", node, pingRetryCount, pingRetryTimeout);
                                         // not good, failure
                                         if (nodesFD.remove(node) != null) {
-                                            notifyNodeFailure(node);
+                                            notifyNodeFailure(node, "Failed on ping, tried [" + pingRetryCount + "] times, each with [" + pingRetryTimeout + "] timeout");
                                         }
+                                    } else {
+                                        // resend the request
+                                        transportService.sendRequest(node, PingRequestHandler.ACTION, new PingRequest(), pingRetryTimeout, this);
                                     }
                                 }
                             }

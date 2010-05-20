@@ -62,7 +62,6 @@ public abstract class NetworkUtils {
         return System.getProperty("java.net.preferIPv4Stack") != null && System.getProperty("java.net.preferIPv4Stack").equals("true");
     }
 
-
     public static InetAddress getIPv4Localhost() throws UnknownHostException {
         return getLocalhost(StackType.IPv4);
     }
@@ -80,6 +79,10 @@ public abstract class NetworkUtils {
             return InetAddress.getByName("127.0.0.1");
         else
             return InetAddress.getByName("::1");
+    }
+
+    public static boolean canBindToMcastAddress() {
+        return OsUtils.LINUX || OsUtils.SOLARIS || OsUtils.HP;
     }
 
 

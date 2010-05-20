@@ -41,4 +41,8 @@ public class JmxOsProbe extends AbstractComponent implements OsProbe {
         stats.timestamp = System.currentTimeMillis();
         return stats;
     }
+
+    @Override public String ifconfig() {
+        return "NA";
+    }
 }

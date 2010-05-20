@@ -126,4 +126,85 @@ public class SigarOsProbe extends AbstractComponent implements OsProbe {
 
         return stats;
     }
+
+    @Override public String ifconfig() {
+        Sigar sigar = sigarService.sigar();
+        StringBuilder sb = new StringBuilder();
+        try {
+            for (String ifname : sigar.getNetInterfaceList()) {
+                NetInterfaceConfig ifconfig = null;
+                try {
+                    ifconfig = sigar.getNetInterfaceConfig(ifname);
+                } catch (SigarException e) {
+                    sb.append(ifname + "\t" + "Not Avaialbe [" + e.getMessage() + "]");
+                }
+                long flags = ifconfig.getFlags();
+
+                String hwaddr = "";
+                if (!NetFlags.NULL_HWADDR.equals(ifconfig.getHwaddr())) {
+                    hwaddr = " HWaddr " + ifconfig.getHwaddr();
+                }
+
+                if (!ifconfig.getName().equals(ifconfig.getDescription())) {
+                    sb.append(ifconfig.getDescription()).append('\n');
+                }
+
+                sb.append(ifconfig.getName() + "\t" + "Link encap:" + ifconfig.getType() + hwaddr).append('\n');
+
+                String ptp = "";
+                if ((flags & NetFlags.IFF_POINTOPOINT) > 0) {
+                    ptp = "  P-t-P:" + ifconfig.getDestination();
+                }
+
+                String bcast = "";
+                if ((flags & NetFlags.IFF_BROADCAST) > 0) {
+                    bcast = "  Bcast:" + ifconfig.getBroadcast();
+                }
+
+                sb.append("\t" +
+                        "inet addr:" + ifconfig.getAddress() +
+                        ptp + //unlikely
+                        bcast +
+                        "  Mask:" + ifconfig.getNetmask()).append('\n');
+
+                sb.append("\t" +
+                        NetFlags.getIfFlagsString(flags) +
+                        " MTU:" + ifconfig.getMtu() +
+                        "  Metric:" + ifconfig.getMetric()).append('\n');
+                try {
+                    NetInterfaceStat ifstat = sigar.getNetInterfaceStat(ifname);
+
+                    sb.append("\t" +
+                            "RX packets:" + ifstat.getRxPackets() +
+                            " errors:" + ifstat.getRxErrors() +
+                            " dropped:" + ifstat.getRxDropped() +
+                            " overruns:" + ifstat.getRxOverruns() +
+                            " frame:" + ifstat.getRxFrame()).append('\n');
+
+                    sb.append("\t" +
+                            "TX packets:" + ifstat.getTxPackets() +
+                            " errors:" + ifstat.getTxErrors() +
+                            " dropped:" + ifstat.getTxDropped() +
+                            " overruns:" + ifstat.getTxOverruns() +
+                            " carrier:" + ifstat.getTxCarrier()).append('\n');
+                    sb.append("\t" + "collisions:" +
+                            ifstat.getTxCollisions()).append('\n');
+
+                    long rxBytes = ifstat.getRxBytes();
+                    long txBytes = ifstat.getTxBytes();
+
+                    sb.append("\t" +
+                            "RX bytes:" + rxBytes +
+                            " (" + Sigar.formatSize(rxBytes) + ")" +
+                            "  " +
+                            "TX bytes:" + txBytes +
+                            " (" + Sigar.formatSize(txBytes) + ")").append('\n');
+                } catch (SigarException e) {
+                }
+            }
+            return sb.toString();
+        } catch (SigarException e) {
+            return "NA";
+        }
+    }
 }

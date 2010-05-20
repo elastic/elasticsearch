@@ -36,6 +36,7 @@
       <w>freqs</w>
       <w>hpux</w>
       <w>hyperic</w>
+      <w>ifconfig</w>
       <w>indices</w>
       <w>inet</w>
       <w>infos</w>
@@ -52,6 +53,7 @@
       <w>linefeeds</w>
       <w>loopback</w>
       <w>lucene</w>
+      <w>mcast</w>
       <w>memcached</w>
       <w>metadata</w>
       <w>metadatas</w>

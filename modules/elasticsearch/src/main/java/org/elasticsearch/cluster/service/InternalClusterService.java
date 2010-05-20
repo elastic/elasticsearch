@@ -177,7 +177,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     if (nodesDelta.hasChanges() && logger.isInfoEnabled()) {
                         String summary = nodesDelta.shortSummary();
                         if (summary.length() > 0) {
-                            logger.info(summary);
+                            logger.info("{}, Reason: {}", summary, source);
                         }
                     }
 

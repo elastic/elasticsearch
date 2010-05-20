@@ -47,7 +47,7 @@ public class MasterFaultDetection extends AbstractComponent {
 
     public static interface Listener {
 
-        void onMasterFailure(DiscoveryNode masterNode);
+        void onMasterFailure(DiscoveryNode masterNode, String reason);
 
         void onDisconnectedFromMaster();
     }
@@ -122,7 +122,7 @@ public class MasterFaultDetection extends AbstractComponent {
         try {
             transportService.connectToNode(masterNode);
         } catch (Exception e) {
-            notifyMasterFailure(masterNode);
+            notifyMasterFailure(masterNode, "failed to perform initial connect [" + e.getMessage() + "]");
         }
 
         // start the ping process
@@ -151,11 +151,11 @@ public class MasterFaultDetection extends AbstractComponent {
                 transportService.connectToNode(node);
             } catch (Exception e) {
                 logger.trace("Master [{}] failed on disconnect (with verified connect)", masterNode);
-                notifyMasterFailure(masterNode);
+                notifyMasterFailure(masterNode, "Failed on disconnect (with verified connect)");
             }
         } else {
             logger.trace("Master [{}] failed on disconnect", masterNode);
-            notifyMasterFailure(masterNode);
+            notifyMasterFailure(masterNode, "Failed on disconnect");
         }
     }
 
@@ -166,10 +166,10 @@ public class MasterFaultDetection extends AbstractComponent {
         // we don't stop on disconnection from master, we keep pinging it
     }
 
-    private void notifyMasterFailure(DiscoveryNode masterNode) {
+    private void notifyMasterFailure(DiscoveryNode masterNode, String reason) {
         if (notifiedMasterFailure.compareAndSet(false, true)) {
             for (Listener listener : listeners) {
-                listener.onMasterFailure(masterNode);
+                listener.onMasterFailure(masterNode, reason);
             }
             stop();
         }
@@ -216,7 +216,9 @@ public class MasterFaultDetection extends AbstractComponent {
                                     if (retryCount >= pingRetryCount) {
                                         logger.debug("Master [{}] failed on ping, tried [{}] times, each with [{}] timeout", masterNode, pingRetryCount, pingRetryTimeout);
                                         // not good, failure
-                                        notifyMasterFailure(sentToNode);
+                                        notifyMasterFailure(sentToNode, "Failed on ping, tried [" + pingRetryCount + "] times, each with [" + pingRetryTimeout + "] timeout");
+                                    } else {
+                                        transportService.sendRequest(sentToNode, MasterPingRequestHandler.ACTION, new MasterPingRequest(nodesProvider.nodes().localNode()), pingRetryTimeout, this);
                                     }
                                 }
                             }

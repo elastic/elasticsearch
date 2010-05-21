@@ -19,8 +19,6 @@
 
 package org.elasticsearch.util.network;
 
-import org.elasticsearch.monitor.os.JmxOsProbe;
-import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.util.MapBuilder;
 import org.elasticsearch.util.collect.ImmutableMap;
 import org.elasticsearch.util.component.AbstractComponent;
@@ -32,7 +30,6 @@ import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.UnknownHostException;
 import java.util.Collection;
-import java.util.Enumeration;
 
 /**
  * @author kimchy (shay.banon)
@@ -59,42 +56,8 @@ public class NetworkService extends AbstractComponent {
 
     private volatile ImmutableMap<String, CustomNameResolver> customNameResolvers = ImmutableMap.of();
 
-    public NetworkService(Settings settings) {
-        this(settings, new OsService(settings, new JmxOsProbe(settings)));
-    }
-
-    @Inject public NetworkService(Settings settings, OsService service) {
+    @Inject public NetworkService(Settings settings) {
         super(settings);
-
-        if (logger.isDebugEnabled()) {
-            StringBuilder netDebug = new StringBuilder("net_info");
-            try {
-                Enumeration<NetworkInterface> enum_ = NetworkInterface.getNetworkInterfaces();
-                String hostName = InetAddress.getLocalHost().getHostName();
-                netDebug.append("\nhost [").append(hostName).append("]\n");
-                while (enum_.hasMoreElements()) {
-                    NetworkInterface net = enum_.nextElement();
-
-                    netDebug.append(net.getName()).append('\t').append("display_name [").append(net.getDisplayName()).append("]\n");
-                    Enumeration<InetAddress> addresses = net.getInetAddresses();
-                    netDebug.append("\t\taddress ");
-                    while (addresses.hasMoreElements()) {
-                        netDebug.append("[").append(addresses.nextElement()).append("] ");
-                    }
-                    netDebug.append('\n');
-                    netDebug.append("\t\tmtu [").append(net.getMTU()).append("] multicast [").append(net.supportsMulticast()).append("] ptp [").append(net.isPointToPoint())
-                            .append("] loopback [").append(net.isLoopback()).append("] up [").append(net.isUp()).append("] virtual [").append(net.isVirtual()).append("]")
-                            .append('\n');
-                }
-            } catch (Exception ex) {
-                netDebug.append("Failed to get Network Interface Info [" + ex.getMessage() + "]");
-            }
-            logger.debug(netDebug.toString());
-        }
-
-        if (logger.isTraceEnabled()) {
-            logger.trace("ifconfig\n\n" + service.ifconfig());
-        }
     }
 
     public void addCustomNameResolver(String name, CustomNameResolver customNameResolver) {

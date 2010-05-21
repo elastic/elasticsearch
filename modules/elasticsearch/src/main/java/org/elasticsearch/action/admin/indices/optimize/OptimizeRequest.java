@@ -49,9 +49,9 @@ public class OptimizeRequest extends BroadcastOperationRequest {
 
     private boolean onlyExpungeDeletes = false;
 
-    private boolean flush = false;
+    private boolean flush = true;
 
-    private boolean refresh = false;
+    private boolean refresh = true;
 
     /**
      * Constructs an optimization request over one or more indices.
@@ -128,14 +128,14 @@ public class OptimizeRequest extends BroadcastOperationRequest {
     }
 
     /**
-     * Should flush be performed after the optimization. Defaults to <tt>false</tt>.
+     * Should flush be performed after the optimization. Defaults to <tt>true</tt>.
      */
     public boolean flush() {
         return flush;
     }
 
     /**
-     * Should flush be performed after the optimization. Defaults to <tt>false</tt>.
+     * Should flush be performed after the optimization. Defaults to <tt>true</tt>.
      */
     public OptimizeRequest flush(boolean flush) {
         this.flush = flush;
@@ -143,14 +143,14 @@ public class OptimizeRequest extends BroadcastOperationRequest {
     }
 
     /**
-     * Should refresh be performed after the optimization. Defaults to <tt>false</tt>.
+     * Should refresh be performed after the optimization. Defaults to <tt>true</tt>.
      */
     public boolean refresh() {
         return refresh;
     }
 
     /**
-     * Should refresh be performed after the optimization. Defaults to <tt>false</tt>.
+     * Should refresh be performed after the optimization. Defaults to <tt>true</tt>.
      */
     public OptimizeRequest refresh(boolean refresh) {
         this.refresh = refresh;

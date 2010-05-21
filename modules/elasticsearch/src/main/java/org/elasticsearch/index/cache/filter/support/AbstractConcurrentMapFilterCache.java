@@ -89,6 +89,10 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         return newConcurrentMap();
     }
 
+    // LUCENE MONITOR: Check next version Lucene for CachingWrapperFilter, consifer using that logic
+    // and not use the DeletableConstantScoreQuery, instead pass the enum
+    // see: https://issues.apache.org/jira/browse/LUCENE-2468
+
     private class FilterCacheFilterWrapper extends Filter {
 
         private final Filter filter;

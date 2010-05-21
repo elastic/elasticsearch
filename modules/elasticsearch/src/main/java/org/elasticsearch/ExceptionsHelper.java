@@ -19,14 +19,31 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.util.logging.ESLogger;
+import org.elasticsearch.util.logging.Loggers;
+
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public final class ExceptionsHelper {
 
+    private static final ESLogger logger = Loggers.getLogger(ExceptionsHelper.class);
+
     public static Throwable unwrapCause(Throwable t) {
+        int counter = 0;
         Throwable result = t;
         while (result instanceof ElasticSearchWrapperException) {
+            if (t.getCause() == null) {
+                return result;
+            }
+            if (t.getCause() == t) {
+                return result;
+            }
+            if (counter++ > 10) {
+                // dear god, if we got more than 10 levels down, WTF? just bail
+                logger.warn("Exception cause unwrapping ran for 10 levels...", t);
+                return result;
+            }
             result = t.getCause();
         }
         return result;

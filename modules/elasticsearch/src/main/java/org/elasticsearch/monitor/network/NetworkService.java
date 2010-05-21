@@ -23,6 +23,10 @@ import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.util.Enumeration;
+
 /**
  * @author kimchy (shay.banon)
  */
@@ -37,6 +41,36 @@ public class NetworkService extends AbstractComponent {
         this.probe = probe;
 
         this.info = probe.networkInfo();
+
+        if (logger.isDebugEnabled()) {
+            StringBuilder netDebug = new StringBuilder("net_info");
+            try {
+                Enumeration<NetworkInterface> enum_ = NetworkInterface.getNetworkInterfaces();
+                String hostName = InetAddress.getLocalHost().getHostName();
+                netDebug.append("\nhost [").append(hostName).append("]\n");
+                while (enum_.hasMoreElements()) {
+                    NetworkInterface net = enum_.nextElement();
+
+                    netDebug.append(net.getName()).append('\t').append("display_name [").append(net.getDisplayName()).append("]\n");
+                    Enumeration<InetAddress> addresses = net.getInetAddresses();
+                    netDebug.append("\t\taddress ");
+                    while (addresses.hasMoreElements()) {
+                        netDebug.append("[").append(addresses.nextElement()).append("] ");
+                    }
+                    netDebug.append('\n');
+                    netDebug.append("\t\tmtu [").append(net.getMTU()).append("] multicast [").append(net.supportsMulticast()).append("] ptp [").append(net.isPointToPoint())
+                            .append("] loopback [").append(net.isLoopback()).append("] up [").append(net.isUp()).append("] virtual [").append(net.isVirtual()).append("]")
+                            .append('\n');
+                }
+            } catch (Exception ex) {
+                netDebug.append("Failed to get Network Interface Info [" + ex.getMessage() + "]");
+            }
+            logger.debug(netDebug.toString());
+        }
+
+        if (logger.isTraceEnabled()) {
+            logger.trace("ifconfig\n\n" + ifconfig());
+        }
     }
 
     public NetworkInfo info() {
@@ -45,5 +79,9 @@ public class NetworkService extends AbstractComponent {
 
     public NetworkStats stats() {
         return probe.networkStats();
+    }
+
+    public String ifconfig() {
+        return probe.ifconfig();
     }
 }

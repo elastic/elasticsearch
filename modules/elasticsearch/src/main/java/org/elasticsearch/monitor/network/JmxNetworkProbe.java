@@ -42,4 +42,8 @@ public class JmxNetworkProbe extends AbstractComponent implements NetworkProbe {
         stats.timestamp = System.currentTimeMillis();
         return stats;
     }
+
+    @Override public String ifconfig() {
+        return "NA";
+    }
 }

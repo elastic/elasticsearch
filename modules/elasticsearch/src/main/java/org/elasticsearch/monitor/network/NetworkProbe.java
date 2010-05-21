@@ -27,4 +27,6 @@ public interface NetworkProbe {
     NetworkInfo networkInfo();
 
     NetworkStats networkStats();
+
+    String ifconfig();
 }

@@ -29,6 +29,10 @@ import static org.hamcrest.Matchers.*;
  */
 public class SizeValueTests {
 
+    @Test public void testActual() {
+        assertThat(new SizeValue(4, SizeUnit.GB).bytes(), equalTo(4294967296l));
+    }
+
     @Test public void testSimple() {
         assertThat(SizeUnit.BYTES.toBytes(10), is(new SizeValue(10, SizeUnit.BYTES).bytes()));
         assertThat(SizeUnit.KB.toKB(10), is(new SizeValue(10, SizeUnit.KB).kb()));

@@ -26,7 +26,7 @@ import java.util.concurrent.*;
 /**
  * @author kimchy (shay.banon)
  */
-public interface ThreadPool {
+public interface ThreadPool extends Executor {
 
     ThreadPoolInfo info();
 

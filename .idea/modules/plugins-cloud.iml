@@ -43,13 +43,17 @@
           <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-scriptbuilder/jars/jclouds-scriptbuilder-1.0-beta-5.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-vcloud/jars/jclouds-vcloud-1.0-beta-5.jar!/" />
           <root url="jar://$GRADLE_REPOSITORY$/org.jclouds/jclouds-rackspace/jars/jclouds-rackspace-1.0-beta-5.jar!/" />
-          <root url="file://$GRADLE_REPOSITORY$/org.jboss.resteasy/resteasy-jaxrs-all" />
           <root url="jar://$GRADLE_REPOSITORY$/org.jboss.resteasy/resteasy-jaxrs-client/jars/resteasy-jaxrs-client-1.2.1.GA.jar!/" />
         </CLASSES>
         <JAVADOC>
           <root url="http://jclouds.rimuhosting.com/apidocs/" />
         </JAVADOC>
-        <SOURCES />
+        <SOURCES>
+          <root url="jar://$MODULE_DIR$/../../../../../opt/jclouds/1.0-beta-5/core/src/jclouds-compute-1.0-beta-5-sources.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../../../../opt/jclouds/1.0-beta-5/core/src/jclouds-core-1.0-beta-5-sources.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../../../../opt/jclouds/1.0-beta-5/core/src/jclouds-blobstore-1.0-beta-5-sources.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../../../../opt/jclouds/1.0-beta-5/providers/aws/src/jclouds-aws-1.0-beta-5-sources.jar!/" />
+        </SOURCES>
       </library>
     </orderEntry>
   </component>

@@ -76,7 +76,7 @@ public class CloudIndexGateway extends AbstractIndexComponent implements IndexGa
         }
 
         if (chunkSize == null) {
-            chunkSize = new SizeValue(4, SizeUnit.GB);
+            chunkSize = new SizeValue(1, SizeUnit.GB);
         }
 
         if (location == null) {

@@ -25,7 +25,6 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.util.concurrent.Immutable;
 import org.elasticsearch.util.concurrent.ThreadSafe;
 
@@ -47,10 +46,10 @@ public interface FieldMapper<T> {
         private final String fullName;
 
         public Names(String name, String indexName, String indexNameClean, String fullName) {
-            this.name = StringHelper.intern(name);
-            this.indexName = StringHelper.intern(indexName);
-            this.indexNameClean = StringHelper.intern(indexNameClean);
-            this.fullName = StringHelper.intern(fullName);
+            this.name = name.intern();
+            this.indexName = indexName.intern();
+            this.indexNameClean = indexNameClean.intern();
+            this.fullName = fullName.intern();
         }
 
         /**

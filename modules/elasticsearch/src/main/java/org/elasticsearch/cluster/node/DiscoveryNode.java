@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.node;
 
-import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.util.collect.ImmutableList;
 import org.elasticsearch.util.collect.ImmutableMap;
 import org.elasticsearch.util.collect.Maps;
@@ -63,7 +62,7 @@ public class DiscoveryNode implements Streamable, Serializable {
 
     public static final ImmutableList<DiscoveryNode> EMPTY_LIST = ImmutableList.of();
 
-    private String nodeName = StringHelper.intern("");
+    private String nodeName = "".intern();
 
     private String nodeId;
 
@@ -80,16 +79,16 @@ public class DiscoveryNode implements Streamable, Serializable {
 
     public DiscoveryNode(String nodeName, String nodeId, TransportAddress address, Map<String, String> attributes) {
         if (nodeName == null) {
-            this.nodeName = StringHelper.intern("");
+            this.nodeName = "".intern();
         } else {
-            this.nodeName = StringHelper.intern(nodeName);
+            this.nodeName = nodeName.intern();
         }
         ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
         for (Map.Entry<String, String> entry : attributes.entrySet()) {
-            builder.put(StringHelper.intern(entry.getKey()), StringHelper.intern(entry.getValue()));
+            builder.put(entry.getKey().intern(), entry.getValue().intern());
         }
         this.attributes = builder.build();
-        this.nodeId = StringHelper.intern(nodeId);
+        this.nodeId = nodeId.intern();
         this.address = address;
     }
 
@@ -183,13 +182,13 @@ public class DiscoveryNode implements Streamable, Serializable {
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
-        nodeName = StringHelper.intern(in.readUTF());
-        nodeId = StringHelper.intern(in.readUTF());
+        nodeName = in.readUTF().intern();
+        nodeId = in.readUTF().intern();
         address = TransportAddressSerializers.addressFromStream(in);
         int size = in.readVInt();
         ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
         for (int i = 0; i < size; i++) {
-            builder.put(StringHelper.intern(in.readUTF()), StringHelper.intern(in.readUTF()));
+            builder.put(in.readUTF().intern(), in.readUTF().intern());
         }
         attributes = builder.build();
     }

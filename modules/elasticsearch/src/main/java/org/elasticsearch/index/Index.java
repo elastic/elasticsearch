@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index;
 
-import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.util.concurrent.Immutable;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
@@ -41,7 +40,7 @@ public class Index implements Serializable, Streamable {
     }
 
     public Index(String name) {
-        this.name = StringHelper.intern(name);
+        this.name = name.intern();
     }
 
     public String name() {
@@ -78,7 +77,7 @@ public class Index implements Serializable, Streamable {
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
-        name = StringHelper.intern(in.readUTF());
+        name = in.readUTF().intern();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {

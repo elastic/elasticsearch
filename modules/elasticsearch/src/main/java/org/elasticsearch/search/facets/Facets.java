@@ -77,7 +77,7 @@ public class Facets implements Streamable, ToXContent, Iterable<Facet> {
      * Returns the {@link Facet}s keyed by map.
      */
     public Map<String, Facet> getFacets() {
-        return facetsAsMap;
+        return facetsAsMap();
     }
 
     /**

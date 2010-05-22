@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.util.concurrent.ThreadSafe;
 
 /**
@@ -32,7 +31,7 @@ import org.elasticsearch.util.concurrent.ThreadSafe;
 @ThreadSafe
 public interface TypeFieldMapper extends FieldMapper<String>, InternalMapper {
 
-    public static final String NAME = StringHelper.intern("_type");
+    public static final String NAME = "_type";
 
     String value(Document document);
 

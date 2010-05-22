@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query.xcontent;
 
-import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -105,13 +104,13 @@ public class XContentQueryParserRegistry {
 
     private void add(Map<String, XContentFilterParser> map, XContentFilterParser filterParser) {
         for (String name : filterParser.names()) {
-            map.put(StringHelper.intern(name), filterParser);
+            map.put(name.intern(), filterParser);
         }
     }
 
     private void add(Map<String, XContentQueryParser> map, XContentQueryParser queryParser) {
         for (String name : queryParser.names()) {
-            map.put(StringHelper.intern(name), queryParser);
+            map.put(name.intern(), queryParser);
         }
     }
 }

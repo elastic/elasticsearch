@@ -19,12 +19,10 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.util.StringHelper;
-
 /**
  * @author kimchy (shay.banon)
  */
 public interface AllFieldMapper extends FieldMapper<Void>, InternalMapper {
 
-    public static final String NAME = StringHelper.intern("_all");
+    public static final String NAME = "_all";
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.util.xcontent.xson;
 
-import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.util.Bytes;
 import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.xcontent.XContentType;
@@ -88,7 +87,7 @@ public class XsonXContentParser extends AbstractXContentParser {
             xsonType = XsonType.FIELD_NAME;
             currentToken = Token.FIELD_NAME;
             // read the field name (interned)
-            currentName = StringHelper.intern(inUTF());
+            currentName = inUTF().intern();
         } else if (tokenType == XsonType.VALUE_STRING.code()) {
             xsonType = XsonType.VALUE_STRING;
             currentToken = Token.VALUE_STRING;

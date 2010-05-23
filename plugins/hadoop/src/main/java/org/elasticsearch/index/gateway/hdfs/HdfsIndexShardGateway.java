@@ -290,16 +290,18 @@ public class HdfsIndexShardGateway extends AbstractIndexShardComponent implement
         if (indexDirty) {
             try {
                 FileStatus[] existingFiles = fileSystem.listStatus(indexPath);
-                for (FileStatus existingFile : existingFiles) {
-                    boolean found = false;
-                    for (final String fileName : snapshotIndexCommit.getFiles()) {
-                        if (existingFile.getPath().getName().equals(fileName)) {
-                            found = true;
-                            break;
+                if (existingFiles != null) {
+                    for (FileStatus existingFile : existingFiles) {
+                        boolean found = false;
+                        for (final String fileName : snapshotIndexCommit.getFiles()) {
+                            if (existingFile.getPath().getName().equals(fileName)) {
+                                found = true;
+                                break;
+                            }
                         }
-                    }
-                    if (!found) {
-                        fileSystem.delete(existingFile.getPath(), false);
+                        if (!found) {
+                            fileSystem.delete(existingFile.getPath(), false);
+                        }
                     }
                 }
             } catch (Exception e) {
@@ -320,6 +322,10 @@ public class HdfsIndexShardGateway extends AbstractIndexShardComponent implement
         } catch (IOException e) {
             throw new IndexShardGatewayRecoveryException(shardId(), "Failed to list files", e);
         }
+        if (files == null || files.length == 0) {
+            return new RecoveryStatus.Index(-1, 0, new SizeValue(0, SizeUnit.BYTES), TimeValue.timeValueMillis(0));
+        }
+
         final CountDownLatch latch = new CountDownLatch(files.length);
         final AtomicReference<Exception> lastException = new AtomicReference<Exception>();
         final AtomicLong throttlingWaitTime = new AtomicLong();
@@ -334,7 +340,6 @@ public class HdfsIndexShardGateway extends AbstractIndexShardComponent implement
                         throttlingWaitTime.addAndGet(System.currentTimeMillis() - throttlingStartTime);
                         FSDataInputStream fileStream = fileSystem.open(file.getPath());
                         Directories.copyToDirectory(fileStream, store.directory(), file.getPath().getName());
-                        fileSystem.close();
                     } catch (Exception e) {
                         logger.debug("Failed to read [" + file + "] into [" + store + "]", e);
                         lastException.set(e);
@@ -397,7 +402,7 @@ public class HdfsIndexShardGateway extends AbstractIndexShardComponent implement
         } finally {
             if (fileStream != null) {
                 try {
-                    fileSystem.close();
+                    fileStream.close();
                 } catch (IOException e) {
                     // ignore
                 }

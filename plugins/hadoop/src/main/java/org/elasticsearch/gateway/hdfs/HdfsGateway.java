@@ -38,6 +38,7 @@ import org.elasticsearch.util.xcontent.XContentType;
 import org.elasticsearch.util.xcontent.builder.BinaryXContentBuilder;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.Map;
 
 /**
@@ -45,7 +46,11 @@ import java.util.Map;
  */
 public class HdfsGateway extends AbstractLifecycleComponent<Gateway> implements Gateway {
 
+    private final boolean closeFileSystem;
+
     private final FileSystem fileSystem;
+
+    private final String uri;
 
     private final Path path;
 
@@ -56,11 +61,18 @@ public class HdfsGateway extends AbstractLifecycleComponent<Gateway> implements 
     @Inject public HdfsGateway(Settings settings, ClusterName clusterName) throws IOException {
         super(settings);
 
+        this.closeFileSystem = componentSettings.getAsBoolean("close_fs", true);
+        this.uri = componentSettings.get("uri");
+        if (uri == null) {
+            throw new ElasticSearchIllegalArgumentException("hdfs gateway requires the 'uri' setting to be set");
+        }
         String path = componentSettings.get("path");
         if (path == null) {
             throw new ElasticSearchIllegalArgumentException("hdfs gateway requires the 'path' path setting to be set");
         }
         this.path = new Path(new Path(path), clusterName.value());
+
+        logger.debug("Using uri [{}], path [{}]", this.uri, this.path);
 
         this.metaDataPath = new Path(this.path, "metadata");
 
@@ -70,7 +82,7 @@ public class HdfsGateway extends AbstractLifecycleComponent<Gateway> implements 
             conf.set(entry.getKey(), entry.getValue());
         }
 
-        fileSystem = FileSystem.get(conf);
+        fileSystem = FileSystem.get(URI.create(uri), conf);
 
         fileSystem.mkdirs(metaDataPath);
 
@@ -93,10 +105,12 @@ public class HdfsGateway extends AbstractLifecycleComponent<Gateway> implements 
     }
 
     @Override protected void doClose() throws ElasticSearchException {
-        try {
-            fileSystem.close();
-        } catch (IOException e) {
-            logger.warn("Failed to close file system {}", fileSystem);
+        if (closeFileSystem) {
+            try {
+                fileSystem.close();
+            } catch (IOException e) {
+                logger.warn("Failed to close file system {}", fileSystem);
+            }
         }
     }
 
@@ -124,8 +138,10 @@ public class HdfsGateway extends AbstractLifecycleComponent<Gateway> implements 
                 }
             });
 
-            for (FileStatus oldFile : oldFiles) {
-                fileSystem.delete(oldFile.getPath(), false);
+            if (oldFiles != null) {
+                for (FileStatus oldFile : oldFiles) {
+                    fileSystem.delete(oldFile.getPath(), false);
+                }
             }
 
         } catch (IOException e) {
@@ -161,6 +177,9 @@ public class HdfsGateway extends AbstractLifecycleComponent<Gateway> implements 
                 return path.getName().startsWith("metadata-");
             }
         });
+        if (files == null || files.length == 0) {
+            return -1;
+        }
 
         int index = -1;
         for (FileStatus file : files) {
@@ -174,7 +193,7 @@ public class HdfsGateway extends AbstractLifecycleComponent<Gateway> implements 
                 try {
                     readMetaData(file.getPath());
                     index = fileIndex;
-                } catch (IOException e) {
+                } catch (Exception e) {
                     logger.warn("[findLatestMetadata]: Failed to read metadata from [" + file + "], ignoring...", e);
                 }
             }

@@ -17,10 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.index.gateway.fs;
+package org.elasticsearch.index.gateway.hdfs;
 
+import org.apache.hadoop.fs.*;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.gateway.IndexShardGateway;
@@ -38,30 +40,29 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.io.stream.DataInputStreamInput;
 import org.elasticsearch.util.io.stream.DataOutputStreamOutput;
 import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.util.lucene.Directories;
 import org.elasticsearch.util.settings.Settings;
 
-import java.io.File;
-import java.io.FilenameFilter;
+import java.io.EOFException;
+import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.translog.TranslogStreams.*;
-import static org.elasticsearch.util.collect.Lists.*;
-import static org.elasticsearch.util.io.FileSystemUtils.*;
 import static org.elasticsearch.util.lucene.Directories.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class FsIndexShardGateway extends AbstractIndexShardComponent implements IndexShardGateway {
+public class HdfsIndexShardGateway extends AbstractIndexShardComponent implements IndexShardGateway {
 
     private final InternalIndexShard indexShard;
 
@@ -71,40 +72,50 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
 
     private final Store store;
 
-    private final File location;
+    private final FileSystem fileSystem;
 
-    private final File locationIndex;
+    private final Path path;
 
-    private final File locationTranslog;
+    private final Path indexPath;
 
-    @Inject public FsIndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool, IndexGateway fsIndexGateway,
-                                       IndexShard indexShard, Store store, RecoveryThrottler recoveryThrottler) {
+    private final Path translogPath;
+
+    private volatile FSDataOutputStream currentTranslogStream = null;
+
+    @Inject public HdfsIndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool, IndexGateway hdfsIndexGateway,
+                                         IndexShard indexShard, Store store, RecoveryThrottler recoveryThrottler) {
         super(shardId, indexSettings);
-        this.threadPool = threadPool;
         this.indexShard = (InternalIndexShard) indexShard;
-        this.store = store;
+        this.threadPool = threadPool;
         this.recoveryThrottler = recoveryThrottler;
+        this.store = store;
 
-        this.location = new File(((FsIndexGateway) fsIndexGateway).indexGatewayHome(), Integer.toString(shardId.id()));
-        this.locationIndex = new File(location, "index");
-        this.locationTranslog = new File(location, "translog");
+        this.fileSystem = ((HdfsIndexGateway) hdfsIndexGateway).fileSystem();
+        this.path = new Path(((HdfsIndexGateway) hdfsIndexGateway).indexPath(), Integer.toString(shardId.id()));
 
-        locationIndex.mkdirs();
-        locationTranslog.mkdirs();
+        this.indexPath = new Path(path, "index");
+        this.translogPath = new Path(path, "translog");
+    }
+
+    @Override public void close(boolean delete) throws ElasticSearchException {
+        if (currentTranslogStream != null) {
+            try {
+                currentTranslogStream.close();
+            } catch (IOException e) {
+                // ignore
+            }
+        }
+        if (delete) {
+            try {
+                fileSystem.delete(path, true);
+            } catch (IOException e) {
+                logger.warn("Failed to delete [{}]", e, path);
+            }
+        }
     }
 
     @Override public boolean requiresSnapshotScheduling() {
         return true;
-    }
-
-    @Override public String toString() {
-        return "fs[" + location + "]";
-    }
-
-    @Override public void close(boolean delete) {
-        if (delete) {
-            deleteRecursively(location, true);
-        }
     }
 
     @Override public RecoveryStatus recover() throws IndexShardGatewayRecoveryException {
@@ -140,12 +151,14 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
                 IndexInput indexInput = null;
                 try {
                     indexInput = snapshotIndexCommit.getDirectory().openInput(fileName);
-                    File snapshotFile = new File(locationIndex, fileName);
-                    if (snapshotFile.exists() && (snapshotFile.length() == indexInput.length())) {
+                    FileStatus fileStatus = fileSystem.getFileStatus(new Path(indexPath, fileName));
+                    if (fileStatus.getLen() == indexInput.length()) {
                         // we assume its the same one, no need to copy
                         latch.countDown();
                         continue;
                     }
+                } catch (FileNotFoundException e) {
+                    // that's fine!
                 } catch (Exception e) {
                     logger.debug("Failed to verify file equality based on length, copying...", e);
                 } finally {
@@ -165,9 +178,11 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
                 }
                 threadPool.execute(new Runnable() {
                     @Override public void run() {
-                        File copyTo = new File(locationIndex, fileName);
+                        Path copyTo = new Path(indexPath, fileName);
+                        FSDataOutputStream fileStream;
                         try {
-                            copyFromDirectory(snapshotIndexCommit.getDirectory(), fileName, copyTo);
+                            fileStream = fileSystem.create(copyTo, true);
+                            copyFromDirectory(snapshotIndexCommit.getDirectory(), fileName, fileStream);
                         } catch (Exception e) {
                             lastException.set(new IndexShardGatewaySnapshotFailedException(shardId, "Failed to copy to [" + copyTo + "], from dir [" + snapshotIndexCommit.getDirectory() + "] and file [" + fileName + "]", e));
                         } finally {
@@ -186,124 +201,112 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
             }
             indexTime = System.currentTimeMillis() - time;
         }
-        // we reopen the RAF each snapshot and not keep an open one since we want to make sure we
-        // can sync it to disk later on (close it as well) 
-        File translogFile = new File(locationTranslog, "translog-" + translogSnapshot.translogId());
-        RandomAccessFile translogRaf = null;
 
-        // if we have a different trnaslogId we want to flush the full translog to a new file (based on the translogId).
-        // If we still work on existing translog, just append the latest translog operations
         int translogNumberOfOperations = 0;
         long translogTime = 0;
-        if (snapshot.newTranslogCreated()) {
+        if (snapshot.newTranslogCreated() || currentTranslogStream == null) {
             translogDirty = true;
+            long time = System.currentTimeMillis();
+            // a new translog, close the current stream
+            if (currentTranslogStream != null) {
+                try {
+                    currentTranslogStream.close();
+                } catch (IOException e) {
+                    // ignore
+                }
+            }
+            Path currentTranslogPath = new Path(translogPath, "translog-" + translogSnapshot.translogId());
             try {
-                long time = System.currentTimeMillis();
-                translogRaf = new RandomAccessFile(translogFile, "rw");
-                StreamOutput out = new DataOutputStreamOutput(translogRaf);
-                out.writeInt(-1); // write the number of operations header with -1 currently
+                currentTranslogStream = fileSystem.create(currentTranslogPath, true);
+                StreamOutput out = new DataOutputStreamOutput(currentTranslogStream);
                 for (Translog.Operation operation : translogSnapshot) {
                     translogNumberOfOperations++;
                     writeTranslogOperation(out, operation);
                 }
-                translogTime = System.currentTimeMillis() - time;
+                currentTranslogStream.flush();
+                currentTranslogStream.sync();
             } catch (Exception e) {
-                try {
-                    if (translogRaf != null) {
-                        translogRaf.close();
+                currentTranslogPath = null;
+                if (currentTranslogStream != null) {
+                    try {
+                        currentTranslogStream.close();
+                    } catch (IOException e1) {
+                        // ignore
+                    } finally {
+                        currentTranslogStream = null;
                     }
-                } catch (IOException e1) {
-                    // ignore
                 }
-                throw new IndexShardGatewaySnapshotFailedException(shardId(), "Failed to snapshot translog into [" + translogFile + "]", e);
+                throw new IndexShardGatewaySnapshotFailedException(shardId(), "Failed to snapshot translog into [" + currentTranslogPath + "]", e);
             }
+            translogTime = System.currentTimeMillis() - time;
         } else if (snapshot.sameTranslogNewOperations()) {
             translogDirty = true;
+            long time = System.currentTimeMillis();
             try {
-                long time = System.currentTimeMillis();
-                translogRaf = new RandomAccessFile(translogFile, "rw");
-                // seek to the end, since we append
-                translogRaf.seek(translogRaf.length());
-                StreamOutput out = new DataOutputStreamOutput(translogRaf);
+                StreamOutput out = new DataOutputStreamOutput(currentTranslogStream);
                 for (Translog.Operation operation : translogSnapshot.skipTo(snapshot.lastTranslogSize())) {
                     translogNumberOfOperations++;
                     writeTranslogOperation(out, operation);
                 }
-                translogTime = System.currentTimeMillis() - time;
             } catch (Exception e) {
                 try {
-                    if (translogRaf != null) {
-                        translogRaf.close();
-                    }
-                } catch (Exception e1) {
+                    currentTranslogStream.close();
+                } catch (IOException e1) {
                     // ignore
+                } finally {
+                    currentTranslogStream = null;
                 }
-                throw new IndexShardGatewaySnapshotFailedException(shardId(), "Failed to append snapshot translog into [" + translogFile + "]", e);
             }
+            translogTime = System.currentTimeMillis() - time;
         }
 
+
         // now write the segments file and update the translog header
-        try {
-            if (indexDirty) {
+        if (indexDirty) {
+            Path segmentsPath = new Path(indexPath, snapshotIndexCommit.getSegmentsFileName());
+            try {
                 indexNumberOfFiles++;
                 indexTotalFilesSize += snapshotIndexCommit.getDirectory().fileLength(snapshotIndexCommit.getSegmentsFileName());
                 long time = System.currentTimeMillis();
-                copyFromDirectory(snapshotIndexCommit.getDirectory(), snapshotIndexCommit.getSegmentsFileName(),
-                        new File(locationIndex, snapshotIndexCommit.getSegmentsFileName()));
+                FSDataOutputStream fileStream;
+                fileStream = fileSystem.create(segmentsPath, true);
+                copyFromDirectory(snapshotIndexCommit.getDirectory(), snapshotIndexCommit.getSegmentsFileName(), fileStream);
                 indexTime += (System.currentTimeMillis() - time);
+            } catch (Exception e) {
+                throw new IndexShardGatewaySnapshotFailedException(shardId(), "Failed to finalize index snapshot into [" + segmentsPath + "]", e);
             }
-        } catch (Exception e) {
-            try {
-                if (translogRaf != null) {
-                    translogRaf.close();
-                }
-            } catch (Exception e1) {
-                // ignore
-            }
-            throw new IndexShardGatewaySnapshotFailedException(shardId(), "Failed to finalize index snapshot into [" + new File(locationIndex, snapshotIndexCommit.getSegmentsFileName()) + "]", e);
-        }
-
-        try {
-            if (translogDirty) {
-                translogRaf.seek(0);
-                translogRaf.writeInt(translogSnapshot.size());
-                translogRaf.close();
-
-                // now, sync the translog
-                syncFile(translogFile);
-            }
-        } catch (Exception e) {
-            if (translogRaf != null) {
-                try {
-                    translogRaf.close();
-                } catch (Exception e1) {
-                    // ignore
-                }
-            }
-            throw new IndexShardGatewaySnapshotFailedException(shardId(), "Failed to finalize snapshot into [" + translogFile + "]", e);
         }
 
         // delete the old translog
         if (snapshot.newTranslogCreated()) {
-            new File(locationTranslog, "translog-" + snapshot.lastTranslogId()).delete();
+            try {
+                fileSystem.delete(new Path(translogPath, "translog-" + snapshot.lastTranslogId()), false);
+            } catch (IOException e) {
+                // ignore
+            }
         }
 
         // delete files that no longer exists in the index
         if (indexDirty) {
-            File[] existingFiles = locationIndex.listFiles();
-            for (File existingFile : existingFiles) {
-                boolean found = false;
-                for (final String fileName : snapshotIndexCommit.getFiles()) {
-                    if (existingFile.getName().equals(fileName)) {
-                        found = true;
-                        break;
+            try {
+                FileStatus[] existingFiles = fileSystem.listStatus(indexPath);
+                for (FileStatus existingFile : existingFiles) {
+                    boolean found = false;
+                    for (final String fileName : snapshotIndexCommit.getFiles()) {
+                        if (existingFile.getPath().getName().equals(fileName)) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        fileSystem.delete(existingFile.getPath(), false);
                     }
                 }
-                if (!found) {
-                    existingFile.delete();
-                }
+            } catch (Exception e) {
+                // no worries, failed to clean old ones, will clean them later
             }
         }
+
 
         return new SnapshotStatus(new TimeValue(System.currentTimeMillis() - totalTimeStart),
                 new SnapshotStatus.Index(indexNumberOfFiles, new SizeValue(indexTotalFilesSize), new TimeValue(indexTime)),
@@ -311,25 +314,32 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
     }
 
     private RecoveryStatus.Index recoverIndex() throws IndexShardGatewayRecoveryException {
-        File[] files = locationIndex.listFiles();
+        FileStatus[] files;
+        try {
+            files = fileSystem.listStatus(indexPath);
+        } catch (IOException e) {
+            throw new IndexShardGatewayRecoveryException(shardId(), "Failed to list files", e);
+        }
         final CountDownLatch latch = new CountDownLatch(files.length);
         final AtomicReference<Exception> lastException = new AtomicReference<Exception>();
         final AtomicLong throttlingWaitTime = new AtomicLong();
-        for (final File file : files) {
+        for (final FileStatus file : files) {
             threadPool.execute(new Runnable() {
                 @Override public void run() {
                     try {
                         long throttlingStartTime = System.currentTimeMillis();
-                        while (!recoveryThrottler.tryStream(shardId, file.getName())) {
+                        while (!recoveryThrottler.tryStream(shardId, file.getPath().getName())) {
                             Thread.sleep(recoveryThrottler.throttleInterval().millis());
                         }
                         throttlingWaitTime.addAndGet(System.currentTimeMillis() - throttlingStartTime);
-                        copyToDirectory(file, store.directory(), file.getName());
+                        FSDataInputStream fileStream = fileSystem.open(file.getPath());
+                        Directories.copyToDirectory(fileStream, store.directory(), file.getPath().getName());
+                        fileSystem.close();
                     } catch (Exception e) {
                         logger.debug("Failed to read [" + file + "] into [" + store + "]", e);
                         lastException.set(e);
                     } finally {
-                        recoveryThrottler.streamDone(shardId, file.getName());
+                        recoveryThrottler.streamDone(shardId, file.getPath().getName());
                         latch.countDown();
                     }
                 }
@@ -344,8 +354,8 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
             throw new IndexShardGatewayRecoveryException(shardId(), "Failed to recover index files", lastException.get());
         }
         long totalSize = 0;
-        for (File file : files) {
-            totalSize += file.length();
+        for (FileStatus file : files) {
+            totalSize += file.getLen();
         }
 
         long version = -1;
@@ -361,29 +371,33 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
     }
 
     private RecoveryStatus.Translog recoverTranslog() throws IndexShardGatewayRecoveryException {
-        RandomAccessFile raf = null;
+        FSDataInputStream fileStream = null;
         try {
-            long recoveryTranslogId = findLatestTranslogId(locationTranslog);
+            long recoveryTranslogId = findLatestTranslogId();
             if (recoveryTranslogId == -1) {
                 // no recovery file found, start the shard and bail
                 indexShard.start();
                 return new RecoveryStatus.Translog(-1, 0, new SizeValue(0, SizeUnit.BYTES));
             }
-            File recoveryTranslogFile = new File(locationTranslog, "translog-" + recoveryTranslogId);
-            raf = new RandomAccessFile(recoveryTranslogFile, "r");
-            int numberOfOperations = raf.readInt();
-            ArrayList<Translog.Operation> operations = newArrayListWithExpectedSize(numberOfOperations);
-            for (int i = 0; i < numberOfOperations; i++) {
-                operations.add(readTranslogOperation(new DataInputStreamInput(raf)));
+            FileStatus status = fileSystem.getFileStatus(new Path(translogPath, "translog-" + recoveryTranslogId));
+            fileStream = fileSystem.open(status.getPath());
+            ArrayList<Translog.Operation> operations = Lists.newArrayList();
+            for (; ;) {
+                try {
+                    operations.add(readTranslogOperation(new DataInputStreamInput(fileStream)));
+                } catch (EOFException e) {
+                    // reached end of stream
+                    break;
+                }
             }
             indexShard.performRecovery(operations);
-            return new RecoveryStatus.Translog(recoveryTranslogId, operations.size(), new SizeValue(recoveryTranslogFile.length(), SizeUnit.BYTES));
+            return new RecoveryStatus.Translog(recoveryTranslogId, operations.size(), new SizeValue(status.getLen(), SizeUnit.BYTES));
         } catch (Exception e) {
             throw new IndexShardGatewayRecoveryException(shardId(), "Failed to perform recovery of translog", e);
         } finally {
-            if (raf != null) {
+            if (fileStream != null) {
                 try {
-                    raf.close();
+                    fileSystem.close();
                 } catch (IOException e) {
                     // ignore
                 }
@@ -391,10 +405,11 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
         }
     }
 
-    private long findLatestTranslogId(File location) {
-        File[] files = location.listFiles(new FilenameFilter() {
-            @Override public boolean accept(File dir, String name) {
-                return name.startsWith("translog-");
+
+    private long findLatestTranslogId() throws IOException {
+        FileStatus[] files = fileSystem.listStatus(translogPath, new PathFilter() {
+            @Override public boolean accept(Path path) {
+                return path.getName().startsWith("translog-");
             }
         });
         if (files == null) {
@@ -402,25 +417,8 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
         }
 
         long index = -1;
-        for (File file : files) {
-            String name = file.getName();
-            RandomAccessFile raf = null;
-            try {
-                raf = new RandomAccessFile(file, "r");
-                // if header is -1, then its not properly written, ignore it
-                if (raf.readInt() == -1) {
-                    continue;
-                }
-            } catch (Exception e) {
-                // broken file, continue
-                continue;
-            } finally {
-                try {
-                    raf.close();
-                } catch (IOException e) {
-                    // ignore
-                }
-            }
+        for (FileStatus file : files) {
+            String name = file.getPath().getName();
             long fileIndex = Long.parseLong(name.substring(name.indexOf('-') + 1));
             if (fileIndex >= index) {
                 index = fileIndex;

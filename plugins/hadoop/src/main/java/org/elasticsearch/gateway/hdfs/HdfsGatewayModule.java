@@ -17,22 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway;
+package org.elasticsearch.gateway.hdfs;
 
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.util.component.LifecycleComponent;
-import org.elasticsearch.util.inject.Module;
+import org.elasticsearch.gateway.Gateway;
+import org.elasticsearch.util.inject.AbstractModule;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface Gateway extends LifecycleComponent<Gateway> {
+public class HdfsGatewayModule extends AbstractModule {
 
-    void write(MetaData metaData) throws GatewayException;
-
-    MetaData read() throws GatewayException;
-
-    Class<? extends Module> suggestIndexGateway();
-
-    void reset() throws Exception;
+    @Override protected void configure() {
+        bind(Gateway.class).to(HdfsGateway.class).asEagerSingleton();
+    }
 }

@@ -19,6 +19,7 @@
       <w>cloudservers</w>
       <w>commitable</w>
       <w>committable</w>
+      <w>conf</w>
       <w>configurator</w>
       <w>coord</w>
       <w>cpus</w>
@@ -34,6 +35,8 @@
       <w>formatters</w>
       <w>frac</w>
       <w>freqs</w>
+      <w>hadoop</w>
+      <w>hdfs</w>
       <w>hpux</w>
       <w>hyperic</w>
       <w>ifconfig</w>

@@ -93,6 +93,10 @@ public class Directories {
         syncFile(copyTo);
     }
 
+    public static void copyFromDirectory(Directory dir, String fileName, OutputStream os) throws IOException {
+        copyFromDirectory(dir.openInput(fileName), os);
+    }
+
     public static void copyFromDirectory(IndexInput ii, OutputStream os) throws IOException {
         final int BUFFER_SIZE = ii.length() < 16384 ? (int) ii.length() : 16384;
         byte[] buffer = new byte[BUFFER_SIZE];

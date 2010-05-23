@@ -101,7 +101,7 @@ public class CloudIndexGateway extends AbstractIndexComponent implements IndexGa
             }
         }
         this.indexContainer = container;
-        this.indexDirectory = clusterName.value() + "/" + index.name();
+        this.indexDirectory = clusterName.value() + "/indices/" + index.name();
         this.chunkSize = chunkSize;
 
         logger.debug("Using location [{}], container [{}], index_directory [{}], chunk_size [{}]", this.location, this.indexContainer, this.indexDirectory, this.chunkSize);

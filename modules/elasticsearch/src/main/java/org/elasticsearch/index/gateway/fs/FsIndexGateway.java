@@ -41,29 +41,23 @@ import static org.elasticsearch.util.io.FileSystemUtils.*;
  */
 public class FsIndexGateway extends AbstractIndexComponent implements IndexGateway {
 
-    private final Environment environment;
-
-    private final Gateway gateway;
-
     private final String location;
 
     private File indexGatewayHome;
 
     @Inject public FsIndexGateway(Index index, @IndexSettings Settings indexSettings, Environment environment, Gateway gateway) {
         super(index, indexSettings);
-        this.environment = environment;
-        this.gateway = gateway;
 
         String location = componentSettings.get("location");
         if (location == null) {
             if (gateway instanceof FsGateway) {
-                indexGatewayHome = new File(((FsGateway) gateway).gatewayHome(), index().name());
+                indexGatewayHome = new File(new File(((FsGateway) gateway).gatewayHome(), "indices"), index.name());
             } else {
-                indexGatewayHome = new File(new File(environment.workWithClusterFile(), "gateway"), index().name());
+                indexGatewayHome = new File(new File(new File(environment.workWithClusterFile(), "gateway"), "indices"), index.name());
             }
             location = Strings.cleanPath(indexGatewayHome.getAbsolutePath());
         } else {
-            indexGatewayHome = new File(location);
+            indexGatewayHome = new File(new File(location), index.name());
         }
         this.location = location;
 

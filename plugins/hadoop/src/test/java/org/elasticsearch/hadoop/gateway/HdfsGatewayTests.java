@@ -52,15 +52,19 @@ public class HdfsGatewayTests {
     private Node node;
 
     @BeforeMethod void setUpNodes() throws Exception {
+        // start the node and reset the gateway
         node = buildNode();
         ((InternalNode) node).injector().getInstance(Gateway.class).reset();
-        node.start();
+        node.close();
+        // now start the node clean
+        node = buildNode().start();
     }
 
     private Node buildNode() {
         Settings settings = settingsBuilder()
-//                .put("hdfs.conf.fs.default.name", "file://work")
                 .put("gateway.type", "hdfs")
+//                .put("gateway.hdfs.uri", "hdfs://training-vm.local:8022")
+                .put("gateway.hdfs.uri", "file:///")
                 .put("gateway.hdfs.path", "work/hdfs/gateway")
                 .build();
         return nodeBuilder().settings(settingsBuilder().put(settings).put("node.name", "node1")).build();

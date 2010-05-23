@@ -26,6 +26,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.cloud.blobstore.CloudBlobStoreService;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
+import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
 import org.elasticsearch.index.gateway.IndexShardGatewaySnapshotFailedException;
@@ -100,7 +101,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
     private volatile int currentTranslogPartToWrite = 1;
 
     @Inject public CloudIndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, IndexShard indexShard, ThreadPool threadPool,
-                                          Store store, RecoveryThrottler recoveryThrottler, CloudIndexGateway cloudIndexGateway, CloudBlobStoreService blobStoreService) {
+                                          Store store, RecoveryThrottler recoveryThrottler, IndexGateway cloudIndexGateway, CloudBlobStoreService blobStoreService) {
         super(shardId, indexSettings);
         this.indexShard = (InternalIndexShard) indexShard;
         this.threadPool = threadPool;
@@ -108,11 +109,11 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
         this.store = store;
         this.blobStoreContext = blobStoreService.context();
 
-        this.chunkSize = cloudIndexGateway.chunkSize();
-        this.shardLocation = cloudIndexGateway.indexLocation();
-        this.container = cloudIndexGateway.indexContainer();
+        this.chunkSize = ((CloudIndexGateway) cloudIndexGateway).chunkSize();
+        this.shardLocation = ((CloudIndexGateway) cloudIndexGateway).indexLocation();
+        this.container = ((CloudIndexGateway) cloudIndexGateway).indexContainer();
 
-        this.shardDirectory = cloudIndexGateway.indexDirectory() + "/" + shardId.id();
+        this.shardDirectory = ((CloudIndexGateway) cloudIndexGateway).indexDirectory() + "/" + shardId.id();
         this.shardIndexDirectory = shardDirectory + "/index";
         this.shardTranslogDirectory = shardDirectory + "/translog";
 

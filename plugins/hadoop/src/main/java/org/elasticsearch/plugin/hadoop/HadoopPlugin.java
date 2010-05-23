@@ -17,22 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway;
+package org.elasticsearch.plugin.hadoop;
 
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.util.component.LifecycleComponent;
-import org.elasticsearch.util.inject.Module;
+import org.elasticsearch.plugins.AbstractPlugin;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface Gateway extends LifecycleComponent<Gateway> {
+public class HadoopPlugin extends AbstractPlugin {
 
-    void write(MetaData metaData) throws GatewayException;
+    @Override public String name() {
+        return "hadoop";
+    }
 
-    MetaData read() throws GatewayException;
-
-    Class<? extends Module> suggestIndexGateway();
-
-    void reset() throws Exception;
+    @Override public String description() {
+        return "Hadoop Plugin";
+    }
 }

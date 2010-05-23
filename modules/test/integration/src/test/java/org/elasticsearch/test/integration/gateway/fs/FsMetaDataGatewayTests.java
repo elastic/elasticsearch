@@ -34,14 +34,14 @@ import static org.elasticsearch.client.Requests.*;
  */
 public class FsMetaDataGatewayTests extends AbstractNodesTests {
 
-    @AfterMethod void closeNodes() {
+    @AfterMethod void closeNodes() throws Exception {
         node("server1").stop();
         // since we store (by default) the index snapshot under the gateway, resetting it will reset the index data as well
         ((InternalNode) node("server1")).injector().getInstance(Gateway.class).reset();
         closeAllNodes();
     }
 
-    @BeforeMethod void buildNode1() {
+    @BeforeMethod void buildNode1() throws Exception {
         buildNode("server1");
         // since we store (by default) the index snapshot under the gateway, resetting it will reset the index data as well
         ((InternalNode) node("server1")).injector().getInstance(Gateway.class).reset();

@@ -32,8 +32,8 @@ import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.util.logging.ESLogger;
 import org.elasticsearch.util.logging.Loggers;
 import org.elasticsearch.util.settings.Settings;
-import org.testng.annotations.AfterTest;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.client.Requests.*;
@@ -51,7 +51,7 @@ public class HdfsGatewayTests {
 
     private Node node;
 
-    @BeforeTest void setUpNodes() throws Exception {
+    @BeforeMethod void setUpNodes() throws Exception {
         node = buildNode();
         ((InternalNode) node).injector().getInstance(Gateway.class).reset();
         node.start();
@@ -66,7 +66,7 @@ public class HdfsGatewayTests {
         return nodeBuilder().settings(settingsBuilder().put(settings).put("node.name", "node1")).build();
     }
 
-    @AfterTest void closeNodes() throws Exception {
+    @AfterMethod void closeNodes() throws Exception {
         ((InternalNode) node).injector().getInstance(Gateway.class).reset();
         node.close();
     }

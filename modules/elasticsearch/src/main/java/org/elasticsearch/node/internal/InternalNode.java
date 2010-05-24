@@ -62,6 +62,8 @@ import org.elasticsearch.util.Tuple;
 import org.elasticsearch.util.component.Lifecycle;
 import org.elasticsearch.util.component.LifecycleComponent;
 import org.elasticsearch.util.guice.Injectors;
+import org.elasticsearch.util.http.HttpClientModule;
+import org.elasticsearch.util.http.HttpClientService;
 import org.elasticsearch.util.inject.Guice;
 import org.elasticsearch.util.inject.Injector;
 import org.elasticsearch.util.inject.Module;
@@ -133,6 +135,7 @@ public final class InternalNode implements Node {
         modules.add(new MonitorModule(settings));
         modules.add(new GatewayModule(settings));
         modules.add(new NodeClientModule());
+        modules.add(new HttpClientModule());
 
         pluginsService.processModules(modules);
 
@@ -249,6 +252,7 @@ public final class InternalNode implements Node {
         injector.getInstance(IndicesService.class).close();
         injector.getInstance(RestController.class).close();
         injector.getInstance(TransportService.class).close();
+        injector.getInstance(HttpClientService.class).close();
 
         for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
             injector.getInstance(plugin).close();

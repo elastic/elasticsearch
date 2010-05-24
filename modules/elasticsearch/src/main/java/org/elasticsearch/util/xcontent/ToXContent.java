@@ -33,11 +33,17 @@ public interface ToXContent {
 
     public static interface Params {
         String param(String key);
+
+        String param(String key, String defaultValue);
     }
 
     public static final Params EMPTY_PARAMS = new Params() {
         @Override public String param(String key) {
             return null;
+        }
+
+        @Override public String param(String key, String defaultValue) {
+            return defaultValue;
         }
     };
 
@@ -51,6 +57,14 @@ public interface ToXContent {
 
         @Override public String param(String key) {
             return params.get(key);
+        }
+
+        @Override public String param(String key, String defaultValue) {
+            String value = params.get(key);
+            if (value == null) {
+                return defaultValue;
+            }
+            return value;
         }
     }
 

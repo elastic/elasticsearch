@@ -148,4 +148,12 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
     @Override public String param(String key) {
         return params.get(key);
     }
+
+    @Override public String param(String key, String defaultValue) {
+        String value = params.get(key);
+        if (value == null) {
+            return defaultValue;
+        }
+        return value;
+    }
 }

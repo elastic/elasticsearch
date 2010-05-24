@@ -105,7 +105,7 @@ public interface Translog extends IndexShardComponent {
     }
 
     /**
-     * A generic interface representing an operation perfomed on the transaction log.
+     * A generic interface representing an operation performed on the transaction log.
      * Each is associated with a type.
      */
     static interface Operation extends Streamable {
@@ -191,6 +191,7 @@ public interface Translog extends IndexShardComponent {
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {
+            in.readVInt(); // version
             id = in.readUTF();
             type = in.readUTF();
             source = new byte[in.readVInt()];
@@ -198,6 +199,7 @@ public interface Translog extends IndexShardComponent {
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(0); // version
             out.writeUTF(id);
             out.writeUTF(type);
             out.writeVInt(source.length);
@@ -248,6 +250,7 @@ public interface Translog extends IndexShardComponent {
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {
+            in.readVInt(); // version
             id = in.readUTF();
             type = in.readUTF();
             source = new byte[in.readVInt()];
@@ -255,6 +258,7 @@ public interface Translog extends IndexShardComponent {
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(0); // version
             out.writeUTF(id);
             out.writeUTF(type);
             out.writeVInt(source.length);
@@ -293,10 +297,12 @@ public interface Translog extends IndexShardComponent {
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {
+            in.readVInt(); // version
             uid = new Term(in.readUTF(), in.readUTF());
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(0); // version
             out.writeUTF(uid.field());
             out.writeUTF(uid.text());
         }
@@ -345,6 +351,7 @@ public interface Translog extends IndexShardComponent {
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {
+            in.readVInt(); // version
             source = new byte[in.readVInt()];
             in.readFully(source);
             if (in.readBoolean()) {
@@ -360,6 +367,7 @@ public interface Translog extends IndexShardComponent {
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(0); // version
             out.writeVInt(source.length);
             out.writeBytes(source);
             if (queryParserName == null) {

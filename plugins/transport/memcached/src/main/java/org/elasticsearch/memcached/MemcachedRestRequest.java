@@ -156,4 +156,12 @@ public class MemcachedRestRequest extends AbstractRestRequest {
     @Override public Map<String, String> params() {
         return params;
     }
+
+    @Override public String param(String key, String defaultValue) {
+        String value = params.get(key);
+        if (value == null) {
+            return value;
+        }
+        return defaultValue;
+    }
 }

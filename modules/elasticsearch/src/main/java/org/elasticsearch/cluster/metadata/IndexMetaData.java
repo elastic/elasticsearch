@@ -29,6 +29,7 @@ import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.xcontent.ToXContent;
+import org.elasticsearch.util.xcontent.XContentFactory;
 import org.elasticsearch.util.xcontent.XContentParser;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
@@ -210,13 +211,14 @@ public class IndexMetaData {
             }
             builder.endObject();
 
-            builder.startObject("mappings");
+            builder.startArray("mappings");
             for (Map.Entry<String, String> entry : indexMetaData.mappings().entrySet()) {
-                builder.startObject(entry.getKey());
-                builder.field("source", entry.getValue());
-                builder.endObject();
+                XContentParser parser = XContentFactory.xContent(entry.getValue()).createParser(entry.getValue());
+                Map<String, Object> mapping = parser.map();
+                parser.close();
+                builder.map(mapping);
             }
-            builder.endObject();
+            builder.endArray();
 
             builder.endObject();
         }
@@ -240,21 +242,16 @@ public class IndexMetaData {
                         }
                         builder.settings(settingsBuilder.build());
                     } else if ("mappings".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            String mappingType = parser.currentName();
-                            String mappingSource = null;
-                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                                if (token == XContentParser.Token.FIELD_NAME) {
-                                    if ("source".equals(parser.currentName())) {
-                                        parser.nextToken();
-                                        mappingSource = parser.text();
-                                    }
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            Map<String, Object> mapping = parser.map();
+                            if (mapping.size() == 1) {
+                                String mappingSource = XContentFactory.jsonBuilder().map(mapping).string();
+
+                                if (mappingSource == null) {
+                                    // crap, no mapping source, warn?
+                                } else {
+                                    builder.putMapping(mapping.keySet().iterator().next(), mappingSource);
                                 }
-                            }
-                            if (mappingSource == null) {
-                                // crap, no mapping source, warn?
-                            } else {
-                                builder.putMapping(mappingType, mappingSource);
                             }
                         }
                     }

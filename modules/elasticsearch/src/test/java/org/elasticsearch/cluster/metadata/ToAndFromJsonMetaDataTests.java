@@ -66,13 +66,13 @@ public class ToAndFromJsonMetaDataTests {
         MetaData parsedMetaData = MetaData.Builder.fromXContent(XContentFactory.xContent(XContentType.JSON).createParser(metaDataSource), null);
         assertThat(parsedMetaData.maxNumberOfShardsPerNode(), equalTo(2));
 
-        IndexMetaData indexMetaData = metaData.index("test1");
+        IndexMetaData indexMetaData = parsedMetaData.index("test1");
         assertThat(indexMetaData.numberOfShards(), equalTo(1));
         assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
         assertThat(indexMetaData.settings().getAsMap().size(), equalTo(2));
         assertThat(indexMetaData.mappings().size(), equalTo(0));
 
-        indexMetaData = metaData.index("test2");
+        indexMetaData = parsedMetaData.index("test2");
         assertThat(indexMetaData.numberOfShards(), equalTo(2));
         assertThat(indexMetaData.numberOfReplicas(), equalTo(3));
         assertThat(indexMetaData.settings().getAsMap().size(), equalTo(4));
@@ -80,14 +80,14 @@ public class ToAndFromJsonMetaDataTests {
         assertThat(indexMetaData.settings().get("setting2"), equalTo("value2"));
         assertThat(indexMetaData.mappings().size(), equalTo(0));
 
-        indexMetaData = metaData.index("test3");
+        indexMetaData = parsedMetaData.index("test3");
         assertThat(indexMetaData.numberOfShards(), equalTo(1));
         assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
         assertThat(indexMetaData.settings().getAsMap().size(), equalTo(2));
         assertThat(indexMetaData.mappings().size(), equalTo(1));
         assertThat(indexMetaData.mappings().get("mapping1"), equalTo(MAPPING_SOURCE1));
 
-        indexMetaData = metaData.index("test4");
+        indexMetaData = parsedMetaData.index("test4");
         assertThat(indexMetaData.numberOfShards(), equalTo(1));
         assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
         assertThat(indexMetaData.settings().getAsMap().size(), equalTo(4));
@@ -98,6 +98,6 @@ public class ToAndFromJsonMetaDataTests {
         assertThat(indexMetaData.mappings().get("mapping2"), equalTo(MAPPING_SOURCE2));
     }
 
-    private static final String MAPPING_SOURCE1 = "{ text1: { type : \"string\" } }";
-    private static final String MAPPING_SOURCE2 = "{ text2: { type : \"string\" } }";
+    private static final String MAPPING_SOURCE1 = "{\"mapping1\":{\"text1\":{\"type\":\"string\"}}}";
+    private static final String MAPPING_SOURCE2 = "{\"mapping2\":{\"text2\":{\"type\":\"string\"}}}";
 }

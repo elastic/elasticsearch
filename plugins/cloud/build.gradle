@@ -32,7 +32,7 @@ repositories {
     mavenRepo urls: "http://java-xmlbuilder.googlecode.com/svn/repo"
 }
 
-jcloudsVersion = "1.0-beta-5"
+jcloudsVersion = "1.0-beta-6"
 
 dependencies {
     compile project(':elasticsearch')

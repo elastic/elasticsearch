@@ -20,11 +20,20 @@
 package org.elasticsearch.transport;
 
 /**
- * @author kimchy (Shay Banon)
+ * An exception indicating that a transport action was not found.
+ *
+ * @author kimchy (shay.banon)
  */
 public class ActionNotFoundTransportException extends TransportException {
 
-    public ActionNotFoundTransportException(String message) {
-        super(message);
+    private final String action;
+
+    public ActionNotFoundTransportException(String action) {
+        super("No handler for action [" + action + "]");
+        this.action = action;
+    }
+
+    public String action() {
+        return this.action;
     }
 }

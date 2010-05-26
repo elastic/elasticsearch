@@ -164,7 +164,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         try {
             final TransportRequestHandler handler = transportServiceAdapter.handler(action);
             if (handler == null) {
-                logger.warn("No handler found for action [{}]", action);
+                throw new ActionNotFoundTransportException(action);
             }
             final Streamable streamable = handler.newInstance();
             streamable.readFrom(buffer);

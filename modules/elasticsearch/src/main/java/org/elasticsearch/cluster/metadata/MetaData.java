@@ -193,7 +193,7 @@ public class MetaData implements Iterable<IndexMetaData> {
     }
 
     public boolean hasConcreteIndex(String index) {
-        return aliasAndIndexToIndexMap2.get(index) != null;
+        return aliasAndIndexToIndexMap2.containsKey(index);
     }
 
     public IndexMetaData index(String index) {

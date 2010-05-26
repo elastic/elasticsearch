@@ -35,7 +35,9 @@ public class DocIdSets {
      * Returns a cacheable version of the doc id set (might be the same instance provided as a parameter).
      */
     public static DocIdSet cacheable(IndexReader reader, DocIdSet docIdSet) throws IOException {
-        if (docIdSet.isCacheable()) {
+        if (docIdSet == null) {
+            return DocIdSet.EMPTY_DOCIDSET;
+        } else if (docIdSet.isCacheable()) {
             return docIdSet;
         } else {
             final DocIdSetIterator it = docIdSet.iterator();

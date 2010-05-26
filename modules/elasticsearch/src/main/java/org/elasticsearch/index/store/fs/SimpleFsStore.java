@@ -19,9 +19,7 @@
 
 package org.elasticsearch.index.store.fs;
 
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.store.*;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.LocalNodeId;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -53,12 +51,19 @@ public class SimpleFsStore extends AbstractFsStore<Directory> {
         super(shardId, indexSettings);
         // by default, we don't need to sync to disk, since we use the gateway
         this.syncToDisk = componentSettings.getAsBoolean("sync_to_disk", false);
-        this.fsDirectory = new CustomSimpleFSDirectory(createStoreFilePath(environment.workWithClusterFile(), localNodeId, shardId, MAIN_INDEX_SUFFIX), syncToDisk);
+        String fsLock = componentSettings.get("use_fs_lock", "none");
+        LockFactory lockFactory = new NoLockFactory();
+        if (fsLock.equals("native")) {
+            lockFactory = new NativeFSLockFactory();
+        } else if (fsLock.equals("simple")) {
+            lockFactory = new SimpleFSLockFactory();
+        }
+        this.fsDirectory = new CustomSimpleFSDirectory(createStoreFilePath(environment.workWithClusterFile(), localNodeId, shardId, MAIN_INDEX_SUFFIX), lockFactory, syncToDisk);
 
         SwitchDirectory switchDirectory = buildSwitchDirectoryIfNeeded(fsDirectory);
         if (switchDirectory != null) {
             suggestUseCompoundFile = false;
-            logger.debug("Using [simple_fs] Store with path [{}], cache [true] with extensions [{}]", new Object[]{fsDirectory.getFile(), switchDirectory.primaryExtensions()});
+            logger.debug("Using [simple_fs] Store with path [{}], cache [true] with extensions [{}]", fsDirectory.getFile(), switchDirectory.primaryExtensions());
             directory = switchDirectory;
         } else {
             suggestUseCompoundFile = true;
@@ -83,8 +88,8 @@ public class SimpleFsStore extends AbstractFsStore<Directory> {
 
         private final boolean syncToDisk;
 
-        private CustomSimpleFSDirectory(File path, boolean syncToDisk) throws IOException {
-            super(path);
+        private CustomSimpleFSDirectory(File path, LockFactory lockFactory, boolean syncToDisk) throws IOException {
+            super(path, lockFactory);
             this.syncToDisk = syncToDisk;
         }
 

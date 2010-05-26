@@ -116,6 +116,20 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         this.mergeScheduler = mergeScheduler;
         this.analysisService = analysisService;
         this.similarityService = similarityService;
+
+        // clear the index dir by creating a new index
+        try {
+            // release locks when started
+            if (IndexWriter.isLocked(store.directory())) {
+                logger.trace("Shard is locked, releasing lock");
+                store.directory().clearLock(IndexWriter.WRITE_LOCK_NAME);
+            }
+            IndexWriter writer = new IndexWriter(store.directory(), analysisService.defaultIndexAnalyzer(), true, IndexWriter.MaxFieldLength.UNLIMITED);
+            writer.commit();
+            writer.close();
+        } catch (IOException e) {
+            logger.warn("Failed to clean the index", e);
+        }
     }
 
     @Override public void start() throws EngineException {

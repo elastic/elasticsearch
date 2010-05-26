@@ -212,18 +212,6 @@ public abstract class AbstractSimpleEngineTests {
         searchResult.release();
 
         engine.close();
-
-        // TODO check that operations on engine will throw an EngineAlreadyClosed exception (and while you are at it, create the exception as well)
-
-        // now create a new engine, it should see the flushed changes
-        engine = createEngine(store);
-        engine.start();
-
-        searchResult = engine.searcher();
-        assertThat(searchResult, engineSearcherTotalHits(1));
-        assertThat(searchResult, engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
-        assertThat(searchResult, engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 1));
-        searchResult.release();
     }
 
     @Test public void testSearchResultRelease() throws Exception {

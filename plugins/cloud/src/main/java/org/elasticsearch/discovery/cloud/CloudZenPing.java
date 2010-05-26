@@ -32,10 +32,8 @@ import org.jclouds.compute.ComputeService;
 import org.jclouds.compute.domain.ComputeMetadata;
 import org.jclouds.compute.domain.NodeMetadata;
 import org.jclouds.compute.domain.NodeState;
-import org.jclouds.compute.options.GetNodesOptions;
 import org.jclouds.domain.Location;
 
-import java.net.InetAddress;
 import java.util.List;
 import java.util.Set;
 
@@ -67,7 +65,7 @@ public class CloudZenPing extends UnicastZenPing {
 
     @Override protected List<DiscoveryNode> buildDynamicNodes() {
         List<DiscoveryNode> discoNodes = newArrayList();
-        Set<? extends ComputeMetadata> nodes = computeService.listNodes(GetNodesOptions.Builder.withDetails());
+        Set<? extends ComputeMetadata> nodes = computeService.listNodes();
         if (logger.isTraceEnabled()) {
             StringBuilder sb = new StringBuilder("Processing Nodes:");
             for (ComputeMetadata node : nodes) {
@@ -76,7 +74,12 @@ public class CloudZenPing extends UnicastZenPing {
             logger.trace(sb.toString());
         }
         for (ComputeMetadata node : nodes) {
-            NodeMetadata nodeMetadata = (NodeMetadata) node;
+            NodeMetadata nodeMetadata;
+            if (node instanceof NodeMetadata) {
+                nodeMetadata = (NodeMetadata) node;
+            } else {
+                nodeMetadata = computeService.getNodeMetadata(node.getId());
+            }
             if (tag != null && !nodeMetadata.getTag().equals(tag)) {
                 logger.trace("Filtering node {} with unmatched tag {}", nodeMetadata.getName(), nodeMetadata.getTag());
                 continue;
@@ -102,9 +105,9 @@ public class CloudZenPing extends UnicastZenPing {
             }
             if (nodeMetadata.getState() == NodeState.PENDING || nodeMetadata.getState() == NodeState.RUNNING) {
                 logger.debug("Adding {}, addresses {}", nodeMetadata.getName(), nodeMetadata.getPrivateAddresses());
-                for (InetAddress inetAddress : nodeMetadata.getPrivateAddresses()) {
+                for (String inetAddress : nodeMetadata.getPrivateAddresses()) {
                     for (int port : new PortsRange(ports).ports()) {
-                        discoNodes.add(new DiscoveryNode("#cloud-" + inetAddress.getHostAddress() + "-" + port, new InetSocketTransportAddress(inetAddress, port)));
+                        discoNodes.add(new DiscoveryNode("#cloud-" + inetAddress + "-" + port, new InetSocketTransportAddress(inetAddress, port)));
                     }
                 }
             }

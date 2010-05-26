@@ -61,9 +61,6 @@ public class NetworkService extends AbstractComponent {
     }
 
     public void addCustomNameResolver(String name, CustomNameResolver customNameResolver) {
-        if (!(name.startsWith("#") && name.endsWith("#"))) {
-            name = "#" + name + "#";
-        }
         customNameResolvers = MapBuilder.<String, CustomNameResolver>newMapBuilder().putAll(customNameResolvers).put(name, customNameResolver).immutableMap();
     }
 
@@ -73,7 +70,7 @@ public class NetworkService extends AbstractComponent {
     }
 
     public InetAddress resolveBindHostAddress(String bindHost, String defaultValue2) throws IOException {
-        return resolveInetAddress(bindHost, settings.get(settings.get(GLOBAL_NETWORK_BINDHOST_SETTING), settings.get(GLOBAL_NETWORK_HOST_SETTING)), defaultValue2);
+        return resolveInetAddress(bindHost, settings.get(GLOBAL_NETWORK_BINDHOST_SETTING, settings.get(GLOBAL_NETWORK_HOST_SETTING)), defaultValue2);
     }
 
     public InetAddress resolvePublishHostAddress(String publishHost) throws IOException {
@@ -92,7 +89,7 @@ public class NetworkService extends AbstractComponent {
     }
 
     public InetAddress resolvePublishHostAddress(String publishHost, String defaultValue2) throws IOException {
-        return resolveInetAddress(publishHost, settings.get(settings.get(GLOBAL_NETWORK_PUBLISHHOST_SETTING), settings.get(GLOBAL_NETWORK_HOST_SETTING)), defaultValue2);
+        return resolveInetAddress(publishHost, settings.get(GLOBAL_NETWORK_PUBLISHHOST_SETTING, settings.get(GLOBAL_NETWORK_HOST_SETTING)), defaultValue2);
     }
 
     public InetAddress resolveInetAddress(String host, String defaultValue1, String defaultValue2) throws UnknownHostException, IOException {
@@ -105,7 +102,7 @@ public class NetworkService extends AbstractComponent {
         if (host == null) {
             return null;
         }
-        if (host.startsWith("#") && host.endsWith("#")) {
+        if ((host.startsWith("#") && host.endsWith("#")) || (host.startsWith("_") && host.endsWith("_"))) {
             host = host.substring(1, host.length() - 1);
 
             CustomNameResolver customNameResolver = customNameResolvers.get(host);

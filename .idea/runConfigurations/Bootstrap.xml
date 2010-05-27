@@ -8,7 +8,7 @@
     </extension>
     <extension name="snapshooter" />
     <option name="MAIN_CLASS_NAME" value="org.elasticsearch.bootstrap.Bootstrap" />
-    <option name="VM_PARAMETERS" value="-server -Xmx1g -Des-foreground=yes" />
+    <option name="VM_PARAMETERS" value="-server -Xmx1g -Des-foreground=yes -XX:+AggressiveOpts -XX:+UseParNewGC -XX:+UseConcMarkSweepGC" />
     <option name="PROGRAM_PARAMETERS" value="" />
     <option name="WORKING_DIRECTORY" value="file://$PROJECT_DIR$" />
     <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="false" />
@@ -24,7 +24,7 @@
       <option name="LOCAL" value="true" />
     </RunnerSettings>
     <RunnerSettings RunnerId="Profile ">
-      <option name="myExternalizedOptions" value="&#10;snapshots-dir=&#10;additional-options2=onexit\=snapshot&#10;" />
+      <option name="myExternalizedOptions" value="&#10;additional-options2=onexit\=snapshot&#10;" />
     </RunnerSettings>
     <RunnerSettings RunnerId="Run" />
     <ConfigurationWrapper RunnerId="Debug" />

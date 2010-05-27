@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.collect.ImmutableMap;
 import org.elasticsearch.util.gnu.trove.THashSet;
 
@@ -32,6 +33,12 @@ import java.util.Map;
  * @author kimchy (shay.banon)
  */
 public class DfsPhase implements SearchPhase {
+
+    private static ThreadLocal<ThreadLocals.CleanableValue<THashSet<Term>>> cachedTermsSet = new ThreadLocal<ThreadLocals.CleanableValue<THashSet<Term>>>() {
+        @Override protected ThreadLocals.CleanableValue<THashSet<Term>> initialValue() {
+            return new ThreadLocals.CleanableValue<THashSet<Term>>(new THashSet<Term>());
+        }
+    };
 
     @Override public Map<String, ? extends SearchParseElement> parseElements() {
         return ImmutableMap.of();
@@ -46,7 +53,8 @@ public class DfsPhase implements SearchPhase {
                 context.updateRewriteQuery(context.searcher().rewrite(context.query()));
             }
 
-            THashSet<Term> termsSet = new THashSet<Term>();
+            THashSet<Term> termsSet = cachedTermsSet.get().get();
+            termsSet.clear();
             context.query().extractTerms(termsSet);
             Term[] terms = termsSet.toArray(new Term[termsSet.size()]);
             int[] freqs = context.searcher().docFreqs(terms);

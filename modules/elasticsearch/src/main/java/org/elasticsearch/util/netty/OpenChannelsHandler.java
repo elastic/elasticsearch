@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.netty;
+package org.elasticsearch.util.netty;
 
 import org.elasticsearch.util.concurrent.ConcurrentCollections;
 import org.jboss.netty.channel.*;
@@ -25,7 +25,7 @@ import org.jboss.netty.channel.*;
 import java.util.Set;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 @ChannelHandler.Sharable
 public class OpenChannelsHandler implements ChannelUpstreamHandler {
@@ -55,6 +55,5 @@ public class OpenChannelsHandler implements ChannelUpstreamHandler {
         for (Channel channel : openChannels) {
             channel.close().awaitUninterruptibly();
         }
-        openChannels.clear();
     }
 }

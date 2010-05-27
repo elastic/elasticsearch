@@ -33,6 +33,7 @@ import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.io.stream.BytesStreamOutput;
 import org.elasticsearch.util.io.stream.HandlesStreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
+import org.elasticsearch.util.netty.OpenChannelsHandler;
 import org.elasticsearch.util.network.NetworkService;
 import org.elasticsearch.util.network.NetworkUtils;
 import org.elasticsearch.util.settings.Settings;

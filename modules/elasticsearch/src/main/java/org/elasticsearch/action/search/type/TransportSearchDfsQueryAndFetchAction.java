@@ -130,7 +130,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
             }
         }
 
-        private void executeSecondPhase(final AtomicInteger counter, DiscoveryNode node, QuerySearchRequest querySearchRequest) {
+        private void executeSecondPhase(final AtomicInteger counter, DiscoveryNode node, final QuerySearchRequest querySearchRequest) {
             searchService.sendExecuteFetch(node, querySearchRequest, new SearchServiceListener<QueryFetchSearchResult>() {
                 @Override public void onResult(QueryFetchSearchResult result) {
                     queryFetchResults.put(result.shardTarget(), result);
@@ -141,7 +141,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
 
                 @Override public void onFailure(Throwable t) {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("Failed to execute query phase", t);
+                        logger.debug("[{}] Failed to execute query phase", t, querySearchRequest.id());
                     }
                     AsyncAction.this.shardFailures.add(new ShardSearchFailure(t));
                     successulOps.decrementAndGet();

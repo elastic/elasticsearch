@@ -279,6 +279,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                         multicastSocket.send(datagramPacketSend);
                         sentToAtLeastOne = true;
                     } catch (Exception e) {
+                        logger.trace("[{}] Failed to send multicast ping on interface {}", id, inf);
                         lastException = e;
                     }
                 }

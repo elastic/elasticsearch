@@ -137,7 +137,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             }
         }
 
-        private void executeQuery(final AtomicInteger counter, QuerySearchRequest querySearchRequest, DiscoveryNode node) {
+        private void executeQuery(final AtomicInteger counter, final QuerySearchRequest querySearchRequest, DiscoveryNode node) {
             searchService.sendExecuteQuery(node, querySearchRequest, new SearchServiceListener<QuerySearchResult>() {
                 @Override public void onResult(QuerySearchResult result) {
                     queryResults.put(result.shardTarget(), result);
@@ -148,7 +148,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
 
                 @Override public void onFailure(Throwable t) {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("Failed to execute query phase", t);
+                        logger.debug("[{}] Failed to execute query phase", t, querySearchRequest.id());
                     }
                     AsyncAction.this.shardFailures.add(new ShardSearchFailure(t));
                     successulOps.decrementAndGet();
@@ -222,7 +222,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             }
         }
 
-        private void executeFetch(final AtomicInteger counter, FetchSearchRequest fetchSearchRequest, DiscoveryNode node) {
+        private void executeFetch(final AtomicInteger counter, final FetchSearchRequest fetchSearchRequest, DiscoveryNode node) {
             searchService.sendExecuteFetch(node, fetchSearchRequest, new SearchServiceListener<FetchSearchResult>() {
                 @Override public void onResult(FetchSearchResult result) {
                     fetchResults.put(result.shardTarget(), result);
@@ -233,7 +233,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
 
                 @Override public void onFailure(Throwable t) {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("Failed to execute fetch phase", t);
+                        logger.debug("[{}] Failed to execute fetch phase", t, fetchSearchRequest.id());
                     }
                     AsyncAction.this.shardFailures.add(new ShardSearchFailure(t));
                     successulOps.decrementAndGet();

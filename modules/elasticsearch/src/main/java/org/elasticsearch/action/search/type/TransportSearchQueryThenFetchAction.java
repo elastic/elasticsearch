@@ -137,7 +137,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
             }
         }
 
-        private void executeFetch(final AtomicInteger counter, FetchSearchRequest fetchSearchRequest, DiscoveryNode node) {
+        private void executeFetch(final AtomicInteger counter, final FetchSearchRequest fetchSearchRequest, DiscoveryNode node) {
             searchService.sendExecuteFetch(node, fetchSearchRequest, new SearchServiceListener<FetchSearchResult>() {
                 @Override public void onResult(FetchSearchResult result) {
                     fetchResults.put(result.shardTarget(), result);
@@ -148,7 +148,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
 
                 @Override public void onFailure(Throwable t) {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("Failed to execute fetch phase", t);
+                        logger.debug("[{}] Failed to execute fetch phase", t, fetchSearchRequest.id());
                     }
                     AsyncAction.this.shardFailures.add(new ShardSearchFailure(t));
                     successulOps.decrementAndGet();

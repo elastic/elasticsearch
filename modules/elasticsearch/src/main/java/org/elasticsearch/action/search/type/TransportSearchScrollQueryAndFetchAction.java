@@ -171,7 +171,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
             }
         }
 
-        private void executePhase(DiscoveryNode node, long searchId) {
+        private void executePhase(DiscoveryNode node, final long searchId) {
             searchService.sendExecuteFetch(node, internalScrollSearchRequest(searchId, request), new SearchServiceListener<QueryFetchSearchResult>() {
                 @Override public void onResult(QueryFetchSearchResult result) {
                     queryFetchResults.put(result.shardTarget(), result);
@@ -182,7 +182,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
 
                 @Override public void onFailure(Throwable t) {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("Failed to execute query phase", t);
+                        logger.debug("[{}] Failed to execute query phase", t, searchId);
                     }
                     shardFailures.add(new ShardSearchFailure(t));
                     successfulOps.decrementAndGet();

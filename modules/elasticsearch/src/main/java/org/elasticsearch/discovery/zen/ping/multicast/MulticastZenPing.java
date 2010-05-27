@@ -34,11 +34,13 @@ import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.io.stream.*;
 import org.elasticsearch.util.network.NetworkService;
-import org.elasticsearch.util.network.NetworkUtils;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
-import java.net.*;
+import java.net.DatagramPacket;
+import java.net.InetAddress;
+import java.net.MulticastSocket;
+import java.net.SocketTimeoutException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -135,16 +137,16 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
         try {
             MulticastSocket multicastSocket;
-            if (NetworkUtils.canBindToMcastAddress()) {
-                try {
-                    multicastSocket = new MulticastSocket(new InetSocketAddress(group, port));
-                } catch (Exception e) {
-                    logger.debug("Failed to create multicast socket by binding to group address, binding to port", e);
-                    multicastSocket = new MulticastSocket(port);
-                }
-            } else {
-                multicastSocket = new MulticastSocket(port);
-            }
+//            if (NetworkUtils.canBindToMcastAddress()) {
+//                try {
+//                    multicastSocket = new MulticastSocket(new InetSocketAddress(group, port));
+//                } catch (Exception e) {
+//                    logger.debug("Failed to create multicast socket by binding to group address, binding to port", e);
+//                    multicastSocket = new MulticastSocket(port);
+//                }
+//            } else {
+            multicastSocket = new MulticastSocket(port);
+//            }
 
             multicastSocket.setTimeToLive(ttl);
 

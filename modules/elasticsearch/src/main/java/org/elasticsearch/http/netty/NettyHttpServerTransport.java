@@ -27,6 +27,7 @@ import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.inject.Inject;
+import org.elasticsearch.util.netty.OpenChannelsHandler;
 import org.elasticsearch.util.network.NetworkService;
 import org.elasticsearch.util.network.NetworkUtils;
 import org.elasticsearch.util.settings.Settings;

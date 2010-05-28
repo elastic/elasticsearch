@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.ping.replication;
 
+import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
@@ -26,7 +27,7 @@ import org.elasticsearch.util.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class ShardReplicationPingRequest extends ShardReplicationOperationRequest {
 
@@ -35,6 +36,7 @@ public class ShardReplicationPingRequest extends ShardReplicationOperationReques
     public ShardReplicationPingRequest(IndexReplicationPingRequest request, int shardId) {
         this(request.index(), shardId);
         timeout = request.timeout();
+        replicationType(request.replicationType());
     }
 
     public ShardReplicationPingRequest(String index, int shardId) {
@@ -47,6 +49,21 @@ public class ShardReplicationPingRequest extends ShardReplicationOperationReques
 
     public int shardId() {
         return this.shardId;
+    }
+
+    @Override public ShardReplicationPingRequest listenerThreaded(boolean threadedListener) {
+        super.listenerThreaded(threadedListener);
+        return this;
+    }
+
+    @Override public ShardReplicationPingRequest operationThreaded(boolean threadedOperation) {
+        super.operationThreaded(threadedOperation);
+        return this;
+    }
+
+    @Override public ShardReplicationPingRequest replicationType(ReplicationType replicationType) {
+        super.replicationType(replicationType);
+        return this;
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {

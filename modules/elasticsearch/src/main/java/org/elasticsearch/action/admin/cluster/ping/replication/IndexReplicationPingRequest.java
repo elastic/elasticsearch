@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.ping.replication;
 
 import org.elasticsearch.action.support.replication.IndexReplicationOperationRequest;
+import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
@@ -27,7 +28,7 @@ import org.elasticsearch.util.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class IndexReplicationPingRequest extends IndexReplicationOperationRequest {
 
@@ -38,6 +39,7 @@ public class IndexReplicationPingRequest extends IndexReplicationOperationReques
     IndexReplicationPingRequest(ReplicationPingRequest request, String index) {
         this.index = index;
         this.timeout = request.timeout();
+        this.replicationType = request.replicationType();
     }
 
     IndexReplicationPingRequest() {
@@ -47,6 +49,15 @@ public class IndexReplicationPingRequest extends IndexReplicationOperationReques
         this.timeout = timeout;
         return this;
     }
+
+    /**
+     * The replication type to use with this operation.
+     */
+    public IndexReplicationPingRequest replicationType(ReplicationType replicationType) {
+        this.replicationType = replicationType;
+        return this;
+    }
+
 
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);

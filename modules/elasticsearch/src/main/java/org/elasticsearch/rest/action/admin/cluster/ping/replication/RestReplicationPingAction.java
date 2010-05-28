@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.ping.replication.IndexReplicationP
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingRequest;
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingResponse;
 import org.elasticsearch.action.admin.cluster.ping.replication.ShardReplicationPingRequest;
+import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
@@ -51,6 +52,10 @@ public class RestReplicationPingAction extends BaseRestHandler {
         ReplicationPingRequest replicationPingRequest = new ReplicationPingRequest(RestActions.splitIndices(request.param("index")));
         replicationPingRequest.timeout(request.paramAsTime("timeout", ShardReplicationPingRequest.DEFAULT_TIMEOUT));
         replicationPingRequest.listenerThreaded(false);
+        String replicationType = request.param("replication");
+        if (replicationType != null) {
+            replicationPingRequest.replicationType(ReplicationType.fromString(replicationType));
+        }
         client.admin().cluster().ping(replicationPingRequest, new ActionListener<ReplicationPingResponse>() {
             @Override public void onResponse(ReplicationPingResponse result) {
                 try {

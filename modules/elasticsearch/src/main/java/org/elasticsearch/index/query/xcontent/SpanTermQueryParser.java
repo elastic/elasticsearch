@@ -71,7 +71,9 @@ public class SpanTermQueryParser extends AbstractIndexComponent implements XCont
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else {
-                    if ("value".equals(currentFieldName)) {
+                    if ("term".equals(currentFieldName)) {
+                        value = parser.text();
+                    } else if ("value".equals(currentFieldName)) {
                         value = parser.text();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();

@@ -70,6 +70,8 @@ public class WildcardQueryParser extends AbstractIndexComponent implements XCont
                 } else {
                     if ("wildcard".equals(currentFieldName)) {
                         value = parser.text();
+                    } else if ("value".equals(currentFieldName)) {
+                        value = parser.text();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
                     }

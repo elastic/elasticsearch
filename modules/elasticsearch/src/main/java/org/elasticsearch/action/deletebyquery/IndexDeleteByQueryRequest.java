@@ -43,17 +43,13 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest 
     private String queryParserName;
     private String[] types = Strings.EMPTY_ARRAY;
 
-    public IndexDeleteByQueryRequest(String index, String... types) {
-        this.index = index;
-        this.types = types;
-    }
-
     IndexDeleteByQueryRequest(DeleteByQueryRequest request, String index) {
         this.index = index;
         this.timeout = request.timeout();
         this.querySource = request.querySource();
         this.queryParserName = request.queryParserName();
         this.types = request.types();
+        this.replicationType = request.replicationType();
     }
 
 

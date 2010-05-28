@@ -23,6 +23,7 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.util.Required;
 import org.elasticsearch.util.TimeValue;
@@ -340,6 +341,14 @@ public class IndexRequest extends ShardReplicationOperationRequest {
         } else {
             throw new ElasticSearchIllegalArgumentException("No index opType matching [" + opType + "]");
         }
+    }
+
+    /**
+     * Set the replication type for this operation.
+     */
+    @Override public IndexRequest replicationType(ReplicationType replicationType) {
+        super.replicationType(replicationType);
+        return this;
     }
 
     /**

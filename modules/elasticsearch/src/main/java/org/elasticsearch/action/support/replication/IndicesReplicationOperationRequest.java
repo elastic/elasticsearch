@@ -38,6 +38,8 @@ public class IndicesReplicationOperationRequest implements ActionRequest {
 
     private boolean threadedListener = false;
 
+    protected ReplicationType replicationType = ReplicationType.DEFAULT;
+
     public TimeValue timeout() {
         return timeout;
     }
@@ -70,7 +72,12 @@ public class IndicesReplicationOperationRequest implements ActionRequest {
         return this;
     }
 
+    public ReplicationType replicationType() {
+        return this.replicationType;
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
+        replicationType = ReplicationType.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
         indices = new String[in.readVInt()];
         for (int i = 0; i < indices.length; i++) {
@@ -79,6 +86,7 @@ public class IndicesReplicationOperationRequest implements ActionRequest {
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
+        out.writeByte(replicationType.id());
         timeout.writeTo(out);
         out.writeVInt(indices.length);
         for (String index : indices) {

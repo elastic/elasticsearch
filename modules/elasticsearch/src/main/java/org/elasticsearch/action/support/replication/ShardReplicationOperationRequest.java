@@ -35,6 +35,7 @@ import static org.elasticsearch.action.Actions.*;
  */
 public abstract class ShardReplicationOperationRequest implements ActionRequest {
 
+
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
     protected TimeValue timeout = DEFAULT_TIMEOUT;
@@ -43,6 +44,7 @@ public abstract class ShardReplicationOperationRequest implements ActionRequest 
 
     private boolean threadedListener = false;
     private boolean threadedOperation = true;
+    private ReplicationType replicationType = ReplicationType.DEFAULT;
 
     public TimeValue timeout() {
         return timeout;
@@ -89,6 +91,21 @@ public abstract class ShardReplicationOperationRequest implements ActionRequest 
         return this;
     }
 
+    /**
+     * The replication type.
+     */
+    public ReplicationType replicationType() {
+        return this.replicationType;
+    }
+
+    /**
+     * Sets the replication type.
+     */
+    public ShardReplicationOperationRequest replicationType(ReplicationType replicationType) {
+        this.replicationType = replicationType;
+        return this;
+    }
+
     @Override public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (index == null) {
@@ -98,12 +115,14 @@ public abstract class ShardReplicationOperationRequest implements ActionRequest 
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
+        replicationType = ReplicationType.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
         index = in.readUTF();
         // no need to serialize threaded* parameters, since they only matter locally
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
+        out.writeByte(replicationType.id());
         timeout.writeTo(out);
         out.writeUTF(index);
     }

@@ -23,6 +23,7 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.IndicesReplicationOperationRequest;
+import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.util.Required;
@@ -216,6 +217,14 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
      */
     public DeleteByQueryRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
+        return this;
+    }
+
+    /**
+     * The replication type to use with this operation.
+     */
+    public DeleteByQueryRequest replicationType(ReplicationType replicationType) {
+        this.replicationType = replicationType;
         return this;
     }
 

@@ -24,6 +24,7 @@ import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.IndexDeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.ShardDeleteByQueryRequest;
+import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
@@ -70,6 +71,11 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
                 deleteByQueryRequest.types(RestActions.splitTypes(typesParam));
             }
             deleteByQueryRequest.timeout(request.paramAsTime("timeout", ShardDeleteByQueryRequest.DEFAULT_TIMEOUT));
+
+            String replicationType = request.param("replication");
+            if (replicationType != null) {
+                deleteByQueryRequest.replicationType(ReplicationType.fromString(replicationType));
+            }
         } catch (Exception e) {
             try {
                 XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);

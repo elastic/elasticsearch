@@ -22,6 +22,7 @@ package org.elasticsearch.rest.action.delete;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
@@ -51,6 +52,12 @@ public class RestDeleteAction extends BaseRestHandler {
         deleteRequest.listenerThreaded(false);
         // we don't spawn, then fork if local
         deleteRequest.operationThreaded(true);
+
+        String replicationType = request.param("replication");
+        if (replicationType != null) {
+            deleteRequest.replicationType(ReplicationType.fromString(replicationType));
+        }
+
         client.delete(deleteRequest, new ActionListener<DeleteResponse>() {
             @Override public void onResponse(DeleteResponse result) {
                 try {

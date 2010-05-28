@@ -22,6 +22,7 @@ package org.elasticsearch.rest.action.index;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
@@ -74,6 +75,10 @@ public class RestIndexAction extends BaseRestHandler {
                     return;
                 }
             }
+        }
+        String replicationType = request.param("replication");
+        if (replicationType != null) {
+            indexRequest.replicationType(ReplicationType.fromString(replicationType));
         }
         // we just send a response, no need to fork
         indexRequest.listenerThreaded(false);

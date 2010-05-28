@@ -20,6 +20,7 @@
 package org.elasticsearch.action.delete;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.util.Required;
 import org.elasticsearch.util.TimeValue;
@@ -104,6 +105,14 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
      */
     @Override public DeleteRequest operationThreaded(boolean threadedOperation) {
         super.operationThreaded(threadedOperation);
+        return this;
+    }
+
+    /**
+     * Set the replication type for this operation.
+     */
+    @Override public DeleteRequest replicationType(ReplicationType replicationType) {
+        super.replicationType(replicationType);
         return this;
     }
 

@@ -31,6 +31,7 @@ import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
+import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.util.Unicode;
@@ -131,7 +132,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
         }
 
         logger.info("Delete [type1/1]");
-        DeleteResponse deleteResponse = client1.delete(deleteRequest("test").type("type1").id("1")).actionGet();
+        DeleteResponse deleteResponse = client1.delete(deleteRequest("test").type("type1").id("1").replicationType(ReplicationType.ASYNC)).actionGet();
         assertThat(deleteResponse.index(), equalTo(getConcreteIndexName()));
         assertThat(deleteResponse.id(), equalTo("1"));
         assertThat(deleteResponse.type(), equalTo("type1"));

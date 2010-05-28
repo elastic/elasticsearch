@@ -69,6 +69,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     protected final ShardStateAction shardStateAction;
 
+    protected final ReplicationType defaultReplicationType;
+
     protected TransportShardReplicationOperationAction(Settings settings, TransportService transportService,
                                                        ClusterService clusterService, IndicesService indicesService,
                                                        ThreadPool threadPool, ShardStateAction shardStateAction) {
@@ -81,6 +83,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         transportService.registerHandler(transportAction(), new OperationTransportHandler());
         transportService.registerHandler(transportBackupAction(), new BackupOperationTransportHandler());
+
+        this.defaultReplicationType = ReplicationType.fromString(settings.get("action.replication_type", "sync"));
     }
 
     @Override protected void doExecute(Request request, ActionListener<Response> listener) {
@@ -207,9 +211,17 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         private final AtomicBoolean primaryOperationStarted = new AtomicBoolean();
 
+        private final ReplicationType replicationType;
+
         private AsyncShardOperationAction(Request request, ActionListener<Response> listener) {
             this.request = request;
             this.listener = listener;
+
+            if (request.replicationType() != ReplicationType.DEFAULT) {
+                replicationType = request.replicationType();
+            } else {
+                replicationType = defaultReplicationType;
+            }
         }
 
         public void start() {
@@ -354,6 +366,22 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
             // initialize the counter
             int backupCounter = 0;
+
+            if (replicationType == ReplicationType.ASYNC) {
+                // async replication, notify the listener
+                if (alreadyThreaded || !request.listenerThreaded()) {
+                    listener.onResponse(response);
+                } else {
+                    threadPool.execute(new Runnable() {
+                        @Override public void run() {
+                            listener.onResponse(response);
+                        }
+                    });
+                }
+                // now, trick the counter so it won't decrease to 0
+                backupCounter = -100;
+            }
+
             for (final ShardRouting shard : shards.reset()) {
                 if (shard.primary()) {
                     continue;

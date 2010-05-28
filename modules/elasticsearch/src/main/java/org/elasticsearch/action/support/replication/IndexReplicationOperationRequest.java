@@ -40,6 +40,8 @@ public class IndexReplicationOperationRequest implements ActionRequest {
 
     private boolean threadedListener = false;
 
+    protected ReplicationType replicationType = ReplicationType.DEFAULT;
+
     public TimeValue timeout() {
         return timeout;
     }
@@ -50,6 +52,10 @@ public class IndexReplicationOperationRequest implements ActionRequest {
 
     @Override public boolean listenerThreaded() {
         return this.threadedListener;
+    }
+
+    public ReplicationType replicationType() {
+        return this.replicationType;
     }
 
     @Override public IndexReplicationOperationRequest listenerThreaded(boolean threadedListener) {
@@ -66,11 +72,13 @@ public class IndexReplicationOperationRequest implements ActionRequest {
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
+        replicationType = ReplicationType.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
         index = in.readUTF();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
+        out.writeByte(replicationType.id());
         timeout.writeTo(out);
         out.writeUTF(index);
     }

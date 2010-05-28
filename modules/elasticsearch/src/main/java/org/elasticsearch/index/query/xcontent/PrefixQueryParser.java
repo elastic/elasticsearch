@@ -68,7 +68,9 @@ public class PrefixQueryParser extends AbstractIndexComponent implements XConten
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
-                    if (NAME.equals(currentFieldName)) {
+                    if ("prefix".equals(currentFieldName)) {
+                        value = parser.text();
+                    } else if ("value".equals(currentFieldName)) {
                         value = parser.text();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();

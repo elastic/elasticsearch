@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.ping.replication;
 
 import org.elasticsearch.action.support.replication.IndicesReplicationOperationRequest;
+import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.util.TimeValue;
 
 /**
@@ -37,6 +38,11 @@ public class ReplicationPingRequest extends IndicesReplicationOperationRequest {
 
     @Override public ReplicationPingRequest listenerThreaded(boolean threadedListener) {
         super.listenerThreaded(threadedListener);
+        return this;
+    }
+
+    public ReplicationPingRequest replicationType(ReplicationType replicationType) {
+        this.replicationType = replicationType;
         return this;
     }
 

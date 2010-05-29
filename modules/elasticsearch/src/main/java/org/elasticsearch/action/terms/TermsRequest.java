@@ -304,8 +304,9 @@ public class TermsRequest extends BroadcastOperationRequest {
      * An optional regular expression to filter out terms (only the ones that match the regexp
      * will return).
      */
-    public void regexp(String regexp) {
+    public TermsRequest regexp(String regexp) {
         this.regexp = regexp;
+        return this;
     }
 
     /**

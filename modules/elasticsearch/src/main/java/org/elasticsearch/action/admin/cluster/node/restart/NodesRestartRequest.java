@@ -56,6 +56,13 @@ public class NodesRestartRequest extends NodesOperationRequest {
         return this;
     }
 
+    /**
+     * The delay for the restart to occur. Defaults to <tt>1s</tt>.
+     */
+    public NodesRestartRequest delay(String delay) {
+        return delay(TimeValue.parseTimeValue(delay, null));
+    }
+
     public TimeValue delay() {
         return this.delay;
     }

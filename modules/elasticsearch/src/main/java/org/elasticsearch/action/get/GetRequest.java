@@ -65,6 +65,14 @@ public class GetRequest extends SingleOperationRequest {
     }
 
     /**
+     * Sets the index of the document to fetch.
+     */
+    @Required public GetRequest index(String index) {
+        this.index = index;
+        return this;
+    }
+
+    /**
      * Sets the type of the document to fetch.
      */
     @Required public GetRequest type(String type) {

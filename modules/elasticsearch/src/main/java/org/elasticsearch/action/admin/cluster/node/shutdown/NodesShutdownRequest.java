@@ -56,6 +56,13 @@ public class NodesShutdownRequest extends NodesOperationRequest {
         return this;
     }
 
+    /**
+     * The delay for the shutdown to occur. Defaults to <tt>1s</tt>.
+     */
+    public NodesShutdownRequest delay(String delay) {
+        return delay(TimeValue.parseTimeValue(delay, null));
+    }
+
     public TimeValue delay() {
         return this.delay;
     }

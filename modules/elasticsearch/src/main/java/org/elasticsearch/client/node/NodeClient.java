@@ -44,15 +44,15 @@ import org.elasticsearch.action.terms.TermsResponse;
 import org.elasticsearch.action.terms.TransportTermsAction;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.internal.InternalClient;
+import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class NodeClient extends AbstractComponent implements InternalClient {
+public class NodeClient extends AbstractClient implements InternalClient {
 
     private final ThreadPool threadPool;
 
@@ -81,7 +81,6 @@ public class NodeClient extends AbstractComponent implements InternalClient {
                               TransportDeleteByQueryAction deleteByQueryAction, TransportGetAction getAction, TransportCountAction countAction,
                               TransportSearchAction searchAction, TransportSearchScrollAction searchScrollAction,
                               TransportTermsAction termsAction, TransportMoreLikeThisAction moreLikeThisAction) {
-        super(settings);
         this.threadPool = threadPool;
         this.admin = admin;
         this.indexAction = indexAction;

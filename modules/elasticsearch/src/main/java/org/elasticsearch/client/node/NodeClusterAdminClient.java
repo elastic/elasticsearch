@@ -48,15 +48,18 @@ import org.elasticsearch.action.admin.cluster.ping.single.TransportSinglePingAct
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
-import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.util.component.AbstractComponent;
+import org.elasticsearch.client.internal.InternalClusterAdminClient;
+import org.elasticsearch.client.support.AbstractClusterAdminClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class NodeClusterAdminClient extends AbstractComponent implements ClusterAdminClient {
+public class NodeClusterAdminClient extends AbstractClusterAdminClient implements InternalClusterAdminClient {
+
+    private final ThreadPool threadPool;
 
     private final TransportClusterHealthAction clusterHealthAction;
 
@@ -76,11 +79,11 @@ public class NodeClusterAdminClient extends AbstractComponent implements Cluster
 
     private final TransportNodesRestartAction nodesRestart;
 
-    @Inject public NodeClusterAdminClient(Settings settings,
+    @Inject public NodeClusterAdminClient(Settings settings, ThreadPool threadPool,
                                           TransportClusterHealthAction clusterHealthAction, TransportClusterStateAction clusterStateAction,
                                           TransportSinglePingAction singlePingAction, TransportBroadcastPingAction broadcastPingAction, TransportReplicationPingAction replicationPingAction,
                                           TransportNodesInfoAction nodesInfoAction, TransportNodesShutdownAction nodesShutdown, TransportNodesRestartAction nodesRestart, TransportNodesStatsAction nodesStatsAction) {
-        super(settings);
+        this.threadPool = threadPool;
         this.clusterHealthAction = clusterHealthAction;
         this.clusterStateAction = clusterStateAction;
         this.nodesInfoAction = nodesInfoAction;
@@ -90,6 +93,10 @@ public class NodeClusterAdminClient extends AbstractComponent implements Cluster
         this.broadcastPingAction = broadcastPingAction;
         this.replicationPingAction = replicationPingAction;
         this.nodesStatsAction = nodesStatsAction;
+    }
+
+    @Override public ThreadPool threadPool() {
+        return this.threadPool;
     }
 
     @Override public ActionFuture<ClusterHealthResponse> health(ClusterHealthRequest request) {

@@ -38,7 +38,12 @@ public class SinglePingRequest extends SingleOperationRequest {
         super(index, type, id);
     }
 
-    SinglePingRequest() {
+    public SinglePingRequest() {
+    }
+
+    public SinglePingRequest index(String index) {
+        this.index = index;
+        return this;
     }
 
     public SinglePingRequest type(String type) {

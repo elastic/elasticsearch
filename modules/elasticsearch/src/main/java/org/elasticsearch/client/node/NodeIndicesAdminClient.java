@@ -52,14 +52,17 @@ import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.admin.indices.status.TransportIndicesStatusAction;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.util.component.AbstractComponent;
+import org.elasticsearch.client.support.AbstractIndicesAdminClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class NodeIndicesAdminClient extends AbstractComponent implements IndicesAdminClient {
+public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implements IndicesAdminClient {
+
+    private final ThreadPool threadPool;
 
     private final TransportIndicesStatusAction indicesStatusAction;
 
@@ -81,12 +84,12 @@ public class NodeIndicesAdminClient extends AbstractComponent implements Indices
 
     private final TransportClearIndicesCacheAction clearIndicesCacheAction;
 
-    @Inject public NodeIndicesAdminClient(Settings settings, TransportIndicesStatusAction indicesStatusAction,
+    @Inject public NodeIndicesAdminClient(Settings settings, ThreadPool threadPool, TransportIndicesStatusAction indicesStatusAction,
                                           TransportCreateIndexAction createIndexAction, TransportDeleteIndexAction deleteIndexAction,
                                           TransportRefreshAction refreshAction, TransportFlushAction flushAction, TransportOptimizeAction optimizeAction,
                                           TransportPutMappingAction putMappingAction, TransportGatewaySnapshotAction gatewaySnapshotAction,
                                           TransportIndicesAliasesAction indicesAliasesAction, TransportClearIndicesCacheAction clearIndicesCacheAction) {
-        super(settings);
+        this.threadPool = threadPool;
         this.indicesStatusAction = indicesStatusAction;
         this.createIndexAction = createIndexAction;
         this.deleteIndexAction = deleteIndexAction;
@@ -97,6 +100,10 @@ public class NodeIndicesAdminClient extends AbstractComponent implements Indices
         this.gatewaySnapshotAction = gatewaySnapshotAction;
         this.indicesAliasesAction = indicesAliasesAction;
         this.clearIndicesCacheAction = clearIndicesCacheAction;
+    }
+
+    @Override public ThreadPool threadPool() {
+        return this.threadPool;
     }
 
     @Override public ActionFuture<IndicesStatusResponse> status(IndicesStatusRequest request) {

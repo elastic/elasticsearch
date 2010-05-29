@@ -76,12 +76,15 @@ public class HighlightSearchTests extends AbstractNodesTests {
     }
 
     @Test public void testSimpleHighlighting() throws Exception {
-        SearchSourceBuilder source = searchSource()
-                .query(termQuery("_all", "test"))
-                .from(0).size(60).explain(true)
-                .highlight(highlight().field("_all").order("score").preTags("<xxx>").postTags("</xxx>"));
+        SearchResponse searchResponse = client.prepareSearch()
+                .setIndices("test")
+                .setSearchType(QUERY_THEN_FETCH)
+                .setQuery(termQuery("_all", "test"))
+                .setFrom(0).setSize(60)
+                .addHighlightedField("_all").setHighlighterOrder("score").setHighlighterPreTags("<xxx>").setHighlighterPostTags("</xxx>")
+                .setScroll(timeValueMinutes(10))
+                .execute().actionGet();
 
-        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
         assertThat(searchResponse.hits().hits().length, equalTo(60));
@@ -94,7 +97,7 @@ public class HighlightSearchTests extends AbstractNodesTests {
             assertThat(hit.highlightFields().get("_all").fragments().length, greaterThan(0));
         }
 
-        searchResponse = client.searchScroll(searchScrollRequest(searchResponse.scrollId())).actionGet();
+        searchResponse = client.prepareSearchScroll(searchResponse.scrollId()).execute().actionGet();
 
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
         assertThat(searchResponse.hits().hits().length, equalTo(40));

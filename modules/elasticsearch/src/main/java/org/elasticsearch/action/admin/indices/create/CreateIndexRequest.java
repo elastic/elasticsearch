@@ -221,6 +221,14 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
         return this;
     }
 
+    /**
+     * Timeout to wait for the index creation to be acknowledged by current cluster nodes. Defaults
+     * to <tt>10s</tt>.
+     */
+    public CreateIndexRequest timeout(String timeout) {
+        return timeout(TimeValue.parseTimeValue(timeout, null));
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         cause = in.readUTF();
         index = in.readUTF();

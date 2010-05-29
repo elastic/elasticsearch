@@ -117,6 +117,13 @@ public class SearchScrollRequest implements ActionRequest {
         return scroll(new Scroll(keepAlive));
     }
 
+    /**
+     * If set, will enable scrolling of the search request for the specified timeout.
+     */
+    public SearchScrollRequest scroll(String keepAlive) {
+        return scroll(new Scroll(TimeValue.parseTimeValue(keepAlive, null)));
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         operationThreading = SearchOperationThreading.fromId(in.readByte());
         scrollId = in.readUTF();

@@ -43,6 +43,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.support.AbstractIndicesAdminClient;
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.client.transport.action.admin.indices.alias.ClientTransportIndicesAliasesAction;
 import org.elasticsearch.client.transport.action.admin.indices.cache.clear.ClientTransportClearIndicesCacheAction;
@@ -55,16 +56,18 @@ import org.elasticsearch.client.transport.action.admin.indices.optimize.ClientTr
 import org.elasticsearch.client.transport.action.admin.indices.refresh.ClientTransportRefreshAction;
 import org.elasticsearch.client.transport.action.admin.indices.status.ClientTransportIndicesStatusAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.util.component.AbstractComponent;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class InternalTransportIndicesAdminClient extends AbstractComponent implements IndicesAdminClient {
+public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminClient implements IndicesAdminClient {
 
     private final TransportClientNodesService nodesService;
+
+    private final ThreadPool threadPool;
 
     private final ClientTransportIndicesStatusAction indicesStatusAction;
 
@@ -86,14 +89,14 @@ public class InternalTransportIndicesAdminClient extends AbstractComponent imple
 
     private final ClientTransportClearIndicesCacheAction clearIndicesCacheAction;
 
-    @Inject public InternalTransportIndicesAdminClient(Settings settings, TransportClientNodesService nodesService,
+    @Inject public InternalTransportIndicesAdminClient(Settings settings, TransportClientNodesService nodesService, ThreadPool threadPool,
                                                        ClientTransportIndicesStatusAction indicesStatusAction,
                                                        ClientTransportCreateIndexAction createIndexAction, ClientTransportDeleteIndexAction deleteIndexAction,
                                                        ClientTransportRefreshAction refreshAction, ClientTransportFlushAction flushAction, ClientTransportOptimizeAction optimizeAction,
                                                        ClientTransportPutMappingAction putMappingAction, ClientTransportGatewaySnapshotAction gatewaySnapshotAction,
                                                        ClientTransportIndicesAliasesAction indicesAliasesAction, ClientTransportClearIndicesCacheAction clearIndicesCacheAction) {
-        super(settings);
         this.nodesService = nodesService;
+        this.threadPool = threadPool;
         this.indicesStatusAction = indicesStatusAction;
         this.createIndexAction = createIndexAction;
         this.deleteIndexAction = deleteIndexAction;
@@ -104,6 +107,10 @@ public class InternalTransportIndicesAdminClient extends AbstractComponent imple
         this.gatewaySnapshotAction = gatewaySnapshotAction;
         this.indicesAliasesAction = indicesAliasesAction;
         this.clearIndicesCacheAction = clearIndicesCacheAction;
+    }
+
+    @Override public ThreadPool threadPool() {
+        return this.threadPool;
     }
 
     @Override public ActionFuture<IndicesStatusResponse> status(final IndicesStatusRequest request) {

@@ -45,7 +45,7 @@ public class SimpleNodesInfoTests extends AbstractNodesTests {
         String server1NodeId = ((InternalNode) node("server1")).injector().getInstance(ClusterService.class).state().nodes().localNodeId();
         String server2NodeId = ((InternalNode) node("server2")).injector().getInstance(ClusterService.class).state().nodes().localNodeId();
 
-        NodesInfoResponse response = client("server1").admin().cluster().nodesInfo(nodesInfo()).actionGet();
+        NodesInfoResponse response = client("server1").admin().cluster().prepareNodesInfo().execute().actionGet();
         assertThat(response.nodes().length, equalTo(2));
         assertThat(response.nodesMap().get(server1NodeId), notNullValue());
         assertThat(response.nodesMap().get(server2NodeId), notNullValue());

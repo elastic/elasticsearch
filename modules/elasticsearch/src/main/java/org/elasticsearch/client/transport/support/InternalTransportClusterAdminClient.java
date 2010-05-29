@@ -40,7 +40,8 @@ import org.elasticsearch.action.admin.cluster.ping.single.SinglePingRequest;
 import org.elasticsearch.action.admin.cluster.ping.single.SinglePingResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.internal.InternalClusterAdminClient;
+import org.elasticsearch.client.support.AbstractClusterAdminClient;
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.client.transport.action.admin.cluster.health.ClientTransportClusterHealthAction;
 import org.elasticsearch.client.transport.action.admin.cluster.node.info.ClientTransportNodesInfoAction;
@@ -52,16 +53,18 @@ import org.elasticsearch.client.transport.action.admin.cluster.ping.replication.
 import org.elasticsearch.client.transport.action.admin.cluster.ping.single.ClientTransportSinglePingAction;
 import org.elasticsearch.client.transport.action.admin.cluster.state.ClientTransportClusterStateAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.util.component.AbstractComponent;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public class InternalTransportClusterAdminClient extends AbstractComponent implements ClusterAdminClient {
+public class InternalTransportClusterAdminClient extends AbstractClusterAdminClient implements InternalClusterAdminClient {
 
     private final TransportClientNodesService nodesService;
+
+    private final ThreadPool threadPool;
 
     private final ClientTransportClusterHealthAction clusterHealthAction;
 
@@ -81,12 +84,12 @@ public class InternalTransportClusterAdminClient extends AbstractComponent imple
 
     private final ClientTransportNodesRestartAction nodesRestartAction;
 
-    @Inject public InternalTransportClusterAdminClient(Settings settings, TransportClientNodesService nodesService,
+    @Inject public InternalTransportClusterAdminClient(Settings settings, TransportClientNodesService nodesService, ThreadPool threadPool,
                                                        ClientTransportClusterHealthAction clusterHealthAction, ClientTransportClusterStateAction clusterStateAction,
                                                        ClientTransportSinglePingAction singlePingAction, ClientTransportReplicationPingAction replicationPingAction, ClientTransportBroadcastPingAction broadcastPingAction,
                                                        ClientTransportNodesInfoAction nodesInfoAction, ClientTransportNodesShutdownAction nodesShutdownAction, ClientTransportNodesRestartAction nodesRestartAction, ClientTransportNodesStatsAction nodesStatsAction) {
-        super(settings);
         this.nodesService = nodesService;
+        this.threadPool = threadPool;
         this.clusterHealthAction = clusterHealthAction;
         this.clusterStateAction = clusterStateAction;
         this.nodesInfoAction = nodesInfoAction;
@@ -96,6 +99,10 @@ public class InternalTransportClusterAdminClient extends AbstractComponent imple
         this.replicationPingAction = replicationPingAction;
         this.broadcastPingAction = broadcastPingAction;
         this.nodesStatsAction = nodesStatsAction;
+    }
+
+    @Override public ThreadPool threadPool() {
+        return this.threadPool;
     }
 
     @Override public ActionFuture<ClusterHealthResponse> health(final ClusterHealthRequest request) {

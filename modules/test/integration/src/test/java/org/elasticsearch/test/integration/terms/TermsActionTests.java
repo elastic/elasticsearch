@@ -74,7 +74,7 @@ public class TermsActionTests extends AbstractNodesTests {
 
         // verify no freqs
         logger.info("Verify no freqs");
-        TermsResponse termsResponse = client.terms(termsRequest("test").fields("value")).actionGet();
+        TermsResponse termsResponse = client.prepareTerms("test").setFields("value").execute().actionGet();
         assertThat(termsResponse.successfulShards(), equalTo(indexStatus.shards().size()));
         assertThat(termsResponse.failedShards(), equalTo(0));
         assertThat(termsResponse.fieldsAsMap().isEmpty(), equalTo(false));

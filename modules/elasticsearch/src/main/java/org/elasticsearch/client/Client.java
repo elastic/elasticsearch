@@ -37,6 +37,16 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.terms.TermsRequest;
 import org.elasticsearch.action.terms.TermsResponse;
+import org.elasticsearch.client.action.count.CountRequestBuilder;
+import org.elasticsearch.client.action.delete.DeleteRequestBuilder;
+import org.elasticsearch.client.action.deletebyquery.DeleteByQueryRequestBuilder;
+import org.elasticsearch.client.action.get.GetRequestBuilder;
+import org.elasticsearch.client.action.index.IndexRequestBuilder;
+import org.elasticsearch.client.action.search.SearchRequestBuilder;
+import org.elasticsearch.client.action.search.SearchScrollRequestBuilder;
+import org.elasticsearch.client.action.terms.TermsRequestBuilder;
+
+import javax.annotation.Nullable;
 
 /**
  * A client provides a one stop interface for performing actions/operations against the cluster.
@@ -76,7 +86,7 @@ public interface Client {
     ActionFuture<IndexResponse> index(IndexRequest request);
 
     /**
-     * Index a JSON source associated with a given index and type.
+     * Index a document associated with a given index and type.
      *
      * <p>The id is optional, if it is not provided, one will be generated automatically.
      *
@@ -85,6 +95,34 @@ public interface Client {
      * @see Requests#indexRequest(String)
      */
     void index(IndexRequest request, ActionListener<IndexResponse> listener);
+
+    /**
+     * Index a document associated with a given index and type.
+     *
+     * <p>The id is optional, if it is not provided, one will be generated automatically.
+     */
+    IndexRequestBuilder prepareIndex();
+
+    /**
+     * Index a document associated with a given index and type.
+     *
+     * <p>The id is optional, if it is not provided, one will be generated automatically.
+     *
+     * @param index The index to index the document to
+     * @param type  The type to index the document to
+     */
+    IndexRequestBuilder prepareIndex(String index, String type);
+
+    /**
+     * Index a document associated with a given index and type.
+     *
+     * <p>The id is optional, if it is not provided, one will be generated automatically.
+     *
+     * @param index The index to index the document to
+     * @param type  The type to index the document to
+     * @param id    The id of the document
+     */
+    IndexRequestBuilder prepareIndex(String index, String type, @Nullable String id);
 
     /**
      * Deletes a document from the index based on the index, type and id.
@@ -105,6 +143,20 @@ public interface Client {
     void delete(DeleteRequest request, ActionListener<DeleteResponse> listener);
 
     /**
+     * Deletes a document from the index based on the index, type and id.
+     */
+    DeleteRequestBuilder prepareDelete();
+
+    /**
+     * Deletes a document from the index based on the index, type and id.
+     *
+     * @param index The index to delete the document from
+     * @param type  The type of the document to delete
+     * @param id    The id of the document to delete
+     */
+    DeleteRequestBuilder prepareDelete(String index, String type, String id);
+
+    /**
      * Deletes all documents from one or more indices based on a query.
      *
      * @param request The delete by query request
@@ -123,7 +175,12 @@ public interface Client {
     void deleteByQuery(DeleteByQueryRequest request, ActionListener<DeleteByQueryResponse> listener);
 
     /**
-     * Gets the JSON source that was indexed from an index with a type and id.
+     * Deletes all documents from one or more indices based on a query.
+     */
+    DeleteByQueryRequestBuilder prepareDeleteByQuery(String... indices);
+
+    /**
+     * Gets the document that was indexed from an index with a type and id.
      *
      * @param request The get request
      * @return The result future
@@ -132,13 +189,23 @@ public interface Client {
     ActionFuture<GetResponse> get(GetRequest request);
 
     /**
-     * Gets the JSON source that was indexed from an index with a type and id.
+     * Gets the document that was indexed from an index with a type and id.
      *
      * @param request  The get request
      * @param listener A listener to be notified with a result
      * @see Requests#getRequest(String)
      */
     void get(GetRequest request, ActionListener<GetResponse> listener);
+
+    /**
+     * Gets the document that was indexed from an index with a type and id.
+     */
+    GetRequestBuilder prepareGet();
+
+    /**
+     * Gets the document that was indexed from an index with a type and id.
+     */
+    GetRequestBuilder prepareGet(String index, String type, String id);
 
     /**
      * A count of all the documents matching a specific query.
@@ -159,6 +226,11 @@ public interface Client {
     void count(CountRequest request, ActionListener<CountResponse> listener);
 
     /**
+     * A count of all the documents matching a specific query.
+     */
+    CountRequestBuilder prepareCount(String... indices);
+
+    /**
      * Search across one or more indices and one or more types with a query.
      *
      * @param request The search request
@@ -175,6 +247,11 @@ public interface Client {
      * @see Requests#searchRequest(String...)
      */
     void search(SearchRequest request, ActionListener<SearchResponse> listener);
+
+    /**
+     * Search across one or more indices and one or more types with a query.
+     */
+    SearchRequestBuilder prepareSearch(String... indices);
 
     /**
      * A search scroll request to continue searching a previous scrollable search request.
@@ -195,6 +272,11 @@ public interface Client {
     void searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener);
 
     /**
+     * A search scroll request to continue searching a previous scrollable search request.
+     */
+    SearchScrollRequestBuilder prepareSearchScroll(String scrollId);
+
+    /**
      * A terms request  to get terms in one or more indices of specific fields and their
      * document frequencies (in how many document each term exists).
      *
@@ -213,6 +295,12 @@ public interface Client {
      * @see Requests#termsRequest(String...)
      */
     void terms(TermsRequest request, ActionListener<TermsResponse> listener);
+
+    /**
+     * A terms request  to get terms in one or more indices of specific fields and their
+     * document frequencies (in how many document each term exists).
+     */
+    TermsRequestBuilder prepareTerms(String... indices);
 
     /**
      * A more like this action to search for documents that are "like" a specific document.

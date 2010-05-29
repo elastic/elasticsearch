@@ -41,6 +41,10 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
+import org.elasticsearch.client.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.delete.DeleteIndexRequestBuilder;
 
 /**
  * Administrative actions/operations against indices.
@@ -87,6 +91,13 @@ public interface IndicesAdminClient {
     void create(CreateIndexRequest request, ActionListener<CreateIndexResponse> listener);
 
     /**
+     * Creates an index using an explicit request allowing to specify the settings of the index.
+     *
+     * @param index The index name to create
+     */
+    CreateIndexRequestBuilder prepareCreate(String index);
+
+    /**
      * Deletes an index based on the index name.
      *
      * @param request The delete index request
@@ -103,6 +114,13 @@ public interface IndicesAdminClient {
      * @see org.elasticsearch.client.Requests#deleteIndexRequest(String)
      */
     void delete(DeleteIndexRequest request, ActionListener<DeleteIndexResponse> listener);
+
+    /**
+     * Deletes an index based on the index name.
+     *
+     * @param index The index name to delete
+     */
+    DeleteIndexRequestBuilder prepareDelete(String index);
 
     /**
      * Explicitly refresh one or more indices (making the content indexed since the last refresh searchable).
@@ -213,6 +231,11 @@ public interface IndicesAdminClient {
     void aliases(IndicesAliasesRequest request, ActionListener<IndicesAliasesResponse> listener);
 
     /**
+     * Allows to add/remove aliases from indices.
+     */
+    IndicesAliasesRequestBuilder prepareAliases();
+
+    /**
      * Clear indices cache.
      *
      * @param request The clear indices cache request
@@ -229,4 +252,9 @@ public interface IndicesAdminClient {
      * @see Requests#clearIndicesCache(String...)
      */
     void clearCache(ClearIndicesCacheRequest request, ActionListener<ClearIndicesCacheResponse> listener);
+
+    /**
+     * Clear indices cache.
+     */
+    ClearIndicesCacheRequestBuilder prepareClearCache(String... indices);
 }

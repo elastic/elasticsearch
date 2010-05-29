@@ -58,4 +58,8 @@ public class GatewaySnapshotRequest extends IndicesReplicationOperationRequest {
         this.timeout = timeout;
         return this;
     }
+
+    public GatewaySnapshotRequest timeout(String timeout) {
+        return timeout(TimeValue.parseTimeValue(timeout, null));
+    }
 }

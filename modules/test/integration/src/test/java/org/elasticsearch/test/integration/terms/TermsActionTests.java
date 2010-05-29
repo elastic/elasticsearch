@@ -70,7 +70,7 @@ public class TermsActionTests extends AbstractNodesTests {
     }
 
     @Test public void testSimpleStringTerms() throws Exception {
-        IndexStatus indexStatus = client.admin().indices().status(indicesStatus("test")).actionGet().index("test");
+        IndexStatus indexStatus = client.admin().indices().prepareStatus("test").execute().actionGet().index("test");
 
         // verify no freqs
         logger.info("Verify no freqs");

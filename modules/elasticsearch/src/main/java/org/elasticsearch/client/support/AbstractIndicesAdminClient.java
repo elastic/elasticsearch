@@ -23,6 +23,12 @@ import org.elasticsearch.client.action.admin.indices.alias.IndicesAliasesRequest
 import org.elasticsearch.client.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.delete.DeleteIndexRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.flush.FlushRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.gateway.snapshot.GatewaySnapshotRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.mapping.put.PutMappingRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.optimize.OptimizeRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.refresh.RefreshRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.status.IndicesStatusRequestBuilder;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
@@ -44,5 +50,29 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
 
     @Override public DeleteIndexRequestBuilder prepareDelete(String index) {
         return new DeleteIndexRequestBuilder(this, index);
+    }
+
+    @Override public FlushRequestBuilder prepareFlush(String... indices) {
+        return new FlushRequestBuilder(this).setIndices(indices);
+    }
+
+    @Override public GatewaySnapshotRequestBuilder prepareGatewaySnapshot(String... indices) {
+        return new GatewaySnapshotRequestBuilder(this).setIndices(indices);
+    }
+
+    @Override public PutMappingRequestBuilder preparePutMapping(String... indices) {
+        return new PutMappingRequestBuilder(this).setIndices(indices);
+    }
+
+    @Override public OptimizeRequestBuilder prepareOptimize(String... indices) {
+        return new OptimizeRequestBuilder(this).setIndices(indices);
+    }
+
+    @Override public RefreshRequestBuilder prepareRefresh(String... indices) {
+        return new RefreshRequestBuilder(this).setIndices(indices);
+    }
+
+    @Override public IndicesStatusRequestBuilder prepareStatus(String... indices) {
+        return new IndicesStatusRequestBuilder(this).setIndices(indices);
     }
 }

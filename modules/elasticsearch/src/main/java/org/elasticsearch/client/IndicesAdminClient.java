@@ -45,6 +45,12 @@ import org.elasticsearch.client.action.admin.indices.alias.IndicesAliasesRequest
 import org.elasticsearch.client.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.delete.DeleteIndexRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.flush.FlushRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.gateway.snapshot.GatewaySnapshotRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.mapping.put.PutMappingRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.optimize.OptimizeRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.refresh.RefreshRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.status.IndicesStatusRequestBuilder;
 
 /**
  * Administrative actions/operations against indices.
@@ -71,6 +77,11 @@ public interface IndicesAdminClient {
      * @see Requests#indicesStatus(String...)
      */
     void status(IndicesStatusRequest request, ActionListener<IndicesStatusResponse> listener);
+
+    /**
+     * The status of one or more indices.
+     */
+    IndicesStatusRequestBuilder prepareStatus(String... indices);
 
     /**
      * Creates an index using an explicit request allowing to specify the settings of the index.
@@ -141,6 +152,11 @@ public interface IndicesAdminClient {
     void refresh(RefreshRequest request, ActionListener<RefreshResponse> listener);
 
     /**
+     * Explicitly refresh one or more indices (making the content indexed since the last refresh searchable).
+     */
+    RefreshRequestBuilder prepareRefresh(String... indices);
+
+    /**
      * Explicitly flush one or more indices (releasing memory from the node).
      *
      * @param request The flush request
@@ -157,6 +173,11 @@ public interface IndicesAdminClient {
      * @see org.elasticsearch.client.Requests#flushRequest(String...)
      */
     void flush(FlushRequest request, ActionListener<FlushResponse> listener);
+
+    /**
+     * Explicitly flush one or more indices (releasing memory from the node).
+     */
+    FlushRequestBuilder prepareFlush(String... indices);
 
     /**
      * Explicitly optimize one or more indices into a the number of segments.
@@ -177,6 +198,11 @@ public interface IndicesAdminClient {
     void optimize(OptimizeRequest request, ActionListener<OptimizeResponse> listener);
 
     /**
+     * Explicitly optimize one or more indices into a the number of segments.
+     */
+    OptimizeRequestBuilder prepareOptimize(String... indices);
+
+    /**
      * Add mapping definition for a type into one or more indices.
      *
      * @param request The create mapping request
@@ -195,6 +221,11 @@ public interface IndicesAdminClient {
     void putMapping(PutMappingRequest request, ActionListener<PutMappingResponse> listener);
 
     /**
+     * Add mapping definition for a type into one or more indices.
+     */
+    PutMappingRequestBuilder preparePutMapping(String... indices);
+
+    /**
      * Explicitly perform gateway snapshot for one or more indices.
      *
      * @param request The gateway snapshot request
@@ -211,6 +242,11 @@ public interface IndicesAdminClient {
      * @see org.elasticsearch.client.Requests#gatewaySnapshotRequest(String...)
      */
     void gatewaySnapshot(GatewaySnapshotRequest request, ActionListener<GatewaySnapshotResponse> listener);
+
+    /**
+     * Explicitly perform gateway snapshot for one or more indices.
+     */
+    GatewaySnapshotRequestBuilder prepareGatewaySnapshot(String... indices);
 
     /**
      * Allows to add/remove aliases from indices.

@@ -98,7 +98,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
         assertThat(indexResponse.id(), equalTo("1"));
         assertThat(indexResponse.type(), equalTo("type1"));
         logger.info("Refreshing");
-        RefreshResponse refreshResponse = client1.admin().indices().refresh(refreshRequest("test")).actionGet();
+        RefreshResponse refreshResponse = client1.admin().indices().prepareRefresh("test").execute().actionGet();
         assertThat(refreshResponse.successfulShards(), equalTo(10));
         assertThat(refreshResponse.failedShards(), equalTo(0));
 
@@ -108,7 +108,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
         assertThat(clearIndicesCacheResponse.failedShards(), equalTo(0));
 
         logger.info("Optimizing");
-        OptimizeResponse optimizeResponse = client1.admin().indices().optimize(optimizeRequest("test")).actionGet();
+        OptimizeResponse optimizeResponse = client1.admin().indices().prepareOptimize("test").execute().actionGet();
         assertThat(optimizeResponse.successfulShards(), equalTo(10));
         assertThat(optimizeResponse.failedShards(), equalTo(0));
 
@@ -151,7 +151,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
         client1.index(indexRequest("test").type("type1").id("2").source(source("2", "test2"))).actionGet();
 
         logger.info("Flushing");
-        FlushResponse flushResult = client1.admin().indices().flush(flushRequest("test")).actionGet();
+        FlushResponse flushResult = client1.admin().indices().prepareFlush("test").execute().actionGet();
         assertThat(flushResult.successfulShards(), equalTo(10));
         assertThat(flushResult.failedShards(), equalTo(0));
         logger.info("Refreshing");

@@ -64,7 +64,7 @@ public class OptimizeRequest extends BroadcastOperationRequest {
         operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
     }
 
-    OptimizeRequest() {
+    public OptimizeRequest() {
 
     }
 

@@ -171,6 +171,14 @@ public class PutMappingRequest extends MasterNodeOperationRequest {
     }
 
     /**
+     * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
+     * <tt>10s</tt>.
+     */
+    public PutMappingRequest timeout(String timeout) {
+        return timeout(TimeValue.parseTimeValue(timeout, null));
+    }
+
+    /**
      * If there is already a mapping definition registered against the type, then it will be merged. If there are
      * elements that can't be merged are detected, the request will be rejected unless the
      * {@link #ignoreConflicts(boolean)} is set. In such a case, the duplicate mappings will be rejected.

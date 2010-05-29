@@ -39,11 +39,20 @@ import org.elasticsearch.action.admin.cluster.ping.single.SinglePingRequest;
 import org.elasticsearch.action.admin.cluster.ping.single.SinglePingResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.client.action.admin.cluster.health.ClusterHealthRequestBuilder;
+import org.elasticsearch.client.action.admin.cluster.node.info.NodesInfoRequestBuilder;
+import org.elasticsearch.client.action.admin.cluster.node.restart.NodesRestartRequestBuilder;
+import org.elasticsearch.client.action.admin.cluster.node.shutdown.NodesShutdownRequestBuilder;
+import org.elasticsearch.client.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
+import org.elasticsearch.client.action.admin.cluster.ping.broadcast.BroadcastPingRequestBuilder;
+import org.elasticsearch.client.action.admin.cluster.ping.replication.ReplicationPingRequestBuilder;
+import org.elasticsearch.client.action.admin.cluster.ping.single.SinglePingRequestBuilder;
+import org.elasticsearch.client.action.admin.cluster.state.ClusterStateRequestBuilder;
 
 /**
  * Administrative actions/operations against indices.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  * @see AdminClient#cluster()
  */
 public interface ClusterAdminClient {
@@ -67,6 +76,11 @@ public interface ClusterAdminClient {
     void health(ClusterHealthRequest request, ActionListener<ClusterHealthResponse> listener);
 
     /**
+     * The health of the cluster.
+     */
+    ClusterHealthRequestBuilder prepareHealth(String... indices);
+
+    /**
      * The state of the cluster.
      *
      * @param request The cluster state request.
@@ -83,6 +97,11 @@ public interface ClusterAdminClient {
      * @see Requests#clusterState()
      */
     void state(ClusterStateRequest request, ActionListener<ClusterStateResponse> listener);
+
+    /**
+     * The state of the cluster.
+     */
+    ClusterStateRequestBuilder prepareState();
 
     /**
      * Nodes info of the cluster.
@@ -103,6 +122,11 @@ public interface ClusterAdminClient {
     void nodesInfo(NodesInfoRequest request, ActionListener<NodesInfoResponse> listener);
 
     /**
+     * Nodes info of the cluster.
+     */
+    NodesInfoRequestBuilder prepareNodesInfo(String... nodesIds);
+
+    /**
      * Nodes stats of the cluster.
      *
      * @param request The nodes info request
@@ -119,6 +143,11 @@ public interface ClusterAdminClient {
      * @see org.elasticsearch.client.Requests#nodesStats(String...)
      */
     void nodesStats(NodesStatsRequest request, ActionListener<NodesStatsResponse> listener);
+
+    /**
+     * Nodes stats of the cluster.
+     */
+    NodesStatsRequestBuilder prepareNodesStats(String... nodesIds);
 
     /**
      * Shutdown nodes in the cluster.
@@ -139,6 +168,11 @@ public interface ClusterAdminClient {
     void nodesShutdown(NodesShutdownRequest request, ActionListener<NodesShutdownResponse> listener);
 
     /**
+     * Shutdown nodes in the cluster.
+     */
+    NodesShutdownRequestBuilder prepareNodesShutdown(String... nodesIds);
+
+    /**
      * Restarts nodes in the cluster.
      *
      * @param request The nodes restart request
@@ -156,15 +190,28 @@ public interface ClusterAdminClient {
      */
     void nodesRestart(NodesRestartRequest request, ActionListener<NodesRestartResponse> listener);
 
+    /**
+     * Restarts nodes in the cluster.
+     */
+    NodesRestartRequestBuilder prepareNodesRestart(String... nodesIds);
+
     ActionFuture<SinglePingResponse> ping(SinglePingRequest request);
 
     void ping(SinglePingRequest request, ActionListener<SinglePingResponse> listener);
+
+    SinglePingRequestBuilder preparePingSingle();
+
+    SinglePingRequestBuilder preparePingSingle(String index, String type, String id);
 
     ActionFuture<BroadcastPingResponse> ping(BroadcastPingRequest request);
 
     void ping(BroadcastPingRequest request, ActionListener<BroadcastPingResponse> listener);
 
+    BroadcastPingRequestBuilder preparePingBroadcast(String... indices);
+
     ActionFuture<ReplicationPingResponse> ping(ReplicationPingRequest request);
 
     void ping(ReplicationPingRequest request, ActionListener<ReplicationPingResponse> listener);
+
+    ReplicationPingRequestBuilder preparePingReplication(String... indices);
 }

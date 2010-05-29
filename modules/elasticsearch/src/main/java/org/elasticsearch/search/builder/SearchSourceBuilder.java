@@ -222,10 +222,24 @@ public class SearchSourceBuilder implements ToXContent {
 
     /**
      * Sets the fields to load and return as part of the search request. If none are specified,
-     * the source of the document will be returend.
+     * the source of the document will be returned.
      */
     public SearchSourceBuilder fields(List<String> fields) {
         this.fieldNames = fields;
+        return this;
+    }
+
+    /**
+     * Adds the fields to load and return as part of the search request. If none are specified,
+     * the source of the document will be returned.
+     */
+    public SearchSourceBuilder fields(String... fields) {
+        if (fieldNames == null) {
+            fieldNames = new ArrayList<String>();
+        }
+        for (String field : fields) {
+            fieldNames.add(field);
+        }
         return this;
     }
 

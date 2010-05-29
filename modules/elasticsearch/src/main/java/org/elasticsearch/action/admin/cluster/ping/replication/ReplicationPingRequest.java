@@ -32,7 +32,7 @@ public class ReplicationPingRequest extends IndicesReplicationOperationRequest {
         this.indices = indices;
     }
 
-    ReplicationPingRequest() {
+    public ReplicationPingRequest() {
 
     }
 
@@ -49,5 +49,9 @@ public class ReplicationPingRequest extends IndicesReplicationOperationRequest {
     public ReplicationPingRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
         return this;
+    }
+
+    public ReplicationPingRequest timeout(String timeout) {
+        return timeout(TimeValue.parseTimeValue(timeout, null));
     }
 }

@@ -223,7 +223,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     }
 
     /**
-     * Writes the Map as a JSON.
+     * Index the Map as a JSON.
      *
      * @param source The map to index
      */
@@ -232,7 +232,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     }
 
     /**
-     * Writes the Map as the provided content type.
+     * Index the Map as the provided content type.
      *
      * @param source The map to index
      */
@@ -290,7 +290,6 @@ public class IndexRequest extends ShardReplicationOperationRequest {
      * @param source The source to index
      * @param offset The offset in the byte array
      * @param length The length of the data
-     * @return
      */
     @Required public IndexRequest source(byte[] source, int offset, int length) {
         return source(source, offset, length, false);
@@ -303,7 +302,6 @@ public class IndexRequest extends ShardReplicationOperationRequest {
      * @param offset The offset in the byte array
      * @param length The length of the data
      * @param unsafe Is the byte array safe to be used form a different thread
-     * @return
      */
     @Required public IndexRequest source(byte[] source, int offset, int length, boolean unsafe) {
         this.source = source;
@@ -319,6 +317,13 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     public IndexRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
         return this;
+    }
+
+    /**
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     */
+    public IndexRequest timeout(String timeout) {
+        return timeout(TimeValue.parseTimeValue(timeout, null));
     }
 
     /**
@@ -348,6 +353,14 @@ public class IndexRequest extends ShardReplicationOperationRequest {
      */
     @Override public IndexRequest replicationType(ReplicationType replicationType) {
         super.replicationType(replicationType);
+        return this;
+    }
+
+    /**
+     * Set the replication type for this operation.
+     */
+    public IndexRequest replicationType(String replicationType) {
+        super.replicationType(ReplicationType.fromString(replicationType));
         return this;
     }
 

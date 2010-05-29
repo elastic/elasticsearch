@@ -57,7 +57,7 @@ public class IndicesAliasesRequest extends MasterNodeOperationRequest {
     }
 
     /**
-     * Adds an alias to the index.
+     * Removes an alias to the index.
      *
      * @param index The index
      * @param alias The alias

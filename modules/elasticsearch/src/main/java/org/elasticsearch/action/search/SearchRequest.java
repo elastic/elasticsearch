@@ -90,7 +90,7 @@ public class SearchRequest implements ActionRequest {
     private boolean listenerThreaded = false;
     private SearchOperationThreading operationThreading = SearchOperationThreading.SINGLE_THREAD;
 
-    SearchRequest() {
+    public SearchRequest() {
     }
 
     /**
@@ -427,6 +427,13 @@ public class SearchRequest implements ActionRequest {
     }
 
     /**
+     * If set, will enable scrolling of the search request for the specified timeout.
+     */
+    public SearchRequest scroll(String keepAlive) {
+        return scroll(new Scroll(TimeValue.parseTimeValue(keepAlive, null)));
+    }
+
+    /**
      * An optional timeout to control how long search is allowed to take.
      */
     public TimeValue timeout() {
@@ -439,6 +446,13 @@ public class SearchRequest implements ActionRequest {
     public SearchRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
         return this;
+    }
+
+    /**
+     * An optional timeout to control how long search is allowed to take.
+     */
+    public SearchRequest timeout(String timeout) {
+        return timeout(TimeValue.parseTimeValue(timeout, null));
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {

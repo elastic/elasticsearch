@@ -69,7 +69,7 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         assertThat(createIndexResponse.acknowledged(), equalTo(true));
 
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForYellowStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
@@ -173,7 +173,7 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
 
         logger.info("Deleting index [test]");
         // last, lets delete the index
-        DeleteIndexResponse deleteIndexResponse = client("server2").admin().indices().delete(deleteIndexRequest("test")).actionGet();
+        DeleteIndexResponse deleteIndexResponse = client("server2").admin().indices().prepareDelete("test").execute().actionGet();
         assertThat(deleteIndexResponse.acknowledged(), equalTo(true));
 
         Thread.sleep(200);

@@ -83,6 +83,14 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest {
         return this;
     }
 
+    /**
+     * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
+     * to <tt>10s</tt>.
+     */
+    public DeleteIndexRequest timeout(String timeout) {
+        return timeout(TimeValue.parseTimeValue(timeout, null));
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         index = in.readUTF();
         timeout = readTimeValue(in);

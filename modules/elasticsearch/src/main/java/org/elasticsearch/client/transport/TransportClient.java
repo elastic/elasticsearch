@@ -39,13 +39,14 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.terms.TermsRequest;
 import org.elasticsearch.action.terms.TermsResponse;
 import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.internal.InternalClient;
+import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.client.transport.action.ClientTransportActionModule;
 import org.elasticsearch.client.transport.support.InternalTransportClient;
 import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
+import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.internal.InternalSettingsPerparer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
@@ -78,7 +79,7 @@ import static org.elasticsearch.util.settings.ImmutableSettings.*;
  *
  * @author kimchy (shay.banon)
  */
-public class TransportClient implements InternalClient {
+public class TransportClient extends AbstractClient {
 
     private final Injector injector;
 
@@ -204,6 +205,11 @@ public class TransportClient implements InternalClient {
         }
         injector.getInstance(TransportClientNodesService.class).close();
         injector.getInstance(TransportService.class).close();
+        try {
+            injector.getInstance(MonitorService.class).close();
+        } catch (Exception e) {
+            // ignore, might not be bounded
+        }
 
         injector.getInstance(TimerService.class).close();
         injector.getInstance(ThreadPool.class).shutdown();

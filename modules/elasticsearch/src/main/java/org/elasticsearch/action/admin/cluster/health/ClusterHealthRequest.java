@@ -71,6 +71,10 @@ public class ClusterHealthRequest extends MasterNodeOperationRequest {
         return this;
     }
 
+    public ClusterHealthRequest timeout(String timeout) {
+        return timeout(TimeValue.parseTimeValue(timeout, null));
+    }
+
     public ClusterHealthStatus waitForStatus() {
         return waitForStatus;
     }

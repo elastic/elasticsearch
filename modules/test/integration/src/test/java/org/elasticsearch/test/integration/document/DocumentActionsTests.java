@@ -93,7 +93,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing [type1/1]");
-        IndexResponse indexResponse = client1.index(indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
+        IndexResponse indexResponse = client1.prepareIndex().setIndex("test").setType("type1").setId("1").setSource(source("1", "test")).execute().actionGet();
         assertThat(indexResponse.index(), equalTo(getConcreteIndexName()));
         assertThat(indexResponse.id(), equalTo("1"));
         assertThat(indexResponse.type(), equalTo("type1"));
@@ -116,7 +116,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
 
         logger.info("Get [type1/1]");
         for (int i = 0; i < 5; i++) {
-            getResult = client1.get(getRequest("test").type("type1").id("1").operationThreaded(false)).actionGet();
+            getResult = client1.prepareGet("test", "type1", "1").setOperationThreaded(false).execute().actionGet();
             assertThat(getResult.index(), equalTo(getConcreteIndexName()));
             assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test")));
             assertThat("cycle(map) #" + i, (String) ((Map) getResult.sourceAsMap().get("type1")).get("name"), equalTo("test"));
@@ -132,7 +132,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
         }
 
         logger.info("Delete [type1/1]");
-        DeleteResponse deleteResponse = client1.delete(deleteRequest("test").type("type1").id("1").replicationType(ReplicationType.ASYNC)).actionGet();
+        DeleteResponse deleteResponse = client1.prepareDelete("test", "type1", "1").setReplicationType(ReplicationType.SYNC).execute().actionGet();
         assertThat(deleteResponse.index(), equalTo(getConcreteIndexName()));
         assertThat(deleteResponse.id(), equalTo("1"));
         assertThat(deleteResponse.type(), equalTo("type1"));
@@ -171,7 +171,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            CountResponse countResponse = client1.count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.NO_THREADS)).actionGet();
+            CountResponse countResponse = client1.prepareCount("test").setQuery(termQuery("_type", "type1")).setOperationThreading(BroadcastOperationThreading.NO_THREADS).execute().actionGet();
             assertThat(countResponse.count(), equalTo(2l));
             assertThat(countResponse.successfulShards(), equalTo(5));
             assertThat(countResponse.failedShards(), equalTo(0));
@@ -195,7 +195,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
         }
 
         logger.info("Delete by query");
-        DeleteByQueryResponse queryResponse = client2.deleteByQuery(deleteByQueryRequest("test").query(termQuery("name", "test2"))).actionGet();
+        DeleteByQueryResponse queryResponse = client2.prepareDeleteByQuery().setIndices("test").setQuery(termQuery("name", "test2")).execute().actionGet();
         assertThat(queryResponse.index(getConcreteIndexName()).successfulShards(), equalTo(5));
         assertThat(queryResponse.index(getConcreteIndexName()).failedShards(), equalTo(0));
         client1.admin().indices().refresh(refreshRequest("test")).actionGet();

@@ -83,7 +83,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         }
 
         logger.info("Aliasing index [test] with [alias1]");
-        client1.admin().indices().aliases(indexAliasesRequest().addAlias("test", "alias1")).actionGet();
+        client1.admin().indices().prepareAliases().addAlias("test", "alias1").execute().actionGet();
         Thread.sleep(300);
 
         logger.info("Indexing against [alias1], should work now");

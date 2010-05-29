@@ -76,7 +76,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
         this.indices = indices;
     }
 
-    DeleteByQueryRequest() {
+    public DeleteByQueryRequest() {
     }
 
     /**
@@ -95,6 +95,9 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
         return validationException;
     }
 
+    /**
+     * The indices the delete by query will run against.
+     */
     public DeleteByQueryRequest indices(String... indices) {
         this.indices = indices;
         return this;
@@ -221,10 +224,26 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
     }
 
     /**
+     * A timeout to wait if the delete by query operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     */
+    public DeleteByQueryRequest timeout(String timeout) {
+        this.timeout = TimeValue.parseTimeValue(timeout, null);
+        return this;
+    }
+
+    /**
      * The replication type to use with this operation.
      */
     public DeleteByQueryRequest replicationType(ReplicationType replicationType) {
         this.replicationType = replicationType;
+        return this;
+    }
+
+    /**
+     * The replication type to use with this operation.
+     */
+    public DeleteByQueryRequest replicationType(String replicationType) {
+        this.replicationType = ReplicationType.fromString(replicationType);
         return this;
     }
 

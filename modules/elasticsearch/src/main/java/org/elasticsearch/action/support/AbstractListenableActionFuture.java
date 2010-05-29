@@ -21,6 +21,7 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
@@ -30,7 +31,7 @@ import static org.elasticsearch.util.collect.Lists.*;
 /**
  * @author kimchy (shay.banon)
  */
-public abstract class AbstractListenableActionFuture<T, L> extends AdapterActionFuture<T, L> {
+public abstract class AbstractListenableActionFuture<T, L> extends AdapterActionFuture<T, L> implements ListenableActionFuture<T> {
 
     private final boolean listenerThreaded;
 

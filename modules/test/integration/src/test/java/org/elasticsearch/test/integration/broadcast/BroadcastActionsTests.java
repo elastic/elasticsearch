@@ -53,7 +53,7 @@ public class BroadcastActionsTests extends AbstractNodesTests {
     @Test public void testBroadcastOperations() throws IOException {
         startNode("server1");
 
-        client("server1").admin().indices().create(createIndexRequest("test")).actionGet(5000);
+        client("server1").admin().indices().prepareCreate("test").execute().actionGet(5000);
 
         logger.info("Running Cluster Health");
         ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForYellowStatus()).actionGet();

@@ -20,11 +20,9 @@
 package org.elasticsearch.discovery.cloud;
 
 import org.elasticsearch.cloud.compute.CloudComputeService;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
+import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.transport.InetSocketTransportAddress;
 import org.elasticsearch.util.transport.PortsRange;
@@ -42,7 +40,7 @@ import static org.elasticsearch.util.collect.Lists.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class CloudZenPing extends UnicastZenPing {
+public class CloudUnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
 
     private final ComputeService computeService;
 
@@ -52,9 +50,8 @@ public class CloudZenPing extends UnicastZenPing {
 
     private final String location;
 
-    public CloudZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName,
-                        CloudComputeService computeService) {
-        super(settings, threadPool, transportService, clusterName);
+    public CloudUnicastHostsProvider(Settings settings, CloudComputeService computeService) {
+        super(settings);
         this.computeService = computeService.context().getComputeService();
         this.tag = componentSettings.get("tag");
         this.location = componentSettings.get("location");
@@ -63,7 +60,7 @@ public class CloudZenPing extends UnicastZenPing {
         new PortsRange(ports).ports();
     }
 
-    @Override protected List<DiscoveryNode> buildDynamicNodes() {
+    @Override public List<DiscoveryNode> buildDynamicNodes() {
         List<DiscoveryNode> discoNodes = newArrayList();
         Set<? extends ComputeMetadata> nodes = computeService.listNodes();
         if (logger.isTraceEnabled()) {

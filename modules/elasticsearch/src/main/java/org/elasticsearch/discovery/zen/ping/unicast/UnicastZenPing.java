@@ -30,7 +30,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.collect.ImmutableList;
 import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.concurrent.jsr166y.LinkedTransferQueue;
@@ -44,10 +43,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -80,6 +76,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     // a list of temporal responses a node will return for a request (holds requests from other nodes)
     private final Queue<PingResponse> temporalResponses = new LinkedTransferQueue<PingResponse>();
 
+    private final CopyOnWriteArrayList<UnicastHostsProvider> hostsProviders = new CopyOnWriteArrayList<UnicastHostsProvider>();
+
     public UnicastZenPing(ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {
         this(EMPTY_SETTINGS, threadPool, transportService, clusterName);
     }
@@ -95,7 +93,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
             hosts.addAll(Strings.commaDelimitedListToSet(componentSettings.get("hosts")));
         }
 
-        logger.debug("Using hosts {}", hosts);
+        logger.debug("Using initial hosts {}", hosts);
 
         List<DiscoveryNode> nodes = Lists.newArrayList();
         int idCounter = 0;
@@ -123,8 +121,12 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         transportService.removeHandler(UnicastPingRequestHandler.ACTION);
     }
 
-    protected List<DiscoveryNode> buildDynamicNodes() {
-        return ImmutableList.of();
+    public void addHostsProvider(UnicastHostsProvider provider) {
+        hostsProviders.add(provider);
+    }
+
+    public void removeHostsProvider(UnicastHostsProvider provider) {
+        hostsProviders.remove(provider);
     }
 
     @Override public void setNodesProvider(DiscoveryNodesProvider nodesProvider) {
@@ -169,7 +171,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         pingRequest.pingResponse = new PingResponse(discoNodes.localNode(), discoNodes.masterNode(), clusterName);
 
         List<DiscoveryNode> nodesToPing = newArrayList(nodes);
-        nodesToPing.addAll(buildDynamicNodes());
+        for (UnicastHostsProvider provider : hostsProviders) {
+            nodesToPing.addAll(provider.buildDynamicNodes());
+        }
 
         final CountDownLatch latch = new CountDownLatch(nodesToPing.size());
         for (final DiscoveryNode node : nodesToPing) {

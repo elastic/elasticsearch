@@ -55,9 +55,8 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
         if (componentSettings.getAsBoolean("multicast.enabled", true)) {
             zenPingsBuilder.add(new MulticastZenPing(settings, threadPool, transportService, clusterName, networkService));
         }
-        if (componentSettings.get("unicast.hosts") != null || componentSettings.getAsArray("unicast.hosts").length > 0) {
-            zenPingsBuilder.add(new UnicastZenPing(settings, threadPool, transportService, clusterName));
-        }
+        // always add the unicast hosts, so it will be able to receive unicast requests even when working in multicast
+        zenPingsBuilder.add(new UnicastZenPing(settings, threadPool, transportService, clusterName));
 
         this.zenPings = zenPingsBuilder.build();
     }

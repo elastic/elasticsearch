@@ -23,7 +23,9 @@ import org.elasticsearch.cloud.compute.CloudComputeService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
+import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.collect.ImmutableList;
@@ -39,9 +41,18 @@ public class CloudDiscovery extends ZenDiscovery {
                                   ClusterService clusterService, ZenPingService pingService, CloudComputeService computeService) {
         super(settings, clusterName, threadPool, transportService, clusterService, pingService);
         if (settings.getAsBoolean("cloud.enabled", true)) {
-            CloudZenPing cloudPing = new CloudZenPing(settings, threadPool, transportService, clusterName, computeService);
-            cloudPing.setNodesProvider(this);
-            pingService.zenPings(ImmutableList.of(cloudPing));
+            ImmutableList<? extends ZenPing> zenPings = pingService.zenPings();
+            UnicastZenPing unicastZenPing = null;
+            for (ZenPing zenPing : zenPings) {
+                if (zenPing instanceof UnicastZenPing) {
+                    unicastZenPing = (UnicastZenPing) zenPing;
+                    break;
+                }
+            }
+            // update the unicast zen ping to add cloud hosts provider
+            // and, while we are at it, use only it and not the multicast for example
+            unicastZenPing.addHostsProvider(new CloudUnicastHostsProvider(settings, computeService));
+            pingService.zenPings(ImmutableList.of(unicastZenPing));
         }
     }
 }

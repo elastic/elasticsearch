@@ -134,6 +134,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
         localNode = new DiscoveryNode(settings.get("name"), UUID.randomUUID().toString(), transportService.boundAddress().publishAddress(), nodeAttributes);
         latestDiscoNodes = new DiscoveryNodes.Builder().put(localNode).localNodeId(localNode.id()).build();
+        nodesFD.updateNodes(latestDiscoNodes);
         pingService.start();
 
         if (nodeAttributes.containsKey("zen.master") && nodeAttributes.get("zen.master").equals("false")) {
@@ -260,7 +261,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 try {
                     membership.sendJoinRequestBlocking(masterNode, localNode, initialPingTimeout);
                 } catch (Exception e) {
-                    logger.warn("Failed to send join request to master [{}], retrying...", e, masterNode);
+                    if (e instanceof ElasticSearchException) {
+                        logger.info("Failed to send join request to master [{}], reason [{}]", masterNode, ((ElasticSearchException) e).getDetailedMessage());
+                    } else {
+                        logger.info("Failed to send join request to master [{}], reason [{}]", masterNode, e.getMessage());
+                    }
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("Detailed failed reason", e);
+                    }
                     // failed to send the join request, retry
                     retry = true;
                     continue;

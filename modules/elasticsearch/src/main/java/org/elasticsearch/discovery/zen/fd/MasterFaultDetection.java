@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery.zen.fd;
 
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
@@ -35,7 +36,6 @@ import java.io.IOException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.cluster.node.DiscoveryNode.*;
 import static org.elasticsearch.util.TimeValue.*;
 
 /**
@@ -188,7 +188,7 @@ public class MasterFaultDetection extends AbstractComponent {
         @Override public void run() {
             if (masterNode != null) {
                 final DiscoveryNode sentToNode = masterNode;
-                transportService.sendRequest(masterNode, MasterPingRequestHandler.ACTION, new MasterPingRequest(nodesProvider.nodes().localNode()), pingRetryTimeout,
+                transportService.sendRequest(masterNode, MasterPingRequestHandler.ACTION, new MasterPingRequest(nodesProvider.nodes().localNode().id(), sentToNode.id()), pingRetryTimeout,
                         new BaseTransportResponseHandler<MasterPingResponseResponse>() {
                             @Override public MasterPingResponseResponse newInstance() {
                                 return new MasterPingResponseResponse();
@@ -218,7 +218,8 @@ public class MasterFaultDetection extends AbstractComponent {
                                         // not good, failure
                                         notifyMasterFailure(sentToNode, "Failed on ping, tried [" + pingRetryCount + "] times, each with [" + pingRetryTimeout + "] timeout");
                                     } else {
-                                        transportService.sendRequest(sentToNode, MasterPingRequestHandler.ACTION, new MasterPingRequest(nodesProvider.nodes().localNode()), pingRetryTimeout, this);
+                                        // resend the request, not reschedule, rely on send timeout
+                                        transportService.sendRequest(sentToNode, MasterPingRequestHandler.ACTION, new MasterPingRequest(nodesProvider.nodes().localNode().id(), sentToNode.id()), pingRetryTimeout, this);
                                     }
                                 }
                             }
@@ -237,28 +238,39 @@ public class MasterFaultDetection extends AbstractComponent {
 
         @Override public void messageReceived(MasterPingRequest request, TransportChannel channel) throws Exception {
             DiscoveryNodes nodes = nodesProvider.nodes();
-            channel.sendResponse(new MasterPingResponseResponse(nodes.nodeExists(request.node.id())));
+            // check if we are really the same master as the one we seemed to be think we are
+            // this can happen if the master got "kill -9" and then another node started using the same port
+            if (!request.masterNodeId.equals(nodes.localNodeId())) {
+                throw new ElasticSearchIllegalStateException("Got ping as master with id [" + request.masterNodeId + "], but not master and no id");
+            }
+            // send a response, and note if we are connected to the master or not
+            channel.sendResponse(new MasterPingResponseResponse(nodes.nodeExists(request.nodeId)));
         }
     }
 
 
     private static class MasterPingRequest implements Streamable {
 
-        private DiscoveryNode node;
+        private String nodeId;
+
+        private String masterNodeId;
 
         private MasterPingRequest() {
         }
 
-        private MasterPingRequest(DiscoveryNode node) {
-            this.node = node;
+        private MasterPingRequest(String nodeId, String masterNodeId) {
+            this.nodeId = nodeId;
+            this.masterNodeId = masterNodeId;
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {
-            node = readNode(in);
+            nodeId = in.readUTF();
+            masterNodeId = in.readUTF();
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
-            node.writeTo(out);
+            out.writeUTF(nodeId);
+            out.writeUTF(masterNodeId);
         }
     }
 

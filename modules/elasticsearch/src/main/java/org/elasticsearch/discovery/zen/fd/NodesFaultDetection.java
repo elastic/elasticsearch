@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery.zen.fd;
 
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -186,7 +187,7 @@ public class NodesFaultDetection extends AbstractComponent {
             if (!running) {
                 return;
             }
-            transportService.sendRequest(node, PingRequestHandler.ACTION, new PingRequest(), pingRetryTimeout,
+            transportService.sendRequest(node, PingRequestHandler.ACTION, new PingRequest(node.id()), pingRetryTimeout,
                     new BaseTransportResponseHandler<PingResponse>() {
                         @Override public PingResponse newInstance() {
                             return new PingResponse();
@@ -216,8 +217,8 @@ public class NodesFaultDetection extends AbstractComponent {
                                             notifyNodeFailure(node, "Failed on ping, tried [" + pingRetryCount + "] times, each with [" + pingRetryTimeout + "] timeout");
                                         }
                                     } else {
-                                        // resend the request
-                                        transportService.sendRequest(node, PingRequestHandler.ACTION, new PingRequest(), pingRetryTimeout, this);
+                                        // resend the request, not reschedule, rely on send timeout
+                                        transportService.sendRequest(node, PingRequestHandler.ACTION, new PingRequest(node.id()), pingRetryTimeout, this);
                                     }
                                 }
                             }
@@ -240,7 +241,7 @@ public class NodesFaultDetection extends AbstractComponent {
     }
 
 
-    private class PingRequestHandler extends BaseTransportRequestHandler<PingRequest> {
+    class PingRequestHandler extends BaseTransportRequestHandler<PingRequest> {
 
         public static final String ACTION = "discovery/zen/fd/ping";
 
@@ -249,20 +250,34 @@ public class NodesFaultDetection extends AbstractComponent {
         }
 
         @Override public void messageReceived(PingRequest request, TransportChannel channel) throws Exception {
+            // if we are not the node we are supposed to be pinged, send an exception
+            // this can happen when a kill -9 is sent, and another node is started using the same port
+            if (!latestNodes.localNodeId().equals(request.nodeId)) {
+                throw new ElasticSearchIllegalStateException("Got pinged as node [" + request.nodeId + "], but I am node [" + latestNodes.localNodeId() + "]");
+            }
             channel.sendResponse(new PingResponse());
         }
     }
 
 
-    private static class PingRequest implements Streamable {
+    static class PingRequest implements Streamable {
 
-        private PingRequest() {
+        // the (assumed) node id we are pinging
+        private String nodeId;
+
+        PingRequest() {
+        }
+
+        PingRequest(String nodeId) {
+            this.nodeId = nodeId;
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {
+            nodeId = in.readUTF();
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
+            out.writeUTF(nodeId);
         }
     }
 

@@ -63,6 +63,8 @@ public class RestClusterStateAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
 
+                    builder.field("cluster_name", response.clusterName().value());
+
                     // nodes
                     builder.startObject("nodes");
                     builder.field("_master", state.nodes().masterNodeId());

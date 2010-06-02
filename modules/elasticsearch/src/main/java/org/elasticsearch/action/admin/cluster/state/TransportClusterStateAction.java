@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.state;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -33,8 +34,12 @@ import org.elasticsearch.util.settings.Settings;
  */
 public class TransportClusterStateAction extends TransportMasterNodeOperationAction<ClusterStateRequest, ClusterStateResponse> {
 
-    @Inject public TransportClusterStateAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
+    private final ClusterName clusterName;
+
+    @Inject public TransportClusterStateAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                               ClusterName clusterName) {
         super(settings, transportService, clusterService, threadPool);
+        this.clusterName = clusterName;
     }
 
     @Override protected String transportAction() {
@@ -50,6 +55,6 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
     }
 
     @Override protected ClusterStateResponse masterOperation(ClusterStateRequest request) throws ElasticSearchException {
-        return new ClusterStateResponse(clusterService.state());
+        return new ClusterStateResponse(clusterName, clusterService.state());
     }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
@@ -31,12 +32,15 @@ import java.io.IOException;
  */
 public class ClusterStateResponse implements ActionResponse {
 
+    private ClusterName clusterName;
+
     private ClusterState clusterState;
 
     ClusterStateResponse() {
     }
 
-    ClusterStateResponse(ClusterState clusterState) {
+    ClusterStateResponse(ClusterName clusterName, ClusterState clusterState) {
+        this.clusterName = clusterName;
         this.clusterState = clusterState;
     }
 
@@ -48,11 +52,21 @@ public class ClusterStateResponse implements ActionResponse {
         return state();
     }
 
+    public ClusterName clusterName() {
+        return this.clusterName;
+    }
+
+    public ClusterName getClusterName() {
+        return clusterName();
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
+        clusterName = ClusterName.readClusterName(in);
         clusterState = ClusterState.Builder.readFrom(in, null, null);
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
+        clusterName.writeTo(out);
         ClusterState.Builder.writeTo(clusterState, out);
     }
 }

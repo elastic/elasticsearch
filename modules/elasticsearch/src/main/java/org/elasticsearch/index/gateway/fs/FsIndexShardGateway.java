@@ -71,6 +71,9 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
 
     private final Store store;
 
+
+    private final boolean nativeCopy;
+
     private final File location;
 
     private final File locationIndex;
@@ -84,6 +87,8 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
         this.indexShard = (InternalIndexShard) indexShard;
         this.store = store;
         this.recoveryThrottler = recoveryThrottler;
+
+        this.nativeCopy = componentSettings.getAsBoolean("native_copy", true);
 
         this.location = new File(((FsIndexGateway) fsIndexGateway).indexGatewayHome(), Integer.toString(shardId.id()));
         this.locationIndex = new File(location, "index");
@@ -167,7 +172,7 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
                     @Override public void run() {
                         File copyTo = new File(locationIndex, fileName);
                         try {
-                            copyFromDirectory(snapshotIndexCommit.getDirectory(), fileName, copyTo);
+                            copyFromDirectory(snapshotIndexCommit.getDirectory(), fileName, copyTo, nativeCopy);
                         } catch (Exception e) {
                             lastException.set(new IndexShardGatewaySnapshotFailedException(shardId, "Failed to copy to [" + copyTo + "], from dir [" + snapshotIndexCommit.getDirectory() + "] and file [" + fileName + "]", e));
                         } finally {
@@ -249,7 +254,7 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
                 indexTotalFilesSize += snapshotIndexCommit.getDirectory().fileLength(snapshotIndexCommit.getSegmentsFileName());
                 long time = System.currentTimeMillis();
                 copyFromDirectory(snapshotIndexCommit.getDirectory(), snapshotIndexCommit.getSegmentsFileName(),
-                        new File(locationIndex, snapshotIndexCommit.getSegmentsFileName()));
+                        new File(locationIndex, snapshotIndexCommit.getSegmentsFileName()), nativeCopy);
                 indexTime += (System.currentTimeMillis() - time);
             }
         } catch (Exception e) {
@@ -324,7 +329,7 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
                             Thread.sleep(recoveryThrottler.throttleInterval().millis());
                         }
                         throttlingWaitTime.addAndGet(System.currentTimeMillis() - throttlingStartTime);
-                        copyToDirectory(file, store.directory(), file.getName());
+                        copyToDirectory(file, store.directory(), file.getName(), nativeCopy);
                     } catch (Exception e) {
                         logger.debug("Failed to read [" + file + "] into [" + store + "]", e);
                         lastException.set(e);

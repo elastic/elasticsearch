@@ -80,8 +80,8 @@ public class Directories {
         return checksum(dir.openInput(name));
     }
 
-    public static void copyFromDirectory(Directory dir, String fileName, File copyTo) throws IOException {
-        if (dir instanceof FSDirectory) {
+    public static void copyFromDirectory(Directory dir, String fileName, File copyTo, boolean nativeCopy) throws IOException {
+        if (nativeCopy && (dir instanceof FSDirectory)) {
             if (!copyTo.exists()) {
                 copyTo.createNewFile();
             }
@@ -127,8 +127,8 @@ public class Directories {
         }
     }
 
-    public static void copyToDirectory(File copyFrom, Directory dir, String fileName) throws IOException {
-        if (dir instanceof FSDirectory) {
+    public static void copyToDirectory(File copyFrom, Directory dir, String fileName, boolean nativeCopy) throws IOException {
+        if (nativeCopy && (dir instanceof FSDirectory)) {
             File destinationFile = new File(((FSDirectory) dir).getFile(), fileName);
             if (!destinationFile.exists()) {
                 destinationFile.createNewFile();

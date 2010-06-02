@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -61,6 +62,17 @@ public class RestClusterStateAction extends BaseRestHandler {
                     ClusterState state = response.state();
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
+
+                    // nodes
+                    builder.startObject("nodes");
+                    builder.field("_master", state.nodes().masterNodeId());
+                    for (DiscoveryNode node : state.nodes()) {
+                        builder.startObject(node.id());
+                        builder.field("name", node.name());
+                        builder.field("transport_address", node.address().toString());
+                        builder.endObject();
+                    }
+                    builder.endObject();
 
                     // meta data
                     builder.startObject("metadata");
@@ -113,6 +125,7 @@ public class RestClusterStateAction extends BaseRestHandler {
                         jsonShardRouting(builder, shardRouting);
                     }
                     builder.endArray();
+
                     builder.startObject("nodes");
                     for (RoutingNode routingNode : state.readOnlyRoutingNodes()) {
                         builder.startArray(routingNode.nodeId());

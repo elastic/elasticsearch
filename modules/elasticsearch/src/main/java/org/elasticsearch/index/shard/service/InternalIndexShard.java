@@ -305,7 +305,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             }
             Document doc = searcher.reader().document(docId, docMapper.sourceMapper().fieldSelector());
             if (logger.isTraceEnabled()) {
-                logger.trace("Get for [{}#{}] returned [{}]", new Object[]{type, id, doc});
+                logger.trace("Get for [{}#{}] returned [{}]", type, id, doc);
             }
             return docMapper.sourceMapper().value(doc);
         } catch (IOException e) {

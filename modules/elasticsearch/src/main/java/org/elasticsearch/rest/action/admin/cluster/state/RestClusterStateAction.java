@@ -65,9 +65,10 @@ public class RestClusterStateAction extends BaseRestHandler {
 
                     builder.field("cluster_name", response.clusterName().value());
 
+                    builder.field("master_node", state.nodes().masterNodeId());
+
                     // nodes
                     builder.startObject("nodes");
-                    builder.field("_master", state.nodes().masterNodeId());
                     for (DiscoveryNode node : state.nodes()) {
                         builder.startObject(node.id());
                         builder.field("name", node.name());

@@ -19,22 +19,34 @@
 
 package org.elasticsearch.search.facets;
 
-import org.apache.lucene.search.Query;
-import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
+import org.elasticsearch.search.facets.collector.FacetCollector;
+import org.elasticsearch.search.facets.collector.FacetCollectorParser;
+import org.elasticsearch.search.facets.collector.field.FieldFacetCollectorParser;
+import org.elasticsearch.search.facets.collector.query.QueryFacetCollectorParser;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.util.MapBuilder;
+import org.elasticsearch.util.collect.ImmutableMap;
 import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.xcontent.XContentParser;
 
 import java.util.List;
 
+import static org.elasticsearch.util.MapBuilder.*;
+
 /**
  * <pre>
  * facets : {
- *  query_execution : "collect|idset",
  *  facet1: {
  *      query : { ... },
+ *      global : false
+ *  },
+ *  facet2: {
+ *      field : {
+ *          name : "myfield",
+ *          size : 12
+ *      },
  *      global : false
  *  }
  * }
@@ -44,60 +56,56 @@ import java.util.List;
  */
 public class FacetsParseElement implements SearchParseElement {
 
+    private final ImmutableMap<String, FacetCollectorParser> facetCollectorParsers;
+
+    public FacetsParseElement() {
+        MapBuilder<String, FacetCollectorParser> builder = newMapBuilder();
+        builder.put("field", new FieldFacetCollectorParser());
+        builder.put("query", new QueryFacetCollectorParser());
+        this.facetCollectorParsers = builder.immutableMap();
+    }
+
     @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
         XContentParser.Token token;
-        SearchContextFacets.QueryExecutionType queryExecutionType = SearchContextFacets.QueryExecutionType.COLLECT;
-        List<SearchContextFacets.QueryFacet> queryFacets = null;
+
+        List<FacetCollector> facetCollectors = null;
+
         String topLevelFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 topLevelFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.VALUE_STRING) {
-                if ("query_execution".equals(topLevelFieldName) || "queryExecution".equals(topLevelFieldName)) {
-                    String text = parser.text();
-                    if ("collect".equals(text)) {
-                        queryExecutionType = SearchContextFacets.QueryExecutionType.COLLECT;
-                    } else if ("idset".equals(text)) {
-                        queryExecutionType = SearchContextFacets.QueryExecutionType.IDSET;
-                    } else {
-                        throw new SearchParseException(context, "Unsupported query type [" + text + "]");
-                    }
-                }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                SearchContextFacets.Facet facet = null;
+                FacetCollector facet = null;
                 boolean global = false;
                 String facetFieldName = null;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         facetFieldName = parser.currentName();
                     } else if (token == XContentParser.Token.START_OBJECT) {
-                        if ("query".equals(facetFieldName)) {
-                            XContentIndexQueryParser indexQueryParser = (XContentIndexQueryParser) context.queryParser();
-                            Query facetQuery = indexQueryParser.parse(parser);
-                            facet = new SearchContextFacets.QueryFacet(topLevelFieldName, facetQuery);
-                            if (queryFacets == null) {
-                                queryFacets = Lists.newArrayListWithCapacity(2);
-                            }
-                            queryFacets.add((SearchContextFacets.QueryFacet) facet);
+                        FacetCollectorParser facetCollectorParser = facetCollectorParsers.get(facetFieldName);
+                        if (facetCollectorParser == null) {
+                            throw new SearchParseException(context, "No facet type for [" + facetFieldName + "]");
                         }
+                        facet = facetCollectorParser.parser(topLevelFieldName, parser, context);
                     } else if (token.isValue()) {
                         if ("global".equals(facetFieldName)) {
                             global = parser.booleanValue();
                         }
                     }
                 }
-                if (facet == null) {
-                    throw new SearchParseException(context, "No facet type found for [" + topLevelFieldName + "]");
+
+                if (facetCollectors == null) {
+                    facetCollectors = Lists.newArrayList();
                 }
-                facet.global(global);
+                facetCollectors.add(facet);
+                if (global) {
+                    context.searcher().addGlobalCollector(facet);
+                } else {
+                    context.searcher().addCollector(facet);
+                }
             }
         }
 
-        if (queryExecutionType == SearchContextFacets.QueryExecutionType.IDSET) {
-            // if we are using doc id sets, we need to enable the fact that we accumelate it
-            context.searcher().enabledDocIdSet();
-        }
-
-        context.facets(new SearchContextFacets(queryExecutionType, queryFacets));
+        context.facets(new SearchContextFacets(facetCollectors));
     }
 }

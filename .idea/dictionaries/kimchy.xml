@@ -26,6 +26,7 @@
       <w>cpus</w>
       <w>datagram</w>
       <w>datas</w>
+      <w>deque</w>
       <w>desc</w>
       <w>deserialize</w>
       <w>docid</w>
@@ -46,6 +47,7 @@
       <w>inet</w>
       <w>infos</w>
       <w>intf</w>
+      <w>ints</w>
       <w>iter</w>
       <w>iterable</w>
       <w>javax</w>
@@ -70,12 +72,14 @@
       <w>nanos</w>
       <w>newcount</w>
       <w>ngram</w>
+      <w>noop</w>
       <w>nospawn</w>
       <w>param</w>
       <w>params</w>
       <w>pluggable</w>
       <w>plugins</w>
       <w>porterstem</w>
+      <w>proc</w>
       <w>publishhost</w>
       <w>queryparser</w>
       <w>rackspace</w>

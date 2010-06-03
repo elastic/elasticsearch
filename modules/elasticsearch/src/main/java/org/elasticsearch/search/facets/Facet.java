@@ -20,21 +20,20 @@
 package org.elasticsearch.search.facets;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.util.io.stream.Streamable;
-import org.elasticsearch.util.xcontent.ToXContent;
 
 /**
  * A search facet.
  *
  * @author kimchy (shay.banon)
  */
-public interface Facet extends Streamable, ToXContent {
+public interface Facet {
 
     enum Type {
         /**
          * Count type facet.
          */
-        COUNT((byte) 0);
+        COUNT((byte) 0),
+        MULTI_COUNT((byte) 1);
 
         byte id;
 
@@ -49,6 +48,8 @@ public interface Facet extends Streamable, ToXContent {
         public static Type fromId(byte id) {
             if (id == 0) {
                 return COUNT;
+            } else if (id == 1) {
+                return MULTI_COUNT;
             } else {
                 throw new ElasticSearchIllegalArgumentException("No match for id [" + id + "]");
             }

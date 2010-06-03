@@ -145,28 +145,10 @@ public class SingleInstanceEmbeddedSearchTests extends AbstractNodesTests {
         assertThat(fetchResult.hits().hits()[0].type(), equalTo("type1"));
     }
 
-    @Test public void testSimpleQueryFacetsNoExecutionType() throws Exception {
+    @Test public void testSimpleQueryFacets() throws Exception {
         QuerySearchResult queryResult = searchService.executeQueryPhase(searchRequest(
                 searchSource().query(wildcardQuery("name", "te*"))
-                        .facets(facets().facet("age2", termQuery("age", 2)).facet("age1", termQuery("age", 1)))
-        ));
-        assertThat(queryResult.facets().countFacet("age2").count(), equalTo(4l));
-        assertThat(queryResult.facets().countFacet("age1").count(), equalTo(1l));
-    }
-
-    @Test public void testSimpleQueryFacetsQueryExecutionCollect() throws Exception {
-        QuerySearchResult queryResult = searchService.executeQueryPhase(searchRequest(
-                searchSource().query(wildcardQuery("name", "te*"))
-                        .facets(facets().queryExecution("collect").facet("age2", termQuery("age", 2)).facet("age1", termQuery("age", 1)))
-        ));
-        assertThat(queryResult.facets().countFacet("age2").count(), equalTo(4l));
-        assertThat(queryResult.facets().countFacet("age1").count(), equalTo(1l));
-    }
-
-    @Test public void testSimpleQueryFacetsQueryExecutionIdset() throws Exception {
-        QuerySearchResult queryResult = searchService.executeQueryPhase(searchRequest(
-                searchSource().query(wildcardQuery("name", "te*"))
-                        .facets(facets().queryExecution("idset").facet("age2", termQuery("age", 2)).facet("age1", termQuery("age", 1)))
+                        .facets(facets().queryFacet("age2", termQuery("age", 2)).queryFacet("age1", termQuery("age", 1)))
         ));
         assertThat(queryResult.facets().countFacet("age2").count(), equalTo(4l));
         assertThat(queryResult.facets().countFacet("age1").count(), equalTo(1l));

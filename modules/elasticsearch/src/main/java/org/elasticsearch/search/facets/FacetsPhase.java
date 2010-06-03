@@ -20,15 +20,18 @@
 package org.elasticsearch.search.facets;
 
 import org.apache.lucene.search.*;
-import org.apache.lucene.util.OpenBitSet;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
+import org.elasticsearch.search.facets.collector.FacetCollector;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.util.collect.ImmutableMap;
 import org.elasticsearch.util.collect.Lists;
-import org.elasticsearch.util.lucene.Lucene;
+import org.elasticsearch.util.lucene.search.NoopCollector;
+import org.elasticsearch.util.lucene.search.Queries;
+import org.elasticsearch.util.lucene.search.TermFilter;
 
 import java.io.IOException;
 import java.util.List;
@@ -51,59 +54,50 @@ public class FacetsPhase implements SearchPhase {
             return;
         }
         if (context.queryResult().facets() != null) {
-            // no need to compute the facets twice, they should be computed on a per conext basis
+            // no need to compute the facets twice, they should be computed on a per context basis
             return;
+        }
+
+        // run global facets ...
+        if (context.searcher().globalCollectors() != null) {
+            Query query = new ConstantScoreQuery(context.filterCache().cache(Queries.MATCH_ALL_FILTER));
+            if (context.types().length > 0) {
+                if (context.types().length == 1) {
+                    String type = context.types()[0];
+                    DocumentMapper docMapper = context.mapperService().documentMapper(type);
+                    Filter typeFilter = new TermFilter(docMapper.typeMapper().term(docMapper.type()));
+                    typeFilter = context.filterCache().cache(typeFilter);
+                    query = new FilteredQuery(query, typeFilter);
+                } else {
+                    BooleanFilter booleanFilter = new BooleanFilter();
+                    for (String type : context.types()) {
+                        DocumentMapper docMapper = context.mapperService().documentMapper(type);
+                        Filter typeFilter = new TermFilter(docMapper.typeMapper().term(docMapper.type()));
+                        typeFilter = context.filterCache().cache(typeFilter);
+                        booleanFilter.add(new FilterClause(typeFilter, BooleanClause.Occur.SHOULD));
+                    }
+                    query = new FilteredQuery(query, booleanFilter);
+                }
+            }
+
+            context.searcher().useGlobalCollectors(true);
+            try {
+                context.searcher().search(query, NoopCollector.NOOP_COLLECTOR);
+            } catch (IOException e) {
+                throw new QueryPhaseExecutionException(context, "Failed to execute global facets", e);
+            } finally {
+                context.searcher().useGlobalCollectors(false);
+            }
         }
 
         SearchContextFacets contextFacets = context.facets();
 
         List<Facet> facets = Lists.newArrayListWithCapacity(2);
-        if (contextFacets.queryFacets() != null) {
-            for (SearchContextFacets.QueryFacet queryFacet : contextFacets.queryFacets()) {
-                if (queryFacet.global()) {
-                    try {
-                        Query globalQuery = new ConstantScoreQuery(context.filterCache().cache(new QueryWrapperFilter(queryFacet.query())));
-                        long count = Lucene.count(context.searcher(), globalQuery, -1.0f);
-                        facets.add(new CountFacet(queryFacet.name(), count));
-                    } catch (Exception e) {
-                        throw new FacetPhaseExecutionException(queryFacet.name(), "Failed to execute global facet [" + queryFacet.query() + "]", e);
-                    }
-                } else {
-                    Filter facetFilter = new QueryWrapperFilter(queryFacet.query());
-                    facetFilter = context.filterCache().cache(facetFilter);
-                    long count;
-                    // if we already have the doc id set, then use idset since its faster
-                    if (context.searcher().docIdSet() != null || contextFacets.queryType() == SearchContextFacets.QueryExecutionType.IDSET) {
-                        count = executeQueryIdSetCount(context, queryFacet, facetFilter);
-                    } else if (contextFacets.queryType() == SearchContextFacets.QueryExecutionType.COLLECT) {
-                        count = executeQueryCollectorCount(context, queryFacet, facetFilter);
-                    } else {
-                        throw new ElasticSearchIllegalStateException("No matching for type [" + contextFacets.queryType() + "]");
-                    }
-                    facets.add(new CountFacet(queryFacet.name(), count));
-                }
+        if (contextFacets.facetCollectors() != null) {
+            for (FacetCollector facetCollector : contextFacets.facetCollectors()) {
+                facets.add(facetCollector.facet());
             }
         }
-
         context.queryResult().facets(new Facets(facets));
-    }
-
-    private long executeQueryIdSetCount(SearchContext context, SearchContextFacets.QueryFacet queryFacet, Filter facetFilter) {
-        try {
-            DocIdSet filterDocIdSet = facetFilter.getDocIdSet(context.searcher().getIndexReader());
-            return OpenBitSet.intersectionCount(context.searcher().docIdSet(), (OpenBitSet) filterDocIdSet);
-        } catch (IOException e) {
-            throw new FacetPhaseExecutionException(queryFacet.name(), "Failed to bitset facets for query [" + queryFacet.query() + "]", e);
-        }
-    }
-
-    private long executeQueryCollectorCount(SearchContext context, SearchContextFacets.QueryFacet queryFacet, Filter facetFilter) {
-        Lucene.CountCollector countCollector = new Lucene.CountCollector(-1.0f);
-        try {
-            context.searcher().search(context.query(), facetFilter, countCollector);
-        } catch (IOException e) {
-            throw new FacetPhaseExecutionException(queryFacet.name(), "Failed to collect facets for query [" + queryFacet.query() + "]", e);
-        }
-        return countCollector.count();
     }
 }

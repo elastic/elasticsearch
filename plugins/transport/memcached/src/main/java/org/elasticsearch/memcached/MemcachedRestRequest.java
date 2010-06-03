@@ -21,6 +21,7 @@ package org.elasticsearch.memcached;
 
 import org.elasticsearch.rest.support.AbstractRestRequest;
 import org.elasticsearch.rest.support.RestUtils;
+import org.elasticsearch.util.Booleans;
 import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.collect.ImmutableList;
 import org.elasticsearch.util.collect.ImmutableSet;
@@ -163,5 +164,17 @@ public class MemcachedRestRequest extends AbstractRestRequest {
             return value;
         }
         return defaultValue;
+    }
+
+    @Override public boolean paramAsBoolean(String key, boolean defaultValue) {
+        return Booleans.parseBoolean(param(key), defaultValue);
+    }
+
+    @Override public Boolean paramAsBoolean(String key, Boolean defaultValue) {
+        String sValue = param(key);
+        if (sValue == null) {
+            return defaultValue;
+        }
+        return !(sValue.equals("false") || sValue.equals("0") || sValue.equals("off"));
     }
 }

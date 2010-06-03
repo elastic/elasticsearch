@@ -17,39 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.util.lucene.docidset;
+package org.elasticsearch.util.lucene.docset;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.util.OpenBitSetDISI;
 
 import java.io.IOException;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public class DocIdSets {
+public abstract class DocSet extends DocIdSet {
 
-    /**
-     * Returns a cacheable version of the doc id set (might be the same instance provided as a parameter).
-     */
-    public static DocIdSet cacheable(IndexReader reader, DocIdSet docIdSet) throws IOException {
-        if (docIdSet == null) {
-            return DocIdSet.EMPTY_DOCIDSET;
-        } else if (docIdSet.isCacheable()) {
-            return docIdSet;
-        } else {
-            final DocIdSetIterator it = docIdSet.iterator();
-            // null is allowed to be returned by iterator(),
-            // in this case we wrap with the empty set,
-            // which is cacheable.
-            return (it == null) ? DocIdSet.EMPTY_DOCIDSET : new OpenBitSetDISI(it, reader.maxDoc());
+    public static DocSet EMPTY_DOC_SET = new DocSet() {
+        @Override public boolean get(int doc) throws IOException {
+            return false;
         }
-    }
 
-    private DocIdSets() {
+        @Override public DocIdSetIterator iterator() throws IOException {
+            return DocIdSet.EMPTY_DOCIDSET.iterator();
+        }
 
-    }
+        @Override public boolean isCacheable() {
+            return true;
+        }
+    };
 
+    public abstract boolean get(int doc) throws IOException;
 }

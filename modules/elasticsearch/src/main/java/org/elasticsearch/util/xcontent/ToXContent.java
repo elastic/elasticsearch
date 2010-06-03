@@ -19,6 +19,7 @@
 
 package org.elasticsearch.util.xcontent;
 
+import org.elasticsearch.util.Booleans;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
@@ -35,6 +36,10 @@ public interface ToXContent {
         String param(String key);
 
         String param(String key, String defaultValue);
+
+        boolean paramAsBoolean(String key, boolean defaultValue);
+
+        Boolean paramAsBoolean(String key, Boolean defaultValue);
     }
 
     public static final Params EMPTY_PARAMS = new Params() {
@@ -43,6 +48,14 @@ public interface ToXContent {
         }
 
         @Override public String param(String key, String defaultValue) {
+            return defaultValue;
+        }
+
+        @Override public boolean paramAsBoolean(String key, boolean defaultValue) {
+            return defaultValue;
+        }
+
+        @Override public Boolean paramAsBoolean(String key, Boolean defaultValue) {
             return defaultValue;
         }
     };
@@ -65,6 +78,18 @@ public interface ToXContent {
                 return defaultValue;
             }
             return value;
+        }
+
+        @Override public boolean paramAsBoolean(String key, boolean defaultValue) {
+            return Booleans.parseBoolean(param(key), defaultValue);
+        }
+
+        @Override public Boolean paramAsBoolean(String key, Boolean defaultValue) {
+            String sValue = param(key);
+            if (sValue == null) {
+                return defaultValue;
+            }
+            return !(sValue.equals("false") || sValue.equals("0") || sValue.equals("off"));
         }
     }
 

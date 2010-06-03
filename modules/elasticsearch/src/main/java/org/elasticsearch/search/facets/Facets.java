@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.facets;
 
+import org.elasticsearch.search.facets.internal.InternalFacet;
 import org.elasticsearch.util.collect.ImmutableList;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
@@ -31,7 +32,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.search.facets.CountFacet.*;
+import static org.elasticsearch.search.facets.internal.InternalCountFacet.*;
+import static org.elasticsearch.search.facets.internal.InternalMultiCountFacet.*;
 import static org.elasticsearch.util.collect.Lists.*;
 import static org.elasticsearch.util.collect.Maps.*;
 
@@ -112,7 +114,7 @@ public class Facets implements Streamable, ToXContent, Iterable<Facet> {
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("facets");
         for (Facet facet : facets) {
-            facet.toXContent(builder, params);
+            ((InternalFacet) facet).toXContent(builder, params);
         }
         builder.endObject();
     }
@@ -133,6 +135,8 @@ public class Facets implements Streamable, ToXContent, Iterable<Facet> {
                 byte id = in.readByte();
                 if (id == Facet.Type.COUNT.id()) {
                     facets.add(readCountFacet(in));
+                } else if (id == Facet.Type.MULTI_COUNT.id()) {
+                    facets.add(readMultiCountFacet(in));
                 } else {
                     throw new IOException("Can't handle facet type with id [" + id + "]");
                 }
@@ -144,7 +148,7 @@ public class Facets implements Streamable, ToXContent, Iterable<Facet> {
         out.writeVInt(facets.size());
         for (Facet facet : facets) {
             out.writeByte(facet.type().id());
-            facet.writeTo(out);
+            ((InternalFacet) facet).writeTo(out);
         }
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.cache.filter;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.util.component.CloseableComponent;
@@ -33,6 +34,8 @@ public interface FilterCache extends IndexComponent, CloseableComponent {
     Filter cache(Filter filterToCache);
 
     boolean isCached(Filter filter);
+
+    void clear(IndexReader reader);
 
     void clear();
 

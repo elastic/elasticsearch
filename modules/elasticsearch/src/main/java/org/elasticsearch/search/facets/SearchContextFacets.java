@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facets;
 
-import org.apache.lucene.search.Query;
+import org.elasticsearch.search.facets.collector.FacetCollector;
 
 import java.util.List;
 
@@ -28,58 +28,13 @@ import java.util.List;
  */
 public class SearchContextFacets {
 
-    public static enum QueryExecutionType {
-        COLLECT,
-        IDSET
+    private final List<FacetCollector> facetCollectors;
+
+    public SearchContextFacets(List<FacetCollector> facetCollectors) {
+        this.facetCollectors = facetCollectors;
     }
 
-    private final QueryExecutionType queryExecutionType;
-
-    private final List<QueryFacet> queryFacets;
-
-    public SearchContextFacets(QueryExecutionType queryExecutionType, List<QueryFacet> queryFacets) {
-        this.queryExecutionType = queryExecutionType;
-        this.queryFacets = queryFacets;
-    }
-
-    public QueryExecutionType queryType() {
-        return this.queryExecutionType;
-    }
-
-    public List<QueryFacet> queryFacets() {
-        return queryFacets;
-    }
-
-    public static abstract class Facet {
-        private boolean global;
-
-        protected Facet() {
-        }
-
-        public boolean global() {
-            return global;
-        }
-
-        public void global(boolean global) {
-            this.global = global;
-        }
-    }
-
-    public static class QueryFacet extends Facet {
-        private final String name;
-        private final Query query;
-
-        public QueryFacet(String name, Query query) {
-            this.name = name;
-            this.query = query;
-        }
-
-        public String name() {
-            return name;
-        }
-
-        public Query query() {
-            return query;
-        }
+    public List<FacetCollector> facetCollectors() {
+        return facetCollectors;
     }
 }

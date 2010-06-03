@@ -26,13 +26,14 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.util.lucene.docset.DocSet;
 import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
 
 import static org.elasticsearch.util.concurrent.ConcurrentCollections.*;
-import static org.elasticsearch.util.lucene.docidset.DocIdSets.*;
+import static org.elasticsearch.util.lucene.docset.DocSets.*;
 
 /**
  * A base concurrent filter cache that accepts the actual cache to use.
@@ -41,10 +42,10 @@ import static org.elasticsearch.util.lucene.docidset.DocIdSets.*;
  */
 public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComponent implements FilterCache {
 
-    private final ConcurrentMap<Object, ConcurrentMap<Filter, DocIdSet>> cache;
+    private final ConcurrentMap<Object, ConcurrentMap<Filter, DocSet>> cache;
 
     protected AbstractConcurrentMapFilterCache(Index index, @IndexSettings Settings indexSettings,
-                                               ConcurrentMap<Object, ConcurrentMap<Filter, DocIdSet>> cache) {
+                                               ConcurrentMap<Object, ConcurrentMap<Filter, DocSet>> cache) {
         super(index, indexSettings);
         this.cache = cache;
     }
@@ -55,6 +56,10 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
 
     @Override public void clear() {
         cache.clear();
+    }
+
+    @Override public void clear(IndexReader reader) {
+        cache.remove(reader.getFieldCacheKey());
     }
 
     @Override public void clearUnreferenced() {
@@ -85,7 +90,7 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         return filter instanceof FilterCacheFilterWrapper;
     }
 
-    protected ConcurrentMap<Filter, DocIdSet> buildFilterMap() {
+    protected ConcurrentMap<Filter, DocSet> buildFilterMap() {
         return newConcurrentMap();
     }
 
@@ -102,18 +107,18 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
         }
 
         @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-            ConcurrentMap<Filter, DocIdSet> cachedFilters = cache.get(reader.getFieldCacheKey());
+            ConcurrentMap<Filter, DocSet> cachedFilters = cache.get(reader.getFieldCacheKey());
             if (cachedFilters == null) {
                 cachedFilters = buildFilterMap();
                 cache.putIfAbsent(reader.getFieldCacheKey(), cachedFilters);
             }
-            DocIdSet docIdSet = cachedFilters.get(filter);
-            if (docIdSet != null) {
-                return docIdSet;
+            DocSet docSet = cachedFilters.get(filter);
+            if (docSet != null) {
+                return docSet;
             }
-            docIdSet = filter.getDocIdSet(reader);
-            docIdSet = cacheable(reader, docIdSet);
-            cachedFilters.putIfAbsent(filter, docIdSet);
+            DocIdSet docIdSet = filter.getDocIdSet(reader);
+            docSet = cacheable(reader, docIdSet);
+            cachedFilters.putIfAbsent(filter, docSet);
             return docIdSet;
         }
 

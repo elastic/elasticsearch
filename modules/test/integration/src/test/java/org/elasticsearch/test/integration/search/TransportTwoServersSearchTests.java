@@ -253,7 +253,7 @@ public class TransportTwoServersSearchTests extends AbstractNodesTests {
         SearchSourceBuilder sourceBuilder = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true)
-                .facets(facets().facet("all", termQuery("multi", "test"), true).facet("test1", termQuery("name", "test1")));
+                .facets(facets().queryFacet("all", termQuery("multi", "test"), true).queryFacet("test1", termQuery("name", "test1")));
 
         SearchResponse searchResponse = client.search(searchRequest("test").source(sourceBuilder)).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));

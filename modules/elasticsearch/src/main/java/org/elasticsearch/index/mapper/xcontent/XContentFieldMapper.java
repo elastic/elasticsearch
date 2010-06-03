@@ -25,6 +25,7 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.field.FieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapperListener;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -355,6 +356,10 @@ public abstract class XContentFieldMapper<T> implements FieldMapper<T>, XContent
 
     @Override public int sortType() {
         return SortField.STRING;
+    }
+
+    @Override public FieldData.Type fieldDataType() {
+        return FieldData.Type.STRING;
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {

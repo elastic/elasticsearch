@@ -213,7 +213,13 @@ public abstract class XContentNumberFieldMapper<T extends Number> extends XConte
          */
         public void close() throws IOException {
             numericTokenStream.close();
-            cachedStreams.get().get().get(precisionStep).add(this);
+            TIntObjectHashMap<Deque<CachedNumericTokenStream>> cached = cachedStreams.get().get();
+            if (cached != null) {
+                Deque<CachedNumericTokenStream> cachedDeque = cached.get(precisionStep);
+                if (cachedDeque != null) {
+                    cachedDeque.add(this);
+                }
+            }
         }
 
         /**

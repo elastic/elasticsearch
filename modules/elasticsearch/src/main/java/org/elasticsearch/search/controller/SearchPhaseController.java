@@ -25,13 +25,12 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ShardFieldDocSortedHitQueue;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.facets.CountFacet;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.Facets;
+import org.elasticsearch.search.facets.internal.InternalFacet;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResultProvider;
 import org.elasticsearch.search.internal.InternalSearchHit;
@@ -154,24 +153,15 @@ public class SearchPhaseController {
             // we rely on the fact that the order of facets is the same on all query results
             QuerySearchResult queryResult = queryResults.values().iterator().next().queryResult();
 
+            // we assume the facets are in the same order!
             if (queryResult.facets() != null && queryResult.facets().facets() != null && !queryResult.facets().facets().isEmpty()) {
-                List<Facet> mergedFacets = Lists.newArrayListWithCapacity(2);
-                for (Facet facet : queryResult.facets().facets()) {
-                    if (facet.type() == Facet.Type.COUNT) {
-                        mergedFacets.add(new CountFacet(facet.name(), 0));
-                    } else {
-                        throw new ElasticSearchIllegalStateException("Can't handle type [" + facet.type() + "]");
-                    }
-                }
+                List<Facet> allFacets = Lists.newArrayList();
                 for (QuerySearchResultProvider queryResultProvider : queryResults.values()) {
-                    List<Facet> queryFacets = queryResultProvider.queryResult().facets().facets();
-                    for (int i = 0; i < mergedFacets.size(); i++) {
-                        Facet queryFacet = queryFacets.get(i);
-                        Facet mergedFacet = mergedFacets.get(i);
-                        if (queryFacet.type() == Facet.Type.COUNT) {
-                            ((CountFacet) mergedFacet).increment(((CountFacet) queryFacet).count());
-                        }
-                    }
+                    allFacets.addAll(queryResultProvider.queryResult().facets().facets());
+                }
+                List<Facet> mergedFacets = Lists.newArrayList();
+                for (Facet facet : queryResult.facets().facets()) {
+                    mergedFacets.add(((InternalFacet) facet).aggregate(allFacets));
                 }
                 facets = new Facets(mergedFacets);
             }

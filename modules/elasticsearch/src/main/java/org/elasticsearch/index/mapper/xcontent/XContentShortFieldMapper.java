@@ -25,6 +25,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
+import org.elasticsearch.index.field.FieldData;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.util.Numbers;
 import org.elasticsearch.util.Strings;
@@ -192,6 +193,10 @@ public class XContentShortFieldMapper extends XContentNumberFieldMapper<Short> {
 
     @Override public int sortType() {
         return SortField.SHORT;
+    }
+
+    @Override public FieldData.Type fieldDataType() {
+        return FieldData.Type.SHORT;
     }
 
     @Override protected String contentType() {

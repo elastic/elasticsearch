@@ -25,6 +25,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericDoubleAnalyzer;
+import org.elasticsearch.index.field.FieldData;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.util.Numbers;
 import org.elasticsearch.util.xcontent.XContentParser;
@@ -193,6 +194,10 @@ public class XContentDoubleFieldMapper extends XContentNumberFieldMapper<Double>
 
     @Override public int sortType() {
         return SortField.DOUBLE;
+    }
+
+    @Override public FieldData.Type fieldDataType() {
+        return FieldData.Type.DOUBLE;
     }
 
     @Override protected String contentType() {

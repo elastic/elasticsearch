@@ -25,6 +25,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericFloatAnalyzer;
+import org.elasticsearch.index.field.FieldData;
 import org.elasticsearch.index.mapper.BoostFieldMapper;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.util.Numbers;
@@ -178,6 +179,10 @@ public class XContentBoostFieldMapper extends XContentNumberFieldMapper<Float> i
 
     @Override public int sortType() {
         return SortField.FLOAT;
+    }
+
+    @Override public FieldData.Type fieldDataType() {
+        return FieldData.Type.FLOAT;
     }
 
     @Override protected String contentType() {

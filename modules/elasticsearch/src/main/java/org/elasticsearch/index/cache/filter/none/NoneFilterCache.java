@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.cache.filter.none;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
@@ -54,6 +55,10 @@ public class NoneFilterCache extends AbstractIndexComponent implements FilterCac
     }
 
     @Override public void clear() {
+        // nothing to do here
+    }
+
+    @Override public void clear(IndexReader reader) {
         // nothing to do here
     }
 

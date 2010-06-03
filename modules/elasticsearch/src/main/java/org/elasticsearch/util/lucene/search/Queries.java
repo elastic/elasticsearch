@@ -29,6 +29,10 @@ import java.util.List;
  */
 public class Queries {
 
+    public final static MatchAllDocsQuery MATCH_ALL_QUERY = new MatchAllDocsQuery();
+
+    public final static QueryWrapperFilter MATCH_ALL_FILTER = new QueryWrapperFilter(MATCH_ALL_QUERY);
+
     private final static Field disjuncts;
 
     static {

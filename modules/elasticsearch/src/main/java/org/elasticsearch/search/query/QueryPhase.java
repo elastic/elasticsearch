@@ -100,7 +100,7 @@ public class QueryPhase implements SearchPhase {
             }
             searchContext.queryResult().topDocs(topDocs);
         } catch (Exception e) {
-            throw new QueryPhaseExecutionException(searchContext, "", e);
+            throw new QueryPhaseExecutionException(searchContext, "Failed to execute main query", e);
         }
 
         facetsPhase.execute(searchContext);

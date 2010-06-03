@@ -17,50 +17,58 @@
  * under the License.
  */
 
-package org.elasticsearch.util.lucene.docidset;
+package org.elasticsearch.util.lucene;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Scorer;
-import org.apache.lucene.util.OpenBitSetDISI;
 
 import java.io.IOException;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public class DocIdSetCollector extends Collector {
+public class MultiCollector extends Collector {
 
     private final Collector collector;
 
-    private final OpenBitSetDISI docIdSet;
+    private final Collector[] collectors;
 
-    private int base;
-
-    public DocIdSetCollector(Collector collector, IndexReader reader) {
+    public MultiCollector(Collector collector, Collector[] collectors) {
         this.collector = collector;
-        this.docIdSet = new OpenBitSetDISI(reader.maxDoc());
-    }
-
-    public OpenBitSetDISI docIdSet() {
-        return docIdSet;
+        this.collectors = collectors;
     }
 
     @Override public void setScorer(Scorer scorer) throws IOException {
         collector.setScorer(scorer);
+        for (Collector collector : collectors) {
+            collector.setScorer(scorer);
+        }
     }
 
     @Override public void collect(int doc) throws IOException {
         collector.collect(doc);
-        docIdSet.fastSet(base + doc);
+        for (Collector collector : collectors) {
+            collector.collect(doc);
+        }
     }
 
     @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        base = docBase;
         collector.setNextReader(reader, docBase);
+        for (Collector collector : collectors) {
+            collector.setNextReader(reader, docBase);
+        }
     }
 
     @Override public boolean acceptsDocsOutOfOrder() {
-        return collector.acceptsDocsOutOfOrder();
+        if (!collector.acceptsDocsOutOfOrder()) {
+            return false;
+        }
+        for (Collector collector : collectors) {
+            if (!collector.acceptsDocsOutOfOrder()) {
+                return false;
+            }
+        }
+        return true;
     }
 }

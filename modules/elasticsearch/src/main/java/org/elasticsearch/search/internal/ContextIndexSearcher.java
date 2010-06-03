@@ -21,11 +21,12 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
-import org.apache.lucene.util.OpenBitSet;
 import org.elasticsearch.search.dfs.CachedDfSource;
-import org.elasticsearch.util.lucene.docidset.DocIdSetCollector;
+import org.elasticsearch.util.collect.Lists;
+import org.elasticsearch.util.lucene.MultiCollector;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * @author kimchy (shay.banon)
@@ -36,9 +37,11 @@ public class ContextIndexSearcher extends IndexSearcher {
 
     private CachedDfSource dfSource;
 
-    private boolean docIdSetEnabled;
+    private List<Collector> collectors;
 
-    private OpenBitSet docIdSet;
+    private List<Collector> globalCollectors;
+
+    private boolean useGlobalCollectors = false;
 
     public ContextIndexSearcher(SearchContext searchContext, IndexReader r) {
         super(r);
@@ -49,12 +52,30 @@ public class ContextIndexSearcher extends IndexSearcher {
         this.dfSource = dfSource;
     }
 
-    public void enabledDocIdSet() {
-        docIdSetEnabled = true;
+    public void addCollector(Collector collector) {
+        if (collectors == null) {
+            collectors = Lists.newArrayList();
+        }
+        collectors.add(collector);
     }
 
-    public OpenBitSet docIdSet() {
-        return docIdSet;
+    public List<Collector> collectors() {
+        return collectors;
+    }
+
+    public void addGlobalCollector(Collector collector) {
+        if (globalCollectors == null) {
+            globalCollectors = Lists.newArrayList();
+        }
+        globalCollectors.add(collector);
+    }
+
+    public List<Collector> globalCollectors() {
+        return globalCollectors;
+    }
+
+    public void useGlobalCollectors(boolean useGlobalCollectors) {
+        this.useGlobalCollectors = useGlobalCollectors;
     }
 
     @Override public Query rewrite(Query original) throws IOException {
@@ -82,10 +103,16 @@ public class ContextIndexSearcher extends IndexSearcher {
         if (searchContext.timeout() != null) {
             collector = new TimeLimitingCollector(collector, searchContext.timeout().millis());
         }
-        // we only compute the doc id set once since within a context, we execute the same query always...
-        if (docIdSetEnabled && docIdSet == null) {
-            collector = new DocIdSetCollector(collector, getIndexReader());
+        if (useGlobalCollectors) {
+            if (globalCollectors != null) {
+                collector = new MultiCollector(collector, globalCollectors.toArray(new Collector[globalCollectors.size()]));
+            }
+        } else {
+            if (collectors != null) {
+                collector = new MultiCollector(collector, collectors.toArray(new Collector[collectors.size()]));
+            }
         }
+        // we only compute the doc id set once since within a context, we execute the same query always...
         if (searchContext.timeout() != null) {
             searchContext.queryResult().searchTimedOut(false);
             try {
@@ -95,9 +122,6 @@ public class ContextIndexSearcher extends IndexSearcher {
             }
         } else {
             super.search(weight, filter, collector);
-        }
-        if (docIdSetEnabled && docIdSet == null) {
-            this.docIdSet = ((DocIdSetCollector) collector).docIdSet();
         }
     }
 }

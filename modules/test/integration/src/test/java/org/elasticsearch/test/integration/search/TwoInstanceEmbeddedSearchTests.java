@@ -319,7 +319,7 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractNodesTests {
         SearchSourceBuilder sourceBuilder = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true).sort("age", false)
-                .facets(facets().facet("all", termQuery("multi", "test")).facet("test1", termQuery("name", "test1")));
+                .facets(facets().queryFacet("all", termQuery("multi", "test")).queryFacet("test1", termQuery("name", "test1")));
 
         Map<SearchShardTarget, QuerySearchResultProvider> queryResults = newHashMap();
         for (ShardsIterator shardsIt : indicesService.searchShards(clusterService.state(), new String[]{"test"}, null)) {

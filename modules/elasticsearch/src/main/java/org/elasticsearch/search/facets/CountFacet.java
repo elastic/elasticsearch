@@ -19,86 +19,20 @@
 
 package org.elasticsearch.search.facets;
 
-import org.elasticsearch.util.io.stream.StreamInput;
-import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
-
-import java.io.IOException;
-
 /**
  * A count facet is a facet that holds a count.
  *
  * @author kimchy (shay.banon)
  */
-public class CountFacet implements Facet {
-
-    private String name;
-
-    private long count;
-
-    private CountFacet() {
-
-    }
-
-    public CountFacet(String name, long count) {
-        this.name = name;
-        this.count = count;
-    }
-
-    @Override public Type type() {
-        return Type.COUNT;
-    }
-
-    @Override public Type getType() {
-        return type();
-    }
-
-    /**
-     * The "logical" name of the facet.
-     */
-    public String name() {
-        return name;
-    }
-
-    @Override public String getName() {
-        return name();
-    }
+public interface CountFacet extends Facet {
 
     /**
      * The count of the facet.
      */
-    public long count() {
-        return count;
-    }
+    long count();
 
     /**
      * The count of the facet.
      */
-    public long getCount() {
-        return count;
-    }
-
-    public void increment(long increment) {
-        count += increment;
-    }
-
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(name, count);
-    }
-
-    public static CountFacet readCountFacet(StreamInput in) throws IOException {
-        CountFacet result = new CountFacet();
-        result.readFrom(in);
-        return result;
-    }
-
-    @Override public void readFrom(StreamInput in) throws IOException {
-        name = in.readUTF();
-        count = in.readVLong();
-    }
-
-    @Override public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(name);
-        out.writeVLong(count);
-    }
+    long getCount();
 }

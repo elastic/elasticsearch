@@ -36,17 +36,8 @@ import static org.elasticsearch.util.collect.Lists.*;
  */
 public class SearchSourceFacetsBuilder implements ToXContent {
 
-    private String queryExecution;
-
-    private List<FacetQuery> queryFacets;
-
-    /**
-     * Controls the type of query facet execution.
-     */
-    public SearchSourceFacetsBuilder queryExecution(String queryExecution) {
-        this.queryExecution = queryExecution;
-        return this;
-    }
+    private List<QueryFacet> queryFacets;
+    private List<FieldFacet> fieldFacets;
 
     /**
      * Adds a query facet (which results in a count facet returned).
@@ -54,48 +45,70 @@ public class SearchSourceFacetsBuilder implements ToXContent {
      * @param name  The logical name of the facet, it will be returned under the name
      * @param query The query facet
      */
-    public SearchSourceFacetsBuilder facet(String name, XContentQueryBuilder query) {
-        if (queryFacets == null) {
-            queryFacets = newArrayListWithCapacity(2);
-        }
-        queryFacets.add(new FacetQuery(name, query, null));
-        return this;
+    public SearchSourceFacetsBuilder queryFacet(String name, XContentQueryBuilder query) {
+        return queryFacet(name, query, null);
     }
 
     /**
      * Adds a query facet (which results in a count facet returned) with an option to
      * be global on the index or bounded by the search query.
      *
-     * @param name  The logical name of the facet, it will be returned under the name
-     * @param query The query facet
+     * @param name   The logical name of the facet, it will be returned under the name
+     * @param query  The query facet
+     * @param global Should the facet be executed globally or not
      */
-    public SearchSourceFacetsBuilder facet(String name, XContentQueryBuilder query, boolean global) {
+    public SearchSourceFacetsBuilder queryFacet(String name, XContentQueryBuilder query, Boolean global) {
         if (queryFacets == null) {
             queryFacets = newArrayListWithCapacity(2);
         }
-        queryFacets.add(new FacetQuery(name, query, global));
+        queryFacets.add(new QueryFacet(name, query, global));
+        return this;
+    }
+
+    public SearchSourceFacetsBuilder fieldFacet(String name, String fieldName, int size) {
+        return fieldFacet(name, fieldName, size, null);
+    }
+
+    public SearchSourceFacetsBuilder fieldFacet(String name, String fieldName, int size, Boolean global) {
+        if (fieldFacets == null) {
+            fieldFacets = newArrayListWithCapacity(2);
+        }
+        fieldFacets.add(new FieldFacet(name, fieldName, size, global));
         return this;
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (queryExecution == null && queryFacets == null) {
+        if (queryFacets == null && fieldFacets == null) {
             return;
         }
         builder.field("facets");
 
         builder.startObject();
 
-        if (queryExecution != null) {
-            builder.field("query_execution", queryExecution);
-        }
         if (queryFacets != null) {
-            for (FacetQuery facetQuery : queryFacets) {
-                builder.startObject(facetQuery.name());
+            for (QueryFacet queryFacet : queryFacets) {
+                builder.startObject(queryFacet.name());
                 builder.field("query");
-                facetQuery.queryBuilder().toXContent(builder, params);
-                if (facetQuery.global() != null) {
-                    builder.field("global", facetQuery.global());
+                queryFacet.queryBuilder().toXContent(builder, params);
+                if (queryFacet.global() != null) {
+                    builder.field("global", queryFacet.global());
                 }
+                builder.endObject();
+            }
+        }
+        if (fieldFacets != null) {
+            for (FieldFacet fieldFacet : fieldFacets) {
+                builder.startObject(fieldFacet.name());
+
+                builder.startObject("field");
+                builder.field("name", fieldFacet.fieldName());
+                builder.field("size", fieldFacet.size());
+                builder.endObject();
+
+                if (fieldFacet.global() != null) {
+                    builder.field("global", fieldFacet.global());
+                }
+
                 builder.endObject();
             }
         }
@@ -103,12 +116,42 @@ public class SearchSourceFacetsBuilder implements ToXContent {
         builder.endObject();
     }
 
-    private static class FacetQuery {
+    private static class FieldFacet {
+        private final String name;
+        private final String fieldName;
+        private final int size;
+        private final Boolean global;
+
+        private FieldFacet(String name, String fieldName, int size, Boolean global) {
+            this.name = name;
+            this.fieldName = fieldName;
+            this.size = size;
+            this.global = global;
+        }
+
+        public String name() {
+            return name;
+        }
+
+        public String fieldName() {
+            return fieldName;
+        }
+
+        public int size() {
+            return size;
+        }
+
+        public Boolean global() {
+            return global;
+        }
+    }
+
+    private static class QueryFacet {
         private final String name;
         private final XContentQueryBuilder queryBuilder;
         private final Boolean global;
 
-        private FacetQuery(String name, XContentQueryBuilder queryBuilder, Boolean global) {
+        private QueryFacet(String name, XContentQueryBuilder queryBuilder, Boolean global) {
             this.name = name;
             this.queryBuilder = queryBuilder;
             this.global = global;

@@ -22,7 +22,7 @@ package org.elasticsearch.index.query.xcontent.guice;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
-import org.elasticsearch.index.cache.filter.FilterCacheModule;
+import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -56,7 +56,7 @@ public class IndexQueryParserModuleTests {
         Index index = new Index("test");
         Injector injector = Guice.createInjector(
                 new IndexSettingsModule(settings),
-                new FilterCacheModule(settings),
+                new IndexCacheModule(settings),
                 new AnalysisModule(settings),
                 new IndexEngineModule(settings),
                 new SimilarityModule(settings),

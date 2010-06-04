@@ -21,8 +21,8 @@ package org.elasticsearch.index.field.ints;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
-import org.elasticsearch.index.field.FieldData;
 import org.elasticsearch.index.field.FieldDataOptions;
+import org.elasticsearch.index.field.NumericFieldData;
 import org.elasticsearch.index.field.support.FieldDataLoader;
 import org.elasticsearch.util.gnu.trove.TIntArrayList;
 
@@ -31,7 +31,7 @@ import java.io.IOException;
 /**
  * @author kimchy (Shay Banon)
  */
-public abstract class IntFieldData extends FieldData {
+public abstract class IntFieldData extends NumericFieldData {
 
     static final int[] EMPTY_INT_ARRAY = new int[0];
 
@@ -47,6 +47,34 @@ public abstract class IntFieldData extends FieldData {
     abstract public int value(int docId);
 
     abstract public int[] values(int docId);
+
+    @Override public String stringValue(int docId) {
+        return Integer.toString(value(docId));
+    }
+
+    @Override public byte byteValue(int docId) {
+        return (byte) value(docId);
+    }
+
+    @Override public short shortValue(int docId) {
+        return (short) value(docId);
+    }
+
+    @Override public int intValue(int docId) {
+        return value(docId);
+    }
+
+    @Override public long longValue(int docId) {
+        return (long) value(docId);
+    }
+
+    @Override public float floatValue(int docId) {
+        return (float) value(docId);
+    }
+
+    @Override public double doubleValue(int docId) {
+        return (double) value(docId);
+    }
 
     @Override public Type type() {
         return Type.INT;

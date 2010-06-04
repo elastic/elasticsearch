@@ -21,8 +21,8 @@ package org.elasticsearch.index.field.shorts;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
-import org.elasticsearch.index.field.FieldData;
 import org.elasticsearch.index.field.FieldDataOptions;
+import org.elasticsearch.index.field.NumericFieldData;
 import org.elasticsearch.index.field.support.FieldDataLoader;
 import org.elasticsearch.util.gnu.trove.TShortArrayList;
 
@@ -31,7 +31,7 @@ import java.io.IOException;
 /**
  * @author kimchy (Shay Banon)
  */
-public abstract class ShortFieldData extends FieldData {
+public abstract class ShortFieldData extends NumericFieldData {
 
     static final short[] EMPTY_SHORT_ARRAY = new short[0];
 
@@ -47,6 +47,34 @@ public abstract class ShortFieldData extends FieldData {
     abstract public short value(int docId);
 
     abstract public short[] values(int docId);
+
+    @Override public String stringValue(int docId) {
+        return Short.toString(value(docId));
+    }
+
+    @Override public byte byteValue(int docId) {
+        return (byte) value(docId);
+    }
+
+    @Override public short shortValue(int docId) {
+        return value(docId);
+    }
+
+    @Override public int intValue(int docId) {
+        return (int) value(docId);
+    }
+
+    @Override public long longValue(int docId) {
+        return (long) value(docId);
+    }
+
+    @Override public float floatValue(int docId) {
+        return (float) value(docId);
+    }
+
+    @Override public double doubleValue(int docId) {
+        return (double) value(docId);
+    }
 
     @Override public Type type() {
         return Type.SHORT;

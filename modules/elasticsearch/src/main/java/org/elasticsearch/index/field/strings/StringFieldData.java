@@ -45,6 +45,10 @@ public abstract class StringFieldData extends FieldData {
 
     abstract public String[] values(int docId);
 
+    @Override public String stringValue(int docId) {
+        return value(docId);
+    }
+
     @Override public Type type() {
         return Type.STRING;
     }

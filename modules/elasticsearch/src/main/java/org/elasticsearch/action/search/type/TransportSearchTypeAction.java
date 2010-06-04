@@ -41,6 +41,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.trove.ExtTIntArrayList;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -110,6 +111,11 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             shardsIts = indicesService.searchShards(clusterState, request.indices(), request.queryHint());
             expectedSuccessfulOps = shardsIts.size();
             expectedTotalOps = shardsIts.totalSizeActive();
+
+            if (expectedSuccessfulOps == 0) {
+                // not search shards to search on...
+                throw new SearchPhaseExecutionException("initial", "No indices / shards to search on, requested indices are " + Arrays.toString(request.indices()), buildShardFailures());
+            }
         }
 
         public void start() {

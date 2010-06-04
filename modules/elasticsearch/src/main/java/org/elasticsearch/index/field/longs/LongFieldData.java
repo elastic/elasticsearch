@@ -21,8 +21,8 @@ package org.elasticsearch.index.field.longs;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
-import org.elasticsearch.index.field.FieldData;
 import org.elasticsearch.index.field.FieldDataOptions;
+import org.elasticsearch.index.field.NumericFieldData;
 import org.elasticsearch.index.field.support.FieldDataLoader;
 import org.elasticsearch.util.gnu.trove.TLongArrayList;
 
@@ -31,7 +31,7 @@ import java.io.IOException;
 /**
  * @author kimchy (Shay Banon)
  */
-public abstract class LongFieldData extends FieldData {
+public abstract class LongFieldData extends NumericFieldData {
 
     static final long[] EMPTY_LONG_ARRAY = new long[0];
 
@@ -48,6 +48,34 @@ public abstract class LongFieldData extends FieldData {
     abstract public long value(int docId);
 
     abstract public long[] values(int docId);
+
+    @Override public String stringValue(int docId) {
+        return Long.toString(docId);
+    }
+
+    @Override public byte byteValue(int docId) {
+        return (byte) value(docId);
+    }
+
+    @Override public short shortValue(int docId) {
+        return (short) value(docId);
+    }
+
+    @Override public int intValue(int docId) {
+        return (int) value(docId);
+    }
+
+    @Override public long longValue(int docId) {
+        return value(docId);
+    }
+
+    @Override public float floatValue(int docId) {
+        return (float) value(docId);
+    }
+
+    @Override public double doubleValue(int docId) {
+        return (double) value(docId);
+    }
 
     @Override public Type type() {
         return Type.LONG;

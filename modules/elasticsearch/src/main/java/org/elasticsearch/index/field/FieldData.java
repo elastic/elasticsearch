@@ -39,17 +39,24 @@ import java.io.IOException;
 public abstract class FieldData {
 
     public static enum Type {
-        STRING(StringFieldData.class),
-        SHORT(ShortFieldData.class),
-        INT(IntFieldData.class),
-        LONG(LongFieldData.class),
-        FLOAT(FloatFieldData.class),
-        DOUBLE(DoubleFieldData.class);
+        STRING(StringFieldData.class, false),
+        SHORT(ShortFieldData.class, true),
+        INT(IntFieldData.class, true),
+        LONG(LongFieldData.class, true),
+        FLOAT(FloatFieldData.class, true),
+        DOUBLE(DoubleFieldData.class, true);
 
         public final Class<? extends FieldData> fieldDataClass;
 
-        Type(Class<? extends FieldData> clazz) {
+        private final boolean isNumeric;
+
+        Type(Class<? extends FieldData> clazz, boolean numeric) {
             this.fieldDataClass = clazz;
+            this.isNumeric = numeric;
+        }
+
+        public boolean isNumeric() {
+            return isNumeric;
         }
     }
 
@@ -78,6 +85,8 @@ public abstract class FieldData {
      * Is there a value associated with this document id.
      */
     public abstract boolean hasValue(int docId);
+
+    public abstract String stringValue(int docId);
 
     /**
      * The type of this field data.

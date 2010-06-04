@@ -31,6 +31,8 @@ import org.elasticsearch.util.xcontent.XContentParser;
  */
 public class QueryFacetCollectorParser implements FacetCollectorParser {
 
+    public static final String NAME = "query";
+
     @Override public String name() {
         return "query";
     }

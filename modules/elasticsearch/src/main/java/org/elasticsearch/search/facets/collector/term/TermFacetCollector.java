@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facets.collector.field;
+package org.elasticsearch.search.facets.collector.term;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
@@ -42,7 +42,7 @@ import static org.elasticsearch.index.field.FieldDataOptions.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class FieldFacetCollector extends FacetCollector {
+public class TermFacetCollector extends FacetCollector {
 
     private static ThreadLocal<ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<String>>>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<String>>>>() {
         @Override protected ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<String>>> initialValue() {
@@ -63,7 +63,7 @@ public class FieldFacetCollector extends FacetCollector {
 
     private final TObjectIntHashMap<String> facets;
 
-    public FieldFacetCollector(String name, String fieldName, FieldDataCache fieldDataCache, int size) {
+    public TermFacetCollector(String name, String fieldName, FieldDataCache fieldDataCache, int size) {
         this.name = name;
         this.fieldDataCache = fieldDataCache;
         this.fieldName = fieldName;

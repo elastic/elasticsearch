@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facets.collector.field;
+package org.elasticsearch.search.facets.collector.term;
 
 import org.elasticsearch.search.facets.collector.FacetCollector;
 import org.elasticsearch.search.facets.collector.FacetCollectorParser;
@@ -29,10 +29,12 @@ import java.io.IOException;
 /**
  * @author kimchy (Shay Banon)
  */
-public class FieldFacetCollectorParser implements FacetCollectorParser {
+public class TermFacetCollectorParser implements FacetCollectorParser {
+
+    public static final String NAME = "term";
 
     @Override public String name() {
-        return "field";
+        return NAME;
     }
 
     @Override public FacetCollector parser(String facetName, XContentParser parser, SearchContext context) throws IOException {
@@ -45,13 +47,13 @@ public class FieldFacetCollectorParser implements FacetCollectorParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 termFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if ("name".equals(termFieldName)) {
+                if ("field".equals(termFieldName)) {
                     field = parser.text();
                 } else if ("size".equals(termFieldName)) {
                     size = parser.intValue();
                 }
             }
         }
-        return new FieldFacetCollector(facetName, field, context.fieldDataCache(), size);
+        return new TermFacetCollector(facetName, field, context.fieldDataCache(), size);
     }
 }

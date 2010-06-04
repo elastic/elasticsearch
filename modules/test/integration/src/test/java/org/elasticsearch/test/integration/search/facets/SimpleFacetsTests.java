@@ -76,8 +76,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
         SearchResponse searchResponse = client.prepareSearch()
                 .setQuery(termQuery("stag", "111"))
-                .addFieldFacet("facet1", "stag", 10)
-                .addFieldFacet("facet2", "tag", 10)
+                .addTermFacet("facet1", "stag", 10)
+                .addTermFacet("facet2", "tag", 10)
                 .execute().actionGet();
 
         MultiCountFacet<String> facet = (MultiCountFacet<String>) searchResponse.facets().facet("facet1");

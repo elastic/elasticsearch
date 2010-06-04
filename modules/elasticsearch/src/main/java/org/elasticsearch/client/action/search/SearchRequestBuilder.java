@@ -272,13 +272,13 @@ public class SearchRequestBuilder {
         return this;
     }
 
-    public SearchRequestBuilder addFieldFacet(String name, String fieldName, int size) {
-        facetsBuilder().fieldFacet(name, fieldName, size);
+    public SearchRequestBuilder addTermFacet(String name, String fieldName, int size) {
+        facetsBuilder().termFacet(name, fieldName, size);
         return this;
     }
 
-    public SearchRequestBuilder addFieldFacet(String name, String fieldName, int size, boolean global) {
-        facetsBuilder().fieldFacet(name, fieldName, size, global);
+    public SearchRequestBuilder addTermFacet(String name, String fieldName, int size, boolean global) {
+        facetsBuilder().termFacet(name, fieldName, size, global);
         return this;
     }
 

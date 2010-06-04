@@ -48,6 +48,14 @@ public class SingleValueDoubleFieldData extends DoubleFieldData {
         return order[docId] != 0;
     }
 
+    @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
+        int loc = order[docId];
+        if (loc == 0) {
+            return;
+        }
+        proc.onValue(Double.toString(values[loc]), docId);
+    }
+
     @Override public double value(int docId) {
         return values[order[docId]];
     }

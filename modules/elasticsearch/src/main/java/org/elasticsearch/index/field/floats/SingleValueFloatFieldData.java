@@ -48,6 +48,14 @@ public class SingleValueFloatFieldData extends FloatFieldData {
         return order[docId] != 0;
     }
 
+    @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
+        int loc = order[docId];
+        if (loc == 0) {
+            return;
+        }
+        proc.onValue(Float.toString(values[loc]), docId);
+    }
+
     @Override public float value(int docId) {
         return values[order[docId]];
     }

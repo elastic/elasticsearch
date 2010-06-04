@@ -22,7 +22,9 @@ package org.elasticsearch.search.facets.collector.term;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.index.cache.field.FieldDataCache;
-import org.elasticsearch.index.field.strings.StringFieldData;
+import org.elasticsearch.index.field.FieldData;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.MultiCountFacet;
 import org.elasticsearch.search.facets.collector.FacetCollector;
@@ -59,16 +61,27 @@ public class TermFacetCollector extends FacetCollector {
 
     private final int size;
 
-    private StringFieldData fieldData;
+    private final FieldData.Type fieldDataType;
 
-    private final TObjectIntHashMap<String> facets;
+    private FieldData fieldData;
 
-    public TermFacetCollector(String name, String fieldName, FieldDataCache fieldDataCache, int size) {
+    private final AggregatorValueProc aggregator;
+
+    public TermFacetCollector(String name, String fieldName, int size, FieldDataCache fieldDataCache, MapperService mapperService) {
         this.name = name;
         this.fieldDataCache = fieldDataCache;
-        this.fieldName = fieldName;
         this.size = size;
-        facets = popFacets();
+
+        FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);
+        if (mapper != null) {
+            this.fieldName = mapper.names().indexName();
+            this.fieldDataType = mapper.fieldDataType();
+        } else {
+            this.fieldName = fieldName;
+            this.fieldDataType = FieldData.Type.STRING;
+        }
+
+        aggregator = new AggregatorValueProc(popFacets());
     }
 
     @Override public void setScorer(Scorer scorer) throws IOException {
@@ -80,22 +93,15 @@ public class TermFacetCollector extends FacetCollector {
     }
 
     @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldData = fieldDataCache.cache(StringFieldData.class, reader, fieldName, fieldDataOptions().withFreqs(false));
+        fieldData = fieldDataCache.cache(fieldDataType, reader, fieldName, fieldDataOptions().withFreqs(false));
     }
 
     @Override public void collect(int doc) throws IOException {
-        if (fieldData.multiValued()) {
-            for (String value : fieldData.values(doc)) {
-                facets.adjustOrPutValue(value, 1, 1);
-            }
-        } else {
-            if (fieldData.hasValue(doc)) {
-                facets.adjustOrPutValue(fieldData.value(doc), 1, 1);
-            }
-        }
+        fieldData.forEachValueInDoc(doc, aggregator);
     }
 
     @Override public Facet facet() {
+        TObjectIntHashMap<String> facets = aggregator.facets();
         if (facets.isEmpty()) {
             pushFacets(facets);
             return new InternalMultiCountFacet<String>(name, MultiCountFacet.ValueType.STRING, MultiCountFacet.ComparatorType.COUNT, size, ImmutableList.<MultiCountFacet.Entry<String>>of());
@@ -125,6 +131,23 @@ public class TermFacetCollector extends FacetCollector {
         Deque<TObjectIntHashMap<String>> deque = cache.get().get();
         if (deque != null) {
             deque.add(facets);
+        }
+    }
+
+    public static class AggregatorValueProc implements FieldData.StringValueInDocProc {
+
+        private final TObjectIntHashMap<String> facets;
+
+        public AggregatorValueProc(TObjectIntHashMap<String> facets) {
+            this.facets = facets;
+        }
+
+        @Override public void onValue(String value, int docId) {
+            facets.adjustOrPutValue(value, 1, 1);
+        }
+
+        public final TObjectIntHashMap<String> facets() {
+            return facets;
         }
     }
 }

@@ -53,7 +53,7 @@ public abstract class StringFieldData extends FieldData {
         return Type.STRING;
     }
 
-    public void forEachValue(ValueProc proc) {
+    @Override public void forEachValue(StringValueProc proc) {
         if (freqs == null) {
             for (int i = 1; i < values.length; i++) {
                 proc.onValue(values[i], -1);
@@ -63,10 +63,6 @@ public abstract class StringFieldData extends FieldData {
                 proc.onValue(values[i], freqs[i]);
             }
         }
-    }
-
-    public static interface ValueProc {
-        void onValue(String value, int freq);
     }
 
     public static StringFieldData load(IndexReader reader, String field, FieldDataOptions options) throws IOException {

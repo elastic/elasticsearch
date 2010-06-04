@@ -48,6 +48,18 @@ public abstract class ShortFieldData extends NumericFieldData {
 
     abstract public short[] values(int docId);
 
+    @Override public void forEachValue(StringValueProc proc) {
+        if (freqs == null) {
+            for (int i = 1; i < values.length; i++) {
+                proc.onValue(Short.toString(values[i]), -1);
+            }
+        } else {
+            for (int i = 1; i < values.length; i++) {
+                proc.onValue(Short.toString(values[i]), freqs[i]);
+            }
+        }
+    }
+
     @Override public String stringValue(int docId) {
         return Short.toString(value(docId));
     }

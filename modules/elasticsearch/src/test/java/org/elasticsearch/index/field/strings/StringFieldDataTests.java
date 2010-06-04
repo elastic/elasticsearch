@@ -103,7 +103,7 @@ public class StringFieldDataTests {
 
         // check order is correct
         final ArrayList<Tuple<String, Integer>> values = new ArrayList<Tuple<String, Integer>>();
-        sFieldData.forEachValue(new StringFieldData.ValueProc() {
+        sFieldData.forEachValue(new FieldData.StringValueProc() {
             @Override public void onValue(String value, int freq) {
                 values.add(tuple(value, freq));
             }
@@ -142,7 +142,7 @@ public class StringFieldDataTests {
         assertThat(mFieldData.hasValue(4), equalTo(false));
 
         values.clear();
-        mFieldData.forEachValue(new StringFieldData.ValueProc() {
+        mFieldData.forEachValue(new FieldData.StringValueProc() {
             @Override public void onValue(String value, int freq) {
                 values.add(tuple(value, freq));
             }

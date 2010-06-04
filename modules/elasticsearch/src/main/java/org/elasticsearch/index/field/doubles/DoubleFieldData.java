@@ -52,6 +52,18 @@ public abstract class DoubleFieldData extends NumericFieldData {
         return Double.toString(value(docId));
     }
 
+    @Override public void forEachValue(StringValueProc proc) {
+        if (freqs == null) {
+            for (int i = 1; i < values.length; i++) {
+                proc.onValue(Double.toString(values[i]), -1);
+            }
+        } else {
+            for (int i = 1; i < values.length; i++) {
+                proc.onValue(Double.toString(values[i]), freqs[i]);
+            }
+        }
+    }
+
     @Override public byte byteValue(int docId) {
         return (byte) value(docId);
     }

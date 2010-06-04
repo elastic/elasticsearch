@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.util.collect.Lists.*;
+import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -96,7 +97,9 @@ public class XContentIndexQueryParser extends AbstractIndexComponent implements 
                 String queryParserName = entry.getKey();
                 XContentQueryParserFactory queryParserFactory = entry.getValue();
                 Settings queryParserSettings = queryParserGroups.get(queryParserName);
-
+                if (queryParserSettings == null) {
+                    queryParserSettings = EMPTY_SETTINGS;
+                }
                 queryParsers.add(queryParserFactory.create(queryParserName, queryParserSettings));
             }
         }
@@ -108,7 +111,9 @@ public class XContentIndexQueryParser extends AbstractIndexComponent implements 
                 String filterParserName = entry.getKey();
                 XContentFilterParserFactory filterParserFactory = entry.getValue();
                 Settings filterParserSettings = filterParserGroups.get(filterParserName);
-
+                if (filterParserSettings == null) {
+                    filterParserSettings = EMPTY_SETTINGS;
+                }
                 filterParsers.add(filterParserFactory.create(filterParserName, filterParserSettings));
             }
         }

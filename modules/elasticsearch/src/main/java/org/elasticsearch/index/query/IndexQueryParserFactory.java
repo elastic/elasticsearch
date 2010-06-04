@@ -22,6 +22,8 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.util.settings.Settings;
 
 /**
+ * Guice Factory for custom {@link IndexQueryParser}.
+ *
  * @author kimchy (Shay Banon)
  */
 public interface IndexQueryParserFactory {

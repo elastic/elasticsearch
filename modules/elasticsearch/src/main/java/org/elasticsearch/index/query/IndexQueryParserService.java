@@ -30,13 +30,13 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.util.collect.ImmutableMap;
 import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.ImmutableSettings;
 import org.elasticsearch.util.settings.Settings;
 
 import javax.annotation.Nullable;
 import java.util.Map;
 
 import static org.elasticsearch.util.collect.Maps.*;
+import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -53,7 +53,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     private final Map<String, IndexQueryParser> indexQueryParsers;
 
     public IndexQueryParserService(Index index, MapperService mapperService, IndexCache indexCache, IndexEngine indexEngine, AnalysisService analysisService) {
-        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, mapperService, indexCache, indexEngine, analysisService, null, null);
+        this(index, EMPTY_SETTINGS, mapperService, indexCache, indexEngine, analysisService, null, null);
     }
 
     @Inject public IndexQueryParserService(Index index, @IndexSettings Settings indexSettings,
@@ -73,6 +73,9 @@ public class IndexQueryParserService extends AbstractIndexComponent {
             for (Map.Entry<String, IndexQueryParserFactory> entry : indexQueryParsersFactories.entrySet()) {
                 String qparserName = entry.getKey();
                 Settings qparserSettings = queryParserGroupSettings.get(qparserName);
+                if (qparserSettings == null) {
+                    qparserSettings = EMPTY_SETTINGS;
+                }
                 qparsers.put(qparserName, entry.getValue().create(qparserName, qparserSettings));
             }
         }

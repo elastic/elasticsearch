@@ -49,6 +49,14 @@ public class SingleValueStringFieldData extends StringFieldData {
         return order[docId] != 0;
     }
 
+    @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
+        int loc = order[docId];
+        if (loc == 0) {
+            return;
+        }
+        proc.onValue(values[loc], docId);
+    }
+
     @Override public String value(int docId) {
         return values[order[docId]];
     }

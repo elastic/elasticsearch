@@ -48,6 +48,14 @@ public class SingleValueShortFieldData extends ShortFieldData {
         return order[docId] != 0;
     }
 
+    @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
+        int loc = order[docId];
+        if (loc == 0) {
+            return;
+        }
+        proc.onValue(Short.toString(values[loc]), docId);
+    }
+
     @Override public short value(int docId) {
         return values[order[docId]];
     }

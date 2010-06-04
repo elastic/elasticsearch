@@ -55,6 +55,16 @@ public class MultiValueFloatFieldData extends FloatFieldData {
         return order[docId] != null;
     }
 
+    @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
+        int[] docOrders = order[docId];
+        if (docOrders == null) {
+            return;
+        }
+        for (int docOrder : docOrders) {
+            proc.onValue(Float.toString(values[docOrder]), docId);
+        }
+    }
+
     @Override public float value(int docId) {
         int[] docOrders = order[docId];
         if (docOrders == null) {

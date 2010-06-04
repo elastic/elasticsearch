@@ -94,6 +94,11 @@ public abstract class FieldData {
         void onValue(String value, int freq);
     }
 
+    public abstract void forEachValueInDoc(int docId, StringValueInDocProc proc);
+
+    public static interface StringValueInDocProc {
+        void onValue(String value, int docId);
+    }
 
     /**
      * The type of this field data.

@@ -55,6 +55,16 @@ public class MultiValueShortFieldData extends ShortFieldData {
         return order[docId] != null;
     }
 
+    @Override public void forEachValueInDoc(int docId, StringValueInDocProc proc) {
+        int[] docOrders = order[docId];
+        if (docOrders == null) {
+            return;
+        }
+        for (int docOrder : docOrders) {
+            proc.onValue(Short.toString(values[docOrder]), docId);
+        }
+    }
+
     @Override public short value(int docId) {
         int[] docOrders = order[docId];
         if (docOrders == null) {

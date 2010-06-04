@@ -88,6 +88,13 @@ public abstract class FieldData {
 
     public abstract String stringValue(int docId);
 
+    public abstract void forEachValue(StringValueProc proc);
+
+    public static interface StringValueProc {
+        void onValue(String value, int freq);
+    }
+
+
     /**
      * The type of this field data.
      */

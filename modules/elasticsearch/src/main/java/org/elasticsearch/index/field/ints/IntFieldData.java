@@ -52,6 +52,18 @@ public abstract class IntFieldData extends NumericFieldData {
         return Integer.toString(value(docId));
     }
 
+    @Override public void forEachValue(StringValueProc proc) {
+        if (freqs == null) {
+            for (int i = 1; i < values.length; i++) {
+                proc.onValue(Integer.toString(values[i]), -1);
+            }
+        } else {
+            for (int i = 1; i < values.length; i++) {
+                proc.onValue(Integer.toString(values[i]), freqs[i]);
+            }
+        }
+    }
+
     @Override public byte byteValue(int docId) {
         return (byte) value(docId);
     }

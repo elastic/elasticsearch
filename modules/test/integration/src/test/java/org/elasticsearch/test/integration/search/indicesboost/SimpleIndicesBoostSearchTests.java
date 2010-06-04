@@ -58,6 +58,21 @@ public class SimpleIndicesBoostSearchTests extends AbstractNodesTests {
 
     @Test
     public void testIndicesBoost() throws Exception {
+        // execute a search before we create an index
+        try {
+            client.prepareSearch().setQuery(termQuery("test", "value")).execute().actionGet();
+            assert false : "should fail";
+        } catch (Exception e) {
+            // ignore, no indices
+        }
+
+        try {
+            client.prepareSearch("test").setQuery(termQuery("test", "value")).execute().actionGet();
+            assert false : "should fail";
+        } catch (Exception e) {
+            // ignore, no indices
+        }
+
         client.admin().indices().create(createIndexRequest("test1")).actionGet();
         client.admin().indices().create(createIndexRequest("test2")).actionGet();
         client.index(indexRequest("test1").type("type1").id("1")

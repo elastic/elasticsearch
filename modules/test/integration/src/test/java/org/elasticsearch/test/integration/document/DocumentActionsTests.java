@@ -59,6 +59,16 @@ public class DocumentActionsTests extends AbstractNodesTests {
         startNode("server2");
         client1 = getClient1();
         client2 = getClient2();
+
+        // no indices, check that simple operations fail
+        try {
+            client1.prepareCount("test").setQuery(termQuery("_type", "type1")).setOperationThreading(BroadcastOperationThreading.NO_THREADS).execute().actionGet();
+            assert false : "should fail";
+        } catch (Exception e) {
+            // all is well
+        }
+        client1.prepareCount().setQuery(termQuery("_type", "type1")).setOperationThreading(BroadcastOperationThreading.NO_THREADS).execute().actionGet();
+
         createIndex();
     }
 

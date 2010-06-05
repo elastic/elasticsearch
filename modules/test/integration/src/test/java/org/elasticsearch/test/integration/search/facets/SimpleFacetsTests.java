@@ -21,15 +21,15 @@ package org.elasticsearch.test.integration.search.facets;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.search.facets.MultiCountFacet;
+import org.elasticsearch.search.facets.terms.TermsFacet;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.hamcrest.MatcherAssert;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.elasticsearch.util.xcontent.XContentFactory.*;
+import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -72,24 +72,25 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .field("stag", "111")
                 .startArray("tag").value("zzz").value("yyy").endArray()
                 .endObject()).execute().actionGet();
+
         client.admin().indices().prepareRefresh().execute().actionGet();
 
         SearchResponse searchResponse = client.prepareSearch()
                 .setQuery(termQuery("stag", "111"))
-                .addTermFacet("facet1", "stag", 10)
-                .addTermFacet("facet2", "tag", 10)
+                .addFacetTerms("facet1", "stag", 10)
+                .addFacetTerms("facet2", "tag", 10)
                 .execute().actionGet();
 
-        MultiCountFacet<String> facet = (MultiCountFacet<String>) searchResponse.facets().facet("facet1");
-        MatcherAssert.assertThat(facet.name(), equalTo("facet1"));
-        MatcherAssert.assertThat(facet.entries().size(), equalTo(1));
-        MatcherAssert.assertThat(facet.entries().get(0).value(), equalTo("111"));
-        MatcherAssert.assertThat(facet.entries().get(0).count(), equalTo(2));
+        TermsFacet facet = searchResponse.facets().facet(TermsFacet.class, "facet1");
+        assertThat(facet.name(), equalTo("facet1"));
+        assertThat(facet.entries().size(), equalTo(1));
+        assertThat(facet.entries().get(0).term(), equalTo("111"));
+        assertThat(facet.entries().get(0).count(), equalTo(2));
 
-        facet = (MultiCountFacet<String>) searchResponse.facets().facet("facet2");
-        MatcherAssert.assertThat(facet.name(), equalTo("facet2"));
-        MatcherAssert.assertThat(facet.entries().size(), equalTo(3));
-        MatcherAssert.assertThat(facet.entries().get(0).value(), equalTo("yyy"));
-        MatcherAssert.assertThat(facet.entries().get(0).count(), equalTo(2));
+        facet = searchResponse.facets().facet(TermsFacet.class, "facet2");
+        assertThat(facet.name(), equalTo("facet2"));
+        assertThat(facet.entries().size(), equalTo(3));
+        assertThat(facet.entries().get(0).term(), equalTo("yyy"));
+        assertThat(facet.entries().get(0).count(), equalTo(2));
     }
 }

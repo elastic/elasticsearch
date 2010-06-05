@@ -17,14 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facets.collector.query;
+package org.elasticsearch.search.facets.query;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.collector.FacetCollector;
-import org.elasticsearch.search.facets.internal.InternalCountFacet;
 import org.elasticsearch.util.lucene.docset.DocSet;
 import org.elasticsearch.util.lucene.docset.DocSets;
 
@@ -72,6 +71,6 @@ public class QueryFacetCollector extends FacetCollector {
     }
 
     @Override public Facet facet() {
-        return new InternalCountFacet(name, count);
+        return new InternalQueryFacet(name, count);
     }
 }

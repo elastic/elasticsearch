@@ -32,24 +32,24 @@ public interface Facet {
         /**
          * Count type facet.
          */
-        COUNT((byte) 0),
-        MULTI_COUNT((byte) 1);
+        TERMS(0),
+        QUERY(1);
 
-        byte id;
+        int id;
 
-        Type(byte id) {
+        Type(int id) {
             this.id = id;
         }
 
-        public byte id() {
+        public int id() {
             return id;
         }
 
-        public static Type fromId(byte id) {
+        public static Type fromId(int id) {
             if (id == 0) {
-                return COUNT;
+                return TERMS;
             } else if (id == 1) {
-                return MULTI_COUNT;
+                return QUERY;
             } else {
                 throw new ElasticSearchIllegalArgumentException("No match for id [" + id + "]");
             }

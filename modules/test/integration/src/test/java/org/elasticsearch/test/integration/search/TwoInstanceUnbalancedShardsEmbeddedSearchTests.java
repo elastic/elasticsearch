@@ -36,6 +36,7 @@ import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.controller.ShardDoc;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.search.facets.query.QueryFacet;
 import org.elasticsearch.search.fetch.FetchSearchRequest;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
@@ -350,8 +351,8 @@ public class TwoInstanceUnbalancedShardsEmbeddedSearchTests extends AbstractNode
         InternalSearchResponse searchResponse = searchPhaseController.merge(sortedShardList, queryResults, fetchResults);
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
 
-        assertThat(searchResponse.facets().countFacet("test1").count(), equalTo(1l));
-        assertThat(searchResponse.facets().countFacet("all").count(), equalTo(100l));
+        assertThat(searchResponse.facets().facet(QueryFacet.class, "test1").count(), equalTo(1l));
+        assertThat(searchResponse.facets().facet(QueryFacet.class, "all").count(), equalTo(100l));
     }
 
     @Test public void testSimpleFacetsTwice() {

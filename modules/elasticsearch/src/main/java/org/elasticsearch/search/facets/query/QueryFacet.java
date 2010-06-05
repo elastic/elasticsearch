@@ -17,14 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facets;
+package org.elasticsearch.search.facets.query;
+
+import org.elasticsearch.search.facets.Facet;
 
 /**
- * A count facet is a facet that holds a count.
+ * A query facets returns the count (number of hits) for a facet based on a query.
  *
  * @author kimchy (shay.banon)
  */
-public interface CountFacet extends Facet {
+public interface QueryFacet extends Facet {
 
     /**
      * The count of the facet.

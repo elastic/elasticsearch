@@ -27,6 +27,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.facets.query.QueryFacet;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.util.Unicode;
 import org.elasticsearch.util.collect.Sets;
@@ -253,14 +254,14 @@ public class TransportTwoServersSearchTests extends AbstractNodesTests {
         SearchSourceBuilder sourceBuilder = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true)
-                .facets(facets().queryFacet("all", termQuery("multi", "test"), true).queryFacet("test1", termQuery("name", "test1")));
+                .facets(facets().queryFacetGlobal("all", termQuery("multi", "test")).queryFacet("test1", termQuery("name", "test1")));
 
         SearchResponse searchResponse = client.search(searchRequest("test").source(sourceBuilder)).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
 
-        assertThat(searchResponse.facets().countFacet("test1").count(), equalTo(1l));
-        assertThat(searchResponse.facets().countFacet("all").count(), equalTo(100l));
+        assertThat(searchResponse.facets().facet(QueryFacet.class, "test1").count(), equalTo(1l));
+        assertThat(searchResponse.facets().facet(QueryFacet.class, "all").count(), equalTo(100l));
     }
 
     @Test public void testSimpleFacetsTwice() throws Exception {

@@ -19,7 +19,8 @@
 
 package org.elasticsearch.search.facets;
 
-import org.elasticsearch.search.facets.internal.InternalFacet;
+import org.elasticsearch.search.facets.query.InternalQueryFacet;
+import org.elasticsearch.search.facets.terms.InternalTermsFacet;
 import org.elasticsearch.util.collect.ImmutableList;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
@@ -32,8 +33,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.search.facets.internal.InternalCountFacet.*;
-import static org.elasticsearch.search.facets.internal.InternalMultiCountFacet.*;
 import static org.elasticsearch.util.collect.Lists.*;
 import static org.elasticsearch.util.collect.Maps.*;
 
@@ -98,10 +97,10 @@ public class Facets implements Streamable, ToXContent, Iterable<Facet> {
     }
 
     /**
-     * A specific count facet against the registered facet name.
+     * Returns the facet by name already casted to the specified type.
      */
-    public CountFacet countFacet(String name) {
-        return (CountFacet) facet(name);
+    public <T extends Facet> T facet(Class<T> facetType, String name) {
+        return facetType.cast(facet(name));
     }
 
     /**
@@ -132,11 +131,11 @@ public class Facets implements Streamable, ToXContent, Iterable<Facet> {
         } else {
             facets = newArrayListWithCapacity(size);
             for (int i = 0; i < size; i++) {
-                byte id = in.readByte();
-                if (id == Facet.Type.COUNT.id()) {
-                    facets.add(readCountFacet(in));
-                } else if (id == Facet.Type.MULTI_COUNT.id()) {
-                    facets.add(readMultiCountFacet(in));
+                int id = in.readVInt();
+                if (id == Facet.Type.TERMS.id()) {
+                    facets.add(InternalTermsFacet.readTermsFacet(in));
+                } else if (id == Facet.Type.QUERY.id()) {
+                    facets.add(InternalQueryFacet.readCountFacet(in));
                 } else {
                     throw new IOException("Can't handle facet type with id [" + id + "]");
                 }
@@ -147,7 +146,7 @@ public class Facets implements Streamable, ToXContent, Iterable<Facet> {
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(facets.size());
         for (Facet facet : facets) {
-            out.writeByte(facet.type().id());
+            out.writeVInt(facet.type().id());
             ((InternalFacet) facet).writeTo(out);
         }
     }

@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facets.internal;
+package org.elasticsearch.search.facets.query;
 
-import org.elasticsearch.search.facets.CountFacet;
 import org.elasticsearch.search.facets.Facet;
+import org.elasticsearch.search.facets.InternalFacet;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;
@@ -30,23 +30,23 @@ import java.io.IOException;
 /**
  * @author kimchy (Shay Banon)
  */
-public class InternalCountFacet implements CountFacet, InternalFacet {
+public class InternalQueryFacet implements QueryFacet, InternalFacet {
 
     private String name;
 
     private long count;
 
-    private InternalCountFacet() {
+    private InternalQueryFacet() {
 
     }
 
-    public InternalCountFacet(String name, long count) {
+    public InternalQueryFacet(String name, long count) {
         this.name = name;
         this.count = count;
     }
 
     @Override public Type type() {
-        return Type.COUNT;
+        return Type.QUERY;
     }
 
     @Override public Type getType() {
@@ -86,18 +86,21 @@ public class InternalCountFacet implements CountFacet, InternalFacet {
         int count = 0;
         for (Facet facet : facets) {
             if (facet.name().equals(name)) {
-                count += ((InternalCountFacet) facet).count();
+                count += ((QueryFacet) facet).count();
             }
         }
-        return new InternalCountFacet(name, count);
+        return new InternalQueryFacet(name, count);
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(name, count);
+        builder.startObject(name);
+        builder.field("_type", "query");
+        builder.field("count", count);
+        builder.endObject();
     }
 
-    public static CountFacet readCountFacet(StreamInput in) throws IOException {
-        InternalCountFacet result = new InternalCountFacet();
+    public static QueryFacet readCountFacet(StreamInput in) throws IOException {
+        InternalQueryFacet result = new InternalQueryFacet();
         result.readFrom(in);
         return result;
     }
@@ -112,4 +115,3 @@ public class InternalCountFacet implements CountFacet, InternalFacet {
         out.writeVLong(count);
     }
 }
-

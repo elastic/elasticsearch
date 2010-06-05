@@ -50,6 +50,11 @@ public class FlushRequestBuilder {
         return this;
     }
 
+    public FlushRequestBuilder setFull(boolean full) {
+        request.full(full);
+        return this;
+    }
+
     /**
      * Executes the operation asynchronously and returns a future.
      */

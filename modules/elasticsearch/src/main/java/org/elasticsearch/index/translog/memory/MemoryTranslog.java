@@ -27,12 +27,12 @@ import org.elasticsearch.index.translog.TranslogException;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.concurrent.ThreadSafe;
+import org.elasticsearch.util.concurrent.jsr166y.LinkedTransferQueue;
 import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.ArrayList;
 import java.util.Queue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -52,7 +52,7 @@ public class MemoryTranslog extends AbstractIndexShardComponent implements Trans
     // we use LinkedBlockingQueue and not LinkedTransferQueue since we clear it on #newTranslog
     // and with LinkedTransferQueue, nodes are not really cleared, just marked causing for memory
     // not to be cleaned properly (besides, clear is  heavy..., "while ... poll").
-    private final Queue<Operation> operations = new LinkedBlockingQueue<Operation>();
+    private volatile Queue<Operation> operations;
 
     @Inject public MemoryTranslog(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
@@ -74,14 +74,14 @@ public class MemoryTranslog extends AbstractIndexShardComponent implements Trans
     @Override public void newTranslog() {
         synchronized (mutex) {
             estimatedMemorySize.set(0);
-            operations.clear();
+            operations = new LinkedTransferQueue<Operation>();
             id = idGenerator.getAndIncrement();
         }
     }
 
     @Override public void add(Operation operation) throws TranslogException {
         operations.add(operation);
-        estimatedMemorySize.addAndGet(operation.estimateSize() + 20);
+        estimatedMemorySize.addAndGet(operation.estimateSize() + 50);
     }
 
     @Override public Snapshot snapshot() {

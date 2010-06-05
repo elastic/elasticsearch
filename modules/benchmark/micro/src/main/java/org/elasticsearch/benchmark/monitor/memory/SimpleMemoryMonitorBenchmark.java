@@ -61,7 +61,7 @@ public class SimpleMemoryMonitorBenchmark {
         Thread.sleep(5000);
 
         StopWatch stopWatch = new StopWatch().start();
-        int COUNT = 200000;
+        int COUNT = 2000000;
         System.out.println("Indexing [" + COUNT + "] ...");
         for (int i = 0; i < COUNT; i++) {
             client1.index(

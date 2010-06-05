@@ -83,6 +83,14 @@ public class IndicesMemoryCleaner extends AbstractComponent {
         }
     }
 
+    public void forceCleanMemory(boolean full) {
+        for (IndexService indexService : indicesService) {
+            for (IndexShard indexShard : indexService) {
+                indexShard.flush(new Engine.Flush().full(full));
+            }
+        }
+    }
+
     /**
      * Checks if memory needs to be cleaned and cleans it. Returns the amount of memory cleaned.
      */

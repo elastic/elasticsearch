@@ -139,32 +139,14 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         if (logger.isDebugEnabled()) {
             logger.debug("Starting engine with ram_buffer_size[" + ramBufferSize + "], refresh_interval[" + refreshInterval + "]");
         }
-        IndexWriter indexWriter = null;
         try {
-            // release locks when started
-            if (IndexWriter.isLocked(store.directory())) {
-                logger.trace("Shard is locked, releasing lock");
-                store.directory().clearLock(IndexWriter.WRITE_LOCK_NAME);
-            }
-            boolean create = !IndexReader.indexExists(store.directory());
-            indexWriter = new IndexWriter(store.directory(),
-                    analysisService.defaultIndexAnalyzer(), create, deletionPolicy, IndexWriter.MaxFieldLength.UNLIMITED);
-            indexWriter.setMergeScheduler(mergeScheduler.newMergeScheduler());
-            indexWriter.setMergePolicy(mergePolicyProvider.newMergePolicy(indexWriter));
-            indexWriter.setSimilarity(similarityService.defaultIndexSimilarity());
-            indexWriter.setRAMBufferSizeMB(ramBufferSize.mbFrac());
-            indexWriter.setTermIndexInterval(termIndexInterval);
+            this.indexWriter = createWriter();
         } catch (IOException e) {
-            safeClose(indexWriter);
             throw new EngineCreationFailureException(shardId, "Failed to create engine", e);
         }
-        this.indexWriter = indexWriter;
 
         try {
-            IndexReader indexReader = indexWriter.getReader();
-            IndexSearcher indexSearcher = new IndexSearcher(indexReader);
-            indexSearcher.setSimilarity(similarityService.defaultSearchSimilarity());
-            this.nrtResource = newAcquirableResource(new ReaderSearcherHolder(indexSearcher));
+            this.nrtResource = buildNrtResource(indexWriter);
         } catch (IOException e) {
             try {
                 indexWriter.rollback();
@@ -265,6 +247,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
     @Override public void refresh(Refresh refresh) throws EngineException {
         // this engine always acts as if waitForOperations=true
         if (refreshMutex.compareAndSet(false, true)) {
+            IndexWriter currentWriter = indexWriter;
             try {
                 if (dirty) {
                     dirty = false;
@@ -277,8 +260,12 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
                         current.markForClose();
                     }
                 }
-            } catch (IOException e) {
-                throw new RefreshFailedEngineException(shardId, e);
+            } catch (Exception e) {
+                if (currentWriter != indexWriter) {
+                    // an index writer got replaced on us, ignore
+                } else {
+                    throw new RefreshFailedEngineException(shardId, e);
+                }
             } finally {
                 refreshMutex.set(false);
             }
@@ -295,11 +282,31 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             if (disableFlushCounter > 0) {
                 throw new FlushNotAllowedEngineException(shardId, "Recovery is in progress, flush is not allowed");
             }
-            try {
-                indexWriter.commit();
-                translog.newTranslog();
-            } catch (IOException e) {
-                throw new FlushFailedEngineException(shardId, e);
+            if (flush.full()) {
+                // disable refreshing, not dirty
+                dirty = false;
+                refreshMutex.set(true);
+                try {
+                    // that's ok if the index writer failed and is in inconsistent state
+                    // we will get an exception on a dirty operation, and will cause the shard
+                    // to be allocated to a different node
+                    indexWriter.close();
+                    indexWriter = createWriter();
+                    AcquirableResource<ReaderSearcherHolder> current = nrtResource;
+                    nrtResource = buildNrtResource(indexWriter);
+                    current.markForClose();
+                } catch (IOException e) {
+                    throw new FlushFailedEngineException(shardId, e);
+                } finally {
+                    refreshMutex.set(false);
+                }
+            } else {
+                try {
+                    indexWriter.commit();
+                    translog.newTranslog();
+                } catch (IOException e) {
+                    throw new FlushFailedEngineException(shardId, e);
+                }
             }
         } finally {
             rwl.writeLock().unlock();
@@ -456,6 +463,36 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             indexWriter = null;
             rwl.writeLock().unlock();
         }
+    }
+
+    private IndexWriter createWriter() throws IOException {
+        IndexWriter indexWriter = null;
+        try {
+            // release locks when started
+            if (IndexWriter.isLocked(store.directory())) {
+                logger.trace("Shard is locked, releasing lock");
+                store.directory().clearLock(IndexWriter.WRITE_LOCK_NAME);
+            }
+            boolean create = !IndexReader.indexExists(store.directory());
+            indexWriter = new IndexWriter(store.directory(),
+                    analysisService.defaultIndexAnalyzer(), create, deletionPolicy, IndexWriter.MaxFieldLength.UNLIMITED);
+            indexWriter.setMergeScheduler(mergeScheduler.newMergeScheduler());
+            indexWriter.setMergePolicy(mergePolicyProvider.newMergePolicy(indexWriter));
+            indexWriter.setSimilarity(similarityService.defaultIndexSimilarity());
+            indexWriter.setRAMBufferSizeMB(ramBufferSize.mbFrac());
+            indexWriter.setTermIndexInterval(termIndexInterval);
+        } catch (IOException e) {
+            safeClose(indexWriter);
+            throw e;
+        }
+        return indexWriter;
+    }
+
+    private AcquirableResource<ReaderSearcherHolder> buildNrtResource(IndexWriter indexWriter) throws IOException {
+        IndexReader indexReader = indexWriter.getReader();
+        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+        indexSearcher.setSimilarity(similarityService.defaultSearchSimilarity());
+        return newAcquirableResource(new ReaderSearcherHolder(indexSearcher));
     }
 
     private static class RobinSearchResult implements Searcher {

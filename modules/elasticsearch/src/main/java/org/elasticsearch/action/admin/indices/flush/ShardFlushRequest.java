@@ -32,25 +32,34 @@ class ShardFlushRequest extends BroadcastShardOperationRequest {
 
     private boolean refresh;
 
+    private boolean full;
+
     ShardFlushRequest() {
     }
 
     public ShardFlushRequest(String index, int shardId, FlushRequest request) {
         super(index, shardId);
         this.refresh = request.refresh();
+        this.full = request.full();
     }
 
     public boolean refresh() {
         return this.refresh;
     }
 
+    public boolean full() {
+        return this.full;
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         refresh = in.readBoolean();
+        full = in.readBoolean();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(refresh);
+        out.writeBoolean(full);
     }
 }

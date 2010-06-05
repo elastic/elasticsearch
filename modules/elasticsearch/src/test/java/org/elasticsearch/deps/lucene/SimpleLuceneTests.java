@@ -159,8 +159,24 @@ public class SimpleLuceneTests {
                 }
             }
         }
+    }
+
+    @Test public void testNRTSearchOnClosedWriter() throws Exception {
+        Directory dir = new RAMDirectory();
+        IndexWriter indexWriter = new IndexWriter(dir, Lucene.STANDARD_ANALYZER, true, IndexWriter.MaxFieldLength.UNLIMITED);
+        IndexReader reader = indexWriter.getReader();
+
+        for (int i = 0; i < 100; i++) {
+            indexWriter.addDocument(doc()
+                    .add(field("id", Integer.toString(i)))
+                    .boost(i).build());
+        }
+        reader = refreshReader(reader);
 
         indexWriter.close();
+
+        TermDocs termDocs = reader.termDocs();
+        termDocs.next();
     }
 
     /**

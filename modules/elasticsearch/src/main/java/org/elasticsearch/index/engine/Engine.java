@@ -137,6 +137,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
     static class Flush {
 
+        private boolean full = false;
         private boolean refresh = false;
 
         /**
@@ -154,8 +155,23 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this;
         }
 
+        /**
+         * Should a "full" flush be issued, basically cleaning as much memory as possible.
+         */
+        public boolean full() {
+            return this.full;
+        }
+
+        /**
+         * Should a "full" flush be issued, basically cleaning as much memory as possible.
+         */
+        public Flush full(boolean full) {
+            this.full = full;
+            return this;
+        }
+
         @Override public String toString() {
-            return "refresh[" + refresh + "]";
+            return "full[" + full + "], refresh[" + refresh + "]";
         }
     }
 

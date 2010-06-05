@@ -359,7 +359,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override public void flush(Engine.Flush flush) throws ElasticSearchException {
         writeAllowed();
         if (logger.isTraceEnabled()) {
-            logger.trace("Flush");
+            logger.trace("Flush with {}", flush);
         }
         engine.flush(flush);
     }

@@ -24,7 +24,8 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.facets.collector.FacetCollector;
 import org.elasticsearch.search.facets.collector.FacetCollectorParser;
 import org.elasticsearch.search.facets.query.QueryFacetCollectorParser;
-import org.elasticsearch.search.facets.terms.TermFacetCollectorParser;
+import org.elasticsearch.search.facets.statistical.StatisticalFacetCollectorParser;
+import org.elasticsearch.search.facets.terms.TermsFacetCollectorParser;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.util.MapBuilder;
 import org.elasticsearch.util.collect.ImmutableMap;
@@ -60,8 +61,9 @@ public class FacetsParseElement implements SearchParseElement {
 
     public FacetsParseElement() {
         MapBuilder<String, FacetCollectorParser> builder = newMapBuilder();
-        builder.put(TermFacetCollectorParser.NAME, new TermFacetCollectorParser());
+        builder.put(TermsFacetCollectorParser.NAME, new TermsFacetCollectorParser());
         builder.put(QueryFacetCollectorParser.NAME, new QueryFacetCollectorParser());
+        builder.put(StatisticalFacetCollectorParser.NAME, new StatisticalFacetCollectorParser());
         this.facetCollectorParsers = builder.immutableMap();
     }
 

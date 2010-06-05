@@ -62,7 +62,7 @@ public class MultiValueStringFieldData extends StringFieldData {
             return;
         }
         for (int docOrder : docOrders) {
-            proc.onValue(values[docOrder], docId);
+            proc.onValue(docId, values[docOrder]);
         }
     }
 

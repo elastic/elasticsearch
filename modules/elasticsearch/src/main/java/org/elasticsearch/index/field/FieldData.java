@@ -97,7 +97,7 @@ public abstract class FieldData {
     public abstract void forEachValueInDoc(int docId, StringValueInDocProc proc);
 
     public static interface StringValueInDocProc {
-        void onValue(String value, int docId);
+        void onValue(int docId, String value);
     }
 
     /**

@@ -85,4 +85,10 @@ public abstract class NumericFieldData extends FieldData {
     public short shortValue(int docId) {
         return (short) intValue(docId);
     }
+
+    public abstract void forEachValueInDoc(int docId, DoubleValueInDocProc proc);
+
+    public static interface DoubleValueInDocProc {
+        void onValue(int docId, double value);
+    }
 }

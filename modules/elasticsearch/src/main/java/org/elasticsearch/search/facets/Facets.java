@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facets;
 
 import org.elasticsearch.search.facets.query.InternalQueryFacet;
+import org.elasticsearch.search.facets.statistical.InternalStatisticalFacet;
 import org.elasticsearch.search.facets.terms.InternalTermsFacet;
 import org.elasticsearch.util.collect.ImmutableList;
 import org.elasticsearch.util.io.stream.StreamInput;
@@ -136,6 +137,8 @@ public class Facets implements Streamable, ToXContent, Iterable<Facet> {
                     facets.add(InternalTermsFacet.readTermsFacet(in));
                 } else if (id == Facet.Type.QUERY.id()) {
                     facets.add(InternalQueryFacet.readCountFacet(in));
+                } else if (id == Facet.Type.STATISTICAL.id()) {
+                    facets.add(InternalStatisticalFacet.readStatisticalFacet(in));
                 } else {
                     throw new IOException("Can't handle facet type with id [" + id + "]");
                 }

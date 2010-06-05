@@ -26,6 +26,10 @@ import org.elasticsearch.ElasticSearchException;
  */
 public class FacetPhaseExecutionException extends ElasticSearchException {
 
+    public FacetPhaseExecutionException(String facetName, String msg) {
+        super("Facet [" + facetName + "]: " + msg);
+    }
+
     public FacetPhaseExecutionException(String facetName, String msg, Throwable t) {
         super("Facet [" + facetName + "]: " + msg, t);
     }

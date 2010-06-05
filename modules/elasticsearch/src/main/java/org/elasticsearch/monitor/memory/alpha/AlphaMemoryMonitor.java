@@ -175,6 +175,7 @@ public class AlphaMemoryMonitor extends AbstractLifecycleComponent<MemoryMonitor
                         logger.info(sb.toString());
                     }
                     indicesMemoryCleaner.cacheClear();
+                    // TODO this ends up doing a flush with "true", basically, at the end, replacing the IndexWriter, might not be needed with Lucene 3.0.2.
                     indicesMemoryCleaner.fullMemoryClean();
                     ThreadLocals.clearReferencesThreadLocals();
                     fullCounter = 0;

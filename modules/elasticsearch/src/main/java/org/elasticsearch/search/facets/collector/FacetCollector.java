@@ -23,7 +23,7 @@ import org.apache.lucene.search.Collector;
 import org.elasticsearch.search.facets.Facet;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class FacetCollector extends Collector {
 

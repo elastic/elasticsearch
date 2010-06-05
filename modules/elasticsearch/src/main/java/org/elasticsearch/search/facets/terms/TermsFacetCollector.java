@@ -42,7 +42,7 @@ import static org.elasticsearch.index.field.FieldDataOptions.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class TermFacetCollector extends FacetCollector {
+public class TermsFacetCollector extends FacetCollector {
 
     private static ThreadLocal<ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<String>>>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<String>>>>() {
         @Override protected ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<String>>> initialValue() {
@@ -65,7 +65,7 @@ public class TermFacetCollector extends FacetCollector {
 
     private final AggregatorValueProc aggregator;
 
-    public TermFacetCollector(String name, String fieldName, int size, FieldDataCache fieldDataCache, MapperService mapperService) {
+    public TermsFacetCollector(String name, String fieldName, int size, FieldDataCache fieldDataCache, MapperService mapperService) {
         this.name = name;
         this.fieldDataCache = fieldDataCache;
         this.size = size;
@@ -140,7 +140,7 @@ public class TermFacetCollector extends FacetCollector {
             this.facets = facets;
         }
 
-        @Override public void onValue(String value, int docId) {
+        @Override public void onValue(int docId, String value) {
             facets.adjustOrPutValue(value, 1, 1);
         }
 

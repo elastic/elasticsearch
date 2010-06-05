@@ -53,7 +53,15 @@ public class SingleValueIntFieldData extends IntFieldData {
         if (loc == 0) {
             return;
         }
-        proc.onValue(Integer.toString(values[loc]), docId);
+        proc.onValue(docId, Integer.toString(values[loc]));
+    }
+
+    @Override public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
+        int loc = order[docId];
+        if (loc == 0) {
+            return;
+        }
+        proc.onValue(docId, values[loc]);
     }
 
     @Override public int value(int docId) {

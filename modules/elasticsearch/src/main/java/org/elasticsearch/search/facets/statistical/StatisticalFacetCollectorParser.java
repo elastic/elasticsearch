@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facets.terms;
+package org.elasticsearch.search.facets.statistical;
 
 import org.elasticsearch.search.facets.collector.FacetCollector;
 import org.elasticsearch.search.facets.collector.FacetCollectorParser;
@@ -29,9 +29,9 @@ import java.io.IOException;
 /**
  * @author kimchy (shay.banon)
  */
-public class TermFacetCollectorParser implements FacetCollectorParser {
+public class StatisticalFacetCollectorParser implements FacetCollectorParser {
 
-    public static final String NAME = "terms";
+    public static final String NAME = "statistical";
 
     @Override public String name() {
         return NAME;
@@ -39,21 +39,18 @@ public class TermFacetCollectorParser implements FacetCollectorParser {
 
     @Override public FacetCollector parser(String facetName, XContentParser parser, SearchContext context) throws IOException {
         String field = null;
-        int size = 10;
 
-        String termFieldName = null;
+        String fieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
-                termFieldName = parser.currentName();
+                fieldName = parser.currentName();
             } else if (token.isValue()) {
-                if ("field".equals(termFieldName)) {
+                if ("field".equals(fieldName)) {
                     field = parser.text();
-                } else if ("size".equals(termFieldName)) {
-                    size = parser.intValue();
                 }
             }
         }
-        return new TermFacetCollector(facetName, field, size, context.fieldDataCache(), context.mapperService());
+        return new StatisticalFacetCollector(facetName, field, context.fieldDataCache(), context.mapperService());
     }
 }

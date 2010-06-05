@@ -53,7 +53,15 @@ public class SingleValueLongFieldData extends LongFieldData {
         if (loc == 0) {
             return;
         }
-        proc.onValue(Long.toString(values[loc]), docId);
+        proc.onValue(docId, Long.toString(values[loc]));
+    }
+
+    @Override public void forEachValueInDoc(int docId, DoubleValueInDocProc proc) {
+        int loc = order[docId];
+        if (loc == 0) {
+            return;
+        }
+        proc.onValue(docId, values[loc]);
     }
 
     @Override public long value(int docId) {

@@ -253,6 +253,7 @@ public class SearchRequestBuilder {
      *
      * @param name  The logical name of the facet, it will be returned under the name
      * @param query The query facet
+     * @see org.elasticsearch.search.facets.query.QueryFacet
      */
     public SearchRequestBuilder addFacetQuery(String name, XContentQueryBuilder query) {
         facetsBuilder().queryFacet(name, query);
@@ -265,19 +266,60 @@ public class SearchRequestBuilder {
      *
      * @param name  The logical name of the facet, it will be returned under the name
      * @param query The query facet
+     * @see org.elasticsearch.search.facets.query.QueryFacet
      */
     public SearchRequestBuilder addFacetGlobalQuery(String name, XContentQueryBuilder query) {
         facetsBuilder().queryFacetGlobal(name, query);
         return this;
     }
 
+    /**
+     * Adds a term facet for the provided field name.
+     *
+     * @param name      The name of the facet
+     * @param fieldName The field name to run the facet against
+     * @param size      The number of the terms
+     * @see org.elasticsearch.search.facets.terms.TermsFacet
+     */
     public SearchRequestBuilder addFacetTerms(String name, String fieldName, int size) {
         facetsBuilder().termsFacet(name, fieldName, size);
         return this;
     }
 
+    /**
+     * Adds a <b>global</b> term facet for the provided field name.
+     *
+     * @param name      The name of the facet
+     * @param fieldName The field name to run the facet against
+     * @param size      The number of the terms
+     * @see org.elasticsearch.search.facets.terms.TermsFacet
+     */
     public SearchRequestBuilder addFacetGlobalTerms(String name, String fieldName, int size) {
         facetsBuilder().termsFacetGlobal(name, fieldName, size);
+        return this;
+    }
+
+    /**
+     * Adds a numeric statistical facet for the provided field name.
+     *
+     * @param name      The name of the facet
+     * @param fieldName The name of the <b>numeric</b> field
+     * @see org.elasticsearch.search.facets.statistical.StatisticalFacet
+     */
+    public SearchRequestBuilder addFacetStatistical(String name, String fieldName) {
+        facetsBuilder().statisticalFacet(name, fieldName);
+        return this;
+    }
+
+    /**
+     * Adds a numeric statistical <b>global</b> facet for the provided field name.
+     *
+     * @param name      The name of the facet
+     * @param fieldName The name of the <b>numeric</b> field
+     * @see org.elasticsearch.search.facets.statistical.StatisticalFacet
+     */
+    public SearchRequestBuilder addFacetGlobalStatistical(String name, String fieldName) {
+        facetsBuilder().statisticalFacetGlobal(name, fieldName);
         return this;
     }
 

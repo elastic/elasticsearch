@@ -54,7 +54,7 @@ public class SingleValueStringFieldData extends StringFieldData {
         if (loc == 0) {
             return;
         }
-        proc.onValue(values[loc], docId);
+        proc.onValue(docId, values[loc]);
     }
 
     @Override public String value(int docId) {

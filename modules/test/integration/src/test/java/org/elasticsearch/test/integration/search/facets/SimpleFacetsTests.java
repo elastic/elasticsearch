@@ -21,6 +21,8 @@ package org.elasticsearch.test.integration.search.facets;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.index.query.xcontent.QueryBuilders;
+import org.elasticsearch.search.facets.statistical.StatisticalFacet;
 import org.elasticsearch.search.facets.terms.TermsFacet;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
@@ -54,7 +56,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         return client("server1");
     }
 
-    @Test public void testFieldFacets() throws Exception {
+    @Test public void testTermsFacets() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -66,7 +68,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .field("stag", "111")
                 .startArray("tag").value("xxx").value("yyy").endArray()
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
@@ -92,5 +94,43 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().size(), equalTo(3));
         assertThat(facet.entries().get(0).term(), equalTo("yyy"));
         assertThat(facet.entries().get(0).count(), equalTo(2));
+    }
+
+    @Test public void testStatsFacets() throws Exception {
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("num", 1)
+                .startArray("multi_num").value(1.0).value(2.0f).endArray()
+                .endObject()).execute().actionGet();
+        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("num", 2)
+                .startArray("multi_num").value(3.0).value(4.0f).endArray()
+                .endObject()).execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addFacetStatistical("stats1", "num")
+                .addFacetStatistical("stats2", "multi_num")
+                .execute().actionGet();
+
+        StatisticalFacet facet = searchResponse.facets().facet(StatisticalFacet.class, "stats1");
+        assertThat(facet.name(), equalTo(facet.name()));
+        assertThat(facet.count(), equalTo(2l));
+        assertThat(facet.total(), equalTo(3d));
+        assertThat(facet.min(), equalTo(1d));
+        assertThat(facet.max(), equalTo(2d));
+        assertThat(facet.mean(), equalTo(1.5d));
+
+        facet = searchResponse.facets().facet(StatisticalFacet.class, "stats2");
+        assertThat(facet.name(), equalTo(facet.name()));
+        assertThat(facet.count(), equalTo(4l));
+        assertThat(facet.total(), equalTo(10d));
+        assertThat(facet.min(), equalTo(1d));
+        assertThat(facet.max(), equalTo(4d));
+        assertThat(facet.mean(), equalTo(2.5d));
     }
 }

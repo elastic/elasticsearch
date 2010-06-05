@@ -29,11 +29,9 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 public interface Facet {
 
     enum Type {
-        /**
-         * Count type facet.
-         */
         TERMS(0),
-        QUERY(1);
+        QUERY(1),
+        STATISTICAL(2);
 
         int id;
 
@@ -50,6 +48,8 @@ public interface Facet {
                 return TERMS;
             } else if (id == 1) {
                 return QUERY;
+            } else if (id == 2) {
+                return STATISTICAL;
             } else {
                 throw new ElasticSearchIllegalArgumentException("No match for id [" + id + "]");
             }

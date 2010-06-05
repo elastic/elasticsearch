@@ -38,7 +38,7 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class InternalTermsFacet implements InternalFacet, TermsFacet {
 

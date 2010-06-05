@@ -27,7 +27,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.util.xcontent.XContentParser;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class QueryFacetCollectorParser implements FacetCollectorParser {
 

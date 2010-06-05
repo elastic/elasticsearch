@@ -30,7 +30,7 @@ import org.elasticsearch.util.lucene.docset.DocSets;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class QueryFacetCollector extends FacetCollector {
 

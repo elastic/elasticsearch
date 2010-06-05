@@ -22,7 +22,7 @@ package org.elasticsearch.search.facets;
 import org.elasticsearch.ElasticSearchException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class FacetPhaseExecutionException extends ElasticSearchException {
 

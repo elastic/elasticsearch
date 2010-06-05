@@ -40,7 +40,7 @@ import java.util.Deque;
 import static org.elasticsearch.index.field.FieldDataOptions.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TermFacetCollector extends FacetCollector {
 

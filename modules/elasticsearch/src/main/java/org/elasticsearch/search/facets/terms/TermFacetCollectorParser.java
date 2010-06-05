@@ -27,7 +27,7 @@ import org.elasticsearch.util.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TermFacetCollectorParser implements FacetCollectorParser {
 

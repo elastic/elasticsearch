@@ -23,7 +23,7 @@ import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.xcontent.ToXContent;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public interface InternalFacet extends Facet, Streamable, ToXContent {
 

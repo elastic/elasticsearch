@@ -175,7 +175,7 @@ public class AlphaMemoryMonitor extends AbstractLifecycleComponent<MemoryMonitor
                         logger.info(sb.toString());
                     }
                     indicesMemoryCleaner.cacheClear();
-                    indicesMemoryCleaner.forceCleanMemory(true);
+                    indicesMemoryCleaner.fullMemoryClean();
                     ThreadLocals.clearReferencesThreadLocals();
                     fullCounter = 0;
                 } else {
@@ -194,9 +194,9 @@ public class AlphaMemoryMonitor extends AbstractLifecycleComponent<MemoryMonitor
 
                     IndicesMemoryCleaner.MemoryCleanResult memoryCleanResult = indicesMemoryCleaner.cleanMemory(memoryToClean, minimumFlushableSizeToClean);
                     boolean forceClean = false;
-                    if (memoryCleanResult.cleaned().bytes() < memoryToClean) {
+                    if (memoryCleanResult.cleaned().bytes() < memoryToClean && (fullCounter > (fullThreshold / 2))) {
                         forceClean = true;
-                        indicesMemoryCleaner.forceCleanMemory(false);
+                        indicesMemoryCleaner.forceCleanMemory(memoryCleanResult.shardsCleaned());
                     }
 
                     if (logger.isDebugEnabled()) {

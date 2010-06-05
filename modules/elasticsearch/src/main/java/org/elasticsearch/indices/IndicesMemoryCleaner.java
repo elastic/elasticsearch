@@ -24,6 +24,7 @@ import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.translog.Translog;
@@ -37,6 +38,9 @@ import org.elasticsearch.util.settings.Settings;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Set;
+
+import static org.elasticsearch.util.collect.Sets.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -83,10 +87,20 @@ public class IndicesMemoryCleaner extends AbstractComponent {
         }
     }
 
-    public void forceCleanMemory(boolean full) {
+    public void fullMemoryClean() {
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
-                indexShard.flush(new Engine.Flush().full(full));
+                indexShard.flush(new Engine.Flush().full(true));
+            }
+        }
+    }
+
+    public void forceCleanMemory(Set<ShardId> shardsToIgnore) {
+        for (IndexService indexService : indicesService) {
+            for (IndexShard indexShard : indexService) {
+                if (!shardsToIgnore.contains(indexShard.shardId())) {
+                    indexShard.flush(new Engine.Flush().full(false));
+                }
             }
         }
     }
@@ -118,6 +132,7 @@ public class IndicesMemoryCleaner extends AbstractComponent {
         });
         int cleanedShards = 0;
         long cleaned = 0;
+        Set<ShardId> shardsCleaned = newHashSet();
         for (Tuple<SizeValue, IndexShard> tuple : shards) {
             if (tuple.v1().bytes() < minimumFlushableSizeToClean.bytes()) {
                 // we passed the minimum threshold, don't flush
@@ -132,13 +147,14 @@ public class IndicesMemoryCleaner extends AbstractComponent {
             } catch (Exception e) {
                 logger.warn(tuple.v2().shardId() + ": Failed to flush in order to clean memory", e);
             }
+            shardsCleaned.add(tuple.v2().shardId());
             cleanedShards++;
             cleaned += tuple.v1().bytes();
             if (cleaned > memoryToClean) {
                 break;
             }
         }
-        return new MemoryCleanResult(totalShards, cleanedShards, new SizeValue(estimatedFlushableSize), new SizeValue(cleaned));
+        return new MemoryCleanResult(totalShards, cleanedShards, new SizeValue(estimatedFlushableSize), new SizeValue(cleaned), shardsCleaned);
     }
 
     public static class TranslogCleanResult {
@@ -174,12 +190,14 @@ public class IndicesMemoryCleaner extends AbstractComponent {
         private final int cleanedShards;
         private final SizeValue estimatedFlushableSize;
         private final SizeValue cleaned;
+        private final Set<ShardId> shardsCleaned;
 
-        public MemoryCleanResult(int totalShards, int cleanedShards, SizeValue estimatedFlushableSize, SizeValue cleaned) {
+        public MemoryCleanResult(int totalShards, int cleanedShards, SizeValue estimatedFlushableSize, SizeValue cleaned, Set<ShardId> shardsCleaned) {
             this.totalShards = totalShards;
             this.cleanedShards = cleanedShards;
             this.estimatedFlushableSize = estimatedFlushableSize;
             this.cleaned = cleaned;
+            this.shardsCleaned = shardsCleaned;
         }
 
         public int totalShards() {
@@ -196,6 +214,10 @@ public class IndicesMemoryCleaner extends AbstractComponent {
 
         public SizeValue cleaned() {
             return cleaned;
+        }
+
+        public Set<ShardId> shardsCleaned() {
+            return this.shardsCleaned;
         }
 
         @Override public String toString() {

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facets.collector.query;
+package org.elasticsearch.search.facets.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;

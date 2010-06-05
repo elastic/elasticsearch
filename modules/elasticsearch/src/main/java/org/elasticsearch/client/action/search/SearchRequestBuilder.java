@@ -254,7 +254,7 @@ public class SearchRequestBuilder {
      * @param name  The logical name of the facet, it will be returned under the name
      * @param query The query facet
      */
-    public SearchRequestBuilder addQueryFacet(String name, XContentQueryBuilder query) {
+    public SearchRequestBuilder addFacetQuery(String name, XContentQueryBuilder query) {
         facetsBuilder().queryFacet(name, query);
         return this;
     }
@@ -263,22 +263,21 @@ public class SearchRequestBuilder {
      * Adds a query facet (which results in a count facet returned) with an option to
      * be global on the index or bounded by the search query.
      *
-     * @param name   The logical name of the facet, it will be returned under the name
-     * @param query  The query facet
-     * @param global Should the facet be executed globally or not
+     * @param name  The logical name of the facet, it will be returned under the name
+     * @param query The query facet
      */
-    public SearchRequestBuilder addQueryFacet(String name, XContentQueryBuilder query, boolean global) {
-        facetsBuilder().queryFacet(name, query, global);
+    public SearchRequestBuilder addFacetGlobalQuery(String name, XContentQueryBuilder query) {
+        facetsBuilder().queryFacetGlobal(name, query);
         return this;
     }
 
-    public SearchRequestBuilder addTermFacet(String name, String fieldName, int size) {
-        facetsBuilder().termFacet(name, fieldName, size);
+    public SearchRequestBuilder addFacetTerms(String name, String fieldName, int size) {
+        facetsBuilder().termsFacet(name, fieldName, size);
         return this;
     }
 
-    public SearchRequestBuilder addTermFacet(String name, String fieldName, int size, boolean global) {
-        facetsBuilder().termFacet(name, fieldName, size, global);
+    public SearchRequestBuilder addFacetGlobalTerms(String name, String fieldName, int size) {
+        facetsBuilder().termsFacetGlobal(name, fieldName, size);
         return this;
     }
 

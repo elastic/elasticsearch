@@ -30,6 +30,7 @@ import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.controller.ShardDoc;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.search.facets.query.QueryFacet;
 import org.elasticsearch.search.fetch.FetchSearchRequest;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
@@ -150,8 +151,8 @@ public class SingleInstanceEmbeddedSearchTests extends AbstractNodesTests {
                 searchSource().query(wildcardQuery("name", "te*"))
                         .facets(facets().queryFacet("age2", termQuery("age", 2)).queryFacet("age1", termQuery("age", 1)))
         ));
-        assertThat(queryResult.facets().countFacet("age2").count(), equalTo(4l));
-        assertThat(queryResult.facets().countFacet("age1").count(), equalTo(1l));
+        assertThat(queryResult.facets().facet(QueryFacet.class, "age2").count(), equalTo(4l));
+        assertThat(queryResult.facets().facet(QueryFacet.class, "age1").count(), equalTo(1l));
     }
 
     @Test public void testQueryFetchKeepAliveTimeout() throws Exception {

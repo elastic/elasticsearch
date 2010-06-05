@@ -30,7 +30,7 @@ import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.Facets;
-import org.elasticsearch.search.facets.internal.InternalFacet;
+import org.elasticsearch.search.facets.InternalFacet;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResultProvider;
 import org.elasticsearch.search.internal.InternalSearchHit;

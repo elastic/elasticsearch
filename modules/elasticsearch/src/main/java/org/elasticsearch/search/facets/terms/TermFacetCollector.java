@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facets.collector.term;
+package org.elasticsearch.search.facets.terms;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
@@ -26,9 +26,7 @@ import org.elasticsearch.index.field.FieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.facets.Facet;
-import org.elasticsearch.search.facets.MultiCountFacet;
 import org.elasticsearch.search.facets.collector.FacetCollector;
-import org.elasticsearch.search.facets.internal.InternalMultiCountFacet;
 import org.elasticsearch.util.BoundedTreeSet;
 import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.collect.ImmutableList;
@@ -104,15 +102,15 @@ public class TermFacetCollector extends FacetCollector {
         TObjectIntHashMap<String> facets = aggregator.facets();
         if (facets.isEmpty()) {
             pushFacets(facets);
-            return new InternalMultiCountFacet<String>(name, MultiCountFacet.ValueType.STRING, MultiCountFacet.ComparatorType.COUNT, size, ImmutableList.<MultiCountFacet.Entry<String>>of());
+            return new InternalTermsFacet(name, InternalTermsFacet.ComparatorType.COUNT, size, ImmutableList.<InternalTermsFacet.Entry>of());
         } else {
-            BoundedTreeSet<MultiCountFacet.Entry<String>> ordered = new BoundedTreeSet<MultiCountFacet.Entry<String>>(MultiCountFacet.ComparatorType.COUNT.comparator(), size);
+            BoundedTreeSet<InternalTermsFacet.Entry> ordered = new BoundedTreeSet<InternalTermsFacet.Entry>(InternalTermsFacet.ComparatorType.COUNT.comparator(), size);
             for (TObjectIntIterator<String> it = facets.iterator(); it.hasNext();) {
                 it.advance();
-                ordered.add(new MultiCountFacet.Entry<String>(it.key(), it.value()));
+                ordered.add(new InternalTermsFacet.Entry(it.key(), it.value()));
             }
             pushFacets(facets);
-            return new InternalMultiCountFacet<String>(name, MultiCountFacet.ValueType.STRING, MultiCountFacet.ComparatorType.COUNT, size, ordered);
+            return new InternalTermsFacet(name, InternalTermsFacet.ComparatorType.COUNT, size, ordered);
         }
     }
 

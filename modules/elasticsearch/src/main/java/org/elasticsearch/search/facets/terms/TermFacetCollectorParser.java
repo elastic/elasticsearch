@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facets.collector.term;
+package org.elasticsearch.search.facets.terms;
 
 import org.elasticsearch.search.facets.collector.FacetCollector;
 import org.elasticsearch.search.facets.collector.FacetCollectorParser;
@@ -31,7 +31,7 @@ import java.io.IOException;
  */
 public class TermFacetCollectorParser implements FacetCollectorParser {
 
-    public static final String NAME = "term";
+    public static final String NAME = "terms";
 
     @Override public String name() {
         return NAME;

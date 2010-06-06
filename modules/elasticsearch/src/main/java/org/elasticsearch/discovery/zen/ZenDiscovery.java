@@ -313,8 +313,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         logger.info("Master [{}] left, reason [{}]", masterNode, reason);
         List<DiscoveryNode> nodes = newArrayList(latestDiscoNodes.nodes().values());
         nodes.remove(masterNode); // remove the master node from the list, it has failed
-        // sort then
-        DiscoveryNode electedMaster = electMaster.electMaster(nodes);
+        DiscoveryNode electedMaster = electMaster.electMaster(nodes); // elect master
         if (localNode.equals(electedMaster)) {
             this.master = true;
             masterFD.stop();

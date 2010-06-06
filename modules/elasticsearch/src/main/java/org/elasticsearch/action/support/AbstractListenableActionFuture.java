@@ -23,10 +23,9 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.util.collect.Lists;
 
 import java.util.List;
-
-import static org.elasticsearch.util.collect.Lists.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -67,7 +66,7 @@ public abstract class AbstractListenableActionFuture<T, L> extends AdapterAction
                     ((List) this.listeners).add(listener);
                 } else {
                     Object orig = listeners;
-                    listeners = newArrayListWithExpectedSize(2);
+                    listeners = Lists.newArrayListWithCapacity(2);
                     ((List) listeners).add(orig);
                     ((List) listeners).add(listener);
                 }

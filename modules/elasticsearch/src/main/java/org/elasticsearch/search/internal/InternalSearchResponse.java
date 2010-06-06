@@ -21,6 +21,7 @@ package org.elasticsearch.search.internal;
 
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facets.Facets;
+import org.elasticsearch.search.facets.internal.InternalFacets;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
@@ -29,7 +30,6 @@ import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.search.facets.Facets.*;
 import static org.elasticsearch.search.internal.InternalSearchHits.*;
 
 /**
@@ -39,12 +39,12 @@ public class InternalSearchResponse implements Streamable, ToXContent {
 
     private InternalSearchHits hits;
 
-    private Facets facets;
+    private InternalFacets facets;
 
     private InternalSearchResponse() {
     }
 
-    public InternalSearchResponse(InternalSearchHits hits, Facets facets) {
+    public InternalSearchResponse(InternalSearchHits hits, InternalFacets facets) {
         this.hits = hits;
         this.facets = facets;
     }
@@ -73,7 +73,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
     @Override public void readFrom(StreamInput in) throws IOException {
         hits = readSearchHits(in);
         if (in.readBoolean()) {
-            facets = readFacets(in);
+            facets = InternalFacets.readFacets(in);
         }
     }
 

@@ -20,6 +20,9 @@
 package org.elasticsearch.search.facets;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.search.facets.query.QueryFacet;
+import org.elasticsearch.search.facets.statistical.StatisticalFacet;
+import org.elasticsearch.search.facets.terms.TermsFacet;
 
 /**
  * A search facet.
@@ -28,19 +31,48 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
  */
 public interface Facet {
 
+    /**
+     * The type of the facet.
+     */
     enum Type {
-        TERMS(0),
-        QUERY(1),
-        STATISTICAL(2);
+        /**
+         * Terms facet type, matching {@link TermsFacet}.
+         */
+        TERMS(0, TermsFacet.class),
+        /**
+         * Query facet type, matching {@link QueryFacet}.
+         */
+        QUERY(1, QueryFacet.class),
+        /**
+         * Statistical facet type, matching {@link StatisticalFacet}.
+         */
+        STATISTICAL(2, StatisticalFacet.class);
 
-        int id;
+        private int id;
 
-        Type(int id) {
+        private Class<? extends Facet> type;
+
+        Type(int id, Class<? extends Facet> type) {
             this.id = id;
+            this.type = type;
         }
 
         public int id() {
             return id;
+        }
+
+        /**
+         * The facet class type.
+         */
+        public Class<? extends Facet> type() {
+            return this.type;
+        }
+
+        /**
+         * The facet class type.
+         */
+        public Class<? extends Facet> getType() {
+            return type();
         }
 
         public static Type fromId(int id) {

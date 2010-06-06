@@ -43,7 +43,6 @@ import java.io.IOException;
 import java.util.*;
 
 import static org.elasticsearch.util.MapBuilder.*;
-import static org.elasticsearch.util.collect.Lists.*;
 import static org.elasticsearch.util.collect.Sets.*;
 
 /**
@@ -159,7 +158,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             }
         }
 
-        ArrayList<String> actualIndices = newArrayListWithExpectedSize(indices.length);
+        ArrayList<String> actualIndices = Lists.newArrayListWithCapacity(indices.length);
         for (String index : indices) {
             String[] actualLst = aliasAndIndexToIndexMap.get(index);
             if (actualLst == null) {

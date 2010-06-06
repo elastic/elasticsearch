@@ -17,8 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facets;
+package org.elasticsearch.search.facets.internal;
 
+import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.xcontent.ToXContent;
 

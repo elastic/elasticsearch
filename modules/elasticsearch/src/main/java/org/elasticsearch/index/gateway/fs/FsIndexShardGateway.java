@@ -38,6 +38,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.io.stream.DataInputStreamInput;
 import org.elasticsearch.util.io.stream.DataOutputStreamOutput;
@@ -54,7 +55,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.translog.TranslogStreams.*;
-import static org.elasticsearch.util.collect.Lists.*;
 import static org.elasticsearch.util.io.FileSystemUtils.*;
 import static org.elasticsearch.util.lucene.Directories.*;
 
@@ -377,7 +377,7 @@ public class FsIndexShardGateway extends AbstractIndexShardComponent implements 
             File recoveryTranslogFile = new File(locationTranslog, "translog-" + recoveryTranslogId);
             raf = new RandomAccessFile(recoveryTranslogFile, "r");
             int numberOfOperations = raf.readInt();
-            ArrayList<Translog.Operation> operations = newArrayListWithExpectedSize(numberOfOperations);
+            ArrayList<Translog.Operation> operations = Lists.newArrayListWithCapacity(numberOfOperations);
             for (int i = 0; i < numberOfOperations; i++) {
                 operations.add(readTranslogOperation(new DataInputStreamInput(raf)));
             }

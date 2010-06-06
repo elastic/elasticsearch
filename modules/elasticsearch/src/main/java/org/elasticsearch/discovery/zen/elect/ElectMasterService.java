@@ -29,8 +29,6 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
-import static org.elasticsearch.util.collect.Lists.*;
-
 /**
  * @author kimchy (shay.banon)
  */
@@ -50,7 +48,7 @@ public class ElectMasterService extends AbstractComponent {
         if (sortedNodes == null) {
             return new DiscoveryNode[0];
         }
-        List<DiscoveryNode> nextPossibleMasters = newArrayListWithExpectedSize(numberOfPossibleMasters);
+        List<DiscoveryNode> nextPossibleMasters = Lists.newArrayListWithCapacity(numberOfPossibleMasters);
         int counter = 0;
         for (DiscoveryNode nextPossibleMaster : sortedNodes) {
             if (++counter >= numberOfPossibleMasters) {

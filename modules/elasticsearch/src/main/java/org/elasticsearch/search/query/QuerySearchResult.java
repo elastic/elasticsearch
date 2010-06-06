@@ -22,6 +22,7 @@ package org.elasticsearch.search.query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.facets.Facets;
+import org.elasticsearch.search.facets.internal.InternalFacets;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
@@ -29,7 +30,6 @@ import org.elasticsearch.util.io.stream.Streamable;
 import java.io.IOException;
 
 import static org.elasticsearch.search.SearchShardTarget.*;
-import static org.elasticsearch.search.facets.Facets.*;
 import static org.elasticsearch.util.lucene.Lucene.*;
 
 /**
@@ -47,7 +47,7 @@ public class QuerySearchResult implements Streamable, QuerySearchResultProvider 
 
     private TopDocs topDocs;
 
-    private Facets facets;
+    private InternalFacets facets;
 
     private boolean searchTimedOut;
 
@@ -96,7 +96,7 @@ public class QuerySearchResult implements Streamable, QuerySearchResultProvider 
         return facets;
     }
 
-    public void facets(Facets facets) {
+    public void facets(InternalFacets facets) {
         this.facets = facets;
     }
 
@@ -131,7 +131,7 @@ public class QuerySearchResult implements Streamable, QuerySearchResultProvider 
         size = in.readVInt();
         topDocs = readTopDocs(in);
         if (in.readBoolean()) {
-            facets = readFacets(in);
+            facets = InternalFacets.readFacets(in);
         }
         searchTimedOut = in.readBoolean();
     }

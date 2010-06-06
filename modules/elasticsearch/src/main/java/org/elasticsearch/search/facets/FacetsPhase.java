@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.facets.collector.FacetCollector;
+import org.elasticsearch.search.facets.internal.InternalFacets;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.util.collect.ImmutableMap;
@@ -98,6 +99,6 @@ public class FacetsPhase implements SearchPhase {
                 facets.add(facetCollector.facet());
             }
         }
-        context.queryResult().facets(new Facets(facets));
+        context.queryResult().facets(new InternalFacets(facets));
     }
 }

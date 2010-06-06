@@ -29,8 +29,8 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.facets.Facet;
-import org.elasticsearch.search.facets.Facets;
-import org.elasticsearch.search.facets.InternalFacet;
+import org.elasticsearch.search.facets.internal.InternalFacet;
+import org.elasticsearch.search.facets.internal.InternalFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResultProvider;
 import org.elasticsearch.search.internal.InternalSearchHit;
@@ -148,7 +148,7 @@ public class SearchPhaseController {
 
     public InternalSearchResponse merge(ShardDoc[] sortedDocs, Map<SearchShardTarget, ? extends QuerySearchResultProvider> queryResults, Map<SearchShardTarget, ? extends FetchSearchResultProvider> fetchResults) {
         // merge facets
-        Facets facets = null;
+        InternalFacets facets = null;
         if (!queryResults.isEmpty()) {
             // we rely on the fact that the order of facets is the same on all query results
             QuerySearchResult queryResult = queryResults.values().iterator().next().queryResult();
@@ -163,7 +163,7 @@ public class SearchPhaseController {
                 for (Facet facet : queryResult.facets().facets()) {
                     mergedFacets.add(((InternalFacet) facet).aggregate(allFacets));
                 }
-                facets = new Facets(mergedFacets);
+                facets = new InternalFacets(mergedFacets);
             }
         }
 

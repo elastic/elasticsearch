@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.util.collect.ImmutableList;
+import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.collect.UnmodifiableIterator;
 import org.elasticsearch.util.concurrent.jsr166y.ThreadLocalRandom;
 import org.elasticsearch.util.io.stream.StreamInput;
@@ -97,7 +98,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     public List<ShardRouting> backupsShards() {
-        List<ShardRouting> backupShards = newArrayListWithExpectedSize(2);
+        List<ShardRouting> backupShards = Lists.newArrayListWithCapacity(2);
         for (ShardRouting shardRouting : this) {
             if (!shardRouting.primary()) {
                 backupShards.add(shardRouting);

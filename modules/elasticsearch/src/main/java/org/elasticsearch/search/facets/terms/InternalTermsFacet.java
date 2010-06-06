@@ -20,7 +20,7 @@
 package org.elasticsearch.search.facets.terms;
 
 import org.elasticsearch.search.facets.Facet;
-import org.elasticsearch.search.facets.InternalFacet;
+import org.elasticsearch.search.facets.internal.InternalFacet;
 import org.elasticsearch.util.BoundedTreeSet;
 import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.collect.ImmutableList;

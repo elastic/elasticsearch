@@ -19,138 +19,38 @@
 
 package org.elasticsearch.search.facets;
 
-import org.elasticsearch.search.facets.query.InternalQueryFacet;
-import org.elasticsearch.search.facets.statistical.InternalStatisticalFacet;
-import org.elasticsearch.search.facets.terms.InternalTermsFacet;
-import org.elasticsearch.util.collect.ImmutableList;
-import org.elasticsearch.util.io.stream.StreamInput;
-import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.io.stream.Streamable;
-import org.elasticsearch.util.xcontent.ToXContent;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
-
-import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.util.collect.Lists.*;
-import static org.elasticsearch.util.collect.Maps.*;
 
 /**
  * Facets of search action.
  *
  * @author kimchy (shay.banon)
  */
-public class Facets implements Streamable, ToXContent, Iterable<Facet> {
-
-    private final List<Facet> EMPTY = ImmutableList.of();
-
-    private List<Facet> facets = EMPTY;
-
-    private Map<String, Facet> facetsAsMap;
-
-    private Facets() {
-
-    }
-
-    /**
-     * Constructs a new facets.
-     */
-    public Facets(List<Facet> facets) {
-        this.facets = facets;
-    }
-
-    /**
-     * Iterates over the {@link Facet}s.
-     */
-    @Override public Iterator<Facet> iterator() {
-        return facets.iterator();
-    }
+public interface Facets extends Iterable<Facet> {
 
     /**
      * The list of {@link Facet}s.
      */
-    public List<Facet> facets() {
-        return facets;
-    }
+    List<Facet> facets();
 
     /**
-     * Returns the {@link Facet}s keyed by map.
+     * Returns the {@link Facet}s keyed by facet name.
      */
-    public Map<String, Facet> getFacets() {
-        return facetsAsMap();
-    }
+    Map<String, Facet> getFacets();
 
     /**
-     * Returns the {@link Facet}s keyed by map.
+     * Returns the {@link Facet}s keyed by facet name.
      */
-    public Map<String, Facet> facetsAsMap() {
-        if (facetsAsMap != null) {
-            return facetsAsMap;
-        }
-        Map<String, Facet> facetsAsMap = newHashMap();
-        for (Facet facet : facets) {
-            facetsAsMap.put(facet.name(), facet);
-        }
-        this.facetsAsMap = facetsAsMap;
-        return facetsAsMap;
-    }
+    Map<String, Facet> facetsAsMap();
 
     /**
      * Returns the facet by name already casted to the specified type.
      */
-    public <T extends Facet> T facet(Class<T> facetType, String name) {
-        return facetType.cast(facet(name));
-    }
+    <T extends Facet> T facet(Class<T> facetType, String name);
 
     /**
      * A facet of the specified name.
      */
-    public Facet facet(String name) {
-        return facetsAsMap().get(name);
-    }
-
-    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("facets");
-        for (Facet facet : facets) {
-            ((InternalFacet) facet).toXContent(builder, params);
-        }
-        builder.endObject();
-    }
-
-    public static Facets readFacets(StreamInput in) throws IOException {
-        Facets result = new Facets();
-        result.readFrom(in);
-        return result;
-    }
-
-    @Override public void readFrom(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        if (size == 0) {
-            facets = EMPTY;
-        } else {
-            facets = newArrayListWithCapacity(size);
-            for (int i = 0; i < size; i++) {
-                int id = in.readVInt();
-                if (id == Facet.Type.TERMS.id()) {
-                    facets.add(InternalTermsFacet.readTermsFacet(in));
-                } else if (id == Facet.Type.QUERY.id()) {
-                    facets.add(InternalQueryFacet.readCountFacet(in));
-                } else if (id == Facet.Type.STATISTICAL.id()) {
-                    facets.add(InternalStatisticalFacet.readStatisticalFacet(in));
-                } else {
-                    throw new IOException("Can't handle facet type with id [" + id + "]");
-                }
-            }
-        }
-    }
-
-    @Override public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(facets.size());
-        for (Facet facet : facets) {
-            out.writeVInt(facet.type().id());
-            ((InternalFacet) facet).writeTo(out);
-        }
-    }
+    Facet facet(String name);
 }

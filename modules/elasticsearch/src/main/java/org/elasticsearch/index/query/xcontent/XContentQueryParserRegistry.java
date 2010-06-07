@@ -52,6 +52,7 @@ public class XContentQueryParserRegistry {
         add(queryParsersMap, new QueryStringQueryParser(index, indexSettings, analysisService));
         add(queryParsersMap, new BoolQueryParser(index, indexSettings));
         add(queryParsersMap, new TermQueryParser(index, indexSettings));
+        add(queryParsersMap, new FuzzyQueryParser(index, indexSettings));
         add(queryParsersMap, new FieldQueryParser(index, indexSettings, analysisService));
         add(queryParsersMap, new RangeQueryParser(index, indexSettings));
         add(queryParsersMap, new PrefixQueryParser(index, indexSettings));

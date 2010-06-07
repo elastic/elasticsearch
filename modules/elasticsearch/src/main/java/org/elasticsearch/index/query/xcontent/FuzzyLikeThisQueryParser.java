@@ -84,6 +84,10 @@ public class FuzzyLikeThisQueryParser extends AbstractIndexComponent implements 
                     boost = parser.floatValue();
                 } else if ("ignore_tf".equals(currentFieldName) || "ignoreTF".equals(currentFieldName)) {
                     ignoreTF = parser.booleanValue();
+                } else if ("min_similarity".equals(currentFieldName) || "minSimilarity".equals(currentFieldName)) {
+                    minSimilarity = parser.floatValue();
+                } else if ("prefix_length".equals(currentFieldName) || "prefixLength".equals(currentFieldName)) {
+                    prefixLength = parser.intValue();
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("fields".equals(currentFieldName)) {

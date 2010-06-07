@@ -83,6 +83,16 @@ public abstract class QueryBuilders {
     }
 
     /**
+     * A Query that matches documents using fuzzy query.
+     *
+     * @param name  The name of the field
+     * @param value The value of the term
+     */
+    public static FuzzyQueryBuilder fuzzyQuery(String name, String value) {
+        return new FuzzyQueryBuilder(name, value);
+    }
+
+    /**
      * A Query that matches documents containing a term.
      *
      * @param name  The name of the field

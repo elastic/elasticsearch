@@ -220,6 +220,46 @@ public class SimpleIndexQueryParserTests {
         assertThat(fieldQuery.includesMin(), equalTo(true));
     }
 
+    @Test public void testFuzzyQueryBuilder() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        Query parsedQuery = queryParser.parse(fuzzyQuery("name.first", "sh").buildAsBytes());
+        assertThat(parsedQuery, instanceOf(FuzzyQuery.class));
+        FuzzyQuery fuzzyQuery = (FuzzyQuery) parsedQuery;
+        assertThat(fuzzyQuery.getTerm(), equalTo(new Term("name.first", "sh")));
+    }
+
+    @Test public void testFuzzyQuery() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/fuzzy.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FuzzyQuery.class));
+        FuzzyQuery fuzzyQuery = (FuzzyQuery) parsedQuery;
+        assertThat(fuzzyQuery.getTerm(), equalTo(new Term("name.first", "sh")));
+    }
+
+    @Test public void testFuzzyQueryWithFieldsBuilder() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        Query parsedQuery = queryParser.parse(fuzzyQuery("name.first", "sh").minSimilarity(0.1f).prefixLength(1).boost(2.0f).buildAsBytes());
+        assertThat(parsedQuery, instanceOf(FuzzyQuery.class));
+        FuzzyQuery fuzzyQuery = (FuzzyQuery) parsedQuery;
+        assertThat(fuzzyQuery.getTerm(), equalTo(new Term("name.first", "sh")));
+        assertThat(fuzzyQuery.getMinSimilarity(), equalTo(0.1f));
+        assertThat(fuzzyQuery.getPrefixLength(), equalTo(1));
+        assertThat(fuzzyQuery.getBoost(), equalTo(2.0f));
+    }
+
+    @Test public void testFuzzyQueryWithFields() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/fuzzy-with-fields.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FuzzyQuery.class));
+        FuzzyQuery fuzzyQuery = (FuzzyQuery) parsedQuery;
+        assertThat(fuzzyQuery.getTerm(), equalTo(new Term("name.first", "sh")));
+        assertThat(fuzzyQuery.getMinSimilarity(), equalTo(0.1f));
+        assertThat(fuzzyQuery.getPrefixLength(), equalTo(1));
+        assertThat(fuzzyQuery.getBoost(), equalTo(2.0f));
+    }
+
     @Test public void testFieldQueryBuilder1() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
         Query parsedQuery = queryParser.parse(fieldQuery("age", 34).buildAsBytes());

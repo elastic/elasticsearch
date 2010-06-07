@@ -13,6 +13,13 @@
 #   JAVA_OPTS    -- Additional arguments to the JVM for heap size, etc
 #   ES_JAVA_OPTS -- External Java Opts on top of the defaults set
 #
+#
+# Optionally, exact memory values can be set using the following values, note,
+# they can still be set using the `ES_JAVA_OPTS`.
+#
+#   ES_MIN_MEM   -- The minimum number of memory to allocate, in megabytes.
+#   ES_MAX_MEM   -- The maximum number of memory to allocate, in megabytes.
+#
 # As a convenience, a fragment of shell is sourced in order to set one or
 # more of these variables. This so-called `include' can be placed in a
 # number of locations and will be searched for in order. The lowest

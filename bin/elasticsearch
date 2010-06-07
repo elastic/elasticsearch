@@ -9,9 +9,9 @@
 # This script relies on few environment variables to determine startup
 # behavior, those variables are:
 #
-#   CLASSPATH   -- A Java classpath containing everything necessary to run.
-#   JAVA_OPS    -- Additional arguments to the JVM for heap size, etc
-#   ES_JAVA_OPS -- External Java Opts on top of the defaults set
+#   CLASSPATH    -- A Java classpath containing everything necessary to run.
+#   JAVA_OPTS    -- Additional arguments to the JVM for heap size, etc
+#   ES_JAVA_OPTS -- External Java Opts on top of the defaults set
 #
 # As a convenience, a fragment of shell is sourced in order to set one or
 # more of these variables. This so-called `include' can be placed in a

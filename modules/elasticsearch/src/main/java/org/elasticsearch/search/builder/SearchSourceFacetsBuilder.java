@@ -20,6 +20,8 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
+import org.elasticsearch.search.facets.histogram.HistogramFacet;
+import org.elasticsearch.search.facets.histogram.HistogramFacetCollectorParser;
 import org.elasticsearch.search.facets.query.QueryFacetCollectorParser;
 import org.elasticsearch.search.facets.statistical.StatisticalFacetCollectorParser;
 import org.elasticsearch.search.facets.terms.TermsFacetCollectorParser;
@@ -42,6 +44,7 @@ public class SearchSourceFacetsBuilder implements ToXContent {
     private List<BuilderQueryFacet> queryFacets;
     private List<BuilderTermsFacet> termsFacets;
     private List<BuilderStatisticalFacet> statisticalFacets;
+    private List<BuilderHistogramFacet> histogramFacets;
 
     /**
      * Adds a query facet (which results in a count facet returned).
@@ -104,8 +107,32 @@ public class SearchSourceFacetsBuilder implements ToXContent {
         return this;
     }
 
+    public SearchSourceFacetsBuilder histogramFacet(String name, String fieldName, long interval) {
+        return histogramFacet(name, fieldName, interval, HistogramFacet.ComparatorType.VALUE);
+    }
+
+    public SearchSourceFacetsBuilder histogramFacet(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType) {
+        if (histogramFacets == null) {
+            histogramFacets = newArrayListWithCapacity(2);
+        }
+        histogramFacets.add(new BuilderHistogramFacet(name, fieldName, interval, comparatorType, false));
+        return this;
+    }
+
+    public SearchSourceFacetsBuilder histogramFacetGlobal(String name, String fieldName, long interval) {
+        return histogramFacet(name, fieldName, interval, HistogramFacet.ComparatorType.VALUE);
+    }
+
+    public SearchSourceFacetsBuilder histogramFacetGlobal(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType) {
+        if (histogramFacets == null) {
+            histogramFacets = newArrayListWithCapacity(2);
+        }
+        histogramFacets.add(new BuilderHistogramFacet(name, fieldName, interval, comparatorType, true));
+        return this;
+    }
+
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (queryFacets == null && termsFacets == null && statisticalFacets == null) {
+        if (queryFacets == null && termsFacets == null && statisticalFacets == null && histogramFacets == null) {
             return;
         }
         builder.field("facets");
@@ -150,6 +177,24 @@ public class SearchSourceFacetsBuilder implements ToXContent {
 
                 if (statisticalFacet.global() != null) {
                     builder.field("global", statisticalFacet.global());
+                }
+
+                builder.endObject();
+            }
+        }
+
+        if (histogramFacets != null) {
+            for (BuilderHistogramFacet histogramFacet : histogramFacets) {
+                builder.startObject(histogramFacet.name());
+
+                builder.startObject(HistogramFacetCollectorParser.NAME);
+                builder.field("field", histogramFacet.fieldName());
+                builder.field("interval", histogramFacet.interval());
+                builder.field("comparator", histogramFacet.comparatorType().description());
+                builder.endObject();
+
+                if (histogramFacet.global() != null) {
+                    builder.field("global", histogramFacet.global());
                 }
 
                 builder.endObject();
@@ -230,6 +275,46 @@ public class SearchSourceFacetsBuilder implements ToXContent {
 
         public String fieldName() {
             return fieldName;
+        }
+
+        public Boolean global() {
+            return this.global;
+        }
+    }
+
+    private static class BuilderHistogramFacet {
+        private final String name;
+        private final String fieldName;
+        private final long interval;
+        private final HistogramFacet.ComparatorType comparatorType;
+        private final Boolean global;
+
+        private BuilderHistogramFacet(String name, String fieldName, long interval, Boolean global) {
+            this(name, fieldName, interval, HistogramFacet.ComparatorType.VALUE, global);
+        }
+
+        private BuilderHistogramFacet(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType, Boolean global) {
+            this.name = name;
+            this.fieldName = fieldName;
+            this.interval = interval;
+            this.comparatorType = comparatorType;
+            this.global = global;
+        }
+
+        public String name() {
+            return name;
+        }
+
+        public String fieldName() {
+            return fieldName;
+        }
+
+        public long interval() {
+            return this.interval;
+        }
+
+        public HistogramFacet.ComparatorType comparatorType() {
+            return this.comparatorType;
         }
 
         public Boolean global() {

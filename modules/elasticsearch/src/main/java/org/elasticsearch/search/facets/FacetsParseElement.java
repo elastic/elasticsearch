@@ -23,6 +23,7 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.facets.collector.FacetCollector;
 import org.elasticsearch.search.facets.collector.FacetCollectorParser;
+import org.elasticsearch.search.facets.histogram.HistogramFacetCollectorParser;
 import org.elasticsearch.search.facets.query.QueryFacetCollectorParser;
 import org.elasticsearch.search.facets.statistical.StatisticalFacetCollectorParser;
 import org.elasticsearch.search.facets.terms.TermsFacetCollectorParser;
@@ -44,7 +45,7 @@ import static org.elasticsearch.util.MapBuilder.*;
  *      global : false
  *  },
  *  facet2: {
- *      field : {
+ *      terms : {
  *          name : "myfield",
  *          size : 12
  *      },
@@ -64,6 +65,7 @@ public class FacetsParseElement implements SearchParseElement {
         builder.put(TermsFacetCollectorParser.NAME, new TermsFacetCollectorParser());
         builder.put(QueryFacetCollectorParser.NAME, new QueryFacetCollectorParser());
         builder.put(StatisticalFacetCollectorParser.NAME, new StatisticalFacetCollectorParser());
+        builder.put(HistogramFacetCollectorParser.NAME, new HistogramFacetCollectorParser());
         this.facetCollectorParsers = builder.immutableMap();
     }
 

@@ -29,6 +29,16 @@ import org.elasticsearch.search.facets.Facet;
 public interface StatisticalFacet extends Facet {
 
     /**
+     * The field name of the facet.
+     */
+    String fieldName();
+
+    /**
+     * The field name of the facet.
+     */
+    String getFieldName();
+
+    /**
      * The number of values counted.
      */
     long count();

@@ -112,6 +112,10 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
         }
     }
 
+    String fieldName();
+
+    String getFieldName();
+
     List<Entry> entries();
 
     List<Entry> getEntries();

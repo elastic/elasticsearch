@@ -24,7 +24,6 @@ import org.elasticsearch.search.facets.internal.InternalFacet;
 import org.elasticsearch.util.BoundedTreeSet;
 import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.collect.ImmutableList;
-import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.gnu.trove.TObjectIntHashMap;
 import org.elasticsearch.util.gnu.trove.TObjectIntIterator;
 import org.elasticsearch.util.io.stream.StreamInput;
@@ -44,6 +43,8 @@ public class InternalTermsFacet implements InternalFacet, TermsFacet {
 
     private String name;
 
+    private String fieldName;
+
     private int requiredSize;
 
     private Collection<Entry> entries = ImmutableList.of();
@@ -53,8 +54,9 @@ public class InternalTermsFacet implements InternalFacet, TermsFacet {
     private InternalTermsFacet() {
     }
 
-    public InternalTermsFacet(String name, ComparatorType comparatorType, int requiredSize, Collection<Entry> entries) {
+    public InternalTermsFacet(String name, String fieldName, ComparatorType comparatorType, int requiredSize, Collection<Entry> entries) {
         this.name = name;
+        this.fieldName = fieldName;
         this.comparatorType = comparatorType;
         this.requiredSize = requiredSize;
         this.entries = entries;
@@ -68,6 +70,14 @@ public class InternalTermsFacet implements InternalFacet, TermsFacet {
         return this.name;
     }
 
+    @Override public String fieldName() {
+        return this.fieldName;
+    }
+
+    @Override public String getFieldName() {
+        return fieldName();
+    }
+
     @Override public Type type() {
         return Type.TERMS;
     }
@@ -77,11 +87,14 @@ public class InternalTermsFacet implements InternalFacet, TermsFacet {
     }
 
     @Override public List<Entry> entries() {
-        return Lists.newArrayList(this);
+        if (!(entries instanceof List)) {
+            entries = ImmutableList.copyOf(entries);
+        }
+        return (List<Entry>) entries;
     }
 
     @Override public List<Entry> getEntries() {
-        return Lists.newArrayList(this);
+        return entries();
     }
 
     @Override public Iterator<Entry> iterator() {
@@ -114,12 +127,13 @@ public class InternalTermsFacet implements InternalFacet, TermsFacet {
             ordered.add(new Entry(it.key(), it.value()));
         }
 
-        return new InternalTermsFacet(name, comparatorType, requiredSize, ordered);
+        return new InternalTermsFacet(name, fieldName, comparatorType, requiredSize, ordered);
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field("_type", "terms");
+        builder.field("_field", fieldName);
         builder.startArray("terms");
         for (Entry entry : entries) {
             builder.startObject();
@@ -139,6 +153,7 @@ public class InternalTermsFacet implements InternalFacet, TermsFacet {
 
     @Override public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
+        fieldName = in.readUTF();
         comparatorType = ComparatorType.fromId(in.readByte());
         requiredSize = in.readVInt();
 
@@ -151,6 +166,7 @@ public class InternalTermsFacet implements InternalFacet, TermsFacet {
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
+        out.writeUTF(fieldName);
         out.writeByte(comparatorType.id());
 
         out.writeVInt(requiredSize);

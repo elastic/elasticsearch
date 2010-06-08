@@ -124,6 +124,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.min(), equalTo(1d));
         assertThat(facet.max(), equalTo(2d));
         assertThat(facet.mean(), equalTo(1.5d));
+        assertThat(facet.sumOfSquares(), equalTo(5d));
 
         facet = searchResponse.facets().facet(StatisticalFacet.class, "stats2");
         assertThat(facet.name(), equalTo(facet.name()));

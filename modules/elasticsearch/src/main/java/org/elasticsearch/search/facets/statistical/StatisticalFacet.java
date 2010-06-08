@@ -49,6 +49,16 @@ public interface StatisticalFacet extends Facet {
     double getTotal();
 
     /**
+     * The sum of squares of the values.
+     */
+    double sumOfSquares();
+
+    /**
+     * The sum of squares of the values.
+     */
+    double getSumOfSquares();
+
+    /**
      * The mean (average) of the values.
      */
     double mean();
@@ -77,4 +87,24 @@ public interface StatisticalFacet extends Facet {
      * The maximum value.
      */
     double getMax();
+
+    /**
+     * Variance of the values.
+     */
+    double variance();
+
+    /**
+     * Variance of the values.
+     */
+    double getVariance();
+
+    /**
+     * Standard deviation of the values.
+     */
+    double stdDeviation();
+
+    /**
+     * Standard deviation of the values.
+     */
+    double getStdDeviation();
 }

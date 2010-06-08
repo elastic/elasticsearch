@@ -22,11 +22,11 @@ package org.elasticsearch.index.field.doubles;
 import org.elasticsearch.index.field.FieldDataOptions;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class SingleValueDoubleFieldData extends DoubleFieldData {
 
-    private static ThreadLocal<double[]> valuesCache = new ThreadLocal<double[]>() {
+    private ThreadLocal<double[]> valuesCache = new ThreadLocal<double[]>() {
         @Override protected double[] initialValue() {
             return new double[1];
         }
@@ -62,6 +62,10 @@ public class SingleValueDoubleFieldData extends DoubleFieldData {
             return;
         }
         proc.onValue(docId, values[loc]);
+    }
+
+    @Override public double[] doubleValues(int docId) {
+        return values(docId);
     }
 
     @Override public double value(int docId) {

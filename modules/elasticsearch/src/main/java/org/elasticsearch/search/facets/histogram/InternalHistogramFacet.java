@@ -46,7 +46,8 @@ public class InternalHistogramFacet implements HistogramFacet, InternalFacet {
 
     private String name;
 
-    private String fieldName;
+    private String keyFieldName;
+    private String valueFieldName;
 
     private long interval;
 
@@ -61,9 +62,10 @@ public class InternalHistogramFacet implements HistogramFacet, InternalFacet {
     private InternalHistogramFacet() {
     }
 
-    public InternalHistogramFacet(String name, String fieldName, long interval, ComparatorType comparatorType, TLongLongHashMap counts, TLongDoubleHashMap totals) {
+    public InternalHistogramFacet(String name, String keyFieldName, String valueFieldName, long interval, ComparatorType comparatorType, TLongLongHashMap counts, TLongDoubleHashMap totals) {
         this.name = name;
-        this.fieldName = fieldName;
+        this.keyFieldName = keyFieldName;
+        this.valueFieldName = valueFieldName;
         this.interval = interval;
         this.comparatorType = comparatorType;
         this.counts = counts;
@@ -78,12 +80,20 @@ public class InternalHistogramFacet implements HistogramFacet, InternalFacet {
         return name();
     }
 
-    @Override public String fieldName() {
-        return this.fieldName;
+    @Override public String keyFieldName() {
+        return this.keyFieldName;
     }
 
-    @Override public String getFieldName() {
-        return fieldName();
+    @Override public String getKeyFieldName() {
+        return keyFieldName();
+    }
+
+    @Override public String valueFieldName() {
+        return this.valueFieldName;
+    }
+
+    @Override public String getValueFieldName() {
+        return valueFieldName();
     }
 
     @Override public Type type() {
@@ -161,19 +171,20 @@ public class InternalHistogramFacet implements HistogramFacet, InternalFacet {
             totals = EMPTY_LONG_DOUBLE_MAP;
         }
 
-        return new InternalHistogramFacet(name, fieldName, interval, comparatorType, counts, totals);
+        return new InternalHistogramFacet(name, keyFieldName, valueFieldName, interval, comparatorType, counts, totals);
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field("_type", "histogram");
-        builder.field("_field", fieldName);
+        builder.field("_key_field", keyFieldName);
+        builder.field("_value_field", valueFieldName);
         builder.field("_comparator", comparatorType.description());
         builder.field("_interval", interval);
         builder.startArray("entries");
         for (Entry entry : computeEntries()) {
             builder.startObject();
-            builder.field("value", entry.value());
+            builder.field("key", entry.key());
             builder.field("count", entry.count());
             builder.field("total", entry.total());
             builder.field("mean", entry.mean());
@@ -191,7 +202,8 @@ public class InternalHistogramFacet implements HistogramFacet, InternalFacet {
 
     @Override public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
-        fieldName = in.readUTF();
+        keyFieldName = in.readUTF();
+        valueFieldName = in.readUTF();
         interval = in.readVLong();
         comparatorType = ComparatorType.fromId(in.readByte());
 
@@ -212,7 +224,8 @@ public class InternalHistogramFacet implements HistogramFacet, InternalFacet {
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
-        out.writeUTF(fieldName);
+        out.writeUTF(keyFieldName);
+        out.writeUTF(valueFieldName);
         out.writeVLong(interval);
         out.writeByte(comparatorType.id());
         // optimize the write, since we know we have the same buckets as keys

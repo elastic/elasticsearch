@@ -134,44 +134,78 @@ public class SearchSourceFacetsBuilder implements ToXContent {
     }
 
     public SearchSourceFacetsBuilder histogramFacet(String name, String fieldName, long interval) {
-        return histogramFacet(name, fieldName, interval, HistogramFacet.ComparatorType.VALUE, null);
+        return histogramFacet(name, fieldName, interval, HistogramFacet.ComparatorType.KEY, null);
+    }
+
+    public SearchSourceFacetsBuilder histogramFacet(String name, String keyFieldName, String valueFieldName, long interval) {
+        return histogramFacet(name, keyFieldName, valueFieldName, interval, HistogramFacet.ComparatorType.KEY, null);
     }
 
     public SearchSourceFacetsBuilder histogramFacet(String name, String fieldName, long interval, @Nullable XContentFilterBuilder filter) {
-        return histogramFacet(name, fieldName, interval, HistogramFacet.ComparatorType.VALUE, filter);
+        return histogramFacet(name, fieldName, interval, HistogramFacet.ComparatorType.KEY, filter);
+    }
+
+    public SearchSourceFacetsBuilder histogramFacet(String name, String keyFieldName, String valueFieldName, long interval, @Nullable XContentFilterBuilder filter) {
+        return histogramFacet(name, keyFieldName, valueFieldName, interval, HistogramFacet.ComparatorType.KEY, filter);
     }
 
     public SearchSourceFacetsBuilder histogramFacet(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType) {
         return histogramFacet(name, fieldName, interval, comparatorType, null);
     }
 
-    public SearchSourceFacetsBuilder histogramFacet(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType,
+    public SearchSourceFacetsBuilder histogramFacet(String name, String keyFieldName, String valueFieldName, long interval, HistogramFacet.ComparatorType comparatorType) {
+        return histogramFacet(name, keyFieldName, valueFieldName, interval, comparatorType, null);
+    }
+
+    public SearchSourceFacetsBuilder histogramFacet(String name, String keyFieldName, long interval, HistogramFacet.ComparatorType comparatorType,
+                                                    @Nullable XContentFilterBuilder filter) {
+        return histogramFacet(name, keyFieldName, null, interval, comparatorType, filter);
+    }
+
+    public SearchSourceFacetsBuilder histogramFacet(String name, String keyFieldName, String valueFieldName, long interval, HistogramFacet.ComparatorType comparatorType,
                                                     @Nullable XContentFilterBuilder filter) {
         if (histogramFacets == null) {
             histogramFacets = newArrayListWithCapacity(2);
         }
-        histogramFacets.add(new BuilderHistogramFacet(name, fieldName, interval, comparatorType, filter, false));
+        histogramFacets.add(new BuilderHistogramFacet(name, keyFieldName, valueFieldName, interval, comparatorType, filter, false));
         return this;
     }
 
     public SearchSourceFacetsBuilder histogramFacetGlobal(String name, String fieldName, long interval) {
-        return histogramFacet(name, fieldName, interval, HistogramFacet.ComparatorType.VALUE, null);
+        return histogramFacet(name, fieldName, interval, HistogramFacet.ComparatorType.KEY, null);
+    }
+
+    public SearchSourceFacetsBuilder histogramFacetGlobal(String name, String keyFieldName, String valueFieldName, long interval) {
+        return histogramFacet(name, keyFieldName, valueFieldName, interval, HistogramFacet.ComparatorType.KEY, null);
     }
 
     public SearchSourceFacetsBuilder histogramFacetGlobal(String name, String fieldName, long interval, @Nullable XContentFilterBuilder filter) {
-        return histogramFacet(name, fieldName, interval, HistogramFacet.ComparatorType.VALUE, filter);
+        return histogramFacet(name, fieldName, interval, HistogramFacet.ComparatorType.KEY, filter);
+    }
+
+    public SearchSourceFacetsBuilder histogramFacetGlobal(String name, String keyFieldName, String valueFieldName, long interval, @Nullable XContentFilterBuilder filter) {
+        return histogramFacet(name, keyFieldName, valueFieldName, interval, HistogramFacet.ComparatorType.KEY, filter);
     }
 
     public SearchSourceFacetsBuilder histogramFacetGlobal(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType) {
         return histogramFacetGlobal(name, fieldName, interval, comparatorType, null);
     }
 
+    public SearchSourceFacetsBuilder histogramFacetGlobal(String name, String keyFieldName, String valueFieldName, long interval, HistogramFacet.ComparatorType comparatorType) {
+        return histogramFacetGlobal(name, keyFieldName, valueFieldName, interval, comparatorType, null);
+    }
+
     public SearchSourceFacetsBuilder histogramFacetGlobal(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType,
+                                                          @Nullable XContentFilterBuilder filter) {
+        return histogramFacetGlobal(name, fieldName, null, interval, comparatorType, filter);
+    }
+
+    public SearchSourceFacetsBuilder histogramFacetGlobal(String name, String keyFieldName, String valueFieldName, long interval, HistogramFacet.ComparatorType comparatorType,
                                                           @Nullable XContentFilterBuilder filter) {
         if (histogramFacets == null) {
             histogramFacets = newArrayListWithCapacity(2);
         }
-        histogramFacets.add(new BuilderHistogramFacet(name, fieldName, interval, comparatorType, filter, true));
+        histogramFacets.add(new BuilderHistogramFacet(name, keyFieldName, valueFieldName, interval, comparatorType, filter, true));
         return this;
     }
 
@@ -247,7 +281,12 @@ public class SearchSourceFacetsBuilder implements ToXContent {
                 builder.startObject(histogramFacet.name());
 
                 builder.startObject(HistogramFacetCollectorParser.NAME);
-                builder.field("field", histogramFacet.fieldName());
+                if (histogramFacet.valueFieldName() != null && !histogramFacet.keyFieldName().equals(histogramFacet.valueFieldName())) {
+                    builder.field("key_field", histogramFacet.keyFieldName());
+                    builder.field("value_field", histogramFacet.valueFieldName());
+                } else {
+                    builder.field("field", histogramFacet.keyFieldName());
+                }
                 builder.field("interval", histogramFacet.interval());
                 builder.field("comparator", histogramFacet.comparatorType().description());
                 builder.endObject();
@@ -366,20 +405,22 @@ public class SearchSourceFacetsBuilder implements ToXContent {
 
     private static class BuilderHistogramFacet {
         private final String name;
-        private final String fieldName;
+        private final String keyFieldName;
+        private final String valueFieldName;
         private final long interval;
         private final HistogramFacet.ComparatorType comparatorType;
         private final XContentFilterBuilder filter;
         private final Boolean global;
 
-        private BuilderHistogramFacet(String name, String fieldName, long interval, XContentFilterBuilder filter, Boolean global) {
-            this(name, fieldName, interval, HistogramFacet.ComparatorType.VALUE, filter, global);
+        private BuilderHistogramFacet(String name, String keyFieldName, String valueFieldName, long interval, XContentFilterBuilder filter, Boolean global) {
+            this(name, keyFieldName, valueFieldName, interval, HistogramFacet.ComparatorType.KEY, filter, global);
         }
 
-        private BuilderHistogramFacet(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType,
+        private BuilderHistogramFacet(String name, String keyFieldName, String valueFieldName, long interval, HistogramFacet.ComparatorType comparatorType,
                                       XContentFilterBuilder filter, Boolean global) {
             this.name = name;
-            this.fieldName = fieldName;
+            this.keyFieldName = keyFieldName;
+            this.valueFieldName = valueFieldName;
             this.interval = interval;
             this.comparatorType = comparatorType;
             this.filter = filter;
@@ -390,8 +431,12 @@ public class SearchSourceFacetsBuilder implements ToXContent {
             return name;
         }
 
-        public String fieldName() {
-            return fieldName;
+        public String keyFieldName() {
+            return keyFieldName;
+        }
+
+        public String valueFieldName() {
+            return valueFieldName;
         }
 
         public long interval() {

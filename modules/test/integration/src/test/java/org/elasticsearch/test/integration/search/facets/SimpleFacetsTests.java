@@ -186,16 +186,17 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addFacetHistogram("stats1", "num", 100)
                 .addFacetHistogram("stats2", "multi_num", 10)
+                .addFacetHistogram("stats3", "num", "multi_num", 100)
                 .execute().actionGet();
 
         HistogramFacet facet = searchResponse.facets().facet(HistogramFacet.class, "stats1");
         assertThat(facet.name(), equalTo("stats1"));
         assertThat(facet.entries().size(), equalTo(2));
-        assertThat(facet.entries().get(0).value(), equalTo(1000l));
+        assertThat(facet.entries().get(0).key(), equalTo(1000l));
         assertThat(facet.entries().get(0).count(), equalTo(2l));
         assertThat(facet.entries().get(0).total(), equalTo(2120d));
         assertThat(facet.entries().get(0).mean(), equalTo(1060d));
-        assertThat(facet.entries().get(1).value(), equalTo(1100l));
+        assertThat(facet.entries().get(1).key(), equalTo(1100l));
         assertThat(facet.entries().get(1).count(), equalTo(1l));
         assertThat(facet.entries().get(1).total(), equalTo(1175d));
         assertThat(facet.entries().get(1).mean(), equalTo(1175d));
@@ -203,17 +204,29 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         facet = searchResponse.facets().facet(HistogramFacet.class, "stats2");
         assertThat(facet.name(), equalTo("stats2"));
         assertThat(facet.entries().size(), equalTo(3));
-        assertThat(facet.entries().get(0).value(), equalTo(10l));
+        assertThat(facet.entries().get(0).key(), equalTo(10l));
         assertThat(facet.entries().get(0).count(), equalTo(3l));
         assertThat(facet.entries().get(0).total(), equalTo(45d));
         assertThat(facet.entries().get(0).mean(), equalTo(15d));
-        assertThat(facet.entries().get(1).value(), equalTo(20l));
+        assertThat(facet.entries().get(1).key(), equalTo(20l));
         assertThat(facet.entries().get(1).count(), equalTo(2l));
         assertThat(facet.entries().get(1).total(), equalTo(48d));
         assertThat(facet.entries().get(1).mean(), equalTo(24d));
-        assertThat(facet.entries().get(2).value(), equalTo(30l));
+        assertThat(facet.entries().get(2).key(), equalTo(30l));
         assertThat(facet.entries().get(2).count(), equalTo(1l));
         assertThat(facet.entries().get(2).total(), equalTo(31d));
         assertThat(facet.entries().get(2).mean(), equalTo(31d));
+
+        facet = searchResponse.facets().facet(HistogramFacet.class, "stats3");
+        assertThat(facet.name(), equalTo("stats3"));
+        assertThat(facet.entries().size(), equalTo(2));
+        assertThat(facet.entries().get(0).key(), equalTo(1000l));
+        assertThat(facet.entries().get(0).count(), equalTo(4l));
+        assertThat(facet.entries().get(0).total(), equalTo(82d));
+        assertThat(facet.entries().get(0).mean(), equalTo(20.5d));
+        assertThat(facet.entries().get(1).key(), equalTo(1100l));
+        assertThat(facet.entries().get(1).count(), equalTo(2l));
+        assertThat(facet.entries().get(1).total(), equalTo(42d));
+        assertThat(facet.entries().get(1).mean(), equalTo(21d));
     }
 }

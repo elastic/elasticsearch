@@ -20,13 +20,20 @@
 package org.elasticsearch.index.field.longs;
 
 import org.elasticsearch.index.field.FieldDataOptions;
+import org.elasticsearch.index.field.doubles.DoubleFieldData;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class SingleValueLongFieldData extends LongFieldData {
 
-    private static ThreadLocal<long[]> valuesCache = new ThreadLocal<long[]>() {
+    private ThreadLocal<double[]> doublesValuesCache = new ThreadLocal<double[]>() {
+        @Override protected double[] initialValue() {
+            return new double[1];
+        }
+    };
+
+    private ThreadLocal<long[]> valuesCache = new ThreadLocal<long[]>() {
         @Override protected long[] initialValue() {
             return new long[1];
         }
@@ -62,6 +69,16 @@ public class SingleValueLongFieldData extends LongFieldData {
             return;
         }
         proc.onValue(docId, values[loc]);
+    }
+
+    @Override public double[] doubleValues(int docId) {
+        int loc = order[docId];
+        if (loc == 0) {
+            return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
+        }
+        double[] ret = doublesValuesCache.get();
+        ret[0] = values[loc];
+        return ret;
     }
 
     @Override public long value(int docId) {

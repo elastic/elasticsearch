@@ -20,10 +20,13 @@
 package org.elasticsearch.search.facets.query;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.search.facets.Facet;
-import org.elasticsearch.search.facets.collector.FacetCollector;
+import org.elasticsearch.search.facets.support.AbstractFacetCollector;
 import org.elasticsearch.util.lucene.docset.DocSet;
 import org.elasticsearch.util.lucene.docset.DocSets;
 
@@ -32,23 +35,17 @@ import java.io.IOException;
 /**
  * @author kimchy (shay.banon)
  */
-public class QueryFacetCollector extends FacetCollector {
+public class QueryFacetCollector extends AbstractFacetCollector {
 
     private final Filter filter;
-
-    private final String name;
 
     private DocSet docSet;
 
     private int count = 0;
 
-    public QueryFacetCollector(String name, Query query, FilterCache filterCache) {
-        this.name = name;
+    public QueryFacetCollector(String facetName, Query query, FilterCache filterCache) {
+        super(facetName);
         this.filter = filterCache.cache(new QueryWrapperFilter(query));
-    }
-
-    @Override public void setScorer(Scorer scorer) throws IOException {
-        // ignore
     }
 
     @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
@@ -66,11 +63,7 @@ public class QueryFacetCollector extends FacetCollector {
         }
     }
 
-    @Override public boolean acceptsDocsOutOfOrder() {
-        return true;
-    }
-
     @Override public Facet facet() {
-        return new InternalQueryFacet(name, count);
+        return new InternalQueryFacet(facetName, count);
     }
 }

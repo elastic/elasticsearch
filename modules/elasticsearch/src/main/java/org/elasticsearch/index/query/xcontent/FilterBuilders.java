@@ -179,6 +179,18 @@ public abstract class FilterBuilders {
         return new BoolFilterBuilder();
     }
 
+    public static AndFilterBuilder andFilter(XContentFilterBuilder... filters) {
+        return new AndFilterBuilder(filters);
+    }
+
+    public static OrFilterBuilder orFilter(XContentFilterBuilder... filters) {
+        return new OrFilterBuilder(filters);
+    }
+
+    public static NotFilterBuilder notFilter(XContentFilterBuilder filter) {
+        return new NotFilterBuilder(filter);
+    }
+
     private FilterBuilders() {
 
     }

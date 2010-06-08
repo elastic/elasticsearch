@@ -31,6 +31,22 @@ import java.io.IOException;
  */
 public class DocSets {
 
+    public static DocSet convert(IndexReader reader, DocIdSet docIdSet) throws IOException {
+        if (docIdSet == null) {
+            return DocSet.EMPTY_DOC_SET;
+        } else if (docIdSet instanceof DocSet) {
+            return (DocSet) docIdSet;
+        } else if (docIdSet instanceof OpenBitSet) {
+            return new OpenBitDocSet((OpenBitSet) docIdSet);
+        } else {
+            final DocIdSetIterator it = docIdSet.iterator();
+            // null is allowed to be returned by iterator(),
+            // in this case we wrap with the empty set,
+            // which is cacheable.
+            return (it == null) ? DocSet.EMPTY_DOC_SET : new OpenBitDocSet(it, reader.maxDoc());
+        }
+    }
+
     /**
      * Returns a cacheable version of the doc id set (might be the same instance provided as a parameter).
      */

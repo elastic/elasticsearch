@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.facets;
 
+import org.apache.lucene.search.Filter;
+import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.facets.collector.FacetCollector;
@@ -82,20 +84,35 @@ public class FacetsParseElement implements SearchParseElement {
                 FacetCollector facet = null;
                 boolean global = false;
                 String facetFieldName = null;
+                Filter filter = null;
+                boolean cacheFilter = true;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         facetFieldName = parser.currentName();
                     } else if (token == XContentParser.Token.START_OBJECT) {
-                        FacetCollectorParser facetCollectorParser = facetCollectorParsers.get(facetFieldName);
-                        if (facetCollectorParser == null) {
-                            throw new SearchParseException(context, "No facet type for [" + facetFieldName + "]");
+                        if ("filter".equals(facetFieldName)) {
+                            XContentIndexQueryParser indexQueryParser = (XContentIndexQueryParser) context.queryParser();
+                            filter = indexQueryParser.parseInnerFilter(parser);
+                        } else {
+                            FacetCollectorParser facetCollectorParser = facetCollectorParsers.get(facetFieldName);
+                            if (facetCollectorParser == null) {
+                                throw new SearchParseException(context, "No facet type for [" + facetFieldName + "]");
+                            }
+                            facet = facetCollectorParser.parser(topLevelFieldName, parser, context);
                         }
-                        facet = facetCollectorParser.parser(topLevelFieldName, parser, context);
                     } else if (token.isValue()) {
                         if ("global".equals(facetFieldName)) {
                             global = parser.booleanValue();
+                        } else if ("cache_filter".equals(facetFieldName) || "cacheFilter".equals(facetFieldName)) {
+                            cacheFilter = parser.booleanValue();
                         }
                     }
+                }
+                if (filter != null) {
+                    if (cacheFilter) {
+                        filter = context.filterCache().cache(filter);
+                    }
+                    facet.setFilter(filter);
                 }
 
                 if (facetCollectors == null) {

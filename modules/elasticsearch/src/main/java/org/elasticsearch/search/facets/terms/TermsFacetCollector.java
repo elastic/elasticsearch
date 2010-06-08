@@ -79,11 +79,11 @@ public class TermsFacetCollector extends AbstractFacetCollector {
         aggregator = new AggregatorValueProc(popFacets());
     }
 
-    @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         fieldData = fieldDataCache.cache(fieldDataType, reader, fieldName, fieldDataOptions().withFreqs(false));
     }
 
-    @Override public void collect(int doc) throws IOException {
+    @Override protected void doCollect(int doc) throws IOException {
         fieldData.forEachValueInDoc(doc, aggregator);
     }
 

@@ -70,11 +70,11 @@ public class HistogramFacetCollector extends AbstractFacetCollector {
         histoProc = new HistogramProc(interval);
     }
 
-    @Override public void collect(int doc) throws IOException {
+    @Override protected void doCollect(int doc) throws IOException {
         fieldData.forEachValueInDoc(doc, histoProc);
     }
 
-    @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         fieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, fieldName, fieldDataOptions().withFreqs(false));
     }
 

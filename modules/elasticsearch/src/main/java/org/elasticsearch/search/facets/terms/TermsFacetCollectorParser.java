@@ -41,15 +41,15 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
         String field = null;
         int size = 10;
 
-        String termFieldName = null;
+        String fieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
-                termFieldName = parser.currentName();
+                fieldName = parser.currentName();
             } else if (token.isValue()) {
-                if ("field".equals(termFieldName)) {
+                if ("field".equals(fieldName)) {
                     field = parser.text();
-                } else if ("size".equals(termFieldName)) {
+                } else if ("size".equals(fieldName)) {
                     size = parser.intValue();
                 }
             }

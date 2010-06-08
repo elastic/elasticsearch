@@ -19,8 +19,12 @@
 
 package org.elasticsearch.search.facets.support;
 
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.search.facets.collector.FacetCollector;
+import org.elasticsearch.util.lucene.docset.DocSet;
+import org.elasticsearch.util.lucene.docset.DocSets;
 
 import java.io.IOException;
 
@@ -31,8 +35,16 @@ public abstract class AbstractFacetCollector extends FacetCollector {
 
     protected final String facetName;
 
+    protected Filter filter;
+
+    private DocSet docSet = null;
+
     public AbstractFacetCollector(String facetName) {
         this.facetName = facetName;
+    }
+
+    @Override public void setFilter(Filter filter) {
+        this.filter = filter;
     }
 
     @Override public void setScorer(Scorer scorer) throws IOException {
@@ -42,4 +54,23 @@ public abstract class AbstractFacetCollector extends FacetCollector {
     @Override public boolean acceptsDocsOutOfOrder() {
         return true; // when working on FieldData, docs can be out of order
     }
+
+    @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+        if (filter != null) {
+            docSet = DocSets.convert(reader, filter.getDocIdSet(reader));
+        }
+        doSetNextReader(reader, docBase);
+    }
+
+    protected abstract void doSetNextReader(IndexReader reader, int docBase) throws IOException;
+
+    @Override public void collect(int doc) throws IOException {
+        if (docSet == null) {
+            doCollect(doc);
+        } else if (docSet.get(doc)) {
+            doCollect(doc);
+        }
+    }
+
+    protected abstract void doCollect(int doc) throws IOException;
 }

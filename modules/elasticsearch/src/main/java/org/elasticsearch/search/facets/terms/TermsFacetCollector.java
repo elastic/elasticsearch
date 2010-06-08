@@ -20,13 +20,12 @@
 package org.elasticsearch.search.facets.terms;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.Scorer;
 import org.elasticsearch.index.cache.field.FieldDataCache;
 import org.elasticsearch.index.field.FieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.facets.Facet;
-import org.elasticsearch.search.facets.collector.FacetCollector;
+import org.elasticsearch.search.facets.support.AbstractFacetCollector;
 import org.elasticsearch.util.BoundedTreeSet;
 import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.collect.ImmutableList;
@@ -42,7 +41,7 @@ import static org.elasticsearch.index.field.FieldDataOptions.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class TermsFacetCollector extends FacetCollector {
+public class TermsFacetCollector extends AbstractFacetCollector {
 
     private static ThreadLocal<ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<String>>>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<String>>>>() {
         @Override protected ThreadLocals.CleanableValue<Deque<TObjectIntHashMap<String>>> initialValue() {
@@ -52,8 +51,6 @@ public class TermsFacetCollector extends FacetCollector {
 
 
     private final FieldDataCache fieldDataCache;
-
-    private final String name;
 
     private final String fieldName;
 
@@ -65,8 +62,8 @@ public class TermsFacetCollector extends FacetCollector {
 
     private final AggregatorValueProc aggregator;
 
-    public TermsFacetCollector(String name, String fieldName, int size, FieldDataCache fieldDataCache, MapperService mapperService) {
-        this.name = name;
+    public TermsFacetCollector(String facetName, String fieldName, int size, FieldDataCache fieldDataCache, MapperService mapperService) {
+        super(facetName);
         this.fieldDataCache = fieldDataCache;
         this.size = size;
 
@@ -82,14 +79,6 @@ public class TermsFacetCollector extends FacetCollector {
         aggregator = new AggregatorValueProc(popFacets());
     }
 
-    @Override public void setScorer(Scorer scorer) throws IOException {
-        // nothing to do here
-    }
-
-    @Override public boolean acceptsDocsOutOfOrder() {
-        return true;
-    }
-
     @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
         fieldData = fieldDataCache.cache(fieldDataType, reader, fieldName, fieldDataOptions().withFreqs(false));
     }
@@ -102,7 +91,7 @@ public class TermsFacetCollector extends FacetCollector {
         TObjectIntHashMap<String> facets = aggregator.facets();
         if (facets.isEmpty()) {
             pushFacets(facets);
-            return new InternalTermsFacet(name, InternalTermsFacet.ComparatorType.COUNT, size, ImmutableList.<InternalTermsFacet.Entry>of());
+            return new InternalTermsFacet(facetName, InternalTermsFacet.ComparatorType.COUNT, size, ImmutableList.<InternalTermsFacet.Entry>of());
         } else {
             BoundedTreeSet<InternalTermsFacet.Entry> ordered = new BoundedTreeSet<InternalTermsFacet.Entry>(InternalTermsFacet.ComparatorType.COUNT.comparator(), size);
             for (TObjectIntIterator<String> it = facets.iterator(); it.hasNext();) {
@@ -110,7 +99,7 @@ public class TermsFacetCollector extends FacetCollector {
                 ordered.add(new InternalTermsFacet.Entry(it.key(), it.value()));
             }
             pushFacets(facets);
-            return new InternalTermsFacet(name, InternalTermsFacet.ComparatorType.COUNT, size, ordered);
+            return new InternalTermsFacet(facetName, InternalTermsFacet.ComparatorType.COUNT, size, ordered);
         }
     }
 

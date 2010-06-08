@@ -20,7 +20,6 @@
 package org.elasticsearch.search.facets.statistical;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.Scorer;
 import org.elasticsearch.index.cache.field.FieldDataCache;
 import org.elasticsearch.index.field.FieldData;
 import org.elasticsearch.index.field.NumericFieldData;
@@ -28,7 +27,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.FacetPhaseExecutionException;
-import org.elasticsearch.search.facets.collector.FacetCollector;
+import org.elasticsearch.search.facets.support.AbstractFacetCollector;
 
 import java.io.IOException;
 
@@ -37,9 +36,7 @@ import static org.elasticsearch.index.field.FieldDataOptions.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class StatisticalFacetCollector extends FacetCollector {
-
-    private final String name;
+public class StatisticalFacetCollector extends AbstractFacetCollector {
 
     private final String fieldName;
 
@@ -51,14 +48,14 @@ public class StatisticalFacetCollector extends FacetCollector {
 
     private final StatsProc statsProc = new StatsProc();
 
-    public StatisticalFacetCollector(String name, String fieldName, FieldDataCache fieldDataCache, MapperService mapperService) {
-        this.name = name;
+    public StatisticalFacetCollector(String facetName, String fieldName, FieldDataCache fieldDataCache, MapperService mapperService) {
+        super(facetName);
         this.fieldName = fieldName;
         this.fieldDataCache = fieldDataCache;
 
         FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);
         if (mapper == null) {
-            throw new FacetPhaseExecutionException(name, "No mapping found for field [" + fieldName + "]");
+            throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldName + "]");
         }
         fieldDataType = mapper.fieldDataType();
     }
@@ -71,15 +68,8 @@ public class StatisticalFacetCollector extends FacetCollector {
         fieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, fieldName, fieldDataOptions().withFreqs(false));
     }
 
-    @Override public void setScorer(Scorer scorer) throws IOException {
-    }
-
-    @Override public boolean acceptsDocsOutOfOrder() {
-        return true;
-    }
-
     @Override public Facet facet() {
-        return new InternalStatisticalFacet(name, statsProc.min(), statsProc.max(), statsProc.total(), statsProc.sumOfSquares(), statsProc.count());
+        return new InternalStatisticalFacet(facetName, statsProc.min(), statsProc.max(), statsProc.total(), statsProc.sumOfSquares(), statsProc.count());
     }
 
     public static class StatsProc implements NumericFieldData.DoubleValueInDocProc {

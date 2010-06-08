@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facets;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.search.facets.histogram.HistogramFacet;
 import org.elasticsearch.search.facets.query.QueryFacet;
 import org.elasticsearch.search.facets.statistical.StatisticalFacet;
 import org.elasticsearch.search.facets.terms.TermsFacet;
@@ -46,7 +47,11 @@ public interface Facet {
         /**
          * Statistical facet type, matching {@link StatisticalFacet}.
          */
-        STATISTICAL(2, StatisticalFacet.class);
+        STATISTICAL(2, StatisticalFacet.class),
+        /**
+         * Histogram facet type, matching {@link HistogramFacet}.
+         */
+        HISTOGRAM(3, HistogramFacet.class);
 
         private int id;
 
@@ -82,6 +87,8 @@ public interface Facet {
                 return QUERY;
             } else if (id == 2) {
                 return STATISTICAL;
+            } else if (id == 3) {
+                return HISTOGRAM;
             } else {
                 throw new ElasticSearchIllegalArgumentException("No match for id [" + id + "]");
             }

@@ -33,6 +33,7 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceFacetsBuilder;
 import org.elasticsearch.search.builder.SearchSourceHighlightBuilder;
+import org.elasticsearch.search.facets.histogram.HistogramFacet;
 import org.elasticsearch.util.TimeValue;
 
 /**
@@ -320,6 +321,26 @@ public class SearchRequestBuilder {
      */
     public SearchRequestBuilder addFacetGlobalStatistical(String name, String fieldName) {
         facetsBuilder().statisticalFacetGlobal(name, fieldName);
+        return this;
+    }
+
+    public SearchRequestBuilder addFacetHistogram(String name, String fieldName, long interval) {
+        facetsBuilder().histogramFacet(name, fieldName, interval);
+        return this;
+    }
+
+    public SearchRequestBuilder addFacetHistogram(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType) {
+        facetsBuilder().histogramFacet(name, fieldName, interval, comparatorType);
+        return this;
+    }
+
+    public SearchRequestBuilder addFacetHistogramGlobal(String name, String fieldName, long interval) {
+        facetsBuilder().histogramFacetGlobal(name, fieldName, interval);
+        return this;
+    }
+
+    public SearchRequestBuilder addFacetHistogramGlobal(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType) {
+        facetsBuilder().histogramFacetGlobal(name, fieldName, interval, comparatorType);
         return this;
     }
 

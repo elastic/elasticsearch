@@ -21,6 +21,7 @@ package org.elasticsearch.search.facets.internal;
 
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.Facets;
+import org.elasticsearch.search.facets.histogram.InternalHistogramFacet;
 import org.elasticsearch.search.facets.query.InternalQueryFacet;
 import org.elasticsearch.search.facets.statistical.InternalStatisticalFacet;
 import org.elasticsearch.search.facets.terms.InternalTermsFacet;
@@ -139,6 +140,8 @@ public class InternalFacets implements Facets, Streamable, ToXContent, Iterable<
                     facets.add(InternalQueryFacet.readCountFacet(in));
                 } else if (id == Facet.Type.STATISTICAL.id()) {
                     facets.add(InternalStatisticalFacet.readStatisticalFacet(in));
+                } else if (id == Facet.Type.HISTOGRAM.id()) {
+                    facets.add(InternalHistogramFacet.readHistogramFacet(in));
                 } else {
                     throw new IOException("Can't handle facet type with id [" + id + "]");
                 }

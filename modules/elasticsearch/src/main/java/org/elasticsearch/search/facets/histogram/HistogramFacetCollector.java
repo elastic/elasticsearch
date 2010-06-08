@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facets.statistical;
+package org.elasticsearch.search.facets.histogram;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.index.cache.field.FieldDataCache;
@@ -28,6 +28,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.FacetPhaseExecutionException;
 import org.elasticsearch.search.facets.support.AbstractFacetCollector;
+import org.elasticsearch.util.gnu.trove.TLongDoubleHashMap;
+import org.elasticsearch.util.gnu.trove.TLongLongHashMap;
 
 import java.io.IOException;
 
@@ -36,9 +38,13 @@ import static org.elasticsearch.index.field.FieldDataOptions.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class StatisticalFacetCollector extends AbstractFacetCollector {
+public class HistogramFacetCollector extends AbstractFacetCollector {
 
     private final String fieldName;
+
+    private final long interval;
+
+    private final HistogramFacet.ComparatorType comparatorType;
 
     private final FieldDataCache fieldDataCache;
 
@@ -46,11 +52,13 @@ public class StatisticalFacetCollector extends AbstractFacetCollector {
 
     private NumericFieldData fieldData;
 
-    private final StatsProc statsProc = new StatsProc();
+    private final HistogramProc histoProc;
 
-    public StatisticalFacetCollector(String facetName, String fieldName, FieldDataCache fieldDataCache, MapperService mapperService) {
+    public HistogramFacetCollector(String facetName, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType, FieldDataCache fieldDataCache, MapperService mapperService) {
         super(facetName);
         this.fieldName = fieldName;
+        this.interval = interval;
+        this.comparatorType = comparatorType;
         this.fieldDataCache = fieldDataCache;
 
         FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);
@@ -58,10 +66,12 @@ public class StatisticalFacetCollector extends AbstractFacetCollector {
             throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldName + "]");
         }
         fieldDataType = mapper.fieldDataType();
+
+        histoProc = new HistogramProc(interval);
     }
 
     @Override public void collect(int doc) throws IOException {
-        fieldData.forEachValueInDoc(doc, statsProc);
+        fieldData.forEachValueInDoc(doc, histoProc);
     }
 
     @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
@@ -69,51 +79,33 @@ public class StatisticalFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        return new InternalStatisticalFacet(facetName, fieldName, statsProc.min(), statsProc.max(), statsProc.total(), statsProc.sumOfSquares(), statsProc.count());
+        return new InternalHistogramFacet(facetName, fieldName, interval, comparatorType, histoProc.counts(), histoProc.totals());
     }
 
-    public static class StatsProc implements NumericFieldData.DoubleValueInDocProc {
+    public static class HistogramProc implements NumericFieldData.DoubleValueInDocProc {
 
-        private double min = Double.NaN;
+        private final long interval;
 
-        private double max = Double.NaN;
+        private final TLongLongHashMap counts = new TLongLongHashMap();
 
-        private double total = 0;
+        private final TLongDoubleHashMap totals = new TLongDoubleHashMap();
 
-        private double sumOfSquares = 0.0;
-
-        private long count;
+        public HistogramProc(long interval) {
+            this.interval = interval;
+        }
 
         @Override public void onValue(int docId, double value) {
-            if (value < min || Double.isNaN(min)) {
-                min = value;
-            }
-            if (value > max || Double.isNaN(max)) {
-                max = value;
-            }
-            sumOfSquares += value * value;
-            total += value;
-            count++;
+            long bucket = (((long) (value / interval)) * interval);
+            counts.adjustOrPutValue(bucket, 1, 1);
+            totals.adjustOrPutValue(bucket, value, value);
         }
 
-        public final double min() {
-            return min;
+        public TLongLongHashMap counts() {
+            return counts;
         }
 
-        public final double max() {
-            return max;
-        }
-
-        public final double total() {
-            return total;
-        }
-
-        public final long count() {
-            return count;
-        }
-
-        public final double sumOfSquares() {
-            return sumOfSquares;
+        public TLongDoubleHashMap totals() {
+            return totals;
         }
     }
 }

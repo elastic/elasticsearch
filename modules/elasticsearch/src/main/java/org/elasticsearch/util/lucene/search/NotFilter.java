@@ -17,47 +17,32 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facets.query;
+package org.elasticsearch.util.lucene.search;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
-import org.elasticsearch.index.cache.filter.FilterCache;
-import org.elasticsearch.search.facets.Facet;
-import org.elasticsearch.search.facets.support.AbstractFacetCollector;
-import org.elasticsearch.util.lucene.docset.DocSet;
 import org.elasticsearch.util.lucene.docset.DocSets;
+import org.elasticsearch.util.lucene.docset.NotDocSet;
 
 import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class QueryFacetCollector extends AbstractFacetCollector {
+public class NotFilter extends Filter {
 
     private final Filter filter;
 
-    private DocSet docSet;
-
-    private int count = 0;
-
-    public QueryFacetCollector(String facetName, Query query, FilterCache filterCache) {
-        super(facetName);
-        this.filter = filterCache.cache(new QueryWrapperFilter(query));
+    public NotFilter(Filter filter) {
+        this.filter = filter;
     }
 
-    @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        docSet = DocSets.convert(reader, filter.getDocIdSet(reader));
+    public Filter filter() {
+        return filter;
     }
 
-    @Override public void collect(int doc) throws IOException {
-        if (docSet.get(doc)) {
-            count++;
-        }
-    }
-
-    @Override public Facet facet() {
-        return new InternalQueryFacet(facetName, count);
+    @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+        return new NotDocSet(DocSets.convert(reader, filter.getDocIdSet(reader)), reader.maxDoc());
     }
 }

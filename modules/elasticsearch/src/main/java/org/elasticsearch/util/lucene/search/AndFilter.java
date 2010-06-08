@@ -17,47 +17,42 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facets.query;
+package org.elasticsearch.util.lucene.search;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
-import org.elasticsearch.index.cache.filter.FilterCache;
-import org.elasticsearch.search.facets.Facet;
-import org.elasticsearch.search.facets.support.AbstractFacetCollector;
+import org.elasticsearch.util.collect.Lists;
+import org.elasticsearch.util.lucene.docset.AndDocSet;
 import org.elasticsearch.util.lucene.docset.DocSet;
 import org.elasticsearch.util.lucene.docset.DocSets;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class QueryFacetCollector extends AbstractFacetCollector {
+public class AndFilter extends Filter {
 
-    private final Filter filter;
+    private final List<? extends Filter> filters;
 
-    private DocSet docSet;
-
-    private int count = 0;
-
-    public QueryFacetCollector(String facetName, Query query, FilterCache filterCache) {
-        super(facetName);
-        this.filter = filterCache.cache(new QueryWrapperFilter(query));
+    public AndFilter(List<? extends Filter> filters) {
+        this.filters = filters;
     }
 
-    @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        docSet = DocSets.convert(reader, filter.getDocIdSet(reader));
+    public List<? extends Filter> filters() {
+        return filters;
     }
 
-    @Override public void collect(int doc) throws IOException {
-        if (docSet.get(doc)) {
-            count++;
+    @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+        if (filters.size() == 1) {
+            return DocSets.convert(reader, filters.get(0).getDocIdSet(reader));
         }
-    }
-
-    @Override public Facet facet() {
-        return new InternalQueryFacet(facetName, count);
+        List<DocSet> sets = Lists.newArrayListWithExpectedSize(filters.size());
+        for (Filter filter : filters) {
+            sets.add(DocSets.convert(reader, filter.getDocIdSet(reader)));
+        }
+        return new AndDocSet(sets);
     }
 }

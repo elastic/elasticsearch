@@ -30,10 +30,7 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.robin.RobinIndexEngine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParser;
-import org.elasticsearch.util.lucene.search.CustomBoostFactorQuery;
-import org.elasticsearch.util.lucene.search.MoreLikeThisQuery;
-import org.elasticsearch.util.lucene.search.Queries;
-import org.elasticsearch.util.lucene.search.TermFilter;
+import org.elasticsearch.util.lucene.search.*;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -489,6 +486,77 @@ public class SimpleIndexQueryParserTests {
         BooleanFilter booleanFilter = (BooleanFilter) filteredQuery.getFilter();
 
         // TODO get the content and test
+    }
+
+    @Test public void testAndFilteredQueryBuilder() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        Query parsedQuery = queryParser.parse(filtered(matchAllQuery(), andFilter(termFilter("name.first", "shay1"), termFilter("name.first", "shay4"))));
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+
+        AndFilter andFilter = (AndFilter) filteredQuery.getFilter();
+        assertThat(andFilter.filters().size(), equalTo(2));
+        assertThat(((TermFilter) andFilter.filters().get(0)).getTerm(), equalTo(new Term("name.first", "shay1")));
+        assertThat(((TermFilter) andFilter.filters().get(1)).getTerm(), equalTo(new Term("name.first", "shay4")));
+    }
+
+    @Test public void testAndFilteredQuery() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/and-filter.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+
+        AndFilter andFilter = (AndFilter) filteredQuery.getFilter();
+        assertThat(andFilter.filters().size(), equalTo(2));
+        assertThat(((TermFilter) andFilter.filters().get(0)).getTerm(), equalTo(new Term("name.first", "shay1")));
+        assertThat(((TermFilter) andFilter.filters().get(1)).getTerm(), equalTo(new Term("name.first", "shay4")));
+    }
+
+    @Test public void testOrFilteredQueryBuilder() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        Query parsedQuery = queryParser.parse(filtered(matchAllQuery(), orFilter(termFilter("name.first", "shay1"), termFilter("name.first", "shay4"))));
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+
+        OrFilter andFilter = (OrFilter) filteredQuery.getFilter();
+        assertThat(andFilter.filters().size(), equalTo(2));
+        assertThat(((TermFilter) andFilter.filters().get(0)).getTerm(), equalTo(new Term("name.first", "shay1")));
+        assertThat(((TermFilter) andFilter.filters().get(1)).getTerm(), equalTo(new Term("name.first", "shay4")));
+    }
+
+    @Test public void testOrFilteredQuery() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/or-filter.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+
+        OrFilter orFilter = (OrFilter) filteredQuery.getFilter();
+        assertThat(orFilter.filters().size(), equalTo(2));
+        assertThat(((TermFilter) orFilter.filters().get(0)).getTerm(), equalTo(new Term("name.first", "shay1")));
+        assertThat(((TermFilter) orFilter.filters().get(1)).getTerm(), equalTo(new Term("name.first", "shay4")));
+    }
+
+    @Test public void testNotFilteredQueryBuilder() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        Query parsedQuery = queryParser.parse(filtered(matchAllQuery(), notFilter(termFilter("name.first", "shay1"))));
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+
+        NotFilter notFilter = (NotFilter) filteredQuery.getFilter();
+        assertThat(((TermFilter) notFilter.filter()).getTerm(), equalTo(new Term("name.first", "shay1")));
+    }
+
+    @Test public void testNotFilteredQuery() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/not-filter.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+
+        NotFilter notFilter = (NotFilter) filteredQuery.getFilter();
+        assertThat(((TermFilter) notFilter.filter()).getTerm(), equalTo(new Term("name.first", "shay1")));
     }
 
     @Test public void testBoolQueryBuilder() throws IOException {

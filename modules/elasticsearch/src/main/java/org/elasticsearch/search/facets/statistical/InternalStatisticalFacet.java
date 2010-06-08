@@ -40,16 +40,19 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
 
     private double total;
 
+    private double sumOfSquares;
+
     private long count;
 
     private InternalStatisticalFacet() {
     }
 
-    public InternalStatisticalFacet(String name, double min, double max, double total, long count) {
+    public InternalStatisticalFacet(String name, double min, double max, double total, double sumOfSquares, long count) {
         this.name = name;
         this.min = min;
         this.max = max;
         this.total = total;
+        this.sumOfSquares = sumOfSquares;
         this.count = count;
     }
 
@@ -85,6 +88,14 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
         return total();
     }
 
+    @Override public double sumOfSquares() {
+        return this.sumOfSquares;
+    }
+
+    @Override public double getSumOfSquares() {
+        return sumOfSquares();
+    }
+
     @Override public double mean() {
         return total / count;
     }
@@ -109,10 +120,27 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
         return max();
     }
 
+    public double variance() {
+        return (sumOfSquares - ((total * total) / count)) / count;
+    }
+
+    public double getVariance() {
+        return variance();
+    }
+
+    public double stdDeviation() {
+        return Math.sqrt(variance());
+    }
+
+    public double getStdDeviation() {
+        return stdDeviation();
+    }
+
     @Override public Facet aggregate(Iterable<Facet> facets) {
-        double min = Double.MAX_VALUE;
-        double max = Double.MIN_VALUE;
+        double min = Double.NaN;
+        double max = Double.NaN;
         double total = 0;
+        double sumOfSquares = 0;
         long count = 0;
 
         for (Facet facet : facets) {
@@ -120,26 +148,31 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
                 continue;
             }
             InternalStatisticalFacet statsFacet = (InternalStatisticalFacet) facet;
-            if (statsFacet.min() < min) {
+            if (statsFacet.min() < min || Double.isNaN(min)) {
                 min = statsFacet.min();
             }
-            if (statsFacet.max() > max) {
+            if (statsFacet.max() > max || Double.isNaN(max)) {
                 max = statsFacet.max();
             }
             total += statsFacet.total();
+            sumOfSquares += statsFacet.sumOfSquares();
             count += statsFacet.count();
         }
 
-        return new InternalStatisticalFacet(name, min, max, total, count);
+        return new InternalStatisticalFacet(name, min, max, total, sumOfSquares, count);
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field("_type", "statistical");
-        builder.field("count", count);
-        builder.field("total", total);
-        builder.field("min", min);
-        builder.field("max", max);
+        builder.field("count", count());
+        builder.field("total", total());
+        builder.field("min", min());
+        builder.field("max", max());
+        builder.field("mean", mean());
+        builder.field("sum_of_squares", sumOfSquares());
+        builder.field("variance", variance());
+        builder.field("std_deviation", stdDeviation());
         builder.endObject();
     }
 

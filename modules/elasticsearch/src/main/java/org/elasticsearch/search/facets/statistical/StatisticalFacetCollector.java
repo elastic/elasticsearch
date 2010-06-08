@@ -79,44 +79,51 @@ public class StatisticalFacetCollector extends FacetCollector {
     }
 
     @Override public Facet facet() {
-        return new InternalStatisticalFacet(name, statsProc.min(), statsProc.max(), statsProc.total(), statsProc.count());
+        return new InternalStatisticalFacet(name, statsProc.min(), statsProc.max(), statsProc.total(), statsProc.sumOfSquares(), statsProc.count());
     }
 
     public static class StatsProc implements NumericFieldData.DoubleValueInDocProc {
 
-        private double min = Double.MAX_VALUE;
+        private double min = Double.NaN;
 
-        private double max = Double.MIN_VALUE;
+        private double max = Double.NaN;
 
         private double total = 0;
+
+        private double sumOfSquares = 0.0;
 
         private long count;
 
         @Override public void onValue(int docId, double value) {
-            count++;
-            total += value;
-            if (value < min) {
+            if (value < min || Double.isNaN(min)) {
                 min = value;
             }
-            if (value > max) {
+            if (value > max || Double.isNaN(max)) {
                 max = value;
             }
+            sumOfSquares += value * value;
+            total += value;
+            count++;
         }
 
-        public double min() {
+        public final double min() {
             return min;
         }
 
-        public double max() {
+        public final double max() {
             return max;
         }
 
-        public double total() {
+        public final double total() {
             return total;
         }
 
-        public long count() {
+        public final long count() {
             return count;
+        }
+
+        public final double sumOfSquares() {
+            return sumOfSquares;
         }
     }
 }

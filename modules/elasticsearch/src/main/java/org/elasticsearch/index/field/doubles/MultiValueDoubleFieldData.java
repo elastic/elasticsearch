@@ -23,13 +23,13 @@ import org.elasticsearch.index.field.FieldDataOptions;
 import org.elasticsearch.util.ThreadLocals;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class MultiValueDoubleFieldData extends DoubleFieldData {
 
-    private static final int VALUE_CACHE_SIZE = 100;
+    private static final int VALUE_CACHE_SIZE = 10;
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<double[][]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<double[][]>>() {
+    private ThreadLocal<ThreadLocals.CleanableValue<double[][]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<double[][]>>() {
         @Override protected ThreadLocals.CleanableValue<double[][]> initialValue() {
             double[][] value = new double[VALUE_CACHE_SIZE][];
             for (int i = 0; i < value.length; i++) {
@@ -73,6 +73,10 @@ public class MultiValueDoubleFieldData extends DoubleFieldData {
         for (int docOrder : docOrders) {
             proc.onValue(docId, values[docOrder]);
         }
+    }
+
+    @Override public double[] doubleValues(int docId) {
+        return values(docId);
     }
 
     @Override public double value(int docId) {

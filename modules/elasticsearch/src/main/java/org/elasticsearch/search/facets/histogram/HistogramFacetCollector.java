@@ -36,6 +36,9 @@ import java.io.IOException;
 import static org.elasticsearch.index.field.FieldDataOptions.*;
 
 /**
+ * A histogram facet collector that uses the same field as the key as well as the
+ * value.
+ *
  * @author kimchy (shay.banon)
  */
 public class HistogramFacetCollector extends AbstractFacetCollector {
@@ -79,7 +82,11 @@ public class HistogramFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        return new InternalHistogramFacet(facetName, fieldName, interval, comparatorType, histoProc.counts(), histoProc.totals());
+        return new InternalHistogramFacet(facetName, fieldName, fieldName, interval, comparatorType, histoProc.counts(), histoProc.totals());
+    }
+
+    public static long bucket(double value, long interval) {
+        return (((long) (value / interval)) * interval);
     }
 
     public static class HistogramProc implements NumericFieldData.DoubleValueInDocProc {
@@ -95,7 +102,7 @@ public class HistogramFacetCollector extends AbstractFacetCollector {
         }
 
         @Override public void onValue(int docId, double value) {
-            long bucket = (((long) (value / interval)) * interval);
+            long bucket = bucket(value, interval);
             counts.adjustOrPutValue(bucket, 1, 1);
             totals.adjustOrPutValue(bucket, value, value);
         }

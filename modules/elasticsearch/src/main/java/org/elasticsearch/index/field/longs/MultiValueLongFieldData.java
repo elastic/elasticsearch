@@ -20,16 +20,27 @@
 package org.elasticsearch.index.field.longs;
 
 import org.elasticsearch.index.field.FieldDataOptions;
+import org.elasticsearch.index.field.doubles.DoubleFieldData;
 import org.elasticsearch.util.ThreadLocals;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class MultiValueLongFieldData extends LongFieldData {
 
-    private static final int VALUE_CACHE_SIZE = 100;
+    private static final int VALUE_CACHE_SIZE = 10;
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<long[][]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<long[][]>>() {
+    private ThreadLocal<ThreadLocals.CleanableValue<double[][]>> doublesValuesCache = new ThreadLocal<ThreadLocals.CleanableValue<double[][]>>() {
+        @Override protected ThreadLocals.CleanableValue<double[][]> initialValue() {
+            double[][] value = new double[VALUE_CACHE_SIZE][];
+            for (int i = 0; i < value.length; i++) {
+                value[i] = new double[i];
+            }
+            return new ThreadLocals.CleanableValue<double[][]>(value);
+        }
+    };
+
+    private ThreadLocal<ThreadLocals.CleanableValue<long[][]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<long[][]>>() {
         @Override protected ThreadLocals.CleanableValue<long[][]> initialValue() {
             long[][] value = new long[VALUE_CACHE_SIZE][];
             for (int i = 0; i < value.length; i++) {
@@ -73,6 +84,23 @@ public class MultiValueLongFieldData extends LongFieldData {
         for (int docOrder : docOrders) {
             proc.onValue(docId, values[docOrder]);
         }
+    }
+
+    @Override public double[] doubleValues(int docId) {
+        int[] docOrders = order[docId];
+        if (docOrders == null) {
+            return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
+        }
+        double[] doubles;
+        if (docOrders.length < VALUE_CACHE_SIZE) {
+            doubles = doublesValuesCache.get().get()[docOrders.length];
+        } else {
+            doubles = new double[docOrders.length];
+        }
+        for (int i = 0; i < docOrders.length; i++) {
+            doubles[i] = values[docOrders[i]];
+        }
+        return doubles;
     }
 
     @Override public long value(int docId) {

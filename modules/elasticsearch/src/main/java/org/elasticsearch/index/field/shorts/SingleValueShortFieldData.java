@@ -20,13 +20,20 @@
 package org.elasticsearch.index.field.shorts;
 
 import org.elasticsearch.index.field.FieldDataOptions;
+import org.elasticsearch.index.field.doubles.DoubleFieldData;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class SingleValueShortFieldData extends ShortFieldData {
 
-    private static ThreadLocal<short[]> valuesCache = new ThreadLocal<short[]>() {
+    private ThreadLocal<double[]> doublesValuesCache = new ThreadLocal<double[]>() {
+        @Override protected double[] initialValue() {
+            return new double[1];
+        }
+    };
+
+    private ThreadLocal<short[]> valuesCache = new ThreadLocal<short[]>() {
         @Override protected short[] initialValue() {
             return new short[1];
         }
@@ -66,6 +73,16 @@ public class SingleValueShortFieldData extends ShortFieldData {
 
     @Override public short value(int docId) {
         return values[order[docId]];
+    }
+
+    @Override public double[] doubleValues(int docId) {
+        int loc = order[docId];
+        if (loc == 0) {
+            return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
+        }
+        double[] ret = doublesValuesCache.get();
+        ret[0] = values[loc];
+        return ret;
     }
 
     @Override public short[] values(int docId) {

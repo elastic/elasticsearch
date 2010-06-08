@@ -29,11 +29,11 @@ import org.elasticsearch.util.gnu.trove.TDoubleArrayList;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class DoubleFieldData extends NumericFieldData {
 
-    static final double[] EMPTY_DOUBLE_ARRAY = new double[0];
+    public static final double[] EMPTY_DOUBLE_ARRAY = new double[0];
 
     protected final double[] values;
     protected final int[] freqs;

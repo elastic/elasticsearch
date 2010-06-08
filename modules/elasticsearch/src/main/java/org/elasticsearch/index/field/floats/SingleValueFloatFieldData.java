@@ -20,13 +20,20 @@
 package org.elasticsearch.index.field.floats;
 
 import org.elasticsearch.index.field.FieldDataOptions;
+import org.elasticsearch.index.field.doubles.DoubleFieldData;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class SingleValueFloatFieldData extends FloatFieldData {
 
-    private static ThreadLocal<float[]> valuesCache = new ThreadLocal<float[]>() {
+    private ThreadLocal<double[]> doublesValuesCache = new ThreadLocal<double[]>() {
+        @Override protected double[] initialValue() {
+            return new double[1];
+        }
+    };
+
+    private ThreadLocal<float[]> valuesCache = new ThreadLocal<float[]>() {
         @Override protected float[] initialValue() {
             return new float[1];
         }
@@ -62,6 +69,16 @@ public class SingleValueFloatFieldData extends FloatFieldData {
             return;
         }
         proc.onValue(docId, values[loc]);
+    }
+
+    @Override public double[] doubleValues(int docId) {
+        int loc = order[docId];
+        if (loc == 0) {
+            return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
+        }
+        double[] ret = doublesValuesCache.get();
+        ret[0] = values[loc];
+        return ret;
     }
 
     @Override public float value(int docId) {

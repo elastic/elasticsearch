@@ -32,20 +32,24 @@ import java.util.List;
  */
 public interface HistogramFacet extends Facet, Iterable<HistogramFacet.Entry> {
 
-    String fieldName();
+    String keyFieldName();
 
-    String getFieldName();
+    String getKeyFieldName();
+
+    String valueFieldName();
+
+    String getValueFieldName();
 
     List<Entry> entries();
 
     List<Entry> getEntries();
 
     public static enum ComparatorType {
-        VALUE((byte) 0, "value", new Comparator<Entry>() {
+        KEY((byte) 0, "key", new Comparator<Entry>() {
 
             @Override public int compare(Entry o1, Entry o2) {
                 // really, there should not be two entries with the same value
-                int i = (int) (o1.value() - o2.value());
+                int i = (int) (o1.key() - o2.key());
                 if (i == 0) {
                     i = System.identityHashCode(o1) - System.identityHashCode(o2);
                 }
@@ -105,7 +109,7 @@ public interface HistogramFacet extends Facet, Iterable<HistogramFacet.Entry> {
 
         public static ComparatorType fromId(byte id) {
             if (id == 0) {
-                return VALUE;
+                return KEY;
             } else if (id == 1) {
                 return COUNT;
             } else if (id == 2) {
@@ -115,8 +119,8 @@ public interface HistogramFacet extends Facet, Iterable<HistogramFacet.Entry> {
         }
 
         public static ComparatorType fromString(String type) {
-            if ("value".equals(type)) {
-                return VALUE;
+            if ("key".equals(type)) {
+                return KEY;
             } else if ("count".equals(type)) {
                 return COUNT;
             } else if ("total".equals(type)) {
@@ -128,22 +132,22 @@ public interface HistogramFacet extends Facet, Iterable<HistogramFacet.Entry> {
 
 
     public class Entry {
-        private final long value;
+        private final long key;
         private final long count;
         private final double total;
 
-        public Entry(long value, long count, double total) {
-            this.value = value;
+        public Entry(long key, long count, double total) {
+            this.key = key;
             this.count = count;
             this.total = total;
         }
 
-        public long value() {
-            return value;
+        public long key() {
+            return key;
         }
 
-        public long getValue() {
-            return value();
+        public long getKey() {
+            return key();
         }
 
         public long count() {

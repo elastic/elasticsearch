@@ -362,13 +362,28 @@ public class SearchRequestBuilder {
         return this;
     }
 
+    public SearchRequestBuilder addFacetHistogram(String name, String keyFieldName, String valueFieldName, long interval) {
+        facetsBuilder().histogramFacet(name, keyFieldName, valueFieldName, interval);
+        return this;
+    }
+
     public SearchRequestBuilder addFacetHistogram(String name, String fieldName, long interval, @Nullable XContentFilterBuilder filter) {
         facetsBuilder().histogramFacet(name, fieldName, interval, filter);
         return this;
     }
 
+    public SearchRequestBuilder addFacetHistogram(String name, String keyFieldName, String valueFieldName, long interval, @Nullable XContentFilterBuilder filter) {
+        facetsBuilder().histogramFacet(name, keyFieldName, valueFieldName, interval, filter);
+        return this;
+    }
+
     public SearchRequestBuilder addFacetHistogram(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType) {
         facetsBuilder().histogramFacet(name, fieldName, interval, comparatorType);
+        return this;
+    }
+
+    public SearchRequestBuilder addFacetHistogram(String name, String keyFieldName, String valueFieldName, long interval, HistogramFacet.ComparatorType comparatorType) {
+        facetsBuilder().histogramFacet(name, keyFieldName, valueFieldName, interval, comparatorType);
         return this;
     }
 
@@ -378,8 +393,19 @@ public class SearchRequestBuilder {
         return this;
     }
 
+    public SearchRequestBuilder addFacetHistogram(String name, String keyFieldName, String valueFieldName, long interval, HistogramFacet.ComparatorType comparatorType,
+                                                  @Nullable XContentFilterBuilder filter) {
+        facetsBuilder().histogramFacet(name, keyFieldName, valueFieldName, interval, comparatorType, filter);
+        return this;
+    }
+
     public SearchRequestBuilder addFacetHistogramGlobal(String name, String fieldName, long interval) {
         facetsBuilder().histogramFacetGlobal(name, fieldName, interval);
+        return this;
+    }
+
+    public SearchRequestBuilder addFacetHistogramGlobal(String name, String keyFieldName, String valueFieldName, long interval) {
+        facetsBuilder().histogramFacetGlobal(name, keyFieldName, valueFieldName, interval);
         return this;
     }
 
@@ -388,14 +414,30 @@ public class SearchRequestBuilder {
         return this;
     }
 
+    public SearchRequestBuilder addFacetHistogramGlobal(String name, String keyFieldName, String valueFieldName, long interval, @Nullable XContentFilterBuilder filter) {
+        facetsBuilder().histogramFacetGlobal(name, keyFieldName, valueFieldName, interval, filter);
+        return this;
+    }
+
     public SearchRequestBuilder addFacetHistogramGlobal(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType) {
         facetsBuilder().histogramFacetGlobal(name, fieldName, interval, comparatorType);
+        return this;
+    }
+
+    public SearchRequestBuilder addFacetHistogramGlobal(String name, String keyFieldName, String valueFieldName, long interval, HistogramFacet.ComparatorType comparatorType) {
+        facetsBuilder().histogramFacetGlobal(name, keyFieldName, valueFieldName, interval, comparatorType);
         return this;
     }
 
     public SearchRequestBuilder addFacetHistogramGlobal(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType,
                                                         @Nullable XContentFilterBuilder filter) {
         facetsBuilder().histogramFacetGlobal(name, fieldName, interval, comparatorType, filter);
+        return this;
+    }
+
+    public SearchRequestBuilder addFacetHistogramGlobal(String name, String keyFieldName, String valueFieldName, long interval, HistogramFacet.ComparatorType comparatorType,
+                                                        @Nullable XContentFilterBuilder filter) {
+        facetsBuilder().histogramFacetGlobal(name, keyFieldName, valueFieldName, interval, comparatorType, filter);
         return this;
     }
 

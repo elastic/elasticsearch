@@ -30,13 +30,14 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import static org.elasticsearch.index.query.xcontent.FilterBuilders.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.elasticsearch.util.xcontent.XContentFactory.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class SimpleFacetsTests extends AbstractNodesTests {
 
@@ -96,6 +97,17 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().size(), equalTo(3));
         assertThat(facet.entries().get(0).term(), equalTo("yyy"));
         assertThat(facet.entries().get(0).count(), equalTo(2));
+
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addFacetTerms("facet1", "stag", 10, termFilter("tag", "xxx"))
+                .execute().actionGet();
+
+        facet = searchResponse.facets().facet(TermsFacet.class, "facet1");
+        assertThat(facet.name(), equalTo("facet1"));
+        assertThat(facet.entries().size(), equalTo(1));
+        assertThat(facet.entries().get(0).term(), equalTo("111"));
+        assertThat(facet.entries().get(0).count(), equalTo(1));
     }
 
     @Test public void testStatsFacets() throws Exception {

@@ -47,11 +47,11 @@ public class QueryFacetCollector extends AbstractFacetCollector {
         this.filter = filterCache.cache(new QueryWrapperFilter(query));
     }
 
-    @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
+    @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         docSet = DocSets.convert(reader, filter.getDocIdSet(reader));
     }
 
-    @Override public void collect(int doc) throws IOException {
+    @Override protected void doCollect(int doc) throws IOException {
         if (docSet.get(doc)) {
             count++;
         }

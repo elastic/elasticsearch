@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facets.collector;
 
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.Filter;
 import org.elasticsearch.search.facets.Facet;
 
 /**
@@ -28,4 +29,6 @@ import org.elasticsearch.search.facets.Facet;
 public abstract class FacetCollector extends Collector {
 
     public abstract Facet facet();
+
+    public abstract void setFilter(Filter filter);
 }

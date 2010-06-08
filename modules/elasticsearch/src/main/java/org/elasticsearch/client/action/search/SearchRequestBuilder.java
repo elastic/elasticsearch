@@ -28,6 +28,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.client.internal.InternalClient;
+import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
 import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -35,6 +36,8 @@ import org.elasticsearch.search.builder.SearchSourceFacetsBuilder;
 import org.elasticsearch.search.builder.SearchSourceHighlightBuilder;
 import org.elasticsearch.search.facets.histogram.HistogramFacet;
 import org.elasticsearch.util.TimeValue;
+
+import javax.annotation.Nullable;
 
 /**
  * A search action request builder.
@@ -261,6 +264,11 @@ public class SearchRequestBuilder {
         return this;
     }
 
+    public SearchRequestBuilder addFacetQuery(String name, XContentQueryBuilder query, @Nullable XContentFilterBuilder filter) {
+        facetsBuilder().queryFacet(name, query, filter);
+        return this;
+    }
+
     /**
      * Adds a query facet (which results in a count facet returned) with an option to
      * be global on the index or bounded by the search query.
@@ -271,6 +279,11 @@ public class SearchRequestBuilder {
      */
     public SearchRequestBuilder addFacetGlobalQuery(String name, XContentQueryBuilder query) {
         facetsBuilder().queryFacetGlobal(name, query);
+        return this;
+    }
+
+    public SearchRequestBuilder addFacetGlobalQuery(String name, XContentQueryBuilder query, @Nullable XContentFilterBuilder filter) {
+        facetsBuilder().queryFacetGlobal(name, query, filter);
         return this;
     }
 
@@ -287,6 +300,11 @@ public class SearchRequestBuilder {
         return this;
     }
 
+    public SearchRequestBuilder addFacetTerms(String name, String fieldName, int size, @Nullable XContentFilterBuilder filter) {
+        facetsBuilder().termsFacet(name, fieldName, size, filter);
+        return this;
+    }
+
     /**
      * Adds a <b>global</b> term facet for the provided field name.
      *
@@ -297,6 +315,11 @@ public class SearchRequestBuilder {
      */
     public SearchRequestBuilder addFacetGlobalTerms(String name, String fieldName, int size) {
         facetsBuilder().termsFacetGlobal(name, fieldName, size);
+        return this;
+    }
+
+    public SearchRequestBuilder addFacetGlobalTerms(String name, String fieldName, int size, @Nullable XContentFilterBuilder filter) {
+        facetsBuilder().termsFacetGlobal(name, fieldName, size, filter);
         return this;
     }
 
@@ -312,6 +335,11 @@ public class SearchRequestBuilder {
         return this;
     }
 
+    public SearchRequestBuilder addFacetStatistical(String name, String fieldName, @Nullable XContentFilterBuilder filter) {
+        facetsBuilder().statisticalFacet(name, fieldName, filter);
+        return this;
+    }
+
     /**
      * Adds a numeric statistical <b>global</b> facet for the provided field name.
      *
@@ -324,8 +352,18 @@ public class SearchRequestBuilder {
         return this;
     }
 
+    public SearchRequestBuilder addFacetGlobalStatistical(String name, String fieldName, @Nullable XContentFilterBuilder filter) {
+        facetsBuilder().statisticalFacetGlobal(name, fieldName, filter);
+        return this;
+    }
+
     public SearchRequestBuilder addFacetHistogram(String name, String fieldName, long interval) {
         facetsBuilder().histogramFacet(name, fieldName, interval);
+        return this;
+    }
+
+    public SearchRequestBuilder addFacetHistogram(String name, String fieldName, long interval, @Nullable XContentFilterBuilder filter) {
+        facetsBuilder().histogramFacet(name, fieldName, interval, filter);
         return this;
     }
 
@@ -334,13 +372,30 @@ public class SearchRequestBuilder {
         return this;
     }
 
+    public SearchRequestBuilder addFacetHistogram(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType,
+                                                  @Nullable XContentFilterBuilder filter) {
+        facetsBuilder().histogramFacet(name, fieldName, interval, comparatorType, filter);
+        return this;
+    }
+
     public SearchRequestBuilder addFacetHistogramGlobal(String name, String fieldName, long interval) {
         facetsBuilder().histogramFacetGlobal(name, fieldName, interval);
         return this;
     }
 
+    public SearchRequestBuilder addFacetHistogramGlobal(String name, String fieldName, long interval, @Nullable XContentFilterBuilder filter) {
+        facetsBuilder().histogramFacetGlobal(name, fieldName, interval, filter);
+        return this;
+    }
+
     public SearchRequestBuilder addFacetHistogramGlobal(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType) {
         facetsBuilder().histogramFacetGlobal(name, fieldName, interval, comparatorType);
+        return this;
+    }
+
+    public SearchRequestBuilder addFacetHistogramGlobal(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType,
+                                                        @Nullable XContentFilterBuilder filter) {
+        facetsBuilder().histogramFacetGlobal(name, fieldName, interval, comparatorType, filter);
         return this;
     }
 

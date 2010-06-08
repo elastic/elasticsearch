@@ -42,9 +42,9 @@ public class HistogramFacetCollectorParser implements FacetCollectorParser {
         String field = null;
 
         String fieldName = null;
-        XContentParser.Token token;
         long interval = -1;
         HistogramFacet.ComparatorType comparatorType = HistogramFacet.ComparatorType.VALUE;
+        XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
@@ -66,7 +66,6 @@ public class HistogramFacetCollectorParser implements FacetCollectorParser {
         if (interval < 0) {
             throw new FacetPhaseExecutionException(facetName, "[interval] is required to be positive for histogram facet");
         }
-
         return new HistogramFacetCollector(facetName, field, interval, comparatorType, context.fieldDataCache(), context.mapperService());
     }
 }

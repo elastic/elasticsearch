@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query.xcontent;
 
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -188,6 +189,18 @@ public class XContentIndexQueryParser extends AbstractIndexComponent implements 
         } catch (IOException e) {
             throw new QueryParsingException(index, "Failed to parse", e);
         }
+    }
+
+    public Filter parseInnerFilter(XContentParser parser) throws IOException {
+        QueryParseContext context = cache.get().get();
+        context.reset(parser);
+        return context.parseInnerFilter();
+    }
+
+    public Query parseInnerQuery(XContentParser parser) throws IOException {
+        QueryParseContext context = cache.get().get();
+        context.reset(parser);
+        return context.parseInnerQuery();
     }
 
     private Query parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {

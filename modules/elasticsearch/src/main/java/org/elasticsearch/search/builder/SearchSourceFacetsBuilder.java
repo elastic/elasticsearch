@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.builder;
 
+import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
 import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
 import org.elasticsearch.search.facets.histogram.HistogramFacet;
 import org.elasticsearch.search.facets.histogram.HistogramFacetCollectorParser;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.facets.terms.TermsFacetCollectorParser;
 import org.elasticsearch.util.xcontent.ToXContent;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.List;
 
@@ -46,18 +48,26 @@ public class SearchSourceFacetsBuilder implements ToXContent {
     private List<BuilderStatisticalFacet> statisticalFacets;
     private List<BuilderHistogramFacet> histogramFacets;
 
+    public SearchSourceFacetsBuilder queryFacet(String name, XContentQueryBuilder query) {
+        return queryFacet(name, query, null);
+    }
+
     /**
      * Adds a query facet (which results in a count facet returned).
      *
      * @param name  The logical name of the facet, it will be returned under the name
      * @param query The query facet
      */
-    public SearchSourceFacetsBuilder queryFacet(String name, XContentQueryBuilder query) {
+    public SearchSourceFacetsBuilder queryFacet(String name, XContentQueryBuilder query, @Nullable XContentFilterBuilder filter) {
         if (queryFacets == null) {
             queryFacets = newArrayListWithCapacity(2);
         }
-        queryFacets.add(new BuilderQueryFacet(name, query, false));
+        queryFacets.add(new BuilderQueryFacet(name, query, filter, false));
         return this;
+    }
+
+    public SearchSourceFacetsBuilder queryFacetGlobal(String name, XContentQueryBuilder query) {
+        return queryFacetGlobal(name, query, null);
     }
 
     /**
@@ -67,67 +77,101 @@ public class SearchSourceFacetsBuilder implements ToXContent {
      * @param name  The logical name of the facet, it will be returned under the name
      * @param query The query facet
      */
-    public SearchSourceFacetsBuilder queryFacetGlobal(String name, XContentQueryBuilder query) {
+    public SearchSourceFacetsBuilder queryFacetGlobal(String name, XContentQueryBuilder query, @Nullable XContentFilterBuilder filter) {
         if (queryFacets == null) {
             queryFacets = newArrayListWithCapacity(2);
         }
-        queryFacets.add(new BuilderQueryFacet(name, query, true));
+        queryFacets.add(new BuilderQueryFacet(name, query, filter, true));
         return this;
     }
 
     public SearchSourceFacetsBuilder termsFacet(String name, String fieldName, int size) {
+        return termsFacet(name, fieldName, size, null);
+    }
+
+    public SearchSourceFacetsBuilder termsFacet(String name, String fieldName, int size, @Nullable XContentFilterBuilder filter) {
         if (termsFacets == null) {
             termsFacets = newArrayListWithCapacity(2);
         }
-        termsFacets.add(new BuilderTermsFacet(name, fieldName, size, false));
+        termsFacets.add(new BuilderTermsFacet(name, fieldName, size, filter, false));
         return this;
     }
 
     public SearchSourceFacetsBuilder termsFacetGlobal(String name, String fieldName, int size) {
+        return termsFacetGlobal(name, fieldName, size, null);
+    }
+
+    public SearchSourceFacetsBuilder termsFacetGlobal(String name, String fieldName, int size, @Nullable XContentFilterBuilder filter) {
         if (termsFacets == null) {
             termsFacets = newArrayListWithCapacity(2);
         }
-        termsFacets.add(new BuilderTermsFacet(name, fieldName, size, true));
+        termsFacets.add(new BuilderTermsFacet(name, fieldName, size, filter, true));
         return this;
     }
 
     public SearchSourceFacetsBuilder statisticalFacet(String name, String fieldName) {
+        return statisticalFacet(name, fieldName, null);
+    }
+
+    public SearchSourceFacetsBuilder statisticalFacet(String name, String fieldName, @Nullable XContentFilterBuilder filter) {
         if (statisticalFacets == null) {
             statisticalFacets = newArrayListWithCapacity(2);
         }
-        statisticalFacets.add(new BuilderStatisticalFacet(name, fieldName, false));
+        statisticalFacets.add(new BuilderStatisticalFacet(name, fieldName, filter, false));
         return this;
     }
 
     public SearchSourceFacetsBuilder statisticalFacetGlobal(String name, String fieldName) {
+        return statisticalFacetGlobal(name, fieldName, null);
+    }
+
+    public SearchSourceFacetsBuilder statisticalFacetGlobal(String name, String fieldName, @Nullable XContentFilterBuilder filter) {
         if (statisticalFacets == null) {
             statisticalFacets = newArrayListWithCapacity(2);
         }
-        statisticalFacets.add(new BuilderStatisticalFacet(name, fieldName, true));
+        statisticalFacets.add(new BuilderStatisticalFacet(name, fieldName, filter, true));
         return this;
     }
 
     public SearchSourceFacetsBuilder histogramFacet(String name, String fieldName, long interval) {
-        return histogramFacet(name, fieldName, interval, HistogramFacet.ComparatorType.VALUE);
+        return histogramFacet(name, fieldName, interval, HistogramFacet.ComparatorType.VALUE, null);
+    }
+
+    public SearchSourceFacetsBuilder histogramFacet(String name, String fieldName, long interval, @Nullable XContentFilterBuilder filter) {
+        return histogramFacet(name, fieldName, interval, HistogramFacet.ComparatorType.VALUE, filter);
     }
 
     public SearchSourceFacetsBuilder histogramFacet(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType) {
+        return histogramFacet(name, fieldName, interval, comparatorType, null);
+    }
+
+    public SearchSourceFacetsBuilder histogramFacet(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType,
+                                                    @Nullable XContentFilterBuilder filter) {
         if (histogramFacets == null) {
             histogramFacets = newArrayListWithCapacity(2);
         }
-        histogramFacets.add(new BuilderHistogramFacet(name, fieldName, interval, comparatorType, false));
+        histogramFacets.add(new BuilderHistogramFacet(name, fieldName, interval, comparatorType, filter, false));
         return this;
     }
 
     public SearchSourceFacetsBuilder histogramFacetGlobal(String name, String fieldName, long interval) {
-        return histogramFacet(name, fieldName, interval, HistogramFacet.ComparatorType.VALUE);
+        return histogramFacet(name, fieldName, interval, HistogramFacet.ComparatorType.VALUE, null);
+    }
+
+    public SearchSourceFacetsBuilder histogramFacetGlobal(String name, String fieldName, long interval, @Nullable XContentFilterBuilder filter) {
+        return histogramFacet(name, fieldName, interval, HistogramFacet.ComparatorType.VALUE, filter);
     }
 
     public SearchSourceFacetsBuilder histogramFacetGlobal(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType) {
+        return histogramFacetGlobal(name, fieldName, interval, comparatorType, null);
+    }
+
+    public SearchSourceFacetsBuilder histogramFacetGlobal(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType,
+                                                          @Nullable XContentFilterBuilder filter) {
         if (histogramFacets == null) {
             histogramFacets = newArrayListWithCapacity(2);
         }
-        histogramFacets.add(new BuilderHistogramFacet(name, fieldName, interval, comparatorType, true));
+        histogramFacets.add(new BuilderHistogramFacet(name, fieldName, interval, comparatorType, filter, true));
         return this;
     }
 
@@ -144,6 +188,12 @@ public class SearchSourceFacetsBuilder implements ToXContent {
                 builder.startObject(queryFacet.name());
                 builder.field(QueryFacetCollectorParser.NAME);
                 queryFacet.queryBuilder().toXContent(builder, params);
+
+                if (queryFacet.filter() != null) {
+                    builder.field("filter");
+                    queryFacet.filter().toXContent(builder, params);
+                }
+
                 if (queryFacet.global() != null) {
                     builder.field("global", queryFacet.global());
                 }
@@ -159,6 +209,10 @@ public class SearchSourceFacetsBuilder implements ToXContent {
                 builder.field("size", termsFacet.size());
                 builder.endObject();
 
+                if (termsFacet.filter() != null) {
+                    builder.field("filter");
+                    termsFacet.filter().toXContent(builder, params);
+                }
                 if (termsFacet.global() != null) {
                     builder.field("global", termsFacet.global());
                 }
@@ -174,6 +228,11 @@ public class SearchSourceFacetsBuilder implements ToXContent {
                 builder.startObject(StatisticalFacetCollectorParser.NAME);
                 builder.field("field", statisticalFacet.fieldName());
                 builder.endObject();
+
+                if (statisticalFacet.filter() != null) {
+                    builder.field("filter");
+                    statisticalFacet.filter().toXContent(builder, params);
+                }
 
                 if (statisticalFacet.global() != null) {
                     builder.field("global", statisticalFacet.global());
@@ -193,6 +252,11 @@ public class SearchSourceFacetsBuilder implements ToXContent {
                 builder.field("comparator", histogramFacet.comparatorType().description());
                 builder.endObject();
 
+                if (histogramFacet.filter() != null) {
+                    builder.field("filter");
+                    histogramFacet.filter().toXContent(builder, params);
+                }
+
                 if (histogramFacet.global() != null) {
                     builder.field("global", histogramFacet.global());
                 }
@@ -209,11 +273,13 @@ public class SearchSourceFacetsBuilder implements ToXContent {
         private final String fieldName;
         private final int size;
         private final Boolean global;
+        private final XContentFilterBuilder filter;
 
-        private BuilderTermsFacet(String name, String fieldName, int size, Boolean global) {
+        private BuilderTermsFacet(String name, String fieldName, int size, XContentFilterBuilder filter, Boolean global) {
             this.name = name;
             this.fieldName = fieldName;
             this.size = size;
+            this.filter = filter;
             this.global = global;
         }
 
@@ -229,6 +295,10 @@ public class SearchSourceFacetsBuilder implements ToXContent {
             return size;
         }
 
+        public XContentFilterBuilder filter() {
+            return filter;
+        }
+
         public Boolean global() {
             return global;
         }
@@ -237,11 +307,13 @@ public class SearchSourceFacetsBuilder implements ToXContent {
     private static class BuilderQueryFacet {
         private final String name;
         private final XContentQueryBuilder queryBuilder;
+        private final XContentFilterBuilder filter;
         private final Boolean global;
 
-        private BuilderQueryFacet(String name, XContentQueryBuilder queryBuilder, Boolean global) {
+        private BuilderQueryFacet(String name, XContentQueryBuilder queryBuilder, XContentFilterBuilder filter, Boolean global) {
             this.name = name;
             this.queryBuilder = queryBuilder;
+            this.filter = filter;
             this.global = global;
         }
 
@@ -253,6 +325,10 @@ public class SearchSourceFacetsBuilder implements ToXContent {
             return queryBuilder;
         }
 
+        public XContentFilterBuilder filter() {
+            return filter;
+        }
+
         public Boolean global() {
             return this.global;
         }
@@ -261,11 +337,13 @@ public class SearchSourceFacetsBuilder implements ToXContent {
     private static class BuilderStatisticalFacet {
         private final String name;
         private final String fieldName;
+        private final XContentFilterBuilder filter;
         private final Boolean global;
 
-        private BuilderStatisticalFacet(String name, String fieldName, Boolean global) {
+        private BuilderStatisticalFacet(String name, String fieldName, XContentFilterBuilder filter, Boolean global) {
             this.name = name;
             this.fieldName = fieldName;
+            this.filter = filter;
             this.global = global;
         }
 
@@ -275,6 +353,10 @@ public class SearchSourceFacetsBuilder implements ToXContent {
 
         public String fieldName() {
             return fieldName;
+        }
+
+        public XContentFilterBuilder filter() {
+            return this.filter;
         }
 
         public Boolean global() {
@@ -287,17 +369,20 @@ public class SearchSourceFacetsBuilder implements ToXContent {
         private final String fieldName;
         private final long interval;
         private final HistogramFacet.ComparatorType comparatorType;
+        private final XContentFilterBuilder filter;
         private final Boolean global;
 
-        private BuilderHistogramFacet(String name, String fieldName, long interval, Boolean global) {
-            this(name, fieldName, interval, HistogramFacet.ComparatorType.VALUE, global);
+        private BuilderHistogramFacet(String name, String fieldName, long interval, XContentFilterBuilder filter, Boolean global) {
+            this(name, fieldName, interval, HistogramFacet.ComparatorType.VALUE, filter, global);
         }
 
-        private BuilderHistogramFacet(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType, Boolean global) {
+        private BuilderHistogramFacet(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType,
+                                      XContentFilterBuilder filter, Boolean global) {
             this.name = name;
             this.fieldName = fieldName;
             this.interval = interval;
             this.comparatorType = comparatorType;
+            this.filter = filter;
             this.global = global;
         }
 
@@ -315,6 +400,10 @@ public class SearchSourceFacetsBuilder implements ToXContent {
 
         public HistogramFacet.ComparatorType comparatorType() {
             return this.comparatorType;
+        }
+
+        public XContentFilterBuilder filter() {
+            return this.filter;
         }
 
         public Boolean global() {

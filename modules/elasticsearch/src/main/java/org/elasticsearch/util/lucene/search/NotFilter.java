@@ -45,4 +45,18 @@ public class NotFilter extends Filter {
     @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
         return new NotDocSet(DocSets.convert(reader, filter.getDocIdSet(reader)), reader.maxDoc());
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        NotFilter notFilter = (NotFilter) o;
+        return !(filter != null ? !filter.equals(notFilter.filter) : notFilter.filter != null);
+    }
+
+    @Override
+    public int hashCode() {
+        return filter != null ? filter.hashCode() : 0;
+    }
 }

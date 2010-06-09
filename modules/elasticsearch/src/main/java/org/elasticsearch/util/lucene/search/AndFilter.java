@@ -55,4 +55,25 @@ public class AndFilter extends Filter {
         }
         return new AndDocSet(sets);
     }
+
+    @Override public int hashCode() {
+        int hash = 7;
+        hash = 31 * hash + (null == filters ? 0 : filters.hashCode());
+        return hash;
+    }
+
+    @Override public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+
+        if ((obj == null) || (obj.getClass() != this.getClass()))
+            return false;
+
+        AndFilter other = (AndFilter) obj;
+        return equalFilters(filters, other.filters);
+    }
+
+    private boolean equalFilters(List<? extends Filter> filters1, List<? extends Filter> filters2) {
+        return (filters1 == filters2) || ((filters1 != null) && filters1.equals(filters2));
+    }
 }

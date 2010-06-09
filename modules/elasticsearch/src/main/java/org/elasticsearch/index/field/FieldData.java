@@ -34,7 +34,6 @@ import java.io.IOException;
  * @author kimchy (Shay Banon)
  */
 // General TODOs on FieldData
-// TODO Make storing of freqs optional
 // TODO Optimize the order (both int[] and int[][] when they are sparse, create an Order abstraction)
 public abstract class FieldData {
 

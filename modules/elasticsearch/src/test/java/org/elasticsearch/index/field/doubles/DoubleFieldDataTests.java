@@ -88,20 +88,27 @@ public class DoubleFieldDataTests {
         // svalue
         assertThat(sFieldData.hasValue(0), equalTo(true));
         assertThat(sFieldData.value(0), equalTo(4d));
+        assertThat(sFieldData.docFieldData(0).getValue(), equalTo(4d));
         assertThat(sFieldData.values(0).length, equalTo(1));
         assertThat(sFieldData.values(0)[0], equalTo(4d));
+        assertThat(sFieldData.docFieldData(0).getValues()[0], equalTo(4d));
 
         assertThat(sFieldData.hasValue(1), equalTo(true));
         assertThat(sFieldData.value(1), equalTo(3d));
+        assertThat(sFieldData.docFieldData(1).getValue(), equalTo(3d));
         assertThat(sFieldData.values(1).length, equalTo(1));
         assertThat(sFieldData.values(1)[0], equalTo(3d));
+        assertThat(sFieldData.docFieldData(1).getValues()[0], equalTo(3d));
 
         assertThat(sFieldData.hasValue(2), equalTo(true));
         assertThat(sFieldData.value(2), equalTo(7d));
+        assertThat(sFieldData.docFieldData(2).getValue(), equalTo(7d));
         assertThat(sFieldData.values(2).length, equalTo(1));
         assertThat(sFieldData.values(2)[0], equalTo(7d));
+        assertThat(sFieldData.docFieldData(2).getValues()[0], equalTo(7d));
 
         assertThat(sFieldData.hasValue(3), equalTo(false));
+        assertThat(sFieldData.docFieldData(3).isEmpty(), equalTo(true));
 
         assertThat(sFieldData.hasValue(4), equalTo(true));
         assertThat(sFieldData.value(4), equalTo(4d));
@@ -129,9 +136,12 @@ public class DoubleFieldDataTests {
 
         // mvalue
         assertThat(mFieldData.hasValue(0), equalTo(true));
+        assertThat(mFieldData.docFieldData(0).isEmpty(), equalTo(false));
         assertThat(mFieldData.value(0), equalTo(104d));
+        assertThat(mFieldData.docFieldData(0).getValue(), equalTo(104d));
         assertThat(mFieldData.values(0).length, equalTo(1));
         assertThat(mFieldData.values(0)[0], equalTo(104d));
+        assertThat(mFieldData.docFieldData(0).getValues()[0], equalTo(104d));
 
         assertThat(mFieldData.hasValue(1), equalTo(true));
         assertThat(mFieldData.value(1), equalTo(104d));

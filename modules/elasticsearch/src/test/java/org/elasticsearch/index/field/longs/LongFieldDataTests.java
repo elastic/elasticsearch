@@ -89,9 +89,13 @@ public class LongFieldDataTests {
 
         // svalue
         assertThat(sFieldData.hasValue(0), equalTo(true));
+        assertThat(sFieldData.docFieldData(0).isEmpty(), equalTo(false));
         assertThat(sFieldData.value(0), equalTo(4l));
+        assertThat(sFieldData.docFieldData(0).getValue(), equalTo(4l));
         assertThat(sFieldData.values(0).length, equalTo(1));
+        assertThat(sFieldData.docFieldData(0).getValues().length, equalTo(1));
         assertThat(sFieldData.values(0)[0], equalTo(4l));
+        assertThat(sFieldData.docFieldData(0).getValues()[0], equalTo(4l));
 
         assertThat(sFieldData.hasValue(1), equalTo(true));
         assertThat(sFieldData.value(1), equalTo(3l));

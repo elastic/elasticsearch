@@ -20,9 +20,9 @@
 package org.elasticsearch.index.field;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public abstract class NumericFieldData extends FieldData {
+public abstract class NumericFieldData<Doc extends NumericDocFieldData> extends FieldData<Doc> {
 
     protected NumericFieldData(String fieldName, FieldDataOptions options) {
         super(fieldName, options);
@@ -84,6 +84,10 @@ public abstract class NumericFieldData extends FieldData {
      */
     public short shortValue(int docId) {
         return (short) intValue(docId);
+    }
+
+    @Override public Doc docFieldData(int docId) {
+        return super.docFieldData(docId);
     }
 
     public abstract double[] doubleValues(int docId);

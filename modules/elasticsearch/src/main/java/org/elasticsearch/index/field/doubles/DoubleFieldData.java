@@ -31,7 +31,7 @@ import java.io.IOException;
 /**
  * @author kimchy (shay.banon)
  */
-public abstract class DoubleFieldData extends NumericFieldData {
+public abstract class DoubleFieldData extends NumericFieldData<DoubleDocFieldData> {
 
     public static final double[] EMPTY_DOUBLE_ARRAY = new double[0];
 
@@ -47,6 +47,14 @@ public abstract class DoubleFieldData extends NumericFieldData {
     abstract public double value(int docId);
 
     abstract public double[] values(int docId);
+
+    @Override public DoubleDocFieldData docFieldData(int docId) {
+        return super.docFieldData(docId);
+    }
+
+    @Override protected DoubleDocFieldData createFieldData() {
+        return new DoubleDocFieldData(this);
+    }
 
     @Override public String stringValue(int docId) {
         return Double.toString(value(docId));

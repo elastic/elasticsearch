@@ -31,7 +31,7 @@ import java.io.IOException;
 /**
  * @author kimchy (Shay Banon)
  */
-public abstract class ShortFieldData extends NumericFieldData {
+public abstract class ShortFieldData extends NumericFieldData<ShortDocFieldData> {
 
     static final short[] EMPTY_SHORT_ARRAY = new short[0];
 
@@ -47,6 +47,14 @@ public abstract class ShortFieldData extends NumericFieldData {
     abstract public short value(int docId);
 
     abstract public short[] values(int docId);
+
+    @Override public ShortDocFieldData docFieldData(int docId) {
+        return super.docFieldData(docId);
+    }
+
+    @Override protected ShortDocFieldData createFieldData() {
+        return new ShortDocFieldData(this);
+    }
 
     @Override public void forEachValue(StringValueProc proc) {
         if (freqs == null) {

@@ -29,9 +29,9 @@ import org.elasticsearch.util.gnu.trove.TIntArrayList;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public abstract class IntFieldData extends NumericFieldData {
+public abstract class IntFieldData extends NumericFieldData<IntDocFieldData> {
 
     static final int[] EMPTY_INT_ARRAY = new int[0];
 
@@ -47,6 +47,14 @@ public abstract class IntFieldData extends NumericFieldData {
     abstract public int value(int docId);
 
     abstract public int[] values(int docId);
+
+    @Override public IntDocFieldData docFieldData(int docId) {
+        return super.docFieldData(docId);
+    }
+
+    @Override protected IntDocFieldData createFieldData() {
+        return new IntDocFieldData(this);
+    }
 
     @Override public String stringValue(int docId) {
         return Integer.toString(value(docId));

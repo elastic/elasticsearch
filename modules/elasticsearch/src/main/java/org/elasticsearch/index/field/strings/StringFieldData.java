@@ -30,7 +30,7 @@ import java.util.ArrayList;
 /**
  * @author kimchy (Shay Banon)
  */
-public abstract class StringFieldData extends FieldData {
+public abstract class StringFieldData extends FieldData<StringDocFieldData> {
 
     protected final String[] values;
     protected final int[] freqs;
@@ -45,8 +45,16 @@ public abstract class StringFieldData extends FieldData {
 
     abstract public String[] values(int docId);
 
+    @Override public StringDocFieldData docFieldData(int docId) {
+        return super.docFieldData(docId);
+    }
+
     @Override public String stringValue(int docId) {
         return value(docId);
+    }
+
+    @Override protected StringDocFieldData createFieldData() {
+        return new StringDocFieldData(this);
     }
 
     @Override public Type type() {

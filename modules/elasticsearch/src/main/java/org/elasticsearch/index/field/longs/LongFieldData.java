@@ -29,9 +29,9 @@ import org.elasticsearch.util.gnu.trove.TLongArrayList;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public abstract class LongFieldData extends NumericFieldData {
+public abstract class LongFieldData extends NumericFieldData<LongDocFieldData> {
 
     static final long[] EMPTY_LONG_ARRAY = new long[0];
 
@@ -48,6 +48,14 @@ public abstract class LongFieldData extends NumericFieldData {
     abstract public long value(int docId);
 
     abstract public long[] values(int docId);
+
+    @Override public LongDocFieldData docFieldData(int docId) {
+        return super.docFieldData(docId);
+    }
+
+    @Override protected LongDocFieldData createFieldData() {
+        return new LongDocFieldData(this);
+    }
 
     @Override public void forEachValue(StringValueProc proc) {
         if (freqs == null) {

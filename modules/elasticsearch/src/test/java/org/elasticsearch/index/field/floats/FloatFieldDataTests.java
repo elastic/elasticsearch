@@ -87,9 +87,12 @@ public class FloatFieldDataTests {
 
         // svalue
         assertThat(sFieldData.hasValue(0), equalTo(true));
+        assertThat(sFieldData.docFieldData(0).isEmpty(), equalTo(false));
         assertThat(sFieldData.value(0), equalTo(4f));
+        assertThat(sFieldData.docFieldData(0).getValue(), equalTo(4f));
         assertThat(sFieldData.values(0).length, equalTo(1));
-        assertThat(sFieldData.values(0)[0], equalTo(4f));
+        assertThat(sFieldData.docFieldData(0).getValues().length, equalTo(1));
+        assertThat(sFieldData.docFieldData(0).getValues()[0], equalTo(4f));
 
         assertThat(sFieldData.hasValue(1), equalTo(true));
         assertThat(sFieldData.value(1), equalTo(3f));
@@ -129,15 +132,21 @@ public class FloatFieldDataTests {
 
         // mvalue
         assertThat(mFieldData.hasValue(0), equalTo(true));
+        assertThat(mFieldData.docFieldData(0).isEmpty(), equalTo(false));
         assertThat(mFieldData.value(0), equalTo(104f));
+        assertThat(mFieldData.docFieldData(0).getValue(), equalTo(104f));
         assertThat(mFieldData.values(0).length, equalTo(1));
+        assertThat(mFieldData.docFieldData(0).getValues().length, equalTo(1));
         assertThat(mFieldData.values(0)[0], equalTo(104f));
+        assertThat(mFieldData.docFieldData(0).getValues()[0], equalTo(104f));
 
         assertThat(mFieldData.hasValue(1), equalTo(true));
         assertThat(mFieldData.value(1), equalTo(104f));
         assertThat(mFieldData.values(1).length, equalTo(2));
+        assertThat(mFieldData.docFieldData(1).getValues().length, equalTo(2));
         assertThat(mFieldData.values(1)[0], equalTo(104f));
-        assertThat(mFieldData.values(1)[1], equalTo(105f));
+        assertThat(mFieldData.docFieldData(1).getValues()[0], equalTo(104f));
+        assertThat(mFieldData.docFieldData(1).getValues()[1], equalTo(105f));
 
         assertThat(mFieldData.hasValue(2), equalTo(false));
 

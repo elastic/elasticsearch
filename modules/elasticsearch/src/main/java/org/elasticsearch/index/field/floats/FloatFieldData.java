@@ -31,7 +31,7 @@ import java.io.IOException;
 /**
  * @author kimchy (Shay Banon)
  */
-public abstract class FloatFieldData extends NumericFieldData {
+public abstract class FloatFieldData extends NumericFieldData<FloatDocFieldData> {
 
     static final float[] EMPTY_FLOAT_ARRAY = new float[0];
 
@@ -47,6 +47,14 @@ public abstract class FloatFieldData extends NumericFieldData {
     abstract public float value(int docId);
 
     abstract public float[] values(int docId);
+
+    @Override public FloatDocFieldData docFieldData(int docId) {
+        return super.docFieldData(docId);
+    }
+
+    @Override protected FloatDocFieldData createFieldData() {
+        return new FloatDocFieldData(this);
+    }
 
     @Override public String stringValue(int docId) {
         return Float.toString(value(docId));

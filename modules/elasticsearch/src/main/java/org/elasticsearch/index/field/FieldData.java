@@ -27,6 +27,7 @@ import org.elasticsearch.index.field.ints.IntFieldData;
 import org.elasticsearch.index.field.longs.LongFieldData;
 import org.elasticsearch.index.field.shorts.ShortFieldData;
 import org.elasticsearch.index.field.strings.StringFieldData;
+import org.elasticsearch.util.ThreadLocals;
 
 import java.io.IOException;
 
@@ -35,7 +36,7 @@ import java.io.IOException;
  */
 // General TODOs on FieldData
 // TODO Optimize the order (both int[] and int[][] when they are sparse, create an Order abstraction)
-public abstract class FieldData {
+public abstract class FieldData<Doc extends DocFieldData> {
 
     public static enum Type {
         STRING(StringFieldData.class, false),
@@ -59,6 +60,12 @@ public abstract class FieldData {
         }
     }
 
+    private final ThreadLocal<ThreadLocals.CleanableValue<Doc>> cachedDocFieldData = new ThreadLocal<ThreadLocals.CleanableValue<Doc>>() {
+        @Override protected ThreadLocals.CleanableValue<Doc> initialValue() {
+            return new ThreadLocals.CleanableValue<Doc>(createFieldData());
+        }
+    };
+
     private final String fieldName;
 
     private final FieldDataOptions options;
@@ -74,6 +81,14 @@ public abstract class FieldData {
     public final String fieldName() {
         return fieldName;
     }
+
+    public Doc docFieldData(int docId) {
+        Doc docFieldData = cachedDocFieldData.get().get();
+        docFieldData.setDocId(docId);
+        return docFieldData;
+    }
+
+    protected abstract Doc createFieldData();
 
     /**
      * Is the field data a multi valued one (has multiple values / terms per document id) or not.

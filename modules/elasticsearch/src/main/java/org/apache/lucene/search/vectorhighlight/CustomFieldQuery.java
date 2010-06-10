@@ -75,6 +75,8 @@ public class CustomFieldQuery extends FieldQuery {
             }
         } else if (sourceQuery instanceof ConstantScoreQuery) {
             flatten(((ConstantScoreQuery) sourceQuery).getFilter(), flatQueries);
+        } else if (sourceQuery instanceof DeletionAwareConstantScoreQuery) {
+            flatten(((DeletionAwareConstantScoreQuery) sourceQuery).getFilter(), flatQueries);
         } else if (sourceQuery instanceof CustomBoostFactorQuery) {
             flatten(((CustomBoostFactorQuery) sourceQuery).getSubQuery(), flatQueries);
         } else if (sourceQuery instanceof MultiTermQuery) {

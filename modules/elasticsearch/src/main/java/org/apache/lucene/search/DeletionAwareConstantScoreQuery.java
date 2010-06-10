@@ -212,8 +212,8 @@ public class DeletionAwareConstantScoreQuery extends Query {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof ConstantScoreQuery)) return false;
-        ConstantScoreQuery other = (ConstantScoreQuery) o;
+        if (!(o instanceof DeletionAwareConstantScoreQuery)) return false;
+        DeletionAwareConstantScoreQuery other = (DeletionAwareConstantScoreQuery) o;
         return this.getBoost() == other.getBoost() && filter.equals(other.filter);
     }
 

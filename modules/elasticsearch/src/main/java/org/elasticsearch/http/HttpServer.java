@@ -22,6 +22,7 @@ package org.elasticsearch.http;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
@@ -44,10 +45,12 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
 
     private final TransportNodesInfoAction nodesInfoAction;
 
-    private final PathTrie<HttpServerHandler> getHandlers;
-    private final PathTrie<HttpServerHandler> postHandlers;
-    private final PathTrie<HttpServerHandler> putHandlers;
-    private final PathTrie<HttpServerHandler> deleteHandlers;
+    private final PathTrie<HttpServerHandler> getHandlers = new PathTrie<HttpServerHandler>();
+    private final PathTrie<HttpServerHandler> postHandlers = new PathTrie<HttpServerHandler>();
+    private final PathTrie<HttpServerHandler> putHandlers = new PathTrie<HttpServerHandler>();
+    private final PathTrie<HttpServerHandler> deleteHandlers = new PathTrie<HttpServerHandler>();
+    private final PathTrie<HttpServerHandler> headHandlers = new PathTrie<HttpServerHandler>();
+    private final PathTrie<HttpServerHandler> optionsHandlers = new PathTrie<HttpServerHandler>();
 
     @Inject public HttpServer(Settings settings, HttpServerTransport transport, ThreadPool threadPool,
                               RestController restController, TransportNodesInfoAction nodesInfoAction) {
@@ -56,11 +59,6 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         this.threadPool = threadPool;
         this.restController = restController;
         this.nodesInfoAction = nodesInfoAction;
-
-        getHandlers = new PathTrie<HttpServerHandler>();
-        postHandlers = new PathTrie<HttpServerHandler>();
-        putHandlers = new PathTrie<HttpServerHandler>();
-        deleteHandlers = new PathTrie<HttpServerHandler>();
 
         transport.httpServerAdapter(new HttpServerAdapter() {
             @Override public void dispatchRequest(HttpRequest request, HttpChannel channel) {
@@ -78,6 +76,10 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
             putHandlers.insert(path, handler);
         } else if (method == HttpRequest.Method.DELETE) {
             deleteHandlers.insert(path, handler);
+        } else if (method == RestRequest.Method.HEAD) {
+            headHandlers.insert(path, handler);
+        } else if (method == RestRequest.Method.OPTIONS) {
+            optionsHandlers.insert(path, handler);
         }
     }
 
@@ -142,6 +144,10 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
             return putHandlers.retrieve(path, request.params());
         } else if (method == HttpRequest.Method.DELETE) {
             return deleteHandlers.retrieve(path, request.params());
+        } else if (method == RestRequest.Method.HEAD) {
+            return headHandlers.retrieve(path, request.params());
+        } else if (method == RestRequest.Method.OPTIONS) {
+            return optionsHandlers.retrieve(path, request.params());
         } else {
             return null;
         }

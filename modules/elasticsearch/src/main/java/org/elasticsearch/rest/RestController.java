@@ -31,7 +31,7 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestResponse.Status.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class RestController extends AbstractLifecycleComponent<RestController> {
 
@@ -39,6 +39,8 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     private final PathTrie<RestHandler> postHandlers = new PathTrie<RestHandler>();
     private final PathTrie<RestHandler> putHandlers = new PathTrie<RestHandler>();
     private final PathTrie<RestHandler> deleteHandlers = new PathTrie<RestHandler>();
+    private final PathTrie<RestHandler> headHandlers = new PathTrie<RestHandler>();
+    private final PathTrie<RestHandler> optionsHandlers = new PathTrie<RestHandler>();
 
     @Inject public RestController(Settings settings) {
         super(settings);
@@ -67,6 +69,10 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
             case PUT:
                 putHandlers.insert(path, handler);
                 break;
+            case OPTIONS:
+                optionsHandlers.insert(path, handler);
+            case HEAD:
+                headHandlers.insert(path, handler);
             default:
                 throw new ElasticSearchIllegalArgumentException("Can't handle [" + method + "] for path [" + path + "]");
         }
@@ -100,6 +106,10 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
             return putHandlers.retrieve(path, request.params());
         } else if (method == RestRequest.Method.DELETE) {
             return deleteHandlers.retrieve(path, request.params());
+        } else if (method == RestRequest.Method.HEAD) {
+            return headHandlers.retrieve(path, request.params());
+        } else if (method == RestRequest.Method.OPTIONS) {
+            return optionsHandlers.retrieve(path, request.params());
         } else {
             return null;
         }

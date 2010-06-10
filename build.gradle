@@ -115,6 +115,6 @@ task release(dependsOn: [zip]) << {
 }
 
 task wrapper(type: Wrapper) {
-    gradleVersion = '0.9-preview-1'
+    gradleVersion = '0.9-preview-3'
     jarPath = 'gradle'
 }

@@ -25,7 +25,6 @@ import org.elasticsearch.monitor.memory.MemoryMonitor;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.inject.Inject;
@@ -177,7 +176,8 @@ public class AlphaMemoryMonitor extends AbstractLifecycleComponent<MemoryMonitor
                     indicesMemoryCleaner.cacheClear();
                     // TODO this ends up doing a flush with "true", basically, at the end, replacing the IndexWriter, might not be needed with Lucene 3.0.2.
                     indicesMemoryCleaner.fullMemoryClean();
-                    ThreadLocals.clearReferencesThreadLocals();
+                    // don't clean thread locals, let GC clean them (so we won't run into visibility issues)
+                    // ThreadLocals.clearReferencesThreadLocals();
                     fullCounter = 0;
                 } else {
                     long totalClean = totalCleans.incrementAndGet();

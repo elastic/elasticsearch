@@ -23,8 +23,8 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.SpanTermQuery;
-import org.elasticsearch.util.lucene.search.CustomBoostFactorQuery;
 import org.elasticsearch.util.lucene.search.TermFilter;
+import org.elasticsearch.util.lucene.search.function.FunctionScoreQuery;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -77,8 +77,8 @@ public class CustomFieldQuery extends FieldQuery {
             flatten(((ConstantScoreQuery) sourceQuery).getFilter(), flatQueries);
         } else if (sourceQuery instanceof DeletionAwareConstantScoreQuery) {
             flatten(((DeletionAwareConstantScoreQuery) sourceQuery).getFilter(), flatQueries);
-        } else if (sourceQuery instanceof CustomBoostFactorQuery) {
-            flatten(((CustomBoostFactorQuery) sourceQuery).getSubQuery(), flatQueries);
+        } else if (sourceQuery instanceof FunctionScoreQuery) {
+            flatten(((FunctionScoreQuery) sourceQuery).getSubQuery(), flatQueries);
         } else if (sourceQuery instanceof MultiTermQuery) {
             MultiTermQuery multiTermQuery = (MultiTermQuery) sourceQuery;
             MultiTermQuery.RewriteMethod rewriteMethod = multiTermQuery.getRewriteMethod();

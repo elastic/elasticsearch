@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.util.lucene.search;
+package org.elasticsearch.util.lucene.search.function;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
@@ -28,34 +28,33 @@ import java.io.IOException;
 import java.util.Set;
 
 /**
- * A query that wraps another query and applies the provided boost values to it. Simply
- * applied the boost factor to the score of the wrapped query.
+ * A query that allows for a pluggable boost function to be applied to it.
  *
  * @author kimchy (shay.banon)
  */
-public class CustomBoostFactorQuery extends Query {
+public class FunctionScoreQuery extends Query {
 
     private Query subQuery;
-    private float boostFactor;
+    private FunctionProvider functionProvider;
 
-    public CustomBoostFactorQuery(Query subQuery, float boostFactor) {
+    public FunctionScoreQuery(Query subQuery, FunctionProvider functionProvider) {
         this.subQuery = subQuery;
-        this.boostFactor = boostFactor;
+        this.functionProvider = functionProvider;
     }
 
     public Query getSubQuery() {
         return subQuery;
     }
 
-    public float getBoostFactor() {
-        return boostFactor;
+    public FunctionProvider getFunctionProvider() {
+        return functionProvider;
     }
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
         Query newQ = subQuery.rewrite(reader);
         if (newQ == subQuery) return this;
-        CustomBoostFactorQuery bq = (CustomBoostFactorQuery) this.clone();
+        FunctionScoreQuery bq = (FunctionScoreQuery) this.clone();
         bq.subQuery = newQ;
         return bq;
     }
@@ -80,7 +79,7 @@ public class CustomBoostFactorQuery extends Query {
         }
 
         public Query getQuery() {
-            return CustomBoostFactorQuery.this;
+            return FunctionScoreQuery.this;
         }
 
         public float getValue() {
@@ -106,7 +105,7 @@ public class CustomBoostFactorQuery extends Query {
             if (subQueryScorer == null) {
                 return null;
             }
-            return new CustomBoostFactorScorer(getSimilarity(searcher), reader, this, subQueryScorer);
+            return new CustomBoostFactorScorer(getSimilarity(searcher), this, subQueryScorer, functionProvider.function(reader));
         }
 
         @Override
@@ -116,29 +115,26 @@ public class CustomBoostFactorQuery extends Query {
                 return subQueryExpl;
             }
 
-            float sc = subQueryExpl.getValue() * boostFactor;
-            Explanation res = new ComplexExplanation(
-                    true, sc, CustomBoostFactorQuery.this.toString() + ", product of:");
-            res.addDetail(subQueryExpl);
-            res.addDetail(new Explanation(boostFactor, "boostFactor"));
+            Explanation functionExplanation = functionProvider.function(reader).explain(doc, subQueryExpl);
+            float sc = getValue() * functionExplanation.getValue();
+            Explanation res = new ComplexExplanation(true, sc, "custom score, product of:");
+            res.addDetail(functionExplanation);
+            res.addDetail(new Explanation(getValue(), "queryBoost"));
             return res;
         }
     }
 
 
     private class CustomBoostFactorScorer extends Scorer {
-        private final CustomBoostFactorWeight weight;
         private final float subQueryWeight;
         private final Scorer scorer;
-        private final IndexReader reader;
+        private final Function function;
 
-        private CustomBoostFactorScorer(Similarity similarity, IndexReader reader, CustomBoostFactorWeight w,
-                                        Scorer scorer) throws IOException {
+        private CustomBoostFactorScorer(Similarity similarity, CustomBoostFactorWeight w, Scorer scorer, Function function) throws IOException {
             super(similarity);
-            this.weight = w;
             this.subQueryWeight = w.getValue();
             this.scorer = scorer;
-            this.reader = reader;
+            this.function = function;
         }
 
         @Override
@@ -158,52 +154,28 @@ public class CustomBoostFactorQuery extends Query {
 
         @Override
         public float score() throws IOException {
-            float score = subQueryWeight * scorer.score() * boostFactor;
-
-            // Current Lucene priority queues can't handle NaN and -Infinity, so
-            // map to -Float.MAX_VALUE. This conditional handles both -infinity
-            // and NaN since comparisons with NaN are always false.
-            return score > Float.NEGATIVE_INFINITY ? score : -Float.MAX_VALUE;
-        }
-
-        public Explanation explain(int doc) throws IOException {
-            Explanation subQueryExpl = weight.subQueryWeight.explain(reader, doc);
-            if (!subQueryExpl.isMatch()) {
-                return subQueryExpl;
-            }
-            float sc = subQueryExpl.getValue() * boostFactor;
-            Explanation res = new ComplexExplanation(
-                    true, sc, CustomBoostFactorQuery.this.toString() + ", product of:");
-            res.addDetail(subQueryExpl);
-            res.addDetail(new Explanation(boostFactor, "boostFactor"));
-            return res;
+            return subQueryWeight * function.score(scorer.docID(), scorer.score());
         }
     }
 
 
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
-        sb.append("CustomBoostFactor(").append(subQuery.toString(field)).append(',').append(boostFactor).append(')');
+        sb.append("custom score (").append(subQuery.toString(field)).append(",function=").append(functionProvider).append(')');
         sb.append(ToStringUtils.boost(getBoost()));
         return sb.toString();
     }
 
     public boolean equals(Object o) {
         if (getClass() != o.getClass()) return false;
-        CustomBoostFactorQuery other = (CustomBoostFactorQuery) o;
+        FunctionScoreQuery other = (FunctionScoreQuery) o;
         return this.getBoost() == other.getBoost()
                 && this.subQuery.equals(other.subQuery)
-                && this.boostFactor == other.boostFactor;
+                && this.functionProvider.equals(other.functionProvider);
     }
 
     public int hashCode() {
-        int h = subQuery.hashCode();
-        h ^= (h << 17) | (h >>> 16);
-        h += Float.floatToIntBits(boostFactor);
-        h ^= (h << 8) | (h >>> 25);
-        h += Float.floatToIntBits(getBoost());
-        return h;
+        return subQuery.hashCode() + 31 * functionProvider.hashCode() ^ Float.floatToIntBits(getBoost());
     }
-
 }
 

@@ -20,8 +20,8 @@
 package org.elasticsearch.search.facets.terms;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.index.cache.field.FieldDataCache;
-import org.elasticsearch.index.field.FieldData;
+import org.elasticsearch.index.cache.field.data.FieldDataCache;
+import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.facets.Facet;
@@ -36,7 +36,7 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
 
-import static org.elasticsearch.index.field.FieldDataOptions.*;
+import static org.elasticsearch.index.field.data.FieldDataOptions.*;
 
 /**
  * @author kimchy (shay.banon)

@@ -25,7 +25,7 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.field.FieldData;
+import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.util.concurrent.Immutable;
 import org.elasticsearch.util.concurrent.ThreadSafe;
 

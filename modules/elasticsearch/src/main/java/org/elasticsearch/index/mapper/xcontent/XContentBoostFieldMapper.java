@@ -25,7 +25,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericFloatAnalyzer;
-import org.elasticsearch.index.field.FieldData;
+import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.mapper.BoostFieldMapper;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.util.Numbers;

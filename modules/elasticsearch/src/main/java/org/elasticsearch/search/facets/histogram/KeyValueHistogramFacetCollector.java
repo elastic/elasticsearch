@@ -20,9 +20,9 @@
 package org.elasticsearch.search.facets.histogram;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.index.cache.field.FieldDataCache;
-import org.elasticsearch.index.field.FieldData;
-import org.elasticsearch.index.field.NumericFieldData;
+import org.elasticsearch.index.cache.field.data.FieldDataCache;
+import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.facets.Facet;
@@ -33,7 +33,7 @@ import org.elasticsearch.util.gnu.trove.TLongLongHashMap;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.field.FieldDataOptions.*;
+import static org.elasticsearch.index.field.data.FieldDataOptions.*;
 
 /**
  * A histogram facet collector that uses different fields for the key and the value.

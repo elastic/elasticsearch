@@ -27,7 +27,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.field.FieldData;
+import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.gnu.trove.TIntObjectHashMap;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;

@@ -31,6 +31,8 @@ import org.elasticsearch.index.engine.robin.RobinIndexEngine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParser;
 import org.elasticsearch.util.lucene.search.*;
+import org.elasticsearch.util.lucene.search.function.BoostFactorFunctionProvider;
+import org.elasticsearch.util.lucene.search.function.FunctionScoreQuery;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -713,10 +715,10 @@ public class SimpleIndexQueryParserTests {
     @Test public void testCustomBoostFactorQueryBuilder() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
         Query parsedQuery = queryParser.parse(customBoostFactorQuery(termQuery("name.last", "banon")).boostFactor(1.3f));
-        assertThat(parsedQuery, instanceOf(CustomBoostFactorQuery.class));
-        CustomBoostFactorQuery customBoostFactorQuery = (CustomBoostFactorQuery) parsedQuery;
-        assertThat(((TermQuery) customBoostFactorQuery.getSubQuery()).getTerm(), equalTo(new Term("name.last", "banon")));
-        assertThat((double) customBoostFactorQuery.getBoostFactor(), closeTo(1.3, 0.001));
+        assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
+        FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
+        assertThat(((TermQuery) functionScoreQuery.getSubQuery()).getTerm(), equalTo(new Term("name.last", "banon")));
+        assertThat((double) ((BoostFactorFunctionProvider) functionScoreQuery.getFunctionProvider()).getBoost(), closeTo(1.3, 0.001));
     }
 
 
@@ -724,10 +726,10 @@ public class SimpleIndexQueryParserTests {
         IndexQueryParser queryParser = newQueryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/custom-boost-factor-query.json");
         Query parsedQuery = queryParser.parse(query);
-        assertThat(parsedQuery, instanceOf(CustomBoostFactorQuery.class));
-        CustomBoostFactorQuery customBoostFactorQuery = (CustomBoostFactorQuery) parsedQuery;
-        assertThat(((TermQuery) customBoostFactorQuery.getSubQuery()).getTerm(), equalTo(new Term("name.last", "banon")));
-        assertThat((double) customBoostFactorQuery.getBoostFactor(), closeTo(1.3, 0.001));
+        assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
+        FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
+        assertThat(((TermQuery) functionScoreQuery.getSubQuery()).getTerm(), equalTo(new Term("name.last", "banon")));
+        assertThat((double) ((BoostFactorFunctionProvider) functionScoreQuery.getFunctionProvider()).getBoost(), closeTo(1.3, 0.001));
     }
 
     @Test public void testSpanTermQueryBuilder() throws IOException {

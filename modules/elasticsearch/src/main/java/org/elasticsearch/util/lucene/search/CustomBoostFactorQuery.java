@@ -102,7 +102,7 @@ public class CustomBoostFactorQuery extends Query {
 
         @Override
         public Scorer scorer(IndexReader reader, boolean scoreDocsInOrder, boolean topScorer) throws IOException {
-            Scorer subQueryScorer = subQueryWeight.scorer(reader, true, false);
+            Scorer subQueryScorer = subQueryWeight.scorer(reader, scoreDocsInOrder, false);
             if (subQueryScorer == null) {
                 return null;
             }

@@ -26,7 +26,7 @@ import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.lucene.search.function.BoostFactorFunctionProvider;
+import org.elasticsearch.util.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.util.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.util.settings.Settings;
 import org.elasticsearch.util.xcontent.XContentParser;
@@ -75,7 +75,7 @@ public class CustomBoostFactorQueryParser extends AbstractIndexComponent impleme
         if (query == null) {
             throw new QueryParsingException(index, "[constant_factor_query] requires 'query' element");
         }
-        FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(query, new BoostFactorFunctionProvider(boostFactor));
+        FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(query, new BoostScoreFunction(boostFactor));
         functionScoreQuery.setBoost(boost);
         return functionScoreQuery;
     }

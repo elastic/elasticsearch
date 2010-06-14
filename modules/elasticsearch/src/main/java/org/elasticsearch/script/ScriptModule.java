@@ -17,33 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.field.data.longs;
+package org.elasticsearch.script;
 
-import org.elasticsearch.index.field.data.NumericDocFieldData;
-import org.joda.time.MutableDateTime;
+import org.elasticsearch.util.inject.AbstractModule;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class LongDocFieldData extends NumericDocFieldData<LongFieldData> {
+public class ScriptModule extends AbstractModule {
 
-    public LongDocFieldData(LongFieldData fieldData) {
-        super(fieldData);
-    }
-
-    public long getValue() {
-        return fieldData.value(docId);
-    }
-
-    public long[] getValues() {
-        return fieldData.values(docId);
-    }
-
-    public MutableDateTime getDate() {
-        return fieldData.date(docId);
-    }
-
-    public MutableDateTime[] getDates() {
-        return fieldData.dates(docId);
+    @Override protected void configure() {
+        bind(ScriptService.class).asEagerSingleton();
     }
 }

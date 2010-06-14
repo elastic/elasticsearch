@@ -281,6 +281,15 @@ public abstract class QueryBuilders {
     }
 
     /**
+     * A query that allows to define a custom scoring script.
+     *
+     * @param queryBuilder The query to custom score
+     */
+    public static CustomScoreQueryBuilder customScoreQuery(XContentQueryBuilder queryBuilder) {
+        return new CustomScoreQueryBuilder(queryBuilder);
+    }
+
+    /**
      * A more like this query that finds documents that are "like" the provided {@link MoreLikeThisQueryBuilder#likeText(String)}
      * which is checked against the fields the query is constructed with.
      *

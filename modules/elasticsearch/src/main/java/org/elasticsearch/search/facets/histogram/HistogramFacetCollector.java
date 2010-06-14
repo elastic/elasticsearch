@@ -45,6 +45,8 @@ public class HistogramFacetCollector extends AbstractFacetCollector {
 
     private final String fieldName;
 
+    private final String indexFieldName;
+
     private final long interval;
 
     private final HistogramFacet.ComparatorType comparatorType;
@@ -68,6 +70,7 @@ public class HistogramFacetCollector extends AbstractFacetCollector {
         if (mapper == null) {
             throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldName + "]");
         }
+        indexFieldName = mapper.names().indexName();
         fieldDataType = mapper.fieldDataType();
 
         histoProc = new HistogramProc(interval);
@@ -78,7 +81,7 @@ public class HistogramFacetCollector extends AbstractFacetCollector {
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, fieldName, fieldDataOptions().withFreqs(false));
+        fieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName, fieldDataOptions().withFreqs(false));
     }
 
     @Override public Facet facet() {

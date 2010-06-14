@@ -40,6 +40,8 @@ public class StatisticalFacetCollector extends AbstractFacetCollector {
 
     private final String fieldName;
 
+    private final String indexFieldName;
+
     private final FieldDataCache fieldDataCache;
 
     private final FieldData.Type fieldDataType;
@@ -57,6 +59,7 @@ public class StatisticalFacetCollector extends AbstractFacetCollector {
         if (mapper == null) {
             throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldName + "]");
         }
+        indexFieldName = mapper.names().indexName();
         fieldDataType = mapper.fieldDataType();
     }
 
@@ -65,7 +68,7 @@ public class StatisticalFacetCollector extends AbstractFacetCollector {
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, fieldName, fieldDataOptions().withFreqs(false));
+        fieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName, fieldDataOptions().withFreqs(false));
     }
 
     @Override public Facet facet() {

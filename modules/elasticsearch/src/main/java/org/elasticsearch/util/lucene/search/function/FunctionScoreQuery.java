@@ -34,20 +34,20 @@ import java.util.Set;
  */
 public class FunctionScoreQuery extends Query {
 
-    private Query subQuery;
-    private FunctionProvider functionProvider;
+    Query subQuery;
+    final ScoreFunction function;
 
-    public FunctionScoreQuery(Query subQuery, FunctionProvider functionProvider) {
+    public FunctionScoreQuery(Query subQuery, ScoreFunction function) {
         this.subQuery = subQuery;
-        this.functionProvider = functionProvider;
+        this.function = function;
     }
 
     public Query getSubQuery() {
         return subQuery;
     }
 
-    public FunctionProvider getFunctionProvider() {
-        return functionProvider;
+    public ScoreFunction getFunction() {
+        return function;
     }
 
     @Override
@@ -69,7 +69,7 @@ public class FunctionScoreQuery extends Query {
         return new CustomBoostFactorWeight(searcher);
     }
 
-    private class CustomBoostFactorWeight extends Weight {
+    class CustomBoostFactorWeight extends Weight {
         Searcher searcher;
         Weight subQueryWeight;
 
@@ -105,7 +105,8 @@ public class FunctionScoreQuery extends Query {
             if (subQueryScorer == null) {
                 return null;
             }
-            return new CustomBoostFactorScorer(getSimilarity(searcher), this, subQueryScorer, functionProvider.function(reader));
+            function.setNextReader(reader);
+            return new CustomBoostFactorScorer(getSimilarity(searcher), this, subQueryScorer);
         }
 
         @Override
@@ -115,7 +116,8 @@ public class FunctionScoreQuery extends Query {
                 return subQueryExpl;
             }
 
-            Explanation functionExplanation = functionProvider.function(reader).explain(doc, subQueryExpl);
+            function.setNextReader(reader);
+            Explanation functionExplanation = function.explain(doc, subQueryExpl);
             float sc = getValue() * functionExplanation.getValue();
             Explanation res = new ComplexExplanation(true, sc, "custom score, product of:");
             res.addDetail(functionExplanation);
@@ -125,16 +127,14 @@ public class FunctionScoreQuery extends Query {
     }
 
 
-    private class CustomBoostFactorScorer extends Scorer {
+    class CustomBoostFactorScorer extends Scorer {
         private final float subQueryWeight;
         private final Scorer scorer;
-        private final Function function;
 
-        private CustomBoostFactorScorer(Similarity similarity, CustomBoostFactorWeight w, Scorer scorer, Function function) throws IOException {
+        private CustomBoostFactorScorer(Similarity similarity, CustomBoostFactorWeight w, Scorer scorer) throws IOException {
             super(similarity);
             this.subQueryWeight = w.getValue();
             this.scorer = scorer;
-            this.function = function;
         }
 
         @Override
@@ -161,7 +161,7 @@ public class FunctionScoreQuery extends Query {
 
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
-        sb.append("custom score (").append(subQuery.toString(field)).append(",function=").append(functionProvider).append(')');
+        sb.append("custom score (").append(subQuery.toString(field)).append(",function=").append(function).append(')');
         sb.append(ToStringUtils.boost(getBoost()));
         return sb.toString();
     }
@@ -171,11 +171,11 @@ public class FunctionScoreQuery extends Query {
         FunctionScoreQuery other = (FunctionScoreQuery) o;
         return this.getBoost() == other.getBoost()
                 && this.subQuery.equals(other.subQuery)
-                && this.functionProvider.equals(other.functionProvider);
+                && this.function.equals(other.function);
     }
 
     public int hashCode() {
-        return subQuery.hashCode() + 31 * functionProvider.hashCode() ^ Float.floatToIntBits(getBoost());
+        return subQuery.hashCode() + 31 * function.hashCode() ^ Float.floatToIntBits(getBoost());
     }
 }
 

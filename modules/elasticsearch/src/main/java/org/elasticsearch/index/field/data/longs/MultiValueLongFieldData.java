@@ -22,6 +22,7 @@ package org.elasticsearch.index.field.data.longs;
 import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
 import org.elasticsearch.util.ThreadLocals;
+import org.joda.time.MutableDateTime;
 
 /**
  * @author kimchy (shay.banon)
@@ -39,6 +40,20 @@ public class MultiValueLongFieldData extends LongFieldData {
             return new ThreadLocals.CleanableValue<double[][]>(value);
         }
     };
+
+    private ThreadLocal<ThreadLocals.CleanableValue<MutableDateTime[][]>> dateTimesCache = new ThreadLocal<ThreadLocals.CleanableValue<MutableDateTime[][]>>() {
+        @Override protected ThreadLocals.CleanableValue<MutableDateTime[][]> initialValue() {
+            MutableDateTime[][] value = new MutableDateTime[VALUE_CACHE_SIZE][];
+            for (int i = 0; i < value.length; i++) {
+                value[i] = new MutableDateTime[i];
+                for (int j = 0; j < i; j++) {
+                    value[i][j] = new MutableDateTime();
+                }
+            }
+            return new ThreadLocals.CleanableValue<MutableDateTime[][]>(value);
+        }
+    };
+
 
     private ThreadLocal<ThreadLocals.CleanableValue<long[][]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<long[][]>>() {
         @Override protected ThreadLocals.CleanableValue<long[][]> initialValue() {
@@ -84,6 +99,26 @@ public class MultiValueLongFieldData extends LongFieldData {
         for (int docOrder : docOrders) {
             proc.onValue(docId, values[docOrder]);
         }
+    }
+
+    @Override public MutableDateTime[] dates(int docId) {
+        int[] docOrders = order[docId];
+        if (docOrders == null) {
+            return EMPTY_DATETIME_ARRAY;
+        }
+        MutableDateTime[] dates;
+        if (docOrders.length < VALUE_CACHE_SIZE) {
+            dates = dateTimesCache.get().get()[docOrders.length];
+        } else {
+            dates = new MutableDateTime[docOrders.length];
+            for (int i = 0; i < dates.length; i++) {
+                dates[i] = new MutableDateTime();
+            }
+        }
+        for (int i = 0; i < docOrders.length; i++) {
+            dates[i].setMillis(values[docOrders[i]]);
+        }
+        return dates;
     }
 
     @Override public double[] doubleValues(int docId) {

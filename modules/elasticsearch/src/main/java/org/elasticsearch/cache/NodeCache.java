@@ -17,33 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.index.field.data.longs;
+package org.elasticsearch.cache;
 
-import org.elasticsearch.index.field.data.NumericDocFieldData;
-import org.joda.time.MutableDateTime;
+import org.elasticsearch.util.component.AbstractComponent;
+import org.elasticsearch.util.inject.Inject;
+import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class LongDocFieldData extends NumericDocFieldData<LongFieldData> {
+public class NodeCache extends AbstractComponent {
 
-    public LongDocFieldData(LongFieldData fieldData) {
-        super(fieldData);
-    }
-
-    public long getValue() {
-        return fieldData.value(docId);
-    }
-
-    public long[] getValues() {
-        return fieldData.values(docId);
-    }
-
-    public MutableDateTime getDate() {
-        return fieldData.date(docId);
-    }
-
-    public MutableDateTime[] getDates() {
-        return fieldData.dates(docId);
+    @Inject public NodeCache(Settings settings) {
+        super(settings);
     }
 }

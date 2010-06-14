@@ -21,6 +21,7 @@ package org.elasticsearch.index.field.data.longs;
 
 import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
+import org.joda.time.MutableDateTime;
 
 /**
  * @author kimchy (shay.banon)
@@ -30,6 +31,14 @@ public class SingleValueLongFieldData extends LongFieldData {
     private ThreadLocal<double[]> doublesValuesCache = new ThreadLocal<double[]>() {
         @Override protected double[] initialValue() {
             return new double[1];
+        }
+    };
+
+    private ThreadLocal<MutableDateTime[]> datesValuesCache = new ThreadLocal<MutableDateTime[]>() {
+        @Override protected MutableDateTime[] initialValue() {
+            MutableDateTime[] date = new MutableDateTime[1];
+            date[0] = new MutableDateTime();
+            return date;
         }
     };
 
@@ -69,6 +78,16 @@ public class SingleValueLongFieldData extends LongFieldData {
             return;
         }
         proc.onValue(docId, values[loc]);
+    }
+
+    @Override public MutableDateTime[] dates(int docId) {
+        int loc = order[docId];
+        if (loc == 0) {
+            return EMPTY_DATETIME_ARRAY;
+        }
+        MutableDateTime[] ret = datesValuesCache.get();
+        ret[0].setMillis(values[loc]);
+        return ret;
     }
 
     @Override public double[] doubleValues(int docId) {

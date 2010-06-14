@@ -30,9 +30,11 @@ import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.index.query.xcontent.XContentQueryParserRegistry;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.util.inject.Guice;
 import org.elasticsearch.util.inject.Injector;
 import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.util.settings.SettingsModule;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.util.settings.ImmutableSettings.*;
@@ -55,6 +57,8 @@ public class IndexQueryParserModuleTests {
 
         Index index = new Index("test");
         Injector injector = Guice.createInjector(
+                new SettingsModule(settings),
+                new ScriptModule(),
                 new IndexSettingsModule(settings),
                 new IndexCacheModule(settings),
                 new AnalysisModule(settings),

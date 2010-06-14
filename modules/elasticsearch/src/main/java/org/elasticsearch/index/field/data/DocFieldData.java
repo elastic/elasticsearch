@@ -48,6 +48,10 @@ public abstract class DocFieldData<T extends FieldData> {
         return fieldData.stringValue(docId);
     }
 
+    public String getStringValue() {
+        return stringValue();
+    }
+
     public FieldData.Type getType() {
         return fieldData.type();
     }

@@ -33,6 +33,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.inject.assistedinject.Assisted;
@@ -61,11 +62,13 @@ public class XContentIndexQueryParser extends AbstractIndexComponent implements 
 
     private ThreadLocal<ThreadLocals.CleanableValue<QueryParseContext>> cache = new ThreadLocal<ThreadLocals.CleanableValue<QueryParseContext>>() {
         @Override protected ThreadLocals.CleanableValue<QueryParseContext> initialValue() {
-            return new ThreadLocals.CleanableValue<QueryParseContext>(new QueryParseContext(index, queryParserRegistry, mapperService, similarityService, indexCache, indexEngine));
+            return new ThreadLocals.CleanableValue<QueryParseContext>(new QueryParseContext(index, queryParserRegistry, scriptService, mapperService, similarityService, indexCache, indexEngine));
         }
     };
 
     private final String name;
+
+    private final ScriptService scriptService;
 
     private final MapperService mapperService;
 
@@ -78,7 +81,7 @@ public class XContentIndexQueryParser extends AbstractIndexComponent implements 
     private final XContentQueryParserRegistry queryParserRegistry;
 
     @Inject public XContentIndexQueryParser(Index index,
-                                            @IndexSettings Settings indexSettings,
+                                            @IndexSettings Settings indexSettings, ScriptService scriptService,
                                             MapperService mapperService, IndexCache indexCache, IndexEngine indexEngine,
                                             AnalysisService analysisService, @Nullable SimilarityService similarityService,
                                             @Nullable Map<String, XContentQueryParserFactory> namedQueryParsers,
@@ -86,6 +89,7 @@ public class XContentIndexQueryParser extends AbstractIndexComponent implements 
                                             @Assisted String name, @Assisted @Nullable Settings settings) {
         super(index, indexSettings);
         this.name = name;
+        this.scriptService = scriptService;
         this.mapperService = mapperService;
         this.similarityService = similarityService;
         this.indexCache = indexCache;

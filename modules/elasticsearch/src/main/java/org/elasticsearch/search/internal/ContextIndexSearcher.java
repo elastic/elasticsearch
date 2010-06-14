@@ -48,6 +48,37 @@ public class ContextIndexSearcher extends IndexSearcher {
         this.searchContext = searchContext;
     }
 
+    public IndexReader[] subReaders() {
+        return this.subReaders;
+    }
+
+    public int[] docStarts() {
+        return this.docStarts;
+    }
+
+    // taken from DirectoryReader#readerIndex
+
+    public int readerIndex(int doc) {
+        int lo = 0;                                      // search starts array
+        int hi = subReaders.length - 1;                  // for first element less
+
+        while (hi >= lo) {
+            int mid = (lo + hi) >>> 1;
+            int midValue = docStarts[mid];
+            if (doc < midValue)
+                hi = mid - 1;
+            else if (doc > midValue)
+                lo = mid + 1;
+            else {                                      // found a match
+                while (mid + 1 < subReaders.length && docStarts[mid + 1] == midValue) {
+                    mid++;                                  // scan to last match
+                }
+                return mid;
+            }
+        }
+        return hi;
+    }
+
     public void dfSource(CachedDfSource dfSource) {
         this.dfSource = dfSource;
     }

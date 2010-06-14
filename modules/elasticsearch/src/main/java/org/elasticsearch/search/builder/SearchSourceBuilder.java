@@ -20,6 +20,7 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
+import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.gnu.trove.TObjectFloatHashMap;
 import org.elasticsearch.util.gnu.trove.TObjectFloatIterator;
 import org.elasticsearch.util.io.FastByteArrayOutputStream;
@@ -32,6 +33,7 @@ import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.util.collect.Lists.*;
 
@@ -83,6 +85,8 @@ public class SearchSourceBuilder implements ToXContent {
     private List<SortTuple> sortFields;
 
     private List<String> fieldNames;
+
+    private List<ScriptField> scriptFields;
 
     private SearchSourceFacetsBuilder facetsBuilder;
 
@@ -255,6 +259,18 @@ public class SearchSourceBuilder implements ToXContent {
         return this;
     }
 
+    public SearchSourceBuilder scriptField(String name, String script) {
+        return scriptField(name, script, null);
+    }
+
+    public SearchSourceBuilder scriptField(String name, String script, Map<String, Object> params) {
+        if (scriptFields == null) {
+            scriptFields = Lists.newArrayList();
+        }
+        scriptFields.add(new ScriptField(name, script, params));
+        return this;
+    }
+
     /**
      * Sets the boost a specific index will receive when the query is executeed against it.
      *
@@ -332,6 +348,20 @@ public class SearchSourceBuilder implements ToXContent {
             }
         }
 
+        if (scriptFields != null) {
+            builder.startObject("script_fields");
+            for (ScriptField scriptField : scriptFields) {
+                builder.startObject(scriptField.fieldName());
+                builder.field("script", scriptField.script());
+                if (scriptField.params() != null) {
+                    builder.field("params");
+                    builder.map(scriptField.params());
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+
         if (sortFields != null) {
             builder.field("sort");
             builder.startObject();
@@ -367,6 +397,30 @@ public class SearchSourceBuilder implements ToXContent {
         }
 
         builder.endObject();
+    }
+
+    private static class ScriptField {
+        private final String fieldName;
+        private final String script;
+        private final Map<String, Object> params;
+
+        private ScriptField(String fieldName, String script, Map<String, Object> params) {
+            this.fieldName = fieldName;
+            this.script = script;
+            this.params = params;
+        }
+
+        public String fieldName() {
+            return fieldName;
+        }
+
+        public String script() {
+            return script;
+        }
+
+        public Map<String, Object> params() {
+            return params;
+        }
     }
 
     private static class SortTuple {

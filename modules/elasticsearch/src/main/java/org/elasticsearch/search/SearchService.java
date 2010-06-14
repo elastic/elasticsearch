@@ -29,6 +29,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -76,6 +77,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private final TimerService timerService;
 
+    private final ScriptService scriptService;
+
     private final DfsPhase dfsPhase;
 
     private final QueryPhase queryPhase;
@@ -95,11 +98,12 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     private final ImmutableMap<String, SearchParseElement> elementParsers;
 
     @Inject public SearchService(Settings settings, ClusterService clusterService, IndicesService indicesService, TimerService timerService,
-                                 DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase) {
+                                 ScriptService scriptService, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.timerService = timerService;
+        this.scriptService = scriptService;
         this.dfsPhase = dfsPhase;
         this.queryPhase = queryPhase;
         this.fetchPhase = fetchPhase;
@@ -285,7 +289,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.state().nodes().localNodeId(), request.index(), request.shardId());
 
-        SearchContext context = new SearchContext(idGenerator.incrementAndGet(), shardTarget, request.timeout(), request.types(), engineSearcher, indexService);
+        SearchContext context = new SearchContext(idGenerator.incrementAndGet(), shardTarget, request.timeout(), request.types(), engineSearcher, indexService, scriptService);
 
         context.scroll(request.scroll());
 

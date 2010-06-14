@@ -22,10 +22,13 @@ package org.elasticsearch.search.fetch;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldSelector;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
+import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
+import org.elasticsearch.search.fetch.script.ScriptFieldsParseElement;
 import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
@@ -54,6 +57,8 @@ public class FetchPhase implements SearchPhase {
         ImmutableMap.Builder<String, SearchParseElement> parseElements = ImmutableMap.builder();
         parseElements.put("explain", new ExplainParseElement())
                 .put("fields", new FieldsParseElement())
+                .put("script_fields", new ScriptFieldsParseElement())
+                .put("scriptFields", new ScriptFieldsParseElement())
                 .putAll(highlightPhase.parseElements());
         return parseElements.build();
     }
@@ -109,6 +114,29 @@ public class FetchPhase implements SearchPhase {
                 }
                 hitField.values().add(value);
             }
+
+            if (context.scriptFields() != null) {
+                int readerIndex = context.searcher().readerIndex(docId);
+                IndexReader subReader = context.searcher().subReaders()[readerIndex];
+                int subDoc = docId - context.searcher().docStarts()[readerIndex];
+                for (ScriptFieldsContext.ScriptField scriptField : context.scriptFields().fields()) {
+                    scriptField.scriptFieldsFunction().setNextReader(subReader);
+
+                    Object value = scriptField.scriptFieldsFunction().execute(subDoc, scriptField.params());
+
+                    if (searchHit.fields() == null) {
+                        searchHit.fields(new HashMap<String, SearchHitField>(2));
+                    }
+
+                    SearchHitField hitField = searchHit.fields().get(scriptField.name());
+                    if (hitField == null) {
+                        hitField = new InternalSearchHitField(scriptField.name(), new ArrayList<Object>(2));
+                        searchHit.fields().put(scriptField.name(), hitField);
+                    }
+                    hitField.values().add(value);
+                }
+            }
+
             doExplanation(context, docId, searchHit);
         }
         context.fetchResult().hits(new InternalSearchHits(hits, context.queryResult().topDocs().totalHits));

@@ -168,7 +168,7 @@ public class FetchPhase implements SearchPhase {
             return new UidAndSourceFieldSelector();
         }
 
-        if (context.fieldNames().length == 0) {
+        if (context.fieldNames().isEmpty()) {
             return new UidFieldSelector();
         }
 

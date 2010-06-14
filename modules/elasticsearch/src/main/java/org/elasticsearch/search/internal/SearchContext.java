@@ -44,6 +44,7 @@ import org.elasticsearch.util.lease.Releasable;
 import org.elasticsearch.util.timer.Timeout;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * @author kimchy (shay.banon)
@@ -75,7 +76,7 @@ public class SearchContext implements Releasable {
 
     private boolean explain;
 
-    private String[] fieldNames;
+    private List<String> fieldNames;
 
     private int from = -1;
 
@@ -100,7 +101,6 @@ public class SearchContext implements Releasable {
     private SearchContextFacets facets;
 
     private SearchContextHighlight highlight;
-
 
     private boolean queryRewritten;
 
@@ -299,11 +299,11 @@ public class SearchContext implements Releasable {
         return this;
     }
 
-    public String[] fieldNames() {
+    public List<String> fieldNames() {
         return fieldNames;
     }
 
-    public SearchContext fieldNames(String[] fieldNames) {
+    public SearchContext fieldNames(List<String> fieldNames) {
         this.fieldNames = fieldNames;
         return this;
     }

@@ -38,6 +38,7 @@ import org.elasticsearch.search.facets.histogram.HistogramFacet;
 import org.elasticsearch.util.TimeValue;
 
 import javax.annotation.Nullable;
+import java.util.Map;
 
 /**
  * A search action request builder.
@@ -229,6 +230,16 @@ public class SearchRequestBuilder {
      */
     public SearchRequestBuilder addField(String field) {
         sourceBuilder().field(field);
+        return this;
+    }
+
+    public SearchRequestBuilder addScriptField(String name, String script) {
+        sourceBuilder().scriptField(name, script);
+        return this;
+    }
+
+    public SearchRequestBuilder addScriptField(String name, String script, Map<String, Object> params) {
+        sourceBuilder().scriptField(name, script, params);
         return this;
     }
 

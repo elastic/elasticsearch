@@ -32,11 +32,13 @@ import org.elasticsearch.index.query.IndexQueryParserMissingException;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.facets.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.util.TimeValue;
@@ -56,6 +58,8 @@ public class SearchContext implements Releasable {
     private final SearchShardTarget shardTarget;
 
     private final Engine.Searcher engineSearcher;
+
+    private final ScriptService scriptService;
 
     private final IndexService indexService;
 
@@ -102,6 +106,8 @@ public class SearchContext implements Releasable {
 
     private SearchContextHighlight highlight;
 
+    private ScriptFieldsContext scriptFields;
+
     private boolean queryRewritten;
 
     private volatile TimeValue keepAlive;
@@ -111,12 +117,13 @@ public class SearchContext implements Releasable {
     private volatile Timeout keepAliveTimeout;
 
     public SearchContext(long id, SearchShardTarget shardTarget, TimeValue timeout,
-                         String[] types, Engine.Searcher engineSearcher, IndexService indexService) {
+                         String[] types, Engine.Searcher engineSearcher, IndexService indexService, ScriptService scriptService) {
         this.id = id;
         this.shardTarget = shardTarget;
         this.timeout = timeout;
         this.types = types;
         this.engineSearcher = engineSearcher;
+        this.scriptService = scriptService;
         this.dfsResult = new DfsSearchResult(id, shardTarget);
         this.queryResult = new QuerySearchResult(id, shardTarget);
         this.fetchResult = new FetchSearchResult(id, shardTarget);
@@ -187,6 +194,14 @@ public class SearchContext implements Releasable {
         this.highlight = highlight;
     }
 
+    public ScriptFieldsContext scriptFields() {
+        return this.scriptFields;
+    }
+
+    public void scriptFields(ScriptFieldsContext scriptFields) {
+        this.scriptFields = scriptFields;
+    }
+
     public ContextIndexSearcher searcher() {
         return this.searcher;
     }
@@ -212,6 +227,10 @@ public class SearchContext implements Releasable {
 
     public SimilarityService similarityService() {
         return indexService.similarityService();
+    }
+
+    public ScriptService scriptService() {
+        return scriptService;
     }
 
     public FilterCache filterCache() {

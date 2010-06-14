@@ -19,9 +19,11 @@
 
 package org.elasticsearch.index.query.xcontent;
 
+import org.elasticsearch.util.collect.Maps;
 import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * A query that uses a script to compute the score.
@@ -35,6 +37,8 @@ public class CustomScoreQueryBuilder extends BaseQueryBuilder {
     private String script;
 
     private float boost = -1;
+
+    private Map<String, Object> params = null;
 
     /**
      * A query that simply applies the boost factor to another query (multiply it).
@@ -54,6 +58,29 @@ public class CustomScoreQueryBuilder extends BaseQueryBuilder {
     }
 
     /**
+     * Additional parameters that can be provided to the script.
+     */
+    public CustomScoreQueryBuilder params(Map<String, Object> params) {
+        if (params == null) {
+            this.params = params;
+        } else {
+            this.params.putAll(params);
+        }
+        return this;
+    }
+
+    /**
+     * Additional parameters that can be provided to the script.
+     */
+    public CustomScoreQueryBuilder param(String key, Object value) {
+        if (params == null) {
+            params = Maps.newHashMap();
+        }
+        params.put(key, value);
+        return this;
+    }
+
+    /**
      * Sets the boost for this query.  Documents matching this query will (in addition to the normal
      * weightings) have their score multiplied by the boost provided.
      */
@@ -67,6 +94,10 @@ public class CustomScoreQueryBuilder extends BaseQueryBuilder {
         builder.field("query");
         queryBuilder.toXContent(builder, params);
         builder.field("script", script);
+        if (this.params != null) {
+            builder.field("params");
+            builder.map(this.params);
+        }
         if (boost != -1) {
             builder.field("boost", boost);
         }

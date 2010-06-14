@@ -60,6 +60,7 @@ public class CustomScoreQueryParser extends AbstractIndexComponent implements XC
         Query query = null;
         float boost = 1.0f;
         String script = null;
+        Map<String, Object> vars = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -69,6 +70,8 @@ public class CustomScoreQueryParser extends AbstractIndexComponent implements XC
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
                     query = parseContext.parseInnerQuery();
+                } else if ("params".equals(currentFieldName)) {
+                    vars = parser.map();
                 }
             } else if (token.isValue()) {
                 if ("script".equals(currentFieldName)) {
@@ -85,7 +88,7 @@ public class CustomScoreQueryParser extends AbstractIndexComponent implements XC
             throw new QueryParsingException(index, "[custom_score] requires 'script' field");
         }
         FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(query,
-                new ScriptScoreFunction(new ScriptFieldsFunction(script, parseContext.scriptService(), parseContext.mapperService(), parseContext.indexCache().fieldData())));
+                new ScriptScoreFunction(new ScriptFieldsFunction(script, parseContext.scriptService(), parseContext.mapperService(), parseContext.indexCache().fieldData()), vars));
         functionScoreQuery.setBoost(boost);
         return functionScoreQuery;
     }
@@ -102,14 +105,17 @@ public class CustomScoreQueryParser extends AbstractIndexComponent implements XC
 
         private Map<String, Object> vars;
 
-        private ScriptScoreFunction(ScriptFieldsFunction scriptFieldsFunction) {
+        private ScriptScoreFunction(ScriptFieldsFunction scriptFieldsFunction, Map<String, Object> vars) {
             this.scriptFieldsFunction = scriptFieldsFunction;
+            this.vars = vars;
         }
 
         @Override public void setNextReader(IndexReader reader) {
             scriptFieldsFunction.setNextReader(reader);
-            vars = cachedVars.get().get();
-            vars.clear();
+            if (vars == null) {
+                vars = cachedVars.get().get();
+                vars.clear();
+            }
         }
 
         @Override public float score(int docId, float subQueryScore) {

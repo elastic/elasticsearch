@@ -17,33 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.index.field.data.longs;
+package org.elasticsearch.util.lucene.search.function;
 
-import org.elasticsearch.index.field.data.NumericDocFieldData;
-import org.joda.time.MutableDateTime;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.Explanation;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class LongDocFieldData extends NumericDocFieldData<LongFieldData> {
+public interface ScoreFunction {
 
-    public LongDocFieldData(LongFieldData fieldData) {
-        super(fieldData);
-    }
+    void setNextReader(IndexReader reader);
 
-    public long getValue() {
-        return fieldData.value(docId);
-    }
+    float score(int docId, float subQueryScore);
 
-    public long[] getValues() {
-        return fieldData.values(docId);
-    }
-
-    public MutableDateTime getDate() {
-        return fieldData.date(docId);
-    }
-
-    public MutableDateTime[] getDates() {
-        return fieldData.dates(docId);
-    }
+    Explanation explain(int docId, Explanation subQueryExpl);
 }

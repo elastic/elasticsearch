@@ -29,7 +29,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.util.collect.ImmutableMap;
 import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.lucene.search.TermFilter;
-import org.elasticsearch.util.lucene.search.function.BoostFactorFunctionProvider;
+import org.elasticsearch.util.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.util.lucene.search.function.FunctionScoreQuery;
 
 import java.util.Map;
@@ -63,7 +63,7 @@ public class QueryPhase implements SearchPhase {
             throw new SearchParseException(context, "No query specified in search request");
         }
         if (context.queryBoost() != 1.0f) {
-            context.query(new FunctionScoreQuery(context.query(), new BoostFactorFunctionProvider(context.queryBoost())));
+            context.query(new FunctionScoreQuery(context.query(), new BoostScoreFunction(context.queryBoost())));
         }
         facetsPhase.preProcess(context);
     }

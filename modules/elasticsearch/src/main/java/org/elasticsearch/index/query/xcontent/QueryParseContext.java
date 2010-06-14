@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.util.xcontent.XContentParser;
 
 import javax.annotation.Nullable;
@@ -41,6 +42,8 @@ import java.io.IOException;
 public class QueryParseContext {
 
     private final Index index;
+
+    private final ScriptService scriptService;
 
     private final MapperService mapperService;
 
@@ -55,10 +58,12 @@ public class QueryParseContext {
     private XContentParser parser;
 
     public QueryParseContext(Index index, XContentQueryParserRegistry queryParserRegistry,
+                             ScriptService scriptService,
                              MapperService mapperService, SimilarityService similarityService,
                              IndexCache indexCache, IndexEngine indexEngine) {
         this.index = index;
         this.queryParserRegistry = queryParserRegistry;
+        this.scriptService = scriptService;
         this.mapperService = mapperService;
         this.similarityService = similarityService;
         this.indexCache = indexCache;
@@ -71,6 +76,10 @@ public class QueryParseContext {
 
     public XContentParser parser() {
         return parser;
+    }
+
+    public ScriptService scriptService() {
+        return scriptService;
     }
 
     public MapperService mapperService() {

@@ -43,8 +43,10 @@ import static org.elasticsearch.index.field.data.FieldDataOptions.*;
 public class KeyValueHistogramFacetCollector extends AbstractFacetCollector {
 
     private final String keyFieldName;
+    private final String keyIndexFieldName;
 
     private final String valueFieldName;
+    private final String valueIndexFieldName;
 
     private final long interval;
 
@@ -73,12 +75,14 @@ public class KeyValueHistogramFacetCollector extends AbstractFacetCollector {
         if (mapper == null) {
             throw new FacetPhaseExecutionException(facetName, "No mapping found for key_field [" + keyFieldName + "]");
         }
+        keyIndexFieldName = mapper.names().indexName();
         keyFieldDataType = mapper.fieldDataType();
 
         mapper = mapperService.smartNameFieldMapper(valueFieldName);
         if (mapper == null) {
             throw new FacetPhaseExecutionException(facetName, "No mapping found for value_field [" + valueFieldName + "]");
         }
+        valueIndexFieldName = mapper.names().indexName();
         valueFieldDataType = mapper.fieldDataType();
     }
 
@@ -121,8 +125,8 @@ public class KeyValueHistogramFacetCollector extends AbstractFacetCollector {
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        keyFieldData = (NumericFieldData) fieldDataCache.cache(keyFieldDataType, reader, keyFieldName, fieldDataOptions().withFreqs(false));
-        valueFieldData = (NumericFieldData) fieldDataCache.cache(valueFieldDataType, reader, valueFieldName, fieldDataOptions().withFreqs(false));
+        keyFieldData = (NumericFieldData) fieldDataCache.cache(keyFieldDataType, reader, keyIndexFieldName, fieldDataOptions().withFreqs(false));
+        valueFieldData = (NumericFieldData) fieldDataCache.cache(valueFieldDataType, reader, valueIndexFieldName, fieldDataOptions().withFreqs(false));
     }
 
     @Override public Facet facet() {

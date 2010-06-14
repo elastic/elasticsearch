@@ -17,14 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.util.lucene.search.function;
+package org.elasticsearch.cache;
 
-import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.util.inject.AbstractModule;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface FunctionProvider {
+public class NodeCacheModule extends AbstractModule {
 
-    Function function(IndexReader reader);
+    @Override protected void configure() {
+        bind(NodeCache.class).asEagerSingleton();
+    }
 }

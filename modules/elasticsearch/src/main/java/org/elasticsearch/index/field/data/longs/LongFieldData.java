@@ -24,7 +24,9 @@ import org.apache.lucene.search.FieldCache;
 import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.field.data.support.FieldDataLoader;
+import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.gnu.trove.TLongArrayList;
+import org.joda.time.MutableDateTime;
 
 import java.io.IOException;
 
@@ -34,7 +36,13 @@ import java.io.IOException;
 public abstract class LongFieldData extends NumericFieldData<LongDocFieldData> {
 
     static final long[] EMPTY_LONG_ARRAY = new long[0];
+    static final MutableDateTime[] EMPTY_DATETIME_ARRAY = new MutableDateTime[0];
 
+    private ThreadLocal<ThreadLocals.CleanableValue<MutableDateTime>> dateTimeCache = new ThreadLocal<ThreadLocals.CleanableValue<MutableDateTime>>() {
+        @Override protected ThreadLocals.CleanableValue<MutableDateTime> initialValue() {
+            return new ThreadLocals.CleanableValue<MutableDateTime>(new MutableDateTime());
+        }
+    };
 
     protected final long[] values;
     protected final int[] freqs;
@@ -48,6 +56,14 @@ public abstract class LongFieldData extends NumericFieldData<LongDocFieldData> {
     abstract public long value(int docId);
 
     abstract public long[] values(int docId);
+
+    public MutableDateTime date(int docId) {
+        MutableDateTime dateTime = dateTimeCache.get().get();
+        dateTime.setMillis(value(docId));
+        return dateTime;
+    }
+
+    public abstract MutableDateTime[] dates(int docId);
 
     @Override public LongDocFieldData docFieldData(int docId) {
         return super.docFieldData(docId);

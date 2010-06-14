@@ -71,6 +71,7 @@
       <w>multi</w>
       <w>multicast</w>
       <w>multiline</w>
+      <w>mvel</w>
       <w>nanos</w>
       <w>newcount</w>
       <w>ngram</w>
@@ -109,6 +110,7 @@
       <w>traslog</w>
       <w>trie</w>
       <w>tuple</w>
+      <w>unboxed</w>
       <w>unicast</w>
       <w>unregister</w>
       <w>uptime</w>

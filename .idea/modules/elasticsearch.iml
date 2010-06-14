@@ -40,6 +40,17 @@
         </SOURCES>
       </library>
     </orderEntry>
+    <orderEntry type="module-library">
+      <library name="mvel">
+        <CLASSES>
+          <root url="jar://$GRADLE_REPOSITORY$/org.mvel/mvel2/jars/mvel2-2.0.17.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES>
+          <root url="jar://$MODULE_DIR$/../../../../../opt/mvel/mvel2-2.0.17-sources.jar!/" />
+        </SOURCES>
+      </library>
+    </orderEntry>
     <orderEntry type="library" scope="TEST" name="testng" level="project" />
     <orderEntry type="library" scope="TEST" name="hamcrest" level="project" />
     <orderEntry type="module" module-name="test-testng" scope="TEST" />

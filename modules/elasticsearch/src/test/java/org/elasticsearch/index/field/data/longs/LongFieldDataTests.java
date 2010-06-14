@@ -91,10 +91,12 @@ public class LongFieldDataTests {
         assertThat(sFieldData.hasValue(0), equalTo(true));
         assertThat(sFieldData.docFieldData(0).isEmpty(), equalTo(false));
         assertThat(sFieldData.value(0), equalTo(4l));
+        assertThat(sFieldData.date(0).getMillis(), equalTo(4l));
         assertThat(sFieldData.docFieldData(0).getValue(), equalTo(4l));
         assertThat(sFieldData.values(0).length, equalTo(1));
         assertThat(sFieldData.docFieldData(0).getValues().length, equalTo(1));
         assertThat(sFieldData.values(0)[0], equalTo(4l));
+        assertThat(sFieldData.dates(0)[0].getMillis(), equalTo(4l));
         assertThat(sFieldData.docFieldData(0).getValues()[0], equalTo(4l));
 
         assertThat(sFieldData.hasValue(1), equalTo(true));
@@ -141,9 +143,12 @@ public class LongFieldDataTests {
 
         assertThat(mFieldData.hasValue(1), equalTo(true));
         assertThat(mFieldData.value(1), equalTo(104l));
+        assertThat(mFieldData.date(1).getMillis(), equalTo(104l));
         assertThat(mFieldData.values(1).length, equalTo(2));
         assertThat(mFieldData.values(1)[0], equalTo(104l));
+        assertThat(mFieldData.dates(1)[0].getMillis(), equalTo(104l));
         assertThat(mFieldData.values(1)[1], equalTo(105l));
+        assertThat(mFieldData.dates(1)[1].getMillis(), equalTo(105l));
 
         assertThat(mFieldData.hasValue(2), equalTo(false));
 

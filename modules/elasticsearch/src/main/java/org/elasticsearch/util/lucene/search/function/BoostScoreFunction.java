@@ -25,11 +25,11 @@ import org.apache.lucene.search.Explanation;
 /**
  * @author kimchy (shay.banon)
  */
-public class BoostFactorFunctionProvider implements FunctionProvider, Function {
+public class BoostScoreFunction implements ScoreFunction {
 
     private final float boost;
 
-    public BoostFactorFunctionProvider(float boost) {
+    public BoostScoreFunction(float boost) {
         this.boost = boost;
     }
 
@@ -38,8 +38,8 @@ public class BoostFactorFunctionProvider implements FunctionProvider, Function {
         return boost;
     }
 
-    @Override public Function function(IndexReader reader) {
-        return this;
+    @Override public void setNextReader(IndexReader reader) {
+        // nothing to do here...
     }
 
     @Override public float score(int docId, float subQueryScore) {
@@ -57,7 +57,7 @@ public class BoostFactorFunctionProvider implements FunctionProvider, Function {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        BoostFactorFunctionProvider that = (BoostFactorFunctionProvider) o;
+        BoostScoreFunction that = (BoostScoreFunction) o;
 
         if (Float.compare(that.boost, boost) != 0) return false;
 

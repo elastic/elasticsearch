@@ -31,6 +31,8 @@ dependencies {
 
     compile 'joda-time:joda-time:1.6'
 
+    compile 'org.mvel:mvel2:2.0.17'
+
     compile 'org.codehaus.jackson:jackson-core-asl:1.5.2'
     compile 'org.yaml:snakeyaml:1.6'
 
@@ -70,12 +72,13 @@ jar << {
         jarjar(jarfile: jarjarArchivePath) {
             zipfileset(src: jar.archivePath)
             configurations.compile.files.findAll {file ->
-                ['jackson', 'joda', 'snakeyaml', 'netty'].any { file.name.contains(it) }
+                ['mvel', 'jackson', 'joda', 'snakeyaml', 'netty'].any { file.name.contains(it) }
             }.each { jarjarFile ->
                 zipfileset(src: jarjarFile) {
                     exclude(name: "META-INF/**")
                 }
             }
+            rule pattern: "org.mvel2.**", result: "org.elasticsearch.util.mvel2.@1"
             rule pattern: "org.codehaus.jackson.**", result: "org.elasticsearch.util.jackson.@1"
             rule pattern: "org.joda.**", result: "org.elasticsearch.util.joda.@1"
             rule pattern: "org.yaml.**", result: "org.elasticsearch.util.yaml.@1"
@@ -88,6 +91,7 @@ jar << {
         // seems like empty dirst still exists, unjar and clean them
         unjar(src: jar.archivePath, dest: "build/tmp/extracted")
         delete(dir: "build/tmp/extracted/org/codehaus")
+        delete(dir: "build/tmp/extracted/org/mvel2")
         delete(dir: "build/tmp/extracted/org/joda")
         delete(dir: "build/tmp/extracted/org/yaml")
         delete(dir: "build/tmp/extracted/org/jboss")
@@ -162,6 +166,7 @@ uploadArchives {
             pom.dependencies = pom.dependencies.findAll {dep -> !dep.artifactId.contains('joda') }
             pom.dependencies = pom.dependencies.findAll {dep -> !dep.artifactId.contains('snakeyaml') }
             pom.dependencies = pom.dependencies.findAll {dep -> !dep.artifactId.contains('netty') }
+            pom.dependencies = pom.dependencies.findAll {dep -> !dep.artifactId.contains('mvel') }
         }
     }
 }

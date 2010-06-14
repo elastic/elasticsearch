@@ -54,6 +54,8 @@ public class TermsFacetCollector extends AbstractFacetCollector {
 
     private final String fieldName;
 
+    private final String indexFieldName;
+
     private final int size;
 
     private final FieldData.Type fieldDataType;
@@ -68,11 +70,12 @@ public class TermsFacetCollector extends AbstractFacetCollector {
         this.size = size;
 
         FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);
+        this.fieldName = fieldName;
         if (mapper != null) {
-            this.fieldName = mapper.names().indexName();
+            this.indexFieldName = mapper.names().indexName();
             this.fieldDataType = mapper.fieldDataType();
         } else {
-            this.fieldName = fieldName;
+            this.indexFieldName = fieldName;
             this.fieldDataType = FieldData.Type.STRING;
         }
 
@@ -80,7 +83,7 @@ public class TermsFacetCollector extends AbstractFacetCollector {
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldData = fieldDataCache.cache(fieldDataType, reader, fieldName, fieldDataOptions().withFreqs(false));
+        fieldData = fieldDataCache.cache(fieldDataType, reader, indexFieldName, fieldDataOptions().withFreqs(false));
     }
 
     @Override protected void doCollect(int doc) throws IOException {

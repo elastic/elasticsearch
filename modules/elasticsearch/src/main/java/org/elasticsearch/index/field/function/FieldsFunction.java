@@ -17,16 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.util.lucene.search.function;
+package org.elasticsearch.index.field.function;
 
-import org.apache.lucene.search.Explanation;
+import org.apache.lucene.index.IndexReader;
+
+import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface Function {
+public interface FieldsFunction {
 
-    float score(int docId, float subQueryScore);
+    void setNextReader(IndexReader reader);
 
-    Explanation explain(int docId, Explanation subQueryExpl);
+    /**
+     * @param docId
+     * @param vars  The vars providing additional parameters, should be reused and has values added to it in execute
+     * @return
+     */
+    Object execute(int docId, Map vars);
 }

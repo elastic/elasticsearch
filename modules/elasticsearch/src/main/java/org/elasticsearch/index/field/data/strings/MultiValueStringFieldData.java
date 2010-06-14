@@ -24,7 +24,7 @@ import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.ThreadLocals;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class MultiValueStringFieldData extends StringFieldData {
 

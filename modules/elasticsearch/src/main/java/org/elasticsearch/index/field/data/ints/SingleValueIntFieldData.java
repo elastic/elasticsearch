@@ -21,21 +21,22 @@ package org.elasticsearch.index.field.data.ints;
 
 import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
+import org.elasticsearch.util.ThreadLocals;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class SingleValueIntFieldData extends IntFieldData {
 
-    private ThreadLocal<double[]> doublesValuesCache = new ThreadLocal<double[]>() {
-        @Override protected double[] initialValue() {
-            return new double[1];
+    private ThreadLocal<ThreadLocals.CleanableValue<double[]>> doublesValuesCache = new ThreadLocal<ThreadLocals.CleanableValue<double[]>>() {
+        @Override protected ThreadLocals.CleanableValue<double[]> initialValue() {
+            return new ThreadLocals.CleanableValue<double[]>(new double[1]);
         }
     };
 
-    private ThreadLocal<int[]> valuesCache = new ThreadLocal<int[]>() {
-        @Override protected int[] initialValue() {
-            return new int[1];
+    private ThreadLocal<ThreadLocals.CleanableValue<int[]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<int[]>>() {
+        @Override protected ThreadLocals.CleanableValue<int[]> initialValue() {
+            return new ThreadLocals.CleanableValue<int[]>(new int[1]);
         }
     };
 
@@ -76,7 +77,7 @@ public class SingleValueIntFieldData extends IntFieldData {
         if (loc == 0) {
             return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
         }
-        double[] ret = doublesValuesCache.get();
+        double[] ret = doublesValuesCache.get().get();
         ret[0] = values[loc];
         return ret;
     }
@@ -90,7 +91,7 @@ public class SingleValueIntFieldData extends IntFieldData {
         if (loc == 0) {
             return EMPTY_INT_ARRAY;
         }
-        int[] ret = valuesCache.get();
+        int[] ret = valuesCache.get().get();
         ret[0] = values[loc];
         return ret;
     }

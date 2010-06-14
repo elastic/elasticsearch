@@ -20,7 +20,7 @@
 package org.elasticsearch.index.field.data;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class FieldDataOptions {
 

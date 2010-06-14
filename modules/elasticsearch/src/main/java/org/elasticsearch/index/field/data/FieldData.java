@@ -32,7 +32,7 @@ import org.elasticsearch.util.ThreadLocals;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 // General TODOs on FieldData
 // TODO Optimize the order (both int[] and int[][] when they are sparse, create an Order abstraction)

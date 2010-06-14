@@ -142,5 +142,17 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
         logger.info("Hit[1] {} Explanation {}", response.hits().getAt(1).id(), response.hits().getAt(1).explanation());
         assertThat(response.hits().getAt(0).id(), equalTo("2"));
         assertThat(response.hits().getAt(1).id(), equalTo("1"));
+
+        logger.info("running param1 * param2 * score");
+        response = client.search(searchRequest()
+                .searchType(SearchType.QUERY_THEN_FETCH)
+                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("param1 * param2 * score").param("param1", 2).param("param2", 2)))
+        ).actionGet();
+
+        assertThat(response.hits().totalHits(), equalTo(2l));
+        logger.info("Hit[0] {} Explanation {}", response.hits().getAt(0).id(), response.hits().getAt(0).explanation());
+        logger.info("Hit[1] {} Explanation {}", response.hits().getAt(1).id(), response.hits().getAt(1).explanation());
+        assertThat(response.hits().getAt(0).id(), equalTo("1"));
+        assertThat(response.hits().getAt(1).id(), equalTo("2"));
     }
 }

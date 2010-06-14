@@ -21,7 +21,7 @@ package org.elasticsearch.search.fetch;
 
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.util.Strings;
+import org.elasticsearch.util.collect.ImmutableList;
 import org.elasticsearch.util.xcontent.XContentParser;
 
 import java.util.ArrayList;
@@ -39,12 +39,12 @@ public class FieldsParseElement implements SearchParseElement {
                 fieldNames.add(parser.text());
             }
             if (fieldNames.isEmpty()) {
-                context.fieldNames(Strings.EMPTY_ARRAY);
+                context.fieldNames(ImmutableList.<String>of());
             } else {
-                context.fieldNames(fieldNames.toArray(new String[fieldNames.size()]));
+                context.fieldNames(fieldNames);
             }
         } else if (token == XContentParser.Token.VALUE_STRING) {
-            context.fieldNames(new String[]{parser.text()});
+            context.fieldNames(ImmutableList.of(parser.text()));
         }
     }
 }

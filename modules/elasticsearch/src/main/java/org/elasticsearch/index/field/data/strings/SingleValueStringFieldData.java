@@ -21,15 +21,16 @@ package org.elasticsearch.index.field.data.strings;
 
 import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.util.Strings;
+import org.elasticsearch.util.ThreadLocals;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class SingleValueStringFieldData extends StringFieldData {
 
-    private static ThreadLocal<String[]> valuesCache = new ThreadLocal<String[]>() {
-        @Override protected String[] initialValue() {
-            return new String[1];
+    private static ThreadLocal<ThreadLocals.CleanableValue<String[]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<String[]>>() {
+        @Override protected ThreadLocals.CleanableValue<String[]> initialValue() {
+            return new ThreadLocals.CleanableValue<String[]>(new String[1]);
         }
     };
 
@@ -66,7 +67,7 @@ public class SingleValueStringFieldData extends StringFieldData {
         if (loc == 0) {
             return Strings.EMPTY_ARRAY;
         }
-        String[] ret = valuesCache.get();
+        String[] ret = valuesCache.get().get();
         ret[0] = values[loc];
         return ret;
     }

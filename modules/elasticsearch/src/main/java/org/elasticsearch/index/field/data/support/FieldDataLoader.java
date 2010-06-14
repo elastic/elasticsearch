@@ -32,7 +32,7 @@ import java.io.IOException;
 import java.util.Arrays;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class FieldDataLoader {
 

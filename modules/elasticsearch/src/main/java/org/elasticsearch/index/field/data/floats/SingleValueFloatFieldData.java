@@ -21,21 +21,22 @@ package org.elasticsearch.index.field.data.floats;
 
 import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
+import org.elasticsearch.util.ThreadLocals;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class SingleValueFloatFieldData extends FloatFieldData {
 
-    private ThreadLocal<double[]> doublesValuesCache = new ThreadLocal<double[]>() {
-        @Override protected double[] initialValue() {
-            return new double[1];
+    private ThreadLocal<ThreadLocals.CleanableValue<double[]>> doublesValuesCache = new ThreadLocal<ThreadLocals.CleanableValue<double[]>>() {
+        @Override protected ThreadLocals.CleanableValue<double[]> initialValue() {
+            return new ThreadLocals.CleanableValue<double[]>(new double[1]);
         }
     };
 
-    private ThreadLocal<float[]> valuesCache = new ThreadLocal<float[]>() {
-        @Override protected float[] initialValue() {
-            return new float[1];
+    private ThreadLocal<ThreadLocals.CleanableValue<float[]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<float[]>>() {
+        @Override protected ThreadLocals.CleanableValue<float[]> initialValue() {
+            return new ThreadLocals.CleanableValue<float[]>(new float[1]);
         }
     };
 
@@ -76,7 +77,7 @@ public class SingleValueFloatFieldData extends FloatFieldData {
         if (loc == 0) {
             return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
         }
-        double[] ret = doublesValuesCache.get();
+        double[] ret = doublesValuesCache.get().get();
         ret[0] = values[loc];
         return ret;
     }
@@ -90,7 +91,7 @@ public class SingleValueFloatFieldData extends FloatFieldData {
         if (loc == 0) {
             return EMPTY_FLOAT_ARRAY;
         }
-        float[] ret = valuesCache.get();
+        float[] ret = valuesCache.get().get();
         ret[0] = values[loc];
         return ret;
     }

@@ -21,21 +21,22 @@ package org.elasticsearch.index.field.data.shorts;
 
 import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
+import org.elasticsearch.util.ThreadLocals;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class SingleValueShortFieldData extends ShortFieldData {
 
-    private ThreadLocal<double[]> doublesValuesCache = new ThreadLocal<double[]>() {
-        @Override protected double[] initialValue() {
-            return new double[1];
+    private ThreadLocal<ThreadLocals.CleanableValue<double[]>> doublesValuesCache = new ThreadLocal<ThreadLocals.CleanableValue<double[]>>() {
+        @Override protected ThreadLocals.CleanableValue<double[]> initialValue() {
+            return new ThreadLocals.CleanableValue<double[]>(new double[1]);
         }
     };
 
-    private ThreadLocal<short[]> valuesCache = new ThreadLocal<short[]>() {
-        @Override protected short[] initialValue() {
-            return new short[1];
+    private ThreadLocal<ThreadLocals.CleanableValue<short[]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<short[]>>() {
+        @Override protected ThreadLocals.CleanableValue<short[]> initialValue() {
+            return new ThreadLocals.CleanableValue<short[]>(new short[1]);
         }
     };
 
@@ -80,7 +81,7 @@ public class SingleValueShortFieldData extends ShortFieldData {
         if (loc == 0) {
             return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
         }
-        double[] ret = doublesValuesCache.get();
+        double[] ret = doublesValuesCache.get().get();
         ret[0] = values[loc];
         return ret;
     }
@@ -90,7 +91,7 @@ public class SingleValueShortFieldData extends ShortFieldData {
         if (loc == 0) {
             return EMPTY_SHORT_ARRAY;
         }
-        short[] ret = valuesCache.get();
+        short[] ret = valuesCache.get().get();
         ret[0] = values[loc];
         return ret;
     }

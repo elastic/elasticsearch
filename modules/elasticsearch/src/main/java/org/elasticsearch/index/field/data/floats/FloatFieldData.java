@@ -29,7 +29,7 @@ import org.elasticsearch.util.gnu.trove.TFloatArrayList;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class FloatFieldData extends NumericFieldData<FloatDocFieldData> {
 

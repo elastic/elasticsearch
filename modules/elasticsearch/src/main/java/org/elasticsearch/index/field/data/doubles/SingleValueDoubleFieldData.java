@@ -20,15 +20,16 @@
 package org.elasticsearch.index.field.data.doubles;
 
 import org.elasticsearch.index.field.data.FieldDataOptions;
+import org.elasticsearch.util.ThreadLocals;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class SingleValueDoubleFieldData extends DoubleFieldData {
 
-    private ThreadLocal<double[]> valuesCache = new ThreadLocal<double[]>() {
-        @Override protected double[] initialValue() {
-            return new double[1];
+    private ThreadLocal<ThreadLocals.CleanableValue<double[]>> valuesCache = new ThreadLocal<ThreadLocals.CleanableValue<double[]>>() {
+        @Override protected ThreadLocals.CleanableValue<double[]> initialValue() {
+            return new ThreadLocals.CleanableValue<double[]>(new double[1]);
         }
     };
 
@@ -77,7 +78,7 @@ public class SingleValueDoubleFieldData extends DoubleFieldData {
         if (loc == 0) {
             return EMPTY_DOUBLE_ARRAY;
         }
-        double[] ret = valuesCache.get();
+        double[] ret = valuesCache.get().get();
         ret[0] = values[loc];
         return ret;
     }

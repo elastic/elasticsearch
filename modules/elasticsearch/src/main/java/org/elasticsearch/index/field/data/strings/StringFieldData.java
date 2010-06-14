@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class StringFieldData extends FieldData<StringDocFieldData> {
 

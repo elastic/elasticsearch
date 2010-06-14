@@ -21,6 +21,7 @@ package org.elasticsearch.index.field.data.longs;
 
 import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
+import org.elasticsearch.util.ThreadLocals;
 import org.joda.time.MutableDateTime;
 
 /**
@@ -28,17 +29,17 @@ import org.joda.time.MutableDateTime;
  */
 public class SingleValueLongFieldData extends LongFieldData {
 
-    private ThreadLocal<double[]> doublesValuesCache = new ThreadLocal<double[]>() {
-        @Override protected double[] initialValue() {
-            return new double[1];
+    private ThreadLocal<ThreadLocals.CleanableValue<double[]>> doublesValuesCache = new ThreadLocal<ThreadLocals.CleanableValue<double[]>>() {
+        @Override protected ThreadLocals.CleanableValue<double[]> initialValue() {
+            return new ThreadLocals.CleanableValue<double[]>(new double[1]);
         }
     };
 
-    private ThreadLocal<MutableDateTime[]> datesValuesCache = new ThreadLocal<MutableDateTime[]>() {
-        @Override protected MutableDateTime[] initialValue() {
+    private ThreadLocal<ThreadLocals.CleanableValue<MutableDateTime[]>> datesValuesCache = new ThreadLocal<ThreadLocals.CleanableValue<MutableDateTime[]>>() {
+        @Override protected ThreadLocals.CleanableValue<MutableDateTime[]> initialValue() {
             MutableDateTime[] date = new MutableDateTime[1];
             date[0] = new MutableDateTime();
-            return date;
+            return new ThreadLocals.CleanableValue<MutableDateTime[]>(date);
         }
     };
 
@@ -85,7 +86,7 @@ public class SingleValueLongFieldData extends LongFieldData {
         if (loc == 0) {
             return EMPTY_DATETIME_ARRAY;
         }
-        MutableDateTime[] ret = datesValuesCache.get();
+        MutableDateTime[] ret = datesValuesCache.get().get();
         ret[0].setMillis(values[loc]);
         return ret;
     }
@@ -95,7 +96,7 @@ public class SingleValueLongFieldData extends LongFieldData {
         if (loc == 0) {
             return DoubleFieldData.EMPTY_DOUBLE_ARRAY;
         }
-        double[] ret = doublesValuesCache.get();
+        double[] ret = doublesValuesCache.get().get();
         ret[0] = values[loc];
         return ret;
     }

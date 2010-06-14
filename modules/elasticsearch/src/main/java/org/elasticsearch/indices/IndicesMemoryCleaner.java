@@ -99,7 +99,15 @@ public class IndicesMemoryCleaner extends AbstractComponent {
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
                 if (!shardsToIgnore.contains(indexShard.shardId())) {
-                    indexShard.flush(new Engine.Flush().full(false));
+                    try {
+                        indexShard.flush(new Engine.Flush().full(false));
+                    } catch (FlushNotAllowedEngineException e) {
+                        // ignore this one, its temporal
+                    } catch (IllegalIndexShardStateException e) {
+                        // ignore this one as well
+                    } catch (Exception e) {
+                        logger.warn(indexShard.shardId() + ": Failed to force flush in order to clean memory", e);
+                    }
                 }
             }
         }

@@ -17,10 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.util;
+package org.elasticsearch.common.unit;
 
 import org.elasticsearch.common.joda.time.PeriodType;
-import org.elasticsearch.common.unit.TimeValue;
 import org.testng.annotations.Test;
 
 import java.util.concurrent.TimeUnit;

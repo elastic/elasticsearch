@@ -33,7 +33,7 @@ public class JsonSettingsLoaderTests {
 
     @Test public void testSimpleJsonSettings() throws Exception {
         Settings settings = settingsBuilder()
-                .loadFromClasspath("org/elasticsearch/util/settings/loader/test-settings.json")
+                .loadFromClasspath("org/elasticsearch/common/settings/loader/test-settings.json")
                 .build();
 
         assertThat(settings.get("test1.value1"), equalTo("value1"));

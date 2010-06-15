@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.util;
+package org.elasticsearch.common.unit;
 
 import org.testng.annotations.Test;
 
@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class SizeUnitTests {
+public class ByteSizeUnitTests {
 
     @Test public void testBytes() {
         assertThat(BYTES.toBytes(1), equalTo(1l));

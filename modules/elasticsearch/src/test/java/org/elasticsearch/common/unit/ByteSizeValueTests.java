@@ -17,10 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.util;
+package org.elasticsearch.common.unit;
 
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.*;
@@ -29,7 +27,7 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class SizeValueTests {
+public class ByteSizeValueTests {
 
     @Test public void testActual() {
         assertThat(new ByteSizeValue(4, ByteSizeUnit.GB).bytes(), equalTo(4294967296l));
@@ -44,9 +42,9 @@ public class SizeValueTests {
 
     @Test public void testToString() {
         assertThat("10", is(new ByteSizeValue(10, ByteSizeUnit.BYTES).toString()));
-        assertThat("1.5k", is(new ByteSizeValue((long) (1024 * 1.5), ByteSizeUnit.BYTES).toString()));
-        assertThat("1.5m", is(new ByteSizeValue((long) (1024 * 1.5), ByteSizeUnit.KB).toString()));
-        assertThat("1.5g", is(new ByteSizeValue((long) (1024 * 1.5), ByteSizeUnit.MB).toString()));
-        assertThat("1536g", is(new ByteSizeValue((long) (1024 * 1.5), ByteSizeUnit.GB).toString()));
+        assertThat("1.5kb", is(new ByteSizeValue((long) (1024 * 1.5), ByteSizeUnit.BYTES).toString()));
+        assertThat("1.5mb", is(new ByteSizeValue((long) (1024 * 1.5), ByteSizeUnit.KB).toString()));
+        assertThat("1.5gb", is(new ByteSizeValue((long) (1024 * 1.5), ByteSizeUnit.MB).toString()));
+        assertThat("1536gb", is(new ByteSizeValue((long) (1024 * 1.5), ByteSizeUnit.GB).toString()));
     }
 }

@@ -25,6 +25,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.timer.Timeout;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.engine.Engine;
@@ -43,7 +44,6 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.util.TimeValue;
 
 import java.io.IOException;
 import java.util.List;

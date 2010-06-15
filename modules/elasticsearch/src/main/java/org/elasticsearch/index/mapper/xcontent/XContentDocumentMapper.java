@@ -21,6 +21,8 @@ package org.elasticsearch.index.mapper.xcontent;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
+import org.elasticsearch.common.Preconditions;
+import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -28,8 +30,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.util.Preconditions;
-import org.elasticsearch.util.ThreadLocals;
 
 import javax.annotation.Nullable;
 import java.io.IOException;

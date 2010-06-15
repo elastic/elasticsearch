@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.util;
+package org.elasticsearch.common.unit;
 
 /**
  * A <tt>SizeUnit</tt> represents size at a given unit of

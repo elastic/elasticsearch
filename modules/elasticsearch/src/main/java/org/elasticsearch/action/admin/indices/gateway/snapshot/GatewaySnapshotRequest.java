@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.gateway.snapshot;
 
 import org.elasticsearch.action.support.replication.IndicesReplicationOperationRequest;
-import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.common.unit.TimeValue;
 
 /**
  * Gateway snapshot allows to explicitly perform a snapshot through the gateway of one or more indices (backup them).

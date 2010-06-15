@@ -20,15 +20,15 @@
 package org.elasticsearch.rest.support;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.util.Booleans;
-import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.TimeValue;
 
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.util.SizeValue.*;
-import static org.elasticsearch.util.TimeValue.*;
+import static org.elasticsearch.common.unit.SizeValue.*;
+import static org.elasticsearch.common.unit.TimeValue.*;
 
 /**
  * @author kimchy (shay.banon)

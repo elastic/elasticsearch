@@ -20,7 +20,7 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;

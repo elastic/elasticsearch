@@ -22,12 +22,14 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.timer.Timeout;
 import org.elasticsearch.common.timer.TimerTask;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -55,8 +57,6 @@ import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.timer.TimerService;
-import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.Unicode;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -64,7 +64,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.util.TimeValue.*;
+import static org.elasticsearch.common.unit.TimeValue.*;
 
 /**
  * @author kimchy (shay.banon)

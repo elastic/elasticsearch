@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.shard.recovery;
 
+import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.util.SizeValue;
 
 /**
  * @author kimchy (Shay Banon)

@@ -21,15 +21,15 @@ package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.util.Strings;
-import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.util.TimeValue.*;
+import static org.elasticsearch.common.unit.TimeValue.*;
 
 /**
  * @author kimchy (shay.banon)

@@ -21,6 +21,9 @@ package org.elasticsearch.index.gateway.none;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.SizeUnit;
+import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -28,9 +31,6 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
-import org.elasticsearch.util.SizeUnit;
-import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.TimeValue;
 
 /**
  * @author kimchy (shay.banon)

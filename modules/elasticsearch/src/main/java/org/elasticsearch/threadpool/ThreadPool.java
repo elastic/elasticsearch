@@ -19,7 +19,7 @@
 
 package org.elasticsearch.threadpool;
 
-import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.concurrent.*;
 

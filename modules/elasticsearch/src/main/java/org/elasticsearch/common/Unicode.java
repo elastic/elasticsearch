@@ -17,9 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.util;
+package org.elasticsearch.common;
 
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.thread.ThreadLocals;
 
 import java.util.Arrays;
 

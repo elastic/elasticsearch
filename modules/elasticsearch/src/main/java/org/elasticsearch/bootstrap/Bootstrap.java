@@ -21,6 +21,7 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
@@ -34,7 +35,6 @@ import org.elasticsearch.jmx.JmxService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPerparer;
-import org.elasticsearch.util.Classes;
 
 import java.io.File;
 import java.util.Set;

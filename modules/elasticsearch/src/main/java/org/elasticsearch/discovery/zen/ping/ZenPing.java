@@ -26,8 +26,8 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
-import org.elasticsearch.util.TimeValue;
 
 import java.io.IOException;
 

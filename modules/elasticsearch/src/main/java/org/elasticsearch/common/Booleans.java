@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.util;
+package org.elasticsearch.common;
 
 /**
  * @author kimchy (shay.banon)

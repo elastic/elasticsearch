@@ -26,6 +26,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -40,7 +41,6 @@ import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.util.ThreadLocals;
 
 import javax.annotation.Nullable;
 import java.io.IOException;

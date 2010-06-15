@@ -20,10 +20,10 @@
 package org.elasticsearch.common.xcontent.xson;
 
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.AbstractXContentGenerator;
-import org.elasticsearch.util.Unicode;
 
 import java.io.IOException;
 import java.io.OutputStream;

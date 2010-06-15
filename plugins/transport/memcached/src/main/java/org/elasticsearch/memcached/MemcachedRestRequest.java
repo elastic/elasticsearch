@@ -19,12 +19,12 @@
 
 package org.elasticsearch.memcached;
 
+import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.rest.support.AbstractRestRequest;
 import org.elasticsearch.rest.support.RestUtils;
-import org.elasticsearch.util.Booleans;
-import org.elasticsearch.util.Unicode;
 
 import java.util.HashMap;
 import java.util.List;

@@ -45,7 +45,7 @@ public class PutMappingResponse implements ActionResponse, Streamable {
 
     /**
      * Has the put mapping creation been acknowledged by all current cluster nodes within the
-     * provided {@link PutMappingRequest#timeout(org.elasticsearch.util.TimeValue)}.
+     * provided {@link PutMappingRequest#timeout(org.elasticsearch.common.unit.TimeValue)}.
      */
     public boolean acknowledged() {
         return acknowledged;
@@ -53,7 +53,7 @@ public class PutMappingResponse implements ActionResponse, Streamable {
 
     /**
      * Has the put mapping creation been acknowledged by all current cluster nodes within the
-     * provided {@link PutMappingRequest#timeout(org.elasticsearch.util.TimeValue)}.
+     * provided {@link PutMappingRequest#timeout(org.elasticsearch.common.unit.TimeValue)}.
      */
     public boolean getAcknowledged() {
         return acknowledged();

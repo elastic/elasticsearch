@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.field.data.strings;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.index.field.data.FieldDataOptions;
-import org.elasticsearch.util.Strings;
-import org.elasticsearch.util.ThreadLocals;
 
 /**
  * @author kimchy (shay.banon)

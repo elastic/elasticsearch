@@ -27,16 +27,16 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
-import org.elasticsearch.util.TimeValue;
 
 import java.io.IOException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.util.TimeValue.*;
+import static org.elasticsearch.common.unit.TimeValue.*;
 
 /**
  * A fault detection that pings the master periodically to see if its alive.

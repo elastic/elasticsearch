@@ -19,6 +19,7 @@
 
 package org.elasticsearch.util;
 
+import org.elasticsearch.common.thread.ThreadLocals;
 import org.testng.annotations.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;

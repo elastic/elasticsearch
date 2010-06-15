@@ -24,20 +24,20 @@ import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.monitor.dump.DumpGenerator;
 import org.elasticsearch.monitor.dump.DumpMonitorService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.util.TimeValue;
 
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 
+import static org.elasticsearch.common.unit.TimeValue.*;
 import static org.elasticsearch.monitor.dump.summary.SummaryDumpContributor.*;
 import static org.elasticsearch.monitor.dump.thread.ThreadDumpContributor.*;
 import static org.elasticsearch.monitor.jvm.DeadlockAnalyzer.*;
 import static org.elasticsearch.monitor.jvm.JvmStats.*;
-import static org.elasticsearch.util.TimeValue.*;
 
 /**
  * @author kimchy (shay.banon)

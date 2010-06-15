@@ -32,10 +32,10 @@ import org.elasticsearch.search.Scroll;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.unit.TimeValue.*;
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
 import static org.elasticsearch.rest.action.support.RestXContentBuilder.*;
-import static org.elasticsearch.util.TimeValue.*;
 
 /**
  * @author kimchy (shay.banon)

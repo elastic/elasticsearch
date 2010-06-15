@@ -21,13 +21,13 @@ package org.elasticsearch.index.gateway;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.component.CloseableIndexComponent;
+import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.TimeValue;
 
-import static org.elasticsearch.util.TimeValue.*;
+import static org.elasticsearch.common.unit.TimeValue.*;
 
 /**
  * @author kimchy (shay.banon)

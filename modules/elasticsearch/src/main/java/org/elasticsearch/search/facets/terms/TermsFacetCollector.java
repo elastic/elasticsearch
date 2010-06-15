@@ -22,6 +22,7 @@ package org.elasticsearch.search.facets.terms;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.TObjectIntHashMap;
 import org.elasticsearch.common.trove.TObjectIntIterator;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
@@ -30,7 +31,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.support.AbstractFacetCollector;
-import org.elasticsearch.util.ThreadLocals;
 
 import java.io.IOException;
 import java.util.ArrayDeque;

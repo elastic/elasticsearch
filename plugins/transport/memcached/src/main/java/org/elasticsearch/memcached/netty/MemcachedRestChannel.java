@@ -19,6 +19,8 @@
 
 package org.elasticsearch.memcached.netty;
 
+import org.elasticsearch.common.Bytes;
+import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.netty.buffer.ChannelBuffer;
 import org.elasticsearch.common.netty.buffer.ChannelBuffers;
 import org.elasticsearch.common.netty.channel.Channel;
@@ -27,8 +29,6 @@ import org.elasticsearch.memcached.MemcachedTransportException;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.util.Bytes;
-import org.elasticsearch.util.Unicode;
 
 import java.nio.charset.Charset;
 

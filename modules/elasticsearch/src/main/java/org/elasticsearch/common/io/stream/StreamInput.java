@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.util.Bytes;
-import org.elasticsearch.util.Unicode;
+import org.elasticsearch.common.Bytes;
+import org.elasticsearch.common.Unicode;
 
 import java.io.EOFException;
 import java.io.IOException;

@@ -20,18 +20,18 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Bytes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.Scroll;
-import org.elasticsearch.util.Bytes;
-import org.elasticsearch.util.Strings;
-import org.elasticsearch.util.TimeValue;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.unit.TimeValue.*;
 import static org.elasticsearch.search.Scroll.*;
-import static org.elasticsearch.util.TimeValue.*;
 
 /**
  * Source structure:

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.io;
 
-import org.elasticsearch.util.Classes;
+import org.elasticsearch.common.Classes;
 
 import java.io.*;
 

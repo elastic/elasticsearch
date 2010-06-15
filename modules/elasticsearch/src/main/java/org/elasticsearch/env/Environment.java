@@ -20,9 +20,9 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.util.Classes;
 
 import java.io.File;
 import java.io.IOException;
@@ -30,8 +30,8 @@ import java.io.InputStreamReader;
 import java.net.MalformedURLException;
 import java.net.URL;
 
+import static org.elasticsearch.common.Strings.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
-import static org.elasticsearch.util.Strings.*;
 
 /**
  * The environment of where things exists.

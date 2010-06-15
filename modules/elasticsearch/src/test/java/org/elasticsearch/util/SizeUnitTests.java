@@ -21,7 +21,7 @@ package org.elasticsearch.util;
 
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.util.SizeUnit.*;
+import static org.elasticsearch.common.unit.SizeUnit.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

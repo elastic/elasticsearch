@@ -23,17 +23,17 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.SizeUnit;
+import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.indices.IndicesMemoryCleaner;
 import org.elasticsearch.monitor.memory.MemoryMonitor;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.util.SizeUnit;
-import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.TimeValue;
 
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.util.TimeValue.*;
+import static org.elasticsearch.common.unit.TimeValue.*;
 
 /**
  * @author kimchy (shay.banon)

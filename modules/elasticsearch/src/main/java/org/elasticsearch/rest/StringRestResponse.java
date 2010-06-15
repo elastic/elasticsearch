@@ -20,7 +20,7 @@
 package org.elasticsearch.rest;
 
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.util.ThreadLocals;
+import org.elasticsearch.common.thread.ThreadLocals;
 
 /**
  * @author kimchy (Shay Banon)

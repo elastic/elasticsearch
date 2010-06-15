@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.jsr166y.LinkedTransferQueue;
-import org.elasticsearch.util.TimeValue;
 
 import java.util.*;
 import java.util.concurrent.*;

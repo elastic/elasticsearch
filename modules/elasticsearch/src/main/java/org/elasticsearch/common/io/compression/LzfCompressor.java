@@ -20,10 +20,10 @@
 package org.elasticsearch.common.io.compression;
 
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.io.compression.lzf.LZFDecoder;
 import org.elasticsearch.common.io.compression.lzf.LZFEncoder;
-import org.elasticsearch.util.ThreadLocals;
-import org.elasticsearch.util.Unicode;
+import org.elasticsearch.common.thread.ThreadLocals;
 
 import java.io.IOException;
 

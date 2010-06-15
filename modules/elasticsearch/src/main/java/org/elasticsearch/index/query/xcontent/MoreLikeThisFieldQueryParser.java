@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query.xcontent;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.settings.Settings;
@@ -29,7 +30,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.Strings;
 
 import java.io.IOException;
 import java.util.Set;

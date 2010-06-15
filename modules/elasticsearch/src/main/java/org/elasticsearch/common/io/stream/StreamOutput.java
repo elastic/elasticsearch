@@ -20,7 +20,7 @@
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.util.Unicode;
+import org.elasticsearch.common.Unicode;
 
 import java.io.IOException;
 import java.io.OutputStream;

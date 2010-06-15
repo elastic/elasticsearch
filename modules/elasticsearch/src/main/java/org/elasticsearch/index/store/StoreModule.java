@@ -22,13 +22,13 @@ package org.elasticsearch.index.store;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesFactory;
+import org.elasticsearch.common.os.OsUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.store.fs.MmapFsStoreModule;
 import org.elasticsearch.index.store.fs.NioFsStoreModule;
 import org.elasticsearch.index.store.fs.SimpleFsStoreModule;
 import org.elasticsearch.index.store.memory.MemoryStoreModule;
 import org.elasticsearch.index.store.ram.RamStoreModule;
-import org.elasticsearch.util.OsUtils;
 
 /**
  * @author kimchy (Shay Banon)

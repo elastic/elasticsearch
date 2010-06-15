@@ -21,7 +21,7 @@ package org.elasticsearch.common.network;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.util.OsUtils;
+import org.elasticsearch.common.os.OsUtils;
 
 import java.net.*;
 import java.util.*;

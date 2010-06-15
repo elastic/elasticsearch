@@ -25,13 +25,13 @@ import org.elasticsearch.common.jackson.JsonEncoding;
 import org.elasticsearch.common.jackson.JsonFactory;
 import org.elasticsearch.common.jackson.JsonGenerator;
 import org.elasticsearch.common.jackson.JsonParser;
+import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
 import org.elasticsearch.common.xcontent.builder.TextXContentBuilder;
-import org.elasticsearch.util.ThreadLocals;
 
 import java.io.*;
 

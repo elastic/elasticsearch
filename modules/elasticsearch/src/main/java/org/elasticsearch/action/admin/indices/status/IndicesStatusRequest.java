@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.status;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
-import org.elasticsearch.util.Strings;
+import org.elasticsearch.common.Strings;
 
 /**
  * @author kimchy (shay.banon)

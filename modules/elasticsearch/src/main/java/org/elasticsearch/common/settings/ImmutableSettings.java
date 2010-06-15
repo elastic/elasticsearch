@@ -19,15 +19,20 @@
 
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Classes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.property.PropertyPlaceholder;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
+import org.elasticsearch.common.unit.SizeUnit;
+import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.Immutable;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
-import org.elasticsearch.util.*;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,10 +41,10 @@ import java.net.URL;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.Strings.*;
 import static org.elasticsearch.common.collect.Lists.*;
-import static org.elasticsearch.util.SizeValue.*;
-import static org.elasticsearch.util.Strings.*;
-import static org.elasticsearch.util.TimeValue.*;
+import static org.elasticsearch.common.unit.SizeValue.*;
+import static org.elasticsearch.common.unit.TimeValue.*;
 
 /**
  * An immutable implementation of {@link Settings}.

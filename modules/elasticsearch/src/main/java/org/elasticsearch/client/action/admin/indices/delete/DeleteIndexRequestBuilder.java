@@ -25,7 +25,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
-import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.common.unit.TimeValue;
 
 /**
  * @author kimchy (shay.banon)

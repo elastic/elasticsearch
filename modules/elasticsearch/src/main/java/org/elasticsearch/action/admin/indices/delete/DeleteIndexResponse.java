@@ -44,7 +44,7 @@ public class DeleteIndexResponse implements ActionResponse, Streamable {
 
     /**
      * Has the index deletion been acknowledged by all current cluster nodes within the
-     * provided {@link DeleteIndexRequest#timeout(org.elasticsearch.util.TimeValue)}.
+     * provided {@link DeleteIndexRequest#timeout(org.elasticsearch.common.unit.TimeValue)}.
      */
     public boolean acknowledged() {
         return acknowledged;
@@ -52,7 +52,7 @@ public class DeleteIndexResponse implements ActionResponse, Streamable {
 
     /**
      * Has the index deletion been acknowledged by all current cluster nodes within the
-     * provided {@link DeleteIndexRequest#timeout(org.elasticsearch.util.TimeValue)}.
+     * provided {@link DeleteIndexRequest#timeout(org.elasticsearch.common.unit.TimeValue)}.
      */
     public boolean getAcknowledged() {
         return acknowledged();

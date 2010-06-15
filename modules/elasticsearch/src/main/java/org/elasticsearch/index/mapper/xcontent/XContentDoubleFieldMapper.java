@@ -23,13 +23,13 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericDoubleAnalyzer;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.util.Numbers;
 
 import java.io.IOException;
 import java.util.Map;

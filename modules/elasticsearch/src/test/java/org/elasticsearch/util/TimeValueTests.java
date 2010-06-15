@@ -20,6 +20,7 @@
 package org.elasticsearch.util;
 
 import org.elasticsearch.common.joda.time.PeriodType;
+import org.elasticsearch.common.unit.TimeValue;
 import org.testng.annotations.Test;
 
 import java.util.concurrent.TimeUnit;

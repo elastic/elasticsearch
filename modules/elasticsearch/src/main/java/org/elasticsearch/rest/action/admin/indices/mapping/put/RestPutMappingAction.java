@@ -36,10 +36,10 @@ import java.io.IOException;
 
 import static org.elasticsearch.ExceptionsHelper.*;
 import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.common.unit.TimeValue.*;
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
 import static org.elasticsearch.rest.action.support.RestActions.*;
-import static org.elasticsearch.util.TimeValue.*;
 
 /**
  * @author kimchy (shay.banon)

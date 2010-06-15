@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.io;
 
+import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.util.concurrent.NotThreadSafe;
-import org.elasticsearch.util.ThreadLocals;
 
 import java.io.Writer;
 

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.TIntObjectHashMap;
-import org.elasticsearch.util.ThreadLocals;
 
 import java.io.IOException;
 

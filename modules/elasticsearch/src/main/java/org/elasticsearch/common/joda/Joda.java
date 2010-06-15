@@ -19,9 +19,9 @@
 
 package org.elasticsearch.common.joda;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.joda.time.format.*;
-import org.elasticsearch.util.Strings;
 
 /**
  * @author kimchy (shay.banon)

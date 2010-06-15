@@ -19,6 +19,8 @@
 
 package org.elasticsearch.util;
 
+import org.elasticsearch.common.unit.SizeUnit;
+import org.elasticsearch.common.unit.SizeValue;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.*;

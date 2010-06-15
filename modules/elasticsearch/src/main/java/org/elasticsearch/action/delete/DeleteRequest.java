@@ -22,10 +22,10 @@ package org.elasticsearch.action.delete;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
+import org.elasticsearch.common.Required;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.util.Required;
-import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 

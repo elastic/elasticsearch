@@ -21,6 +21,7 @@ package org.elasticsearch.test.integration.search;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.trove.ExtTIntArrayList;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchContextMissingException;
@@ -39,7 +40,6 @@ import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.elasticsearch.util.TimeValue;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;

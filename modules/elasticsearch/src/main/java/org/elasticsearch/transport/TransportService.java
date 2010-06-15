@@ -29,11 +29,11 @@ import org.elasticsearch.common.timer.Timeout;
 import org.elasticsearch.common.timer.TimerTask;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.timer.TimerService;
-import org.elasticsearch.util.TimeValue;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;

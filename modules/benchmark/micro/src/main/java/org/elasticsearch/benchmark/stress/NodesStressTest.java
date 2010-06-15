@@ -22,12 +22,12 @@ package org.elasticsearch.benchmark.stress;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.util.StopWatch;
-import org.elasticsearch.util.TimeValue;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;

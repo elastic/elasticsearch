@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.xcontent.builder;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.joda.time.ReadableInstant;
 import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
@@ -26,7 +27,6 @@ import org.elasticsearch.common.joda.time.format.ISODateTimeFormat;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapConverter;
-import org.elasticsearch.util.Strings;
 
 import java.io.IOException;
 import java.util.Date;

@@ -28,7 +28,7 @@ import org.testng.annotations.Test;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
-import static org.elasticsearch.util.TimeValue.*;
+import static org.elasticsearch.common.unit.TimeValue.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

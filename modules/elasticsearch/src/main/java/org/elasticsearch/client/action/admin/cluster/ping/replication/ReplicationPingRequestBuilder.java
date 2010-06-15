@@ -26,7 +26,7 @@ import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingRe
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
-import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.common.unit.TimeValue;
 
 /**
  * @author kimchy (shay.banon)

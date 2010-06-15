@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchInterruptedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,6 +33,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.SizeUnit;
+import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
@@ -45,9 +48,6 @@ import org.elasticsearch.index.translog.memory.MemorySnapshot;
 import org.elasticsearch.indices.recovery.throttler.RecoveryThrottler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
-import org.elasticsearch.util.SizeUnit;
-import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.StopWatch;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -60,8 +60,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.concurrent.TimeUnit.*;
+import static org.elasticsearch.common.unit.TimeValue.*;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
-import static org.elasticsearch.util.TimeValue.*;
 
 /**
  * @author kimchy (shay.banon)

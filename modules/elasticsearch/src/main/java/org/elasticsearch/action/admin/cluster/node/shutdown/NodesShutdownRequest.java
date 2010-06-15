@@ -22,11 +22,11 @@ package org.elasticsearch.action.admin.cluster.node.shutdown;
 import org.elasticsearch.action.support.nodes.NodesOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
-import static org.elasticsearch.util.TimeValue.*;
+import static org.elasticsearch.common.unit.TimeValue.*;
 
 /**
  * A request to shutdown one ore more nodes (or the whole cluster).

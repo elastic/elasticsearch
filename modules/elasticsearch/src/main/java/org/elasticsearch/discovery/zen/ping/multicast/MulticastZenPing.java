@@ -28,13 +28,13 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryException;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
-import org.elasticsearch.util.TimeValue;
 
 import java.io.IOException;
 import java.net.DatagramPacket;

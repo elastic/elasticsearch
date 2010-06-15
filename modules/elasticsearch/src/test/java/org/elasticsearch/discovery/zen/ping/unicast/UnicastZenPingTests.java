@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,7 +33,6 @@ import org.elasticsearch.threadpool.cached.CachedThreadPool;
 import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
-import org.elasticsearch.util.TimeValue;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.*;

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.local.LocalTransportModule;
-import org.elasticsearch.util.Classes;
 
 import static org.elasticsearch.common.inject.ModulesFactory.*;
 

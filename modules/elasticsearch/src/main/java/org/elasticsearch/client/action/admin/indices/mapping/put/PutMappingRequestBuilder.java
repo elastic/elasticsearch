@@ -25,8 +25,8 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
-import org.elasticsearch.util.TimeValue;
 
 import java.util.Map;
 

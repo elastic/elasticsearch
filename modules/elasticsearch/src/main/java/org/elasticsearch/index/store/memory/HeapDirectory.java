@@ -23,8 +23,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SingleInstanceLockFactory;
-import org.elasticsearch.util.SizeUnit;
-import org.elasticsearch.util.SizeValue;
+import org.elasticsearch.common.unit.SizeUnit;
+import org.elasticsearch.common.unit.SizeValue;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;

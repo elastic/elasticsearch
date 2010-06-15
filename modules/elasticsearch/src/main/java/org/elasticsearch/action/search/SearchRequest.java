@@ -25,27 +25,27 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.Bytes;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.util.Bytes;
-import org.elasticsearch.util.Strings;
-import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.Unicode;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
 import static org.elasticsearch.action.Actions.*;
+import static org.elasticsearch.common.unit.TimeValue.*;
 import static org.elasticsearch.search.Scroll.*;
-import static org.elasticsearch.util.TimeValue.*;
 
 /**
  * A request to execute search against one or more indices (or all). Best created using

@@ -38,6 +38,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
@@ -46,7 +47,6 @@ import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
-import org.elasticsearch.util.TimeValue;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;

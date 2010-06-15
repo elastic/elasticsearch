@@ -20,8 +20,8 @@
 package org.elasticsearch.common.util.concurrent.resource;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.util.StopWatch;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;

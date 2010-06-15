@@ -23,6 +23,8 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.SizeUnit;
+import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.service.IndexService;
@@ -32,8 +34,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.util.SizeUnit;
-import org.elasticsearch.util.SizeValue;
 
 import java.util.ArrayList;
 import java.util.Collections;

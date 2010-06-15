@@ -19,6 +19,7 @@
 
 package org.elasticsearch.util;
 
+import org.elasticsearch.common.StopWatch;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.*;

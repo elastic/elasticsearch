@@ -24,9 +24,9 @@ import org.elasticsearch.ElasticSearchInterruptedException;
 import org.elasticsearch.ElasticSearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractFuture;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
-import org.elasticsearch.util.TimeValue;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;

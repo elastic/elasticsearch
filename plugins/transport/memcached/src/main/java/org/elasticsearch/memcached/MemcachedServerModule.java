@@ -19,10 +19,10 @@
 
 package org.elasticsearch.memcached;
 
+import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.util.Classes;
 
 import static org.elasticsearch.common.inject.ModulesFactory.*;
 

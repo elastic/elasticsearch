@@ -21,16 +21,16 @@ package org.elasticsearch.threadpool.scaling;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.DynamicExecutors;
 import org.elasticsearch.common.util.concurrent.ScalingThreadPoolExecutor;
 import org.elasticsearch.threadpool.support.AbstractThreadPool;
-import org.elasticsearch.util.TimeValue;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
-import static org.elasticsearch.util.TimeValue.*;
+import static org.elasticsearch.common.unit.TimeValue.*;
 
 /**
  * @author kimchy (Shay Banon)

@@ -24,9 +24,9 @@ import org.elasticsearch.ElasticSearchInterruptedException;
 import org.elasticsearch.ElasticSearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.common.util.concurrent.AbstractFuture;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.concurrent.AbstractFuture;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -46,7 +46,7 @@ public abstract class AdapterActionFuture<T, L> extends AbstractFuture<T> implem
             if (e.getCause() instanceof ElasticSearchException) {
                 throw (ElasticSearchException) e.getCause();
             } else {
-                throw new TransportException("Failed execution", e);
+                throw new UncategorizedExecutionException("Failed execution", e);
             }
         }
     }
@@ -74,7 +74,7 @@ public abstract class AdapterActionFuture<T, L> extends AbstractFuture<T> implem
             if (e.getCause() instanceof ElasticSearchException) {
                 throw (ElasticSearchException) e.getCause();
             } else {
-                throw new ElasticSearchException("Failed execution", e);
+                throw new UncategorizedExecutionException("Failed execution", e);
             }
         }
     }

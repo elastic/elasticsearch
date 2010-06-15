@@ -20,10 +20,10 @@
 package org.elasticsearch.common.network;
 
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.util.MapBuilder;
 
 import java.io.IOException;
 import java.net.InetAddress;

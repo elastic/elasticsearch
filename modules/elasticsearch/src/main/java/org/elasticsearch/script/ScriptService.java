@@ -21,11 +21,11 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.math.UnboxedMathUtils;
 import org.elasticsearch.common.mvel2.MVEL;
 import org.elasticsearch.common.mvel2.ParserContext;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.util.math.UnboxedMathUtils;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;

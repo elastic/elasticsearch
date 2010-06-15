@@ -28,9 +28,9 @@ import org.elasticsearch.common.component.CloseableIndexComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.util.io.Streams;
 
 import java.io.*;
 import java.lang.reflect.Method;
@@ -40,7 +40,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 import static org.elasticsearch.common.collect.Maps.*;
-import static org.elasticsearch.util.io.FileSystemUtils.*;
+import static org.elasticsearch.common.io.FileSystemUtils.*;
 
 /**
  * @author kimchy (shay.banon)

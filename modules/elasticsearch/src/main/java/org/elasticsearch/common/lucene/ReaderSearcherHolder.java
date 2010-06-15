@@ -22,7 +22,7 @@ package org.elasticsearch.common.lucene;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.util.lease.Releasable;
+import org.elasticsearch.common.lease.Releasable;
 
 /**
  * A very simple holder for a tuple of reader and searcher.

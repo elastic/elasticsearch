@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.util.concurrent.NotThreadSafe;
+import org.elasticsearch.common.util.concurrent.NotThreadSafe;
 
 import java.util.*;
 

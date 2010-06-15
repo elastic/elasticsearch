@@ -19,14 +19,14 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facets.Facets;
 import org.elasticsearch.search.facets.internal.InternalFacets;
-import org.elasticsearch.util.io.stream.StreamInput;
-import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.io.stream.Streamable;
 
 import java.io.IOException;
 

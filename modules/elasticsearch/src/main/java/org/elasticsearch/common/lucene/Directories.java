@@ -28,7 +28,7 @@ import org.elasticsearch.util.SizeValue;
 import java.io.*;
 import java.util.Collection;
 
-import static org.elasticsearch.util.io.FileSystemUtils.*;
+import static org.elasticsearch.common.io.FileSystemUtils.*;
 
 /**
  * A set of utilities for Lucene {@link Directory}.

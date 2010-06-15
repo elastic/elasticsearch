@@ -19,11 +19,11 @@
 
 package org.elasticsearch.common.xcontent.builder;
 
+import org.elasticsearch.common.io.FastByteArrayOutputStream;
+import org.elasticsearch.common.io.FastCharArrayWriter;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.util.io.FastByteArrayOutputStream;
-import org.elasticsearch.util.io.FastCharArrayWriter;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.xcontent.builder.XContentBuilder.FieldCaseConversion.*;

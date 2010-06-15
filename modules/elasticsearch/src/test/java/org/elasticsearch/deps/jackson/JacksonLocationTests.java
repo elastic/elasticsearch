@@ -19,8 +19,8 @@
 
 package org.elasticsearch.deps.jackson;
 
+import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.jackson.*;
-import org.elasticsearch.util.io.FastByteArrayOutputStream;
 import org.testng.annotations.Test;
 
 import java.io.IOException;

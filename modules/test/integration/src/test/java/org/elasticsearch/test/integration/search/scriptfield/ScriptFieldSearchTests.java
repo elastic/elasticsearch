@@ -21,8 +21,8 @@ package org.elasticsearch.test.integration.search.scriptfield;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.elasticsearch.util.MapBuilder;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;

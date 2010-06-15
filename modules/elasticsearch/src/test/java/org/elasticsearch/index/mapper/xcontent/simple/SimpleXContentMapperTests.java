@@ -29,8 +29,8 @@ import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapperParser;
 import org.testng.annotations.Test;
 
 import static org.apache.lucene.document.Field.Store.*;
+import static org.elasticsearch.common.io.Streams.*;
 import static org.elasticsearch.index.mapper.xcontent.XContentMapperBuilders.*;
-import static org.elasticsearch.util.io.Streams.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

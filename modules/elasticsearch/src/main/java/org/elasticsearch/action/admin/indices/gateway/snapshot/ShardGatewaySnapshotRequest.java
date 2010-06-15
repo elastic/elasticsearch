@@ -20,8 +20,8 @@
 package org.elasticsearch.action.admin.indices.gateway.snapshot;
 
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
-import org.elasticsearch.util.io.stream.StreamInput;
-import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 

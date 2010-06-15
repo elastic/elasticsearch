@@ -21,9 +21,9 @@ package org.elasticsearch.jmx;
 
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.util.Classes;
-import org.elasticsearch.util.MapBuilder;
 import org.elasticsearch.util.Preconditions;
 import org.elasticsearch.util.Strings;
 
@@ -37,7 +37,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.util.MapBuilder.*;
+import static org.elasticsearch.common.collect.MapBuilder.*;
 
 /**
  * @author kimchy (Shay Banon)

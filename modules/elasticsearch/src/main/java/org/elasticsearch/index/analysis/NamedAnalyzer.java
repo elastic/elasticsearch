@@ -22,7 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Fieldable;
-import org.elasticsearch.util.concurrent.Immutable;
+import org.elasticsearch.common.util.concurrent.Immutable;
 
 import java.io.IOException;
 import java.io.Reader;

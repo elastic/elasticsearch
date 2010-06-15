@@ -19,9 +19,9 @@
 
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.concurrent.ThreadSafe;
 
 import java.util.Map;
 

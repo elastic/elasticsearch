@@ -21,17 +21,17 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.Immutable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
-import org.elasticsearch.util.MapBuilder;
 import org.elasticsearch.util.Preconditions;
-import org.elasticsearch.util.concurrent.Immutable;
-import org.elasticsearch.util.io.stream.StreamInput;
-import org.elasticsearch.util.io.stream.StreamOutput;
 
 import javax.annotation.Nullable;
 import java.io.IOException;

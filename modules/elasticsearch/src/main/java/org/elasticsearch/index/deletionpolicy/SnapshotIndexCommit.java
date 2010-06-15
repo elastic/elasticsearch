@@ -20,8 +20,8 @@
 package org.elasticsearch.index.deletionpolicy;
 
 import org.apache.lucene.index.IndexCommit;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.IndexCommitDelegate;
-import org.elasticsearch.util.lease.Releasable;
 
 import java.io.IOException;
 import java.util.ArrayList;

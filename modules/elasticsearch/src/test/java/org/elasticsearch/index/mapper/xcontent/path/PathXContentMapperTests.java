@@ -27,7 +27,7 @@ import org.testng.annotations.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.util.io.Streams.*;
+import static org.elasticsearch.common.io.Streams.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

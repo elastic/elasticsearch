@@ -20,12 +20,12 @@
 package org.elasticsearch.action.search.type;
 
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.util.concurrent.jsr166y.LinkedTransferQueue;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
-import org.elasticsearch.util.concurrent.jsr166y.LinkedTransferQueue;
 
 import java.util.Collection;
 import java.util.Map;

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.facets.internal;
 
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.facets.Facet;
-import org.elasticsearch.util.io.stream.Streamable;
 
 /**
  * @author kimchy (shay.banon)

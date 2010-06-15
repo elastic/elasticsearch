@@ -20,9 +20,9 @@
 package org.elasticsearch.common.xcontent.builder;
 
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.io.FastCharArrayWriter;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.util.Unicode;
-import org.elasticsearch.util.io.FastCharArrayWriter;
 
 import java.io.IOException;
 

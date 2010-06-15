@@ -22,6 +22,7 @@ package org.elasticsearch.search.facets;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.search.SearchParseElement;
@@ -33,11 +34,10 @@ import org.elasticsearch.search.facets.query.QueryFacetCollectorParser;
 import org.elasticsearch.search.facets.statistical.StatisticalFacetCollectorParser;
 import org.elasticsearch.search.facets.terms.TermsFacetCollectorParser;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.util.MapBuilder;
 
 import java.util.List;
 
-import static org.elasticsearch.util.MapBuilder.*;
+import static org.elasticsearch.common.collect.MapBuilder.*;
 
 /**
  * <pre>

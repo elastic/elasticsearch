@@ -28,6 +28,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.timer.Timeout;
 import org.elasticsearch.common.timer.TimerTask;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
@@ -55,8 +57,6 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.Unicode;
-import org.elasticsearch.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.util.concurrent.ConcurrentMapLong;
 
 import java.io.IOException;
 import java.util.HashMap;

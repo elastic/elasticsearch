@@ -19,9 +19,9 @@
 
 package org.elasticsearch.common.xcontent.builder;
 
+import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.util.Unicode;
-import org.elasticsearch.util.io.FastByteArrayOutputStream;
 
 import java.io.IOException;
 

@@ -24,6 +24,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
+import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -40,7 +41,6 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.util.ThreadLocals;
-import org.elasticsearch.util.io.FastByteArrayOutputStream;
 
 import javax.annotation.Nullable;
 import java.io.IOException;

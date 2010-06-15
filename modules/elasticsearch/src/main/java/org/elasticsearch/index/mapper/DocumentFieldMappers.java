@@ -24,8 +24,8 @@ import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Iterables;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
+import org.elasticsearch.common.util.concurrent.Immutable;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
-import org.elasticsearch.util.concurrent.Immutable;
 
 import java.util.Map;
 

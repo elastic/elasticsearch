@@ -20,7 +20,7 @@
 package org.elasticsearch.common.lucene.versioned;
 
 import org.elasticsearch.common.trove.ExtTIntIntHashMap;
-import org.elasticsearch.util.concurrent.ThreadSafe;
+import org.elasticsearch.common.util.concurrent.ThreadSafe;
 
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;

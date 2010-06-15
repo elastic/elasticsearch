@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.search.type;
 
-import org.elasticsearch.util.Tuple;
+import org.elasticsearch.common.collect.Tuple;
 
 /**
  * @author kimchy (shay.banon)

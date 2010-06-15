@@ -22,6 +22,7 @@ package org.elasticsearch.index.store.fs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lucene.store.SwitchDirectory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -31,7 +32,6 @@ import org.elasticsearch.index.store.memory.HeapDirectory;
 import org.elasticsearch.index.store.support.AbstractStore;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.io.FileSystemUtils;
 
 import java.io.IOException;
 

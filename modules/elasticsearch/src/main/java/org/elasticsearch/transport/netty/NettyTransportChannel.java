@@ -19,16 +19,16 @@
 
 package org.elasticsearch.transport.netty;
 
+import org.elasticsearch.common.io.ThrowableObjectOutputStream;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.HandlesStreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.netty.buffer.ChannelBuffer;
 import org.elasticsearch.common.netty.buffer.ChannelBuffers;
 import org.elasticsearch.common.netty.channel.Channel;
 import org.elasticsearch.transport.NotSerializableTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.util.io.ThrowableObjectOutputStream;
-import org.elasticsearch.util.io.stream.BytesStreamOutput;
-import org.elasticsearch.util.io.stream.HandlesStreamOutput;
-import org.elasticsearch.util.io.stream.Streamable;
 
 import java.io.IOException;
 import java.io.NotSerializableException;

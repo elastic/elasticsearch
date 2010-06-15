@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.deletionpolicy;
 
-import org.elasticsearch.util.lease.Releasable;
+import org.elasticsearch.common.lease.Releasable;
 
 import java.util.Iterator;
 import java.util.List;

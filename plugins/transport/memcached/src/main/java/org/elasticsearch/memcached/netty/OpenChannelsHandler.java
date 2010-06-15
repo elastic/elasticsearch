@@ -20,7 +20,7 @@
 package org.elasticsearch.memcached.netty;
 
 import org.elasticsearch.common.netty.channel.*;
-import org.elasticsearch.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.util.Set;
 

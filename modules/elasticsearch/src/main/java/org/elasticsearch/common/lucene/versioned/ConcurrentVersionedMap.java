@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.lucene.versioned;
 
-import org.elasticsearch.util.concurrent.ThreadSafe;
+import org.elasticsearch.common.util.concurrent.ThreadSafe;
 
 import java.util.concurrent.ConcurrentHashMap;
 

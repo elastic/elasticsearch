@@ -25,17 +25,17 @@ import org.apache.log4j.helpers.FormattingInfo;
 import org.apache.log4j.helpers.PatternConverter;
 import org.apache.log4j.helpers.PatternParser;
 import org.apache.log4j.spi.LoggingEvent;
-import org.elasticsearch.util.jline.ANSI;
+import org.elasticsearch.common.jline.ANSI;
 
 import java.lang.reflect.Field;
 
 import static jline.ANSIBuffer.ANSICodes.*;
-import static org.elasticsearch.util.jline.ANSI.Code.FG_BLUE;
-import static org.elasticsearch.util.jline.ANSI.Code.FG_CYAN;
-import static org.elasticsearch.util.jline.ANSI.Code.FG_GREEN;
-import static org.elasticsearch.util.jline.ANSI.Code.FG_RED;
-import static org.elasticsearch.util.jline.ANSI.Code.FG_YELLOW;
-import static org.elasticsearch.util.jline.ANSI.Code.OFF;
+import static org.elasticsearch.common.jline.ANSI.Code.FG_BLUE;
+import static org.elasticsearch.common.jline.ANSI.Code.FG_CYAN;
+import static org.elasticsearch.common.jline.ANSI.Code.FG_GREEN;
+import static org.elasticsearch.common.jline.ANSI.Code.FG_RED;
+import static org.elasticsearch.common.jline.ANSI.Code.FG_YELLOW;
+import static org.elasticsearch.common.jline.ANSI.Code.OFF;
 
 /**
  * @author kimchy (Shay Banon)

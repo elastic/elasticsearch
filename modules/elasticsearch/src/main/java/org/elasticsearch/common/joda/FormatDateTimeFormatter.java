@@ -20,7 +20,7 @@
 package org.elasticsearch.common.joda;
 
 import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
-import org.elasticsearch.util.concurrent.Immutable;
+import org.elasticsearch.common.util.concurrent.Immutable;
 
 /**
  * A simple wrapper around {@link DateTimeFormatter} that retains the

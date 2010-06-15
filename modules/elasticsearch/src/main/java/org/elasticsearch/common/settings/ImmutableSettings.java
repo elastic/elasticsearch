@@ -19,14 +19,15 @@
 
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.property.PropertyPlaceholder;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
+import org.elasticsearch.common.util.concurrent.Immutable;
+import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.util.*;
-import org.elasticsearch.util.concurrent.Immutable;
-import org.elasticsearch.util.concurrent.ThreadSafe;
-import org.elasticsearch.util.io.Streams;
-import org.elasticsearch.util.io.stream.StreamInput;
-import org.elasticsearch.util.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.io.InputStream;

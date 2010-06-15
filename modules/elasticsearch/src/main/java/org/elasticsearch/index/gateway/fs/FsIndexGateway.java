@@ -34,7 +34,7 @@ import org.elasticsearch.util.Strings;
 
 import java.io.File;
 
-import static org.elasticsearch.util.io.FileSystemUtils.*;
+import static org.elasticsearch.common.io.FileSystemUtils.*;
 
 /**
  * @author kimchy (Shay Banon)

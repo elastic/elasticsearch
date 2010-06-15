@@ -23,6 +23,8 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.ThrowableObjectInputStream;
+import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -30,8 +32,6 @@ import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
-import org.elasticsearch.util.io.ThrowableObjectInputStream;
-import org.elasticsearch.util.io.stream.*;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -39,8 +39,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
 import static org.elasticsearch.transport.Transport.Helper.*;
-import static org.elasticsearch.util.concurrent.ConcurrentCollections.*;
 
 /**
  * @author kimchy (shay.banon)

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.util.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Streamable;
 
 import java.util.List;
 

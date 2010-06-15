@@ -27,12 +27,12 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.component.CloseableComponent;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.concurrent.ThreadSafe;
-import org.elasticsearch.util.lease.Releasable;
 
 import javax.annotation.Nullable;
 

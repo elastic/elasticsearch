@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.query.xcontent;
 
+import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilderException;
-import org.elasticsearch.util.io.FastByteArrayOutputStream;
 
 import java.io.IOException;
 

@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryException;
@@ -34,7 +35,6 @@ import org.elasticsearch.discovery.zen.ping.ZenPingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.io.stream.*;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -51,8 +51,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.node.DiscoveryNode.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
-import static org.elasticsearch.util.concurrent.ConcurrentCollections.*;
-import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
+import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
+import static org.elasticsearch.common.util.concurrent.DynamicExecutors.*;
 
 /**
  * @author kimchy (shay.banon)

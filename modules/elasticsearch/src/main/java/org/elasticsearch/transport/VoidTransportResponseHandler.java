@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.util.io.stream.VoidStreamable;
+import org.elasticsearch.common.io.stream.VoidStreamable;
 
 /**
  * @author kimchy (Shay Banon)

@@ -66,9 +66,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.common.collect.MapBuilder.*;
 import static org.elasticsearch.common.collect.Maps.*;
 import static org.elasticsearch.common.collect.Sets.*;
-import static org.elasticsearch.util.MapBuilder.*;
 
 /**
  * @author kimchy (shay.banon)

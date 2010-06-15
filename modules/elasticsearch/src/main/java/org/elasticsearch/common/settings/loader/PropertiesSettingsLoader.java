@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.settings.loader;
 
-import org.elasticsearch.util.io.FastByteArrayInputStream;
-import org.elasticsearch.util.io.FastStringReader;
+import org.elasticsearch.common.io.FastByteArrayInputStream;
+import org.elasticsearch.common.io.FastStringReader;
 
 import java.io.IOException;
 import java.util.Map;

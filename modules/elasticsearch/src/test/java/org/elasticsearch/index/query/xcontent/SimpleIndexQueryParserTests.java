@@ -41,10 +41,10 @@ import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.common.io.Streams.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.index.query.xcontent.FilterBuilders.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
-import static org.elasticsearch.util.io.Streams.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

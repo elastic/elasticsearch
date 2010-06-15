@@ -21,11 +21,11 @@ package org.elasticsearch.threadpool.blocking;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DynamicExecutors;
 import org.elasticsearch.threadpool.support.AbstractThreadPool;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.concurrent.DynamicExecutors;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;

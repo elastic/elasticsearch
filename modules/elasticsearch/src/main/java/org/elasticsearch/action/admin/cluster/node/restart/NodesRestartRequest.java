@@ -20,9 +20,9 @@
 package org.elasticsearch.action.admin.cluster.node.restart;
 
 import org.elasticsearch.action.support.nodes.NodesOperationRequest;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.io.stream.StreamInput;
-import org.elasticsearch.util.io.stream.StreamOutput;
 
 import java.io.IOException;
 

@@ -33,9 +33,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.collect.Lists.*;
+import static org.elasticsearch.common.collect.MapBuilder.*;
 import static org.elasticsearch.index.mapper.xcontent.XContentMapperBuilders.*;
 import static org.elasticsearch.index.mapper.xcontent.XContentTypeParsers.*;
-import static org.elasticsearch.util.MapBuilder.*;
 
 /**
  * @author kimchy (shay.banon)

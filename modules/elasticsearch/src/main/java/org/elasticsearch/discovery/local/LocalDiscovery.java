@@ -27,10 +27,10 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.jsr166y.LinkedTransferQueue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.util.concurrent.jsr166y.LinkedTransferQueue;
 
 import java.util.Queue;
 import java.util.Set;

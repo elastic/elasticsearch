@@ -47,7 +47,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.*;
-import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
+import static org.elasticsearch.common.util.concurrent.DynamicExecutors.*;
 
 /**
  * @author kimchy (shay.banon)

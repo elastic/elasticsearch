@@ -19,15 +19,15 @@
 
 package org.elasticsearch.transport.netty;
 
+import org.elasticsearch.common.io.ThrowableObjectInputStream;
+import org.elasticsearch.common.io.stream.HandlesStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.netty.buffer.ChannelBuffer;
 import org.elasticsearch.common.netty.channel.*;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
-import org.elasticsearch.util.io.ThrowableObjectInputStream;
-import org.elasticsearch.util.io.stream.HandlesStreamInput;
-import org.elasticsearch.util.io.stream.StreamInput;
-import org.elasticsearch.util.io.stream.Streamable;
 
 import java.io.IOException;
 

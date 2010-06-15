@@ -20,9 +20,9 @@
 package org.elasticsearch.action.deletebyquery;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.util.io.stream.StreamInput;
-import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
 import java.util.Iterator;

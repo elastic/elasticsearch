@@ -22,8 +22,8 @@ package org.elasticsearch.transport;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchInterruptedException;
 import org.elasticsearch.ElasticSearchTimeoutException;
-import org.elasticsearch.util.concurrent.AbstractFuture;
-import org.elasticsearch.util.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.util.concurrent.AbstractFuture;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;

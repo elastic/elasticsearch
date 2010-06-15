@@ -26,11 +26,11 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.util.Base64;
-import org.elasticsearch.util.Tuple;
 import org.elasticsearch.util.Unicode;
 
 import java.io.IOException;

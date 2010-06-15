@@ -23,11 +23,11 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.util.Strings;
-import org.elasticsearch.util.concurrent.ThreadSafe;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -36,10 +36,10 @@ import java.util.Map;
 
 import static org.elasticsearch.common.collect.ImmutableMap.*;
 import static org.elasticsearch.common.collect.Lists.*;
+import static org.elasticsearch.common.collect.MapBuilder.*;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
 import static org.elasticsearch.index.mapper.xcontent.XContentMapperBuilders.*;
 import static org.elasticsearch.index.mapper.xcontent.XContentTypeParsers.*;
-import static org.elasticsearch.util.MapBuilder.*;
 
 /**
  * @author kimchy (shay.banon)

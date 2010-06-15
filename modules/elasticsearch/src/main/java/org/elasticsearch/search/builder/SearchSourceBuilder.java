@@ -20,6 +20,7 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.trove.TObjectFloatHashMap;
 import org.elasticsearch.common.trove.TObjectFloatIterator;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
-import org.elasticsearch.util.io.FastByteArrayOutputStream;
 
 import java.io.IOException;
 import java.util.ArrayList;

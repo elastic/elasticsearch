@@ -21,10 +21,10 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.io.stream.StreamInput;
-import org.elasticsearch.util.io.stream.StreamOutput;
 
 import java.io.IOException;
 

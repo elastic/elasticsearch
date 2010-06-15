@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.Term;
-import org.elasticsearch.util.concurrent.ThreadSafe;
+import org.elasticsearch.common.util.concurrent.ThreadSafe;
 
 /**
  * @author kimchy (Shay Banon)

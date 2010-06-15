@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
-import org.elasticsearch.util.concurrent.Immutable;
+import org.elasticsearch.common.util.concurrent.Immutable;
 
 /**
  * A holder for several {@link FieldMapper}.

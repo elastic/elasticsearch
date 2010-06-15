@@ -39,8 +39,8 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.concurrent.Executors.*;
 import static org.elasticsearch.cluster.ClusterState.*;
+import static org.elasticsearch.common.util.concurrent.DynamicExecutors.*;
 import static org.elasticsearch.util.TimeValue.*;
-import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
 
 /**
  * @author kimchy (shay.banon)

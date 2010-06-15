@@ -22,13 +22,13 @@ package org.elasticsearch.index.cache.field.data.support;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.concurrent.ConcurrentCollections;
 
 import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;

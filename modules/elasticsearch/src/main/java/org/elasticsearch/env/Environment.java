@@ -20,9 +20,9 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.util.Classes;
-import org.elasticsearch.util.io.Streams;
 
 import java.io.File;
 import java.io.IOException;

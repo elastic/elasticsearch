@@ -19,16 +19,16 @@
 
 package org.elasticsearch.search.facets.terms;
 
+import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.trove.TObjectIntHashMap;
 import org.elasticsearch.common.trove.TObjectIntIterator;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.internal.InternalFacet;
-import org.elasticsearch.util.BoundedTreeSet;
 import org.elasticsearch.util.ThreadLocals;
-import org.elasticsearch.util.io.stream.StreamInput;
-import org.elasticsearch.util.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.ArrayList;

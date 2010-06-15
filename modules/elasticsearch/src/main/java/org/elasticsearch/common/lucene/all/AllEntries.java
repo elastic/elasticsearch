@@ -21,9 +21,9 @@ package org.elasticsearch.common.lucene.all;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.util.io.CharSequenceReader;
-import org.elasticsearch.util.io.FastCharArrayWriter;
-import org.elasticsearch.util.io.FastStringReader;
+import org.elasticsearch.common.io.CharSequenceReader;
+import org.elasticsearch.common.io.FastCharArrayWriter;
+import org.elasticsearch.common.io.FastStringReader;
 
 import java.io.IOException;
 import java.io.Reader;

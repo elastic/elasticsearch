@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.transport;
 
-import org.elasticsearch.util.io.stream.StreamInput;
-import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.net.InetAddress;

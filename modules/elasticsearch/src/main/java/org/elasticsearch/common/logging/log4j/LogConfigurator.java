@@ -21,11 +21,11 @@ package org.elasticsearch.common.logging.log4j;
 
 import org.apache.log4j.PropertyConfigurator;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.FailedToResolveConfigException;
-import org.elasticsearch.util.MapBuilder;
 
 import java.util.Map;
 import java.util.Properties;

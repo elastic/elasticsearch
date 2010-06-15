@@ -28,11 +28,11 @@ import org.elasticsearch.node.Node;
 import org.testng.annotations.*;
 
 import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.common.io.Streams.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.elasticsearch.node.NodeBuilder.*;
-import static org.elasticsearch.util.io.Streams.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.common.xcontent.xson;
 
+import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.util.io.FastByteArrayOutputStream;
 import org.testng.annotations.Test;
 
 import java.io.IOException;

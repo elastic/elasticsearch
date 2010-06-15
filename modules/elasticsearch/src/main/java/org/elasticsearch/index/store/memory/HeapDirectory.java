@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
 
-import static org.elasticsearch.util.concurrent.ConcurrentCollections.*;
+import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
 
 /**
  * @author kimchy (Shay Banon)

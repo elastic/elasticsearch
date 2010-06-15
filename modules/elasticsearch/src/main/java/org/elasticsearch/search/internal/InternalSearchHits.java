@@ -20,13 +20,13 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.trove.TIntObjectHashMap;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.util.io.stream.StreamInput;
-import org.elasticsearch.util.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.IdentityHashMap;

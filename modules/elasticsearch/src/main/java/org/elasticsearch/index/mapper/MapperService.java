@@ -24,7 +24,9 @@ import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.FailedToResolveConfigException;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -32,8 +34,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapperParser;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.concurrent.ThreadSafe;
-import org.elasticsearch.util.io.Streams;
 
 import javax.annotation.Nullable;
 import java.io.File;
@@ -43,7 +43,7 @@ import java.io.Reader;
 import java.net.MalformedURLException;
 import java.net.URL;
 
-import static org.elasticsearch.util.MapBuilder.*;
+import static org.elasticsearch.common.collect.MapBuilder.*;
 
 /**
  * @author kimchy (Shay Banon)

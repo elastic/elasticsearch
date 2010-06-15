@@ -24,14 +24,14 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StringStreamable;
+import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.jmx.JmxService;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.FutureTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.util.io.stream.StringStreamable;
-import org.elasticsearch.util.io.stream.VoidStreamable;
 
 /**
  * @author kimchy (Shay Banon)

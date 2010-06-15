@@ -24,7 +24,7 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.util.MapBuilder.*;
+import static org.elasticsearch.common.collect.MapBuilder.*;
 
 /**
  * @author kimchy (Shay Banon)

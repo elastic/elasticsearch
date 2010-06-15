@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.util.io.stream.Streamable;
 
 /**
  * The hits of a search request.

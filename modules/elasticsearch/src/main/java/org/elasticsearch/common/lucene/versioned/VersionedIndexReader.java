@@ -20,7 +20,7 @@
 package org.elasticsearch.common.lucene.versioned;
 
 import org.apache.lucene.index.*;
-import org.elasticsearch.util.concurrent.ThreadSafe;
+import org.elasticsearch.common.util.concurrent.ThreadSafe;
 
 import java.io.IOException;
 

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index.mapper.xcontent;
 
+import org.elasticsearch.common.util.concurrent.NotThreadSafe;
+import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.mapper.FieldMapperListener;
 import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.util.concurrent.NotThreadSafe;
-import org.elasticsearch.util.concurrent.ThreadSafe;
 
 import java.io.IOException;
 

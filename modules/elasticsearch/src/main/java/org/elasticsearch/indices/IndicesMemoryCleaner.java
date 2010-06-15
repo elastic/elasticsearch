@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -33,7 +34,6 @@ import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.Tuple;
 
 import java.util.ArrayList;
 import java.util.Collections;

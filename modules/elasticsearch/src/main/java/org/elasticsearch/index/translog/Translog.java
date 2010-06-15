@@ -21,17 +21,17 @@ package org.elasticsearch.index.translog;
 
 import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.concurrent.NotThreadSafe;
+import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.Strings;
-import org.elasticsearch.util.concurrent.NotThreadSafe;
-import org.elasticsearch.util.concurrent.ThreadSafe;
-import org.elasticsearch.util.io.stream.StreamInput;
-import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.io.stream.Streamable;
-import org.elasticsearch.util.lease.Releasable;
 
 import javax.annotation.Nullable;
 import java.io.IOException;

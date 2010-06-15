@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldSelector;
-import org.elasticsearch.util.concurrent.ThreadSafe;
+import org.elasticsearch.common.util.concurrent.ThreadSafe;
 
 /**
  * A mapper that maps the actual source of a generated document.

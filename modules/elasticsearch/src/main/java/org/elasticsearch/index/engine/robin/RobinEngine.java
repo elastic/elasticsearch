@@ -28,6 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.IndexWriters;
 import org.elasticsearch.common.lucene.ReaderSearcherHolder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.resource.AcquirableResource;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
@@ -44,7 +45,6 @@ import org.elasticsearch.util.Preconditions;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.concurrent.resource.AcquirableResource;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -52,8 +52,8 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static org.elasticsearch.common.lucene.Lucene.*;
+import static org.elasticsearch.common.util.concurrent.resource.AcquirableResourceFactory.*;
 import static org.elasticsearch.util.TimeValue.*;
-import static org.elasticsearch.util.concurrent.resource.AcquirableResourceFactory.*;
 
 /**
  * @author kimchy (shay.banon)

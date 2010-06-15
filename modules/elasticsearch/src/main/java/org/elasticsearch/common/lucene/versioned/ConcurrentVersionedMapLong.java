@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.lucene.versioned;
 
-import org.elasticsearch.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.util.concurrent.ConcurrentMapLong;
-import org.elasticsearch.util.concurrent.ThreadSafe;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
+import org.elasticsearch.common.util.concurrent.ThreadSafe;
 
 /**
- * An implementation of {@link VersionedMap} based on {@link ConcurrentMapLong}.
+ * An implementation of {@link VersionedMap} based on {@link org.elasticsearch.common.util.concurrent.ConcurrentMapLong}.
  *
  * @author kimchy (Shay Banon)
  */

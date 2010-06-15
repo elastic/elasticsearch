@@ -20,9 +20,9 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.IndexShardException;
-import org.elasticsearch.util.io.stream.StreamInput;
-import org.elasticsearch.util.io.stream.StreamOutput;
 
 import java.io.IOException;
 

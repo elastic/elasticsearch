@@ -24,8 +24,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.util.concurrent.ThreadSafe;
 
 import java.util.Set;
 

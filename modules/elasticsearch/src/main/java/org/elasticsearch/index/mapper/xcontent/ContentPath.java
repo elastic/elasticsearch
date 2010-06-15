@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper.xcontent;
 
-import org.elasticsearch.util.concurrent.NotThreadSafe;
+import org.elasticsearch.common.util.concurrent.NotThreadSafe;
 
 /**
  * @author kimchy (Shay Banon)

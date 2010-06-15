@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.util.IdentityHashSet;
+import org.elasticsearch.common.collect.IdentityHashSet;
 
 import java.util.Iterator;
 import java.util.Set;

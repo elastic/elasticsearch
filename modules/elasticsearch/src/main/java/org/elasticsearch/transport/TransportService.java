@@ -23,17 +23,17 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.timer.Timeout;
 import org.elasticsearch.common.timer.TimerTask;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.util.concurrent.ConcurrentMapLong;
-import org.elasticsearch.util.io.stream.Streamable;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -43,7 +43,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
-import static org.elasticsearch.util.concurrent.ConcurrentCollections.*;
+import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
 
 /**
  * @author kimchy (shay.banon)

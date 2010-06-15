@@ -26,6 +26,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -34,8 +36,6 @@ import org.elasticsearch.discovery.DiscoveryException;
 import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.util.io.stream.BytesStreamInput;
-import org.elasticsearch.util.io.stream.BytesStreamOutput;
 import org.jgroups.*;
 
 import java.io.IOException;

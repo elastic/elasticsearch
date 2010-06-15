@@ -33,8 +33,8 @@ import org.elasticsearch.util.TimeValue;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.util.concurrent.DynamicExecutors.*;
 import static org.elasticsearch.util.TimeValue.*;
-import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
 
 /**
  * @author kimchy (Shay Banon)

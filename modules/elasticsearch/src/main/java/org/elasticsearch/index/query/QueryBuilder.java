@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.util.io.FastByteArrayOutputStream;
 
 /**
  * @author kimchy (shay.banon)

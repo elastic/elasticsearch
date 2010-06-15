@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent.json;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.jackson.JsonEncoding;
 import org.elasticsearch.common.jackson.JsonFactory;
 import org.elasticsearch.common.jackson.JsonGenerator;
@@ -31,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
 import org.elasticsearch.common.xcontent.builder.TextXContentBuilder;
 import org.elasticsearch.util.ThreadLocals;
-import org.elasticsearch.util.io.FastStringReader;
 
 import java.io.*;
 

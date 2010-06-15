@@ -19,13 +19,13 @@
 
 package org.elasticsearch.transport.netty;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.netty.buffer.ChannelBuffer;
-import org.elasticsearch.util.io.stream.StreamInput;
 
 import java.io.IOException;
 
 /**
- * A Netty {@link org.elasticsearch.common.netty.buffer.ChannelBuffer} based {@link org.elasticsearch.util.io.stream.StreamInput}.
+ * A Netty {@link org.elasticsearch.common.netty.buffer.ChannelBuffer} based {@link org.elasticsearch.common.io.stream.StreamInput}.
  *
  * @author kimchy (shay.banon)
  */

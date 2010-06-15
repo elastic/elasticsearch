@@ -33,7 +33,7 @@ import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
 
 import static org.elasticsearch.common.lucene.docset.DocSets.*;
-import static org.elasticsearch.util.concurrent.ConcurrentCollections.*;
+import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
 
 /**
  * A base concurrent filter cache that accepts the actual cache to use.

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.util.concurrent;
 
+import org.elasticsearch.common.util.concurrent.DynamicExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadBarrier;
 import org.testng.annotations.Test;
 
 import java.util.concurrent.ThreadPoolExecutor;

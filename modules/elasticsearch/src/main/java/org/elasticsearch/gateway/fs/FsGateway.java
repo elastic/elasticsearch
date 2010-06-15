@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -35,11 +36,10 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.GatewayException;
 import org.elasticsearch.index.gateway.fs.FsIndexGatewayModule;
-import org.elasticsearch.util.io.FileSystemUtils;
 
 import java.io.*;
 
-import static org.elasticsearch.util.io.FileSystemUtils.*;
+import static org.elasticsearch.common.io.FileSystemUtils.*;
 
 /**
  * @author kimchy (shay.banon)

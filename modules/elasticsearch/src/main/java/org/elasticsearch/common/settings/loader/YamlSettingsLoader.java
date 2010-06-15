@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.settings.loader;
 
+import org.elasticsearch.common.io.FastByteArrayInputStream;
 import org.elasticsearch.common.yaml.snakeyaml.Yaml;
-import org.elasticsearch.util.io.FastByteArrayInputStream;
 
 import java.io.IOException;
 import java.util.List;

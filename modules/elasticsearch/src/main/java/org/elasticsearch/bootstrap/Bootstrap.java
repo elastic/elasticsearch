@@ -21,8 +21,10 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
+import org.elasticsearch.common.jline.ANSI;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.log4j.LogConfigurator;
@@ -33,8 +35,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPerparer;
 import org.elasticsearch.util.Classes;
-import org.elasticsearch.util.Tuple;
-import org.elasticsearch.util.jline.ANSI;
 
 import java.io.File;
 import java.util.Set;

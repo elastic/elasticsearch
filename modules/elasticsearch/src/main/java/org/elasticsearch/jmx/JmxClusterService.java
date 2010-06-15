@@ -34,7 +34,7 @@ import javax.management.remote.JMXServiceURL;
 import java.util.concurrent.ExecutorService;
 
 import static java.util.concurrent.Executors.*;
-import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
+import static org.elasticsearch.common.util.concurrent.DynamicExecutors.*;
 
 /**
  * @author kimchy (Shay Banon)

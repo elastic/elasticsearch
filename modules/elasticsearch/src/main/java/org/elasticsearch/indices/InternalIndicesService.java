@@ -31,6 +31,7 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Injectors;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.index.*;
 import org.elasticsearch.index.analysis.AnalysisModule;
@@ -51,7 +52,6 @@ import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.plugins.IndicesPluginsModule;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.util.concurrent.ThreadSafe;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -59,10 +59,10 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.elasticsearch.common.collect.MapBuilder.*;
 import static org.elasticsearch.common.collect.Maps.*;
 import static org.elasticsearch.common.collect.Sets.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
-import static org.elasticsearch.util.MapBuilder.*;
 
 /**
  * @author kimchy (shay.banon)

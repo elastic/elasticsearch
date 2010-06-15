@@ -20,7 +20,7 @@
 package org.elasticsearch.common.component;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.util.concurrent.ThreadSafe;
+import org.elasticsearch.common.util.concurrent.ThreadSafe;
 
 /**
  * Lifecycle state. Allows the following transitions:

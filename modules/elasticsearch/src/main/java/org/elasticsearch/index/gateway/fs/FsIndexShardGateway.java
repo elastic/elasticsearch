@@ -23,6 +23,9 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.DataInputStreamInput;
+import org.elasticsearch.common.io.stream.DataOutputStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.gateway.IndexGateway;
@@ -41,9 +44,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.io.stream.DataInputStreamInput;
-import org.elasticsearch.util.io.stream.DataOutputStreamOutput;
-import org.elasticsearch.util.io.stream.StreamOutput;
 
 import java.io.File;
 import java.io.FilenameFilter;
@@ -54,9 +54,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.io.FileSystemUtils.*;
 import static org.elasticsearch.common.lucene.Directories.*;
 import static org.elasticsearch.index.translog.TranslogStreams.*;
-import static org.elasticsearch.util.io.FileSystemUtils.*;
 
 /**
  * @author kimchy (Shay Banon)

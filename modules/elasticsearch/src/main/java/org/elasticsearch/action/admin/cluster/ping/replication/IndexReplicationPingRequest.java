@@ -21,9 +21,9 @@ package org.elasticsearch.action.admin.cluster.ping.replication;
 
 import org.elasticsearch.action.support.replication.IndexReplicationOperationRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.io.stream.StreamInput;
-import org.elasticsearch.util.io.stream.StreamOutput;
 
 import java.io.IOException;
 

@@ -10,6 +10,7 @@ dependencies {
 
     runtime 'com.google.guava:guava:r05'
     runtime 'org.elasticsearch:es-trove:2.1.0'
+    runtime 'org.elasticsearch:es-jsr166y:20100615'
 
     runtime 'joda-time:joda-time:1.6'
     runtime 'org.mvel:mvel2:2.0.17'
@@ -36,7 +37,7 @@ jar << {
         jarjar(jarfile: jarjarArchivePath) {
             zipfileset(src: jar.archivePath)
             configurations.runtime.files.findAll {file ->
-                ['mvel', 'jackson', 'joda', 'snakeyaml', 'netty', 'async-http-client', 'guice', 'aopalliance', 'guava', 'trove'].any { file.name.contains(it) }
+                ['mvel', 'jackson', 'joda', 'snakeyaml', 'netty', 'async-http-client', 'guice', 'aopalliance', 'guava', 'trove', 'jsr166y'].any { file.name.contains(it) }
             }.each { jarjarFile ->
                 zipfileset(src: jarjarFile) {
                     exclude(name: "META-INF/**")
@@ -44,6 +45,7 @@ jar << {
             }
             rule pattern: "com.google.common.**", result: "org.elasticsearch.common.@1"
             rule pattern: "gnu.trove.**", result: "org.elasticsearch.common.trove.@1"
+            rule pattern: "jsr166y.**", result: "org.elasticsearch.common.util.concurrent.jsr166y.@1"
 
             rule pattern: "org.aopalliance.**", result: "org.elasticsearch.common.aopalliance.@1"
             rule pattern: "com.google.inject.**", result: "org.elasticsearch.common.inject.@1"
@@ -64,6 +66,7 @@ jar << {
 
         // seems like empty dirst still exists, unjar and clean them
         unjar(src: jar.archivePath, dest: "build/tmp/extracted")
+        delete(dir: "build/tmp/extracted/jsr166y")
         delete(dir: "build/tmp/extracted/gnu/trove")
         delete(dir: "build/tmp/extracted/org/codehaus")
         delete(dir: "build/tmp/extracted/org/aopalliance")

@@ -45,6 +45,7 @@ import org.elasticsearch.client.transport.support.InternalTransportClient;
 import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Guice;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
@@ -64,7 +65,6 @@ import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.ThreadLocals;
-import org.elasticsearch.util.Tuple;
 
 import java.util.ArrayList;
 

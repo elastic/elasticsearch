@@ -31,6 +31,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
@@ -52,7 +53,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.concurrent.ThreadSafe;
 
 import javax.annotation.Nullable;
 import java.io.IOException;

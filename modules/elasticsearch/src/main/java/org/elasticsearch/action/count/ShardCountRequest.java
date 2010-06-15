@@ -20,9 +20,9 @@
 package org.elasticsearch.action.count;
 
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.util.Strings;
-import org.elasticsearch.util.io.stream.StreamInput;
-import org.elasticsearch.util.io.stream.StreamOutput;
 
 import javax.annotation.Nullable;
 import java.io.IOException;

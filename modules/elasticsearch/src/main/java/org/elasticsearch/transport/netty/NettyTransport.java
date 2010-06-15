@@ -25,6 +25,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.HandlesStreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
 import org.elasticsearch.common.netty.bootstrap.ClientBootstrap;
 import org.elasticsearch.common.netty.bootstrap.ServerBootstrap;
@@ -47,9 +50,6 @@ import org.elasticsearch.transport.*;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.io.stream.BytesStreamOutput;
-import org.elasticsearch.util.io.stream.HandlesStreamOutput;
-import org.elasticsearch.util.io.stream.Streamable;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -69,10 +69,10 @@ import static org.elasticsearch.common.collect.Lists.*;
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.*;
+import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
+import static org.elasticsearch.common.util.concurrent.DynamicExecutors.*;
 import static org.elasticsearch.transport.Transport.Helper.*;
 import static org.elasticsearch.util.TimeValue.*;
-import static org.elasticsearch.util.concurrent.ConcurrentCollections.*;
-import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
 
 /**
  * @author kimchy (shay.banon)

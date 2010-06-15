@@ -40,8 +40,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static java.util.concurrent.Executors.*;
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.metadata.MetaData.*;
+import static org.elasticsearch.common.util.concurrent.DynamicExecutors.*;
 import static org.elasticsearch.util.TimeValue.*;
-import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
 
 /**
  * @author kimchy (shay.banon)

@@ -21,13 +21,13 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.collect.IdentityHashSet;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
-import org.elasticsearch.util.IdentityHashSet;
-import org.elasticsearch.util.concurrent.Immutable;
-import org.elasticsearch.util.io.stream.StreamInput;
-import org.elasticsearch.util.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.Immutable;
 
 import java.io.IOException;
 import java.util.HashMap;

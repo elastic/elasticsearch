@@ -33,8 +33,8 @@ import org.testng.annotations.Test;
 
 import static org.elasticsearch.action.terms.TermsRequest.SortType.*;
 import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.common.collect.MapBuilder.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
-import static org.elasticsearch.util.MapBuilder.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

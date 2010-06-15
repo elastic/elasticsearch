@@ -20,9 +20,9 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.support.single.SingleOperationRequest;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.util.Required;
-import org.elasticsearch.util.io.stream.StreamInput;
-import org.elasticsearch.util.io.stream.StreamOutput;
 
 import java.io.IOException;
 

@@ -71,6 +71,10 @@ public class MasterFaultDetection extends AbstractComponent {
 
     private final FDConnectionListener connectionListener;
 
+    private volatile MasterPinger masterPinger;
+
+    private final Object masterNodeMutex = new Object();
+
     private volatile DiscoveryNode masterNode;
 
     private volatile int retryCount;
@@ -108,12 +112,26 @@ public class MasterFaultDetection extends AbstractComponent {
         listeners.remove(listener);
     }
 
-    public void restart(DiscoveryNode masterNode) {
-        stop();
-        start(masterNode);
+    public void restart(DiscoveryNode masterNode, String reason) {
+        synchronized (masterNodeMutex) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Restarting fault detection against master [{}], reason [{}]", masterNode, reason);
+            }
+            innerStop();
+            innerStart(masterNode);
+        }
     }
 
-    public void start(DiscoveryNode masterNode) {
+    public void start(final DiscoveryNode masterNode, String reason) {
+        synchronized (masterNodeMutex) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Starting fault detection against master [{}], reason [{}]", masterNode, reason);
+            }
+            innerStart(masterNode);
+        }
+    }
+
+    private void innerStart(final DiscoveryNode masterNode) {
         this.masterNode = masterNode;
         this.retryCount = 0;
         this.notifiedMasterFailure.set(false);
@@ -121,41 +139,63 @@ public class MasterFaultDetection extends AbstractComponent {
         // try and connect to make sure we are connected
         try {
             transportService.connectToNode(masterNode);
-        } catch (Exception e) {
+        } catch (final Exception e) {
+            // notify master failure (which stops also) and bail..
             notifyMasterFailure(masterNode, "failed to perform initial connect [" + e.getMessage() + "]");
+            return;
         }
-
+        if (masterPinger != null) {
+            masterPinger.stop();
+        }
+        this.masterPinger = new MasterPinger();
         // start the ping process
-        threadPool.schedule(new SendPingRequest(), pingInterval);
+        threadPool.schedule(masterPinger, pingInterval);
     }
 
-    public void stop() {
+    public void stop(String reason) {
+        synchronized (masterNodeMutex) {
+            if (masterNode != null) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Stopping fault detection against master [{}], reason [{}]", masterNode, reason);
+                }
+            }
+            innerStop();
+        }
+    }
+
+    private void innerStop() {
         // also will stop the next ping schedule
         this.retryCount = 0;
+        if (masterPinger != null) {
+            masterPinger.stop();
+            masterPinger = null;
+        }
         this.masterNode = null;
     }
 
     public void close() {
-        stop();
+        stop("closing");
         this.listeners.clear();
         transportService.removeConnectionListener(connectionListener);
         transportService.removeHandler(MasterPingRequestHandler.ACTION);
     }
 
     private void handleTransportDisconnect(DiscoveryNode node) {
-        if (!node.equals(this.masterNode)) {
-            return;
-        }
-        if (connectOnNetworkDisconnect) {
-            try {
-                transportService.connectToNode(node);
-            } catch (Exception e) {
-                logger.trace("Master [{}] failed on disconnect (with verified connect)", masterNode);
-                notifyMasterFailure(masterNode, "Failed on disconnect (with verified connect)");
+        synchronized (masterNodeMutex) {
+            if (!node.equals(this.masterNode)) {
+                return;
             }
-        } else {
-            logger.trace("Master [{}] failed on disconnect", masterNode);
-            notifyMasterFailure(masterNode, "Failed on disconnect");
+            if (connectOnNetworkDisconnect) {
+                try {
+                    transportService.connectToNode(node);
+                } catch (Exception e) {
+                    logger.trace("Master [{}] failed on disconnect (with verified connect)", masterNode);
+                    notifyMasterFailure(masterNode, "failed on disconnect (with verified connect)");
+                }
+            } else {
+                logger.trace("Master [{}] failed on disconnect", node);
+                notifyMasterFailure(node, "failed on disconnect");
+            }
         }
     }
 
@@ -163,15 +203,18 @@ public class MasterFaultDetection extends AbstractComponent {
         for (Listener listener : listeners) {
             listener.onDisconnectedFromMaster();
         }
-        // we don't stop on disconnection from master, we keep pinging it
     }
 
-    private void notifyMasterFailure(DiscoveryNode masterNode, String reason) {
+    private void notifyMasterFailure(final DiscoveryNode masterNode, final String reason) {
         if (notifiedMasterFailure.compareAndSet(false, true)) {
-            for (Listener listener : listeners) {
-                listener.onMasterFailure(masterNode, reason);
-            }
-            stop();
+            threadPool.execute(new Runnable() {
+                @Override public void run() {
+                    for (Listener listener : listeners) {
+                        listener.onMasterFailure(masterNode, reason);
+                    }
+                }
+            });
+            stop("master failure, " + reason);
         }
     }
 
@@ -184,47 +227,69 @@ public class MasterFaultDetection extends AbstractComponent {
         }
     }
 
-    private class SendPingRequest implements Runnable {
+    private class MasterPinger implements Runnable {
+
+        private volatile boolean running = true;
+
+        public void stop() {
+            this.running = false;
+        }
+
         @Override public void run() {
-            if (masterNode != null) {
-                final DiscoveryNode sentToNode = masterNode;
-                transportService.sendRequest(masterNode, MasterPingRequestHandler.ACTION, new MasterPingRequest(nodesProvider.nodes().localNode().id(), sentToNode.id()), pingRetryTimeout,
-                        new BaseTransportResponseHandler<MasterPingResponseResponse>() {
-                            @Override public MasterPingResponseResponse newInstance() {
-                                return new MasterPingResponseResponse();
-                            }
+            if (!running) {
+                // return and don't spawn...
+                return;
+            }
+            final DiscoveryNode masterToPing = masterNode;
+            if (masterToPing == null) {
+                // master is null, should not happen, but we are still running, so reschedule
+                threadPool.schedule(MasterPinger.this, pingInterval);
+                return;
+            }
+            transportService.sendRequest(masterToPing, MasterPingRequestHandler.ACTION, new MasterPingRequest(nodesProvider.nodes().localNode().id(), masterToPing.id()), pingRetryTimeout,
+                    new BaseTransportResponseHandler<MasterPingResponseResponse>() {
+                        @Override public MasterPingResponseResponse newInstance() {
+                            return new MasterPingResponseResponse();
+                        }
 
-                            @Override public void handleResponse(MasterPingResponseResponse response) {
-                                // reset the counter, we got a good result
-                                MasterFaultDetection.this.retryCount = 0;
-                                // check if the master node did not get switched on us...
-                                if (sentToNode.equals(MasterFaultDetection.this.masterNode())) {
-                                    if (!response.connectedToMaster) {
-                                        logger.trace("Master [{}] does not have us registered with it...", masterNode);
-                                        notifyDisconnectedFromMaster();
-                                    } else {
-                                        threadPool.schedule(SendPingRequest.this, pingInterval);
-                                    }
+                        @Override public void handleResponse(MasterPingResponseResponse response) {
+                            if (!running) {
+                                return;
+                            }
+                            // reset the counter, we got a good result
+                            MasterFaultDetection.this.retryCount = 0;
+                            // check if the master node did not get switched on us..., if it did, we simply return with no reschedule
+                            if (masterToPing.equals(MasterFaultDetection.this.masterNode())) {
+                                if (!response.connectedToMaster) {
+                                    logger.trace("Master [{}] does not have us registered with it...", masterToPing);
+                                    notifyDisconnectedFromMaster();
                                 }
+                                // we don't stop on disconnection from master, we keep pinging it
+                                threadPool.schedule(MasterPinger.this, pingInterval);
                             }
+                        }
 
-                            @Override public void handleException(RemoteTransportException exp) {
+                        @Override public void handleException(RemoteTransportException exp) {
+                            if (!running) {
+                                return;
+                            }
+                            synchronized (masterNodeMutex) {
                                 // check if the master node did not get switched on us...
-                                if (sentToNode.equals(MasterFaultDetection.this.masterNode())) {
+                                if (masterToPing.equals(MasterFaultDetection.this.masterNode())) {
                                     int retryCount = ++MasterFaultDetection.this.retryCount;
                                     logger.trace("Master [{}] failed to ping, retry [{}] out of [{}]", exp, masterNode, retryCount, pingRetryCount);
                                     if (retryCount >= pingRetryCount) {
                                         logger.debug("Master [{}] failed on ping, tried [{}] times, each with [{}] timeout", masterNode, pingRetryCount, pingRetryTimeout);
                                         // not good, failure
-                                        notifyMasterFailure(sentToNode, "Failed on ping, tried [" + pingRetryCount + "] times, each with [" + pingRetryTimeout + "] timeout");
+                                        notifyMasterFailure(masterToPing, "Failed on ping, tried [" + pingRetryCount + "] times, each with [" + pingRetryTimeout + "] timeout");
                                     } else {
                                         // resend the request, not reschedule, rely on send timeout
-                                        transportService.sendRequest(sentToNode, MasterPingRequestHandler.ACTION, new MasterPingRequest(nodesProvider.nodes().localNode().id(), sentToNode.id()), pingRetryTimeout, this);
+                                        transportService.sendRequest(masterToPing, MasterPingRequestHandler.ACTION, new MasterPingRequest(nodesProvider.nodes().localNode().id(), masterToPing.id()), pingRetryTimeout, this);
                                     }
                                 }
                             }
-                        });
-            }
+                        }
+                    });
         }
     }
 

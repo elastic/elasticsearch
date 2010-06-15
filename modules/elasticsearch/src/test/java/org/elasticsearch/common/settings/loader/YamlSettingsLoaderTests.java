@@ -33,7 +33,7 @@ public class YamlSettingsLoaderTests {
 
     @Test public void testSimpleYamlSettings() throws Exception {
         Settings settings = settingsBuilder()
-                .loadFromClasspath("org/elasticsearch/util/settings/loader/test-settings.yml")
+                .loadFromClasspath("org/elasticsearch/common/settings/loader/test-settings.yml")
                 .build();
 
         assertThat(settings.get("test1.value1"), equalTo("value1"));

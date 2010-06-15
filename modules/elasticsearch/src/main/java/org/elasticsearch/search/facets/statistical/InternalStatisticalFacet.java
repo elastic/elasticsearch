@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.facets.statistical;
 
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.internal.InternalFacet;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 

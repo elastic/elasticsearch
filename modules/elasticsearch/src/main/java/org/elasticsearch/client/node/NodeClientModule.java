@@ -23,7 +23,7 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.util.inject.AbstractModule;
+import org.elasticsearch.common.inject.AbstractModule;
 
 /**
  * @author kimchy (shay.banon)

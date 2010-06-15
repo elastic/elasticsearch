@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.fetch.script;
 
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.field.function.script.ScriptFieldsFunction;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.util.collect.Lists;
-import org.elasticsearch.util.xcontent.XContentParser;
 
 import java.util.HashMap;
 import java.util.List;

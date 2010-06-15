@@ -19,6 +19,9 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.service.IndexService;
@@ -31,16 +34,13 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.Tuple;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Set;
 
-import static org.elasticsearch.util.collect.Sets.*;
+import static org.elasticsearch.common.collect.Sets.*;
 
 /**
  * @author kimchy (Shay Banon)

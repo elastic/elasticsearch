@@ -22,10 +22,10 @@ package org.elasticsearch.indices;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.util.component.LifecycleComponent;
 import org.elasticsearch.util.concurrent.ThreadSafe;
-import org.elasticsearch.util.settings.Settings;
 
 import java.util.Set;
 

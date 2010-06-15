@@ -22,8 +22,8 @@ package org.elasticsearch.index.query.support;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queryParser.ParseException;
 import org.apache.lucene.search.*;
+import org.elasticsearch.common.trove.ExtTObjectFloatHashMap;
 import org.elasticsearch.index.query.xcontent.QueryParseContext;
-import org.elasticsearch.util.trove.ExtTObjectFloatHashMap;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;

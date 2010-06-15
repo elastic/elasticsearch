@@ -20,30 +20,30 @@
 package org.elasticsearch.http.netty;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.netty.OpenChannelsHandler;
+import org.elasticsearch.common.netty.bootstrap.ServerBootstrap;
+import org.elasticsearch.common.netty.channel.*;
+import org.elasticsearch.common.netty.channel.socket.nio.NioServerSocketChannelFactory;
+import org.elasticsearch.common.netty.handler.codec.http.HttpChunkAggregator;
+import org.elasticsearch.common.netty.handler.codec.http.HttpRequestDecoder;
+import org.elasticsearch.common.netty.handler.codec.http.HttpResponseEncoder;
+import org.elasticsearch.common.netty.handler.timeout.ReadTimeoutException;
+import org.elasticsearch.common.netty.logging.InternalLogger;
+import org.elasticsearch.common.netty.logging.InternalLoggerFactory;
+import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.network.NetworkUtils;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.NetworkExceptionHelper;
+import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.http.*;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.netty.NettyInternalESLoggerFactory;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.component.AbstractLifecycleComponent;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.netty.OpenChannelsHandler;
-import org.elasticsearch.util.network.NetworkService;
-import org.elasticsearch.util.network.NetworkUtils;
-import org.elasticsearch.util.settings.Settings;
-import org.elasticsearch.util.transport.BoundTransportAddress;
-import org.elasticsearch.util.transport.InetSocketTransportAddress;
-import org.elasticsearch.util.transport.NetworkExceptionHelper;
-import org.elasticsearch.util.transport.PortsRange;
-import org.jboss.netty.bootstrap.ServerBootstrap;
-import org.jboss.netty.channel.*;
-import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
-import org.jboss.netty.handler.codec.http.HttpChunkAggregator;
-import org.jboss.netty.handler.codec.http.HttpRequestDecoder;
-import org.jboss.netty.handler.codec.http.HttpResponseEncoder;
-import org.jboss.netty.handler.timeout.ReadTimeoutException;
-import org.jboss.netty.logging.InternalLogger;
-import org.jboss.netty.logging.InternalLoggerFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -51,8 +51,8 @@ import java.net.InetSocketAddress;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.network.NetworkService.TcpSettings.*;
 import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
-import static org.elasticsearch.util.network.NetworkService.TcpSettings.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -62,7 +62,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     static {
         InternalLoggerFactory.setDefaultFactory(new NettyInternalESLoggerFactory() {
             @Override public InternalLogger newInstance(String name) {
-                return super.newInstance(name.replace("org.jboss.netty.", "netty."));
+                return super.newInstance(name.replace("org.elasticsearch.common.netty.", "netty.").replace("org.jboss.netty.", "netty."));
             }
         });
     }

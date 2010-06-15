@@ -20,6 +20,15 @@
 package org.elasticsearch.index.service;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.collect.UnmodifiableIterator;
+import org.elasticsearch.common.component.CloseableIndexComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.Injectors;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexShardAlreadyExistsException;
@@ -51,24 +60,15 @@ import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ShardsPluginsModule;
-import org.elasticsearch.util.collect.ImmutableMap;
-import org.elasticsearch.util.collect.Lists;
-import org.elasticsearch.util.collect.UnmodifiableIterator;
-import org.elasticsearch.util.component.CloseableIndexComponent;
-import org.elasticsearch.util.guice.Injectors;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.inject.Injector;
-import org.elasticsearch.util.inject.Module;
-import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.common.collect.Maps.*;
+import static org.elasticsearch.common.collect.Sets.*;
 import static org.elasticsearch.util.MapBuilder.*;
-import static org.elasticsearch.util.collect.Maps.*;
-import static org.elasticsearch.util.collect.Sets.*;
 
 /**
  * @author kimchy (shay.banon)

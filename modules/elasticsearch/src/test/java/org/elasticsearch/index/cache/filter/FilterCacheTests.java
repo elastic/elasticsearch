@@ -25,18 +25,18 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
 import org.elasticsearch.index.cache.filter.soft.SoftFilterCache;
 import org.elasticsearch.index.cache.filter.weak.WeakFilterCache;
-import org.elasticsearch.util.lucene.Lucene;
-import org.elasticsearch.util.lucene.search.TermFilter;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.util.lucene.DocumentBuilder.*;
-import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
+import static org.elasticsearch.common.lucene.DocumentBuilder.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

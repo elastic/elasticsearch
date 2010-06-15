@@ -24,9 +24,9 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermDocs;
 import org.apache.lucene.index.TermEnum;
 import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.common.trove.TIntArrayList;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataOptions;
-import org.elasticsearch.util.gnu.trove.TIntArrayList;
 
 import java.io.IOException;
 import java.util.Arrays;

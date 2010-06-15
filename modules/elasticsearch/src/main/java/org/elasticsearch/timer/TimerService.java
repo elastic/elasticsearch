@@ -19,16 +19,16 @@
 
 package org.elasticsearch.timer;
 
-import org.elasticsearch.util.inject.Inject;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.timer.HashedWheelTimer;
+import org.elasticsearch.common.timer.Timeout;
+import org.elasticsearch.common.timer.Timer;
+import org.elasticsearch.common.timer.TimerTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.settings.ImmutableSettings;
-import org.elasticsearch.util.settings.Settings;
-import org.elasticsearch.util.timer.HashedWheelTimer;
-import org.elasticsearch.util.timer.Timeout;
-import org.elasticsearch.util.timer.Timer;
-import org.elasticsearch.util.timer.TimerTask;
 
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;

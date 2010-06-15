@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.util.xcontent.XContentParser;
 
 /**
  * @author kimchy (shay.banon)

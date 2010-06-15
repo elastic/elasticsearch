@@ -23,6 +23,8 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldSelector;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
@@ -34,8 +36,6 @@ import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.util.collect.ImmutableMap;
-import org.elasticsearch.util.inject.Inject;
 
 import java.io.IOException;
 import java.util.ArrayList;

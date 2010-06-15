@@ -19,13 +19,13 @@
 
 package org.elasticsearch.search.builder;
 
-import org.elasticsearch.util.xcontent.ToXContent;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.util.collect.Lists.*;
+import static org.elasticsearch.common.collect.Lists.*;
 
 /**
  * A builder for search highlighting.

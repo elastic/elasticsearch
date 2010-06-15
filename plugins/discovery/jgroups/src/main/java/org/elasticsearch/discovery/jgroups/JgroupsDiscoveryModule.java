@@ -19,9 +19,9 @@
 
 package org.elasticsearch.discovery.jgroups;
 
-import org.elasticsearch.util.inject.AbstractModule;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)

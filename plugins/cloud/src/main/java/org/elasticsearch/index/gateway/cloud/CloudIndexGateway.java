@@ -23,6 +23,8 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cloud.blobstore.CloudBlobStoreService;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.cloud.CloudGateway;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -32,8 +34,6 @@ import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
 import org.jclouds.blobstore.BlobStoreContext;
 import org.jclouds.domain.Location;
 

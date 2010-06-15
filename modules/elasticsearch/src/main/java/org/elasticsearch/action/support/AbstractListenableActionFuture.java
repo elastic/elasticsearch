@@ -22,8 +22,8 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.util.collect.Lists;
 
 import java.util.List;
 

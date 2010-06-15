@@ -19,7 +19,7 @@
 
 package org.elasticsearch.node.internal;
 
-import org.elasticsearch.util.inject.AbstractModule;
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.node.Node;
 
 /**

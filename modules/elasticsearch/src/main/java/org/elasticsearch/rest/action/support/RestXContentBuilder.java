@@ -19,11 +19,11 @@
 
 package org.elasticsearch.rest.action.support;
 
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.util.xcontent.XContentFactory;
-import org.elasticsearch.util.xcontent.XContentType;
-import org.elasticsearch.util.xcontent.builder.BinaryXContentBuilder;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 

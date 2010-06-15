@@ -19,7 +19,7 @@
 
 package org.elasticsearch.memcached.netty;
 
-import org.elasticsearch.util.inject.AbstractModule;
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.memcached.MemcachedServerTransport;
 
 /**

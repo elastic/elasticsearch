@@ -20,8 +20,8 @@
 package org.elasticsearch.rest;
 
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.util.ThreadLocals;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 

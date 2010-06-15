@@ -19,8 +19,8 @@
 
 package org.elasticsearch.util;
 
-import org.elasticsearch.util.logging.ESLogger;
-import org.elasticsearch.util.logging.Loggers;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 
 /**
  * A {@link Runnable} that changes the current thread name and reverts it back

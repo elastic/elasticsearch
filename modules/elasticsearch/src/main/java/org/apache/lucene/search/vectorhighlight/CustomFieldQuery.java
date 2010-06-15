@@ -23,8 +23,8 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.SpanTermQuery;
-import org.elasticsearch.util.lucene.search.TermFilter;
-import org.elasticsearch.util.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.TermFilter;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 
 import java.io.IOException;
 import java.lang.reflect.Field;

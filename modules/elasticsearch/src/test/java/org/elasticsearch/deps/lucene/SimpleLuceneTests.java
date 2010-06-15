@@ -27,8 +27,8 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.util.collect.Lists;
-import org.elasticsearch.util.lucene.Lucene;
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.lucene.Lucene;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -36,7 +36,7 @@ import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 
-import static org.elasticsearch.util.lucene.DocumentBuilder.*;
+import static org.elasticsearch.common.lucene.DocumentBuilder.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

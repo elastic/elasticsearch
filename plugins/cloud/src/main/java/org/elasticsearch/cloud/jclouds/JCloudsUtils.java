@@ -21,9 +21,9 @@ package org.elasticsearch.cloud.jclouds;
 
 import com.google.inject.Module;
 import org.elasticsearch.cloud.jclouds.logging.JCloudsLoggingModule;
-import org.elasticsearch.util.collect.ImmutableList;
+import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.util.concurrent.DynamicExecutors;
-import org.elasticsearch.util.settings.Settings;
 import org.jclouds.concurrent.config.ExecutorServiceModule;
 
 import java.util.concurrent.Executors;

@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.query.xcontent;
 
-import org.elasticsearch.util.trove.ExtTObjectFloatHashMap;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
+import org.elasticsearch.common.trove.ExtTObjectFloatHashMap;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.util.collect.Lists.*;
+import static org.elasticsearch.common.collect.Lists.*;
 
 /**
  * A query that parses a query string and runs it. There are two modes that this operates. The first,

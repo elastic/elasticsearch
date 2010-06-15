@@ -1,5 +1,7 @@
 include 'test-testng'
 
+include 'jarjar'
+
 include 'elasticsearch'
 
 include 'test-integration'

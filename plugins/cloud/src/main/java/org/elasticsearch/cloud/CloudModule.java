@@ -21,7 +21,7 @@ package org.elasticsearch.cloud;
 
 import org.elasticsearch.cloud.blobstore.CloudBlobStoreService;
 import org.elasticsearch.cloud.compute.CloudComputeService;
-import org.elasticsearch.util.inject.AbstractModule;
+import org.elasticsearch.common.inject.AbstractModule;
 
 /**
  * @author kimchy (shay.banon)

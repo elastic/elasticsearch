@@ -19,10 +19,10 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.util.collect.ImmutableList;
-import org.elasticsearch.util.collect.Lists;
-import org.elasticsearch.util.collect.UnmodifiableIterator;
 import org.elasticsearch.util.concurrent.jsr166y.ThreadLocalRandom;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.util.collect.Lists.*;
+import static org.elasticsearch.common.collect.Lists.*;
 
 /**
  * @author kimchy (Shay Banon)

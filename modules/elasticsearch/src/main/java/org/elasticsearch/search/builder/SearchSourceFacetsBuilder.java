@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.builder;
 
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
 import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
 import org.elasticsearch.search.facets.histogram.HistogramFacet;
@@ -26,14 +28,12 @@ import org.elasticsearch.search.facets.histogram.HistogramFacetCollectorParser;
 import org.elasticsearch.search.facets.query.QueryFacetCollectorParser;
 import org.elasticsearch.search.facets.statistical.StatisticalFacetCollectorParser;
 import org.elasticsearch.search.facets.terms.TermsFacetCollectorParser;
-import org.elasticsearch.util.xcontent.ToXContent;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.util.collect.Lists.*;
+import static org.elasticsearch.common.collect.Lists.*;
 
 /**
  * A search source facets builder.

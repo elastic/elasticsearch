@@ -19,10 +19,10 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
-import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 

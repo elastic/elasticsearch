@@ -19,10 +19,10 @@
 
 package org.elasticsearch.monitor.memory;
 
-import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.util.component.AbstractLifecycleComponent;
-import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)

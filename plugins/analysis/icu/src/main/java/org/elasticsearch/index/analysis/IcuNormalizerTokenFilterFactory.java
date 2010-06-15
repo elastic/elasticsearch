@@ -21,17 +21,17 @@ package org.elasticsearch.index.analysis;
 
 import com.ibm.icu.text.Normalizer2;
 import org.apache.lucene.analysis.TokenStream;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.assistedinject.Assisted;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.inject.assistedinject.Assisted;
-import org.elasticsearch.util.settings.Settings;
 
 
 /**
  * Uses the {@link org.elasticsearch.index.analysis.ICUNormalizer2Filter} to normalize tokens.
  *
- * <p>The <tt>name</tt> can be used to provide the type of normalization to perofrm. 
+ * <p>The <tt>name</tt> can be used to provide the type of normalization to perofrm.
  *
  * @author kimchy (shay.banon)
  * @see org.elasticsearch.index.analysis.ICUNormalizer2Filter

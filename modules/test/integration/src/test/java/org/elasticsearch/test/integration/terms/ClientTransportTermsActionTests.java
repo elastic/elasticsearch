@@ -21,9 +21,9 @@ package org.elasticsearch.test.integration.terms;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.util.transport.TransportAddress;
 import org.testng.annotations.Test;
 
 /**

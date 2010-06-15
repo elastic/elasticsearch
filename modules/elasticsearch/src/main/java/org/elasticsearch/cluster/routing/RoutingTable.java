@@ -21,11 +21,11 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.util.collect.ImmutableMap;
-import org.elasticsearch.util.collect.Lists;
-import org.elasticsearch.util.collect.UnmodifiableIterator;
 import org.elasticsearch.util.concurrent.Immutable;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
@@ -34,7 +34,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.util.collect.Maps.*;
+import static org.elasticsearch.common.collect.Maps.*;
 
 /**
  * @author kimchy (Shay Banon)

@@ -20,9 +20,9 @@
 package org.elasticsearch.discovery.zen.elect;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.util.collect.Lists;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Settings;
 
 import java.util.Collections;
 import java.util.Comparator;

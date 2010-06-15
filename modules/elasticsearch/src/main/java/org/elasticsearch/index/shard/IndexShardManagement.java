@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.common.component.CloseableComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -27,9 +30,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.jmx.JmxService;
 import org.elasticsearch.jmx.MBean;
 import org.elasticsearch.jmx.ManagedAttribute;
-import org.elasticsearch.util.component.CloseableComponent;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 

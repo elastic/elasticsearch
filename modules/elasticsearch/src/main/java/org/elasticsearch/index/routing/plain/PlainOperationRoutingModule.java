@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.routing.plain;
 
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.index.routing.OperationRouting;
-import org.elasticsearch.util.inject.AbstractModule;
 
 /**
  * @author kimchy (Shay Banon)

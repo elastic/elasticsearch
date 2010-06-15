@@ -19,10 +19,10 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.util.collect.ImmutableList;
-import org.elasticsearch.util.component.CloseableIndexComponent;
-import org.elasticsearch.util.component.LifecycleComponent;
-import org.elasticsearch.util.inject.Module;
+import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.component.CloseableIndexComponent;
+import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.inject.Module;
 
 import java.util.Collection;
 

@@ -22,34 +22,34 @@ package org.elasticsearch.transport.netty;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.netty.OpenChannelsHandler;
+import org.elasticsearch.common.netty.bootstrap.ClientBootstrap;
+import org.elasticsearch.common.netty.bootstrap.ServerBootstrap;
+import org.elasticsearch.common.netty.buffer.ChannelBuffer;
+import org.elasticsearch.common.netty.buffer.ChannelBuffers;
+import org.elasticsearch.common.netty.channel.*;
+import org.elasticsearch.common.netty.channel.socket.nio.NioClientSocketChannelFactory;
+import org.elasticsearch.common.netty.channel.socket.nio.NioServerSocketChannelFactory;
+import org.elasticsearch.common.netty.logging.InternalLogger;
+import org.elasticsearch.common.netty.logging.InternalLoggerFactory;
+import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.network.NetworkUtils;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.PortsRange;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.collect.Lists;
-import org.elasticsearch.util.component.AbstractLifecycleComponent;
-import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.io.stream.BytesStreamOutput;
 import org.elasticsearch.util.io.stream.HandlesStreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
-import org.elasticsearch.util.netty.OpenChannelsHandler;
-import org.elasticsearch.util.network.NetworkService;
-import org.elasticsearch.util.network.NetworkUtils;
-import org.elasticsearch.util.settings.Settings;
-import org.elasticsearch.util.transport.BoundTransportAddress;
-import org.elasticsearch.util.transport.InetSocketTransportAddress;
-import org.elasticsearch.util.transport.PortsRange;
-import org.elasticsearch.util.transport.TransportAddress;
-import org.jboss.netty.bootstrap.ClientBootstrap;
-import org.jboss.netty.bootstrap.ServerBootstrap;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.*;
-import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
-import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
-import org.jboss.netty.logging.InternalLogger;
-import org.jboss.netty.logging.InternalLoggerFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -65,14 +65,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.collect.Lists.*;
+import static org.elasticsearch.common.network.NetworkService.TcpSettings.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
+import static org.elasticsearch.common.transport.NetworkExceptionHelper.*;
 import static org.elasticsearch.transport.Transport.Helper.*;
 import static org.elasticsearch.util.TimeValue.*;
-import static org.elasticsearch.util.collect.Lists.*;
 import static org.elasticsearch.util.concurrent.ConcurrentCollections.*;
 import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
-import static org.elasticsearch.util.network.NetworkService.TcpSettings.*;
-import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
-import static org.elasticsearch.util.transport.NetworkExceptionHelper.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -82,7 +82,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     static {
         InternalLoggerFactory.setDefaultFactory(new NettyInternalESLoggerFactory() {
             @Override public InternalLogger newInstance(String name) {
-                return super.newInstance(name.replace("org.jboss.netty.", "netty."));
+                return super.newInstance(name.replace("org.elasticsearch.common.netty.", "netty.").replace("org.jboss.netty.", "netty."));
             }
         });
     }

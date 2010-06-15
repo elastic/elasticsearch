@@ -21,10 +21,10 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.Sets;
+import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.util.IdentityHashSet;
-import org.elasticsearch.util.collect.ImmutableMap;
-import org.elasticsearch.util.collect.Sets;
-import org.elasticsearch.util.collect.UnmodifiableIterator;
 import org.elasticsearch.util.concurrent.Immutable;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;

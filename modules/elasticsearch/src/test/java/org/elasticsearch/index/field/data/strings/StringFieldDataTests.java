@@ -23,16 +23,16 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.util.Tuple;
-import org.elasticsearch.util.lucene.Lucene;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
 
+import static org.elasticsearch.common.lucene.DocumentBuilder.*;
 import static org.elasticsearch.index.field.data.FieldDataOptions.*;
 import static org.elasticsearch.util.Tuple.*;
-import static org.elasticsearch.util.lucene.DocumentBuilder.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

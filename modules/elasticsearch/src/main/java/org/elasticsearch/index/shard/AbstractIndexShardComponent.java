@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.jmx.ManagedGroupName;
-import org.elasticsearch.util.logging.ESLogger;
-import org.elasticsearch.util.logging.Loggers;
-import org.elasticsearch.util.settings.Settings;
 
 import static org.elasticsearch.index.shard.IndexShardManagement.*;
 

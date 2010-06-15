@@ -21,9 +21,9 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.lucene.MultiCollector;
 import org.elasticsearch.search.dfs.CachedDfSource;
-import org.elasticsearch.util.collect.Lists;
-import org.elasticsearch.util.lucene.MultiCollector;
 
 import java.io.IOException;
 import java.util.List;

@@ -52,9 +52,9 @@ import org.elasticsearch.client.transport.action.search.ClientTransportSearchAct
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchScrollAction;
 import org.elasticsearch.client.transport.action.terms.ClientTransportTermsAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)

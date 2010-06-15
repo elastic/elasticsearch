@@ -20,10 +20,10 @@
 package org.elasticsearch.index.mapper.xcontent;
 
 import org.apache.lucene.document.*;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.util.lucene.Lucene;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 

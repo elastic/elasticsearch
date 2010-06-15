@@ -20,14 +20,14 @@
 package org.elasticsearch.index.mapper.xcontent;
 
 import org.apache.lucene.document.Field;
+import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.util.Strings;
-import org.elasticsearch.util.joda.FormatDateTimeFormatter;
-import org.elasticsearch.util.joda.Joda;
 
 import java.util.Map;
 
-import static org.elasticsearch.util.xcontent.support.XContentMapValues.*;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
 
 /**
  * @author kimchy (shay.banon)

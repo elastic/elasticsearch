@@ -24,20 +24,20 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.collect.Lists;
-import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.concurrent.jsr166y.LinkedTransferQueue;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
-import org.elasticsearch.util.settings.Settings;
-import org.elasticsearch.util.transport.TransportAddress;
 
 import java.io.IOException;
 import java.util.List;
@@ -47,11 +47,11 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.collect.Lists.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.discovery.zen.ping.ZenPing.PingResponse.*;
 import static org.elasticsearch.util.TimeValue.*;
-import static org.elasticsearch.util.collect.Lists.*;
 import static org.elasticsearch.util.concurrent.ConcurrentCollections.*;
-import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 
 /**
  * @author kimchy (shay.banon)

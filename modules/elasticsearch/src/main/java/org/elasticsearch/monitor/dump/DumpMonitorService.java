@@ -20,23 +20,23 @@
 package org.elasticsearch.monitor.dump;
 
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.dump.heap.HeapDumpContributor;
 import org.elasticsearch.monitor.dump.summary.SummaryDumpContributor;
 import org.elasticsearch.monitor.dump.thread.ThreadDumpContributor;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
 
 import javax.annotation.Nullable;
 import java.io.File;
 import java.util.Map;
 
+import static org.elasticsearch.common.collect.Maps.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.monitor.dump.heap.HeapDumpContributor.*;
 import static org.elasticsearch.monitor.dump.summary.SummaryDumpContributor.*;
 import static org.elasticsearch.monitor.dump.thread.ThreadDumpContributor.*;
-import static org.elasticsearch.util.collect.Maps.*;
-import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 
 /**
  * @author kimchy (Shay Banon)

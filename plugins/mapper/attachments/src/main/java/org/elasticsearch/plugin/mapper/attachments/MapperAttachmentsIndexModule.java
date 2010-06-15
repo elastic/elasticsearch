@@ -19,8 +19,8 @@
 
 package org.elasticsearch.plugin.mapper.attachments;
 
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.index.mapper.xcontent.XContentAttachmentMapperService;
-import org.elasticsearch.util.inject.AbstractModule;
 
 /**
  * @author kimchy (shay.banon)

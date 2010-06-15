@@ -19,11 +19,11 @@
 
 package org.elasticsearch.http.netty;
 
+import org.elasticsearch.common.netty.handler.codec.http.HttpHeaders;
+import org.elasticsearch.common.netty.handler.codec.http.HttpMethod;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.support.AbstractRestRequest;
 import org.elasticsearch.rest.support.RestUtils;
-import org.jboss.netty.handler.codec.http.HttpHeaders;
-import org.jboss.netty.handler.codec.http.HttpMethod;
 
 import java.nio.charset.Charset;
 import java.util.HashMap;
@@ -36,7 +36,7 @@ import java.util.Set;
  */
 public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest {
 
-    private final org.jboss.netty.handler.codec.http.HttpRequest request;
+    private final org.elasticsearch.common.netty.handler.codec.http.HttpRequest request;
 
     private final Map<String, String> params;
 
@@ -44,7 +44,7 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
 
     private byte[] cachedData;
 
-    public NettyHttpRequest(org.jboss.netty.handler.codec.http.HttpRequest request) {
+    public NettyHttpRequest(org.elasticsearch.common.netty.handler.codec.http.HttpRequest request) {
         this.request = request;
         this.params = new HashMap<String, String>();
 

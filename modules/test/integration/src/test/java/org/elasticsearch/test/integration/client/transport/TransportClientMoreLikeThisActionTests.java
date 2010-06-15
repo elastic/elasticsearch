@@ -21,12 +21,12 @@ package org.elasticsearch.test.integration.client.transport;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.document.MoreLikeThisActionTests;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.util.transport.TransportAddress;
 
-import static org.elasticsearch.util.settings.ImmutableSettings.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 
 /**
  * @author kimchy (shay.banon)

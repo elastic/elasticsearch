@@ -19,8 +19,8 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.component.LifecycleComponent;
 
 /**
  * @author kimchy (shay.banon)

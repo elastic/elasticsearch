@@ -21,6 +21,12 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.inject.CreationException;
+import org.elasticsearch.common.inject.spi.Message;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.log4j.LogConfigurator;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jmx.JmxService;
 import org.elasticsearch.node.Node;
@@ -28,22 +34,16 @@ import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPerparer;
 import org.elasticsearch.util.Classes;
 import org.elasticsearch.util.Tuple;
-import org.elasticsearch.util.inject.CreationException;
-import org.elasticsearch.util.inject.spi.Message;
 import org.elasticsearch.util.jline.ANSI;
-import org.elasticsearch.util.logging.ESLogger;
-import org.elasticsearch.util.logging.Loggers;
-import org.elasticsearch.util.logging.log4j.LogConfigurator;
-import org.elasticsearch.util.settings.Settings;
 
 import java.io.File;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
 import static jline.ANSIBuffer.ANSICodes.*;
-import static org.elasticsearch.util.collect.Sets.*;
-import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
-import static org.elasticsearch.util.settings.ImmutableSettings.*;
+import static org.elasticsearch.common.collect.Sets.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 
 /**
  * A main entry point when starting from the command line.

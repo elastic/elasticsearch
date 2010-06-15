@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.translog.memory;
 
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -28,8 +30,6 @@ import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.concurrent.ThreadSafe;
 import org.elasticsearch.util.concurrent.jsr166y.LinkedTransferQueue;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
 
 import java.util.ArrayList;
 import java.util.Queue;

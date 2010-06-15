@@ -19,16 +19,16 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.util.inject.Guice;
-import org.elasticsearch.util.inject.Injector;
 import org.apache.lucene.analysis.Analyzer;
+import org.elasticsearch.common.inject.Guice;
+import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.util.settings.Settings;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.util.settings.ImmutableSettings.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

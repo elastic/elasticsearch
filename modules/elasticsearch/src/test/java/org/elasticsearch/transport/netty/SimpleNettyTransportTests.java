@@ -24,7 +24,7 @@ import org.elasticsearch.transport.AbstractSimpleTransportTests;
 import org.elasticsearch.transport.TransportService;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.util.settings.ImmutableSettings.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 
 @Test
 public class SimpleNettyTransportTests extends AbstractSimpleTransportTests {

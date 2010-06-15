@@ -20,13 +20,13 @@
 package org.elasticsearch.index.store.support;
 
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.lucene.Directories;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.lucene.Directories;
-import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 

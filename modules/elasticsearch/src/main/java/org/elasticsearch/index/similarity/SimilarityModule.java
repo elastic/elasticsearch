@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index.similarity;
 
-import org.elasticsearch.util.inject.AbstractModule;
-import org.elasticsearch.util.inject.Scopes;
-import org.elasticsearch.util.inject.assistedinject.FactoryProvider;
-import org.elasticsearch.util.inject.multibindings.MapBinder;
-import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Scopes;
+import org.elasticsearch.common.inject.assistedinject.FactoryProvider;
+import org.elasticsearch.common.inject.multibindings.MapBinder;
+import org.elasticsearch.common.settings.Settings;
 
 import java.util.Map;
 

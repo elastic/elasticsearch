@@ -22,18 +22,18 @@ package org.elasticsearch.index.cache.filter.support;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.common.lucene.docset.DocSet;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.lucene.docset.DocSet;
-import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
 
+import static org.elasticsearch.common.lucene.docset.DocSets.*;
 import static org.elasticsearch.util.concurrent.ConcurrentCollections.*;
-import static org.elasticsearch.util.lucene.docset.DocSets.*;
 
 /**
  * A base concurrent filter cache that accepts the actual cache to use.

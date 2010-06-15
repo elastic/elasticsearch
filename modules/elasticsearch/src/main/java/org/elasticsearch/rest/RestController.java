@@ -21,10 +21,10 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.util.component.AbstractLifecycleComponent;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.path.PathTrie;
-import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.path.PathTrie;
+import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 

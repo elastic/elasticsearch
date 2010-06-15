@@ -19,13 +19,13 @@
 
 package org.elasticsearch.transport.netty;
 
+import org.elasticsearch.common.netty.buffer.ChannelBuffer;
 import org.elasticsearch.util.io.stream.StreamInput;
-import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.IOException;
 
 /**
- * A Netty {@link org.jboss.netty.buffer.ChannelBuffer} based {@link org.elasticsearch.util.io.stream.StreamInput}.
+ * A Netty {@link org.elasticsearch.common.netty.buffer.ChannelBuffer} based {@link org.elasticsearch.util.io.stream.StreamInput}.
  *
  * @author kimchy (shay.banon)
  */
@@ -38,6 +38,7 @@ public class ChannelBufferStreamInput extends StreamInput {
     }
 
     // Not really maps to InputStream, but good enough for us
+
     @Override public int read() throws IOException {
         return buffer.readByte() & 0xFF;
     }

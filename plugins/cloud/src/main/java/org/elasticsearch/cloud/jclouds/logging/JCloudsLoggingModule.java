@@ -19,9 +19,9 @@
 
 package org.elasticsearch.cloud.jclouds.logging;
 
-import org.elasticsearch.util.logging.ESLogger;
-import org.elasticsearch.util.logging.Loggers;
-import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.jclouds.logging.BaseLogger;
 import org.jclouds.logging.Logger;
 import org.jclouds.logging.config.LoggingModule;

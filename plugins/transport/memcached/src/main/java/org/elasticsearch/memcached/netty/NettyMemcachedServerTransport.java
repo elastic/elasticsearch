@@ -20,25 +20,25 @@
 package org.elasticsearch.memcached.netty;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.netty.bootstrap.ServerBootstrap;
+import org.elasticsearch.common.netty.channel.Channel;
+import org.elasticsearch.common.netty.channel.ChannelPipeline;
+import org.elasticsearch.common.netty.channel.ChannelPipelineFactory;
+import org.elasticsearch.common.netty.channel.Channels;
+import org.elasticsearch.common.netty.channel.socket.nio.NioServerSocketChannelFactory;
+import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.network.NetworkUtils;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.memcached.MemcachedServerTransport;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.component.AbstractLifecycleComponent;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.network.NetworkService;
-import org.elasticsearch.util.network.NetworkUtils;
-import org.elasticsearch.util.settings.Settings;
-import org.elasticsearch.util.transport.BoundTransportAddress;
-import org.elasticsearch.util.transport.InetSocketTransportAddress;
-import org.elasticsearch.util.transport.PortsRange;
-import org.jboss.netty.bootstrap.ServerBootstrap;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelPipeline;
-import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -46,8 +46,8 @@ import java.net.InetSocketAddress;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.network.NetworkService.TcpSettings.*;
 import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
-import static org.elasticsearch.util.network.NetworkService.TcpSettings.*;
 
 /**
  * @author kimchy (shay.banon)

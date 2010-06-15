@@ -20,7 +20,7 @@
 package org.elasticsearch.discovery;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.util.component.LifecycleComponent;
+import org.elasticsearch.common.component.LifecycleComponent;
 
 /**
  * A pluggable module allowing to implement discovery of other nodes, publishing of the cluster

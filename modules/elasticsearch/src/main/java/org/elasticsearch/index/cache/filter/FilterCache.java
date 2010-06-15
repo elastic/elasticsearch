@@ -21,8 +21,8 @@ package org.elasticsearch.index.cache.filter;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.index.IndexComponent;
-import org.elasticsearch.util.component.CloseableComponent;
 
 /**
  * @author kimchy (shay.banon)

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.plugin.analysis.icu;
 
+import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.IcuAnalysisBinderProcessor;
 import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.util.inject.Module;
 
 /**
  * @author kimchy (shay.banon)

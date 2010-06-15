@@ -22,9 +22,9 @@ package org.elasticsearch.search.facets.support;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.common.lucene.docset.DocSet;
+import org.elasticsearch.common.lucene.docset.DocSets;
 import org.elasticsearch.search.facets.collector.FacetCollector;
-import org.elasticsearch.util.lucene.docset.DocSet;
-import org.elasticsearch.util.lucene.docset.DocSets;
 
 import java.io.IOException;
 

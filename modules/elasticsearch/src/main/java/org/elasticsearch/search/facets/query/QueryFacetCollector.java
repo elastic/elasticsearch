@@ -23,11 +23,11 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryWrapperFilter;
+import org.elasticsearch.common.lucene.docset.DocSet;
+import org.elasticsearch.common.lucene.docset.DocSets;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.support.AbstractFacetCollector;
-import org.elasticsearch.util.lucene.docset.DocSet;
-import org.elasticsearch.util.lucene.docset.DocSets;
 
 import java.io.IOException;
 

@@ -21,10 +21,10 @@ package org.elasticsearch.index.field.data.floats;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
+import org.elasticsearch.common.trove.TFloatArrayList;
 import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.field.data.support.FieldDataLoader;
-import org.elasticsearch.util.gnu.trove.TFloatArrayList;
 
 import java.io.IOException;
 

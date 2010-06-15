@@ -20,7 +20,7 @@
 package org.elasticsearch.test.integration.document;
 
 import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.util.settings.ImmutableSettings.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 
 /**
  * @author kimchy (shay.banon)

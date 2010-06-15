@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.query.xcontent;
 
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 
-import static org.elasticsearch.util.collect.Lists.*;
+import static org.elasticsearch.common.collect.Lists.*;
 
 /**
  * A query that generates the union of documents produced by its sub-queries, and that scores each document

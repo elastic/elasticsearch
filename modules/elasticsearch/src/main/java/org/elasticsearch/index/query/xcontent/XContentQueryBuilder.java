@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.query.xcontent;
 
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.util.xcontent.ToXContent;
 
 /**
  * @author kimchy (shay.banon)

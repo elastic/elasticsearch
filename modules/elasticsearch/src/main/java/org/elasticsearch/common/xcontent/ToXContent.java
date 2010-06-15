@@ -1,0 +1,97 @@
+/*
+ * Licensed to Elastic Search and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Elastic Search licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.common.xcontent;
+
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
+import org.elasticsearch.util.Booleans;
+
+import java.io.IOException;
+import java.util.Map;
+
+/**
+ * An interface allowing to transfer an object to "XContent" using an {@link org.elasticsearch.common.xcontent.builder.XContentBuilder}.
+ *
+ * @author kimchy (shay.banon)
+ */
+public interface ToXContent {
+
+    public static interface Params {
+        String param(String key);
+
+        String param(String key, String defaultValue);
+
+        boolean paramAsBoolean(String key, boolean defaultValue);
+
+        Boolean paramAsBoolean(String key, Boolean defaultValue);
+    }
+
+    public static final Params EMPTY_PARAMS = new Params() {
+        @Override public String param(String key) {
+            return null;
+        }
+
+        @Override public String param(String key, String defaultValue) {
+            return defaultValue;
+        }
+
+        @Override public boolean paramAsBoolean(String key, boolean defaultValue) {
+            return defaultValue;
+        }
+
+        @Override public Boolean paramAsBoolean(String key, Boolean defaultValue) {
+            return defaultValue;
+        }
+    };
+
+    public static class MapParams implements Params {
+
+        private final Map<String, String> params;
+
+        public MapParams(Map<String, String> params) {
+            this.params = params;
+        }
+
+        @Override public String param(String key) {
+            return params.get(key);
+        }
+
+        @Override public String param(String key, String defaultValue) {
+            String value = params.get(key);
+            if (value == null) {
+                return defaultValue;
+            }
+            return value;
+        }
+
+        @Override public boolean paramAsBoolean(String key, boolean defaultValue) {
+            return Booleans.parseBoolean(param(key), defaultValue);
+        }
+
+        @Override public Boolean paramAsBoolean(String key, Boolean defaultValue) {
+            String sValue = param(key);
+            if (sValue == null) {
+                return defaultValue;
+            }
+            return !(sValue.equals("false") || sValue.equals("0") || sValue.equals("off"));
+        }
+    }
+
+    void toXContent(XContentBuilder builder, Params params) throws IOException;
+}

@@ -20,12 +20,12 @@
 package org.elasticsearch.index.gateway;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.common.component.CloseableIndexComponent;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.component.CloseableIndexComponent;
 
 import static org.elasticsearch.util.TimeValue.*;
 

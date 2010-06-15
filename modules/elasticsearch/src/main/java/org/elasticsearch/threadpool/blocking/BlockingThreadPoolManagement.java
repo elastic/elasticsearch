@@ -19,10 +19,10 @@
 
 package org.elasticsearch.threadpool.blocking;
 
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.jmx.MBean;
 import org.elasticsearch.jmx.ManagedAttribute;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.util.inject.Inject;
 
 /**
  * @author kimchy (shay.banon)

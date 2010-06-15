@@ -21,8 +21,8 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.*;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Settings;
 
 import static org.elasticsearch.action.support.PlainActionFuture.*;
 

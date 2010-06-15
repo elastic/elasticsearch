@@ -20,7 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.ElasticSearchWrapperException;
-import org.elasticsearch.util.transport.TransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 
 /**
  * @author kimchy (Shay Banon)

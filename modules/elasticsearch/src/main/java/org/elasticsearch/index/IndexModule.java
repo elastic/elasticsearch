@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.service.InternalIndexService;
-import org.elasticsearch.util.inject.AbstractModule;
 
 /**
  * @author kimchy (Shay Banon)

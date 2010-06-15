@@ -21,17 +21,17 @@ package org.elasticsearch.discovery.zen.membership;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.VoidTransportResponseHandler;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.io.stream.VoidStreamable;
-import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;

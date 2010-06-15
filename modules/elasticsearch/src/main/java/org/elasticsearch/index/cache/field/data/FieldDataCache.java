@@ -20,9 +20,9 @@
 package org.elasticsearch.index.cache.field.data;
 
 import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataOptions;
-import org.elasticsearch.util.component.CloseableComponent;
 
 import java.io.IOException;
 

@@ -20,7 +20,7 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.common.settings.Settings;
 
 /**
  * A node represent a node within a cluster (<tt>cluster.name</tt>). The {@link #client()} can be used

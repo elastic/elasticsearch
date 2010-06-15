@@ -19,15 +19,15 @@
 
 package org.elasticsearch.jmx;
 
-import org.elasticsearch.util.inject.AbstractModule;
-import org.elasticsearch.util.inject.TypeLiteral;
-import org.elasticsearch.util.inject.matcher.Matchers;
-import org.elasticsearch.util.inject.spi.InjectionListener;
-import org.elasticsearch.util.inject.spi.TypeEncounter;
-import org.elasticsearch.util.inject.spi.TypeListener;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.TypeLiteral;
+import org.elasticsearch.common.inject.matcher.Matchers;
+import org.elasticsearch.common.inject.spi.InjectionListener;
+import org.elasticsearch.common.inject.spi.TypeEncounter;
+import org.elasticsearch.common.inject.spi.TypeListener;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.jmx.action.GetJmxServiceUrlAction;
-import org.elasticsearch.util.logging.Loggers;
-import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)

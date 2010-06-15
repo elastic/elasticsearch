@@ -20,9 +20,9 @@
 package org.elasticsearch.index.deletionpolicy;
 
 import org.apache.lucene.index.IndexDeletionPolicy;
-import org.elasticsearch.util.inject.AbstractModule;
-import org.elasticsearch.util.inject.name.Names;
-import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.name.Names;
+import org.elasticsearch.common.settings.Settings;
 
 import static org.elasticsearch.index.deletionpolicy.DeletionPolicyModule.DeletionPolicySettings.*;
 

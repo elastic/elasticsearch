@@ -25,6 +25,8 @@ mavenSnapshotRepoUrl = "http://oss.sonatype.org/content/repositories/snapshots"
 mavenRepoUser = "kimchy"
 mavenRepoPass = System.getenv("REPO_PASS")
 
+jarjarArchivePath = project(":jarjar").file("build/libs/jarjar-$versionNumber" + ".jar").absolutePath
+
 allprojects {
     group = 'org.elasticsearch'
     version = versionNumber
@@ -39,6 +41,7 @@ allprojects {
         mavenRepo urls: 'https://repository.jboss.org/nexus/content/groups/public'
         mavenRepo urls: 'http://repository.codehaus.org/'
         mavenRepo urls: 'http://elasticsearch.googlecode.com/svn/maven'
+        mavenRepo urls: 'http://oss.sonatype.org/content/repositories/snapshots'
     }
 }
 
@@ -79,12 +82,8 @@ task explodedDist(dependsOn: [configurations.distLib], description: 'Builds a mi
     ant.delete { fileset(dir: explodedDistLibDir, includes: "$archivesBaseName-*-javadoc.jar") }
     ant.delete { fileset(dir: explodedDistLibDir, includes: "$archivesBaseName-*-sources.jar") }
     ant.delete { fileset(dir: explodedDistLibDir, includes: "slf4j-*.jar") } // no need for slf4j
-    ant.delete { fileset(dir: explodedDistLibDir, includes: "jackson-*.jar") } // no need jackson, we jarjar it
-    ant.delete { fileset(dir: explodedDistLibDir, includes: "joda-*.jar") } // no need joda, we jarjar it
-    ant.delete { fileset(dir: explodedDistLibDir, includes: "snakeyaml-*.jar") } // no need snakeyaml, we jarjar it
+    ant.delete { fileset(dir: explodedDistLibDir, includes: "jarjar-*.jar") } // no need jackson, we jarjar it
     ant.delete { fileset(dir: explodedDistLibDir, includes: "sigar-*.jar") } // no need sigar directly under lib...
-    ant.delete { fileset(dir: explodedDistLibDir, includes: "netty-*.jar") } // no need netty directly under lib...
-    ant.delete { fileset(dir: explodedDistLibDir, includes: "mvel2-*.jar") } // no need mvel2 directly under lib...
 
     ant.chmod(dir: "$explodedDistDir/bin", perm: "ugo+rx", includes: "**/*")
 }

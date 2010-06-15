@@ -19,7 +19,7 @@
 
 package org.elasticsearch.discovery.zen;
 
-import org.elasticsearch.util.inject.AbstractModule;
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
 

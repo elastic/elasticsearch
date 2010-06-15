@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query.xcontent;
 
-import org.elasticsearch.util.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent;
 
 /**
  * @author kimchy (shay.banon)

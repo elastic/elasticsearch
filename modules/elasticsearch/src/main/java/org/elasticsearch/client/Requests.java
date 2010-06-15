@@ -47,7 +47,7 @@ import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.terms.TermsRequest;
-import org.elasticsearch.util.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentType;
 
 /**
  * A handy one stop shop for creating requests (make sure to import static this class).

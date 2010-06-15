@@ -19,12 +19,12 @@
 
 package org.elasticsearch.plugin.mapper.attachments;
 
+import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.util.inject.Module;
 
 import java.util.Collection;
 
-import static org.elasticsearch.util.collect.Lists.*;
+import static org.elasticsearch.common.collect.Lists.*;
 
 /**
  * @author kimchy (shay.banon)

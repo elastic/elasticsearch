@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.util.collect.ImmutableList;
-import org.elasticsearch.util.xcontent.XContentParser;
 
 import java.util.ArrayList;
 

@@ -19,22 +19,22 @@
 
 package org.elasticsearch.index.mapper.xcontent;
 
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.util.MapBuilder;
 import org.elasticsearch.util.Strings;
-import org.elasticsearch.util.collect.ImmutableMap;
-import org.elasticsearch.util.xcontent.XContentFactory;
-import org.elasticsearch.util.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
 import static org.elasticsearch.index.mapper.xcontent.XContentMapperBuilders.*;
 import static org.elasticsearch.index.mapper.xcontent.XContentTypeParsers.*;
-import static org.elasticsearch.util.xcontent.support.XContentMapValues.*;
 
 /**
  * @author kimchy (shay.banon)

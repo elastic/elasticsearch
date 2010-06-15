@@ -25,10 +25,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.strategy.DefaultShardsRoutingStrategy;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.util.io.stream.BytesStreamInput;
 import org.elasticsearch.util.io.stream.BytesStreamOutput;
-import org.elasticsearch.util.settings.ImmutableSettings;
-import org.elasticsearch.util.transport.DummyTransportAddress;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.cluster.ClusterState.*;

@@ -23,6 +23,10 @@ import org.apache.hadoop.fs.*;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.Directories;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.gateway.IndexShardGateway;
@@ -40,13 +44,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.collect.Lists;
-import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.io.stream.DataInputStreamInput;
 import org.elasticsearch.util.io.stream.DataOutputStreamOutput;
 import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.lucene.Directories;
-import org.elasticsearch.util.settings.Settings;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
@@ -56,8 +56,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.lucene.Directories.*;
 import static org.elasticsearch.index.translog.TranslogStreams.*;
-import static org.elasticsearch.util.lucene.Directories.*;
 
 /**
  * @author kimchy (shay.banon)

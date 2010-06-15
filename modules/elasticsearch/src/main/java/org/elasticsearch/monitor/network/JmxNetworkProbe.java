@@ -19,9 +19,9 @@
 
 package org.elasticsearch.monitor.network;
 
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)

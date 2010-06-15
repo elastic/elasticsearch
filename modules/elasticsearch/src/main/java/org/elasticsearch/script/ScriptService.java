@@ -19,13 +19,13 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.util.component.AbstractComponent;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.mvel2.MVEL;
+import org.elasticsearch.common.mvel2.ParserContext;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.math.UnboxedMathUtils;
-import org.elasticsearch.util.settings.Settings;
-import org.mvel2.MVEL;
-import org.mvel2.ParserContext;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -47,7 +47,7 @@ public class ScriptService extends AbstractComponent {
         parserContext = new ParserContext();
         parserContext.addPackageImport("java.util");
         parserContext.addPackageImport("org.elasticsearch.util.gnu.trove");
-        parserContext.addPackageImport("org.elasticsearch.util.joda");
+        parserContext.addPackageImport("org.elasticsearch.common.joda");
         parserContext.addImport("time", MVEL.getStaticMethod(System.class, "currentTimeMillis", new Class[0]));
         // unboxed version of Math, better performance since conversion from boxed to unboxed my mvel is not needed
         for (Method m : UnboxedMathUtils.class.getMethods()) {

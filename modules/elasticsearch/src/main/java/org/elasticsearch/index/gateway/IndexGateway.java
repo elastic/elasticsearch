@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.gateway;
 
+import org.elasticsearch.common.component.CloseableIndexComponent;
 import org.elasticsearch.index.IndexComponent;
-import org.elasticsearch.util.component.CloseableIndexComponent;
 
 /**
  * @author kimchy (shay.banon)

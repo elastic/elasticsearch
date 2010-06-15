@@ -19,21 +19,21 @@
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.util.collect.ImmutableList;
-import org.elasticsearch.util.collect.ImmutableMap;
-import org.elasticsearch.util.collect.Maps;
+import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.Maps;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.transport.TransportAddressSerializers;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
-import org.elasticsearch.util.settings.Settings;
-import org.elasticsearch.util.transport.TransportAddress;
-import org.elasticsearch.util.transport.TransportAddressSerializers;
 
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Map;
 
-import static org.elasticsearch.util.transport.TransportAddressSerializers.*;
+import static org.elasticsearch.common.transport.TransportAddressSerializers.*;
 
 /**
  * A discovery node represents a node that is part of the cluster.

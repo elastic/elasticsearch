@@ -19,8 +19,8 @@
 
 package org.elasticsearch;
 
-import org.elasticsearch.util.logging.ESLogger;
-import org.elasticsearch.util.logging.Loggers;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 
 /**
  * @author kimchy (shay.banon)

@@ -20,12 +20,12 @@
 package org.elasticsearch.search.dfs;
 
 import org.apache.lucene.index.Term;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.trove.THashSet;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.util.ThreadLocals;
-import org.elasticsearch.util.collect.ImmutableMap;
-import org.elasticsearch.util.gnu.trove.THashSet;
 
 import java.util.Map;
 

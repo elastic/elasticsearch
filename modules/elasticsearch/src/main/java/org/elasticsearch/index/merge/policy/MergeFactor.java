@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.merge.policy;
 
-import org.elasticsearch.util.inject.BindingAnnotation;
+import org.elasticsearch.common.inject.BindingAnnotation;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;

@@ -53,9 +53,9 @@ import org.elasticsearch.client.transport.action.admin.cluster.ping.replication.
 import org.elasticsearch.client.transport.action.admin.cluster.ping.single.ClientTransportSinglePingAction;
 import org.elasticsearch.client.transport.action.admin.cluster.state.ClientTransportClusterStateAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)

@@ -24,6 +24,9 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryException;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
@@ -31,10 +34,7 @@ import org.elasticsearch.discovery.zen.ping.ZenPingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.component.AbstractLifecycleComponent;
 import org.elasticsearch.util.io.stream.*;
-import org.elasticsearch.util.network.NetworkService;
-import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -50,9 +50,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.node.DiscoveryNode.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.util.concurrent.ConcurrentCollections.*;
 import static org.elasticsearch.util.concurrent.DynamicExecutors.*;
-import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 
 /**
  * @author kimchy (shay.banon)

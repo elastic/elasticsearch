@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.cache;
 
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.cache.field.data.FieldDataCacheModule;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
-import org.elasticsearch.util.inject.AbstractModule;
-import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)

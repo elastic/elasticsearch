@@ -34,6 +34,11 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.collect.Maps;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.trove.TObjectIntHashMap;
+import org.elasticsearch.common.trove.TObjectIntIterator;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.service.IndexService;
@@ -42,11 +47,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.BoundedTreeSet;
-import org.elasticsearch.util.collect.Maps;
-import org.elasticsearch.util.gnu.trove.TObjectIntHashMap;
-import org.elasticsearch.util.gnu.trove.TObjectIntIterator;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -54,7 +54,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.util.collect.Lists.*;
+import static org.elasticsearch.common.collect.Lists.*;
 
 /**
  * @author kimchy (shay.banon)

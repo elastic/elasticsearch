@@ -20,13 +20,13 @@
 package org.elasticsearch.index.mapper.xcontent.all;
 
 import org.apache.lucene.document.Document;
+import org.elasticsearch.common.lucene.all.AllEntries;
+import org.elasticsearch.common.lucene.all.AllField;
+import org.elasticsearch.common.lucene.all.AllTokenStream;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapperParser;
-import org.elasticsearch.util.lucene.all.AllEntries;
-import org.elasticsearch.util.lucene.all.AllField;
-import org.elasticsearch.util.lucene.all.AllTokenStream;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.util.io.Streams.*;

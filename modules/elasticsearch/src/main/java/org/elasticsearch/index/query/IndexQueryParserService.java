@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -29,15 +32,12 @@ import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.util.collect.ImmutableMap;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
 
 import javax.annotation.Nullable;
 import java.util.Map;
 
-import static org.elasticsearch.util.collect.Maps.*;
-import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
+import static org.elasticsearch.common.collect.Maps.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 
 /**
  * @author kimchy (shay.banon)

@@ -20,7 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.util.NumericUtils;
-import org.joda.time.format.DateTimeFormatter;
+import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
 import java.io.Reader;

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.util.inject.AbstractModule;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.ModulesFactory;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.none.NoneGatewayModule;
-import org.elasticsearch.util.guice.ModulesFactory;
-import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)

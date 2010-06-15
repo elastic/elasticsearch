@@ -21,6 +21,10 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.UnmodifiableIterator;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.FailedToResolveConfigException;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -28,12 +32,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapperParser;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.collect.ImmutableMap;
-import org.elasticsearch.util.collect.UnmodifiableIterator;
 import org.elasticsearch.util.concurrent.ThreadSafe;
-import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.io.Streams;
-import org.elasticsearch.util.settings.Settings;
 
 import javax.annotation.Nullable;
 import java.io.File;

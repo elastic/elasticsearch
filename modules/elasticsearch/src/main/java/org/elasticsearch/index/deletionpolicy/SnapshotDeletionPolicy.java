@@ -21,10 +21,10 @@ package org.elasticsearch.index.deletionpolicy;
 
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.name.Named;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardComponent;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.inject.name.Named;
 
 import java.io.IOException;
 import java.util.ArrayList;

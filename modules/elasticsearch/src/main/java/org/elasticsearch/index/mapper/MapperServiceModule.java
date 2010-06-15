@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.util.inject.AbstractModule;
+import org.elasticsearch.common.inject.AbstractModule;
 
 /**
  * @author kimchy (Shay Banon)

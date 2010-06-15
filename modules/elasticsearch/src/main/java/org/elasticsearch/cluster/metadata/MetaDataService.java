@@ -29,6 +29,11 @@ import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.strategy.ShardsRoutingStrategy;
+import org.elasticsearch.common.collect.Maps;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -43,12 +48,7 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.util.Strings;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.Tuple;
-import org.elasticsearch.util.collect.Maps;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.io.Streams;
-import org.elasticsearch.util.settings.ImmutableSettings;
-import org.elasticsearch.util.settings.Settings;
 
 import java.io.File;
 import java.io.FileReader;
@@ -62,10 +62,10 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.cluster.metadata.MetaData.*;
+import static org.elasticsearch.common.collect.Maps.*;
+import static org.elasticsearch.common.collect.Sets.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.*;
-import static org.elasticsearch.util.collect.Maps.*;
-import static org.elasticsearch.util.collect.Sets.*;
-import static org.elasticsearch.util.settings.ImmutableSettings.*;
 
 /**
  * @author kimchy (Shay Banon)

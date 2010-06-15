@@ -19,8 +19,8 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.util.collect.ImmutableList;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;

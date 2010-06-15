@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.routing;
 
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.routing.hash.HashFunction;
 import org.elasticsearch.index.routing.hash.djb.DjbHashFunction;
 import org.elasticsearch.index.routing.plain.PlainOperationRoutingModule;
-import org.elasticsearch.util.inject.AbstractModule;
-import org.elasticsearch.util.settings.Settings;
 
-import static org.elasticsearch.util.guice.ModulesFactory.*;
+import static org.elasticsearch.common.inject.ModulesFactory.*;
 
 /**
  * @author kimchy (Shay Banon)

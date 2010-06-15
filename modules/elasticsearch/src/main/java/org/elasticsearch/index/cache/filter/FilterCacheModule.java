@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.cache.filter;
 
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Scopes;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.cache.filter.weak.WeakFilterCache;
-import org.elasticsearch.util.inject.AbstractModule;
-import org.elasticsearch.util.inject.Scopes;
-import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)

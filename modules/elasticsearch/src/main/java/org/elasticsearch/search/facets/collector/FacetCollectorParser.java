@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.facets.collector;
 
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.util.xcontent.XContentParser;
 
 import java.io.IOException;
 

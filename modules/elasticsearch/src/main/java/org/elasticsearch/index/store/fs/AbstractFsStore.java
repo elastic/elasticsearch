@@ -21,6 +21,9 @@ package org.elasticsearch.index.store.fs;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.lucene.store.SwitchDirectory;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.memory.ByteBufferDirectory;
@@ -28,10 +31,7 @@ import org.elasticsearch.index.store.memory.HeapDirectory;
 import org.elasticsearch.index.store.support.AbstractStore;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.collect.ImmutableSet;
 import org.elasticsearch.util.io.FileSystemUtils;
-import org.elasticsearch.util.lucene.store.SwitchDirectory;
-import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 
@@ -73,6 +73,6 @@ public abstract class AbstractFsStore<T extends Directory> extends AbstractStore
         }
         // see http://lucene.apache.org/java/3_0_1/fileformats.html
         String[] primaryExtensions = componentSettings.getAsArray("memory.extensions", new String[]{"", "del", "gen"});
-        return new SwitchDirectory(ImmutableSet.of(primaryExtensions), memDir, fsDirectory, true);
+        return new SwitchDirectory(ImmutableSet.copyOf(primaryExtensions), memDir, fsDirectory, true);
     }
 }

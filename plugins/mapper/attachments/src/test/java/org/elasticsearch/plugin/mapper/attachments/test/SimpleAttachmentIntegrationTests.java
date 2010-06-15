@@ -22,17 +22,17 @@ package org.elasticsearch.plugin.mapper.attachments.test;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.util.logging.ESLogger;
-import org.elasticsearch.util.logging.Loggers;
 import org.testng.annotations.*;
 
 import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
+import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.elasticsearch.node.NodeBuilder.*;
 import static org.elasticsearch.util.io.Streams.*;
-import static org.elasticsearch.util.settings.ImmutableSettings.*;
-import static org.elasticsearch.util.xcontent.XContentFactory.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

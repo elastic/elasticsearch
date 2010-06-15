@@ -19,8 +19,8 @@
 
 package org.elasticsearch.threadpool.cached;
 
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.util.inject.AbstractModule;
 
 /**
  * @author kimchy (shay.banon)

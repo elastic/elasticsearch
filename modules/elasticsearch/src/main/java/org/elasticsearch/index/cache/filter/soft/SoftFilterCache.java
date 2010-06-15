@@ -20,13 +20,13 @@
 package org.elasticsearch.index.cache.filter.soft;
 
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.common.collect.MapMaker;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.docset.DocSet;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.support.AbstractConcurrentMapFilterCache;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.collect.MapMaker;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.lucene.docset.DocSet;
-import org.elasticsearch.util.settings.Settings;
 
 import java.util.concurrent.ConcurrentMap;
 

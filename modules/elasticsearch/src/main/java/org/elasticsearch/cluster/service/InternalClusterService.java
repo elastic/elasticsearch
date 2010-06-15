@@ -171,7 +171,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                         logger.debug("Cluster state updated, version [{}], source [{}]", clusterState.version(), source);
                     }
 
-                    ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent(source, clusterState, previousClusterState, discoveryService.firstMaster());
+                    ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent(source, clusterState, previousClusterState);
                     // new cluster state, notify all listeners
                     final DiscoveryNodes.Delta nodesDelta = clusterChangedEvent.nodesDelta();
                     if (nodesDelta.hasChanges() && logger.isInfoEnabled()) {

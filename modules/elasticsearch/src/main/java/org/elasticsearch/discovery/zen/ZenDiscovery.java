@@ -87,8 +87,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private volatile boolean master = false;
 
-    private volatile boolean firstMaster = false;
-
     private volatile DiscoveryNodes latestDiscoNodes;
 
     private final AtomicBoolean initialStateSent = new AtomicBoolean();
@@ -198,10 +196,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         return clusterName.value() + "/" + localNode.id();
     }
 
-    @Override public boolean firstMaster() {
-        return firstMaster;
-    }
-
     @Override public DiscoveryNodes nodes() {
         DiscoveryNodes latestNodes = this.latestDiscoNodes;
         if (latestNodes != null) {
@@ -226,8 +220,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             retry = false;
             DiscoveryNode masterNode = broadPingTillMasterResolved();
             if (localNode.equals(masterNode)) {
-                // we are the master (first)
-                this.firstMaster = true;
                 this.master = true;
                 nodesFD.start(); // start the nodes FD
                 clusterService.submitStateUpdateTask("zen-disco-initial_connect(master)", new ProcessedClusterStateUpdateTask() {
@@ -247,7 +239,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     }
                 });
             } else {
-                this.firstMaster = false;
                 this.master = false;
                 try {
                     // first, make sure we can connect to the master

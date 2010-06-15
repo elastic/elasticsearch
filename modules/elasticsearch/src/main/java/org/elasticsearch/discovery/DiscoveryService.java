@@ -19,11 +19,11 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.component.AbstractLifecycleComponent;
+import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.settings.Settings;
 
 import java.util.concurrent.CountDownLatch;
@@ -92,10 +92,6 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
 
     public String nodeDescription() {
         return discovery.nodeDescription();
-    }
-
-    public boolean firstMaster() {
-        return discovery.firstMaster();
     }
 
     /**

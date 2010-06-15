@@ -22,7 +22,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class ClusterChangedEvent {
 
@@ -32,15 +32,12 @@ public class ClusterChangedEvent {
 
     private final ClusterState state;
 
-    private final boolean firstMaster;
-
     private final DiscoveryNodes.Delta nodesDelta;
 
-    public ClusterChangedEvent(String source, ClusterState state, ClusterState previousState, boolean firstMaster) {
+    public ClusterChangedEvent(String source, ClusterState state, ClusterState previousState) {
         this.source = source;
         this.state = state;
         this.previousState = previousState;
-        this.firstMaster = firstMaster;
         this.nodesDelta = state.nodes().delta(previousState.nodes());
     }
 
@@ -69,10 +66,6 @@ public class ClusterChangedEvent {
 
     public boolean localNodeMaster() {
         return state.nodes().localNodeMaster();
-    }
-
-    public boolean firstMaster() {
-        return firstMaster;
     }
 
     public DiscoveryNodes.Delta nodesDelta() {

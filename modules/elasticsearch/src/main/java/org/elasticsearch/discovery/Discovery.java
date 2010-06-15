@@ -38,11 +38,6 @@ public interface Discovery extends LifecycleComponent<Discovery> {
     String nodeDescription();
 
     /**
-     * Is the discovery of this node caused this node to be the first master in the cluster.
-     */
-    boolean firstMaster();
-
-    /**
      * Publish all the changes to the cluster from the master (can be called just by the master). The publish
      * process should not publish this state to the master as well! (the master is sending it...).
      */

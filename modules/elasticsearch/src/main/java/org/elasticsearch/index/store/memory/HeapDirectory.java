@@ -23,8 +23,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SingleInstanceLockFactory;
-import org.elasticsearch.common.unit.SizeUnit;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -45,17 +45,17 @@ public class HeapDirectory extends Directory {
 
     private final int bufferSizeInBytes;
 
-    private final SizeValue bufferSize;
+    private final ByteSizeValue bufferSize;
 
-    private final SizeValue cacheSize;
+    private final ByteSizeValue cacheSize;
 
     private final boolean disableCache;
 
     public HeapDirectory() {
-        this(new SizeValue(1, SizeUnit.KB), new SizeValue(20, SizeUnit.MB), false);
+        this(new ByteSizeValue(1, ByteSizeUnit.KB), new ByteSizeValue(20, ByteSizeUnit.MB), false);
     }
 
-    public HeapDirectory(SizeValue bufferSize, SizeValue cacheSize, boolean warmCache) {
+    public HeapDirectory(ByteSizeValue bufferSize, ByteSizeValue cacheSize, boolean warmCache) {
         disableCache = cacheSize.bytes() == 0;
         if (!disableCache && cacheSize.bytes() < bufferSize.bytes()) {
             throw new IllegalArgumentException("Cache size [" + cacheSize + "] is smaller than buffer size [" + bufferSize + "]");
@@ -64,7 +64,7 @@ public class HeapDirectory extends Directory {
         this.bufferSizeInBytes = (int) bufferSize.bytes();
         int numberOfCacheEntries = (int) (cacheSize.bytes() / bufferSize.bytes());
         this.cache = disableCache ? null : new ArrayBlockingQueue<byte[]>(numberOfCacheEntries);
-        this.cacheSize = disableCache ? new SizeValue(0, SizeUnit.BYTES) : new SizeValue(numberOfCacheEntries * bufferSize.bytes(), SizeUnit.BYTES);
+        this.cacheSize = disableCache ? new ByteSizeValue(0, ByteSizeUnit.BYTES) : new ByteSizeValue(numberOfCacheEntries * bufferSize.bytes(), ByteSizeUnit.BYTES);
         setLockFactory(new SingleInstanceLockFactory());
         if (!disableCache && warmCache) {
             for (int i = 0; i < numberOfCacheEntries; i++) {
@@ -73,11 +73,11 @@ public class HeapDirectory extends Directory {
         }
     }
 
-    public SizeValue bufferSize() {
+    public ByteSizeValue bufferSize() {
         return this.bufferSize;
     }
 
-    public SizeValue cacheSize() {
+    public ByteSizeValue cacheSize() {
         return this.cacheSize;
     }
 

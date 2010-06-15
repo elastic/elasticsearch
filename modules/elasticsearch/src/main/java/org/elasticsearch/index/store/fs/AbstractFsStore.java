@@ -25,8 +25,8 @@ import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lucene.store.SwitchDirectory;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.SizeUnit;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.memory.ByteBufferDirectory;
@@ -60,8 +60,8 @@ public abstract class AbstractFsStore<T extends Directory> extends AbstractStore
         if (!cache) {
             return null;
         }
-        SizeValue bufferSize = componentSettings.getAsSize("memory.buffer_size", new SizeValue(100, SizeUnit.KB));
-        SizeValue cacheSize = componentSettings.getAsSize("memory.cache_size", new SizeValue(20, SizeUnit.MB));
+        ByteSizeValue bufferSize = componentSettings.getAsBytesSize("memory.buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB));
+        ByteSizeValue cacheSize = componentSettings.getAsBytesSize("memory.cache_size", new ByteSizeValue(20, ByteSizeUnit.MB));
         boolean direct = componentSettings.getAsBoolean("memory.direct", true);
         boolean warmCache = componentSettings.getAsBoolean("memory.warm_cache", true);
 

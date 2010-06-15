@@ -23,7 +23,7 @@ import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.component.CloseableComponent;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
@@ -46,7 +46,7 @@ public interface IndexShard extends IndexShardComponent, CloseableComponent {
     /**
      * Returns the estimated flushable memory size. Returns <tt>null</tt> if not available.
      */
-    SizeValue estimateFlushableMemorySize() throws ElasticSearchException;
+    ByteSizeValue estimateFlushableMemorySize() throws ElasticSearchException;
 
     ParsedDocument create(String type, String id, byte[] source) throws ElasticSearchException;
 

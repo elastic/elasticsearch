@@ -22,7 +22,7 @@ package org.elasticsearch.index.store.support;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.lucene.Directories;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -47,7 +47,7 @@ public abstract class AbstractStore<T extends Directory> extends AbstractIndexSh
         deleteContent();
     }
 
-    @Override public SizeValue estimateSize() throws IOException {
+    @Override public ByteSizeValue estimateSize() throws IOException {
         return Directories.estimateSize(directory());
     }
 

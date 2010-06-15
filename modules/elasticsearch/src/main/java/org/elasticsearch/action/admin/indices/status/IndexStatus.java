@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.status;
 
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.util.Iterator;
 import java.util.List;
@@ -119,7 +119,7 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
         return settings();
     }
 
-    public SizeValue storeSize() {
+    public ByteSizeValue storeSize() {
         long bytes = -1;
         for (IndexShardStatus shard : this) {
             if (shard.storeSize() != null) {
@@ -132,14 +132,14 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
         if (bytes == -1) {
             return null;
         }
-        return new SizeValue(bytes);
+        return new ByteSizeValue(bytes);
     }
 
-    public SizeValue getStoreSize() {
+    public ByteSizeValue getStoreSize() {
         return storeSize();
     }
 
-    public SizeValue estimatedFlushableMemorySize() {
+    public ByteSizeValue estimatedFlushableMemorySize() {
         long bytes = -1;
         for (IndexShardStatus shard : this) {
             if (shard.estimatedFlushableMemorySize() != null) {
@@ -152,10 +152,10 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
         if (bytes == -1) {
             return null;
         }
-        return new SizeValue(bytes);
+        return new ByteSizeValue(bytes);
     }
 
-    public SizeValue getEstimatedFlushableMemorySize() {
+    public ByteSizeValue getEstimatedFlushableMemorySize() {
         return estimatedFlushableMemorySize();
     }
 

@@ -23,8 +23,8 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
-import org.elasticsearch.common.unit.SizeUnit;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -38,49 +38,49 @@ import static org.hamcrest.Matchers.*;
 public class SimpleHeapStoreTests {
 
     @Test public void test1BufferNoCache() throws Exception {
-        HeapDirectory dir = new HeapDirectory(new SizeValue(1, SizeUnit.BYTES), new SizeValue(0, SizeUnit.BYTES), false);
+        HeapDirectory dir = new HeapDirectory(new ByteSizeValue(1, ByteSizeUnit.BYTES), new ByteSizeValue(0, ByteSizeUnit.BYTES), false);
         insertData(dir);
         verifyData(dir);
         dir.close();
     }
 
     @Test public void test1Buffer() throws Exception {
-        HeapDirectory dir = new HeapDirectory(new SizeValue(1, SizeUnit.BYTES), new SizeValue(10, SizeUnit.BYTES), false);
+        HeapDirectory dir = new HeapDirectory(new ByteSizeValue(1, ByteSizeUnit.BYTES), new ByteSizeValue(10, ByteSizeUnit.BYTES), false);
         insertData(dir);
         verifyData(dir);
         dir.close();
     }
 
     @Test public void test3Buffer() throws Exception {
-        HeapDirectory dir = new HeapDirectory(new SizeValue(3, SizeUnit.BYTES), new SizeValue(10, SizeUnit.BYTES), false);
+        HeapDirectory dir = new HeapDirectory(new ByteSizeValue(3, ByteSizeUnit.BYTES), new ByteSizeValue(10, ByteSizeUnit.BYTES), false);
         insertData(dir);
         verifyData(dir);
         dir.close();
     }
 
     @Test public void test10Buffer() throws Exception {
-        HeapDirectory dir = new HeapDirectory(new SizeValue(10, SizeUnit.BYTES), new SizeValue(20, SizeUnit.BYTES), false);
+        HeapDirectory dir = new HeapDirectory(new ByteSizeValue(10, ByteSizeUnit.BYTES), new ByteSizeValue(20, ByteSizeUnit.BYTES), false);
         insertData(dir);
         verifyData(dir);
         dir.close();
     }
 
     @Test public void test15Buffer() throws Exception {
-        HeapDirectory dir = new HeapDirectory(new SizeValue(15, SizeUnit.BYTES), new SizeValue(30, SizeUnit.BYTES), false);
+        HeapDirectory dir = new HeapDirectory(new ByteSizeValue(15, ByteSizeUnit.BYTES), new ByteSizeValue(30, ByteSizeUnit.BYTES), false);
         insertData(dir);
         verifyData(dir);
         dir.close();
     }
 
     @Test public void test40Buffer() throws Exception {
-        HeapDirectory dir = new HeapDirectory(new SizeValue(40, SizeUnit.BYTES), new SizeValue(80, SizeUnit.BYTES), false);
+        HeapDirectory dir = new HeapDirectory(new ByteSizeValue(40, ByteSizeUnit.BYTES), new ByteSizeValue(80, ByteSizeUnit.BYTES), false);
         insertData(dir);
         verifyData(dir);
         dir.close();
     }
 
     @Test public void testSimpeLocking() throws Exception {
-        HeapDirectory dir = new HeapDirectory(new SizeValue(40, SizeUnit.BYTES), new SizeValue(80, SizeUnit.BYTES), false);
+        HeapDirectory dir = new HeapDirectory(new ByteSizeValue(40, ByteSizeUnit.BYTES), new ByteSizeValue(80, ByteSizeUnit.BYTES), false);
 
         Lock lock = dir.makeLock("testlock");
 

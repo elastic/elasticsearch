@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
@@ -167,7 +168,19 @@ public interface Settings {
      * @param defaultValue The value to return if no value is associated with the setting
      * @return The (size) value, or the default value if no value exists.
      * @throws SettingsException Failure to parse the setting
-     * @see SizeValue#parseSizeValue(String, SizeValue)
+     * @see org.elasticsearch.common.unit.ByteSizeValue#parseBytesSizeValue(String, org.elasticsearch.common.unit.ByteSizeValue)
+     */
+    ByteSizeValue getAsBytesSize(String setting, ByteSizeValue defaultValue) throws SettingsException;
+
+    /**
+     * Returns the setting value (as size) associated with the setting key. If it does not exists,
+     * returns the default value provided.
+     *
+     * @param setting      The setting key
+     * @param defaultValue The value to return if no value is associated with the setting
+     * @return The (size) value, or the default value if no value exists.
+     * @throws SettingsException Failure to parse the setting
+     * @see org.elasticsearch.common.unit.ByteSizeValue#parseBytesSizeValue(String, org.elasticsearch.common.unit.ByteSizeValue)
      */
     SizeValue getAsSize(String setting, SizeValue defaultValue) throws SettingsException;
 

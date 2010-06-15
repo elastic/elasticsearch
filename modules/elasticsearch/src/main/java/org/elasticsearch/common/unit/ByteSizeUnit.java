@@ -20,54 +20,60 @@
 package org.elasticsearch.common.unit;
 
 /**
- * @author kimchy (shay.banon)
+ * A <tt>SizeUnit</tt> represents size at a given unit of
+ * granularity and provides utility methods to convert across units.
+ * A <tt>SizeUnit</tt> does not maintain size information, but only
+ * helps organize and use size representations that may be maintained
+ * separately across various contexts.
+ *
+ * @author kimchy (Shay Banon)
  */
-public enum SizeUnit {
-    SINGLE {
-        @Override public long toSingles(long size) {
+public enum ByteSizeUnit {
+    BYTES {
+        @Override public long toBytes(long size) {
             return size;
-        }@Override public long toKilo(long size) {
+        }@Override public long toKB(long size) {
             return size / (C1 / C0);
-        }@Override public long toMega(long size) {
+        }@Override public long toMB(long size) {
             return size / (C2 / C0);
-        }@Override public long toGiga(long size) {
+        }@Override public long toGB(long size) {
             return size / (C3 / C0);
         }},
-    KILO {
-        @Override public long toSingles(long size) {
+    KB {
+        @Override public long toBytes(long size) {
             return x(size, C1 / C0, MAX / (C1 / C0));
-        }@Override public long toKilo(long size) {
+        }@Override public long toKB(long size) {
             return size;
-        }@Override public long toMega(long size) {
+        }@Override public long toMB(long size) {
             return size / (C2 / C1);
-        }@Override public long toGiga(long size) {
+        }@Override public long toGB(long size) {
             return size / (C3 / C1);
         }},
-    MEGA {
-        @Override public long toSingles(long size) {
+    MB {
+        @Override public long toBytes(long size) {
             return x(size, C2 / C0, MAX / (C2 / C0));
-        }@Override public long toKilo(long size) {
+        }@Override public long toKB(long size) {
             return x(size, C2 / C1, MAX / (C2 / C1));
-        }@Override public long toMega(long size) {
+        }@Override public long toMB(long size) {
             return size;
-        }@Override public long toGiga(long size) {
+        }@Override public long toGB(long size) {
             return size / (C3 / C2);
         }},
-    GIGA {
-        @Override public long toSingles(long size) {
+    GB {
+        @Override public long toBytes(long size) {
             return x(size, C3 / C0, MAX / (C3 / C0));
-        }@Override public long toKilo(long size) {
+        }@Override public long toKB(long size) {
             return x(size, C3 / C1, MAX / (C3 / C1));
-        }@Override public long toMega(long size) {
+        }@Override public long toMB(long size) {
             return x(size, C3 / C2, MAX / (C3 / C2));
-        }@Override public long toGiga(long size) {
+        }@Override public long toGB(long size) {
             return size;
         }};
 
     static final long C0 = 1L;
-    static final long C1 = C0 * 1000L;
-    static final long C2 = C1 * 1000L;
-    static final long C3 = C2 * 1000L;
+    static final long C1 = C0 * 1024L;
+    static final long C2 = C1 * 1024L;
+    static final long C3 = C2 * 1024L;
 
     static final long MAX = Long.MAX_VALUE;
 
@@ -82,19 +88,19 @@ public enum SizeUnit {
     }
 
 
-    public long toSingles(long size) {
+    public long toBytes(long size) {
         throw new AbstractMethodError();
     }
 
-    public long toKilo(long size) {
+    public long toKB(long size) {
         throw new AbstractMethodError();
     }
 
-    public long toMega(long size) {
+    public long toMB(long size) {
         throw new AbstractMethodError();
     }
 
-    public long toGiga(long size) {
+    public long toGB(long size) {
         throw new AbstractMethodError();
     }
 }

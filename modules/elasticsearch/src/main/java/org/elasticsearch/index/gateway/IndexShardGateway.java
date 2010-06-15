@@ -21,7 +21,7 @@ package org.elasticsearch.index.gateway;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.component.CloseableIndexComponent;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.shard.IndexShardComponent;
@@ -116,7 +116,7 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
 
     class SnapshotStatus {
 
-        public static SnapshotStatus NA = new SnapshotStatus(timeValueMillis(0), new Index(0, new SizeValue(0), timeValueMillis(0)), new Translog(0, timeValueMillis(0)));
+        public static SnapshotStatus NA = new SnapshotStatus(timeValueMillis(0), new Index(0, new ByteSizeValue(0), timeValueMillis(0)), new Translog(0, timeValueMillis(0)));
 
         private TimeValue totalTime;
 
@@ -162,10 +162,10 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
 
         public static class Index {
             private int numberOfFiles;
-            private SizeValue totalSize;
+            private ByteSizeValue totalSize;
             private TimeValue time;
 
-            public Index(int numberOfFiles, SizeValue totalSize, TimeValue time) {
+            public Index(int numberOfFiles, ByteSizeValue totalSize, TimeValue time) {
                 this.numberOfFiles = numberOfFiles;
                 this.totalSize = totalSize;
                 this.time = time;
@@ -179,7 +179,7 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
                 return numberOfFiles;
             }
 
-            public SizeValue totalSize() {
+            public ByteSizeValue totalSize() {
                 return totalSize;
             }
         }
@@ -207,9 +207,9 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
         public static class Translog {
             private long translogId;
             private int numberOfOperations;
-            private SizeValue totalSize;
+            private ByteSizeValue totalSize;
 
-            public Translog(long translogId, int numberOfOperations, SizeValue totalSize) {
+            public Translog(long translogId, int numberOfOperations, ByteSizeValue totalSize) {
                 this.translogId = translogId;
                 this.numberOfOperations = numberOfOperations;
                 this.totalSize = totalSize;
@@ -226,7 +226,7 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
                 return numberOfOperations;
             }
 
-            public SizeValue totalSize() {
+            public ByteSizeValue totalSize() {
                 return totalSize;
             }
         }
@@ -234,10 +234,10 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
         public static class Index {
             private long version;
             private int numberOfFiles;
-            private SizeValue totalSize;
+            private ByteSizeValue totalSize;
             private TimeValue throttlingWaitTime;
 
-            public Index(long version, int numberOfFiles, SizeValue totalSize, TimeValue throttlingWaitTime) {
+            public Index(long version, int numberOfFiles, ByteSizeValue totalSize, TimeValue throttlingWaitTime) {
                 this.version = version;
                 this.numberOfFiles = numberOfFiles;
                 this.totalSize = totalSize;
@@ -252,7 +252,7 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
                 return numberOfFiles;
             }
 
-            public SizeValue totalSize() {
+            public ByteSizeValue totalSize() {
                 return totalSize;
             }
 

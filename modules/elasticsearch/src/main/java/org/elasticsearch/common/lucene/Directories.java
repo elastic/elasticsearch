@@ -22,7 +22,7 @@ package org.elasticsearch.common.lucene;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.store.*;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.store.support.ForceSyncDirectory;
 
 import java.io.*;
@@ -53,7 +53,7 @@ public class Directories {
     /**
      * Returns the estimated size of a {@link Directory}.
      */
-    public static SizeValue estimateSize(Directory directory) throws IOException {
+    public static ByteSizeValue estimateSize(Directory directory) throws IOException {
         long estimatedSize = 0;
         String[] files = directory.listAll();
         for (String file : files) {
@@ -63,7 +63,7 @@ public class Directories {
                 // ignore, the file is not there no more
             }
         }
-        return new SizeValue(estimatedSize);
+        return new ByteSizeValue(estimatedSize);
     }
 
     /**

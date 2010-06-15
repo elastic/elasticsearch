@@ -22,7 +22,7 @@ package org.elasticsearch.monitor.process;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
@@ -213,27 +213,27 @@ public class ProcessStats implements Streamable, Serializable, ToXContent {
             out.writeLong(share);
         }
 
-        public SizeValue totalVirtual() {
-            return new SizeValue(totalVirtual);
+        public ByteSizeValue totalVirtual() {
+            return new ByteSizeValue(totalVirtual);
         }
 
-        public SizeValue getTotalVirtual() {
+        public ByteSizeValue getTotalVirtual() {
             return totalVirtual();
         }
 
-        public SizeValue resident() {
-            return new SizeValue(resident);
+        public ByteSizeValue resident() {
+            return new ByteSizeValue(resident);
         }
 
-        public SizeValue getResident() {
+        public ByteSizeValue getResident() {
             return resident();
         }
 
-        public SizeValue share() {
-            return new SizeValue(share);
+        public ByteSizeValue share() {
+            return new ByteSizeValue(share);
         }
 
-        public SizeValue getShare() {
+        public ByteSizeValue getShare() {
             return share();
         }
     }

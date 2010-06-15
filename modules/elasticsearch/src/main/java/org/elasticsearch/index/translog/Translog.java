@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.NotThreadSafe;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.engine.Engine;
@@ -55,7 +55,7 @@ public interface Translog extends IndexShardComponent {
     /**
      * The estimated memory size this translog is taking.
      */
-    SizeValue estimateMemorySize();
+    ByteSizeValue estimateMemorySize();
 
     /**
      * Creates a new transaction log internally. Note, users of this class should make

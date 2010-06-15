@@ -24,7 +24,7 @@ import org.elasticsearch.common.lucene.versioned.ConcurrentVersionedMap;
 import org.elasticsearch.common.lucene.versioned.ConcurrentVersionedMapLong;
 import org.elasticsearch.common.lucene.versioned.NativeVersionedMap;
 import org.elasticsearch.common.lucene.versioned.VersionedMap;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.lang.management.ManagementFactory;
 import java.util.concurrent.CountDownLatch;
@@ -127,7 +127,7 @@ public class VersionedMapBenchmark {
         }
 
         long bytesTaken = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() - emptyUsed;
-        System.out.println("Size of [" + writerIterations + "] entries is " + new SizeValue(bytesTaken));
+        System.out.println("Size of [" + writerIterations + "] entries is " + new ByteSizeValue(bytesTaken));
     }
 
     private class ReaderThread implements Runnable {

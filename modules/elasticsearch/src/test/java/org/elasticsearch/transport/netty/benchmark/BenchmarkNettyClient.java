@@ -24,8 +24,8 @@ import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.common.unit.SizeUnit;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.cached.CachedThreadPool;
 import org.elasticsearch.timer.TimerService;
@@ -44,7 +44,7 @@ public class BenchmarkNettyClient {
 
 
     public static void main(String[] args) {
-        final SizeValue payloadSize = new SizeValue(100, SizeUnit.BYTES);
+        final ByteSizeValue payloadSize = new ByteSizeValue(100, ByteSizeUnit.BYTES);
         final int NUMBER_OF_CLIENTS = 1;
         final int NUMBER_OF_ITERATIONS = 500000;
         final byte[] payload = new byte[(int) payloadSize.bytes()];

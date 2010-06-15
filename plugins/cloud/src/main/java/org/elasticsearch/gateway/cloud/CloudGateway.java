@@ -29,7 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.FastByteArrayInputStream;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -63,7 +63,7 @@ public class CloudGateway extends AbstractLifecycleComponent<Gateway> implements
 
     private final String metaDataDirectory;
 
-    private final SizeValue chunkSize;
+    private final ByteSizeValue chunkSize;
 
     private volatile int currentIndex;
 
@@ -71,7 +71,7 @@ public class CloudGateway extends AbstractLifecycleComponent<Gateway> implements
         super(settings);
         this.blobStoreContext = blobStoreService.context();
 
-        this.chunkSize = componentSettings.getAsSize("chunk_size", null);
+        this.chunkSize = componentSettings.getAsBytesSize("chunk_size", null);
 
         String location = componentSettings.get("location");
         if (location == null) {
@@ -111,7 +111,7 @@ public class CloudGateway extends AbstractLifecycleComponent<Gateway> implements
         return this.location;
     }
 
-    public SizeValue chunkSize() {
+    public ByteSizeValue chunkSize() {
         return this.chunkSize;
     }
 

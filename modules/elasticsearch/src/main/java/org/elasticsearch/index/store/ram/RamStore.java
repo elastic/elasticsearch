@@ -22,8 +22,8 @@ package org.elasticsearch.index.store.ram;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.SizeUnit;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.support.AbstractStore;
@@ -47,8 +47,8 @@ public class RamStore extends AbstractStore<RAMDirectory> {
         return directory;
     }
 
-    @Override public SizeValue estimateSize() throws IOException {
-        return new SizeValue(directory.sizeInBytes(), SizeUnit.BYTES);
+    @Override public ByteSizeValue estimateSize() throws IOException {
+        return new ByteSizeValue(directory.sizeInBytes(), ByteSizeUnit.BYTES);
     }
 
     /**

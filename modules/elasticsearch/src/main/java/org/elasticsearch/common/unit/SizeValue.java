@@ -41,8 +41,8 @@ public class SizeValue implements Serializable, Streamable {
 
     }
 
-    public SizeValue(long bytes) {
-        this(bytes, SizeUnit.BYTES);
+    public SizeValue(long singles) {
+        this(singles, SizeUnit.SINGLE);
     }
 
     public SizeValue(long size, SizeUnit sizeUnit) {
@@ -50,74 +50,74 @@ public class SizeValue implements Serializable, Streamable {
         this.sizeUnit = sizeUnit;
     }
 
-    public long bytes() {
-        return sizeUnit.toBytes(size);
+    public long singles() {
+        return sizeUnit.toSingles(size);
     }
 
-    public long getBytes() {
-        return bytes();
+    public long getSingles() {
+        return singles();
     }
 
-    public long kb() {
-        return sizeUnit.toKB(size);
+    public long kilo() {
+        return sizeUnit.toKilo(size);
     }
 
-    public long getKb() {
-        return kb();
+    public long getKilo() {
+        return kilo();
     }
 
-    public long mb() {
-        return sizeUnit.toMB(size);
+    public long mega() {
+        return sizeUnit.toMega(size);
     }
 
-    public long getMb() {
-        return mb();
+    public long getMega() {
+        return mega();
     }
 
-    public long gb() {
-        return sizeUnit.toGB(size);
+    public long giga() {
+        return sizeUnit.toGiga(size);
     }
 
-    public long getGb() {
-        return gb();
+    public long getGiga() {
+        return giga();
     }
 
-    public double kbFrac() {
-        return ((double) bytes()) / SizeUnit.C1;
+    public double kiloFrac() {
+        return ((double) singles()) / SizeUnit.C1;
     }
 
-    public double getKbFrac() {
-        return kbFrac();
+    public double getKiloFrac() {
+        return kiloFrac();
     }
 
-    public double mbFrac() {
-        return ((double) bytes()) / SizeUnit.C2;
+    public double megaFrac() {
+        return ((double) singles()) / SizeUnit.C2;
     }
 
-    public double getMbFrac() {
-        return mbFrac();
+    public double getMegaFrac() {
+        return megaFrac();
     }
 
-    public double gbFrac() {
-        return ((double) bytes()) / SizeUnit.C3;
+    public double gigaFrac() {
+        return ((double) singles()) / SizeUnit.C3;
     }
 
-    public double getGbFrac() {
-        return gbFrac();
+    public double getGigaFrac() {
+        return gigaFrac();
     }
 
     @Override public String toString() {
-        long bytes = bytes();
-        double value = bytes;
+        long singles = singles();
+        double value = singles;
         String suffix = "";
-        if (bytes >= SizeUnit.C3) {
-            value = gbFrac();
+        if (singles >= SizeUnit.C3) {
+            value = gigaFrac();
             suffix = "g";
-        } else if (bytes >= SizeUnit.C2) {
-            value = mbFrac();
+        } else if (singles >= SizeUnit.C2) {
+            value = megaFrac();
             suffix = "m";
-        } else if (bytes >= SizeUnit.C1) {
-            value = kbFrac();
+        } else if (singles >= SizeUnit.C1) {
+            value = kiloFrac();
             suffix = "k";
         }
         return Strings.format1Decimals(value, suffix);
@@ -127,29 +127,23 @@ public class SizeValue implements Serializable, Streamable {
         if (sValue == null) {
             return defaultValue;
         }
-        long bytes;
+        long singles;
         try {
             if (sValue.endsWith("b")) {
-                bytes = Long.parseLong(sValue.substring(0, sValue.length() - 1));
+                singles = Long.parseLong(sValue.substring(0, sValue.length() - 1));
             } else if (sValue.endsWith("k") || sValue.endsWith("K")) {
-                bytes = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * 1024);
-            } else if (sValue.endsWith("kb")) {
-                bytes = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 2)) * 1024);
+                singles = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * SizeUnit.C1);
             } else if (sValue.endsWith("m") || sValue.endsWith("M")) {
-                bytes = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * 1024 * 1024);
-            } else if (sValue.endsWith("mb")) {
-                bytes = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 2)) * 1024 * 1024);
+                singles = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * SizeUnit.C2);
             } else if (sValue.endsWith("g") || sValue.endsWith("G")) {
-                bytes = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * 1024 * 1024 * 1024);
-            } else if (sValue.endsWith("gb")) {
-                bytes = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 2)) * 1024 * 1024 * 1024);
+                singles = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * SizeUnit.C3);
             } else {
-                bytes = Long.parseLong(sValue);
+                singles = Long.parseLong(sValue);
             }
         } catch (NumberFormatException e) {
             throw new ElasticSearchParseException("Failed to parse [" + sValue + "]", e);
         }
-        return new SizeValue(bytes, SizeUnit.BYTES);
+        return new SizeValue(singles, SizeUnit.SINGLE);
     }
 
     public static SizeValue readSizeValue(StreamInput in) throws IOException {
@@ -160,11 +154,11 @@ public class SizeValue implements Serializable, Streamable {
 
     @Override public void readFrom(StreamInput in) throws IOException {
         size = in.readVLong();
-        sizeUnit = SizeUnit.BYTES;
+        sizeUnit = SizeUnit.SINGLE;
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(bytes());
+        out.writeVLong(singles());
     }
 
     @Override public boolean equals(Object o) {

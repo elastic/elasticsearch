@@ -23,8 +23,8 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.SizeUnit;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.service.IndexService;
@@ -72,7 +72,7 @@ public class IndicesMemoryCleaner extends AbstractComponent {
                 }
             }
         }
-        return new TranslogCleanResult(totalShards, cleanedShards, new SizeValue(cleaned, SizeUnit.BYTES));
+        return new TranslogCleanResult(totalShards, cleanedShards, new ByteSizeValue(cleaned, ByteSizeUnit.BYTES));
     }
 
     public void cacheClearUnreferenced() {
@@ -116,32 +116,32 @@ public class IndicesMemoryCleaner extends AbstractComponent {
     /**
      * Checks if memory needs to be cleaned and cleans it. Returns the amount of memory cleaned.
      */
-    public MemoryCleanResult cleanMemory(long memoryToClean, SizeValue minimumFlushableSizeToClean) {
+    public MemoryCleanResult cleanMemory(long memoryToClean, ByteSizeValue minimumFlushableSizeToClean) {
         int totalShards = 0;
         long estimatedFlushableSize = 0;
-        ArrayList<Tuple<SizeValue, IndexShard>> shards = new ArrayList<Tuple<SizeValue, IndexShard>>();
+        ArrayList<Tuple<ByteSizeValue, IndexShard>> shards = new ArrayList<Tuple<ByteSizeValue, IndexShard>>();
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
                 if (indexShard.state() != IndexShardState.STARTED) {
                     continue;
                 }
                 totalShards++;
-                SizeValue estimatedSize = indexShard.estimateFlushableMemorySize();
+                ByteSizeValue estimatedSize = indexShard.estimateFlushableMemorySize();
                 estimatedFlushableSize += estimatedSize.bytes();
                 if (estimatedSize != null) {
-                    shards.add(new Tuple<SizeValue, IndexShard>(estimatedSize, indexShard));
+                    shards.add(new Tuple<ByteSizeValue, IndexShard>(estimatedSize, indexShard));
                 }
             }
         }
-        Collections.sort(shards, new Comparator<Tuple<SizeValue, IndexShard>>() {
-            @Override public int compare(Tuple<SizeValue, IndexShard> o1, Tuple<SizeValue, IndexShard> o2) {
+        Collections.sort(shards, new Comparator<Tuple<ByteSizeValue, IndexShard>>() {
+            @Override public int compare(Tuple<ByteSizeValue, IndexShard> o1, Tuple<ByteSizeValue, IndexShard> o2) {
                 return (int) (o1.v1().bytes() - o2.v1().bytes());
             }
         });
         int cleanedShards = 0;
         long cleaned = 0;
         Set<ShardId> shardsCleaned = newHashSet();
-        for (Tuple<SizeValue, IndexShard> tuple : shards) {
+        for (Tuple<ByteSizeValue, IndexShard> tuple : shards) {
             if (tuple.v1().bytes() < minimumFlushableSizeToClean.bytes()) {
                 // we passed the minimum threshold, don't flush
                 break;
@@ -162,15 +162,15 @@ public class IndicesMemoryCleaner extends AbstractComponent {
                 break;
             }
         }
-        return new MemoryCleanResult(totalShards, cleanedShards, new SizeValue(estimatedFlushableSize), new SizeValue(cleaned), shardsCleaned);
+        return new MemoryCleanResult(totalShards, cleanedShards, new ByteSizeValue(estimatedFlushableSize), new ByteSizeValue(cleaned), shardsCleaned);
     }
 
     public static class TranslogCleanResult {
         private final int totalShards;
         private final int cleanedShards;
-        private final SizeValue cleaned;
+        private final ByteSizeValue cleaned;
 
-        public TranslogCleanResult(int totalShards, int cleanedShards, SizeValue cleaned) {
+        public TranslogCleanResult(int totalShards, int cleanedShards, ByteSizeValue cleaned) {
             this.totalShards = totalShards;
             this.cleanedShards = cleanedShards;
             this.cleaned = cleaned;
@@ -184,7 +184,7 @@ public class IndicesMemoryCleaner extends AbstractComponent {
             return cleanedShards;
         }
 
-        public SizeValue cleaned() {
+        public ByteSizeValue cleaned() {
             return cleaned;
         }
 
@@ -196,11 +196,11 @@ public class IndicesMemoryCleaner extends AbstractComponent {
     public static class MemoryCleanResult {
         private final int totalShards;
         private final int cleanedShards;
-        private final SizeValue estimatedFlushableSize;
-        private final SizeValue cleaned;
+        private final ByteSizeValue estimatedFlushableSize;
+        private final ByteSizeValue cleaned;
         private final Set<ShardId> shardsCleaned;
 
-        public MemoryCleanResult(int totalShards, int cleanedShards, SizeValue estimatedFlushableSize, SizeValue cleaned, Set<ShardId> shardsCleaned) {
+        public MemoryCleanResult(int totalShards, int cleanedShards, ByteSizeValue estimatedFlushableSize, ByteSizeValue cleaned, Set<ShardId> shardsCleaned) {
             this.totalShards = totalShards;
             this.cleanedShards = cleanedShards;
             this.estimatedFlushableSize = estimatedFlushableSize;
@@ -216,11 +216,11 @@ public class IndicesMemoryCleaner extends AbstractComponent {
             return cleanedShards;
         }
 
-        public SizeValue estimatedFlushableSize() {
+        public ByteSizeValue estimatedFlushableSize() {
             return estimatedFlushableSize;
         }
 
-        public SizeValue cleaned() {
+        public ByteSizeValue cleaned() {
             return cleaned;
         }
 

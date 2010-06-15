@@ -22,7 +22,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 
@@ -91,11 +91,11 @@ public class TransportStats implements Streamable, Serializable, ToXContent {
         return rxCount();
     }
 
-    public SizeValue rxSize() {
-        return new SizeValue(rxSize);
+    public ByteSizeValue rxSize() {
+        return new ByteSizeValue(rxSize);
     }
 
-    public SizeValue getRxSize() {
+    public ByteSizeValue getRxSize() {
         return rxSize();
     }
 
@@ -107,11 +107,11 @@ public class TransportStats implements Streamable, Serializable, ToXContent {
         return txCount();
     }
 
-    public SizeValue txSize() {
-        return new SizeValue(txSize);
+    public ByteSizeValue txSize() {
+        return new ByteSizeValue(txSize);
     }
 
-    public SizeValue getTxSize() {
+    public ByteSizeValue getTxSize() {
         return txSize();
     }
 }

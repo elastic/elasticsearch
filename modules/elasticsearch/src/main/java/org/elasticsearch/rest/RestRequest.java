@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 
@@ -87,7 +87,7 @@ public interface RestRequest extends ToXContent.Params {
 
     TimeValue paramAsTime(String key, TimeValue defaultValue);
 
-    SizeValue paramAsSize(String key, SizeValue defaultValue);
+    ByteSizeValue paramAsSize(String key, ByteSizeValue defaultValue);
 
     Map<String, String> params();
 }

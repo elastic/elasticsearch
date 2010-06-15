@@ -59,6 +59,7 @@ public class MetaData implements Iterable<IndexMetaData> {
     private final int maxNumberOfShardsPerNode;
 
     private final transient int totalNumberOfShards;
+    private final boolean recoveredFromGateway;
 
     private final String[] allIndices;
 
@@ -67,8 +68,9 @@ public class MetaData implements Iterable<IndexMetaData> {
     private final ImmutableMap<String, String[]> aliasAndIndexToIndexMap;
     private final ImmutableMap<String, ImmutableSet<String>> aliasAndIndexToIndexMap2;
 
-    private MetaData(ImmutableMap<String, IndexMetaData> indices, int maxNumberOfShardsPerNode) {
+    private MetaData(ImmutableMap<String, IndexMetaData> indices, boolean recoveredFromGateway, int maxNumberOfShardsPerNode) {
         this.indices = ImmutableMap.copyOf(indices);
+        this.recoveredFromGateway = recoveredFromGateway;
         this.maxNumberOfShardsPerNode = maxNumberOfShardsPerNode;
         int totalNumberOfShards = 0;
         for (IndexMetaData indexMetaData : indices.values()) {
@@ -121,6 +123,13 @@ public class MetaData implements Iterable<IndexMetaData> {
             aliasAndIndexToIndexBuilder2.put(entry.getKey(), ImmutableSet.copyOf(entry.getValue()));
         }
         this.aliasAndIndexToIndexMap2 = aliasAndIndexToIndexBuilder2.immutableMap();
+    }
+
+    /**
+     * Has the cluster state been recovered from the gateway.
+     */
+    public boolean recoveredFromGateway() {
+        return this.recoveredFromGateway;
     }
 
     public ImmutableSet<String> aliases() {
@@ -238,6 +247,8 @@ public class MetaData implements Iterable<IndexMetaData> {
 
         private MapBuilder<String, IndexMetaData> indices = newMapBuilder();
 
+        private boolean recoveredFromGateway = false;
+
         public Builder put(IndexMetaData.Builder indexMetaDataBuilder) {
             return put(indexMetaDataBuilder.build());
         }
@@ -257,7 +268,8 @@ public class MetaData implements Iterable<IndexMetaData> {
         }
 
         public Builder metaData(MetaData metaData) {
-            indices.putAll(metaData.indices);
+            this.indices.putAll(metaData.indices);
+            this.recoveredFromGateway = metaData.recoveredFromGateway();
             return this;
         }
 
@@ -266,8 +278,16 @@ public class MetaData implements Iterable<IndexMetaData> {
             return this;
         }
 
+        /**
+         * Indicates that this cluster state has been recovered from the gateawy.
+         */
+        public Builder markAsRecoveredFromGateway() {
+            this.recoveredFromGateway = true;
+            return this;
+        }
+
         public MetaData build() {
-            return new MetaData(indices.immutableMap(), maxNumberOfShardsPerNode);
+            return new MetaData(indices.immutableMap(), recoveredFromGateway, maxNumberOfShardsPerNode);
         }
 
         public static String toXContent(MetaData metaData) throws IOException {
@@ -321,6 +341,8 @@ public class MetaData implements Iterable<IndexMetaData> {
         public static MetaData readFrom(StreamInput in, @Nullable Settings globalSettings) throws IOException {
             Builder builder = new Builder();
             builder.maxNumberOfShardsPerNode(in.readInt());
+            // we only serialize it using readFrom, not in to/from XContent
+            builder.recoveredFromGateway = in.readBoolean();
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
                 builder.put(IndexMetaData.Builder.readFrom(in, globalSettings));
@@ -330,6 +352,7 @@ public class MetaData implements Iterable<IndexMetaData> {
 
         public static void writeTo(MetaData metaData, StreamOutput out) throws IOException {
             out.writeInt(metaData.maxNumberOfShardsPerNode());
+            out.writeBoolean(metaData.recoveredFromGateway());
             out.writeVInt(metaData.indices.size());
             for (IndexMetaData indexMetaData : metaData) {
                 IndexMetaData.Builder.writeTo(indexMetaData, out);

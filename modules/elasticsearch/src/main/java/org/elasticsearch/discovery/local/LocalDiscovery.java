@@ -59,8 +59,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
     private volatile boolean master = false;
 
-    private volatile boolean firstMaster = false;
-
     private final AtomicBoolean initialStateSent = new AtomicBoolean();
 
     private final CopyOnWriteArrayList<InitialStateDiscoveryListener> initialStateListeners = new CopyOnWriteArrayList<InitialStateDiscoveryListener>();
@@ -91,7 +89,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
             if (clusterGroup.members().size() == 1) {
                 // we are the first master (and the master)
                 master = true;
-                firstMaster = true;
                 clusterService.submitStateUpdateTask("local-disco-initial_connect(master)", new ProcessedClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
                         DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder()
@@ -178,10 +175,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
     @Override public String nodeDescription() {
         return clusterName.value() + "/" + localNode.id();
-    }
-
-    @Override public boolean firstMaster() {
-        return firstMaster;
     }
 
     @Override public void publish(ClusterState clusterState) {

@@ -76,8 +76,6 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
 
     private DiscoveryNode localNode;
 
-    private volatile boolean firstMaster = false;
-
     private final AtomicBoolean initialStateSent = new AtomicBoolean();
 
     private final CopyOnWriteArrayList<InitialStateDiscoveryListener> initialStateListeners = new CopyOnWriteArrayList<InitialStateDiscoveryListener>();
@@ -150,7 +148,6 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
             this.localNode = new DiscoveryNode(settings.get("name"), channel.getAddress().toString(), transportService.boundAddress().publishAddress(), buildCommonNodesAttributes(settings));
 
             if (isMaster()) {
-                firstMaster = true;
                 clusterService.submitStateUpdateTask("jgroups-disco-initial_connect(master)", new ProcessedClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
                         DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder()
@@ -203,10 +200,6 @@ public class JgroupsDiscovery extends AbstractLifecycleComponent<Discovery> impl
 
     public String nodeDescription() {
         return channel.getClusterName() + "/" + channel.getAddress();
-    }
-
-    @Override public boolean firstMaster() {
-        return firstMaster;
     }
 
     @Override public void publish(ClusterState clusterState) {

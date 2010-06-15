@@ -66,7 +66,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
     private final TimeValue delayIndexCreation;
 
 
-    private final AtomicBoolean firstMasterRead = new AtomicBoolean();
+    private final AtomicBoolean readFromGateway = new AtomicBoolean();
 
     @Inject public GatewayService(Settings settings, Gateway gateway, ClusterService clusterService, DiscoveryService discoveryService,
                                   ThreadPool threadPool, MetaDataService metaDataService) {
@@ -78,8 +78,6 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         this.metaDataService = metaDataService;
         this.initialStateTimeout = componentSettings.getAsTime("initial_state_timeout", TimeValue.timeValueSeconds(30));
         // allow to control a delay of when indices will get created
-        // TODO we need to maintain, on the cluster state, a flag that states if it was read from the gateway or not
-        // so if we delay, and the first master failed to start, others will load it
         this.delayIndexCreation = componentSettings.getAsTime("delay_index_creation", null);
     }
 
@@ -89,8 +87,9 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         // if we received initial state, see if we can recover within the start phase, so we hold the
         // node from starting until we recovered properly
         if (discoveryService.initialStateReceived()) {
-            if (discoveryService.firstMaster()) {
-                if (firstMasterRead.compareAndSet(false, true)) {
+            ClusterState clusterState = clusterService.state();
+            if (clusterState.nodes().localNodeMaster() && !clusterState.metaData().recoveredFromGateway()) {
+                if (readFromGateway.compareAndSet(false, true)) {
                     Boolean waited = readFromGateway(initialStateTimeout);
                     if (waited != null && !waited) {
                         logger.warn("Waited for {} for indices to be created from the gateway, and not all have been created", initialStateTimeout);
@@ -119,8 +118,11 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
     }
 
     @Override public void clusterChanged(final ClusterChangedEvent event) {
-        if (lifecycle.started() && event.localNodeMaster()) {
-            if (event.firstMaster() && firstMasterRead.compareAndSet(false, true)) {
+        if (!lifecycle.started()) {
+            return;
+        }
+        if (event.localNodeMaster()) {
+            if (!event.state().metaData().recoveredFromGateway() && readFromGateway.compareAndSet(false, true)) {
                 executor.execute(new Runnable() {
                     @Override public void run() {
                         readFromGateway(null);
@@ -162,10 +164,12 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
             metaData = gateway.read();
         } catch (Exception e) {
             logger.error("Failed to read from gateway", e);
+            markMetaDataAsReadFromGateway("failure");
             return false;
         }
         if (metaData == null) {
             logger.debug("No state read from gateway");
+            markMetaDataAsReadFromGateway("no state");
             return true;
         }
         final MetaData fMetaData = metaData;
@@ -194,11 +198,25 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         return null;
     }
 
+    private void markMetaDataAsReadFromGateway(String reason) {
+        clusterService.submitStateUpdateTask("gateway (marked as read, reason=" + reason + ")", new ClusterStateUpdateTask() {
+            @Override public ClusterState execute(ClusterState currentState) {
+                MetaData.Builder metaDataBuilder = newMetaDataBuilder()
+                        .metaData(currentState.metaData())
+                                // mark the metadata as read from gateway
+                        .markAsRecoveredFromGateway();
+                return newClusterStateBuilder().state(currentState).metaData(metaDataBuilder).build();
+            }
+        });
+    }
+
     private void updateClusterStateFromGateway(final MetaData fMetaData, final CountDownLatch latch) {
         clusterService.submitStateUpdateTask("gateway (recovered meta-data)", new ClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
                 MetaData.Builder metaDataBuilder = newMetaDataBuilder()
                         .metaData(currentState.metaData()).maxNumberOfShardsPerNode(fMetaData.maxNumberOfShardsPerNode());
+                // mark the metadata as read from gateway
+                metaDataBuilder.markAsRecoveredFromGateway();
                 // go over the meta data and create indices, we don't really need to copy over
                 // the meta data per index, since we create the index and it will be added automatically
                 for (final IndexMetaData indexMetaData : fMetaData) {

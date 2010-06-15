@@ -21,15 +21,15 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
+import org.elasticsearch.common.trove.TObjectIntHashMap;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.util.Booleans;
-import org.elasticsearch.util.collect.Lists;
-import org.elasticsearch.util.gnu.trove.TObjectIntHashMap;
-import org.elasticsearch.util.trove.ExtTObjectIntHasMap;
-import org.elasticsearch.util.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;

@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.search;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchContextMissingException;
@@ -39,7 +40,6 @@ import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.trove.ExtTIntArrayList;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -47,9 +47,9 @@ import org.testng.annotations.Test;
 import java.util.Map;
 
 import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.common.collect.Lists.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.*;
-import static org.elasticsearch.util.collect.Lists.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

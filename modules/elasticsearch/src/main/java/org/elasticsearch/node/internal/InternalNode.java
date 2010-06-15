@@ -29,6 +29,20 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.routing.RoutingService;
+import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.http.client.HttpClientModule;
+import org.elasticsearch.common.http.client.HttpClientService;
+import org.elasticsearch.common.inject.Guice;
+import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.Injectors;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.env.Environment;
@@ -61,27 +75,13 @@ import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.Tuple;
-import org.elasticsearch.util.component.Lifecycle;
-import org.elasticsearch.util.component.LifecycleComponent;
-import org.elasticsearch.util.guice.Injectors;
-import org.elasticsearch.util.http.HttpClientModule;
-import org.elasticsearch.util.http.HttpClientService;
-import org.elasticsearch.util.inject.Guice;
-import org.elasticsearch.util.inject.Injector;
-import org.elasticsearch.util.inject.Module;
 import org.elasticsearch.util.io.FileSystemUtils;
-import org.elasticsearch.util.logging.ESLogger;
-import org.elasticsearch.util.logging.Loggers;
-import org.elasticsearch.util.network.NetworkModule;
-import org.elasticsearch.util.network.NetworkService;
-import org.elasticsearch.util.settings.Settings;
-import org.elasticsearch.util.settings.SettingsModule;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.util.settings.ImmutableSettings.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 
 /**
  * @author kimchy (shay.banon)

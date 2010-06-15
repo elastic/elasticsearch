@@ -19,14 +19,14 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.common.component.CloseableComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.jmx.JmxService;
 import org.elasticsearch.jmx.MBean;
 import org.elasticsearch.jmx.ManagedAttribute;
-import org.elasticsearch.util.component.CloseableComponent;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)

@@ -21,10 +21,10 @@ package org.elasticsearch.test.integration.client.transport;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.search.TransportTwoServersSearchTests;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.util.transport.TransportAddress;
 
 /**
  * @author kimchy (shay.banon)

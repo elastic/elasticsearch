@@ -24,13 +24,13 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
+import org.elasticsearch.common.lucene.search.TermFilter;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapperListener;
 import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.util.lucene.search.TermFilter;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 

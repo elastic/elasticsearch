@@ -19,10 +19,10 @@
 
 package org.elasticsearch.transport.netty;
 
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.handler.codec.frame.FrameDecoder;
+import org.elasticsearch.common.netty.buffer.ChannelBuffer;
+import org.elasticsearch.common.netty.channel.Channel;
+import org.elasticsearch.common.netty.channel.ChannelHandlerContext;
+import org.elasticsearch.common.netty.handler.codec.frame.FrameDecoder;
 
 import java.io.StreamCorruptedException;
 

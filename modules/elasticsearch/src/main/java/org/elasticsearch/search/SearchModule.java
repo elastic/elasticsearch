@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.dfs.DfsPhase;
@@ -26,7 +27,6 @@ import org.elasticsearch.search.facets.FacetsPhase;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.query.QueryPhase;
-import org.elasticsearch.util.inject.AbstractModule;
 
 /**
  * @author kimchy (Shay Banon)

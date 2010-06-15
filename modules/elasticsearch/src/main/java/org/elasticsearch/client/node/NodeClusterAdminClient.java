@@ -50,9 +50,9 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
 import org.elasticsearch.client.support.AbstractClusterAdminClient;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)

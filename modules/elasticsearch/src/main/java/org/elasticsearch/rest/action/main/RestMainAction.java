@@ -21,16 +21,16 @@ package org.elasticsearch.rest.action.main;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.util.Classes;
 import org.elasticsearch.util.concurrent.jsr166y.ThreadLocalRandom;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
-import org.elasticsearch.util.xcontent.XContentFactory;
-import org.elasticsearch.util.xcontent.XContentParser;
-import org.elasticsearch.util.xcontent.XContentType;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;

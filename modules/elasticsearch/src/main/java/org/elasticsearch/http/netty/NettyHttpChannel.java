@@ -19,16 +19,16 @@
 
 package org.elasticsearch.http.netty;
 
+import org.elasticsearch.common.netty.buffer.ChannelBuffer;
+import org.elasticsearch.common.netty.buffer.ChannelBuffers;
+import org.elasticsearch.common.netty.channel.Channel;
+import org.elasticsearch.common.netty.channel.ChannelFuture;
+import org.elasticsearch.common.netty.channel.ChannelFutureListener;
+import org.elasticsearch.common.netty.handler.codec.http.*;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpException;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.RestResponse;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.channel.ChannelFutureListener;
-import org.jboss.netty.handler.codec.http.*;
 
 import java.io.IOException;
 import java.util.Set;
@@ -38,9 +38,9 @@ import java.util.Set;
  */
 public class NettyHttpChannel implements HttpChannel {
     private final Channel channel;
-    private final org.jboss.netty.handler.codec.http.HttpRequest request;
+    private final org.elasticsearch.common.netty.handler.codec.http.HttpRequest request;
 
-    public NettyHttpChannel(Channel channel, org.jboss.netty.handler.codec.http.HttpRequest request) {
+    public NettyHttpChannel(Channel channel, org.elasticsearch.common.netty.handler.codec.http.HttpRequest request) {
         this.channel = channel;
         this.request = request;
     }
@@ -55,7 +55,7 @@ public class NettyHttpChannel implements HttpChannel {
 
         // Build the response object.
         HttpResponseStatus status = getStatus(response.status());
-        org.jboss.netty.handler.codec.http.HttpResponse resp;
+        org.elasticsearch.common.netty.handler.codec.http.HttpResponse resp;
         if (http10) {
             resp = new DefaultHttpResponse(HttpVersion.HTTP_1_0, status);
             if (!close) {

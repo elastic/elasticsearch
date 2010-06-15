@@ -21,11 +21,11 @@ package org.elasticsearch.index.merge.scheduler;
 
 import org.apache.lucene.index.MergeScheduler;
 import org.apache.lucene.index.SerialMergeScheduler;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)

@@ -23,12 +23,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 

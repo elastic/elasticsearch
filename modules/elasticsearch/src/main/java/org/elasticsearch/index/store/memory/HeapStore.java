@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.store.memory;
 
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.support.AbstractStore;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)

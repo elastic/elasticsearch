@@ -20,8 +20,8 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.util.component.LifecycleComponent;
-import org.elasticsearch.util.inject.Module;
+import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.inject.Module;
 
 /**
  * @author kimchy (shay.banon)

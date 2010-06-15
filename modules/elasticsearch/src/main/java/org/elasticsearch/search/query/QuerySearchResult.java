@@ -29,8 +29,8 @@ import org.elasticsearch.util.io.stream.Streamable;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.lucene.Lucene.*;
 import static org.elasticsearch.search.SearchShardTarget.*;
-import static org.elasticsearch.util.lucene.Lucene.*;
 
 /**
  * @author kimchy (Shay Banon)

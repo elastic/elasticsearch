@@ -44,6 +44,15 @@ import org.elasticsearch.client.transport.action.ClientTransportActionModule;
 import org.elasticsearch.client.transport.support.InternalTransportClient;
 import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.inject.Guice;
+import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.monitor.MonitorService;
@@ -56,23 +65,14 @@ import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.ThreadLocals;
 import org.elasticsearch.util.Tuple;
-import org.elasticsearch.util.collect.ImmutableList;
-import org.elasticsearch.util.inject.Guice;
-import org.elasticsearch.util.inject.Injector;
-import org.elasticsearch.util.inject.Module;
-import org.elasticsearch.util.network.NetworkModule;
-import org.elasticsearch.util.settings.ImmutableSettings;
-import org.elasticsearch.util.settings.Settings;
-import org.elasticsearch.util.settings.SettingsModule;
-import org.elasticsearch.util.transport.TransportAddress;
 
 import java.util.ArrayList;
 
-import static org.elasticsearch.util.settings.ImmutableSettings.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 
 /**
  * The transport client allows to create a client that is not part of the cluster, but simply connects to one
- * or more nodes directly by adding their respective addresses using {@link #addTransportAddress(org.elasticsearch.util.transport.TransportAddress)}.
+ * or more nodes directly by adding their respective addresses using {@link #addTransportAddress(org.elasticsearch.common.transport.TransportAddress)}.
  *
  * <p>The transport client important modules used is the {@link org.elasticsearch.transport.TransportModule} which is
  * started in client mode (only connects, no bind).
@@ -157,7 +157,7 @@ public class TransportClient extends AbstractClient {
 
     /**
      * Returns the current registered transport addresses to use (added using
-     * {@link #addTransportAddress(org.elasticsearch.util.transport.TransportAddress)}.
+     * {@link #addTransportAddress(org.elasticsearch.common.transport.TransportAddress)}.
      */
     public ImmutableList<TransportAddress> transportAddresses() {
         return nodesService.transportAddresses();

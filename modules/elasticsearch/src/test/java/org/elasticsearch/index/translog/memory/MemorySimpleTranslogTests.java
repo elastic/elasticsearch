@@ -22,7 +22,7 @@ package org.elasticsearch.index.translog.memory;
 import org.elasticsearch.index.translog.AbstractSimpleTranslogTests;
 import org.elasticsearch.index.translog.Translog;
 
-import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 
 /**
  * @author kimchy (Shay Banon)

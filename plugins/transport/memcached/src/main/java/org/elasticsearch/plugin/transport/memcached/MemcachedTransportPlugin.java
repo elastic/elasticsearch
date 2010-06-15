@@ -19,16 +19,16 @@
 
 package org.elasticsearch.plugin.transport.memcached;
 
+import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.memcached.MemcachedServer;
 import org.elasticsearch.memcached.MemcachedServerModule;
 import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.util.component.LifecycleComponent;
-import org.elasticsearch.util.inject.Module;
-import org.elasticsearch.util.settings.Settings;
 
 import java.util.Collection;
 
-import static org.elasticsearch.util.collect.Lists.*;
+import static org.elasticsearch.common.collect.Lists.*;
 
 /**
  * @author kimchy (shay.banon)

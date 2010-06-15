@@ -29,8 +29,8 @@ import java.io.IOException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.node.NodeBuilder.*;
-import static org.elasticsearch.util.xcontent.XContentFactory.*;
 
 /**
  * @author kimchy (shay.banon)

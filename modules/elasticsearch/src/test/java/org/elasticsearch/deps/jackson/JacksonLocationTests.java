@@ -19,7 +19,7 @@
 
 package org.elasticsearch.deps.jackson;
 
-import org.codehaus.jackson.*;
+import org.elasticsearch.common.jackson.*;
 import org.elasticsearch.util.io.FastByteArrayOutputStream;
 import org.testng.annotations.Test;
 

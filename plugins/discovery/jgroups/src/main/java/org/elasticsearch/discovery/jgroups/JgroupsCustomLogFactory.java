@@ -19,8 +19,8 @@
 
 package org.elasticsearch.discovery.jgroups;
 
-import org.elasticsearch.util.logging.ESLogger;
-import org.elasticsearch.util.logging.ESLoggerFactory;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.jgroups.logging.CustomLogFactory;
 import org.jgroups.logging.Log;
 

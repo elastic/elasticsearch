@@ -21,9 +21,9 @@ package org.elasticsearch.index.mapper.xcontent;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.util.xcontent.XContentParser;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;

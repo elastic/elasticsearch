@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.engine.robin;
 
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.index.engine.IndexEngine;
-import org.elasticsearch.util.inject.AbstractModule;
 
 /**
  * @author kimchy (shay.banon)

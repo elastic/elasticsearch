@@ -21,14 +21,14 @@ package org.elasticsearch.index.query.xcontent;
 
 import org.apache.lucene.search.FuzzyLikeThisQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.collect.Lists;
-import org.elasticsearch.util.settings.Settings;
-import org.elasticsearch.util.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;

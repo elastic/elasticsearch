@@ -29,11 +29,11 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.transport.action.ClientTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.settings.Settings;
 
 import java.lang.reflect.Constructor;
 

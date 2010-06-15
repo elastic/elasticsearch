@@ -19,13 +19,13 @@
 
 package org.elasticsearch.discovery;
 
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.local.LocalDiscoveryModule;
 import org.elasticsearch.discovery.zen.ZenDiscoveryModule;
-import org.elasticsearch.util.inject.AbstractModule;
-import org.elasticsearch.util.inject.Module;
-import org.elasticsearch.util.settings.Settings;
 
-import static org.elasticsearch.util.guice.ModulesFactory.*;
+import static org.elasticsearch.common.inject.ModulesFactory.*;
 
 /**
  * @author kimchy (Shay Banon)

@@ -37,9 +37,9 @@ import org.elasticsearch.action.terms.TermsRequest
 import org.elasticsearch.action.terms.TermsResponse
 import org.elasticsearch.client.Client
 import org.elasticsearch.client.internal.InternalClient
+import org.elasticsearch.common.xcontent.XContentType
 import org.elasticsearch.groovy.client.action.GActionFuture
 import org.elasticsearch.groovy.util.xcontent.GXContentBuilder
-import org.elasticsearch.util.xcontent.XContentType
 
 /**
  * @author kimchy (shay.banon)

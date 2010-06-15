@@ -29,8 +29,8 @@ import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.strategy.DefaultShardsRoutingStrategy;
 import org.elasticsearch.cluster.routing.strategy.ShardsRoutingStrategy;
 import org.elasticsearch.cluster.service.InternalClusterService;
-import org.elasticsearch.util.inject.AbstractModule;
-import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)

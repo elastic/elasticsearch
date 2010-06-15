@@ -19,8 +19,8 @@
 
 package org.elasticsearch.util;
 
-import org.elasticsearch.util.collect.ImmutableSet;
-import org.elasticsearch.util.collect.Iterables;
+import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.collect.Iterables;
 
 import java.util.*;
 

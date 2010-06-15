@@ -21,28 +21,28 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.trove.TIntObjectHashMap;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.util.Unicode;
-import org.elasticsearch.util.collect.ImmutableMap;
-import org.elasticsearch.util.gnu.trove.TIntObjectHashMap;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.xcontent.XContentFactory;
-import org.elasticsearch.util.xcontent.XContentParser;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 
+import static org.elasticsearch.common.lucene.Lucene.*;
 import static org.elasticsearch.search.SearchShardTarget.*;
 import static org.elasticsearch.search.highlight.HighlightField.*;
 import static org.elasticsearch.search.internal.InternalSearchHitField.*;
-import static org.elasticsearch.util.lucene.Lucene.*;
 
 /**
  * @author kimchy (shay.banon)

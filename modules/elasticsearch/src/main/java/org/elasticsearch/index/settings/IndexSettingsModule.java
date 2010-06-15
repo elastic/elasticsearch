@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.settings;
 
-import org.elasticsearch.util.inject.AbstractModule;
-import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)

@@ -21,21 +21,21 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.util.Unicode;
-import org.elasticsearch.util.collect.ImmutableMap;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
-import org.elasticsearch.util.xcontent.XContentFactory;
-import org.elasticsearch.util.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 
 import static org.elasticsearch.action.get.GetField.*;
-import static org.elasticsearch.util.collect.Iterators.*;
-import static org.elasticsearch.util.collect.Maps.*;
+import static org.elasticsearch.common.collect.Iterators.*;
+import static org.elasticsearch.common.collect.Maps.*;
 
 /**
  * The response of a get action.

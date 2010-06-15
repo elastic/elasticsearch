@@ -20,8 +20,8 @@
 package org.elasticsearch.test.integration.client.transport;
 
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.elasticsearch.util.settings.ImmutableSettings;
 import org.testng.annotations.AfterMethod;
 
 import static org.elasticsearch.client.Requests.*;

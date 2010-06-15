@@ -19,9 +19,9 @@
 
 package org.elasticsearch.gateway.hdfs;
 
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.gateway.hdfs.HdfsIndexGateway;
-import org.elasticsearch.util.inject.AbstractModule;
 
 /**
  * @author kimchy (Shay Banon)

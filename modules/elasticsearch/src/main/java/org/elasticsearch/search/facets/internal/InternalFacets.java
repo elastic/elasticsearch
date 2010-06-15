@@ -19,27 +19,27 @@
 
 package org.elasticsearch.search.facets.internal;
 
+import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.Facets;
 import org.elasticsearch.search.facets.histogram.InternalHistogramFacet;
 import org.elasticsearch.search.facets.query.InternalQueryFacet;
 import org.elasticsearch.search.facets.statistical.InternalStatisticalFacet;
 import org.elasticsearch.search.facets.terms.InternalTermsFacet;
-import org.elasticsearch.util.collect.ImmutableList;
-import org.elasticsearch.util.collect.ImmutableMap;
-import org.elasticsearch.util.collect.Lists;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
-import org.elasticsearch.util.xcontent.ToXContent;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.util.collect.Maps.*;
+import static org.elasticsearch.common.collect.Maps.*;
 
 /**
  * @author kimchy (shay.banon)

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.util.settings.ImmutableSettings;
-import org.elasticsearch.util.settings.Settings;
 
 /**
  * A node builder is used to construct a {@link Node} instance.

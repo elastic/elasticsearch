@@ -19,8 +19,8 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import org.elasticsearch.util.collect.ImmutableMap;
-import org.elasticsearch.util.collect.ImmutableSet;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.ImmutableSet;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;

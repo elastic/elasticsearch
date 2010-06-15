@@ -26,14 +26,14 @@ import org.elasticsearch.action.support.nodes.NodeOperationRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,8 +41,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
+import static org.elasticsearch.common.collect.Lists.*;
 import static org.elasticsearch.util.TimeValue.*;
-import static org.elasticsearch.util.collect.Lists.*;
 
 /**
  * @author kimchy (shay.banon)

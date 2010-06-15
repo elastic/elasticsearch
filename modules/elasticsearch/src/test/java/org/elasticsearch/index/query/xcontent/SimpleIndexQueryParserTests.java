@@ -23,6 +23,9 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.*;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.lucene.search.*;
+import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -31,9 +34,6 @@ import org.elasticsearch.index.engine.robin.RobinIndexEngine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParser;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.util.lucene.search.*;
-import org.elasticsearch.util.lucene.search.function.BoostScoreFunction;
-import org.elasticsearch.util.lucene.search.function.FunctionScoreQuery;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -41,10 +41,10 @@ import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.index.query.xcontent.FilterBuilders.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.elasticsearch.util.io.Streams.*;
-import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

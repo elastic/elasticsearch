@@ -25,9 +25,9 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
-import org.elasticsearch.util.settings.Settings;
 
 /**
  * A base class for operations that needs to be performed on the master node.

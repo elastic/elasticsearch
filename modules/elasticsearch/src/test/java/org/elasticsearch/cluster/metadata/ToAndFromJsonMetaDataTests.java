@@ -19,15 +19,15 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.util.xcontent.XContentFactory;
-import org.elasticsearch.util.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.cluster.metadata.MetaData.*;
-import static org.elasticsearch.util.settings.ImmutableSettings.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

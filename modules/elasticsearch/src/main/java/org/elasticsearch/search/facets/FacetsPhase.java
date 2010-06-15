@@ -21,6 +21,11 @@ package org.elasticsearch.search.facets;
 
 import org.apache.lucene.search.*;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.lucene.search.NoopCollector;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
@@ -28,11 +33,6 @@ import org.elasticsearch.search.facets.collector.FacetCollector;
 import org.elasticsearch.search.facets.internal.InternalFacets;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
-import org.elasticsearch.util.collect.ImmutableMap;
-import org.elasticsearch.util.collect.Lists;
-import org.elasticsearch.util.lucene.search.NoopCollector;
-import org.elasticsearch.util.lucene.search.Queries;
-import org.elasticsearch.util.lucene.search.TermFilter;
 
 import java.io.IOException;
 import java.util.List;

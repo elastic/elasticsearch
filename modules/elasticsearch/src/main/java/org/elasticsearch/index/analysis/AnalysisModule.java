@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Scopes;
+import org.elasticsearch.common.inject.assistedinject.FactoryProvider;
+import org.elasticsearch.common.inject.multibindings.MapBinder;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
-import org.elasticsearch.util.collect.Lists;
-import org.elasticsearch.util.inject.AbstractModule;
-import org.elasticsearch.util.inject.Scopes;
-import org.elasticsearch.util.inject.assistedinject.FactoryProvider;
-import org.elasticsearch.util.inject.multibindings.MapBinder;
-import org.elasticsearch.util.settings.Settings;
 
 import java.util.LinkedList;
 import java.util.Map;

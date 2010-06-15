@@ -21,12 +21,12 @@ package org.elasticsearch.index.merge.policy;
 
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.util.Preconditions;
 import org.elasticsearch.util.SizeUnit;
 import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.inject.Inject;
 
 /**
  * @author kimchy (shay.banon)

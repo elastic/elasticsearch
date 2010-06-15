@@ -24,9 +24,9 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.util.logging.ESLogger;
-import org.elasticsearch.util.logging.Loggers;
-import org.elasticsearch.util.transport.DummyTransportAddress;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.cluster.ClusterState.*;

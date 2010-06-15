@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.common.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)

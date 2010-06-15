@@ -20,10 +20,10 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.Similarity;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)

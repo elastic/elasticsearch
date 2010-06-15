@@ -21,16 +21,16 @@ package org.elasticsearch.index.deletionpolicy;
 
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.RAMDirectory;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.util.lucene.Lucene;
 import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.util.lucene.Directories.*;
-import static org.elasticsearch.util.lucene.DocumentBuilder.*;
-import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
+import static org.elasticsearch.common.lucene.Directories.*;
+import static org.elasticsearch.common.lucene.DocumentBuilder.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.robin.RobinEngineModule;
 import org.elasticsearch.index.engine.robin.RobinIndexEngineModule;
-import org.elasticsearch.util.inject.AbstractModule;
-import org.elasticsearch.util.inject.Module;
-import org.elasticsearch.util.settings.Settings;
 
-import static org.elasticsearch.util.guice.ModulesFactory.*;
+import static org.elasticsearch.common.inject.ModulesFactory.*;
 
 /**
  * @author kimchy (shay.banon)

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.similarity;
 
-import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.common.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)

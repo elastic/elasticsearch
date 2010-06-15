@@ -19,15 +19,15 @@
 
 package org.elasticsearch.gateway.none;
 
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.inject.Module;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.GatewayException;
 import org.elasticsearch.index.gateway.none.NoneIndexGatewayModule;
-import org.elasticsearch.util.component.AbstractLifecycleComponent;
-import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)

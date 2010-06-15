@@ -19,17 +19,17 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.assistedinject.Assisted;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.inject.assistedinject.Assisted;
-import org.elasticsearch.util.settings.ImmutableSettings;
-import org.elasticsearch.util.settings.Settings;
 
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.util.collect.Lists.*;
+import static org.elasticsearch.common.collect.Lists.*;
 
 /**
  * A custom analyzer that is built out of a single {@link org.apache.lucene.analysis.Tokenizer} and a list

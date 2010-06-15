@@ -21,11 +21,11 @@ package org.elasticsearch.discovery.cloud;
 
 import org.elasticsearch.cloud.compute.CloudComputeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.settings.Settings;
-import org.elasticsearch.util.transport.InetSocketTransportAddress;
-import org.elasticsearch.util.transport.PortsRange;
 import org.jclouds.compute.ComputeService;
 import org.jclouds.compute.domain.ComputeMetadata;
 import org.jclouds.compute.domain.NodeMetadata;
@@ -35,7 +35,7 @@ import org.jclouds.domain.Location;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.util.collect.Lists.*;
+import static org.elasticsearch.common.collect.Lists.*;
 
 /**
  * @author kimchy (shay.banon)

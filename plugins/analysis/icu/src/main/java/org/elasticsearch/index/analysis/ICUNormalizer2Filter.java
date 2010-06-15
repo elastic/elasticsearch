@@ -24,7 +24,7 @@ import com.ibm.icu.text.Normalizer2;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.TermAttribute;
-import org.elasticsearch.util.lucene.analysis.CharSequenceTermAttribute;
+import org.elasticsearch.common.lucene.analysis.CharSequenceTermAttribute;
 
 import java.io.IOException;
 

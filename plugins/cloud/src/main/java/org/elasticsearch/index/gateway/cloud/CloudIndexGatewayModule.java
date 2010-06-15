@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.gateway.cloud;
 
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.index.gateway.IndexGateway;
-import org.elasticsearch.util.inject.AbstractModule;
 
 /**
  * @author kimchy (shay.banon)

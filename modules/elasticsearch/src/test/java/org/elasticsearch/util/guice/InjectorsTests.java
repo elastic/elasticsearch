@@ -19,11 +19,8 @@
 
 package org.elasticsearch.util.guice;
 
-import org.elasticsearch.util.inject.AbstractModule;
-import org.elasticsearch.util.inject.BindingAnnotation;
-import org.elasticsearch.util.inject.Guice;
-import org.elasticsearch.util.inject.Injector;
-import org.elasticsearch.util.inject.matcher.Matchers;
+import org.elasticsearch.common.inject.*;
+import org.elasticsearch.common.inject.matcher.Matchers;
 import org.testng.annotations.Test;
 
 import java.lang.annotation.Documented;

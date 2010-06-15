@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 

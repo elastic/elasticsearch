@@ -1,0 +1,81 @@
+apply plugin: 'java'
+
+archivesBaseName = "$project.archivesBaseName"
+
+dependencies {
+    runtime 'aopalliance:aopalliance:1.0'
+    runtime 'com.google.inject:guice:2.0'
+    runtime 'com.google.inject.extensions:guice-assisted-inject:2.0'
+    runtime 'com.google.inject.extensions:guice-multibindings:2.0'
+
+    runtime 'com.google.guava:guava:r05'
+    runtime 'org.elasticsearch:es-trove:2.1.0'
+
+    runtime 'joda-time:joda-time:1.6'
+    runtime 'org.mvel:mvel2:2.0.17'
+
+    runtime 'org.codehaus.jackson:jackson-core-asl:1.5.2'
+    runtime 'org.yaml:snakeyaml:1.6'
+
+    runtime('org.jboss.netty:netty:3.2.0.CR1') { transitive = false }
+    runtime('com.ning:async-http-client:1.0.0-SNAPSHOT') { transitive = false }
+}
+
+configurations {
+    tools
+}
+
+dependencies {
+    tools "org.elasticsearch:es-jarjar:1.0.0"
+}
+
+jar << {
+    jarjarArchivePath = new File(jar.archivePath.absolutePath + ".jarjar.jar")
+    project.ant {
+        taskdef name: "jarjar", classname: "com.tonicsystems.jarjar.JarJarTask", classpath: configurations.tools.asPath
+        jarjar(jarfile: jarjarArchivePath) {
+            zipfileset(src: jar.archivePath)
+            configurations.runtime.files.findAll {file ->
+                ['mvel', 'jackson', 'joda', 'snakeyaml', 'netty', 'async-http-client', 'guice', 'aopalliance', 'guava', 'trove'].any { file.name.contains(it) }
+            }.each { jarjarFile ->
+                zipfileset(src: jarjarFile) {
+                    exclude(name: "META-INF/**")
+                }
+            }
+            rule pattern: "com.google.common.**", result: "org.elasticsearch.common.@1"
+            rule pattern: "gnu.trove.**", result: "org.elasticsearch.common.trove.@1"
+
+            rule pattern: "org.aopalliance.**", result: "org.elasticsearch.common.aopalliance.@1"
+            rule pattern: "com.google.inject.**", result: "org.elasticsearch.common.inject.@1"
+
+            rule pattern: "org.mvel2.**", result: "org.elasticsearch.common.mvel2.@1"
+
+            rule pattern: "org.codehaus.jackson.**", result: "org.elasticsearch.common.jackson.@1"
+            rule pattern: "org.yaml.**", result: "org.elasticsearch.common.yaml.@1"
+
+            rule pattern: "org.joda.**", result: "org.elasticsearch.common.joda.@1"
+
+            rule pattern: "org.jboss.netty.**", result: "org.elasticsearch.common.netty.@1"
+            rule pattern: "com.ning.http.**", result: "org.elasticsearch.common.http.@1"
+        }
+        delete(file: jar.archivePath)
+        copy(file: jarjarArchivePath, tofile: jar.archivePath)
+        delete(file: jarjarArchivePath)
+
+        // seems like empty dirst still exists, unjar and clean them
+        unjar(src: jar.archivePath, dest: "build/tmp/extracted")
+        delete(dir: "build/tmp/extracted/gnu/trove")
+        delete(dir: "build/tmp/extracted/org/codehaus")
+        delete(dir: "build/tmp/extracted/org/aopalliance")
+        delete(dir: "build/tmp/extracted/com/google")
+        delete(dir: "build/tmp/extracted/org/mvel2")
+        delete(dir: "build/tmp/extracted/org/joda")
+        delete(dir: "build/tmp/extracted/org/yaml")
+        delete(dir: "build/tmp/extracted/org/jboss")
+        delete(dir: "build/tmp/extracted/com/ning")
+
+        delete(file: jar.archivePath)
+        jar(destfile: jar.archivePath, basedir: "build/tmp/extracted")
+        delete(dir: "build/tmp/extracted")
+    }
+}

@@ -45,9 +45,9 @@ import org.elasticsearch.action.terms.TransportTermsAction;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.client.support.AbstractClient;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)

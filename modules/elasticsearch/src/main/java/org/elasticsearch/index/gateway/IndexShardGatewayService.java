@@ -20,6 +20,9 @@
 package org.elasticsearch.index.gateway;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.common.component.CloseableIndexComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
@@ -36,9 +39,6 @@ import org.elasticsearch.indices.recovery.throttler.RecoveryThrottler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.util.StopWatch;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.component.CloseableIndexComponent;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 import java.util.concurrent.ScheduledFuture;

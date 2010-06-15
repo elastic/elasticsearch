@@ -19,16 +19,16 @@
 
 package org.elasticsearch.index.query.xcontent.guice;
 
-import org.elasticsearch.index.query.xcontent.QueryParseContext;
-import org.elasticsearch.index.query.xcontent.XContentFilterParser;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.inject.assistedinject.Assisted;
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.assistedinject.Assisted;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.query.xcontent.QueryParseContext;
+import org.elasticsearch.index.query.xcontent.XContentFilterParser;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 

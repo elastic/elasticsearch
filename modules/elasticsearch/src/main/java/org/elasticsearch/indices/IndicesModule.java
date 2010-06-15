@@ -19,11 +19,11 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.throttler.RecoveryThrottler;
-import org.elasticsearch.util.inject.AbstractModule;
-import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)

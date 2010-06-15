@@ -19,19 +19,19 @@
 
 package org.elasticsearch.threadpool.cached;
 
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.support.AbstractThreadPool;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.concurrent.DynamicExecutors;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.util.TimeValue.*;
-import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 
 /**
  * A thread pool that will create an unbounded number of threads.

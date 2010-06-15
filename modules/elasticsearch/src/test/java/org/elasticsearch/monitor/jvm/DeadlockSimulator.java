@@ -23,7 +23,7 @@ import org.elasticsearch.monitor.dump.DumpMonitorService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.scaling.ScalingThreadPool;
 
-import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 
 /**
  * @author kimchy

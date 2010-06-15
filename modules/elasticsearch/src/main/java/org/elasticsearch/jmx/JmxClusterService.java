@@ -23,9 +23,9 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.jmx.action.GetJmxServiceUrlAction;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.settings.Settings;
 
 import javax.management.MBeanServerConnection;
 import javax.management.remote.JMXConnector;

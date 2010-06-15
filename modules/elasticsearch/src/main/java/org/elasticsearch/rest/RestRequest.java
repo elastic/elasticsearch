@@ -19,9 +19,9 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.util.SizeValue;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.xcontent.ToXContent;
 
 import java.util.List;
 import java.util.Map;

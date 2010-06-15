@@ -46,7 +46,7 @@ import org.elasticsearch.client.transport.action.index.ClientTransportIndexActio
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchAction;
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchScrollAction;
 import org.elasticsearch.client.transport.action.terms.ClientTransportTermsAction;
-import org.elasticsearch.util.inject.AbstractModule;
+import org.elasticsearch.common.inject.AbstractModule;
 
 /**
  * @author kimchy (shay.banon)

@@ -20,30 +20,30 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.collect.UnmodifiableIterator;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.builder.TextXContentBuilder;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.util.MapBuilder;
-import org.elasticsearch.util.collect.ImmutableMap;
-import org.elasticsearch.util.collect.ImmutableSet;
-import org.elasticsearch.util.collect.Lists;
-import org.elasticsearch.util.collect.UnmodifiableIterator;
 import org.elasticsearch.util.concurrent.Immutable;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.settings.Settings;
-import org.elasticsearch.util.xcontent.ToXContent;
-import org.elasticsearch.util.xcontent.XContentFactory;
-import org.elasticsearch.util.xcontent.XContentParser;
-import org.elasticsearch.util.xcontent.XContentType;
-import org.elasticsearch.util.xcontent.builder.TextXContentBuilder;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.*;
 
+import static org.elasticsearch.common.collect.Sets.*;
 import static org.elasticsearch.util.MapBuilder.*;
-import static org.elasticsearch.util.collect.Sets.*;
 
 /**
  * @author kimchy (shay.banon)

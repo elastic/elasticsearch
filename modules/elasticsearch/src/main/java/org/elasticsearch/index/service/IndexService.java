@@ -20,6 +20,8 @@
 package org.elasticsearch.index.service;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.component.CloseableIndexComponent;
+import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.cache.IndexCache;
@@ -29,8 +31,6 @@ import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.routing.OperationRouting;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.util.component.CloseableIndexComponent;
-import org.elasticsearch.util.inject.Injector;
 
 import java.util.Set;
 

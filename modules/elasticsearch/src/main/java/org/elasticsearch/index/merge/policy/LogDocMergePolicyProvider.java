@@ -21,10 +21,10 @@ package org.elasticsearch.index.merge.policy;
 
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LogDocMergePolicy;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.util.Preconditions;
-import org.elasticsearch.util.inject.Inject;
 
 /**
  * @author kimchy (shay.banon)

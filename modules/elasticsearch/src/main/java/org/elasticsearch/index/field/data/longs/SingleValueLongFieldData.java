@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.field.data.longs;
 
+import org.elasticsearch.common.joda.time.MutableDateTime;
 import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
 import org.elasticsearch.util.ThreadLocals;
-import org.joda.time.MutableDateTime;
 
 /**
  * @author kimchy (shay.banon)

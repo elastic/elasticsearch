@@ -21,10 +21,10 @@ package org.elasticsearch.discovery;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.component.AbstractLifecycleComponent;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.jmx;
 
-import org.elasticsearch.util.logging.ESLogger;
-import org.elasticsearch.util.network.NetworkService;
-import org.elasticsearch.util.settings.Settings;
-import org.elasticsearch.util.transport.PortsRange;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.PortsRange;
 
 import javax.management.InstanceAlreadyExistsException;
 import javax.management.MBeanServer;

@@ -23,21 +23,21 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericLongAnalyzer;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.util.Numbers;
 import org.elasticsearch.util.Strings;
-import org.elasticsearch.util.xcontent.XContentParser;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
 import static org.elasticsearch.index.mapper.xcontent.XContentMapperBuilders.*;
 import static org.elasticsearch.index.mapper.xcontent.XContentTypeParsers.*;
-import static org.elasticsearch.util.xcontent.support.XContentMapValues.*;
 
 /**
  * @author kimchy (shay.banon)

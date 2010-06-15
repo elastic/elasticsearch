@@ -19,12 +19,12 @@
 
 package org.elasticsearch.deps.joda;
 
-import org.elasticsearch.util.joda.FormatDateTimeFormatter;
-import org.elasticsearch.util.joda.Joda;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
-import org.joda.time.format.ISODateTimeFormat;
+import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.joda.time.DateTimeZone;
+import org.elasticsearch.common.joda.time.format.DateTimeFormat;
+import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
+import org.elasticsearch.common.joda.time.format.ISODateTimeFormat;
 import org.testng.annotations.Test;
 
 import java.util.Date;

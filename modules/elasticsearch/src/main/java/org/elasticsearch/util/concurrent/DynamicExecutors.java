@@ -19,7 +19,7 @@
 
 package org.elasticsearch.util.concurrent;
 
-import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.common.settings.Settings;
 
 import java.util.concurrent.*;
 

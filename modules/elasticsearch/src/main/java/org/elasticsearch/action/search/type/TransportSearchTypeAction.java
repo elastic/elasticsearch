@@ -29,6 +29,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceListener;
@@ -38,8 +40,6 @@ import org.elasticsearch.search.controller.ShardDoc;
 import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.util.settings.Settings;
-import org.elasticsearch.util.trove.ExtTIntArrayList;
 
 import java.util.Arrays;
 import java.util.Collection;

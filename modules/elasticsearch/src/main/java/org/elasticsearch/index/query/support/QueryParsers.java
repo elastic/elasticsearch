@@ -20,10 +20,10 @@
 package org.elasticsearch.index.query.support;
 
 import org.apache.lucene.search.*;
+import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.xcontent.QueryParseContext;
-import org.elasticsearch.util.lucene.search.TermFilter;
 
 import javax.annotation.Nullable;
 

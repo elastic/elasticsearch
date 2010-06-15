@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.query;
 
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.util.xcontent.XContentParser;
 
 /**
  * <pre>

@@ -26,6 +26,9 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.single.TransportSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.service.IndexService;
@@ -33,15 +36,12 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.lucene.Lucene;
-import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Map;
 
-import static org.elasticsearch.util.collect.Maps.*;
+import static org.elasticsearch.common.collect.Maps.*;
 
 /**
  * Performs the get operation.

@@ -1,19 +1,19 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.http.client.HttpDownloadHelper;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPerparer;
 import org.elasticsearch.util.Tuple;
-import org.elasticsearch.util.http.HttpDownloadHelper;
 import org.elasticsearch.util.io.FileSystemUtils;
-import org.elasticsearch.util.settings.Settings;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URL;
 
-import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 
 /**
  * @author kimchy (shay.banon)

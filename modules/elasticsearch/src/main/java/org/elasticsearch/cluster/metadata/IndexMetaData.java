@@ -19,25 +19,25 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.util.MapBuilder;
 import org.elasticsearch.util.Preconditions;
-import org.elasticsearch.util.collect.ImmutableMap;
-import org.elasticsearch.util.collect.ImmutableSet;
 import org.elasticsearch.util.concurrent.Immutable;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.settings.ImmutableSettings;
-import org.elasticsearch.util.settings.Settings;
-import org.elasticsearch.util.xcontent.ToXContent;
-import org.elasticsearch.util.xcontent.XContentFactory;
-import org.elasticsearch.util.xcontent.XContentParser;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.util.settings.ImmutableSettings.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -67,7 +67,7 @@ public class IndexMetaData {
         this.mappings = mappings;
         this.totalNumberOfShards = numberOfShards() * (numberOfReplicas() + 1);
 
-        this.aliases = ImmutableSet.of(settings.getAsArray("index.aliases"));
+        this.aliases = ImmutableSet.copyOf(settings.getAsArray("index.aliases"));
     }
 
     public String index() {

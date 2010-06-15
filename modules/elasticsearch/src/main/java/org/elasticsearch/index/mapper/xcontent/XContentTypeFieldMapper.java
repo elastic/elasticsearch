@@ -23,10 +23,10 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
-import org.elasticsearch.util.lucene.Lucene;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 

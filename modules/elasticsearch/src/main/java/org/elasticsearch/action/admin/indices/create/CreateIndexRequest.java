@@ -23,30 +23,30 @@ import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.builder.TextXContentBuilder;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.util.TimeValue;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.settings.ImmutableSettings;
-import org.elasticsearch.util.settings.Settings;
-import org.elasticsearch.util.xcontent.XContentFactory;
-import org.elasticsearch.util.xcontent.XContentType;
-import org.elasticsearch.util.xcontent.builder.TextXContentBuilder;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.Actions.*;
+import static org.elasticsearch.common.collect.Maps.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.elasticsearch.util.TimeValue.*;
-import static org.elasticsearch.util.collect.Maps.*;
-import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
-import static org.elasticsearch.util.settings.ImmutableSettings.*;
 
 /**
  * A request to create an index. Best created with {@link org.elasticsearch.client.Requests#createIndexRequest(String)}.
  *
- * <p>The index created can optionally be created with {@link #settings(org.elasticsearch.util.settings.Settings)}.
+ * <p>The index created can optionally be created with {@link #settings(org.elasticsearch.common.settings.Settings)}.
  *
  * @author kimchy (shay.banon)
  * @see org.elasticsearch.client.IndicesAdminClient#create(CreateIndexRequest)

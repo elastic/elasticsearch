@@ -21,6 +21,7 @@ package org.elasticsearch.search.highlight;
 
 import org.apache.lucene.search.vectorhighlight.*;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.SearchHit;
@@ -29,7 +30,6 @@ import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.util.collect.ImmutableMap;
 
 import java.io.IOException;
 import java.util.HashMap;

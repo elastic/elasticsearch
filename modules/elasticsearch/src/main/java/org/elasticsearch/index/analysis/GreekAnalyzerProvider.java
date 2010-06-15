@@ -20,14 +20,14 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.el.GreekAnalyzer;
+import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.assistedinject.Assisted;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.collect.ImmutableSet;
-import org.elasticsearch.util.collect.Iterators;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.inject.assistedinject.Assisted;
-import org.elasticsearch.util.lucene.Lucene;
-import org.elasticsearch.util.settings.Settings;
 
 import java.util.Set;
 

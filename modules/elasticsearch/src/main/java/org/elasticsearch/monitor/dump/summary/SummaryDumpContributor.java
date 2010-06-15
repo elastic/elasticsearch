@@ -19,12 +19,12 @@
 
 package org.elasticsearch.monitor.dump.summary;
 
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.inject.assistedinject.Assisted;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.assistedinject.Assisted;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.dump.Dump;
 import org.elasticsearch.monitor.dump.DumpContributionFailedException;
 import org.elasticsearch.monitor.dump.DumpContributor;
-import org.elasticsearch.util.settings.Settings;
 
 import java.io.PrintWriter;
 import java.text.DateFormat;

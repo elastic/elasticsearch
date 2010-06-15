@@ -22,6 +22,7 @@ package org.elasticsearch.index.query.xcontent;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Similarity;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.IndexEngine;
@@ -31,7 +32,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.util.xcontent.XContentParser;
 
 import javax.annotation.Nullable;
 import java.io.IOException;

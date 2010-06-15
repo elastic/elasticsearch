@@ -25,7 +25,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 
-import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 
 /**
  * @author kimchy

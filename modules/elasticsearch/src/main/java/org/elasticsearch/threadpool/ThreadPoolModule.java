@@ -19,12 +19,12 @@
 
 package org.elasticsearch.threadpool;
 
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.cached.CachedThreadPoolModule;
-import org.elasticsearch.util.inject.AbstractModule;
-import org.elasticsearch.util.inject.Module;
-import org.elasticsearch.util.settings.Settings;
 
-import static org.elasticsearch.util.guice.ModulesFactory.*;
+import static org.elasticsearch.common.inject.ModulesFactory.*;
 
 /**
  * @author kimchy (Shay Banon)

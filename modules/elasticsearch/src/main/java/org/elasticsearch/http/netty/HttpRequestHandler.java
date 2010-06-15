@@ -19,12 +19,12 @@
 
 package org.elasticsearch.http.netty;
 
-import org.jboss.netty.channel.*;
-import org.jboss.netty.handler.codec.http.HttpRequest;
+import org.elasticsearch.common.netty.channel.*;
+import org.elasticsearch.common.netty.handler.codec.http.HttpRequest;
 
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 @ChannelHandler.Sharable
 public class HttpRequestHandler extends SimpleChannelUpstreamHandler {

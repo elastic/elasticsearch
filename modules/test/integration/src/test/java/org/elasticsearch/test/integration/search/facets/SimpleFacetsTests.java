@@ -30,9 +30,9 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.xcontent.FilterBuilders.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
-import static org.elasticsearch.util.xcontent.XContentFactory.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

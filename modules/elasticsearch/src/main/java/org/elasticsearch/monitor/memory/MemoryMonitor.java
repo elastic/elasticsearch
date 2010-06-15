@@ -19,7 +19,7 @@
 
 package org.elasticsearch.monitor.memory;
 
-import org.elasticsearch.util.component.LifecycleComponent;
+import org.elasticsearch.common.component.LifecycleComponent;
 
 /**
  * @author kimchy (shay.banon)

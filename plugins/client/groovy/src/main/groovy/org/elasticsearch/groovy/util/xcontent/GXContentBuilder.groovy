@@ -19,10 +19,10 @@
 
 package org.elasticsearch.groovy.util.xcontent
 
-import org.elasticsearch.util.xcontent.XContentFactory
-import org.elasticsearch.util.xcontent.XContentType
-import org.elasticsearch.util.xcontent.builder.BinaryXContentBuilder
-import org.elasticsearch.util.xcontent.builder.TextXContentBuilder
+import org.elasticsearch.common.xcontent.XContentFactory
+import org.elasticsearch.common.xcontent.XContentType
+import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder
+import org.elasticsearch.common.xcontent.builder.TextXContentBuilder
 
 /**
  * Used to build JSON data.

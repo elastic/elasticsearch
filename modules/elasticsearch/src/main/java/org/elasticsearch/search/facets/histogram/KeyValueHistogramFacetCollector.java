@@ -20,6 +20,8 @@
 package org.elasticsearch.search.facets.histogram;
 
 import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.common.trove.TLongDoubleHashMap;
+import org.elasticsearch.common.trove.TLongLongHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.NumericFieldData;
@@ -28,8 +30,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.FacetPhaseExecutionException;
 import org.elasticsearch.search.facets.support.AbstractFacetCollector;
-import org.elasticsearch.util.gnu.trove.TLongDoubleHashMap;
-import org.elasticsearch.util.gnu.trove.TLongLongHashMap;
 
 import java.io.IOException;
 

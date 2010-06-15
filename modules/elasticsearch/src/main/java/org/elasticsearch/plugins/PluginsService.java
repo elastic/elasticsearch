@@ -20,17 +20,17 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.collect.Maps;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.component.CloseableIndexComponent;
+import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.util.collect.ImmutableMap;
-import org.elasticsearch.util.collect.Lists;
-import org.elasticsearch.util.collect.Maps;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.component.CloseableIndexComponent;
-import org.elasticsearch.util.component.LifecycleComponent;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.inject.Module;
 import org.elasticsearch.util.io.Streams;
-import org.elasticsearch.util.settings.Settings;
 
 import java.io.*;
 import java.lang.reflect.Method;
@@ -39,7 +39,7 @@ import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-import static org.elasticsearch.util.collect.Maps.*;
+import static org.elasticsearch.common.collect.Maps.*;
 import static org.elasticsearch.util.io.FileSystemUtils.*;
 
 /**

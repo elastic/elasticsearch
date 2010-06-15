@@ -26,7 +26,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.FieldCache;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
-import org.elasticsearch.util.lucene.Lucene;
+import org.elasticsearch.common.lucene.Lucene;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.*;

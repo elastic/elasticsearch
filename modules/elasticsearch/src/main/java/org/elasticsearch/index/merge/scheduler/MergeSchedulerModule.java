@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.merge.scheduler;
 
-import org.elasticsearch.util.inject.AbstractModule;
-import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
 
 import static org.elasticsearch.index.merge.scheduler.MergeSchedulerModule.MergeSchedulerSettings.*;
 

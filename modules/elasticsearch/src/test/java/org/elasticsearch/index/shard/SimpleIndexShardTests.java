@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
@@ -40,13 +41,12 @@ import org.elasticsearch.index.translog.memory.MemoryTranslog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.scaling.ScalingThreadPool;
 import org.elasticsearch.util.Unicode;
-import org.elasticsearch.util.settings.Settings;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
-import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

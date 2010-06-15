@@ -21,10 +21,10 @@ package org.elasticsearch.index.field.data.doubles;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
+import org.elasticsearch.common.trove.TDoubleArrayList;
 import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.field.data.support.FieldDataLoader;
-import org.elasticsearch.util.gnu.trove.TDoubleArrayList;
 
 import java.io.IOException;
 

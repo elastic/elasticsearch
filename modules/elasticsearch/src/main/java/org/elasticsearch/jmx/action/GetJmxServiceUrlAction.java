@@ -19,19 +19,19 @@
 
 package org.elasticsearch.jmx.action;
 
-import org.elasticsearch.util.inject.Inject;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.jmx.JmxService;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.FutureTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.io.stream.StringStreamable;
 import org.elasticsearch.util.io.stream.VoidStreamable;
-import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)

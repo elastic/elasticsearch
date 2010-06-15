@@ -25,6 +25,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
@@ -42,14 +44,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.scaling.ScalingThreadPool;
 import org.elasticsearch.util.StopWatch;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.lucene.Lucene;
-import org.elasticsearch.util.settings.Settings;
 
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.util.lucene.DocumentBuilder.*;
-import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
+import static org.elasticsearch.common.lucene.DocumentBuilder.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 
 /**
  * @author kimchy (Shay Banon)

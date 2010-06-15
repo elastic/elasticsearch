@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.facets.statistical;
 
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.facets.collector.FacetCollector;
 import org.elasticsearch.search.facets.collector.FacetCollectorParser;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.util.xcontent.XContentParser;
 
 import java.io.IOException;
 

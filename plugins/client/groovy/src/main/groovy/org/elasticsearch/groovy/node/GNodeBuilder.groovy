@@ -19,15 +19,15 @@
 
 package org.elasticsearch.groovy.node
 
+import org.elasticsearch.common.settings.ImmutableSettings
+import org.elasticsearch.common.settings.Settings
+import org.elasticsearch.common.settings.loader.JsonSettingsLoader
 import org.elasticsearch.groovy.util.xcontent.GXContentBuilder
 import org.elasticsearch.node.Node
 import org.elasticsearch.node.internal.InternalNode
-import org.elasticsearch.util.settings.ImmutableSettings
-import org.elasticsearch.util.settings.Settings
-import org.elasticsearch.util.settings.loader.JsonSettingsLoader
 
 /**
- * The node builder allow to build a      {@link GNode}      instance.
+ * The node builder allow to build a       {@link GNode}       instance.
  *
  * @author kimchy (shay.banon)
  */

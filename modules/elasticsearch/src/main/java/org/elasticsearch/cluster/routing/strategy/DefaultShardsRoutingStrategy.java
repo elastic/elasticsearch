@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
-import static org.elasticsearch.util.collect.Sets.*;
+import static org.elasticsearch.common.collect.Sets.*;
 
 /**
  * @author kimchy (Shay Banon)

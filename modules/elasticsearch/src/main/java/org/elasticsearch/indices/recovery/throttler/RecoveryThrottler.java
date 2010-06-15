@@ -19,11 +19,11 @@
 
 package org.elasticsearch.indices.recovery.throttler;
 
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.component.AbstractComponent;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)

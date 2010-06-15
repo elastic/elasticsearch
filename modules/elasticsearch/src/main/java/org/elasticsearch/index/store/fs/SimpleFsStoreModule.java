@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.store.fs;
 
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.util.inject.AbstractModule;
 
 /**
  * @author kimchy (Shay Banon)

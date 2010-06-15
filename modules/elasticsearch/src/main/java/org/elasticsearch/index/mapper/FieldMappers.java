@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.util.collect.ImmutableList;
-import org.elasticsearch.util.collect.Iterators;
-import org.elasticsearch.util.collect.UnmodifiableIterator;
+import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.util.concurrent.Immutable;
 
 /**

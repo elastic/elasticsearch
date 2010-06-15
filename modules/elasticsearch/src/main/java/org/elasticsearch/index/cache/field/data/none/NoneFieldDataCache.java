@@ -21,14 +21,14 @@ package org.elasticsearch.index.cache.field.data.none;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 

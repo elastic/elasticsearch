@@ -20,17 +20,17 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.Iterables;
+import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
-import org.elasticsearch.util.collect.ImmutableList;
-import org.elasticsearch.util.collect.ImmutableMap;
-import org.elasticsearch.util.collect.Iterables;
-import org.elasticsearch.util.collect.UnmodifiableIterator;
 import org.elasticsearch.util.concurrent.Immutable;
 
 import java.util.Map;
 
-import static org.elasticsearch.util.collect.Lists.*;
-import static org.elasticsearch.util.collect.Maps.*;
+import static org.elasticsearch.common.collect.Lists.*;
+import static org.elasticsearch.common.collect.Maps.*;
 
 /**
  * @author kimchy (Shay Banon)

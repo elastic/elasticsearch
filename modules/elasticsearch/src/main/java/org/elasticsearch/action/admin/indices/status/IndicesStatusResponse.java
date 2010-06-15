@@ -22,19 +22,19 @@ package org.elasticsearch.action.admin.indices.status;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.util.collect.ImmutableMap;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.admin.indices.status.ShardStatus.*;
-import static org.elasticsearch.util.collect.Lists.*;
-import static org.elasticsearch.util.collect.Maps.*;
-import static org.elasticsearch.util.settings.ImmutableSettings.*;
+import static org.elasticsearch.common.collect.Lists.*;
+import static org.elasticsearch.common.collect.Maps.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 
 /**
  * @author kimchy (shay.banon)

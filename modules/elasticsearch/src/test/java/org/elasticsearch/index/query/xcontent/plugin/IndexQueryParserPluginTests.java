@@ -19,6 +19,11 @@
 
 package org.elasticsearch.index.query.xcontent.plugin;
 
+import org.elasticsearch.common.inject.Guice;
+import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
@@ -31,11 +36,6 @@ import org.elasticsearch.index.query.xcontent.XContentQueryParserRegistry;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.util.inject.Guice;
-import org.elasticsearch.util.inject.Injector;
-import org.elasticsearch.util.settings.ImmutableSettings;
-import org.elasticsearch.util.settings.Settings;
-import org.elasticsearch.util.settings.SettingsModule;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.*;

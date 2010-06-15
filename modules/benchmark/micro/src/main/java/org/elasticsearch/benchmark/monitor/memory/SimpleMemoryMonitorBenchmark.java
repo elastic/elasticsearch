@@ -21,10 +21,10 @@ package org.elasticsearch.benchmark.monitor.memory;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.util.StopWatch;
-import org.elasticsearch.util.settings.Settings;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Random;
@@ -32,9 +32,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
+import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.node.NodeBuilder.*;
-import static org.elasticsearch.util.settings.ImmutableSettings.*;
-import static org.elasticsearch.util.xcontent.XContentFactory.*;
 
 /**
  * @author kimchy (Shay Banon)

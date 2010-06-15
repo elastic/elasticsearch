@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.engine;
 
-import org.elasticsearch.util.guice.ModulesFactory;
-import org.elasticsearch.util.inject.AbstractModule;
-import org.elasticsearch.util.settings.Settings;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.ModulesFactory;
+import org.elasticsearch.common.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)

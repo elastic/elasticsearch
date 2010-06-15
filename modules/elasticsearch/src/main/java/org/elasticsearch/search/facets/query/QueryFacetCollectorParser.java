@@ -20,11 +20,11 @@
 package org.elasticsearch.search.facets.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.search.facets.collector.FacetCollector;
 import org.elasticsearch.search.facets.collector.FacetCollectorParser;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.util.xcontent.XContentParser;
 
 /**
  * @author kimchy (shay.banon)

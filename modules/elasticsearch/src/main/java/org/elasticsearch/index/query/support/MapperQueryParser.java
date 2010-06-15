@@ -26,16 +26,16 @@ import org.apache.lucene.queryParser.QueryParser;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.xcontent.QueryParseContext;
-import org.elasticsearch.util.lucene.Lucene;
 
 import java.util.List;
 
+import static org.elasticsearch.common.lucene.search.Queries.*;
 import static org.elasticsearch.index.query.support.QueryParsers.*;
-import static org.elasticsearch.util.lucene.search.Queries.*;
 
 /**
  * A query parser that uses the {@link MapperService} in order to build smarter

@@ -20,17 +20,17 @@
 package org.elasticsearch.test.integration;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.util.logging.ESLogger;
-import org.elasticsearch.util.logging.Loggers;
-import org.elasticsearch.util.settings.Settings;
 
 import java.util.Map;
 
+import static org.elasticsearch.common.collect.Maps.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.elasticsearch.node.NodeBuilder.*;
-import static org.elasticsearch.util.collect.Maps.*;
-import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
-import static org.elasticsearch.util.settings.ImmutableSettings.*;
 
 public abstract class AbstractNodesTests {
 

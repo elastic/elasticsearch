@@ -25,7 +25,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-import static org.elasticsearch.util.collect.Lists.*;
+import static org.elasticsearch.common.collect.Lists.*;
 
 /**
  * @author kimchy (Shay Banon)

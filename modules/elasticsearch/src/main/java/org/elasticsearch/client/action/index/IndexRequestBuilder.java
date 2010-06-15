@@ -26,9 +26,9 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.internal.InternalClient;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.util.TimeValue;
-import org.elasticsearch.util.xcontent.XContentType;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import javax.annotation.Nullable;
 import java.util.Map;
@@ -97,7 +97,7 @@ public class IndexRequestBuilder {
     /**
      * Sets the document source to index.
      *
-     * <p>Note, its preferable to either set it using {@link #setSource(org.elasticsearch.util.xcontent.builder.XContentBuilder)}
+     * <p>Note, its preferable to either set it using {@link #setSource(org.elasticsearch.common.xcontent.builder.XContentBuilder)}
      * or using the {@link #setSource(byte[])}.
      */
     public IndexRequestBuilder setSource(String source) {

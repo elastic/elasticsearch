@@ -27,16 +27,16 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.util.Unicode;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.client.Requests.*;
-import static org.elasticsearch.util.xcontent.XContentFactory.*;
+import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

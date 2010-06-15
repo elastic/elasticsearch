@@ -19,8 +19,8 @@
 
 package org.elasticsearch.memcached;
 
-import org.elasticsearch.util.component.LifecycleComponent;
-import org.elasticsearch.util.transport.BoundTransportAddress;
+import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.transport.BoundTransportAddress;
 
 /**
  * @author kimchy (shay.banon)

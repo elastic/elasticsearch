@@ -20,11 +20,11 @@
 package org.elasticsearch.action.terms;
 
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
-import org.elasticsearch.util.gnu.trove.TObjectIntHashMap;
-import org.elasticsearch.util.gnu.trove.TObjectIntIterator;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.trove.TObjectIntHashMap;
+import org.elasticsearch.common.trove.TObjectIntIterator;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
-import org.elasticsearch.util.lucene.Lucene;
 
 import java.io.IOException;
 import java.util.HashMap;

@@ -21,9 +21,9 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.util.io.stream.Streamable;
-import org.elasticsearch.util.xcontent.ToXContent;
 
 import java.util.Map;
 

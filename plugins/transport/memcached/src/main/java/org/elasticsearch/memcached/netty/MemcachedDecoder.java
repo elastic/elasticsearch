@@ -19,14 +19,14 @@
 
 package org.elasticsearch.memcached.netty;
 
+import org.elasticsearch.common.netty.buffer.ChannelBuffer;
+import org.elasticsearch.common.netty.channel.Channel;
+import org.elasticsearch.common.netty.channel.ChannelHandlerContext;
+import org.elasticsearch.common.netty.channel.ExceptionEvent;
+import org.elasticsearch.common.netty.handler.codec.frame.FrameDecoder;
 import org.elasticsearch.memcached.MemcachedRestRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.util.Unicode;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ExceptionEvent;
-import org.jboss.netty.handler.codec.frame.FrameDecoder;
 
 import java.io.StreamCorruptedException;
 import java.util.regex.Pattern;

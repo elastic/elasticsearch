@@ -27,9 +27,9 @@ import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.util.logging.ESLogger;
-import org.elasticsearch.util.logging.Loggers;
-import org.elasticsearch.util.transport.DummyTransportAddress;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.testng.annotations.Test;
 
 import java.util.List;
@@ -41,8 +41,8 @@ import static org.elasticsearch.cluster.metadata.MetaData.*;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.*;
 import static org.elasticsearch.cluster.routing.RoutingBuilders.*;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
-import static org.elasticsearch.util.collect.Lists.*;
-import static org.elasticsearch.util.collect.Sets.*;
+import static org.elasticsearch.common.collect.Lists.*;
+import static org.elasticsearch.common.collect.Sets.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 

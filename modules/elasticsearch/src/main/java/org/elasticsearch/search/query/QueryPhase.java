@@ -20,17 +20,17 @@
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.*;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.TermFilter;
+import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.facets.FacetsPhase;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.util.collect.ImmutableMap;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.lucene.search.TermFilter;
-import org.elasticsearch.util.lucene.search.function.BoostScoreFunction;
-import org.elasticsearch.util.lucene.search.function.FunctionScoreQuery;
 
 import java.util.Map;
 

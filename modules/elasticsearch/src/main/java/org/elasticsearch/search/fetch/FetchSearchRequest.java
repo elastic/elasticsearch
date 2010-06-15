@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
-import org.elasticsearch.util.trove.ExtTIntArrayList;
 
 import java.io.IOException;
 

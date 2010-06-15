@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
@@ -46,7 +47,6 @@ import org.elasticsearch.util.io.stream.StreamInput;
 import org.elasticsearch.util.io.stream.StreamOutput;
 import org.elasticsearch.util.io.stream.Streamable;
 import org.elasticsearch.util.io.stream.VoidStreamable;
-import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;

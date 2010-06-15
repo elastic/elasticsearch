@@ -19,13 +19,13 @@
 
 package org.elasticsearch.jmx;
 
+import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.util.Classes;
 import org.elasticsearch.util.MapBuilder;
 import org.elasticsearch.util.Preconditions;
 import org.elasticsearch.util.Strings;
-import org.elasticsearch.util.collect.ImmutableList;
-import org.elasticsearch.util.collect.ImmutableMap;
-import org.elasticsearch.util.logging.ESLogger;
 
 import javax.management.*;
 import java.lang.reflect.Field;

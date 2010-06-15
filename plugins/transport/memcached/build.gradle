@@ -107,36 +107,6 @@ artifacts {
     archives javadocJar
 }
 
-jar << {
-    jarjarArchivePath = new File(jar.archivePath.absolutePath + ".jarjar.jar")
-    project.ant {
-        taskdef name: "jarjar", classname: "com.tonicsystems.jarjar.JarJarTask", classpath: configurations.tools.asPath
-        jarjar(jarfile: jarjarArchivePath) {
-            zipfileset(src: jar.archivePath)
-            configurations.compile.files.findAll {file ->
-                ['netty'].any { file.name.contains(it) }
-            }.each { jarjarFile ->
-                zipfileset(src: jarjarFile) {
-                    exclude(name: "META-INF/**")
-                }
-            }
-            rule pattern: "org.jboss.netty.**", result: "org.elasticsearch.util.netty.@1"
-        }
-        delete(file: jar.archivePath)
-        copy(file: jarjarArchivePath, tofile: jar.archivePath)
-        delete(file: jarjarArchivePath)
-
-        // hack, we want to reuse the jarjar of elasticsearch into util.netty, but don't want it to be in memcached jar
-        unjar(src: jar.archivePath, dest: "build/tmp/extracted")
-        delete(dir: "build/tmp/extracted/org/elasticsearch/util/netty")
-        delete(dir: "build/tmp/extracted/org/jboss")
-
-        delete(file: jar.archivePath)
-        jar(destfile: jar.archivePath, basedir: "build/tmp/extracted", manifest: "build/tmp/extracted/META-INF/MANIFEST.MF")
-        delete(dir: "build/tmp/extracted")
-    }
-}
-
 uploadArchives {
     repositories.mavenDeployer {
         configuration = configurations.deployerJars

@@ -20,15 +20,15 @@
 package org.elasticsearch.node.internal;
 
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.FailedToResolveConfigException;
 import org.elasticsearch.util.Names;
 import org.elasticsearch.util.Tuple;
-import org.elasticsearch.util.settings.ImmutableSettings;
-import org.elasticsearch.util.settings.Settings;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.elasticsearch.util.Strings.*;
-import static org.elasticsearch.util.settings.ImmutableSettings.*;
 
 /**
  * @author kimchy (shay.banon)

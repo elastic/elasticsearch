@@ -19,23 +19,23 @@
 
 package org.elasticsearch.search.builder;
 
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.trove.TObjectFloatHashMap;
+import org.elasticsearch.common.trove.TObjectFloatIterator;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
-import org.elasticsearch.util.collect.Lists;
-import org.elasticsearch.util.gnu.trove.TObjectFloatHashMap;
-import org.elasticsearch.util.gnu.trove.TObjectFloatIterator;
 import org.elasticsearch.util.io.FastByteArrayOutputStream;
-import org.elasticsearch.util.xcontent.ToXContent;
-import org.elasticsearch.util.xcontent.XContentFactory;
-import org.elasticsearch.util.xcontent.XContentType;
-import org.elasticsearch.util.xcontent.builder.BinaryXContentBuilder;
-import org.elasticsearch.util.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.util.collect.Lists.*;
+import static org.elasticsearch.common.collect.Lists.*;
 
 /**
  * A search source builder allowing to easily build search source. Simple construction

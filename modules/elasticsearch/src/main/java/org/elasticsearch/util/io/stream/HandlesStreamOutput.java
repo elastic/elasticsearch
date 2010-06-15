@@ -19,8 +19,8 @@
 
 package org.elasticsearch.util.io.stream;
 
-import org.elasticsearch.util.gnu.trove.TObjectIntHashMap;
-import org.elasticsearch.util.trove.ExtTObjectIntHasMap;
+import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
+import org.elasticsearch.common.trove.TObjectIntHashMap;
 
 import java.io.IOException;
 import java.util.Arrays;

@@ -26,11 +26,11 @@ import org.elasticsearch.action.search.type.ParsedScrollId;
 import org.elasticsearch.action.search.type.TransportSearchScrollQueryAndFetchAction;
 import org.elasticsearch.action.search.type.TransportSearchScrollQueryThenFetchAction;
 import org.elasticsearch.action.support.BaseAction;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
 
 import static org.elasticsearch.action.search.type.ParsedScrollId.*;
 import static org.elasticsearch.action.search.type.TransportSearchHelper.*;

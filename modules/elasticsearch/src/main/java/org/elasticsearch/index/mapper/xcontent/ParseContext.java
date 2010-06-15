@@ -20,10 +20,10 @@
 package org.elasticsearch.index.mapper.xcontent;
 
 import org.apache.lucene.document.Document;
+import org.elasticsearch.common.lucene.all.AllEntries;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.util.concurrent.NotThreadSafe;
-import org.elasticsearch.util.lucene.all.AllEntries;
-import org.elasticsearch.util.xcontent.XContentParser;
 
 /**
  * @author kimchy (Shay Banon)

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.transport.netty;
 
-import org.elasticsearch.util.logging.Loggers;
-import org.jboss.netty.logging.InternalLogger;
-import org.jboss.netty.logging.InternalLoggerFactory;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.netty.logging.InternalLogger;
+import org.elasticsearch.common.netty.logging.InternalLoggerFactory;
 
 /**
  * @author kimchy (shay.banon)

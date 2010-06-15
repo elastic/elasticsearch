@@ -20,7 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.util.inject.Provider;
+import org.elasticsearch.common.inject.Provider;
 
 /**
  * @author kimchy (shay.banon)

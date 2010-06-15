@@ -21,11 +21,11 @@ package org.elasticsearch.client.transport;
 
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.service.InternalClusterService;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.NoClassSettingsException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.util.inject.AbstractModule;
-import org.elasticsearch.util.logging.Loggers;
-import org.elasticsearch.util.settings.NoClassSettingsException;
-import org.elasticsearch.util.settings.Settings;
 
 /**
  * @author kimchy (Shay Banon)

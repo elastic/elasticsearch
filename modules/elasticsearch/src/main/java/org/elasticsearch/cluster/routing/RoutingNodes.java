@@ -24,8 +24,8 @@ import org.elasticsearch.util.concurrent.NotThreadSafe;
 
 import java.util.*;
 
-import static org.elasticsearch.util.collect.Lists.*;
-import static org.elasticsearch.util.collect.Maps.*;
+import static org.elasticsearch.common.collect.Lists.*;
+import static org.elasticsearch.common.collect.Maps.*;
 
 /**
  * @author kimchy (Shay Banon)

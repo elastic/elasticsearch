@@ -21,7 +21,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.util.lucene.Lucene;
+import org.elasticsearch.common.lucene.Lucene;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;

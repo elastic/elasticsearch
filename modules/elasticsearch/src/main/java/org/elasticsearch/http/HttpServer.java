@@ -21,14 +21,14 @@ package org.elasticsearch.http;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.path.PathTrie;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.util.component.AbstractLifecycleComponent;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.path.PathTrie;
-import org.elasticsearch.util.settings.Settings;
 
 import java.io.IOException;
 

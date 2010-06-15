@@ -19,8 +19,8 @@
 
 package org.elasticsearch.memcached.netty;
 
+import org.elasticsearch.common.netty.channel.*;
 import org.elasticsearch.util.concurrent.ConcurrentCollections;
-import org.jboss.netty.channel.*;
 
 import java.util.Set;
 

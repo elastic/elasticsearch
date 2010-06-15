@@ -19,7 +19,7 @@
 
 package org.elasticsearch.util;
 
-import org.joda.time.PeriodType;
+import org.elasticsearch.common.joda.time.PeriodType;
 import org.testng.annotations.Test;
 
 import java.util.concurrent.TimeUnit;

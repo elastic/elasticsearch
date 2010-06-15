@@ -32,17 +32,17 @@ import org.apache.lucene.analysis.nl.DutchAnalyzer;
 import org.apache.lucene.analysis.ru.RussianAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
-import org.elasticsearch.util.component.AbstractComponent;
 import org.elasticsearch.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.lucene.Lucene;
-import org.elasticsearch.util.settings.Settings;
 
 import java.util.Map;
 
-import static org.elasticsearch.util.settings.ImmutableSettings.Builder.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 
 /**
  * A node level registry of analyzers, to be reused by different indices which use default analyzers.

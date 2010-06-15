@@ -21,19 +21,19 @@ package org.elasticsearch.index.query.xcontent;
 
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.util.Strings;
-import org.elasticsearch.util.inject.Inject;
-import org.elasticsearch.util.settings.Settings;
-import org.elasticsearch.util.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.util.collect.Lists.*;
+import static org.elasticsearch.common.collect.Lists.*;
 
 /**
  * @author kimchy (shay.banon)

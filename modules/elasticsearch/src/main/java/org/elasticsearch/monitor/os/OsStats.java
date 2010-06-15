@@ -22,7 +22,7 @@ package org.elasticsearch.monitor.os;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
@@ -209,19 +209,19 @@ public class OsStats implements Streamable, Serializable, ToXContent {
         long free = -1;
         long used = -1;
 
-        public SizeValue free() {
-            return new SizeValue(free);
+        public ByteSizeValue free() {
+            return new ByteSizeValue(free);
         }
 
-        public SizeValue getFree() {
+        public ByteSizeValue getFree() {
             return free();
         }
 
-        public SizeValue used() {
-            return new SizeValue(used);
+        public ByteSizeValue used() {
+            return new ByteSizeValue(used);
         }
 
-        public SizeValue getUsed() {
+        public ByteSizeValue getUsed() {
             return used();
         }
 
@@ -275,11 +275,11 @@ public class OsStats implements Streamable, Serializable, ToXContent {
             out.writeLong(actualUsed);
         }
 
-        public SizeValue used() {
-            return new SizeValue(used);
+        public ByteSizeValue used() {
+            return new ByteSizeValue(used);
         }
 
-        public SizeValue getUsed() {
+        public ByteSizeValue getUsed() {
             return used();
         }
 
@@ -291,11 +291,11 @@ public class OsStats implements Streamable, Serializable, ToXContent {
             return usedPercent();
         }
 
-        public SizeValue free() {
-            return new SizeValue(free);
+        public ByteSizeValue free() {
+            return new ByteSizeValue(free);
         }
 
-        public SizeValue getFree() {
+        public ByteSizeValue getFree() {
             return free();
         }
 
@@ -307,19 +307,19 @@ public class OsStats implements Streamable, Serializable, ToXContent {
             return freePercent();
         }
 
-        public SizeValue actualFree() {
-            return new SizeValue(actualFree);
+        public ByteSizeValue actualFree() {
+            return new ByteSizeValue(actualFree);
         }
 
-        public SizeValue getActualFree() {
+        public ByteSizeValue getActualFree() {
             return actualFree();
         }
 
-        public SizeValue actualUsed() {
-            return new SizeValue(actualUsed);
+        public ByteSizeValue actualUsed() {
+            return new ByteSizeValue(actualUsed);
         }
 
-        public SizeValue getActualUsed() {
+        public ByteSizeValue getActualUsed() {
             return actualUsed();
         }
     }

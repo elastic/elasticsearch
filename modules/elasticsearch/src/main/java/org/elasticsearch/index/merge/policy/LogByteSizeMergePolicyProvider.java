@@ -23,8 +23,8 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.unit.SizeUnit;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.store.Store;
 
@@ -33,8 +33,8 @@ import org.elasticsearch.index.store.Store;
  */
 public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent implements MergePolicyProvider<LogByteSizeMergePolicy> {
 
-    private final SizeValue minMergeSize;
-    private final SizeValue maxMergeSize;
+    private final ByteSizeValue minMergeSize;
+    private final ByteSizeValue maxMergeSize;
     private final int mergeFactor;
     private final int maxMergeDocs;
     private final boolean calibrateSizeByDeletes;
@@ -44,8 +44,8 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
         super(store.shardId(), store.indexSettings());
         Preconditions.checkNotNull(store, "Store must be provided to merge policy");
 
-        this.minMergeSize = componentSettings.getAsSize("min_merge_size", new SizeValue((long) LogByteSizeMergePolicy.DEFAULT_MIN_MERGE_MB * 1024 * 1024, SizeUnit.BYTES));
-        this.maxMergeSize = componentSettings.getAsSize("max_merge_size", new SizeValue((long) LogByteSizeMergePolicy.DEFAULT_MAX_MERGE_MB, SizeUnit.MB));
+        this.minMergeSize = componentSettings.getAsBytesSize("min_merge_size", new ByteSizeValue((long) LogByteSizeMergePolicy.DEFAULT_MIN_MERGE_MB * 1024 * 1024, ByteSizeUnit.BYTES));
+        this.maxMergeSize = componentSettings.getAsBytesSize("max_merge_size", new ByteSizeValue((long) LogByteSizeMergePolicy.DEFAULT_MAX_MERGE_MB, ByteSizeUnit.MB));
         this.mergeFactor = componentSettings.getAsInt("merge_factor", LogByteSizeMergePolicy.DEFAULT_MERGE_FACTOR);
         this.maxMergeDocs = componentSettings.getAsInt("max_merge_docs", LogByteSizeMergePolicy.DEFAULT_MAX_MERGE_DOCS);
         this.calibrateSizeByDeletes = componentSettings.getAsBoolean("calibrate_size_by_deletes", false);

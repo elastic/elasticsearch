@@ -21,8 +21,8 @@ package org.elasticsearch.index.translog.memory;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.SizeUnit;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.common.util.concurrent.jsr166y.LinkedTransferQueue;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -67,8 +67,8 @@ public class MemoryTranslog extends AbstractIndexShardComponent implements Trans
         return operations.size();
     }
 
-    @Override public SizeValue estimateMemorySize() {
-        return new SizeValue(estimatedMemorySize.get(), SizeUnit.BYTES);
+    @Override public ByteSizeValue estimateMemorySize() {
+        return new ByteSizeValue(estimatedMemorySize.get(), ByteSizeUnit.BYTES);
     }
 
     @Override public void newTranslog() {

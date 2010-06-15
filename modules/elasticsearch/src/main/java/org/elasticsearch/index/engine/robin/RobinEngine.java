@@ -29,8 +29,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.IndexWriters;
 import org.elasticsearch.common.lucene.ReaderSearcherHolder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.SizeUnit;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.resource.AcquirableResource;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -60,7 +60,7 @@ import static org.elasticsearch.common.util.concurrent.resource.AcquirableResour
  */
 public class RobinEngine extends AbstractIndexShardComponent implements Engine, ScheduledRefreshableEngine {
 
-    private final SizeValue ramBufferSize;
+    private final ByteSizeValue ramBufferSize;
 
     private final TimeValue refreshInterval;
 
@@ -105,7 +105,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         Preconditions.checkNotNull(deletionPolicy, "Snapshot deletion policy must be provided to the engine");
         Preconditions.checkNotNull(translog, "Translog must be provided to the engine");
 
-        this.ramBufferSize = componentSettings.getAsSize("ram_buffer_size", new SizeValue(64, SizeUnit.MB));
+        this.ramBufferSize = componentSettings.getAsBytesSize("ram_buffer_size", new ByteSizeValue(64, ByteSizeUnit.MB));
         this.refreshInterval = componentSettings.getAsTime("refresh_interval", timeValueSeconds(1));
         this.termIndexInterval = componentSettings.getAsInt("term_index_interval", IndexWriter.DEFAULT_TERM_INDEX_INTERVAL);
 
@@ -231,12 +231,12 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         return new RobinSearchResult(holder);
     }
 
-    @Override public SizeValue estimateFlushableMemorySize() {
+    @Override public ByteSizeValue estimateFlushableMemorySize() {
         rwl.readLock().lock();
         try {
             long bytes = IndexWriters.estimateRamSize(indexWriter);
             bytes += translog.estimateMemorySize().bytes();
-            return new SizeValue(bytes);
+            return new ByteSizeValue(bytes);
         } catch (Exception e) {
             return null;
         } finally {

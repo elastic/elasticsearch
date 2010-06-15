@@ -23,8 +23,8 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.SizeUnit;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.indices.IndicesMemoryCleaner;
 import org.elasticsearch.monitor.memory.MemoryMonitor;
@@ -50,7 +50,7 @@ public class AlphaMemoryMonitor extends AbstractLifecycleComponent<MemoryMonitor
 
     private final int cleanThreshold;
 
-    private final SizeValue minimumFlushableSizeToClean;
+    private final ByteSizeValue minimumFlushableSizeToClean;
 
     private final int translogNumberOfOperationsThreshold;
 
@@ -60,9 +60,9 @@ public class AlphaMemoryMonitor extends AbstractLifecycleComponent<MemoryMonitor
 
     private final Runtime runtime;
 
-    private final SizeValue maxMemory;
+    private final ByteSizeValue maxMemory;
 
-    private final SizeValue totalMemory;
+    private final ByteSizeValue totalMemory;
 
     private volatile ScheduledFuture scheduledFuture;
 
@@ -79,14 +79,14 @@ public class AlphaMemoryMonitor extends AbstractLifecycleComponent<MemoryMonitor
         this.interval = componentSettings.getAsTime("interval", timeValueMillis(500));
         this.fullThreshold = componentSettings.getAsInt("full_threshold", 2);
         this.cleanThreshold = componentSettings.getAsInt("clean_threshold", 10);
-        this.minimumFlushableSizeToClean = componentSettings.getAsSize("minimum_flushable_size_to_clean", new SizeValue(5, SizeUnit.MB));
+        this.minimumFlushableSizeToClean = componentSettings.getAsBytesSize("minimum_flushable_size_to_clean", new ByteSizeValue(5, ByteSizeUnit.MB));
         this.translogNumberOfOperationsThreshold = componentSettings.getAsInt("translog_number_of_operations_threshold", 5000);
 
         logger.debug("interval [" + interval + "], upper_memory_threshold [" + upperMemoryThreshold + "], lower_memory_threshold [" + lowerMemoryThreshold + "], translog_number_of_operations_threshold [" + translogNumberOfOperationsThreshold + "]");
 
         this.runtime = Runtime.getRuntime();
-        this.maxMemory = new SizeValue(runtime.maxMemory());
-        this.totalMemory = maxMemory.bytes() == runtime.totalMemory() ? new SizeValue(runtime.totalMemory()) : null; // Xmx==Xms when the JVM was started.
+        this.maxMemory = new ByteSizeValue(runtime.maxMemory());
+        this.totalMemory = maxMemory.bytes() == runtime.totalMemory() ? new ByteSizeValue(runtime.totalMemory()) : null; // Xmx==Xms when the JVM was started.
     }
 
     @Override protected void doStart() throws ElasticSearchException {
@@ -165,11 +165,11 @@ public class AlphaMemoryMonitor extends AbstractLifecycleComponent<MemoryMonitor
                         StringBuilder sb = new StringBuilder();
                         sb.append('[').append(total).append("] ");
                         sb.append("[Full    ] Ran after [").append(fullThreshold).append("] consecutive clean swipes");
-                        sb.append(", memory_to_clean [").append(new SizeValue(memoryToClean)).append(']');
-                        sb.append(", lower_memory_threshold [").append(new SizeValue(lowerThresholdMemory)).append(']');
-                        sb.append(", upper_memory_threshold [").append(new SizeValue(upperThresholdMemory)).append(']');
-                        sb.append(", used_memory [").append(new SizeValue(usedMemory)).append(']');
-                        sb.append(", total_memory[").append(new SizeValue(totalMemory)).append(']');
+                        sb.append(", memory_to_clean [").append(new ByteSizeValue(memoryToClean)).append(']');
+                        sb.append(", lower_memory_threshold [").append(new ByteSizeValue(lowerThresholdMemory)).append(']');
+                        sb.append(", upper_memory_threshold [").append(new ByteSizeValue(upperThresholdMemory)).append(']');
+                        sb.append(", used_memory [").append(new ByteSizeValue(usedMemory)).append(']');
+                        sb.append(", total_memory[").append(new ByteSizeValue(totalMemory)).append(']');
                         sb.append(", max_memory[").append(maxMemory).append(']');
                         logger.info(sb.toString());
                     }
@@ -184,11 +184,11 @@ public class AlphaMemoryMonitor extends AbstractLifecycleComponent<MemoryMonitor
                     if (logger.isDebugEnabled()) {
                         StringBuilder sb = new StringBuilder();
                         sb.append('[').append(totalClean).append("] ");
-                        sb.append("[Cleaning] memory_to_clean [").append(new SizeValue(memoryToClean)).append(']');
-                        sb.append(", lower_memory_threshold [").append(new SizeValue(lowerThresholdMemory)).append(']');
-                        sb.append(", upper_memory_threshold [").append(new SizeValue(upperThresholdMemory)).append(']');
-                        sb.append(", used_memory [").append(new SizeValue(usedMemory)).append(']');
-                        sb.append(", total_memory[").append(new SizeValue(totalMemory)).append(']');
+                        sb.append("[Cleaning] memory_to_clean [").append(new ByteSizeValue(memoryToClean)).append(']');
+                        sb.append(", lower_memory_threshold [").append(new ByteSizeValue(lowerThresholdMemory)).append(']');
+                        sb.append(", upper_memory_threshold [").append(new ByteSizeValue(upperThresholdMemory)).append(']');
+                        sb.append(", used_memory [").append(new ByteSizeValue(usedMemory)).append(']');
+                        sb.append(", total_memory[").append(new ByteSizeValue(totalMemory)).append(']');
                         sb.append(", max_memory[").append(maxMemory).append(']');
                         logger.debug(sb.toString());
                     }

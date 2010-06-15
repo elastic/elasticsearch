@@ -28,7 +28,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.property.PropertyPlaceholder;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
-import org.elasticsearch.common.unit.SizeUnit;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.Immutable;
@@ -43,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.Strings.*;
 import static org.elasticsearch.common.collect.Lists.*;
+import static org.elasticsearch.common.unit.ByteSizeValue.*;
 import static org.elasticsearch.common.unit.SizeValue.*;
 import static org.elasticsearch.common.unit.TimeValue.*;
 
@@ -177,6 +179,10 @@ public class ImmutableSettings implements Settings {
 
     @Override public TimeValue getAsTime(String setting, TimeValue defaultValue) {
         return parseTimeValue(get(setting), defaultValue);
+    }
+
+    @Override public ByteSizeValue getAsBytesSize(String setting, ByteSizeValue defaultValue) throws SettingsException {
+        return parseBytesSizeValue(get(setting), defaultValue);
     }
 
     @Override public SizeValue getAsSize(String setting, SizeValue defaultValue) throws SettingsException {
@@ -468,7 +474,7 @@ public class ImmutableSettings implements Settings {
          * @param value   The size value
          * @return The builder
          */
-        public Builder put(String setting, long value, SizeUnit sizeUnit) {
+        public Builder put(String setting, long value, ByteSizeUnit sizeUnit) {
             put(setting, sizeUnit.toBytes(value));
             return this;
         }

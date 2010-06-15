@@ -22,7 +22,7 @@ package org.elasticsearch.monitor.os;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 
@@ -157,11 +157,11 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
             out.writeLong(total);
         }
 
-        public SizeValue total() {
-            return new SizeValue(total);
+        public ByteSizeValue total() {
+            return new ByteSizeValue(total);
         }
 
-        public SizeValue getTotal() {
+        public ByteSizeValue getTotal() {
             return total();
         }
 
@@ -189,11 +189,11 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
             out.writeLong(total);
         }
 
-        public SizeValue total() {
-            return new SizeValue(total);
+        public ByteSizeValue total() {
+            return new ByteSizeValue(total);
         }
 
-        public SizeValue getTotal() {
+        public ByteSizeValue getTotal() {
             return total();
         }
 
@@ -261,11 +261,11 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
             return coresPerSocket();
         }
 
-        public SizeValue cacheSize() {
-            return new SizeValue(cacheSize);
+        public ByteSizeValue cacheSize() {
+            return new ByteSizeValue(cacheSize);
         }
 
-        public SizeValue getCacheSize() {
+        public ByteSizeValue getCacheSize() {
             return cacheSize();
         }
 

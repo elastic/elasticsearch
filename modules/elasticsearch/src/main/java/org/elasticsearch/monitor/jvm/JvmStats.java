@@ -23,7 +23,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
@@ -376,35 +376,35 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             out.writeVLong(nonHeapUsed);
         }
 
-        public SizeValue heapCommitted() {
-            return new SizeValue(heapCommitted);
+        public ByteSizeValue heapCommitted() {
+            return new ByteSizeValue(heapCommitted);
         }
 
-        public SizeValue getHeapCommitted() {
+        public ByteSizeValue getHeapCommitted() {
             return heapCommitted();
         }
 
-        public SizeValue heapUsed() {
-            return new SizeValue(heapUsed);
+        public ByteSizeValue heapUsed() {
+            return new ByteSizeValue(heapUsed);
         }
 
-        public SizeValue getHeapUsed() {
+        public ByteSizeValue getHeapUsed() {
             return heapUsed();
         }
 
-        public SizeValue nonHeapCommitted() {
-            return new SizeValue(nonHeapCommitted);
+        public ByteSizeValue nonHeapCommitted() {
+            return new ByteSizeValue(nonHeapCommitted);
         }
 
-        public SizeValue getNonHeapCommitted() {
+        public ByteSizeValue getNonHeapCommitted() {
             return nonHeapCommitted();
         }
 
-        public SizeValue nonHeapUsed() {
-            return new SizeValue(nonHeapUsed);
+        public ByteSizeValue nonHeapUsed() {
+            return new ByteSizeValue(nonHeapUsed);
         }
 
-        public SizeValue getNonHeapUsed() {
+        public ByteSizeValue getNonHeapUsed() {
             return nonHeapUsed();
         }
     }

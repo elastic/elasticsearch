@@ -33,8 +33,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.SizeUnit;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
@@ -68,7 +68,7 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
  */
 public class RecoveryAction extends AbstractIndexShardComponent implements CloseableComponent {
 
-    private final SizeValue fileChunkSize;
+    private final ByteSizeValue fileChunkSize;
 
     private final ThreadPool threadPool;
 
@@ -114,7 +114,7 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
         snapshotTransportAction = shardId.index().name() + "/" + shardId.id() + "/recovery/snapshot";
         transportService.registerHandler(snapshotTransportAction, new SnapshotTransportRequestHandler());
 
-        this.fileChunkSize = componentSettings.getAsSize("file_chunk_size", new SizeValue(100, SizeUnit.KB));
+        this.fileChunkSize = componentSettings.getAsBytesSize("file_chunk_size", new ByteSizeValue(100, ByteSizeUnit.KB));
         logger.trace("Recovery Action registered, using file_chunk_size[{}]", fileChunkSize);
     }
 
@@ -209,7 +209,7 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
                     StringBuilder sb = new StringBuilder();
                     sb.append("Recovery completed from ").append(targetNode).append(", took[").append(stopWatch.totalTime()).append("], throttling_wait [").append(throttlingWaitTime.totalTime()).append("]\n");
                     sb.append("   Phase1: recovered [").append(recoveryStatus.phase1FileNames.size()).append("]")
-                            .append(" files with total size of [").append(new SizeValue(recoveryStatus.phase1TotalSize)).append("]")
+                            .append(" files with total size of [").append(new ByteSizeValue(recoveryStatus.phase1TotalSize)).append("]")
                             .append(", took [").append(timeValueMillis(recoveryStatus.phase1Time)).append("], throttling_wait [").append(timeValueMillis(recoveryStatus.phase1ThrottlingWaitTime)).append(']')
                             .append("\n");
                     sb.append("   Phase2: recovered [").append(recoveryStatus.phase2Operations).append("]").append(" transaction log operations")
@@ -323,7 +323,7 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
 
                             final AtomicLong throttlingWaitTime = new AtomicLong();
 
-                            logger.trace("Recovery [phase1] to {}: recovering [{}] files with total size of [{}]", node, snapshot.getFiles().length, new SizeValue(totalSize));
+                            logger.trace("Recovery [phase1] to {}: recovering [{}] files with total size of [{}]", node, snapshot.getFiles().length, new ByteSizeValue(totalSize));
 
                             final CountDownLatch latch = new CountDownLatch(snapshot.getFiles().length);
                             final AtomicReference<Exception> lastException = new AtomicReference<Exception>();
@@ -381,7 +381,7 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
                             // we got interrupted since we are closing, ignore the recovery
                             throw new IgnoreRecoveryException("Interrupted while recovering files");
                         } catch (Throwable e) {
-                            throw new RecoverFilesRecoveryException(shardId, snapshot.getFiles().length, new SizeValue(totalSize), e);
+                            throw new RecoverFilesRecoveryException(shardId, snapshot.getFiles().length, new ByteSizeValue(totalSize), e);
                         } finally {
                             sendFileChunksRecoveryFutures.clear();
                         }

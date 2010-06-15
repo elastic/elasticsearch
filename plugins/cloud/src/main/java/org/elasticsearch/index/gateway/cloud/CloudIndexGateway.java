@@ -25,8 +25,8 @@ import org.elasticsearch.cloud.blobstore.CloudBlobStoreService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.SizeUnit;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.cloud.CloudGateway;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -52,7 +52,7 @@ public class CloudIndexGateway extends AbstractIndexComponent implements IndexGa
 
     private final Location location;
 
-    private final SizeValue chunkSize;
+    private final ByteSizeValue chunkSize;
 
     private final BlobStoreContext blobStoreContext;
 
@@ -63,7 +63,7 @@ public class CloudIndexGateway extends AbstractIndexComponent implements IndexGa
 
         String location = componentSettings.get("location");
         String container = componentSettings.get("container");
-        SizeValue chunkSize = componentSettings.getAsSize("chunk_size", null);
+        ByteSizeValue chunkSize = componentSettings.getAsBytesSize("chunk_size", null);
 
         if (gateway instanceof CloudGateway) {
             CloudGateway cloudGateway = (CloudGateway) gateway;
@@ -76,7 +76,7 @@ public class CloudIndexGateway extends AbstractIndexComponent implements IndexGa
         }
 
         if (chunkSize == null) {
-            chunkSize = new SizeValue(1, SizeUnit.GB);
+            chunkSize = new ByteSizeValue(1, ByteSizeUnit.GB);
         }
 
         if (location == null) {
@@ -119,7 +119,7 @@ public class CloudIndexGateway extends AbstractIndexComponent implements IndexGa
         return this.indexDirectory;
     }
 
-    public SizeValue chunkSize() {
+    public ByteSizeValue chunkSize() {
         return this.chunkSize;
     }
 

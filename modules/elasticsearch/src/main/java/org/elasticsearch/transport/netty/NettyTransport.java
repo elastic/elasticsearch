@@ -46,7 +46,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -107,9 +107,9 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     final Boolean reuseAddress;
 
-    final SizeValue tcpSendBufferSize;
+    final ByteSizeValue tcpSendBufferSize;
 
-    final SizeValue tcpReceiveBufferSize;
+    final ByteSizeValue tcpReceiveBufferSize;
 
     private final ThreadPool threadPool;
 
@@ -151,8 +151,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         this.tcpNoDelay = componentSettings.getAsBoolean("tcp_no_delay", settings.getAsBoolean(TCP_NO_DELAY, true));
         this.tcpKeepAlive = componentSettings.getAsBoolean("tcp_keep_alive", settings.getAsBoolean(TCP_KEEP_ALIVE, null));
         this.reuseAddress = componentSettings.getAsBoolean("reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
-        this.tcpSendBufferSize = componentSettings.getAsSize("tcp_send_buffer_size", settings.getAsSize(TCP_SEND_BUFFER_SIZE, null));
-        this.tcpReceiveBufferSize = componentSettings.getAsSize("tcp_receive_buffer_size", settings.getAsSize(TCP_RECEIVE_BUFFER_SIZE, null));
+        this.tcpSendBufferSize = componentSettings.getAsBytesSize("tcp_send_buffer_size", settings.getAsBytesSize(TCP_SEND_BUFFER_SIZE, null));
+        this.tcpReceiveBufferSize = componentSettings.getAsBytesSize("tcp_receive_buffer_size", settings.getAsBytesSize(TCP_RECEIVE_BUFFER_SIZE, null));
     }
 
     public Settings settings() {

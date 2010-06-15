@@ -21,13 +21,13 @@ package org.elasticsearch.rest.support;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.common.unit.SizeValue.*;
+import static org.elasticsearch.common.unit.ByteSizeValue.*;
 import static org.elasticsearch.common.unit.TimeValue.*;
 
 /**
@@ -77,8 +77,8 @@ public abstract class AbstractRestRequest implements RestRequest {
         return parseTimeValue(param(key), defaultValue);
     }
 
-    @Override public SizeValue paramAsSize(String key, SizeValue defaultValue) {
-        return parseSizeValue(param(key), defaultValue);
+    @Override public ByteSizeValue paramAsSize(String key, ByteSizeValue defaultValue) {
+        return parseBytesSizeValue(param(key), defaultValue);
     }
 
     @Override public String[] paramAsStringArray(String key, String[] defaultValue) {

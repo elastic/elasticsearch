@@ -35,8 +35,8 @@ import org.elasticsearch.common.lucene.Directories;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.lucene.store.ThreadSafeInputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.SizeUnit;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.gateway.IndexGateway;
@@ -96,7 +96,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
 
     private final BlobStoreContext blobStoreContext;
 
-    private final SizeValue chunkSize;
+    private final ByteSizeValue chunkSize;
 
     private volatile int currentTranslogPartToWrite = 1;
 
@@ -352,7 +352,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
         }
 
         return new SnapshotStatus(new TimeValue(System.currentTimeMillis() - totalTimeStart),
-                new SnapshotStatus.Index(indexNumberOfFiles, new SizeValue(indexTotalFilesSize), new TimeValue(indexTime)),
+                new SnapshotStatus.Index(indexNumberOfFiles, new ByteSizeValue(indexTotalFilesSize), new TimeValue(indexTime)),
                 new SnapshotStatus.Translog(translogNumberOfOperations, new TimeValue(translogTime)));
     }
 
@@ -411,7 +411,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
             throw new IndexShardGatewayRecoveryException(shardId(), "Failed to fetch index version after copying it over", e);
         }
 
-        return new RecoveryStatus.Index(version, filesMetaDatas.size(), new SizeValue(totalSize, SizeUnit.BYTES), TimeValue.timeValueMillis(throttlingWaitTime.get()));
+        return new RecoveryStatus.Index(version, filesMetaDatas.size(), new ByteSizeValue(totalSize, ByteSizeUnit.BYTES), TimeValue.timeValueMillis(throttlingWaitTime.get()));
     }
 
     private RecoveryStatus.Translog recoverTranslog() throws IndexShardGatewayRecoveryException {
@@ -429,7 +429,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
         if (latestTranslogId == -1) {
             // no recovery file found, start the shard and bail
             indexShard.start();
-            return new RecoveryStatus.Translog(-1, 0, new SizeValue(0, SizeUnit.BYTES));
+            return new RecoveryStatus.Translog(-1, 0, new ByteSizeValue(0, ByteSizeUnit.BYTES));
         }
 
 
@@ -458,7 +458,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
             currentTranslogPartToWrite = index;
 
             indexShard.performRecovery(operations);
-            return new RecoveryStatus.Translog(latestTranslogId, operations.size(), new SizeValue(size, SizeUnit.BYTES));
+            return new RecoveryStatus.Translog(latestTranslogId, operations.size(), new ByteSizeValue(size, ByteSizeUnit.BYTES));
         } catch (Exception e) {
             throw new IndexShardGatewayRecoveryException(shardId(), "Failed to perform recovery of translog", e);
         }

@@ -23,7 +23,7 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.common.unit.SizeUnit;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 
 import java.io.IOException;
 import java.util.zip.DataFormatException;
@@ -58,7 +58,7 @@ public class ZipCompressor implements Compressor {
         final FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
         final Deflater deflater = new Deflater();
         final Inflater inflater = new Inflater();
-        final byte[] buffer = new byte[(int) SizeUnit.KB.toBytes(5)];
+        final byte[] buffer = new byte[(int) ByteSizeUnit.KB.toBytes(5)];
         final UnicodeUtil.UTF8Result utf8Result = new UnicodeUtil.UTF8Result();
     }
 

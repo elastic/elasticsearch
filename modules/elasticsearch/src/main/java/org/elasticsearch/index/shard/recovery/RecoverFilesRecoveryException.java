@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.shard.recovery;
 
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -30,9 +30,9 @@ public class RecoverFilesRecoveryException extends IndexShardException {
 
     private final int numberOfFiles;
 
-    private final SizeValue totalFilesSize;
+    private final ByteSizeValue totalFilesSize;
 
-    public RecoverFilesRecoveryException(ShardId shardId, int numberOfFiles, SizeValue totalFilesSize, Throwable cause) {
+    public RecoverFilesRecoveryException(ShardId shardId, int numberOfFiles, ByteSizeValue totalFilesSize, Throwable cause) {
         super(shardId, "Failed to transfer [" + numberOfFiles + "] files with total size of [" + totalFilesSize + "]", cause);
         this.numberOfFiles = numberOfFiles;
         this.totalFilesSize = totalFilesSize;
@@ -42,7 +42,7 @@ public class RecoverFilesRecoveryException extends IndexShardException {
         return numberOfFiles;
     }
 
-    public SizeValue totalFilesSize() {
+    public ByteSizeValue totalFilesSize() {
         return totalFilesSize;
     }
 }

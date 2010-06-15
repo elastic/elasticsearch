@@ -24,7 +24,7 @@ import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.io.FastByteArrayInputStream;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.common.unit.SizeUnit;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 
 import java.io.IOException;
 import java.util.zip.GZIPInputStream;
@@ -55,7 +55,7 @@ public class GZIPCompressor implements Compressor {
 
     private static class CompressHolder {
         final FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
-        final byte[] buffer = new byte[(int) SizeUnit.KB.toBytes(5)];
+        final byte[] buffer = new byte[(int) ByteSizeUnit.KB.toBytes(5)];
         final UnicodeUtil.UTF8Result utf8Result = new UnicodeUtil.UTF8Result();
     }
 

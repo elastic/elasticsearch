@@ -28,7 +28,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.shard.IndexShardComponent;
@@ -81,7 +81,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
     /**
      * Returns the estimated flushable memory size. Returns <tt>null</tt> if not available.
      */
-    SizeValue estimateFlushableMemorySize();
+    ByteSizeValue estimateFlushableMemorySize();
 
     /**
      * Recovery allow to start the recovery process. It is built of three phases.

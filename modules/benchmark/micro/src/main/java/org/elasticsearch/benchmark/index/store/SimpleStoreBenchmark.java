@@ -23,8 +23,8 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.SizeUnit;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -56,9 +56,9 @@ public class SimpleStoreBenchmark {
 
     private String[] staticFiles = new String[10];
 
-    private SizeValue staticFileSize = new SizeValue(5, SizeUnit.MB);
+    private ByteSizeValue staticFileSize = new ByteSizeValue(5, ByteSizeUnit.MB);
 
-    private SizeValue dynamicFileSize = new SizeValue(1, SizeUnit.MB);
+    private ByteSizeValue dynamicFileSize = new ByteSizeValue(1, ByteSizeUnit.MB);
 
 
     private int readerIterations = 10;
@@ -82,12 +82,12 @@ public class SimpleStoreBenchmark {
         return this;
     }
 
-    public SimpleStoreBenchmark staticFileSize(SizeValue staticFileSize) {
+    public SimpleStoreBenchmark staticFileSize(ByteSizeValue staticFileSize) {
         this.staticFileSize = staticFileSize;
         return this;
     }
 
-    public SimpleStoreBenchmark dynamicFileSize(SizeValue dynamicFileSize) {
+    public SimpleStoreBenchmark dynamicFileSize(ByteSizeValue dynamicFileSize) {
         this.dynamicFileSize = dynamicFileSize;
         return this;
     }
@@ -189,7 +189,7 @@ public class SimpleStoreBenchmark {
             MILLISECONDS.sleep(100);
         }
         long bytesTaken = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() - emptyUsed;
-        System.out.println("Size of [" + staticFiles.length + "], each with size [" + staticFileSize + "], is " + new SizeValue(bytesTaken, SizeUnit.BYTES));
+        System.out.println("Size of [" + staticFiles.length + "], each with size [" + staticFileSize + "], is " + new ByteSizeValue(bytesTaken, ByteSizeUnit.BYTES));
     }
 
     private class ReaderThread implements Runnable {
@@ -293,8 +293,8 @@ public class SimpleStoreBenchmark {
         System.out.println("Using Store [" + store + "]");
         store.deleteContent();
         SimpleStoreBenchmark simpleStoreBenchmark = new SimpleStoreBenchmark(store)
-                .numberStaticFiles(5).staticFileSize(new SizeValue(5, SizeUnit.MB))
-                .dynamicFileSize(new SizeValue(1, SizeUnit.MB))
+                .numberStaticFiles(5).staticFileSize(new ByteSizeValue(5, ByteSizeUnit.MB))
+                .dynamicFileSize(new ByteSizeValue(1, ByteSizeUnit.MB))
                 .readerThreads(5).readerIterations(10)
                 .writerThreads(2).writerIterations(10)
                 .build();

@@ -20,7 +20,7 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.IndexShardComponent;
 
 import java.io.IOException;
@@ -49,7 +49,7 @@ public interface Store<T extends Directory> extends IndexShardComponent {
     /**
      * The estimated size this store is using.
      */
-    SizeValue estimateSize() throws IOException;
+    ByteSizeValue estimateSize() throws IOException;
 
     /**
      * The store can suggest the best setting for compound file the

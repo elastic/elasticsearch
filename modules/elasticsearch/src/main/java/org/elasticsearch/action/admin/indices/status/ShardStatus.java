@@ -23,13 +23,13 @@ import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRespons
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.IndexShardState;
 
 import java.io.IOException;
 
 import static org.elasticsearch.cluster.routing.ImmutableShardRouting.*;
-import static org.elasticsearch.common.unit.SizeValue.*;
+import static org.elasticsearch.common.unit.ByteSizeValue.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -72,9 +72,9 @@ public class ShardStatus extends BroadcastShardOperationResponse {
 
     IndexShardState state;
 
-    SizeValue storeSize;
+    ByteSizeValue storeSize;
 
-    SizeValue estimatedFlushableMemorySize;
+    ByteSizeValue estimatedFlushableMemorySize;
 
     long translogId = -1;
 
@@ -106,19 +106,19 @@ public class ShardStatus extends BroadcastShardOperationResponse {
         return state();
     }
 
-    public SizeValue storeSize() {
+    public ByteSizeValue storeSize() {
         return storeSize;
     }
 
-    public SizeValue getStoreSize() {
+    public ByteSizeValue getStoreSize() {
         return storeSize();
     }
 
-    public SizeValue estimatedFlushableMemorySize() {
+    public ByteSizeValue estimatedFlushableMemorySize() {
         return estimatedFlushableMemorySize;
     }
 
-    public SizeValue getEstimatedFlushableMemorySize() {
+    public ByteSizeValue getEstimatedFlushableMemorySize() {
         return estimatedFlushableMemorySize();
     }
 
@@ -180,10 +180,10 @@ public class ShardStatus extends BroadcastShardOperationResponse {
         shardRouting = readShardRoutingEntry(in);
         state = IndexShardState.fromId(in.readByte());
         if (in.readBoolean()) {
-            storeSize = readSizeValue(in);
+            storeSize = readBytesSizeValue(in);
         }
         if (in.readBoolean()) {
-            estimatedFlushableMemorySize = readSizeValue(in);
+            estimatedFlushableMemorySize = readBytesSizeValue(in);
         }
         translogId = in.readLong();
         translogOperations = in.readLong();

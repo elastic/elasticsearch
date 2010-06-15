@@ -30,8 +30,8 @@ import org.elasticsearch.common.io.stream.DataOutputStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Directories;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.SizeUnit;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.gateway.IndexGateway;
@@ -311,7 +311,7 @@ public class HdfsIndexShardGateway extends AbstractIndexShardComponent implement
 
 
         return new SnapshotStatus(new TimeValue(System.currentTimeMillis() - totalTimeStart),
-                new SnapshotStatus.Index(indexNumberOfFiles, new SizeValue(indexTotalFilesSize), new TimeValue(indexTime)),
+                new SnapshotStatus.Index(indexNumberOfFiles, new ByteSizeValue(indexTotalFilesSize), new TimeValue(indexTime)),
                 new SnapshotStatus.Translog(translogNumberOfOperations, new TimeValue(translogTime)));
     }
 
@@ -323,7 +323,7 @@ public class HdfsIndexShardGateway extends AbstractIndexShardComponent implement
             throw new IndexShardGatewayRecoveryException(shardId(), "Failed to list files", e);
         }
         if (files == null || files.length == 0) {
-            return new RecoveryStatus.Index(-1, 0, new SizeValue(0, SizeUnit.BYTES), TimeValue.timeValueMillis(0));
+            return new RecoveryStatus.Index(-1, 0, new ByteSizeValue(0, ByteSizeUnit.BYTES), TimeValue.timeValueMillis(0));
         }
 
         final CountDownLatch latch = new CountDownLatch(files.length);
@@ -372,7 +372,7 @@ public class HdfsIndexShardGateway extends AbstractIndexShardComponent implement
             throw new IndexShardGatewayRecoveryException(shardId(), "Failed to fetch index version after copying it over", e);
         }
 
-        return new RecoveryStatus.Index(version, files.length, new SizeValue(totalSize, SizeUnit.BYTES), TimeValue.timeValueMillis(throttlingWaitTime.get()));
+        return new RecoveryStatus.Index(version, files.length, new ByteSizeValue(totalSize, ByteSizeUnit.BYTES), TimeValue.timeValueMillis(throttlingWaitTime.get()));
     }
 
     private RecoveryStatus.Translog recoverTranslog() throws IndexShardGatewayRecoveryException {
@@ -382,7 +382,7 @@ public class HdfsIndexShardGateway extends AbstractIndexShardComponent implement
             if (recoveryTranslogId == -1) {
                 // no recovery file found, start the shard and bail
                 indexShard.start();
-                return new RecoveryStatus.Translog(-1, 0, new SizeValue(0, SizeUnit.BYTES));
+                return new RecoveryStatus.Translog(-1, 0, new ByteSizeValue(0, ByteSizeUnit.BYTES));
             }
             FileStatus status = fileSystem.getFileStatus(new Path(translogPath, "translog-" + recoveryTranslogId));
             fileStream = fileSystem.open(status.getPath());
@@ -396,7 +396,7 @@ public class HdfsIndexShardGateway extends AbstractIndexShardComponent implement
                 }
             }
             indexShard.performRecovery(operations);
-            return new RecoveryStatus.Translog(recoveryTranslogId, operations.size(), new SizeValue(status.getLen(), SizeUnit.BYTES));
+            return new RecoveryStatus.Translog(recoveryTranslogId, operations.size(), new ByteSizeValue(status.getLen(), ByteSizeUnit.BYTES));
         } catch (Exception e) {
             throw new IndexShardGatewayRecoveryException(shardId(), "Failed to perform recovery of translog", e);
         } finally {

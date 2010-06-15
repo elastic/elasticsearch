@@ -39,8 +39,8 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.PortsRange;
-import org.elasticsearch.common.unit.SizeUnit;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.http.*;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.netty.NettyInternalESLoggerFactory;
@@ -69,7 +69,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     private final NetworkService networkService;
 
-    private final SizeValue maxContentLength;
+    private final ByteSizeValue maxContentLength;
 
     private final int workerCount;
 
@@ -85,9 +85,9 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     private final Boolean reuseAddress;
 
-    private final SizeValue tcpSendBufferSize;
+    private final ByteSizeValue tcpSendBufferSize;
 
-    private final SizeValue tcpReceiveBufferSize;
+    private final ByteSizeValue tcpReceiveBufferSize;
 
     private volatile ServerBootstrap serverBootstrap;
 
@@ -102,7 +102,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     @Inject public NettyHttpServerTransport(Settings settings, NetworkService networkService) {
         super(settings);
         this.networkService = networkService;
-        SizeValue maxContentLength = componentSettings.getAsSize("max_content_length", settings.getAsSize("http.max_content_length", new SizeValue(100, SizeUnit.MB)));
+        ByteSizeValue maxContentLength = componentSettings.getAsBytesSize("max_content_length", settings.getAsBytesSize("http.max_content_length", new ByteSizeValue(100, ByteSizeUnit.MB)));
         this.workerCount = componentSettings.getAsInt("worker_count", Runtime.getRuntime().availableProcessors());
         this.port = componentSettings.get("port", settings.get("http.port", "9200-9300"));
         this.bindHost = componentSettings.get("bind_host");
@@ -110,13 +110,13 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         this.tcpNoDelay = componentSettings.getAsBoolean("tcp_no_delay", settings.getAsBoolean(TCP_NO_DELAY, true));
         this.tcpKeepAlive = componentSettings.getAsBoolean("tcp_keep_alive", settings.getAsBoolean(TCP_KEEP_ALIVE, null));
         this.reuseAddress = componentSettings.getAsBoolean("reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
-        this.tcpSendBufferSize = componentSettings.getAsSize("tcp_send_buffer_size", settings.getAsSize(TCP_SEND_BUFFER_SIZE, null));
-        this.tcpReceiveBufferSize = componentSettings.getAsSize("tcp_receive_buffer_size", settings.getAsSize(TCP_RECEIVE_BUFFER_SIZE, null));
+        this.tcpSendBufferSize = componentSettings.getAsBytesSize("tcp_send_buffer_size", settings.getAsBytesSize(TCP_SEND_BUFFER_SIZE, null));
+        this.tcpReceiveBufferSize = componentSettings.getAsBytesSize("tcp_receive_buffer_size", settings.getAsBytesSize(TCP_RECEIVE_BUFFER_SIZE, null));
 
         // validate max content length
         if (maxContentLength.bytes() > Integer.MAX_VALUE) {
             logger.warn("maxContentLength[" + maxContentLength + "] set to high value, resetting it to [100mb]");
-            maxContentLength = new SizeValue(100, SizeUnit.MB);
+            maxContentLength = new ByteSizeValue(100, ByteSizeUnit.MB);
         }
         this.maxContentLength = maxContentLength;
     }

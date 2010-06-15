@@ -21,8 +21,8 @@ package org.elasticsearch.threadpool.blocking;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.SizeUnit;
-import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.DynamicExecutors;
 import org.elasticsearch.threadpool.support.AbstractThreadPool;
@@ -57,7 +57,7 @@ public class BlockingThreadPool extends AbstractThreadPool {
         this.scheduledSize = componentSettings.getAsInt("scheduled_size", 20);
         this.min = componentSettings.getAsInt("min", 1);
         this.max = componentSettings.getAsInt("max", 100);
-        this.capacity = (int) componentSettings.getAsSize("capacity", new SizeValue(1, SizeUnit.KB)).bytes();
+        this.capacity = (int) componentSettings.getAsBytesSize("capacity", new ByteSizeValue(1, ByteSizeUnit.KB)).bytes();
         this.waitTime = componentSettings.getAsTime("wait_time", timeValueSeconds(60));
         this.keepAlive = componentSettings.getAsTime("keep_alive", timeValueSeconds(60));
         logger.debug("Initializing {} thread pool with min[{}], max[{}], keep_alive[{}], capacity[{}], wait_time[{}], scheduled_size[{}]", getType(), min, max, keepAlive, capacity, waitTime, scheduledSize);

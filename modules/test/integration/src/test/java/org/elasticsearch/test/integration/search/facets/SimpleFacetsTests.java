@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.search.facets;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.query.xcontent.QueryBuilders;
 import org.elasticsearch.search.facets.histogram.HistogramFacet;
@@ -135,7 +136,16 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addFacetStatistical("stats1", "num")
                 .addFacetStatistical("stats2", "multi_num")
+                .addFacetStatisticalScript("stats3", "doc['num'].value * 2")
                 .execute().actionGet();
+
+        if (searchResponse.failedShards() > 0) {
+            logger.warn("Failed shards:");
+            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
+                logger.warn("-> {}", shardSearchFailure);
+            }
+        }
+        assertThat(searchResponse.failedShards(), equalTo(0));
 
         StatisticalFacet facet = searchResponse.facets().facet(StatisticalFacet.class, "stats1");
         assertThat(facet.name(), equalTo(facet.name()));
@@ -153,6 +163,15 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.min(), equalTo(1d));
         assertThat(facet.max(), equalTo(4d));
         assertThat(facet.mean(), equalTo(2.5d));
+
+        facet = searchResponse.facets().facet(StatisticalFacet.class, "stats3");
+        assertThat(facet.name(), equalTo(facet.name()));
+        assertThat(facet.count(), equalTo(2l));
+        assertThat(facet.total(), equalTo(6d));
+        assertThat(facet.min(), equalTo(2d));
+        assertThat(facet.max(), equalTo(4d));
+        assertThat(facet.mean(), equalTo(3d));
+        assertThat(facet.sumOfSquares(), equalTo(20d));
     }
 
     @Test public void testHistoFacets() throws Exception {

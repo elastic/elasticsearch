@@ -32,6 +32,7 @@ import org.elasticsearch.search.facets.terms.TermsFacetCollectorParser;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.collect.Lists.*;
 
@@ -46,6 +47,7 @@ public class SearchSourceFacetsBuilder implements ToXContent {
     private List<BuilderQueryFacet> queryFacets;
     private List<BuilderTermsFacet> termsFacets;
     private List<BuilderStatisticalFacet> statisticalFacets;
+    private List<BuilderScriptStatisticalFacet> scriptStatisticalFacets;
     private List<BuilderHistogramFacet> histogramFacets;
 
     public SearchSourceFacetsBuilder queryFacet(String name, XContentQueryBuilder query) {
@@ -133,6 +135,38 @@ public class SearchSourceFacetsBuilder implements ToXContent {
         return this;
     }
 
+    public SearchSourceFacetsBuilder statisticalScriptFacet(String name, String script) {
+        return statisticalScriptFacet(name, script, null, null);
+    }
+
+    public SearchSourceFacetsBuilder statisticalScriptFacet(String name, String script, @Nullable Map<String, Object> params) {
+        return statisticalScriptFacet(name, script, params, null);
+    }
+
+    public SearchSourceFacetsBuilder statisticalScriptFacet(String name, String script, @Nullable Map<String, Object> params, @Nullable XContentFilterBuilder filter) {
+        if (scriptStatisticalFacets == null) {
+            scriptStatisticalFacets = newArrayListWithCapacity(2);
+        }
+        scriptStatisticalFacets.add(new BuilderScriptStatisticalFacet(name, script, params, filter, false));
+        return this;
+    }
+
+    public SearchSourceFacetsBuilder statisticalScriptFacetGlobal(String name, String script) {
+        return statisticalScriptFacetGlobal(name, script, null, null);
+    }
+
+    public SearchSourceFacetsBuilder statisticalScriptFacetGlobal(String name, String script, @Nullable Map<String, Object> params) {
+        return statisticalScriptFacetGlobal(name, script, params, null);
+    }
+
+    public SearchSourceFacetsBuilder statisticalScriptFacetGlobal(String name, String script, @Nullable Map<String, Object> params, @Nullable XContentFilterBuilder filter) {
+        if (scriptStatisticalFacets == null) {
+            scriptStatisticalFacets = newArrayListWithCapacity(2);
+        }
+        scriptStatisticalFacets.add(new BuilderScriptStatisticalFacet(name, script, params, filter, true));
+        return this;
+    }
+
     public SearchSourceFacetsBuilder histogramFacet(String name, String fieldName, long interval) {
         return histogramFacet(name, fieldName, interval, HistogramFacet.ComparatorType.KEY, null);
     }
@@ -210,7 +244,7 @@ public class SearchSourceFacetsBuilder implements ToXContent {
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (queryFacets == null && termsFacets == null && statisticalFacets == null && histogramFacets == null) {
+        if (queryFacets == null && termsFacets == null && statisticalFacets == null && histogramFacets == null && scriptStatisticalFacets == null) {
             return;
         }
         builder.field("facets");
@@ -261,6 +295,31 @@ public class SearchSourceFacetsBuilder implements ToXContent {
 
                 builder.startObject(StatisticalFacetCollectorParser.NAME);
                 builder.field("field", statisticalFacet.fieldName());
+                builder.endObject();
+
+                if (statisticalFacet.filter() != null) {
+                    builder.field("filter");
+                    statisticalFacet.filter().toXContent(builder, params);
+                }
+
+                if (statisticalFacet.global() != null) {
+                    builder.field("global", statisticalFacet.global());
+                }
+
+                builder.endObject();
+            }
+        }
+
+        if (scriptStatisticalFacets != null) {
+            for (BuilderScriptStatisticalFacet statisticalFacet : scriptStatisticalFacets) {
+                builder.startObject(statisticalFacet.name());
+
+                builder.startObject(StatisticalFacetCollectorParser.NAME);
+                builder.field("script", statisticalFacet.script());
+                if (statisticalFacet.params() != null) {
+                    builder.field("params");
+                    builder.map(statisticalFacet.params());
+                }
                 builder.endObject();
 
                 if (statisticalFacet.filter() != null) {
@@ -370,6 +429,42 @@ public class SearchSourceFacetsBuilder implements ToXContent {
 
         public Boolean global() {
             return this.global;
+        }
+    }
+
+    private static class BuilderScriptStatisticalFacet {
+        private final String name;
+        private final String script;
+        private final Map<String, Object> params;
+        private final XContentFilterBuilder filter;
+        private final Boolean global;
+
+        private BuilderScriptStatisticalFacet(String name, String script, Map<String, Object> params, XContentFilterBuilder filter, Boolean global) {
+            this.name = name;
+            this.script = script;
+            this.params = params;
+            this.filter = filter;
+            this.global = global;
+        }
+
+        public String name() {
+            return name;
+        }
+
+        public String script() {
+            return script;
+        }
+
+        public Map<String, Object> params() {
+            return params;
+        }
+
+        public XContentFilterBuilder filter() {
+            return filter;
+        }
+
+        public Boolean global() {
+            return global;
         }
     }
 

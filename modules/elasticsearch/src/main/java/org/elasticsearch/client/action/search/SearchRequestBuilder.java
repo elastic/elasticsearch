@@ -346,8 +346,46 @@ public class SearchRequestBuilder {
         return this;
     }
 
+    /**
+     * Adds a numeric statistical facet for the provided field name.
+     *
+     * @param name      The name of the facet
+     * @param fieldName The name of the <b>numeric</b> field
+     * @param filter    An optional filter to reduce the scope of the facet
+     * @see org.elasticsearch.search.facets.statistical.StatisticalFacet
+     */
     public SearchRequestBuilder addFacetStatistical(String name, String fieldName, @Nullable XContentFilterBuilder filter) {
         facetsBuilder().statisticalFacet(name, fieldName, filter);
+        return this;
+    }
+
+    public SearchRequestBuilder addFacetStatisticalScript(String name, String script) {
+        facetsBuilder().statisticalScriptFacet(name, script);
+        return this;
+    }
+
+    public SearchRequestBuilder addFacetStatisticalScript(String name, String script, @Nullable Map<String, Object> params) {
+        facetsBuilder().statisticalScriptFacet(name, script, params);
+        return this;
+    }
+
+    public SearchRequestBuilder addFacetStatisticalScript(String name, String script, @Nullable Map<String, Object> params, @Nullable XContentFilterBuilder filter) {
+        facetsBuilder().statisticalScriptFacet(name, script, params, filter);
+        return this;
+    }
+
+    public SearchRequestBuilder addFacetGlobalStatisticalScript(String name, String script) {
+        facetsBuilder().statisticalScriptFacetGlobal(name, script);
+        return this;
+    }
+
+    public SearchRequestBuilder addFacetGlobalStatisticalScript(String name, String script, @Nullable Map<String, Object> params) {
+        facetsBuilder().statisticalScriptFacetGlobal(name, script, params);
+        return this;
+    }
+
+    public SearchRequestBuilder addFacetGlobalStatisticalScript(String name, String script, @Nullable Map<String, Object> params, @Nullable XContentFilterBuilder filter) {
+        facetsBuilder().statisticalScriptFacetGlobal(name, script, params, filter);
         return this;
     }
 

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.xcontent.support;
 
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.util.Booleans;
 
 import java.io.IOException;
 import java.util.Map;

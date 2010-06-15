@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.field.data.ints;
 
+import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
-import org.elasticsearch.util.ThreadLocals;
 
 /**
  * @author kimchy (shay.banon)

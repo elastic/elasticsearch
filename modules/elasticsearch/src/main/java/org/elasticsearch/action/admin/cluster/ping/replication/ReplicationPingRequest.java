@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.ping.replication;
 
 import org.elasticsearch.action.support.replication.IndicesReplicationOperationRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
-import org.elasticsearch.util.TimeValue;
+import org.elasticsearch.common.unit.TimeValue;
 
 /**
  * @author kimchy (Shay Banon)

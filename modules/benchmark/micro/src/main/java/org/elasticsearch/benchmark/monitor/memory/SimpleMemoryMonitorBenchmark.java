@@ -21,10 +21,10 @@ package org.elasticsearch.benchmark.monitor.memory;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.util.StopWatch;
 
 import java.io.IOException;
 import java.util.Random;

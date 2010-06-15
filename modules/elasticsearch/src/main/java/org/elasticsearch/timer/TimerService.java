@@ -27,14 +27,14 @@ import org.elasticsearch.common.timer.HashedWheelTimer;
 import org.elasticsearch.common.timer.Timeout;
 import org.elasticsearch.common.timer.Timer;
 import org.elasticsearch.common.timer.TimerTask;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.util.TimeValue;
 
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.unit.TimeValue.*;
 import static org.elasticsearch.common.util.concurrent.DynamicExecutors.*;
-import static org.elasticsearch.util.TimeValue.*;
 
 /**
  * @author kimchy (Shay Banon)

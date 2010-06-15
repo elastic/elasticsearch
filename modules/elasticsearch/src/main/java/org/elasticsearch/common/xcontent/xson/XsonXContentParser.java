@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common.xcontent.xson;
 
+import org.elasticsearch.common.Bytes;
+import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
-import org.elasticsearch.util.Bytes;
-import org.elasticsearch.util.Unicode;
 
 import java.io.EOFException;
 import java.io.IOException;

@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.status;
 
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.util.SizeValue;
+import org.elasticsearch.common.unit.SizeValue;
 
 import java.util.Iterator;
 import java.util.List;

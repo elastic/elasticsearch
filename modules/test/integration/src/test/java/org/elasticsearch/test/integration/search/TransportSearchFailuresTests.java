@@ -27,9 +27,9 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.elasticsearch.util.Unicode;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 

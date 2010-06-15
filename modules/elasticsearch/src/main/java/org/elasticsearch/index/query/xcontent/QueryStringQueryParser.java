@@ -24,6 +24,7 @@ import org.apache.lucene.queryParser.ParseException;
 import org.apache.lucene.queryParser.QueryParser;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -37,7 +38,6 @@ import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.support.MapperQueryParser;
 import org.elasticsearch.index.query.support.MultiFieldMapperQueryParser;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.Strings;
 
 import java.io.IOException;
 import java.util.List;

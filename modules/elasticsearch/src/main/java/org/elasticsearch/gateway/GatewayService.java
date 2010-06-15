@@ -27,9 +27,9 @@ import org.elasticsearch.cluster.metadata.MetaDataService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.util.TimeValue;
 
 import javax.annotation.Nullable;
 import java.util.concurrent.CountDownLatch;
@@ -40,8 +40,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static java.util.concurrent.Executors.*;
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.metadata.MetaData.*;
+import static org.elasticsearch.common.unit.TimeValue.*;
 import static org.elasticsearch.common.util.concurrent.DynamicExecutors.*;
-import static org.elasticsearch.util.TimeValue.*;
 
 /**
  * @author kimchy (shay.banon)

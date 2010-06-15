@@ -19,6 +19,7 @@
 
 package org.elasticsearch.memcached.netty;
 
+import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.netty.buffer.ChannelBuffer;
 import org.elasticsearch.common.netty.channel.Channel;
 import org.elasticsearch.common.netty.channel.ChannelHandlerContext;
@@ -26,7 +27,6 @@ import org.elasticsearch.common.netty.channel.ExceptionEvent;
 import org.elasticsearch.common.netty.handler.codec.frame.FrameDecoder;
 import org.elasticsearch.memcached.MemcachedRestRequest;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.util.Unicode;
 
 import java.io.StreamCorruptedException;
 import java.util.regex.Pattern;

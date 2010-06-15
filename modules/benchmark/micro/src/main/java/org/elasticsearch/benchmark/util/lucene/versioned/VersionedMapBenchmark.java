@@ -19,12 +19,12 @@
 
 package org.elasticsearch.benchmark.util.lucene.versioned;
 
+import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.lucene.versioned.ConcurrentVersionedMap;
 import org.elasticsearch.common.lucene.versioned.ConcurrentVersionedMapLong;
 import org.elasticsearch.common.lucene.versioned.NativeVersionedMap;
 import org.elasticsearch.common.lucene.versioned.VersionedMap;
-import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.StopWatch;
+import org.elasticsearch.common.unit.SizeValue;
 
 import java.lang.management.ManagementFactory;
 import java.util.concurrent.CountDownLatch;

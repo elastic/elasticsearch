@@ -22,8 +22,8 @@ package org.elasticsearch.common.lucene;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.store.*;
+import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.index.store.support.ForceSyncDirectory;
-import org.elasticsearch.util.SizeValue;
 
 import java.io.*;
 import java.util.Collection;

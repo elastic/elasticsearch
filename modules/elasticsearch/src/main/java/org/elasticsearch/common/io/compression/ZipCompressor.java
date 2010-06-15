@@ -20,10 +20,10 @@
 package org.elasticsearch.common.io.compression;
 
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
-import org.elasticsearch.util.SizeUnit;
-import org.elasticsearch.util.ThreadLocals;
-import org.elasticsearch.util.Unicode;
+import org.elasticsearch.common.thread.ThreadLocals;
+import org.elasticsearch.common.unit.SizeUnit;
 
 import java.io.IOException;
 import java.util.zip.DataFormatException;

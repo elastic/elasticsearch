@@ -19,9 +19,9 @@
 
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
-import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.TimeValue;
 
 import java.util.Map;
 
@@ -155,7 +155,7 @@ public interface Settings {
      * @param defaultValue The value to return if no value is associated with the setting
      * @return The (time) value, or the default value if no value exists.
      * @throws SettingsException Failure to parse the setting
-     * @see TimeValue#parseTimeValue(String, org.elasticsearch.util.TimeValue)
+     * @see TimeValue#parseTimeValue(String, org.elasticsearch.common.unit.TimeValue)
      */
     TimeValue getAsTime(String setting, TimeValue defaultValue) throws SettingsException;
 

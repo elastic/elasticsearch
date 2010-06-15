@@ -22,11 +22,11 @@ package org.elasticsearch.index.field.data.longs;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
 import org.elasticsearch.common.joda.time.MutableDateTime;
+import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.TLongArrayList;
 import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.field.data.support.FieldDataLoader;
-import org.elasticsearch.util.ThreadLocals;
 
 import java.io.IOException;
 

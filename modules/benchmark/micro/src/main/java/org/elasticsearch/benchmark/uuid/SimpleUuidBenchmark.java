@@ -19,7 +19,7 @@
 
 package org.elasticsearch.benchmark.uuid;
 
-import org.elasticsearch.util.StopWatch;
+import org.elasticsearch.common.StopWatch;
 
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;

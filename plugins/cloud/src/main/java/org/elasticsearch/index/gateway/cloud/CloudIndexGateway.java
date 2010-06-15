@@ -25,6 +25,8 @@ import org.elasticsearch.cloud.blobstore.CloudBlobStoreService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.SizeUnit;
+import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.cloud.CloudGateway;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -32,8 +34,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.util.SizeUnit;
-import org.elasticsearch.util.SizeValue;
 import org.jclouds.blobstore.BlobStoreContext;
 import org.jclouds.domain.Location;
 

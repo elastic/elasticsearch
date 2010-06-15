@@ -22,6 +22,7 @@ package org.elasticsearch.index.field.function.script;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.FieldDataOptions;
@@ -29,7 +30,6 @@ import org.elasticsearch.index.field.function.FieldsFunction;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.util.ThreadLocals;
 
 import java.io.IOException;
 import java.util.Collection;

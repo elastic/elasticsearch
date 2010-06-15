@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.util.ThreadLocals;
+import org.elasticsearch.common.thread.ThreadLocals;
 
 import java.io.IOException;
 import java.util.Arrays;

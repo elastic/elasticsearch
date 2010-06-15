@@ -21,7 +21,10 @@ package org.elasticsearch.benchmark.index.store;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.SizeUnit;
+import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -32,9 +35,6 @@ import org.elasticsearch.index.store.fs.SimpleFsStore;
 import org.elasticsearch.index.store.memory.ByteBufferStore;
 import org.elasticsearch.index.store.memory.HeapStore;
 import org.elasticsearch.index.store.ram.RamStore;
-import org.elasticsearch.util.SizeUnit;
-import org.elasticsearch.util.SizeValue;
-import org.elasticsearch.util.StopWatch;
 
 import java.lang.management.ManagementFactory;
 import java.util.concurrent.CountDownLatch;

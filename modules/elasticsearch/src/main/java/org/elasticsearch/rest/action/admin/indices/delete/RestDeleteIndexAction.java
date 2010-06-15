@@ -33,8 +33,8 @@ import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import java.io.IOException;
 
 import static org.elasticsearch.ExceptionsHelper.*;
+import static org.elasticsearch.common.unit.TimeValue.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
-import static org.elasticsearch.util.TimeValue.*;
 
 /**
  * @author kimchy (Shay Banon)

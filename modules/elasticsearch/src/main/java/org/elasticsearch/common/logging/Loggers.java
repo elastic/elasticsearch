@@ -19,11 +19,11 @@
 
 package org.elasticsearch.common.logging;
 
+import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.util.Classes;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;

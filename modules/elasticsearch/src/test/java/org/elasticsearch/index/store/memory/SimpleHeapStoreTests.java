@@ -23,8 +23,8 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
-import org.elasticsearch.util.SizeUnit;
-import org.elasticsearch.util.SizeValue;
+import org.elasticsearch.common.unit.SizeUnit;
+import org.elasticsearch.common.unit.SizeValue;
 import org.testng.annotations.Test;
 
 import java.io.IOException;

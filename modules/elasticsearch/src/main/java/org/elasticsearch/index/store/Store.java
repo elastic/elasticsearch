@@ -20,8 +20,8 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.index.shard.IndexShardComponent;
-import org.elasticsearch.util.SizeValue;
 
 import java.io.IOException;
 

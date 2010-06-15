@@ -21,12 +21,12 @@ package org.elasticsearch.util;
 
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.util.Strings.*;
+import static org.elasticsearch.common.Strings.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 /**
- * Tests for {@link Strings}.
+ * Tests for {@link org.elasticsearch.common.Strings}.
  *
  * @author kimchy (Shay Banon)
  */

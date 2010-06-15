@@ -28,6 +28,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.client.internal.InternalClient;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
 import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
 import org.elasticsearch.search.Scroll;
@@ -35,7 +36,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceFacetsBuilder;
 import org.elasticsearch.search.builder.SearchSourceHighlightBuilder;
 import org.elasticsearch.search.facets.histogram.HistogramFacet;
-import org.elasticsearch.util.TimeValue;
 
 import javax.annotation.Nullable;
 import java.util.Map;

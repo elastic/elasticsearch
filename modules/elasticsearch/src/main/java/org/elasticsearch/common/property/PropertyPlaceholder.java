@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.property;
 
-import org.elasticsearch.util.Preconditions;
-import org.elasticsearch.util.Strings;
+import org.elasticsearch.common.Preconditions;
+import org.elasticsearch.common.Strings;
 
 import java.util.HashSet;
 import java.util.Properties;

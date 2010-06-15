@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.io;
 
-import org.elasticsearch.util.Preconditions;
+import org.elasticsearch.common.Preconditions;
 
 import java.io.*;
 

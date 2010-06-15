@@ -44,7 +44,7 @@ public class CreateIndexResponse implements ActionResponse, Streamable {
 
     /**
      * Has the index creation been acknowledged by all current cluster nodes within the
-     * provided {@link CreateIndexRequest#timeout(org.elasticsearch.util.TimeValue)}.
+     * provided {@link CreateIndexRequest#timeout(org.elasticsearch.common.unit.TimeValue)}.
      */
     public boolean acknowledged() {
         return acknowledged;
@@ -52,7 +52,7 @@ public class CreateIndexResponse implements ActionResponse, Streamable {
 
     /**
      * Has the index creation been acknowledged by all current cluster nodes within the
-     * provided {@link CreateIndexRequest#timeout(org.elasticsearch.util.TimeValue)}.
+     * provided {@link CreateIndexRequest#timeout(org.elasticsearch.common.unit.TimeValue)}.
      */
     public boolean getAcknowledged() {
         return acknowledged();

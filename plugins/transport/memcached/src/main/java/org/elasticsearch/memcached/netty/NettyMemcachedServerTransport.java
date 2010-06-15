@@ -34,11 +34,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.PortsRange;
+import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.memcached.MemcachedServerTransport;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.transport.BindTransportException;
-import org.elasticsearch.util.SizeValue;
 
 import java.io.IOException;
 import java.net.InetAddress;

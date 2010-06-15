@@ -21,13 +21,13 @@ package org.elasticsearch.index.field.data;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
 import org.elasticsearch.index.field.data.floats.FloatFieldData;
 import org.elasticsearch.index.field.data.ints.IntFieldData;
 import org.elasticsearch.index.field.data.longs.LongFieldData;
 import org.elasticsearch.index.field.data.shorts.ShortFieldData;
 import org.elasticsearch.index.field.data.strings.StringFieldData;
-import org.elasticsearch.util.ThreadLocals;
 
 import java.io.IOException;
 

@@ -17,7 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.util;
+package org.elasticsearch.common;
+
+import org.elasticsearch.common.thread.ThreadLocals;
 
 /**
  * @author kimchy (shay.banon)

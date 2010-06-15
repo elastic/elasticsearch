@@ -21,11 +21,11 @@ package org.elasticsearch.threadpool.support;
 
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.FutureListener;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.threadpool.ThreadPoolStats;
-import org.elasticsearch.util.TimeValue;
 
 import java.util.concurrent.*;
 

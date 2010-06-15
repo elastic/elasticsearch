@@ -23,13 +23,13 @@ import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRespons
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.util.SizeValue;
 
 import java.io.IOException;
 
 import static org.elasticsearch.cluster.routing.ImmutableShardRouting.*;
-import static org.elasticsearch.util.SizeValue.*;
+import static org.elasticsearch.common.unit.SizeValue.*;
 
 /**
  * @author kimchy (Shay Banon)

@@ -26,9 +26,9 @@ import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.internal.InternalClient;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.util.TimeValue;
 
 import java.util.Map;
 

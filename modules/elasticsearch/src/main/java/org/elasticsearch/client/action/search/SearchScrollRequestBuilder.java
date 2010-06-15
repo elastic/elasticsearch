@@ -26,8 +26,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.client.internal.InternalClient;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.Scroll;
-import org.elasticsearch.util.TimeValue;
 
 /**
  * A search scroll action request builder.

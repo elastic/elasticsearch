@@ -22,8 +22,8 @@ package org.elasticsearch.common.timer;
 import org.elasticsearch.common.collect.MapBackedSet;
 import org.elasticsearch.common.collect.ReusableIterator;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.thread.ThreadRenamingRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentIdentityHashMap;
-import org.elasticsearch.util.ThreadRenamingRunnable;
 
 import java.util.*;
 import java.util.concurrent.ThreadFactory;

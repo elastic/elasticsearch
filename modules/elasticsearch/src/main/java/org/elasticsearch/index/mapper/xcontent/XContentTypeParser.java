@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.mapper.xcontent;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.util.Strings;
 
 import java.util.Map;
 

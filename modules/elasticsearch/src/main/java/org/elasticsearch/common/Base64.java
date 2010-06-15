@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.util;
+package org.elasticsearch.common;
 
 /**
  * <p>Encodes and decodes to and from Base64 notation.</p>

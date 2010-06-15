@@ -22,12 +22,12 @@ package org.elasticsearch.common.xcontent.xson;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.io.FastByteArrayInputStream;
+import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
-import org.elasticsearch.util.ThreadLocals;
 
 import java.io.*;
 

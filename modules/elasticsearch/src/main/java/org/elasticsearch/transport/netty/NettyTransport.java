@@ -145,7 +145,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         this.workerCount = componentSettings.getAsInt("worker_count", Runtime.getRuntime().availableProcessors());
         this.port = componentSettings.get("port", settings.get("transport.tcp.port", "9300-9400"));
         this.bindHost = componentSettings.get("bind_host");
-        this.connectionsPerNode = componentSettings.getAsInt("connections_per_node", settings.getAsInt("transport.tcp.connection_per_node", 5));
+        this.connectionsPerNode = componentSettings.getAsInt("connections_per_node", settings.getAsInt("transport.tcp.connection_per_node", 1));
         this.publishHost = componentSettings.get("publish_host");
         this.connectTimeout = componentSettings.getAsTime("connect_timeout", settings.getAsTime("transport.tcp.connect_timeout", timeValueSeconds(1)));
         this.tcpNoDelay = componentSettings.getAsBoolean("tcp_no_delay", settings.getAsBoolean(TCP_NO_DELAY, true));

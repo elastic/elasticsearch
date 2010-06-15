@@ -1,0 +1,68 @@
+/*
+ * Licensed to Elastic Search and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Elastic Search licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.index.query.xcontent;
+
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
+
+import java.io.IOException;
+import java.util.Map;
+
+import static org.elasticsearch.common.collect.Maps.*;
+
+/**
+ * @author kimchy (shay.banon)
+ */
+public class ScriptFilterBuilder extends BaseFilterBuilder {
+
+    private final String script;
+
+    private Map<String, Object> params;
+
+    public ScriptFilterBuilder(String script) {
+        this.script = script;
+    }
+
+    public ScriptFilterBuilder addParam(String name, Object value) {
+        if (params == null) {
+            params = newHashMap();
+        }
+        params.put(name, value);
+        return this;
+    }
+
+    public ScriptFilterBuilder params(Map<String, Object> params) {
+        if (params == null) {
+            this.params = params;
+        } else {
+            this.params.putAll(params);
+        }
+        return this;
+    }
+
+    @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(ScriptFilterParser.NAME);
+        builder.field("script", script);
+        if (this.params != null) {
+            builder.field("params");
+            builder.map(this.params);
+        }
+        builder.endObject();
+    }
+}

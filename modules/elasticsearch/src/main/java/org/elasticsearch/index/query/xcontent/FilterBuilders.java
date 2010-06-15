@@ -175,6 +175,10 @@ public abstract class FilterBuilders {
         return new QueryFilterBuilder(queryBuilder);
     }
 
+    public static ScriptFilterBuilder scriptFilter(String script) {
+        return new ScriptFilterBuilder(script);
+    }
+
     public static BoolFilterBuilder boolFilter() {
         return new BoolFilterBuilder();
     }

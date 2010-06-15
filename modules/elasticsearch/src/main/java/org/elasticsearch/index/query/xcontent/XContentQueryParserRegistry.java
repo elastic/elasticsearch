@@ -85,6 +85,7 @@ public class XContentQueryParserRegistry {
         add(filterParsersMap, new TermsFilterParser(index, indexSettings));
         add(filterParsersMap, new RangeFilterParser(index, indexSettings));
         add(filterParsersMap, new PrefixFilterParser(index, indexSettings));
+        add(filterParsersMap, new ScriptFilterParser(index, indexSettings));
         add(filterParsersMap, new QueryFilterParser(index, indexSettings));
         add(filterParsersMap, new BoolFilterParser(index, indexSettings));
         add(filterParsersMap, new AndFilterParser(index, indexSettings));

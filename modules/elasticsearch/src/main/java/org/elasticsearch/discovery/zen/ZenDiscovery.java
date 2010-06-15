@@ -150,7 +150,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     @Override protected void doStop() throws ElasticSearchException {
         pingService.stop();
         if (masterFD.masterNode() != null) {
-            masterFD.stop();
+            masterFD.stop("zen disco stop");
         }
         nodesFD.stop();
         initialStateSent.set(false);
@@ -265,7 +265,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     continue;
                 }
                 // cool, we found a master, start an FD on it
-                masterFD.start(masterNode);
+                masterFD.start(masterNode, "initial_join");
             }
             if (retry) {
                 if (!lifecycle.started()) {
@@ -307,7 +307,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         DiscoveryNode electedMaster = electMaster.electMaster(nodes); // elect master
         if (localNode.equals(electedMaster)) {
             this.master = true;
-            masterFD.stop();
+            masterFD.stop("got elected as new master since master left (reason = " + reason + ")");
             nodesFD.start();
             clusterService.submitStateUpdateTask("zen-disco-elected_as_master(old master [" + masterNode + "])", new ProcessedClusterStateUpdateTask() {
                 @Override public ClusterState execute(ClusterState currentState) {
@@ -329,9 +329,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             nodesFD.stop();
             if (electedMaster != null) {
                 // we are not the master, start FD against the possible master
-                masterFD.restart(electedMaster);
+                masterFD.restart(electedMaster, "possible elected master since master left (reason = " + reason + ")");
             } else {
-                masterFD.stop();
+                masterFD.stop("no master elected since master left (reason = " + reason + ")");
             }
         }
     }
@@ -343,8 +343,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             latestDiscoNodes = clusterState.nodes();
 
             // check to see that we monitor the correct master of the cluster
-            if (masterFD.masterNode() != null && masterFD.masterNode().equals(latestDiscoNodes.masterNode())) {
-                masterFD.restart(latestDiscoNodes.masterNode());
+            if (masterFD.masterNode() == null || !masterFD.masterNode().equals(latestDiscoNodes.masterNode())) {
+                masterFD.restart(latestDiscoNodes.masterNode(), "new cluster stare received and we monitor the wrong master [" + masterFD.masterNode() + "]");
             }
 
             if (clusterState.nodes().localNode() == null) {
@@ -468,7 +468,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         @Override public void onDisconnectedFromMaster() {
             // got disconnected from the master, send a join request
-            membership.sendJoinRequest(latestDiscoNodes.masterNode(), localNode);
+            DiscoveryNode masterNode = latestDiscoNodes.masterNode();
+            try {
+                membership.sendJoinRequest(masterNode, localNode);
+            } catch (Exception e) {
+                logger.warn("Failed to send join request on disconnection from master [{}]", masterNode);
+            }
         }
     }
 }

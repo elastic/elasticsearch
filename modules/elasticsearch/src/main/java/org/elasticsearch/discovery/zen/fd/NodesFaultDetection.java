@@ -194,32 +194,34 @@ public class NodesFaultDetection extends AbstractComponent {
                         }
 
                         @Override public void handleResponse(PingResponse response) {
-                            if (running) {
-                                NodeFD nodeFD = nodesFD.get(node);
-                                if (nodeFD != null) {
-                                    nodeFD.retryCount = 0;
-                                    threadPool.schedule(SendPingRequest.this, pingInterval);
-                                }
+                            if (!running) {
+                                return;
+                            }
+                            NodeFD nodeFD = nodesFD.get(node);
+                            if (nodeFD != null) {
+                                nodeFD.retryCount = 0;
+                                threadPool.schedule(SendPingRequest.this, pingInterval);
                             }
                         }
 
                         @Override public void handleException(RemoteTransportException exp) {
                             // check if the master node did not get switched on us...
-                            if (running) {
-                                NodeFD nodeFD = nodesFD.get(node);
-                                if (nodeFD != null) {
-                                    int retryCount = ++nodeFD.retryCount;
-                                    logger.trace("Node [{}] failed to ping, retry [{}] out of [{}]", exp, node, retryCount, pingRetryCount);
-                                    if (retryCount >= pingRetryCount) {
-                                        logger.debug("Node [{}] failed on ping, tried [{}] times, each with [{}] timeout", node, pingRetryCount, pingRetryTimeout);
-                                        // not good, failure
-                                        if (nodesFD.remove(node) != null) {
-                                            notifyNodeFailure(node, "Failed on ping, tried [" + pingRetryCount + "] times, each with [" + pingRetryTimeout + "] timeout");
-                                        }
-                                    } else {
-                                        // resend the request, not reschedule, rely on send timeout
-                                        transportService.sendRequest(node, PingRequestHandler.ACTION, new PingRequest(node.id()), pingRetryTimeout, this);
+                            if (!running) {
+                                return;
+                            }
+                            NodeFD nodeFD = nodesFD.get(node);
+                            if (nodeFD != null) {
+                                int retryCount = ++nodeFD.retryCount;
+                                logger.trace("Node [{}] failed to ping, retry [{}] out of [{}]", exp, node, retryCount, pingRetryCount);
+                                if (retryCount >= pingRetryCount) {
+                                    logger.debug("Node [{}] failed on ping, tried [{}] times, each with [{}] timeout", node, pingRetryCount, pingRetryTimeout);
+                                    // not good, failure
+                                    if (nodesFD.remove(node) != null) {
+                                        notifyNodeFailure(node, "Failed on ping, tried [" + pingRetryCount + "] times, each with [" + pingRetryTimeout + "] timeout");
                                     }
+                                } else {
+                                    // resend the request, not reschedule, rely on send timeout
+                                    transportService.sendRequest(node, PingRequestHandler.ACTION, new PingRequest(node.id()), pingRetryTimeout, this);
                                 }
                             }
                         }

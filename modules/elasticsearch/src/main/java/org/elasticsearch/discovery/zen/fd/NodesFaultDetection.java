@@ -160,12 +160,12 @@ public class NodesFaultDetection extends AbstractComponent {
             try {
                 transportService.connectToNode(node);
             } catch (Exception e) {
-                logger.trace("Node [{}] failed on disconnect (with verified connect)", node);
-                notifyNodeFailure(node, "Failed on disconnect (with verified connect)");
+                logger.trace("Node [{}] transport disconnected (with verified connect)", node);
+                notifyNodeFailure(node, "transport disconnected (with verified connect)");
             }
         } else {
-            logger.trace("Node [{}] failed on disconnect", node);
-            notifyNodeFailure(node, "Failed on disconnect");
+            logger.trace("Node [{}] transport disconnected", node);
+            notifyNodeFailure(node, "transport disconnected");
         }
     }
 
@@ -214,10 +214,10 @@ public class NodesFaultDetection extends AbstractComponent {
                                 int retryCount = ++nodeFD.retryCount;
                                 logger.trace("Node [{}] failed to ping, retry [{}] out of [{}]", exp, node, retryCount, pingRetryCount);
                                 if (retryCount >= pingRetryCount) {
-                                    logger.debug("Node [{}] failed on ping, tried [{}] times, each with [{}] timeout", node, pingRetryCount, pingRetryTimeout);
+                                    logger.debug("Node [{}] failed to ping, tried [{}] times, each with [{}] timeout", node, pingRetryCount, pingRetryTimeout);
                                     // not good, failure
                                     if (nodesFD.remove(node) != null) {
-                                        notifyNodeFailure(node, "Failed on ping, tried [" + pingRetryCount + "] times, each with [" + pingRetryTimeout + "] timeout");
+                                        notifyNodeFailure(node, "failed to ping, tried [" + pingRetryCount + "] times, each with [" + pingRetryTimeout + "] timeout");
                                     }
                                 } else {
                                     // resend the request, not reschedule, rely on send timeout

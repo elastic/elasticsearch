@@ -82,6 +82,7 @@ public class ScriptFieldSearchTests extends AbstractNodesTests {
                 .execute().actionGet();
 
         assertThat(response.hits().totalHits(), equalTo(3l));
+        assertThat(response.hits().getAt(0).isSourceEmpty(), equalTo(true));
         assertThat(response.hits().getAt(0).id(), equalTo("1"));
         assertThat((Double) response.hits().getAt(0).fields().get("sNum1").values().get(0), equalTo(1.0));
         assertThat(response.hits().getAt(1).id(), equalTo("2"));

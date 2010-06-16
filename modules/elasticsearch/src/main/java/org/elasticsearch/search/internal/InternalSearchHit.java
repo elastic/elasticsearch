@@ -111,6 +111,10 @@ public class InternalSearchHit implements SearchHit {
         return source;
     }
 
+    @Override public boolean isSourceEmpty() {
+        return source == null;
+    }
+
     @Override public Map<String, Object> getSource() {
         return sourceAsMap();
     }

@@ -139,6 +139,13 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
     }
 
     /**
+     * Is the source empty (not available) or not.
+     */
+    public boolean isSourceEmpty() {
+        return source == null;
+    }
+
+    /**
      * The source of the document (as a string).
      */
     public String sourceAsString() {

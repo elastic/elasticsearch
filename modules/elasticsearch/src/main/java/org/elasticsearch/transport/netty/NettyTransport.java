@@ -377,8 +377,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
 
-    @Override public <T extends Streamable> void sendRequest(DiscoveryNode node, long requestId, String action,
-                                                             Streamable streamable, final TransportResponseHandler<T> handler) throws IOException, TransportException {
+    @Override public <T extends Streamable> void sendRequest(final DiscoveryNode node, final long requestId, final String action, final Streamable streamable) throws IOException, TransportException {
 
         Channel targetChannel = nodeChannel(node);
 
@@ -398,19 +397,21 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         int size = buffer.writerIndex() - 4;
         if (size == 0) {
-            handler.handleException(new RemoteTransportException("", new FailedCommunicationException("Trying to send a stream with 0 size")));
+            throw new ElasticSearchIllegalStateException("Trying to send a stream with 0 size");
         }
         buffer.setInt(0, size); // update real size.
         ChannelFuture channelFuture = targetChannel.write(buffer);
-        // TODO do we need this listener?
-//        channelFuture.addListener(new ChannelFutureListener() {
-//            @Override public void operationComplete(ChannelFuture future) throws Exception {
-//                if (!future.isSuccess()) {
-//                    // maybe add back the retry?
-//                    handler.handleException(new RemoteTransportException("", new FailedCommunicationException("Error sending request", future.getCause())));
-//                }
-//            }
-//        });
+        channelFuture.addListener(new ChannelFutureListener() {
+            @Override public void operationComplete(ChannelFuture future) throws Exception {
+                if (!future.isSuccess()) {
+                    // maybe add back the retry?
+                    TransportResponseHandler handler = transportServiceAdapter.remove(requestId);
+                    if (handler != null) {
+                        handler.handleException(new RemoteTransportException("Failed write request", new SendRequestTransportException(node, action, future.getCause())));
+                    }
+                }
+            }
+        });
     }
 
     @Override public boolean nodeConnected(DiscoveryNode node) {

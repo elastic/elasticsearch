@@ -180,7 +180,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                 timeoutX = timerService.newTimeout(new TimeoutTimerTask(requestId), timeout);
             }
             clientHandlers.put(requestId, new RequestHolder<T>(handler, node, action, timeoutX));
-            transport.sendRequest(node, requestId, action, message, handler);
+            transport.sendRequest(node, requestId, action, message);
         } catch (final Exception e) {
             // usually happen either because we failed to connect to the node
             // or because we failed serializing the message
@@ -266,7 +266,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             }
         }
 
-        @Override public void raiseNodeDisconnected(DiscoveryNode node) {
+        @Override public void raiseNodeDisconnected(final DiscoveryNode node) {
             for (TransportConnectionListener connectionListener : connectionListeners) {
                 connectionListener.onNodeDisconnected(node);
             }
@@ -274,9 +274,15 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             for (Map.Entry<Long, RequestHolder> entry : clientHandlers.entrySet()) {
                 RequestHolder holder = entry.getValue();
                 if (holder.node().equals(node)) {
-                    holder = clientHandlers.remove(entry.getKey());
-                    if (holder != null) {
-                        holder.handler().handleException(new NodeDisconnectedTransportException(node, holder.action()));
+                    final RequestHolder holderToNotify = clientHandlers.remove(entry.getKey());
+                    if (holderToNotify != null) {
+                        // callback that an exception happened, but on a different thread since we don't
+                        // want handlers to worry about stack overflows
+                        threadPool.execute(new Runnable() {
+                            @Override public void run() {
+                                holderToNotify.handler().handleException(new NodeDisconnectedTransportException(node, holderToNotify.action()));
+                            }
+                        });
                     }
                 }
             }
@@ -295,11 +301,17 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             if (timeout.isCancelled()) {
                 return;
             }
-            RequestHolder holder = clientHandlers.remove(requestId);
+            final RequestHolder holder = clientHandlers.remove(requestId);
             if (holder != null) {
                 // add it to the timeout information holder, in case we are going to get a response later
                 timeoutInfoHandlers.put(requestId, new TimeoutInfoHolder(holder.node(), holder.action()));
-                holder.handler().handleException(new ReceiveTimeoutTransportException(holder.node(), holder.action()));
+                // callback that an exception happened, but on a different thread since we don't
+                // want handlers to worry about stack overflows
+                threadPool.execute(new Runnable() {
+                    @Override public void run() {
+                        holder.handler().handleException(new ReceiveTimeoutTransportException(holder.node(), holder.action()));
+                    }
+                });
             }
         }
     }

@@ -22,7 +22,6 @@ package org.elasticsearch.test.integration.search.facets;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.index.query.xcontent.QueryBuilders;
 import org.elasticsearch.search.facets.histogram.HistogramFacet;
 import org.elasticsearch.search.facets.statistical.StatisticalFacet;
 import org.elasticsearch.search.facets.terms.TermsFacet;
@@ -133,7 +132,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         client.admin().indices().prepareRefresh().execute().actionGet();
 
         SearchResponse searchResponse = client.prepareSearch()
-                .setQuery(QueryBuilders.matchAllQuery())
+                .setQuery(matchAllQuery())
                 .addFacetStatistical("stats1", "num")
                 .addFacetStatistical("stats2", "multi_num")
                 .addFacetStatisticalScript("stats3", "doc['num'].value * 2")
@@ -185,28 +184,40 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 1055)
+                .field("date", "1970-01-01T00:00:00")
                 .startArray("multi_num").value(13.0f).value(23.f).endArray()
                 .endObject()).execute().actionGet();
         client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 1065)
+                .field("date", "1970-01-01T00:00:25")
                 .startArray("multi_num").value(15.0f).value(31.0f).endArray()
                 .endObject()).execute().actionGet();
         client.admin().indices().prepareRefresh().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 1175)
+                .field("date", "1970-01-01T00:02:00")
                 .startArray("multi_num").value(17.0f).value(25.0f).endArray()
                 .endObject()).execute().actionGet();
         client.admin().indices().prepareRefresh().execute().actionGet();
 
         SearchResponse searchResponse = client.prepareSearch()
-                .setQuery(QueryBuilders.matchAllQuery())
+                .setQuery(matchAllQuery())
                 .addFacetHistogram("stats1", "num", 100)
                 .addFacetHistogram("stats2", "multi_num", 10)
                 .addFacetHistogram("stats3", "num", "multi_num", 100)
+                .addFacetHistogramScript("stats4", "doc['date'].date.minuteOfHour", "doc['num'].value")
                 .execute().actionGet();
+
+        if (searchResponse.failedShards() > 0) {
+            logger.warn("Failed shards:");
+            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
+                logger.warn("-> {}", shardSearchFailure);
+            }
+        }
+        assertThat(searchResponse.failedShards(), equalTo(0));
 
         HistogramFacet facet = searchResponse.facets().facet(HistogramFacet.class, "stats1");
         assertThat(facet.name(), equalTo("stats1"));
@@ -247,5 +258,17 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().get(1).count(), equalTo(2l));
         assertThat(facet.entries().get(1).total(), equalTo(42d));
         assertThat(facet.entries().get(1).mean(), equalTo(21d));
+
+        facet = searchResponse.facets().facet(HistogramFacet.class, "stats4");
+        assertThat(facet.name(), equalTo("stats4"));
+        assertThat(facet.entries().size(), equalTo(2));
+        assertThat(facet.entries().get(0).key(), equalTo(0l));
+        assertThat(facet.entries().get(0).count(), equalTo(2l));
+        assertThat(facet.entries().get(0).total(), equalTo(2120d));
+        assertThat(facet.entries().get(0).mean(), equalTo(1060d));
+        assertThat(facet.entries().get(1).key(), equalTo(2l));
+        assertThat(facet.entries().get(1).count(), equalTo(1l));
+        assertThat(facet.entries().get(1).total(), equalTo(1175d));
+        assertThat(facet.entries().get(1).mean(), equalTo(1175d));
     }
 }

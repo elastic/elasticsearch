@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.facets.histogram;
 
+import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.facets.FacetPhaseExecutionException;
@@ -27,11 +28,19 @@ import org.elasticsearch.search.facets.collector.FacetCollectorParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class HistogramFacetCollectorParser implements FacetCollectorParser {
+
+    private static ThreadLocal<ThreadLocals.CleanableValue<Map<String, Object>>> cachedParams = new ThreadLocal<ThreadLocals.CleanableValue<Map<String, Object>>>() {
+        @Override protected ThreadLocals.CleanableValue<Map<String, Object>> initialValue() {
+            return new ThreadLocals.CleanableValue<Map<String, Object>>(new HashMap<String, Object>());
+        }
+    };
 
     public static final String NAME = "histogram";
 
@@ -42,13 +51,20 @@ public class HistogramFacetCollectorParser implements FacetCollectorParser {
     @Override public FacetCollector parser(String facetName, XContentParser parser, SearchContext context) throws IOException {
         String keyField = null;
         String valueField = null;
-        long interval = -1;
+        String keyScript = null;
+        String valueScript = null;
+        Map<String, Object> params = cachedParams.get().get();
+        long interval = 0;
         HistogramFacet.ComparatorType comparatorType = HistogramFacet.ComparatorType.KEY;
         XContentParser.Token token;
         String fieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if ("params".equals(fieldName)) {
+                    params = parser.map();
+                }
             } else if (token.isValue()) {
                 if ("field".equals(fieldName)) {
                     keyField = parser.text();
@@ -60,17 +76,25 @@ public class HistogramFacetCollectorParser implements FacetCollectorParser {
                     interval = parser.longValue();
                 } else if ("time_interval".equals(fieldName)) {
                     interval = TimeValue.parseTimeValue(parser.text(), null).millis();
+                } else if ("key_script".equals(fieldName) || "keyScript".equals(fieldName)) {
+                    keyScript = parser.text();
+                } else if ("value_script".equals(fieldName) || "valueScript".equals(fieldName)) {
+                    valueScript = parser.text();
                 } else if ("comparator".equals(fieldName)) {
                     comparatorType = HistogramFacet.ComparatorType.fromString(parser.text());
                 }
             }
         }
 
+        if (keyScript != null && valueScript != null) {
+            return new ScriptHistogramFacetCollector(facetName, keyScript, valueScript, params, interval, comparatorType, context.scriptService(), context.fieldDataCache(), context.mapperService());
+        }
+
         if (keyField == null) {
             throw new FacetPhaseExecutionException(facetName, "key field is required to be set for histogram facet, either using [field] or using [key_field]");
         }
 
-        if (interval == -1) {
+        if (interval <= 0) {
             throw new FacetPhaseExecutionException(facetName, "[interval] is required to be set for histogram facet");
         }
 

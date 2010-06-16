@@ -490,6 +490,38 @@ public class SearchRequestBuilder {
         return this;
     }
 
+    public SearchRequestBuilder addFacetHistogramScript(String name, String keyScript, String valueScript) {
+        facetsBuilder().histogramScriptFacet(name, keyScript, valueScript);
+        return this;
+    }
+
+    public SearchRequestBuilder addFacetHistogramScript(String name, String keyScript, String valueScript, HistogramFacet.ComparatorType comparatorType) {
+        facetsBuilder().histogramScriptFacet(name, keyScript, valueScript, comparatorType);
+        return this;
+    }
+
+    public SearchRequestBuilder addFacetHistogramScript(String name, String keyScript, String valueScript, @Nullable Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType,
+                                                        @Nullable XContentFilterBuilder filter) {
+        facetsBuilder().histogramScriptFacet(name, keyScript, valueScript, params, interval, comparatorType, filter);
+        return this;
+    }
+
+    public SearchRequestBuilder addFacetHistogramScriptGlobal(String name, String keyScript, String valueScript) {
+        facetsBuilder().histogramScriptFacetGlobal(name, keyScript, valueScript);
+        return this;
+    }
+
+    public SearchRequestBuilder addFacetHistogramScriptGlobal(String name, String keyScript, String valueScript, HistogramFacet.ComparatorType comparatorType) {
+        facetsBuilder().histogramScriptFacetGlobal(name, keyScript, valueScript, comparatorType);
+        return this;
+    }
+
+    public SearchRequestBuilder addFacetHistogramScriptGlobal(String name, String keyScript, String valueScript, @Nullable Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType,
+                                                              @Nullable XContentFilterBuilder filter) {
+        facetsBuilder().histogramScriptFacetGlobal(name, keyScript, valueScript, params, interval, comparatorType, filter);
+        return this;
+    }
+
     /**
      * Adds a field to be highlighted with default fragment size of 100 characters, and
      * default number of fragments of 5.

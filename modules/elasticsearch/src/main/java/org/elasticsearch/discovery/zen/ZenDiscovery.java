@@ -78,6 +78,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private final TimeValue initialPingTimeout;
 
+    // a flag that should be used only for testing
+    private final boolean sendLeaveRequest;
+
     private final ElectMasterService electMaster;
 
 
@@ -102,6 +105,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.pingService = pingService;
 
         this.initialPingTimeout = componentSettings.getAsTime("initial_ping_timeout", timeValueSeconds(3));
+        this.sendLeaveRequest = componentSettings.getAsBoolean("send_leave_request", true);
 
         logger.debug("Using initial_ping_timeout [{}]", initialPingTimeout);
 
@@ -154,22 +158,24 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
         nodesFD.stop();
         initialStateSent.set(false);
-        if (!master) {
-            try {
-                membership.sendLeaveRequestBlocking(latestDiscoNodes.masterNode(), localNode, TimeValue.timeValueSeconds(1));
-            } catch (Exception e) {
-                logger.debug("Failed to send leave request to master [{}]", e, latestDiscoNodes.masterNode());
-            }
-        } else {
-            DiscoveryNode[] possibleMasters = electMaster.nextPossibleMasters(latestDiscoNodes.nodes().values(), 5);
-            for (DiscoveryNode possibleMaster : possibleMasters) {
-                if (localNode.equals(possibleMaster)) {
-                    continue;
-                }
+        if (sendLeaveRequest) {
+            if (!master) {
                 try {
-                    membership.sendLeaveRequest(latestDiscoNodes.masterNode(), possibleMaster);
+                    membership.sendLeaveRequestBlocking(latestDiscoNodes.masterNode(), localNode, TimeValue.timeValueSeconds(1));
                 } catch (Exception e) {
-                    logger.debug("Failed to send leave request from master [{}] to possible master [{}]", e, latestDiscoNodes.masterNode(), possibleMaster);
+                    logger.debug("Failed to send leave request to master [{}]", e, latestDiscoNodes.masterNode());
+                }
+            } else {
+                DiscoveryNode[] possibleMasters = electMaster.nextPossibleMasters(latestDiscoNodes.nodes().values(), 5);
+                for (DiscoveryNode possibleMaster : possibleMasters) {
+                    if (localNode.equals(possibleMaster)) {
+                        continue;
+                    }
+                    try {
+                        membership.sendLeaveRequest(latestDiscoNodes.masterNode(), possibleMaster);
+                    } catch (Exception e) {
+                        logger.debug("Failed to send leave request from master [{}] to possible master [{}]", e, latestDiscoNodes.masterNode(), possibleMaster);
+                    }
                 }
             }
         }

@@ -69,6 +69,10 @@ public class MasterFaultDetection extends AbstractComponent {
 
     private final int pingRetryCount;
 
+    // used mainly for testing, should always be true
+    private final boolean registerConnectionListener;
+
+
     private final FDConnectionListener connectionListener;
 
     private volatile MasterPinger masterPinger;
@@ -91,11 +95,14 @@ public class MasterFaultDetection extends AbstractComponent {
         this.pingInterval = componentSettings.getAsTime("ping_interval", timeValueSeconds(1));
         this.pingRetryTimeout = componentSettings.getAsTime("ping_timeout", timeValueSeconds(30));
         this.pingRetryCount = componentSettings.getAsInt("ping_retries", 3);
+        this.registerConnectionListener = componentSettings.getAsBoolean("register_connection_listener", true);
 
         logger.debug("Master FD uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
 
         this.connectionListener = new FDConnectionListener();
-        transportService.addConnectionListener(connectionListener);
+        if (registerConnectionListener) {
+            transportService.addConnectionListener(connectionListener);
+        }
 
         transportService.registerHandler(MasterPingRequestHandler.ACTION, new MasterPingRequestHandler());
     }

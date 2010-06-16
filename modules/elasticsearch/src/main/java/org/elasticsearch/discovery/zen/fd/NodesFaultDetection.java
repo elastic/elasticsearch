@@ -64,6 +64,9 @@ public class NodesFaultDetection extends AbstractComponent {
 
     private final int pingRetryCount;
 
+    // used mainly for testing, should always be true
+    private final boolean registerConnectionListener;
+
 
     private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<Listener>();
 
@@ -84,13 +87,16 @@ public class NodesFaultDetection extends AbstractComponent {
         this.pingInterval = componentSettings.getAsTime("ping_interval", timeValueSeconds(1));
         this.pingRetryTimeout = componentSettings.getAsTime("ping_timeout", timeValueSeconds(30));
         this.pingRetryCount = componentSettings.getAsInt("ping_retries", 3);
+        this.registerConnectionListener = componentSettings.getAsBoolean("register_connection_listener", true);
 
         logger.debug("Nodes FD uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
 
         transportService.registerHandler(PingRequestHandler.ACTION, new PingRequestHandler());
 
         this.connectionListener = new FDConnectionListener();
-        transportService.addConnectionListener(connectionListener);
+        if (registerConnectionListener) {
+            transportService.addConnectionListener(connectionListener);
+        }
     }
 
     public void addListener(Listener listener) {

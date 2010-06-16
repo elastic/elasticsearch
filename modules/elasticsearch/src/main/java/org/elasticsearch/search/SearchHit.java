@@ -71,6 +71,11 @@ public interface SearchHit extends Streamable, ToXContent, Iterable<SearchHitFie
     byte[] source();
 
     /**
+     * Is the source empty (not available) or not.
+     */
+    boolean isSourceEmpty();
+
+    /**
      * The source of the document as a map (can be <tt>null</tt>).
      */
     Map<String, Object> getSource();

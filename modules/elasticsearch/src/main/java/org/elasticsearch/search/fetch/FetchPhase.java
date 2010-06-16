@@ -86,6 +86,17 @@ public class FetchPhase implements SearchPhase {
             for (Object oField : doc.getFields()) {
                 Fieldable field = (Fieldable) oField;
                 String name = field.name();
+
+                // ignore UID, we handled it above
+                if (name.equals(UidFieldMapper.NAME)) {
+                    continue;
+                }
+
+                // ignore source, we handled it above
+                if (name.equals(SourceFieldMapper.NAME)) {
+                    continue;
+                }
+
                 Object value = null;
                 FieldMappers fieldMappers = documentMapper.mappers().indexName(field.name());
                 if (fieldMappers != null) {
@@ -155,43 +166,37 @@ public class FetchPhase implements SearchPhase {
     }
 
     private byte[] extractSource(Document doc, DocumentMapper documentMapper) {
-        byte[] source = null;
-        Fieldable sourceField = doc.getFieldable(documentMapper.sourceMapper().names().indexName());
+        Fieldable sourceField = doc.getFieldable(SourceFieldMapper.NAME);
         if (sourceField != null) {
-            source = documentMapper.sourceMapper().value(sourceField);
-            doc.removeField(documentMapper.sourceMapper().names().indexName());
+            return documentMapper.sourceMapper().value(sourceField);
         }
-        return source;
+        return null;
     }
 
     private Uid extractUid(SearchContext context, Document doc) {
-        Uid uid = null;
-        for (FieldMapper fieldMapper : context.mapperService().uidFieldMappers()) {
-            String sUid = doc.get(fieldMapper.names().indexName());
-            if (sUid != null) {
-                uid = Uid.createUid(sUid);
-                doc.removeField(fieldMapper.names().indexName());
-                break;
-            }
+        // TODO we might want to use FieldData here to speed things up, so we don't have to load it at all...
+        String sUid = doc.get(UidFieldMapper.NAME);
+        if (sUid != null) {
+            return Uid.createUid(sUid);
         }
-        if (uid == null) {
-            // no type, nothing to do (should not really happen
-            throw new FetchPhaseExecutionException(context, "Failed to load uid from the index");
-        }
-        return uid;
+        // no type, nothing to do (should not really happen
+        throw new FetchPhaseExecutionException(context, "Failed to load uid from the index");
     }
 
     private Document loadDocument(SearchContext context, FieldSelector fieldSelector, int docId) {
-        Document doc;
         try {
-            doc = context.searcher().doc(docId, fieldSelector);
+            return context.searcher().doc(docId, fieldSelector);
         } catch (IOException e) {
             throw new FetchPhaseExecutionException(context, "Failed to fetch doc id [" + docId + "]", e);
         }
-        return doc;
     }
 
     private FieldSelector buildFieldSelectors(SearchContext context) {
+        if (context.scriptFields() != null && context.fieldNames() == null) {
+            // we ask for script fields, and no field names, don't load the source
+            return new UidFieldSelector();
+        }
+
         if (context.fieldNames() == null) {
             return new UidAndSourceFieldSelector();
         }

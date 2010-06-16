@@ -189,12 +189,12 @@ public class MasterFaultDetection extends AbstractComponent {
                 try {
                     transportService.connectToNode(node);
                 } catch (Exception e) {
-                    logger.trace("Master [{}] failed on disconnect (with verified connect)", masterNode);
-                    notifyMasterFailure(masterNode, "failed on disconnect (with verified connect)");
+                    logger.trace("Master [{}] transport disconnected (with verified connect)", masterNode);
+                    notifyMasterFailure(masterNode, "transport disconnected (with verified connect)");
                 }
             } else {
-                logger.trace("Master [{}] failed on disconnect", node);
-                notifyMasterFailure(node, "failed on disconnect");
+                logger.trace("Master [{}] transport disconnected", node);
+                notifyMasterFailure(node, "transport disconnected");
             }
         }
     }
@@ -279,9 +279,9 @@ public class MasterFaultDetection extends AbstractComponent {
                                     int retryCount = ++MasterFaultDetection.this.retryCount;
                                     logger.trace("Master [{}] failed to ping, retry [{}] out of [{}]", exp, masterNode, retryCount, pingRetryCount);
                                     if (retryCount >= pingRetryCount) {
-                                        logger.debug("Master [{}] failed on ping, tried [{}] times, each with [{}] timeout", masterNode, pingRetryCount, pingRetryTimeout);
+                                        logger.debug("Master [{}] failed to ping, tried [{}] times, each with [{}] timeout", masterNode, pingRetryCount, pingRetryTimeout);
                                         // not good, failure
-                                        notifyMasterFailure(masterToPing, "Failed on ping, tried [" + pingRetryCount + "] times, each with [" + pingRetryTimeout + "] timeout");
+                                        notifyMasterFailure(masterToPing, "failed to ping, tried [" + pingRetryCount + "] times, each with [" + pingRetryTimeout + "] timeout");
                                     } else {
                                         // resend the request, not reschedule, rely on send timeout
                                         transportService.sendRequest(masterToPing, MasterPingRequestHandler.ACTION, new MasterPingRequest(nodesProvider.nodes().localNode().id(), masterToPing.id()), pingRetryTimeout, this);

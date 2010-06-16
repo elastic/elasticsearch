@@ -93,14 +93,18 @@ public class RestClusterStateAction extends BaseRestHandler {
                         }
                         builder.endObject();
 
-                        builder.startArray("mappings");
+                        builder.startObject("mappings");
                         for (Map.Entry<String, String> entry : indexMetaData.mappings().entrySet()) {
                             XContentParser parser = XContentFactory.xContent(entry.getValue()).createParser(entry.getValue());
                             Map<String, Object> mapping = parser.map();
-                            parser.close();
+                            if (mapping.size() == 1 && mapping.containsKey(entry.getKey())) {
+                                // the type name is the root value, reduce it
+                                mapping = (Map<String, Object>) mapping.get(entry.getKey());
+                            }
+                            builder.field(entry.getKey());
                             builder.map(mapping);
                         }
-                        builder.endArray();
+                        builder.endObject();
 
                         builder.startArray("aliases");
                         for (String alias : indexMetaData.aliases()) {

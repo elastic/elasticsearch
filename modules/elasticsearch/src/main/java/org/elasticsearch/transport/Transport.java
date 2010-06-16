@@ -93,6 +93,5 @@ public interface Transport extends LifecycleComponent<Transport> {
      */
     void disconnectFromNode(DiscoveryNode node);
 
-    <T extends Streamable> void sendRequest(DiscoveryNode node, long requestId, String action,
-                                            Streamable message, TransportResponseHandler<T> handler) throws IOException, TransportException;
+    <T extends Streamable> void sendRequest(DiscoveryNode node, long requestId, String action, Streamable message) throws IOException, TransportException;
 }

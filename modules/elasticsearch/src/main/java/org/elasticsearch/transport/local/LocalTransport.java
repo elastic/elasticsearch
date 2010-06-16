@@ -134,8 +134,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         }
     }
 
-    @Override public <T extends Streamable> void sendRequest(final DiscoveryNode node, final long requestId, final String action,
-                                                             final Streamable message, final TransportResponseHandler<T> handler) throws IOException, TransportException {
+    @Override public <T extends Streamable> void sendRequest(final DiscoveryNode node, final long requestId, final String action, final Streamable message) throws IOException, TransportException {
         HandlesStreamOutput stream = BytesStreamOutput.Cached.cachedHandles();
 
         stream.writeLong(requestId);
@@ -157,7 +156,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
 
         threadPool.execute(new Runnable() {
             @Override public void run() {
-                targetTransport.messageReceived(data, action, LocalTransport.this, handler);
+                targetTransport.messageReceived(data, action, LocalTransport.this, requestId);
             }
         });
     }
@@ -166,7 +165,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         return this.threadPool;
     }
 
-    void messageReceived(byte[] data, String action, LocalTransport sourceTransport, @Nullable final TransportResponseHandler responseHandler) {
+    void messageReceived(byte[] data, String action, LocalTransport sourceTransport, @Nullable final Long sendRequestId) {
         transportServiceAdapter.received(data.length);
 
         StreamInput stream = new BytesStreamInput(data);
@@ -191,8 +190,11 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
                 }
             }
         } catch (Exception e) {
-            if (responseHandler != null) {
-                responseHandler.handleException(new RemoteTransportException(nodeName(), localAddress, action, e));
+            if (sendRequestId != null) {
+                TransportResponseHandler handler = transportServiceAdapter.remove(sendRequestId);
+                if (handler != null) {
+                    handler.handleException(new RemoteTransportException(nodeName(), localAddress, action, e));
+                }
             } else {
                 logger.warn("Failed to receive message for action [" + action + "]", e);
             }

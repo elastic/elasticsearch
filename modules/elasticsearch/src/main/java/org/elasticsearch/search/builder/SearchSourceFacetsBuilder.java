@@ -49,6 +49,7 @@ public class SearchSourceFacetsBuilder implements ToXContent {
     private List<BuilderStatisticalFacet> statisticalFacets;
     private List<BuilderScriptStatisticalFacet> scriptStatisticalFacets;
     private List<BuilderHistogramFacet> histogramFacets;
+    private List<BuilderScriptHistogramFacet> scriptHistogramFacets;
 
     public SearchSourceFacetsBuilder queryFacet(String name, XContentQueryBuilder query) {
         return queryFacet(name, query, null);
@@ -243,8 +244,43 @@ public class SearchSourceFacetsBuilder implements ToXContent {
         return this;
     }
 
+    public SearchSourceFacetsBuilder histogramScriptFacet(String name, String keyScript, String valueScript) {
+        return histogramScriptFacet(name, keyScript, valueScript, null, -1, HistogramFacet.ComparatorType.KEY, null);
+    }
+
+    public SearchSourceFacetsBuilder histogramScriptFacet(String name, String keyScript, String valueScript, HistogramFacet.ComparatorType comparatorType) {
+        return histogramScriptFacet(name, keyScript, valueScript, null, -1, comparatorType, null);
+    }
+
+    public SearchSourceFacetsBuilder histogramScriptFacet(String name, String keyScript, String valueScript, @Nullable Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType,
+                                                          @Nullable XContentFilterBuilder filter) {
+        if (scriptHistogramFacets == null) {
+            scriptHistogramFacets = newArrayListWithCapacity(2);
+        }
+        scriptHistogramFacets.add(new BuilderScriptHistogramFacet(name, keyScript, valueScript, params, interval, comparatorType, filter, false));
+        return this;
+    }
+
+    public SearchSourceFacetsBuilder histogramScriptFacetGlobal(String name, String keyScript, String valueScript) {
+        return histogramScriptFacetGlobal(name, keyScript, valueScript, null, -1, HistogramFacet.ComparatorType.KEY, null);
+    }
+
+    public SearchSourceFacetsBuilder histogramScriptFacetGlobal(String name, String keyScript, String valueScript, HistogramFacet.ComparatorType comparatorType) {
+        return histogramScriptFacetGlobal(name, keyScript, valueScript, null, -1, comparatorType, null);
+    }
+
+    public SearchSourceFacetsBuilder histogramScriptFacetGlobal(String name, String keyScript, String valueScript, @Nullable Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType,
+                                                                @Nullable XContentFilterBuilder filter) {
+        if (scriptHistogramFacets == null) {
+            scriptHistogramFacets = newArrayListWithCapacity(2);
+        }
+        scriptHistogramFacets.add(new BuilderScriptHistogramFacet(name, keyScript, valueScript, params, interval, comparatorType, filter, true));
+        return this;
+    }
+
+
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (queryFacets == null && termsFacets == null && statisticalFacets == null && histogramFacets == null && scriptStatisticalFacets == null) {
+        if (queryFacets == null && termsFacets == null && statisticalFacets == null && histogramFacets == null && scriptStatisticalFacets == null && scriptHistogramFacets == null) {
             return;
         }
         builder.field("facets");
@@ -347,6 +383,36 @@ public class SearchSourceFacetsBuilder implements ToXContent {
                     builder.field("field", histogramFacet.keyFieldName());
                 }
                 builder.field("interval", histogramFacet.interval());
+                builder.field("comparator", histogramFacet.comparatorType().description());
+                builder.endObject();
+
+                if (histogramFacet.filter() != null) {
+                    builder.field("filter");
+                    histogramFacet.filter().toXContent(builder, params);
+                }
+
+                if (histogramFacet.global() != null) {
+                    builder.field("global", histogramFacet.global());
+                }
+
+                builder.endObject();
+            }
+        }
+
+        if (scriptHistogramFacets != null) {
+            for (BuilderScriptHistogramFacet histogramFacet : scriptHistogramFacets) {
+                builder.startObject(histogramFacet.name());
+
+                builder.startObject(HistogramFacetCollectorParser.NAME);
+                builder.field("key_script", histogramFacet.keyScript());
+                builder.field("value_script", histogramFacet.valueScript());
+                if (histogramFacet.interval() > 0) {
+                    builder.field("interval", histogramFacet.interval());
+                }
+                if (histogramFacet.params() != null) {
+                    builder.field("params");
+                    builder.map(histogramFacet.params());
+                }
                 builder.field("comparator", histogramFacet.comparatorType().description());
                 builder.endObject();
 
@@ -495,6 +561,60 @@ public class SearchSourceFacetsBuilder implements ToXContent {
 
         public Boolean global() {
             return this.global;
+        }
+    }
+
+    private static class BuilderScriptHistogramFacet {
+        private final String name;
+        private final String keyScript;
+        private final String valueScript;
+        private final Map<String, Object> params;
+        private final long interval;
+        private final HistogramFacet.ComparatorType comparatorType;
+        private final XContentFilterBuilder filter;
+        private final Boolean global;
+
+        private BuilderScriptHistogramFacet(String name, String keyScript, String valueScript, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, XContentFilterBuilder filter, Boolean global) {
+            this.name = name;
+            this.keyScript = keyScript;
+            this.valueScript = valueScript;
+            this.params = params;
+            this.interval = interval;
+            this.comparatorType = comparatorType;
+            this.filter = filter;
+            this.global = global;
+        }
+
+        public String name() {
+            return name;
+        }
+
+        public Map<String, Object> params() {
+            return params;
+        }
+
+        public String keyScript() {
+            return keyScript;
+        }
+
+        public String valueScript() {
+            return valueScript;
+        }
+
+        public long interval() {
+            return interval;
+        }
+
+        public HistogramFacet.ComparatorType comparatorType() {
+            return comparatorType;
+        }
+
+        public XContentFilterBuilder filter() {
+            return filter;
+        }
+
+        public Boolean global() {
+            return global;
         }
     }
 

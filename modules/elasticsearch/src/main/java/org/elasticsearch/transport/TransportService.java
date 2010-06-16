@@ -174,8 +174,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     public <T extends Streamable> void sendRequest(final DiscoveryNode node, final String action, final Streamable message,
                                                    final TimeValue timeout, final TransportResponseHandler<T> handler) throws TransportException {
         final long requestId = newRequestId();
+        Timeout timeoutX = null;
         try {
-            Timeout timeoutX = null;
             if (timeout != null) {
                 timeoutX = timerService.newTimeout(new TimeoutTimerTask(requestId), timeout);
             }
@@ -185,6 +185,9 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             // usually happen either because we failed to connect to the node
             // or because we failed serializing the message
             clientHandlers.remove(requestId);
+            if (timeoutX != null) {
+                timeoutX.cancel();
+            }
             if (throwConnectException) {
                 if (e instanceof ConnectTransportException) {
                     throw (ConnectTransportException) e;

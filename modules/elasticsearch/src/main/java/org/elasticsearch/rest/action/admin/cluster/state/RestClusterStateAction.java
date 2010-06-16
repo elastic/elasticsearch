@@ -33,6 +33,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
@@ -91,11 +93,14 @@ public class RestClusterStateAction extends BaseRestHandler {
                         }
                         builder.endObject();
 
-                        builder.startObject("mappings");
+                        builder.startArray("mappings");
                         for (Map.Entry<String, String> entry : indexMetaData.mappings().entrySet()) {
-                            builder.startObject(entry.getKey()).field("source", entry.getValue()).endObject();
+                            XContentParser parser = XContentFactory.xContent(entry.getValue()).createParser(entry.getValue());
+                            Map<String, Object> mapping = parser.map();
+                            parser.close();
+                            builder.map(mapping);
                         }
-                        builder.endObject();
+                        builder.endArray();
 
                         builder.endObject();
                     }

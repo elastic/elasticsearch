@@ -71,10 +71,11 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         this.discoveryService = discoveryService;
         this.threadPool = threadPool;
 
-        this.timeoutInterval = componentSettings.getAsTime("timeoutInterval", timeValueMillis(500));
+        this.timeoutInterval = componentSettings.getAsTime("timeout_interval", timeValueMillis(500));
     }
 
     @Override protected void doStart() throws ElasticSearchException {
+        this.clusterState = newClusterStateBuilder().build();
         this.updateTasksExecutor = newSingleThreadExecutor(daemonThreadFactory(settings, "clusterService#updateTask"));
         scheduledFuture = threadPool.scheduleWithFixedDelay(new Runnable() {
             @Override public void run() {
@@ -156,7 +157,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     } else {
                         // we got this cluster state from the master, filter out based on versions (don't call listeners)
                         if (clusterState.version() < previousClusterState.version()) {
-                            logger.info("Got old cluster state [" + clusterState.version() + "<" + previousClusterState.version() + "] from source [" + source + "], ignoring");
+                            logger.debug("Got old cluster state [" + clusterState.version() + "<" + previousClusterState.version() + "] from source [" + source + "], ignoring");
                             return;
                         }
                     }
@@ -186,7 +187,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                         try {
                             transportService.connectToNode(node);
                         } catch (Exception e) {
-                            // TODO, need to mark this node as failed...
+                            // the fault detection will detect it as failed as well
                             logger.warn("Failed to connect to node [" + node + "]", e);
                         }
                     }

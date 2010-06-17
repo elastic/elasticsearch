@@ -38,8 +38,8 @@ public class RussianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Russi
 
     @Inject public RussianAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name);
-        String[] stopWords = settings.getAsArray("stopwords");
-        if (stopWords.length > 0) {
+        String[] stopWords = settings.getAsArray("stopwords", null);
+        if (stopWords != null) {
             analyzer = new RussianAnalyzer(Lucene.ANALYZER_VERSION, ImmutableSet.copyOf(Iterators.forArray(stopWords)));
         } else {
             analyzer = new RussianAnalyzer(Lucene.ANALYZER_VERSION);

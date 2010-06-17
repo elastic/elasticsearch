@@ -42,8 +42,8 @@ public class GreekAnalyzerProvider extends AbstractIndexAnalyzerProvider<GreekAn
 
     @Inject public GreekAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name);
-        String[] stopWords = settings.getAsArray("stopwords");
-        if (stopWords.length > 0) {
+        String[] stopWords = settings.getAsArray("stopwords", null);
+        if (stopWords != null) {
             this.stopWords = ImmutableSet.copyOf(Iterators.forArray(stopWords));
         } else {
             this.stopWords = GreekAnalyzer.getDefaultStopSet();

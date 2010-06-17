@@ -2,7 +2,6 @@ rootLogger: INFO, console, file
 logger:
   # log action execution errors for easier debugging
   action : DEBUG
-  discovery.zen.fd: DEBUG
 
 appender:
   console:

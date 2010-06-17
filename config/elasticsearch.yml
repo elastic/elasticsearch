@@ -1,9 +1,0 @@
-#discovery:
-#  zen:
-#    send_leave_request: false
-#    fd:
-#      register_connection_listener: false
-#    ping:
-#      unicast.hosts: ["localhost:9300", "localhost:9301", "localhost:9302", "localhost:9303", "localhost:9304", "localhost:9305", "localhost:9306"]
-#      multicast.enabled: false
-#transport.netty.connections_per_node: 5

@@ -92,4 +92,8 @@ public class NamedAnalyzer extends Analyzer {
     @Override public void close() {
         analyzer.close();
     }
+
+    @Override public String toString() {
+        return "analyzer name[" + name + "], analyzer [" + analyzer + "]";
+    }
 }

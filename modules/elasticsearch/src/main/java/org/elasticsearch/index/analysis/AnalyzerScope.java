@@ -24,5 +24,6 @@ package org.elasticsearch.index.analysis;
  */
 public enum AnalyzerScope {
     INDEX,
-    INDICES
+    INDICES,
+    GLOBAL
 }

@@ -24,6 +24,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -211,8 +212,16 @@ public abstract class XContentFieldMapper<T> implements FieldMapper<T>, XContent
         this.boost = boost;
         this.omitNorms = omitNorms;
         this.omitTermFreqAndPositions = omitTermFreqAndPositions;
-        this.indexAnalyzer = indexAnalyzer;
-        this.searchAnalyzer = searchAnalyzer;
+        if (indexAnalyzer == null && !index.isAnalyzed()) {
+            this.indexAnalyzer = Lucene.KEYWORD_ANALYZER;
+        } else {
+            this.indexAnalyzer = indexAnalyzer;
+        }
+        if (searchAnalyzer == null && !index.isAnalyzed()) {
+            this.searchAnalyzer = Lucene.KEYWORD_ANALYZER;
+        } else {
+            this.searchAnalyzer = searchAnalyzer;
+        }
     }
 
     @Override public String name() {

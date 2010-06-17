@@ -30,12 +30,13 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.trove.TIntArrayList;
+import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class Lucene {
 
@@ -43,8 +44,8 @@ public class Lucene {
     public static Version ANALYZER_VERSION = VERSION;
     public static Version QUERYPARSER_VERSION = VERSION;
 
-    public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", new StandardAnalyzer(ANALYZER_VERSION));
-    public static final NamedAnalyzer KEYWORD_ANALYZER = new NamedAnalyzer("_keyword", new KeywordAnalyzer());
+    public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", AnalyzerScope.GLOBAL, new StandardAnalyzer(ANALYZER_VERSION));
+    public static final NamedAnalyzer KEYWORD_ANALYZER = new NamedAnalyzer("_keyword", AnalyzerScope.GLOBAL, new KeywordAnalyzer());
 
     public static final int NO_DOC = -1;
 

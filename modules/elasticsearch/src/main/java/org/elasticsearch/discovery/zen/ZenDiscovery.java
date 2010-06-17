@@ -371,7 +371,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private void handleLeaveRequest(final DiscoveryNode node) {
         if (master) {
-            clusterService.submitStateUpdateTask("zen-disco-node_failed(" + node + ")", new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("zen-disco-node_left(" + node + ")", new ClusterStateUpdateTask() {
                 @Override public ClusterState execute(ClusterState currentState) {
                     DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder()
                             .putAll(currentState.nodes())
@@ -393,6 +393,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             // TODO, what should we do now? Maybe inform that node that its crap?
             logger.warn("Received a wrong address type from [{}], ignoring...", node);
         } else {
+            // try and connect to the node, if it fails, we can raise an exception back to the client...
+            transportService.connectToNode(node);
+
             clusterService.submitStateUpdateTask("zen-disco-receive(from node[" + node + "])", new ClusterStateUpdateTask() {
                 @Override public ClusterState execute(ClusterState currentState) {
                     if (currentState.nodes().nodeExists(node.id())) {

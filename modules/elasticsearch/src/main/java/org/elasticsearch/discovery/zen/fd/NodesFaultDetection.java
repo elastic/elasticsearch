@@ -89,7 +89,7 @@ public class NodesFaultDetection extends AbstractComponent {
         this.pingRetryCount = componentSettings.getAsInt("ping_retries", 3);
         this.registerConnectionListener = componentSettings.getAsBoolean("register_connection_listener", true);
 
-        logger.debug("Nodes FD uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
+        logger.debug("[node  ] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
 
         transportService.registerHandler(PingRequestHandler.ACTION, new PingRequestHandler());
 
@@ -166,11 +166,11 @@ public class NodesFaultDetection extends AbstractComponent {
             try {
                 transportService.connectToNode(node);
             } catch (Exception e) {
-                logger.trace("Node [{}] transport disconnected (with verified connect)", node);
+                logger.trace("[node  ] [{}] transport disconnected (with verified connect)", node);
                 notifyNodeFailure(node, "transport disconnected (with verified connect)");
             }
         } else {
-            logger.trace("Node [{}] transport disconnected", node);
+            logger.trace("[node  ] [{}] transport disconnected", node);
             notifyNodeFailure(node, "transport disconnected");
         }
     }
@@ -218,12 +218,12 @@ public class NodesFaultDetection extends AbstractComponent {
                             NodeFD nodeFD = nodesFD.get(node);
                             if (nodeFD != null) {
                                 int retryCount = ++nodeFD.retryCount;
-                                logger.trace("Node [{}] failed to ping, retry [{}] out of [{}]", exp, node, retryCount, pingRetryCount);
+                                logger.trace("[node  ] failed to ping [{}], retry [{}] out of [{}]", exp, node, retryCount, pingRetryCount);
                                 if (retryCount >= pingRetryCount) {
-                                    logger.debug("Node [{}] failed to ping, tried [{}] times, each with [{}] timeout", node, pingRetryCount, pingRetryTimeout);
+                                    logger.debug("[node  ] failed to ping [{}], tried [{}] times, each with  maximum [{}] timeout", node, pingRetryCount, pingRetryTimeout);
                                     // not good, failure
                                     if (nodesFD.remove(node) != null) {
-                                        notifyNodeFailure(node, "failed to ping, tried [" + pingRetryCount + "] times, each with [" + pingRetryTimeout + "] timeout");
+                                        notifyNodeFailure(node, "failed to ping, tried [" + pingRetryCount + "] times, each with maximum [" + pingRetryTimeout + "] timeout");
                                     }
                                 } else {
                                     // resend the request, not reschedule, rely on send timeout

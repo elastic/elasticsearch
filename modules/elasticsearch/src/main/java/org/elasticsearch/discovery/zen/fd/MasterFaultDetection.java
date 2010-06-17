@@ -97,7 +97,7 @@ public class MasterFaultDetection extends AbstractComponent {
         this.pingRetryCount = componentSettings.getAsInt("ping_retries", 3);
         this.registerConnectionListener = componentSettings.getAsBoolean("register_connection_listener", true);
 
-        logger.debug("Master FD uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
+        logger.debug("[master] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
 
         this.connectionListener = new FDConnectionListener();
         if (registerConnectionListener) {
@@ -122,7 +122,7 @@ public class MasterFaultDetection extends AbstractComponent {
     public void restart(DiscoveryNode masterNode, String reason) {
         synchronized (masterNodeMutex) {
             if (logger.isDebugEnabled()) {
-                logger.debug("Restarting fault detection against master [{}], reason [{}]", masterNode, reason);
+                logger.debug("[master] restarting fault detection against master [{}], reason [{}]", masterNode, reason);
             }
             innerStop();
             innerStart(masterNode);
@@ -132,7 +132,7 @@ public class MasterFaultDetection extends AbstractComponent {
     public void start(final DiscoveryNode masterNode, String reason) {
         synchronized (masterNodeMutex) {
             if (logger.isDebugEnabled()) {
-                logger.debug("Starting fault detection against master [{}], reason [{}]", masterNode, reason);
+                logger.debug("[master] starting fault detection against master [{}], reason [{}]", masterNode, reason);
             }
             innerStart(masterNode);
         }
@@ -163,7 +163,7 @@ public class MasterFaultDetection extends AbstractComponent {
         synchronized (masterNodeMutex) {
             if (masterNode != null) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("Stopping fault detection against master [{}], reason [{}]", masterNode, reason);
+                    logger.debug("[master] stopping fault detection against master [{}], reason [{}]", masterNode, reason);
                 }
             }
             innerStop();
@@ -196,11 +196,11 @@ public class MasterFaultDetection extends AbstractComponent {
                 try {
                     transportService.connectToNode(node);
                 } catch (Exception e) {
-                    logger.trace("Master [{}] transport disconnected (with verified connect)", masterNode);
+                    logger.trace("[master] [{}] transport disconnected (with verified connect)", masterNode);
                     notifyMasterFailure(masterNode, "transport disconnected (with verified connect)");
                 }
             } else {
-                logger.trace("Master [{}] transport disconnected", node);
+                logger.trace("[master] [{}] transport disconnected", node);
                 notifyMasterFailure(node, "transport disconnected");
             }
         }
@@ -268,7 +268,7 @@ public class MasterFaultDetection extends AbstractComponent {
                             // check if the master node did not get switched on us..., if it did, we simply return with no reschedule
                             if (masterToPing.equals(MasterFaultDetection.this.masterNode())) {
                                 if (!response.connectedToMaster) {
-                                    logger.trace("Master [{}] does not have us registered with it...", masterToPing);
+                                    logger.trace("[master] [{}] does not have us registered with it...", masterToPing);
                                     notifyDisconnectedFromMaster();
                                 }
                                 // we don't stop on disconnection from master, we keep pinging it
@@ -284,11 +284,11 @@ public class MasterFaultDetection extends AbstractComponent {
                                 // check if the master node did not get switched on us...
                                 if (masterToPing.equals(MasterFaultDetection.this.masterNode())) {
                                     int retryCount = ++MasterFaultDetection.this.retryCount;
-                                    logger.trace("Master [{}] failed to ping, retry [{}] out of [{}]", exp, masterNode, retryCount, pingRetryCount);
+                                    logger.trace("[master] failed to ping [{}], retry [{}] out of [{}]", exp, masterNode, retryCount, pingRetryCount);
                                     if (retryCount >= pingRetryCount) {
-                                        logger.debug("Master [{}] failed to ping, tried [{}] times, each with [{}] timeout", masterNode, pingRetryCount, pingRetryTimeout);
+                                        logger.debug("[master] failed to ping [{}], tried [{}] times, each with maximum [{}] timeout", masterNode, pingRetryCount, pingRetryTimeout);
                                         // not good, failure
-                                        notifyMasterFailure(masterToPing, "failed to ping, tried [" + pingRetryCount + "] times, each with [" + pingRetryTimeout + "] timeout");
+                                        notifyMasterFailure(masterToPing, "failed to ping, tried [" + pingRetryCount + "] times, each with  maximum [" + pingRetryTimeout + "] timeout");
                                     } else {
                                         // resend the request, not reschedule, rely on send timeout
                                         transportService.sendRequest(masterToPing, MasterPingRequestHandler.ACTION, new MasterPingRequest(nodesProvider.nodes().localNode().id(), masterToPing.id()), pingRetryTimeout, this);

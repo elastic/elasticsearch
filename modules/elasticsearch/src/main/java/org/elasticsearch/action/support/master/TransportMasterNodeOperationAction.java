@@ -20,6 +20,7 @@
 package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.BaseAction;
@@ -73,6 +74,9 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                 }
             });
         } else {
+            if (nodes.masterNode() == null) {
+                throw new ElasticSearchIllegalStateException("No master node discovered or set");
+            }
             transportService.sendRequest(nodes.masterNode(), transportAction(), request, new BaseTransportResponseHandler<Response>() {
                 @Override public Response newInstance() {
                     return newResponse();

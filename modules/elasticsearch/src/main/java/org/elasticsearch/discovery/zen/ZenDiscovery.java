@@ -412,6 +412,17 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private DiscoveryNode broadPingTillMasterResolved() {
         while (true) {
             ZenPing.PingResponse[] pingResponses = pingService.pingAndWait(initialPingTimeout);
+            if (logger.isDebugEnabled()) {
+                StringBuilder sb = new StringBuilder("ping responses:");
+                if (pingResponses.length == 0) {
+                    sb.append(" {none}");
+                } else {
+                    for (ZenPing.PingResponse pingResponse : pingResponses) {
+                        sb.append("\n\t--> ").append("target [").append(pingResponse.target()).append("], master [").append(pingResponse.master()).append("]");
+                    }
+                }
+                logger.debug(sb.toString());
+            }
             List<DiscoveryNode> pingMasters = newArrayList();
             for (ZenPing.PingResponse pingResponse : pingResponses) {
                 if (pingResponse.master() != null) {

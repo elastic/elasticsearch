@@ -66,10 +66,7 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
                 }
             }
             deleteByQueryRequest.queryParserName(request.param("query_parser_name"));
-            String typesParam = request.param("type");
-            if (typesParam != null) {
-                deleteByQueryRequest.types(RestActions.splitTypes(typesParam));
-            }
+            deleteByQueryRequest.types(splitTypes(request.param("type")));
             deleteByQueryRequest.timeout(request.paramAsTime("timeout", ShardDeleteByQueryRequest.DEFAULT_TIMEOUT));
 
             String replicationType = request.param("replication");

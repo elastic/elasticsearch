@@ -41,6 +41,42 @@ public class ClusterStateRequestBuilder {
     }
 
     /**
+     * Should the cluster state result include the {@link org.elasticsearch.cluster.metadata.MetaData}. Defaults
+     * to <tt>false</tt>.
+     */
+    public ClusterStateRequestBuilder setFilterMetaData(boolean filter) {
+        request.filterMetaData(filter);
+        return this;
+    }
+
+    /**
+     * Should the cluster state result include the {@link org.elasticsearch.cluster.node.DiscoveryNodes}. Defaults
+     * to <tt>false</tt>.
+     */
+    public ClusterStateRequestBuilder setFilterNodes(boolean filter) {
+        request.filterNodes(filter);
+        return this;
+    }
+
+    /**
+     * Should the cluster state result include teh {@link org.elasticsearch.cluster.routing.RoutingTable}. Defaults
+     * to <tt>false</tt>.
+     */
+    public ClusterStateRequestBuilder setFilterRoutingTable(boolean filter) {
+        request.filterRoutingTable(filter);
+        return this;
+    }
+
+    /**
+     * When {@link #setFilterMetaData(boolean)} is not set, which indices to return the {@link org.elasticsearch.cluster.metadata.IndexMetaData}
+     * for. Defaults to all indices.
+     */
+    public ClusterStateRequestBuilder setFilterIndices(String... indices) {
+        request.filteredIndices(indices);
+        return this;
+    }
+
+    /**
      * Executes the operation asynchronously and returns a future.
      */
     public ListenableActionFuture<ClusterStateResponse> execute() {

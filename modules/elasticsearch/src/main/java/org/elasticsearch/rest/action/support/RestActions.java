@@ -92,6 +92,9 @@ public class RestActions {
     }
 
     public static String[] splitTypes(String typeNames) {
+        if (typeNames == null) {
+            return Strings.EMPTY_ARRAY;
+        }
         return typesPattern.split(typeNames);
     }
 

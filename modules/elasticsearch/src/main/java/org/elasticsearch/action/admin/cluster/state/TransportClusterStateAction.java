@@ -24,13 +24,21 @@ import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import static org.elasticsearch.cluster.ClusterState.*;
+import static org.elasticsearch.cluster.metadata.MetaData.*;
+
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TransportClusterStateAction extends TransportMasterNodeOperationAction<ClusterStateRequest, ClusterStateResponse> {
 
@@ -55,6 +63,30 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
     }
 
     @Override protected ClusterStateResponse masterOperation(ClusterStateRequest request) throws ElasticSearchException {
-        return new ClusterStateResponse(clusterName, clusterService.state());
+        ClusterState currentState = clusterService.state();
+        ClusterState.Builder builder = newClusterStateBuilder();
+        if (!request.filterNodes()) {
+            builder.nodes(currentState.nodes());
+        }
+        if (!request.filterRoutingTable()) {
+            builder.routingTable(currentState.routingTable());
+        }
+        if (!request.filterMetaData()) {
+            if (request.filteredIndices().length > 0) {
+                MetaData.Builder mdBuilder = newMetaDataBuilder();
+                String[] indices = currentState.metaData().concreteIndices(request.filteredIndices());
+                for (String filteredIndex : indices) {
+                    IndexMetaData indexMetaData = currentState.metaData().index(filteredIndex);
+                    if (indexMetaData == null) {
+                        throw new IndexMissingException(new Index(filteredIndex));
+                    }
+                    mdBuilder.put(indexMetaData);
+                }
+                builder.metaData(mdBuilder);
+            } else {
+                builder.metaData(currentState.metaData());
+            }
+        }
+        return new ClusterStateResponse(clusterName, builder.build());
     }
 }

@@ -20,25 +20,19 @@
 package org.elasticsearch.client.action.admin.indices.delete;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class DeleteIndexRequestBuilder {
-
-    private final InternalIndicesAdminClient indicesClient;
-
-    private final DeleteIndexRequest request;
+public class DeleteIndexRequestBuilder extends BaseIndicesRequestBuilder<DeleteIndexRequest, DeleteIndexResponse> {
 
     public DeleteIndexRequestBuilder(InternalIndicesAdminClient indicesClient, String index) {
-        this.indicesClient = indicesClient;
-        this.request = new DeleteIndexRequest(index);
+        super(indicesClient, new DeleteIndexRequest(index));
     }
 
     /**
@@ -59,19 +53,7 @@ public class DeleteIndexRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<DeleteIndexResponse> execute() {
-        PlainListenableActionFuture<DeleteIndexResponse> future = new PlainListenableActionFuture<DeleteIndexResponse>(request.listenerThreaded(), indicesClient.threadPool());
-        indicesClient.delete(request, future);
-        return future;
-    }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<DeleteIndexResponse> listener) {
-        indicesClient.delete(request, listener);
+    @Override protected void doExecute(ActionListener<DeleteIndexResponse> listener) {
+        client.delete(request, listener);
     }
 }

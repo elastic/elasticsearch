@@ -20,11 +20,10 @@
 package org.elasticsearch.client.action.admin.indices.optimize;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
+import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
@@ -39,15 +38,10 @@ import org.elasticsearch.client.internal.InternalIndicesAdminClient;
  *
  * @author kimchy (shay.banon)
  */
-public class OptimizeRequestBuilder {
-
-    private final InternalIndicesAdminClient indicesClient;
-
-    private final OptimizeRequest request;
+public class OptimizeRequestBuilder extends BaseIndicesRequestBuilder<OptimizeRequest, OptimizeResponse> {
 
     public OptimizeRequestBuilder(InternalIndicesAdminClient indicesClient) {
-        this.indicesClient = indicesClient;
-        this.request = new OptimizeRequest();
+        super(indicesClient, new OptimizeRequest());
     }
 
     public OptimizeRequestBuilder setIndices(String... indices) {
@@ -113,19 +107,7 @@ public class OptimizeRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<OptimizeResponse> execute() {
-        PlainListenableActionFuture<OptimizeResponse> future = new PlainListenableActionFuture<OptimizeResponse>(request.listenerThreaded(), indicesClient.threadPool());
-        indicesClient.optimize(request, future);
-        return future;
-    }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<OptimizeResponse> listener) {
-        indicesClient.optimize(request, listener);
+    @Override protected void doExecute(ActionListener<OptimizeResponse> listener) {
+        client.optimize(request, listener);
     }
 }

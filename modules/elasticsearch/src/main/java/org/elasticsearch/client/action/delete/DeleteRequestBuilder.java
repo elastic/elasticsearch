@@ -20,11 +20,10 @@
 package org.elasticsearch.client.action.delete;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationType;
+import org.elasticsearch.client.action.support.BaseRequestBuilder;
 import org.elasticsearch.client.internal.InternalClient;
 
 import javax.annotation.Nullable;
@@ -34,15 +33,10 @@ import javax.annotation.Nullable;
  *
  * @author kimchy (shay.banon)
  */
-public class DeleteRequestBuilder {
-
-    private final InternalClient client;
-
-    private final DeleteRequest request;
+public class DeleteRequestBuilder extends BaseRequestBuilder<DeleteRequest, DeleteResponse> {
 
     public DeleteRequestBuilder(InternalClient client, @Nullable String index) {
-        this.client = client;
-        this.request = new DeleteRequest(index);
+        super(client, new DeleteRequest(index));
     }
 
     /**
@@ -94,19 +88,7 @@ public class DeleteRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<DeleteResponse> execute() {
-        PlainListenableActionFuture<DeleteResponse> future = new PlainListenableActionFuture<DeleteResponse>(request.listenerThreaded(), client.threadPool());
-        client.delete(request, future);
-        return future;
-    }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<DeleteResponse> listener) {
+    @Override protected void doExecute(ActionListener<DeleteResponse> listener) {
         client.delete(request, listener);
     }
 }

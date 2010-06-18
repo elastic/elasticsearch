@@ -21,12 +21,11 @@ package org.elasticsearch.client.action.search;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.search.SearchOperationThreading;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.client.action.support.BaseRequestBuilder;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
@@ -45,11 +44,7 @@ import java.util.Map;
  *
  * @author kimchy (shay.banon)
  */
-public class SearchRequestBuilder {
-
-    private final InternalClient client;
-
-    private final SearchRequest request;
+public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, SearchResponse> {
 
     private SearchSourceBuilder sourceBuilder;
 
@@ -58,8 +53,7 @@ public class SearchRequestBuilder {
     private SearchSourceHighlightBuilder highlightBuilder;
 
     public SearchRequestBuilder(InternalClient client) {
-        this.client = client;
-        this.request = new SearchRequest();
+        super(client, new SearchRequest());
     }
 
     /**
@@ -595,19 +589,7 @@ public class SearchRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<SearchResponse> execute() {
-        PlainListenableActionFuture<SearchResponse> future = new PlainListenableActionFuture<SearchResponse>(request.listenerThreaded(), client.threadPool());
-        execute(future);
-        return future;
-    }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<SearchResponse> listener) {
+    @Override protected void doExecute(ActionListener<SearchResponse> listener) {
         if (facetsBuilder != null) {
             sourceBuilder().facets(facetsBuilder);
         }
@@ -617,7 +599,6 @@ public class SearchRequestBuilder {
         request.source(sourceBuilder());
         client.search(request, listener);
     }
-
 
     private SearchSourceBuilder sourceBuilder() {
         if (sourceBuilder == null) {

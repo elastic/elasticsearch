@@ -20,11 +20,10 @@
 package org.elasticsearch.client.action.search;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.search.SearchOperationThreading;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.client.action.support.BaseRequestBuilder;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.Scroll;
@@ -34,15 +33,10 @@ import org.elasticsearch.search.Scroll;
  *
  * @author kimchy (shay.banon)
  */
-public class SearchScrollRequestBuilder {
-
-    private final InternalClient client;
-
-    private final SearchScrollRequest request;
+public class SearchScrollRequestBuilder extends BaseRequestBuilder<SearchScrollRequest, SearchResponse> {
 
     public SearchScrollRequestBuilder(InternalClient client, String scrollId) {
-        this.client = client;
-        this.request = new SearchScrollRequest(scrollId);
+        super(client, new SearchScrollRequest(scrollId));
     }
 
     /**
@@ -85,19 +79,7 @@ public class SearchScrollRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<SearchResponse> execute() {
-        PlainListenableActionFuture<SearchResponse> future = new PlainListenableActionFuture<SearchResponse>(request.listenerThreaded(), client.threadPool());
-        client.searchScroll(request, future);
-        return future;
-    }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<SearchResponse> listener) {
+    @Override protected void doExecute(ActionListener<SearchResponse> listener) {
         client.searchScroll(request, listener);
     }
 }

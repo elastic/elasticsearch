@@ -20,26 +20,20 @@
 package org.elasticsearch.client.action.admin.cluster.ping.replication;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingRequest;
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationType;
+import org.elasticsearch.client.action.admin.cluster.support.BaseClusterRequestBuilder;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class ReplicationPingRequestBuilder {
-
-    private final InternalClusterAdminClient clusterClient;
-
-    private final ReplicationPingRequest request;
+public class ReplicationPingRequestBuilder extends BaseClusterRequestBuilder<ReplicationPingRequest, ReplicationPingResponse> {
 
     public ReplicationPingRequestBuilder(InternalClusterAdminClient clusterClient) {
-        this.clusterClient = clusterClient;
-        this.request = new ReplicationPingRequest();
+        super(clusterClient, new ReplicationPingRequest());
     }
 
     public ReplicationPingRequestBuilder setIndices(String... indices) {
@@ -67,19 +61,7 @@ public class ReplicationPingRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<ReplicationPingResponse> execute() {
-        PlainListenableActionFuture<ReplicationPingResponse> future = new PlainListenableActionFuture<ReplicationPingResponse>(request.listenerThreaded(), clusterClient.threadPool());
-        clusterClient.ping(request, future);
-        return future;
-    }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<ReplicationPingResponse> listener) {
-        clusterClient.ping(request, listener);
+    @Override protected void doExecute(ActionListener<ReplicationPingResponse> listener) {
+        client.ping(request, listener);
     }
 }

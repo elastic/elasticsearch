@@ -20,24 +20,18 @@
 package org.elasticsearch.client.action.admin.indices.flush;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class FlushRequestBuilder {
-
-    private final InternalIndicesAdminClient indicesClient;
-
-    private final FlushRequest request;
+public class FlushRequestBuilder extends BaseIndicesRequestBuilder<FlushRequest, FlushResponse> {
 
     public FlushRequestBuilder(InternalIndicesAdminClient indicesClient) {
-        this.indicesClient = indicesClient;
-        this.request = new FlushRequest();
+        super(indicesClient, new FlushRequest());
     }
 
     public FlushRequestBuilder setIndices(String... indices) {
@@ -55,19 +49,7 @@ public class FlushRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<FlushResponse> execute() {
-        PlainListenableActionFuture<FlushResponse> future = new PlainListenableActionFuture<FlushResponse>(request.listenerThreaded(), indicesClient.threadPool());
-        indicesClient.flush(request, future);
-        return future;
-    }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<FlushResponse> listener) {
-        indicesClient.flush(request, listener);
+    @Override protected void doExecute(ActionListener<FlushResponse> listener) {
+        client.flush(request, listener);
     }
 }

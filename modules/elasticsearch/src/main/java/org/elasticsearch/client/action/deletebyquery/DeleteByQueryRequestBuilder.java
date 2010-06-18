@@ -20,11 +20,10 @@
 package org.elasticsearch.client.action.deletebyquery;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationType;
+import org.elasticsearch.client.action.support.BaseRequestBuilder;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
@@ -35,15 +34,10 @@ import java.util.Map;
 /**
  * @author kimchy (shay.banon)
  */
-public class DeleteByQueryRequestBuilder {
-
-    private final InternalClient client;
-
-    private final DeleteByQueryRequest request;
+public class DeleteByQueryRequestBuilder extends BaseRequestBuilder<DeleteByQueryRequest, DeleteByQueryResponse> {
 
     public DeleteByQueryRequestBuilder(InternalClient client) {
-        this.client = client;
-        this.request = new DeleteByQueryRequest();
+        super(client, new DeleteByQueryRequest());
     }
 
     /**
@@ -153,19 +147,7 @@ public class DeleteByQueryRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<DeleteByQueryResponse> execute() {
-        PlainListenableActionFuture<DeleteByQueryResponse> future = new PlainListenableActionFuture<DeleteByQueryResponse>(request.listenerThreaded(), client.threadPool());
-        client.deleteByQuery(request, future);
-        return future;
-    }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<DeleteByQueryResponse> listener) {
+    @Override protected void doExecute(ActionListener<DeleteByQueryResponse> listener) {
         client.deleteByQuery(request, listener);
     }
 }

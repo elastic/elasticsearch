@@ -17,29 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.client.action.admin.cluster.node.info;
+package org.elasticsearch.client.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.client.action.admin.cluster.support.BaseClusterRequestBuilder;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ListenableActionFuture;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class NodesInfoRequestBuilder extends BaseClusterRequestBuilder<NodesInfoRequest, NodesInfoResponse> {
+public interface RequestBuilder<Request extends ActionRequest, Response extends ActionResponse> {
 
-    public NodesInfoRequestBuilder(InternalClusterAdminClient clusterClient) {
-        super(clusterClient, new NodesInfoRequest());
-    }
+    ListenableActionFuture<Response> execute();
 
-    public NodesInfoRequestBuilder setNodesIds(String... nodesIds) {
-        request.nodesIds(nodesIds);
-        return this;
-    }
-
-    @Override protected void doExecute(ActionListener<NodesInfoResponse> listener) {
-        client.nodesInfo(request, listener);
-    }
+    void execute(ActionListener<Response> listener);
 }

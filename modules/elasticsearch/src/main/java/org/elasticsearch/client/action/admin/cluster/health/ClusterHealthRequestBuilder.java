@@ -20,26 +20,20 @@
 package org.elasticsearch.client.action.admin.cluster.health;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.client.action.admin.cluster.support.BaseClusterRequestBuilder;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class ClusterHealthRequestBuilder {
-
-    private final InternalClusterAdminClient clusterClient;
-
-    private final ClusterHealthRequest request;
+public class ClusterHealthRequestBuilder extends BaseClusterRequestBuilder<ClusterHealthRequest, ClusterHealthResponse> {
 
     public ClusterHealthRequestBuilder(InternalClusterAdminClient clusterClient) {
-        this.clusterClient = clusterClient;
-        this.request = new ClusterHealthRequest();
+        super(clusterClient, new ClusterHealthRequest());
     }
 
     public ClusterHealthRequestBuilder setIndices(String... indices) {
@@ -82,19 +76,7 @@ public class ClusterHealthRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<ClusterHealthResponse> execute() {
-        PlainListenableActionFuture<ClusterHealthResponse> future = new PlainListenableActionFuture<ClusterHealthResponse>(request.listenerThreaded(), clusterClient.threadPool());
-        clusterClient.health(request, future);
-        return future;
-    }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<ClusterHealthResponse> listener) {
-        clusterClient.health(request, listener);
+    @Override protected void doExecute(ActionListener<ClusterHealthResponse> listener) {
+        client.health(request, listener);
     }
 }

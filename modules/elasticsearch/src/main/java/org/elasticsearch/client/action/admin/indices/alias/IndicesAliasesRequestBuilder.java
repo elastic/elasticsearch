@@ -20,24 +20,18 @@
 package org.elasticsearch.client.action.admin.indices.alias;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class IndicesAliasesRequestBuilder {
-
-    private final InternalIndicesAdminClient indicesClient;
-
-    private final IndicesAliasesRequest request;
+public class IndicesAliasesRequestBuilder extends BaseIndicesRequestBuilder<IndicesAliasesRequest, IndicesAliasesResponse> {
 
     public IndicesAliasesRequestBuilder(InternalIndicesAdminClient indicesClient) {
-        this.indicesClient = indicesClient;
-        this.request = new IndicesAliasesRequest();
+        super(indicesClient, new IndicesAliasesRequest());
     }
 
     /**
@@ -62,19 +56,7 @@ public class IndicesAliasesRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<IndicesAliasesResponse> execute() {
-        PlainListenableActionFuture<IndicesAliasesResponse> future = new PlainListenableActionFuture<IndicesAliasesResponse>(request.listenerThreaded(), indicesClient.threadPool());
-        indicesClient.aliases(request, future);
-        return future;
-    }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<IndicesAliasesResponse> listener) {
-        indicesClient.aliases(request, listener);
+    @Override protected void doExecute(ActionListener<IndicesAliasesResponse> listener) {
+        client.aliases(request, listener);
     }
 }

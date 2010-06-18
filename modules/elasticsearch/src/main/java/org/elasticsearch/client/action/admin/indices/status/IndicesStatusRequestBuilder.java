@@ -20,24 +20,18 @@
 package org.elasticsearch.client.action.admin.indices.status;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class IndicesStatusRequestBuilder {
-
-    private final InternalIndicesAdminClient indicesClient;
-
-    private final IndicesStatusRequest request;
+public class IndicesStatusRequestBuilder extends BaseIndicesRequestBuilder<IndicesStatusRequest, IndicesStatusResponse> {
 
     public IndicesStatusRequestBuilder(InternalIndicesAdminClient indicesClient) {
-        this.indicesClient = indicesClient;
-        this.request = new IndicesStatusRequest();
+        super(indicesClient, new IndicesStatusRequest());
     }
 
     public IndicesStatusRequestBuilder setIndices(String... indices) {
@@ -45,19 +39,7 @@ public class IndicesStatusRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<IndicesStatusResponse> execute() {
-        PlainListenableActionFuture<IndicesStatusResponse> future = new PlainListenableActionFuture<IndicesStatusResponse>(request.listenerThreaded(), indicesClient.threadPool());
-        indicesClient.status(request, future);
-        return future;
-    }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<IndicesStatusResponse> listener) {
-        indicesClient.status(request, listener);
+    @Override protected void doExecute(ActionListener<IndicesStatusResponse> listener) {
+        client.status(request, listener);
     }
 }

@@ -20,10 +20,9 @@
 package org.elasticsearch.client.action.admin.indices.create;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -34,15 +33,10 @@ import java.util.Map;
 /**
  * @author kimchy (shay.banon)
  */
-public class CreateIndexRequestBuilder {
-
-    private final InternalIndicesAdminClient indicesClient;
-
-    private final CreateIndexRequest request;
+public class CreateIndexRequestBuilder extends BaseIndicesRequestBuilder<CreateIndexRequest, CreateIndexResponse> {
 
     public CreateIndexRequestBuilder(InternalIndicesAdminClient indicesClient, String index) {
-        this.indicesClient = indicesClient;
-        this.request = new CreateIndexRequest(index);
+        super(indicesClient, new CreateIndexRequest(index));
     }
 
     /**
@@ -136,19 +130,7 @@ public class CreateIndexRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<CreateIndexResponse> execute() {
-        PlainListenableActionFuture<CreateIndexResponse> future = new PlainListenableActionFuture<CreateIndexResponse>(request.listenerThreaded(), indicesClient.threadPool());
-        indicesClient.create(request, future);
-        return future;
-    }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<CreateIndexResponse> listener) {
-        indicesClient.create(request, listener);
+    @Override protected void doExecute(ActionListener<CreateIndexResponse> listener) {
+        client.create(request, listener);
     }
 }

@@ -20,10 +20,9 @@
 package org.elasticsearch.client.action.get;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.client.action.support.BaseRequestBuilder;
 import org.elasticsearch.client.internal.InternalClient;
 
 import javax.annotation.Nullable;
@@ -33,15 +32,10 @@ import javax.annotation.Nullable;
  *
  * @author kimchy (shay.banon)
  */
-public class GetRequestBuilder {
-
-    private final InternalClient client;
-
-    private final GetRequest request;
+public class GetRequestBuilder extends BaseRequestBuilder<GetRequest, GetResponse> {
 
     public GetRequestBuilder(InternalClient client, @Nullable String index) {
-        this.client = client;
-        this.request = new GetRequest(index);
+        super(client, new GetRequest(index));
     }
 
     /**
@@ -93,19 +87,7 @@ public class GetRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<GetResponse> execute() {
-        PlainListenableActionFuture<GetResponse> future = new PlainListenableActionFuture<GetResponse>(request.listenerThreaded(), client.threadPool());
-        client.get(request, future);
-        return future;
-    }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<GetResponse> listener) {
+    @Override protected void doExecute(ActionListener<GetResponse> listener) {
         client.get(request, listener);
     }
 }

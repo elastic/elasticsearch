@@ -20,25 +20,19 @@
 package org.elasticsearch.client.action.admin.cluster.ping.broadcast;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingRequest;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
+import org.elasticsearch.client.action.admin.cluster.support.BaseClusterRequestBuilder;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class BroadcastPingRequestBuilder {
-
-    private final InternalClusterAdminClient clusterClient;
-
-    private final BroadcastPingRequest request;
+public class BroadcastPingRequestBuilder extends BaseClusterRequestBuilder<BroadcastPingRequest, BroadcastPingResponse> {
 
     public BroadcastPingRequestBuilder(InternalClusterAdminClient clusterClient) {
-        this.clusterClient = clusterClient;
-        this.request = new BroadcastPingRequest();
+        super(clusterClient, new BroadcastPingRequest());
     }
 
     public BroadcastPingRequestBuilder setIndices(String... indices) {
@@ -62,19 +56,7 @@ public class BroadcastPingRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<BroadcastPingResponse> execute() {
-        PlainListenableActionFuture<BroadcastPingResponse> future = new PlainListenableActionFuture<BroadcastPingResponse>(request.listenerThreaded(), clusterClient.threadPool());
-        clusterClient.ping(request, future);
-        return future;
-    }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<BroadcastPingResponse> listener) {
-        clusterClient.ping(request, listener);
+    @Override protected void doExecute(ActionListener<BroadcastPingResponse> listener) {
+        client.ping(request, listener);
     }
 }

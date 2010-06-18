@@ -20,25 +20,19 @@
 package org.elasticsearch.client.action.admin.cluster.node.restart;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartRequest;
 import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.client.action.admin.cluster.support.BaseClusterRequestBuilder;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class NodesRestartRequestBuilder {
-
-    private final InternalClusterAdminClient clusterClient;
-
-    private final NodesRestartRequest request;
+public class NodesRestartRequestBuilder extends BaseClusterRequestBuilder<NodesRestartRequest, NodesRestartResponse> {
 
     public NodesRestartRequestBuilder(InternalClusterAdminClient clusterClient) {
-        this.clusterClient = clusterClient;
-        this.request = new NodesRestartRequest();
+        super(clusterClient, new NodesRestartRequest());
     }
 
     /**
@@ -65,20 +59,7 @@ public class NodesRestartRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<NodesRestartResponse> execute() {
-        PlainListenableActionFuture<NodesRestartResponse> future = new PlainListenableActionFuture<NodesRestartResponse>(request.listenerThreaded(), clusterClient.threadPool());
-        clusterClient.nodesRestart(request, future);
-        return future;
+    @Override protected void doExecute(ActionListener<NodesRestartResponse> listener) {
+        client.nodesRestart(request, listener);
     }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<NodesRestartResponse> listener) {
-        clusterClient.nodesRestart(request, listener);
-    }
-
 }

@@ -20,11 +20,10 @@
 package org.elasticsearch.client.action.count;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.count.CountResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
+import org.elasticsearch.client.action.support.BaseRequestBuilder;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.index.query.QueryBuilder;
 
@@ -33,15 +32,10 @@ import org.elasticsearch.index.query.QueryBuilder;
  *
  * @author kimchy (shay.banon)
  */
-public class CountRequestBuilder {
-
-    private final InternalClient client;
-
-    private final CountRequest request;
+public class CountRequestBuilder extends BaseRequestBuilder<CountRequest, CountResponse> {
 
     public CountRequestBuilder(InternalClient client) {
-        this.client = client;
-        this.request = new CountRequest();
+        super(client, new CountRequest());
     }
 
     /**
@@ -111,19 +105,7 @@ public class CountRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<CountResponse> execute() {
-        PlainListenableActionFuture<CountResponse> future = new PlainListenableActionFuture<CountResponse>(request.listenerThreaded(), client.threadPool());
-        client.count(request, future);
-        return future;
-    }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<CountResponse> listener) {
+    @Override protected void doExecute(ActionListener<CountResponse> listener) {
         client.count(request, listener);
     }
 }

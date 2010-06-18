@@ -63,7 +63,8 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
 
     private final TimeValue initialStateTimeout;
 
-    private final TimeValue delayIndexCreation;
+    private final TimeValue recoverAfterTime;
+    private final int recoverAfterNodes;
 
 
     private final AtomicBoolean readFromGateway = new AtomicBoolean();
@@ -78,7 +79,8 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         this.metaDataService = metaDataService;
         this.initialStateTimeout = componentSettings.getAsTime("initial_state_timeout", TimeValue.timeValueSeconds(30));
         // allow to control a delay of when indices will get created
-        this.delayIndexCreation = componentSettings.getAsTime("delay_index_creation", null);
+        this.recoverAfterTime = componentSettings.getAsTime("recover_after_time", null);
+        this.recoverAfterNodes = componentSettings.getAsInt("recover_after_nodes", -1);
     }
 
     @Override protected void doStart() throws ElasticSearchException {
@@ -89,10 +91,14 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         if (discoveryService.initialStateReceived()) {
             ClusterState clusterState = clusterService.state();
             if (clusterState.nodes().localNodeMaster() && !clusterState.metaData().recoveredFromGateway()) {
-                if (readFromGateway.compareAndSet(false, true)) {
-                    Boolean waited = readFromGateway(initialStateTimeout);
-                    if (waited != null && !waited) {
-                        logger.warn("Waited for {} for indices to be created from the gateway, and not all have been created", initialStateTimeout);
+                if (recoverAfterNodes != -1 && clusterState.nodes().size() < recoverAfterNodes) {
+                    logger.debug("Not recovering from gateway, nodes_size [" + clusterState.nodes().size() + "] < recover_after_nodes [" + recoverAfterNodes + "]");
+                } else {
+                    if (readFromGateway.compareAndSet(false, true)) {
+                        Boolean waited = readFromGateway(initialStateTimeout);
+                        if (waited != null && !waited) {
+                            logger.warn("Waited for {} for indices to be created from the gateway, and not all have been created", initialStateTimeout);
+                        }
                     }
                 }
             }
@@ -122,12 +128,19 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
             return;
         }
         if (event.localNodeMaster()) {
-            if (!event.state().metaData().recoveredFromGateway() && readFromGateway.compareAndSet(false, true)) {
-                executor.execute(new Runnable() {
-                    @Override public void run() {
-                        readFromGateway(null);
+            if (!event.state().metaData().recoveredFromGateway()) {
+                ClusterState clusterState = event.state();
+                if (recoverAfterNodes != -1 && clusterState.nodes().size() < recoverAfterNodes) {
+                    logger.debug("Not recovering from gateway, nodes_size [" + clusterState.nodes().size() + "] < recover_after_nodes [" + recoverAfterNodes + "]");
+                } else {
+                    if (readFromGateway.compareAndSet(false, true)) {
+                        executor.execute(new Runnable() {
+                            @Override public void run() {
+                                readFromGateway(null);
+                            }
+                        });
                     }
-                });
+                }
             } else {
                 writeToGateway(event);
             }
@@ -157,8 +170,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
      * when waiting, and indicates that everything was created within teh wait timeout.
      */
     private Boolean readFromGateway(@Nullable TimeValue waitTimeout) {
-        // we are the first master, go ahead and read and create indices
-        logger.debug("First master in the cluster, reading state from gateway");
+        logger.debug("Reading state from gateway...");
         MetaData metaData;
         try {
             metaData = gateway.read();
@@ -174,18 +186,18 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         }
         final MetaData fMetaData = metaData;
         final CountDownLatch latch = new CountDownLatch(fMetaData.indices().size());
-        if (delayIndexCreation != null) {
-            logger.debug("Delaying initial state index creation for [{}]", delayIndexCreation);
+        if (recoverAfterTime != null) {
+            logger.debug("Delaying initial state index creation for [{}]", recoverAfterTime);
             threadPool.schedule(new Runnable() {
                 @Override public void run() {
                     updateClusterStateFromGateway(fMetaData, latch);
                 }
-            }, delayIndexCreation);
+            }, recoverAfterTime);
         } else {
             updateClusterStateFromGateway(fMetaData, latch);
         }
         // if we delay indices creation, then waiting for them does not make sense
-        if (delayIndexCreation != null) {
+        if (recoverAfterTime != null) {
             return null;
         }
         if (waitTimeout != null) {

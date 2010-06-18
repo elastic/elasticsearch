@@ -20,11 +20,10 @@
 package org.elasticsearch.client.action.index;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationType;
+import org.elasticsearch.client.action.support.BaseRequestBuilder;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -38,15 +37,10 @@ import java.util.Map;
  *
  * @author kimchy (shay.banon)
  */
-public class IndexRequestBuilder {
-
-    private final InternalClient client;
-
-    private final IndexRequest request;
+public class IndexRequestBuilder extends BaseRequestBuilder<IndexRequest, IndexResponse> {
 
     public IndexRequestBuilder(InternalClient client, @Nullable String index) {
-        this.client = client;
-        this.request = new IndexRequest(index);
+        super(client, new IndexRequest(index));
     }
 
     /**
@@ -221,19 +215,7 @@ public class IndexRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<IndexResponse> execute() {
-        PlainListenableActionFuture<IndexResponse> future = new PlainListenableActionFuture<IndexResponse>(request.listenerThreaded(), client.threadPool());
-        client.index(request, future);
-        return future;
-    }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<IndexResponse> listener) {
+    @Override protected void doExecute(ActionListener<IndexResponse> listener) {
         client.index(request, listener);
     }
 }

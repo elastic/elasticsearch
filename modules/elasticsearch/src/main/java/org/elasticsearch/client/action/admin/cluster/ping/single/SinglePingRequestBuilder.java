@@ -20,24 +20,18 @@
 package org.elasticsearch.client.action.admin.cluster.ping.single;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.ping.single.SinglePingRequest;
 import org.elasticsearch.action.admin.cluster.ping.single.SinglePingResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.client.action.admin.cluster.support.BaseClusterRequestBuilder;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class SinglePingRequestBuilder {
-
-    private final InternalClusterAdminClient clusterClient;
-
-    private final SinglePingRequest request;
+public class SinglePingRequestBuilder extends BaseClusterRequestBuilder<SinglePingRequest, SinglePingResponse> {
 
     public SinglePingRequestBuilder(InternalClusterAdminClient clusterClient) {
-        this.clusterClient = clusterClient;
-        this.request = new SinglePingRequest();
+        super(clusterClient, new SinglePingRequest());
     }
 
     public SinglePingRequestBuilder setIndex(String index) {
@@ -65,19 +59,7 @@ public class SinglePingRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<SinglePingResponse> execute() {
-        PlainListenableActionFuture<SinglePingResponse> future = new PlainListenableActionFuture<SinglePingResponse>(request.listenerThreaded(), clusterClient.threadPool());
-        clusterClient.ping(request, future);
-        return future;
-    }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<SinglePingResponse> listener) {
-        clusterClient.ping(request, listener);
+    @Override protected void doExecute(ActionListener<SinglePingResponse> listener) {
+        client.ping(request, listener);
     }
 }

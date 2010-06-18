@@ -20,24 +20,18 @@
 package org.elasticsearch.client.action.admin.cluster.state;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.client.action.admin.cluster.support.BaseClusterRequestBuilder;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class ClusterStateRequestBuilder {
-
-    private final InternalClusterAdminClient clusterClient;
-
-    private final ClusterStateRequest request;
+public class ClusterStateRequestBuilder extends BaseClusterRequestBuilder<ClusterStateRequest, ClusterStateResponse> {
 
     public ClusterStateRequestBuilder(InternalClusterAdminClient clusterClient) {
-        this.clusterClient = clusterClient;
-        this.request = new ClusterStateRequest();
+        super(clusterClient, new ClusterStateRequest());
     }
 
     /**
@@ -76,20 +70,7 @@ public class ClusterStateRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<ClusterStateResponse> execute() {
-        PlainListenableActionFuture<ClusterStateResponse> future = new PlainListenableActionFuture<ClusterStateResponse>(request.listenerThreaded(), clusterClient.threadPool());
-        clusterClient.state(request, future);
-        return future;
+    @Override protected void doExecute(ActionListener<ClusterStateResponse> listener) {
+        client.state(request, listener);
     }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<ClusterStateResponse> listener) {
-        clusterClient.state(request, listener);
-    }
-
 }

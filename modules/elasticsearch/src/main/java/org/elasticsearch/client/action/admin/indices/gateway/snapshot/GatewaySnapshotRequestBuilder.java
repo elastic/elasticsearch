@@ -20,25 +20,19 @@
 package org.elasticsearch.client.action.admin.indices.gateway.snapshot;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequest;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class GatewaySnapshotRequestBuilder {
-
-    private final InternalIndicesAdminClient indicesClient;
-
-    private final GatewaySnapshotRequest request;
+public class GatewaySnapshotRequestBuilder extends BaseIndicesRequestBuilder<GatewaySnapshotRequest, GatewaySnapshotResponse> {
 
     public GatewaySnapshotRequestBuilder(InternalIndicesAdminClient indicesClient) {
-        this.indicesClient = indicesClient;
-        this.request = new GatewaySnapshotRequest();
+        super(indicesClient, new GatewaySnapshotRequest());
     }
 
     public GatewaySnapshotRequestBuilder setIndices(String... indices) {
@@ -56,19 +50,7 @@ public class GatewaySnapshotRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<GatewaySnapshotResponse> execute() {
-        PlainListenableActionFuture<GatewaySnapshotResponse> future = new PlainListenableActionFuture<GatewaySnapshotResponse>(request.listenerThreaded(), indicesClient.threadPool());
-        indicesClient.gatewaySnapshot(request, future);
-        return future;
-    }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<GatewaySnapshotResponse> listener) {
-        indicesClient.gatewaySnapshot(request, listener);
+    @Override protected void doExecute(ActionListener<GatewaySnapshotResponse> listener) {
+        client.gatewaySnapshot(request, listener);
     }
 }

@@ -20,25 +20,19 @@
 package org.elasticsearch.client.action.admin.cluster.node.shutdown;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.client.action.admin.cluster.support.BaseClusterRequestBuilder;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class NodesShutdownRequestBuilder {
-
-    private final InternalClusterAdminClient clusterClient;
-
-    private final NodesShutdownRequest request;
+public class NodesShutdownRequestBuilder extends BaseClusterRequestBuilder<NodesShutdownRequest, NodesShutdownResponse> {
 
     public NodesShutdownRequestBuilder(InternalClusterAdminClient clusterClient) {
-        this.clusterClient = clusterClient;
-        this.request = new NodesShutdownRequest();
+        super(clusterClient, new NodesShutdownRequest());
     }
 
     /**
@@ -65,20 +59,7 @@ public class NodesShutdownRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<NodesShutdownResponse> execute() {
-        PlainListenableActionFuture<NodesShutdownResponse> future = new PlainListenableActionFuture<NodesShutdownResponse>(request.listenerThreaded(), clusterClient.threadPool());
-        clusterClient.nodesShutdown(request, future);
-        return future;
+    @Override protected void doExecute(ActionListener<NodesShutdownResponse> listener) {
+        client.nodesShutdown(request, listener);
     }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<NodesShutdownResponse> listener) {
-        clusterClient.nodesShutdown(request, listener);
-    }
-
 }

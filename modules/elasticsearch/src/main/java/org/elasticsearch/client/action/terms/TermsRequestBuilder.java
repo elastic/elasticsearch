@@ -20,24 +20,18 @@
 package org.elasticsearch.client.action.terms;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.action.terms.TermsRequest;
 import org.elasticsearch.action.terms.TermsResponse;
+import org.elasticsearch.client.action.support.BaseRequestBuilder;
 import org.elasticsearch.client.internal.InternalClient;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class TermsRequestBuilder {
-
-    private final InternalClient client;
-
-    private final TermsRequest request;
+public class TermsRequestBuilder extends BaseRequestBuilder<TermsRequest, TermsResponse> {
 
     public TermsRequestBuilder(InternalClient client) {
-        this.client = client;
-        this.request = new TermsRequest();
+        super(client, new TermsRequest());
     }
 
     /**
@@ -192,19 +186,7 @@ public class TermsRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<TermsResponse> execute() {
-        PlainListenableActionFuture<TermsResponse> future = new PlainListenableActionFuture<TermsResponse>(request.listenerThreaded(), client.threadPool());
-        client.terms(request, future);
-        return future;
-    }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<TermsResponse> listener) {
+    @Override protected void doExecute(ActionListener<TermsResponse> listener) {
         client.terms(request, listener);
     }
 }

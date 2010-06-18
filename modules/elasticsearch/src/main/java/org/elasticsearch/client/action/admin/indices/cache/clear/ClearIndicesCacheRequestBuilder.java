@@ -20,25 +20,19 @@
 package org.elasticsearch.client.action.admin.indices.cache.clear;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
+import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class ClearIndicesCacheRequestBuilder {
-
-    private final InternalIndicesAdminClient indicesClient;
-
-    private final ClearIndicesCacheRequest request;
+public class ClearIndicesCacheRequestBuilder extends BaseIndicesRequestBuilder<ClearIndicesCacheRequest, ClearIndicesCacheResponse> {
 
     public ClearIndicesCacheRequestBuilder(InternalIndicesAdminClient indicesClient) {
-        this.indicesClient = indicesClient;
-        this.request = new ClearIndicesCacheRequest();
+        super(indicesClient, new ClearIndicesCacheRequest());
     }
 
     public ClearIndicesCacheRequestBuilder setIndices(String... indices) {
@@ -70,19 +64,7 @@ public class ClearIndicesCacheRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<ClearIndicesCacheResponse> execute() {
-        PlainListenableActionFuture<ClearIndicesCacheResponse> future = new PlainListenableActionFuture<ClearIndicesCacheResponse>(request.listenerThreaded(), indicesClient.threadPool());
-        indicesClient.clearCache(request, future);
-        return future;
-    }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<ClearIndicesCacheResponse> listener) {
-        indicesClient.clearCache(request, listener);
+    @Override protected void doExecute(ActionListener<ClearIndicesCacheResponse> listener) {
+        client.clearCache(request, listener);
     }
 }

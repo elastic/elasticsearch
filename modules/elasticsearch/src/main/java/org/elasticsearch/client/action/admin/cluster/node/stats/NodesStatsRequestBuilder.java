@@ -20,24 +20,18 @@
 package org.elasticsearch.client.action.admin.cluster.node.stats;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.client.action.admin.cluster.support.BaseClusterRequestBuilder;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class NodesStatsRequestBuilder {
-
-    private final InternalClusterAdminClient clusterClient;
-
-    private final NodesStatsRequest request;
+public class NodesStatsRequestBuilder extends BaseClusterRequestBuilder<NodesStatsRequest, NodesStatsResponse> {
 
     public NodesStatsRequestBuilder(InternalClusterAdminClient clusterClient) {
-        this.clusterClient = clusterClient;
-        this.request = new NodesStatsRequest();
+        super(clusterClient, new NodesStatsRequest());
     }
 
     public NodesStatsRequestBuilder setNodesIds(String... nodesIds) {
@@ -45,20 +39,7 @@ public class NodesStatsRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<NodesStatsResponse> execute() {
-        PlainListenableActionFuture<NodesStatsResponse> future = new PlainListenableActionFuture<NodesStatsResponse>(request.listenerThreaded(), clusterClient.threadPool());
-        clusterClient.nodesStats(request, future);
-        return future;
+    @Override protected void doExecute(ActionListener<NodesStatsResponse> listener) {
+        client.nodesStats(request, listener);
     }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<NodesStatsResponse> listener) {
-        clusterClient.nodesStats(request, listener);
-    }
-
 }

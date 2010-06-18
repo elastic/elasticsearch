@@ -20,11 +20,10 @@
 package org.elasticsearch.client.action.admin.indices.refresh;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
+import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
@@ -34,15 +33,10 @@ import org.elasticsearch.client.internal.InternalIndicesAdminClient;
  *
  * @author kimchy (shay.banon)
  */
-public class RefreshRequestBuilder {
-
-    private final InternalIndicesAdminClient indicesClient;
-
-    private final RefreshRequest request;
+public class RefreshRequestBuilder extends BaseIndicesRequestBuilder<RefreshRequest, RefreshResponse> {
 
     public RefreshRequestBuilder(InternalIndicesAdminClient indicesClient) {
-        this.indicesClient = indicesClient;
-        this.request = new RefreshRequest();
+        super(indicesClient, new RefreshRequest());
     }
 
     public RefreshRequestBuilder setIndices(String... indices) {
@@ -71,19 +65,7 @@ public class RefreshRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<RefreshResponse> execute() {
-        PlainListenableActionFuture<RefreshResponse> future = new PlainListenableActionFuture<RefreshResponse>(request.listenerThreaded(), indicesClient.threadPool());
-        indicesClient.refresh(request, future);
-        return future;
-    }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<RefreshResponse> listener) {
-        indicesClient.refresh(request, listener);
+    @Override protected void doExecute(ActionListener<RefreshResponse> listener) {
+        client.refresh(request, listener);
     }
 }

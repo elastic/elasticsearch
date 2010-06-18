@@ -20,10 +20,9 @@
 package org.elasticsearch.client.action.admin.indices.mapping.put;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
@@ -33,15 +32,10 @@ import java.util.Map;
 /**
  * @author kimchy (shay.banon)
  */
-public class PutMappingRequestBuilder {
-
-    private final InternalIndicesAdminClient indicesClient;
-
-    private PutMappingRequest request;
+public class PutMappingRequestBuilder extends BaseIndicesRequestBuilder<PutMappingRequest, PutMappingResponse> {
 
     public PutMappingRequestBuilder(InternalIndicesAdminClient indicesClient) {
-        this.indicesClient = indicesClient;
-        this.request = new PutMappingRequest();
+        super(indicesClient, new PutMappingRequest());
     }
 
     public PutMappingRequestBuilder setIndices(String... indices) {
@@ -110,19 +104,7 @@ public class PutMappingRequestBuilder {
         return this;
     }
 
-    /**
-     * Executes the operation asynchronously and returns a future.
-     */
-    public ListenableActionFuture<PutMappingResponse> execute() {
-        PlainListenableActionFuture<PutMappingResponse> future = new PlainListenableActionFuture<PutMappingResponse>(request.listenerThreaded(), indicesClient.threadPool());
-        indicesClient.putMapping(request, future);
-        return future;
-    }
-
-    /**
-     * Executes the operation asynchronously with the provided listener.
-     */
-    public void execute(ActionListener<PutMappingResponse> listener) {
-        indicesClient.putMapping(request, listener);
+    @Override protected void doExecute(ActionListener<PutMappingResponse> listener) {
+        client.putMapping(request, listener);
     }
 }

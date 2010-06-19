@@ -88,9 +88,10 @@ public class TransportTwoServersSearchTests extends AbstractNodesTests {
 
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
         assertThat(searchResponse.hits().hits().length, equalTo(60));
+//        System.out.println("max_score: " + searchResponse.hits().maxScore());
         for (int i = 0; i < 60; i++) {
             SearchHit hit = searchResponse.hits().hits()[i];
-//            System.out.println(hit.shard() + ": " +  hit.explanation());
+//            System.out.println(hit.shard() + ": " + hit.score() + ":" +  hit.explanation());
             assertThat(hit.explanation(), notNullValue());
             assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
         }

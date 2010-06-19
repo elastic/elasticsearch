@@ -36,6 +36,16 @@ import java.util.Map;
 public interface SearchHit extends Streamable, ToXContent, Iterable<SearchHitField> {
 
     /**
+     * The score.
+     */
+    float score();
+
+    /**
+     * The score.
+     */
+    float getScore();
+
+    /**
      * The index of the hit.
      */
     String index();

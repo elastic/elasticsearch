@@ -40,10 +40,23 @@ public interface SearchHits extends Streamable, ToXContent, Iterable<SearchHit> 
     long getTotalHits();
 
     /**
+     * The maximum score of this query.
+     */
+    float maxScore();
+
+    /**
+     * The maximum score of this query.
+     */
+    float getMaxScore();
+
+    /**
      * The hits of the search request (based on the search type, and from / size provided).
      */
     SearchHit[] hits();
 
+    /**
+     * Return the hit as the provided position.
+     */
     SearchHit getAt(int position);
 
     /**

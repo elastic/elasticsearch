@@ -51,6 +51,8 @@ public class InternalSearchHit implements SearchHit {
 
     private transient int docId;
 
+    private float score = Float.NEGATIVE_INFINITY;
+
     private String id;
 
     private String type;
@@ -81,6 +83,18 @@ public class InternalSearchHit implements SearchHit {
 
     public int docId() {
         return this.docId;
+    }
+
+    public void score(float score) {
+        this.score = score;
+    }
+
+    @Override public float score() {
+        return this.score;
+    }
+
+    @Override public float getScore() {
+        return score();
     }
 
     @Override public String index() {
@@ -208,6 +222,7 @@ public class InternalSearchHit implements SearchHit {
 //        builder.field("_node", shard.nodeId());
         builder.field("_type", type());
         builder.field("_id", id());
+        builder.field("_score", score);
         if (source() != null) {
             if (XContentFactory.xContentType(source()) == builder.contentType()) {
                 builder.rawField("_source", source());
@@ -290,6 +305,7 @@ public class InternalSearchHit implements SearchHit {
     }
 
     public void readFrom(StreamInput in, @Nullable TIntObjectHashMap<SearchShardTarget> shardLookupMap) throws IOException {
+        score = in.readFloat();
         id = in.readUTF();
         type = in.readUTF();
         int size = in.readVInt();
@@ -384,6 +400,7 @@ public class InternalSearchHit implements SearchHit {
     }
 
     public void writeTo(StreamOutput out, @Nullable Map<SearchShardTarget, Integer> shardLookupMap) throws IOException {
+        out.writeFloat(score);
         out.writeUTF(id);
         out.writeUTF(type);
         if (source == null) {

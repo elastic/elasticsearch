@@ -41,4 +41,8 @@ public class ShardScoreDoc extends ScoreDoc implements ShardDoc {
     @Override public int docId() {
         return doc;
     }
+
+    @Override public float score() {
+        return score;
+    }
 }

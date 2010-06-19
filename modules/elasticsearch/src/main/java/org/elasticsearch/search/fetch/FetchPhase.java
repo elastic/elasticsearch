@@ -150,7 +150,7 @@ public class FetchPhase implements SearchPhase {
 
             doExplanation(context, docId, searchHit);
         }
-        context.fetchResult().hits(new InternalSearchHits(hits, context.queryResult().topDocs().totalHits));
+        context.fetchResult().hits(new InternalSearchHits(hits, context.queryResult().topDocs().totalHits, context.queryResult().topDocs().getMaxScore()));
 
         highlightPhase.execute(context);
     }

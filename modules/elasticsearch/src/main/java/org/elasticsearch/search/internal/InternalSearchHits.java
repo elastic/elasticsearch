@@ -47,13 +47,16 @@ public class InternalSearchHits implements SearchHits {
 
     private long totalHits;
 
+    private float maxScore;
+
     InternalSearchHits() {
 
     }
 
-    public InternalSearchHits(InternalSearchHit[] hits, long totalHits) {
+    public InternalSearchHits(InternalSearchHit[] hits, long totalHits, float maxScore) {
         this.hits = hits;
         this.totalHits = totalHits;
+        this.maxScore = maxScore;
     }
 
     public long totalHits() {
@@ -62,6 +65,14 @@ public class InternalSearchHits implements SearchHits {
 
     @Override public long getTotalHits() {
         return totalHits();
+    }
+
+    @Override public float maxScore() {
+        return this.maxScore;
+    }
+
+    @Override public float getMaxScore() {
+        return maxScore();
     }
 
     public SearchHit[] hits() {
@@ -87,6 +98,7 @@ public class InternalSearchHits implements SearchHits {
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("hits");
         builder.field("total", totalHits);
+        builder.field("max_score", maxScore);
         builder.field("hits");
         builder.startArray();
         for (SearchHit hit : hits) {
@@ -104,6 +116,7 @@ public class InternalSearchHits implements SearchHits {
 
     @Override public void readFrom(StreamInput in) throws IOException {
         totalHits = in.readVLong();
+        maxScore = in.readFloat();
         int size = in.readVInt();
         if (size == 0) {
             hits = EMPTY;
@@ -127,6 +140,7 @@ public class InternalSearchHits implements SearchHits {
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(totalHits);
+        out.writeFloat(maxScore);
         out.writeVInt(hits.length);
         if (hits.length > 0) {
             // write the header search shard targets (we assume identity equality)

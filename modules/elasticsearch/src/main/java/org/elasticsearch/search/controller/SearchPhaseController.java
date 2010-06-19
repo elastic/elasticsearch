@@ -169,8 +169,10 @@ public class SearchPhaseController {
 
         // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
         long totalHits = 0;
+        float maxScore = Float.NEGATIVE_INFINITY;
         for (QuerySearchResultProvider queryResultProvider : queryResults.values()) {
             totalHits += queryResultProvider.queryResult().topDocs().totalHits;
+            maxScore = Math.max(maxScore, queryResultProvider.queryResult().topDocs().getMaxScore());
         }
 
         // clean the fetch counter
@@ -190,12 +192,13 @@ public class SearchPhaseController {
                 int index = fetchResult.counterGetAndIncrement();
                 if (index < fetchResult.hits().internalHits().length) {
                     InternalSearchHit searchHit = fetchResult.hits().internalHits()[index];
+                    searchHit.score(shardDoc.score());
                     searchHit.shard(fetchResult.shardTarget());
                     hits.add(searchHit);
                 }
             }
         }
-        InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), totalHits);
+        InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), totalHits, maxScore);
         return new InternalSearchResponse(searchHits, facets);
     }
 }

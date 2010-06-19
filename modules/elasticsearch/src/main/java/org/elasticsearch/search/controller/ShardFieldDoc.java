@@ -23,7 +23,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.elasticsearch.search.SearchShardTarget;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class ShardFieldDoc extends FieldDoc implements ShardDoc {
 
@@ -45,5 +45,9 @@ public class ShardFieldDoc extends FieldDoc implements ShardDoc {
 
     @Override public int docId() {
         return this.doc;
+    }
+
+    @Override public float score() {
+        return score;
     }
 }

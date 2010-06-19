@@ -22,11 +22,13 @@ package org.elasticsearch.search.controller;
 import org.elasticsearch.search.SearchShardTarget;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public interface ShardDoc {
 
     SearchShardTarget shardTarget();
 
     int docId();
+
+    float score();
 }

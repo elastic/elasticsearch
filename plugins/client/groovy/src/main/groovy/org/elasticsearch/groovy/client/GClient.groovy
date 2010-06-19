@@ -20,6 +20,7 @@
 package org.elasticsearch.groovy.client
 
 import org.elasticsearch.action.ActionListener
+import org.elasticsearch.action.ListenableActionFuture
 import org.elasticsearch.action.count.CountRequest
 import org.elasticsearch.action.count.CountResponse
 import org.elasticsearch.action.delete.DeleteRequest
@@ -36,6 +37,14 @@ import org.elasticsearch.action.search.SearchResponse
 import org.elasticsearch.action.terms.TermsRequest
 import org.elasticsearch.action.terms.TermsResponse
 import org.elasticsearch.client.Client
+import org.elasticsearch.client.action.count.CountRequestBuilder
+import org.elasticsearch.client.action.delete.DeleteRequestBuilder
+import org.elasticsearch.client.action.deletebyquery.DeleteByQueryRequestBuilder
+import org.elasticsearch.client.action.get.GetRequestBuilder
+import org.elasticsearch.client.action.index.IndexRequestBuilder
+import org.elasticsearch.client.action.search.SearchRequestBuilder
+import org.elasticsearch.client.action.support.BaseRequestBuilder
+import org.elasticsearch.client.action.terms.TermsRequestBuilder
 import org.elasticsearch.client.internal.InternalClient
 import org.elasticsearch.common.xcontent.XContentType
 import org.elasticsearch.groovy.client.action.GActionFuture
@@ -47,11 +56,22 @@ import org.elasticsearch.groovy.util.xcontent.GXContentBuilder
 class GClient {
 
     static {
+        BaseRequestBuilder.metaClass.gexecute = {
+            ListenableActionFuture future = delegate.execute();
+            return new GActionFuture(future);
+        }
+
         IndexRequest.metaClass.setSource = {Closure c ->
             delegate.source(new GXContentBuilder().buildAsBytes(c, indexContentType))
         }
         IndexRequest.metaClass.source = {Closure c ->
             delegate.source(new GXContentBuilder().buildAsBytes(c, indexContentType))
+        }
+        IndexRequestBuilder.metaClass.setSource = {Closure c ->
+            delegate.setSource(new GXContentBuilder().buildAsBytes(c, indexContentType))
+        }
+        IndexRequestBuilder.metaClass.source = {Closure c ->
+            delegate.setSource(new GXContentBuilder().buildAsBytes(c, indexContentType))
         }
 
         DeleteByQueryRequest.metaClass.setQuery = {Closure c ->
@@ -60,12 +80,24 @@ class GClient {
         DeleteByQueryRequest.metaClass.query = {Closure c ->
             delegate.query(new GXContentBuilder().buildAsBytes(c, contentType))
         }
+        DeleteByQueryRequestBuilder.metaClass.setQuery = {Closure c ->
+            delegate.setQuery(new GXContentBuilder().buildAsBytes(c, contentType))
+        }
+        DeleteByQueryRequestBuilder.metaClass.query = {Closure c ->
+            delegate.setQuery(new GXContentBuilder().buildAsBytes(c, contentType))
+        }
 
         CountRequest.metaClass.setQuery = {Closure c ->
             delegate.query(new GXContentBuilder().buildAsBytes(c, contentType))
         }
         CountRequest.metaClass.query = {Closure c ->
             delegate.query(new GXContentBuilder().buildAsBytes(c, contentType))
+        }
+        CountRequestBuilder.metaClass.setQuery = {Closure c ->
+            delegate.setQuery(new GXContentBuilder().buildAsBytes(c, contentType))
+        }
+        CountRequestBuilder.metaClass.query = {Closure c ->
+            delegate.setQuery(new GXContentBuilder().buildAsBytes(c, contentType))
         }
 
         SearchRequest.metaClass.setSource = {Closure c ->
@@ -79,6 +111,18 @@ class GClient {
         }
         SearchRequest.metaClass.extraSource = {Closure c ->
             delegate.extraSource(new GXContentBuilder().buildAsBytes(c, contentType))
+        }
+        SearchRequestBuilder.metaClass.setSource = {Closure c ->
+            delegate.setSource(new GXContentBuilder().buildAsBytes(c, contentType))
+        }
+        SearchRequestBuilder.metaClass.source = {Closure c ->
+            delegate.setSource(new GXContentBuilder().buildAsBytes(c, contentType))
+        }
+        SearchRequestBuilder.metaClass.setExtraSource = {Closure c ->
+            delegate.setExtraSource(new GXContentBuilder().buildAsBytes(c, contentType))
+        }
+        SearchRequestBuilder.metaClass.extraSource = {Closure c ->
+            delegate.setExtraSource(new GXContentBuilder().buildAsBytes(c, contentType))
         }
 
         MoreLikeThisRequest.metaClass.setSearchSource = {Closure c ->
@@ -108,6 +152,14 @@ class GClient {
         this.admin = new GAdminClient(this)
     }
 
+    IndexRequestBuilder prepareIndex(String index, String type) {
+        return client.prepareIndex(index, type);
+    }
+
+    IndexRequestBuilder prepareIndex(String index, String type, String id) {
+        return client.prepareIndex(index, type, id);
+    }
+
     GActionFuture<IndexResponse> index(Closure c) {
         IndexRequest request = new IndexRequest()
         c.setDelegate request
@@ -124,6 +176,10 @@ class GClient {
 
     void index(IndexRequest request, ActionListener<IndexResponse> listener) {
         client.index(request, listener)
+    }
+
+    GetRequestBuilder prepareGet(String index, String type, String id) {
+        return client.prepareGet(index, type, id);
     }
 
     GActionFuture<GetResponse> get(Closure c) {
@@ -144,6 +200,10 @@ class GClient {
         client.get(request, listener)
     }
 
+    DeleteRequestBuilder prepareDelete(String index, String type, String id) {
+        return client.prepareDelete(index, type, id)
+    }
+
     GActionFuture<DeleteResponse> delete(Closure c) {
         DeleteRequest request = new DeleteRequest()
         c.resolveStrategy = resolveStrategy
@@ -160,6 +220,10 @@ class GClient {
 
     void delete(DeleteRequest request, ActionListener<DeleteResponse> listener) {
         client.delete(request, listener)
+    }
+
+    DeleteByQueryRequestBuilder prepareDeleteByQuery(String... indices) {
+        return client.prepareDeleteByQuery(indices);
     }
 
     GActionFuture<DeleteByQueryResponse> deleteByQuery(Closure c) {
@@ -180,6 +244,10 @@ class GClient {
         client.deleteByQuery(request, listener)
     }
 
+    CountRequestBuilder prepareCount(String... indices) {
+        return client.prepareCount(indices)
+    }
+
     GActionFuture<CountResponse> count(Closure c) {
         CountRequest request = new CountRequest()
         c.resolveStrategy = resolveStrategy
@@ -198,6 +266,10 @@ class GClient {
         client.count(request, listener)
     }
 
+    SearchRequestBuilder prepareSearch(String... indices) {
+        return client.prepareSearch(indices)
+    }
+
     GActionFuture<SearchResponse> search(Closure c) {
         SearchRequest request = new SearchRequest()
         c.resolveStrategy = resolveStrategy
@@ -214,6 +286,10 @@ class GClient {
 
     void search(SearchRequest request, ActionListener<SearchResponse> listener) {
         client.search(request, listener)
+    }
+
+    TermsRequestBuilder prepareTerms(String... indices) {
+        return client.prepareTerms(indices)
     }
 
     GActionFuture<TermsResponse> terms(Closure c) {

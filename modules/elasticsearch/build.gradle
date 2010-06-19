@@ -35,10 +35,10 @@ dependencies {
     compile('org.slf4j:slf4j-log4j12:1.5.11') { transitive = false }
     compile('log4j:log4j:1.2.15') { transitive = false }
 
-    compile 'org.apache.lucene:lucene-core:3.0.1'
-    compile 'org.apache.lucene:lucene-analyzers:3.0.1'
-    compile 'org.apache.lucene:lucene-queries:3.0.1'
-    compile 'org.apache.lucene:lucene-fast-vector-highlighter:3.0.1'
+    compile 'org.apache.lucene:lucene-core:3.0.2'
+    compile 'org.apache.lucene:lucene-analyzers:3.0.2'
+    compile 'org.apache.lucene:lucene-queries:3.0.2'
+    compile 'org.apache.lucene:lucene-fast-vector-highlighter:3.0.2'
 
     testCompile project(':test-testng')
     testCompile('org.testng:testng:5.10:jdk15') { transitive = false }

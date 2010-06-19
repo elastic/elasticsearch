@@ -32,17 +32,25 @@ import java.util.List;
  */
 public abstract class AbstractListenableActionFuture<T, L> extends AdapterActionFuture<T, L> implements ListenableActionFuture<T> {
 
-    private final boolean listenerThreaded;
+    final boolean listenerThreaded;
 
-    private final ThreadPool threadPool;
+    final ThreadPool threadPool;
 
-    private volatile Object listeners;
+    volatile Object listeners;
 
-    private boolean executedListeners = false;
+    boolean executedListeners = false;
 
     protected AbstractListenableActionFuture(boolean listenerThreaded, ThreadPool threadPool) {
         this.listenerThreaded = listenerThreaded;
         this.threadPool = threadPool;
+    }
+
+    public boolean listenerThreaded() {
+        return listenerThreaded;
+    }
+
+    public ThreadPool threadPool() {
+        return threadPool;
     }
 
     public void addListener(final ActionListener<T> listener) {

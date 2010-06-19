@@ -23,19 +23,28 @@ import groovy.lang.Closure;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class GActionFuture<T> extends PlainListenableActionFuture<T> {
+public class GActionFuture<T> implements ListenableActionFuture<T>, ActionListener<T> {
 
-    protected GActionFuture(ThreadPool threadPool, ActionRequest request) {
-        super(request.listenerThreaded(), threadPool);
+    private final PlainListenableActionFuture<T> future;
+
+    public GActionFuture(ListenableActionFuture<T> future) {
+        this.future = (PlainListenableActionFuture<T>) future;
+    }
+
+    public GActionFuture(ThreadPool threadPool, ActionRequest request) {
+        this.future = new PlainListenableActionFuture<T>(request.listenerThreaded(), threadPool);
     }
 
     public void setListener(final Closure listener) {
@@ -79,18 +88,76 @@ public class GActionFuture<T> extends PlainListenableActionFuture<T> {
     }
 
     public T response(String timeout) throws ElasticSearchException {
-        return super.actionGet(timeout);
+        return actionGet(timeout);
     }
 
     public T response(long timeoutMillis) throws ElasticSearchException {
-        return super.actionGet(timeoutMillis);
+        return actionGet(timeoutMillis);
     }
 
     public T response(TimeValue timeout) throws ElasticSearchException {
-        return super.actionGet(timeout);
+        return actionGet(timeout);
     }
 
     public T response(long timeout, TimeUnit unit) throws ElasticSearchException {
-        return super.actionGet(timeout, unit);
+        return actionGet(timeout, unit);
+    }
+
+    @Override public void onResponse(T t) {
+        future.onResponse(t);
+    }
+
+    @Override public void onFailure(Throwable e) {
+        future.onFailure(e);
+    }
+
+    // delegate methods
+
+    public void addListener(ActionListener<T> tActionListener) {
+        future.addListener(tActionListener);
+    }
+
+    @Override public void addListener(Runnable listener) {
+        future.addListener(listener);
+    }
+
+    @Override public T actionGet() throws ElasticSearchException {
+        return future.actionGet();
+    }
+
+    @Override public T actionGet(String timeout) throws ElasticSearchException {
+        return future.actionGet(timeout);
+    }
+
+    @Override public T actionGet(long timeoutMillis) throws ElasticSearchException {
+        return future.actionGet(timeoutMillis);
+    }
+
+    @Override public T actionGet(long timeout, TimeUnit unit) throws ElasticSearchException {
+        return future.actionGet(timeout, unit);
+    }
+
+    @Override public T actionGet(TimeValue timeout) throws ElasticSearchException {
+        return future.actionGet(timeout);
+    }
+
+    @Override public boolean cancel(boolean mayInterruptIfRunning) {
+        return future.cancel(mayInterruptIfRunning);
+    }
+
+    @Override public boolean isCancelled() {
+        return future.isCancelled();
+    }
+
+    @Override public boolean isDone() {
+        return future.isDone();
+    }
+
+    @Override public T get() throws InterruptedException, ExecutionException {
+        return future.get();
+    }
+
+    @Override public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+        return future.get(timeout, unit);
     }
 }

@@ -43,7 +43,7 @@ import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse
 import org.elasticsearch.client.IndicesAdminClient
 import org.elasticsearch.client.internal.InternalClient
 import org.elasticsearch.groovy.client.action.GActionFuture
-import org.elasticsearch.groovy.util.xcontent.GXContentBuilder
+import org.elasticsearch.groovy.common.xcontent.GXContentBuilder
 
 /**
  * @author kimchy (shay.banon)

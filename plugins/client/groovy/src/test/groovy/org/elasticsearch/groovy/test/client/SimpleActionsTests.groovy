@@ -54,7 +54,7 @@ class SimpleActionsTests {
 
     @Test
     void testSimpleOperations() {
-        def value1 = new org.elasticsearch.groovy.util.xcontent.GXContentBuilder().buildAsString {
+        def value1 = new org.elasticsearch.groovy.common.xcontent.GXContentBuilder().buildAsString {
             something = "test"
         }
         println value1

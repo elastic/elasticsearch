@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.groovy.util.xcontent
+package org.elasticsearch.groovy.common.xcontent
 
 import org.elasticsearch.common.xcontent.XContentFactory
 import org.elasticsearch.common.xcontent.XContentType

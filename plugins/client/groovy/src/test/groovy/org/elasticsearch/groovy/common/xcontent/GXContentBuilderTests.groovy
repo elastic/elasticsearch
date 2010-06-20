@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.groovy.util.xcontent
+package org.elasticsearch.groovy.common.xcontent
 
 /**
  * @author kimchy (shay.banon)
@@ -95,42 +95,12 @@ class GXContentBuilderTests extends GroovyTestCase {
         assertEquals '{"foo":[{"bar":"hello"}]}', result.toString()
     }
 
-    void testRootElementList() {
-        def builder = new GXContentBuilder()
-
-        def results = ['one', 'two', 'three']
-
-        def result = builder.buildAsString {
-            for (b in results) {
-                element b
-            }
-        }
-
-        assertEquals '["one","two","three"]', result.toString()
-
-        result = builder.buildAsString {
-            results
-        }
-
-        assertEquals '["one","two","three"]', result.toString()
-
-    }
-
     void testExampleFromReferenceGuide() {
         def builder = new GXContentBuilder()
 
         def results = ['one', 'two', 'three']
 
         def result = builder.buildAsString {
-            for (b in results) {
-                element title: b
-            }
-        }
-
-        assertEquals '[{"title":"one"},{"title":"two"},{"title":"three"}]', result.toString()
-
-
-        result = builder.buildAsString {
             books = results.collect {
                 [title: it]
             }

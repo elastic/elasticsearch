@@ -41,6 +41,16 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse
 import org.elasticsearch.client.IndicesAdminClient
+import org.elasticsearch.client.action.admin.indices.alias.IndicesAliasesRequestBuilder
+import org.elasticsearch.client.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder
+import org.elasticsearch.client.action.admin.indices.create.CreateIndexRequestBuilder
+import org.elasticsearch.client.action.admin.indices.delete.DeleteIndexRequestBuilder
+import org.elasticsearch.client.action.admin.indices.flush.FlushRequestBuilder
+import org.elasticsearch.client.action.admin.indices.gateway.snapshot.GatewaySnapshotRequestBuilder
+import org.elasticsearch.client.action.admin.indices.mapping.put.PutMappingRequestBuilder
+import org.elasticsearch.client.action.admin.indices.optimize.OptimizeRequestBuilder
+import org.elasticsearch.client.action.admin.indices.refresh.RefreshRequestBuilder
+import org.elasticsearch.client.action.admin.indices.status.IndicesStatusRequestBuilder
 import org.elasticsearch.client.internal.InternalClient
 import org.elasticsearch.groovy.client.action.GActionFuture
 import org.elasticsearch.groovy.common.xcontent.GXContentBuilder
@@ -63,12 +73,27 @@ class GIndicesAdminClient {
         CreateIndexRequest.metaClass.setMapping = {String type, Closure c ->
             delegate.mapping(type, new GXContentBuilder().buildAsString(c))
         }
+        CreateIndexRequestBuilder.metaClass.setSettings = {Closure c ->
+            delegate.setSettings(new GXContentBuilder().buildAsString(c))
+        }
+        CreateIndexRequestBuilder.metaClass.settings = {Closure c ->
+            delegate.setSettings(new GXContentBuilder().buildAsString(c))
+        }
+        CreateIndexRequestBuilder.metaClass.addMapping = {String type, Closure c ->
+            delegate.addMapping(type, new GXContentBuilder().buildAsString(c))
+        }
 
         PutMappingRequest.metaClass.setSource = {Closure c ->
             delegate.source(new GXContentBuilder().buildAsString(c))
         }
         PutMappingRequest.metaClass.source = {Closure c ->
             delegate.source(new GXContentBuilder().buildAsString(c))
+        }
+        PutMappingRequestBuilder.metaClass.setSource = {Closure c ->
+            delegate.setSource(new GXContentBuilder().buildAsString(c))
+        }
+        PutMappingRequestBuilder.metaClass.source = {Closure c ->
+            delegate.setSource(new GXContentBuilder().buildAsString(c))
         }
     }
 
@@ -85,6 +110,10 @@ class GIndicesAdminClient {
     }
 
     // STATUS
+
+    IndicesStatusRequestBuilder prepareStatus(String... indices) {
+        indicesAdminClient.prepareStatus(indices)
+    }
 
     GActionFuture<IndicesStatusResponse> status(Closure c) {
         IndicesStatusRequest request = new IndicesStatusRequest()
@@ -106,6 +135,10 @@ class GIndicesAdminClient {
 
     // CREATE
 
+    CreateIndexRequestBuilder prepareCreate(String index) {
+        indicesAdminClient.prepareCreate(index)
+    }
+
     GActionFuture<CreateIndexResponse> create(Closure c) {
         CreateIndexRequest request = new CreateIndexRequest()
         c.setDelegate request
@@ -125,6 +158,10 @@ class GIndicesAdminClient {
     }
 
     // DELETE
+
+    DeleteIndexRequestBuilder prepareDelete(String index) {
+        indicesAdminClient.prepareDelete(index)
+    }
 
     GActionFuture<DeleteIndexResponse> delete(Closure c) {
         DeleteIndexRequest request = new DeleteIndexRequest()
@@ -146,6 +183,10 @@ class GIndicesAdminClient {
 
     // REFRESH
 
+    RefreshRequestBuilder prepareRefresh(String... indices) {
+        indicesAdminClient.prepareRefresh(indices)
+    }
+
     GActionFuture<RefreshResponse> refresh(Closure c) {
         RefreshRequest request = new RefreshRequest()
         c.setDelegate request
@@ -165,6 +206,10 @@ class GIndicesAdminClient {
     }
 
     // FLUSH
+
+    FlushRequestBuilder prepareFlush(String... indices) {
+        indicesAdminClient.prepareFlush(indices)
+    }
 
     GActionFuture<FlushResponse> flush(Closure c) {
         FlushRequest request = new FlushRequest()
@@ -186,6 +231,10 @@ class GIndicesAdminClient {
 
     // OPTIMIZE
 
+    OptimizeRequestBuilder prepareOptimize(String... indices) {
+        indicesAdminClient.prepareOptimize(indices)
+    }
+
     GActionFuture<OptimizeResponse> optimize(Closure c) {
         OptimizeRequest request = new OptimizeRequest()
         c.setDelegate request
@@ -205,6 +254,10 @@ class GIndicesAdminClient {
     }
 
     // PUT MAPPING
+
+    PutMappingRequestBuilder preparePutMapping(String... indices) {
+        indicesAdminClient.preparePutMapping(indices)
+    }
 
     GActionFuture<PutMappingResponse> putMapping(Closure c) {
         PutMappingRequest request = new PutMappingRequest()
@@ -226,6 +279,10 @@ class GIndicesAdminClient {
 
     // GATEWAY SNAPSHOT
 
+    GatewaySnapshotRequestBuilder prepareGatewaySnapshot(String... indices) {
+        indicesAdminClient.prepareGatewaySnapshot(indices)
+    }
+
     GActionFuture<GatewaySnapshotResponse> gatewaySnapshot(Closure c) {
         GatewaySnapshotRequest request = new GatewaySnapshotRequest()
         c.setDelegate request
@@ -246,6 +303,10 @@ class GIndicesAdminClient {
 
     // Aliases
 
+    IndicesAliasesRequestBuilder prepareAliases() {
+        indicesAdminClient.prepareAliases()
+    }
+
     GActionFuture<IndicesAliasesResponse> aliases(Closure c) {
         IndicesAliasesRequest request = new IndicesAliasesRequest()
         c.setDelegate request
@@ -265,6 +326,10 @@ class GIndicesAdminClient {
     }
 
     // CLEAR CACHE
+
+    ClearIndicesCacheRequestBuilder prepareClearCache(String... indices) {
+        indicesAdminClient.prepareClearCache(indices)
+    }
 
     GActionFuture<ClearIndicesCacheResponse> clearCache(Closure c) {
         ClearIndicesCacheRequest request = new ClearIndicesCacheRequest()

@@ -146,10 +146,6 @@ public class XContentAllFieldMapper extends XContentFieldMapper<Void> implements
         return null;
     }
 
-    @Override public String indexedValue(Void value) {
-        return null;
-    }
-
     @Override protected String contentType() {
         return CONTENT_TYPE;
     }

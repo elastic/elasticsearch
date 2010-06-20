@@ -115,11 +115,7 @@ public class XContentDoubleFieldMapper extends XContentNumberFieldMapper<Double>
     }
 
     @Override public String indexedValue(String value) {
-        return indexedValue(Double.parseDouble(value));
-    }
-
-    @Override public String indexedValue(Double value) {
-        return NumericUtils.doubleToPrefixCoded(value);
+        return NumericUtils.doubleToPrefixCoded(Double.parseDouble(value));
     }
 
     @Override public Object valueFromTerm(String term) {

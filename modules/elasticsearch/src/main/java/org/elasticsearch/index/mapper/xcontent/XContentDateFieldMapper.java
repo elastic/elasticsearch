@@ -149,10 +149,6 @@ public class XContentDateFieldMapper extends XContentNumberFieldMapper<Long> {
         return NumericUtils.longToPrefixCoded(dateTimeFormatter.parser().parseMillis(value));
     }
 
-    @Override public String indexedValue(Long value) {
-        return NumericUtils.longToPrefixCoded(value);
-    }
-
     @Override public Object valueFromTerm(String term) {
         final int shift = term.charAt(0) - NumericUtils.SHIFT_START_LONG;
         if (shift > 0 && shift <= 63) {

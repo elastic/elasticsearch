@@ -114,11 +114,7 @@ public class XContentShortFieldMapper extends XContentNumberFieldMapper<Short> {
     }
 
     @Override public String indexedValue(String value) {
-        return indexedValue(Short.parseShort(value));
-    }
-
-    @Override public String indexedValue(Short value) {
-        return NumericUtils.intToPrefixCoded(value);
+        return NumericUtils.intToPrefixCoded(Short.parseShort(value));
     }
 
     @Override public Object valueFromTerm(String term) {

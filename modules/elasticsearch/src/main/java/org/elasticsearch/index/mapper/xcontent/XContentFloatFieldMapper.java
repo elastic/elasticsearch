@@ -114,11 +114,7 @@ public class XContentFloatFieldMapper extends XContentNumberFieldMapper<Float> {
     }
 
     @Override public String indexedValue(String value) {
-        return indexedValue(Float.parseFloat(value));
-    }
-
-    @Override public String indexedValue(Float value) {
-        return NumericUtils.floatToPrefixCoded(value);
+        return NumericUtils.floatToPrefixCoded(Float.parseFloat(value));
     }
 
     @Override public Object valueFromTerm(String term) {

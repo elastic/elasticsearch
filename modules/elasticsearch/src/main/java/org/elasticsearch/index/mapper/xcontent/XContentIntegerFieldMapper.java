@@ -114,11 +114,7 @@ public class XContentIntegerFieldMapper extends XContentNumberFieldMapper<Intege
     }
 
     @Override public String indexedValue(String value) {
-        return indexedValue(Integer.parseInt(value));
-    }
-
-    @Override public String indexedValue(Integer value) {
-        return NumericUtils.intToPrefixCoded(value);
+        return NumericUtils.intToPrefixCoded(Integer.parseInt(value));
     }
 
     @Override public Object valueFromTerm(String term) {

@@ -33,6 +33,12 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse
 import org.elasticsearch.client.ClusterAdminClient
+import org.elasticsearch.client.action.admin.cluster.health.ClusterHealthRequestBuilder
+import org.elasticsearch.client.action.admin.cluster.node.info.NodesInfoRequestBuilder
+import org.elasticsearch.client.action.admin.cluster.node.restart.NodesRestartRequestBuilder
+import org.elasticsearch.client.action.admin.cluster.node.shutdown.NodesShutdownRequestBuilder
+import org.elasticsearch.client.action.admin.cluster.node.stats.NodesStatsRequestBuilder
+import org.elasticsearch.client.action.admin.cluster.state.ClusterStateRequestBuilder
 import org.elasticsearch.client.internal.InternalClient
 import org.elasticsearch.groovy.client.action.GActionFuture
 
@@ -55,6 +61,10 @@ class GClusterAdminClient {
 
     // HEALTH
 
+    ClusterHealthRequestBuilder prepareHealth(String... indices) {
+        clusterAdminClient.prepareHealth(indices)
+    }
+
     GActionFuture<ClusterHealthResponse> health(Closure c) {
         ClusterHealthRequest request = new ClusterHealthRequest()
         c.setDelegate request
@@ -74,6 +84,10 @@ class GClusterAdminClient {
     }
 
     // STATE
+
+    ClusterStateRequestBuilder prepareState() {
+        clusterAdminClient.prepareState()
+    }
 
     GActionFuture<ClusterStateResponse> state(Closure c) {
         ClusterStateRequest request = new ClusterStateRequest()
@@ -95,6 +109,10 @@ class GClusterAdminClient {
 
     // NODES INFO
 
+    NodesInfoRequestBuilder prepareNodesInfo(String... nodesIds) {
+        clusterAdminClient.prepareNodesInfo(nodesIds)
+    }
+
     GActionFuture<NodesInfoResponse> nodesInfo(Closure c) {
         NodesInfoRequest request = new NodesInfoRequest()
         c.setDelegate request
@@ -114,6 +132,10 @@ class GClusterAdminClient {
     }
 
     // NODES STATS
+
+    NodesStatsRequestBuilder prepareNodesStats(String... nodesIds) {
+        clusterAdminClient.prepareNodesStats(nodesIds)
+    }
 
     GActionFuture<NodesStatsResponse> nodesStats(Closure c) {
         NodesStatsRequest request = new NodesStatsRequest()
@@ -135,6 +157,10 @@ class GClusterAdminClient {
 
     // NODES SHUTDOWN
 
+    NodesShutdownRequestBuilder prepareNodesShutdown(String... nodesIds) {
+        clusterAdminClient.prepareNodesShutdown(nodesIds)
+    }
+
     GActionFuture<NodesShutdownResponse> nodesShutdown(Closure c) {
         NodesShutdownRequest request = new NodesShutdownRequest()
         c.setDelegate request
@@ -154,6 +180,10 @@ class GClusterAdminClient {
     }
 
     // NODES RESTART
+
+    NodesRestartRequestBuilder prepareNodesRestart(String... nodesIds) {
+        clusterAdminClient.prepareNodesRestart(nodesIds)
+    }
 
     GActionFuture<NodesRestartResponse> nodesRestart(Closure c) {
         NodesRestartRequest request = new NodesRestartRequest()

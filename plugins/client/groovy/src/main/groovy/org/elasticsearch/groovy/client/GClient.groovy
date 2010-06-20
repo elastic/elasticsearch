@@ -48,7 +48,7 @@ import org.elasticsearch.client.action.terms.TermsRequestBuilder
 import org.elasticsearch.client.internal.InternalClient
 import org.elasticsearch.common.xcontent.XContentType
 import org.elasticsearch.groovy.client.action.GActionFuture
-import org.elasticsearch.groovy.util.xcontent.GXContentBuilder
+import org.elasticsearch.groovy.common.xcontent.GXContentBuilder
 
 /**
  * @author kimchy (shay.banon)

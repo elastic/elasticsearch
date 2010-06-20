@@ -24,85 +24,402 @@ package org.elasticsearch.common.math;
  */
 public class UnboxedMathUtils {
 
+    public static double sin(Short a) {
+        return Math.sin(a.doubleValue());
+    }
+
+    public static double sin(Integer a) {
+        return Math.sin(a.doubleValue());
+    }
+
+    public static double sin(Float a) {
+        return Math.sin(a.doubleValue());
+    }
+
+    public static double sin(Long a) {
+        return Math.sin(a.doubleValue());
+    }
+
     public static double sin(Double a) {
         return Math.sin(a);
     }
 
+    public static double cos(Short a) {
+        return Math.cos(a.doubleValue());
+    }
+
+    public static double cos(Integer a) {
+        return Math.cos(a.doubleValue());
+    }
+
+    public static double cos(Float a) {
+        return Math.cos(a.doubleValue());
+    }
+
+    public static double cos(Long a) {
+        return Math.cos(a.doubleValue());
+    }
+
     public static double cos(Double a) {
-        return Math.cos(a); // default impl. delegates to StrictMath
+        return Math.cos(a);
+    }
+
+    public static double tan(Short a) {
+        return Math.tan(a.doubleValue());
+    }
+
+    public static double tan(Integer a) {
+        return Math.tan(a.doubleValue());
+    }
+
+    public static double tan(Float a) {
+        return Math.tan(a.doubleValue());
+    }
+
+    public static double tan(Long a) {
+        return Math.tan(a.doubleValue());
     }
 
     public static double tan(Double a) {
-        return Math.tan(a); // default impl. delegates to StrictMath
+        return Math.tan(a);
+    }
+
+    public static double asin(Short a) {
+        return Math.asin(a.doubleValue());
+    }
+
+    public static double asin(Integer a) {
+        return Math.asin(a.doubleValue());
+    }
+
+    public static double asin(Float a) {
+        return Math.asin(a.doubleValue());
+    }
+
+    public static double asin(Long a) {
+        return Math.asin(a.doubleValue());
     }
 
     public static double asin(Double a) {
-        return Math.asin(a); // default impl. delegates to StrictMath
+        return Math.asin(a);
+    }
+
+    public static double acos(Short a) {
+        return Math.acos(a.doubleValue());
+    }
+
+
+    public static double acos(Integer a) {
+        return Math.acos(a.doubleValue());
+    }
+
+
+    public static double acos(Float a) {
+        return Math.acos(a.doubleValue());
+    }
+
+    public static double acos(Long a) {
+        return Math.acos(a.doubleValue());
     }
 
     public static double acos(Double a) {
-        return Math.acos(a); // default impl. delegates to StrictMath
+        return Math.acos(a);
+    }
+
+    public static double atan(Short a) {
+        return Math.atan(a.doubleValue());
+    }
+
+    public static double atan(Integer a) {
+        return Math.atan(a.doubleValue());
+    }
+
+    public static double atan(Float a) {
+        return Math.atan(a.doubleValue());
+    }
+
+    public static double atan(Long a) {
+        return Math.atan(a.doubleValue());
     }
 
     public static double atan(Double a) {
-        return Math.atan(a); // default impl. delegates to StrictMath
+        return Math.atan(a);
+    }
+
+    public static double toRadians(Short angdeg) {
+        return Math.toRadians(angdeg.doubleValue());
+    }
+
+    public static double toRadians(Integer angdeg) {
+        return Math.toRadians(angdeg.doubleValue());
+    }
+
+    public static double toRadians(Float angdeg) {
+        return Math.toRadians(angdeg.doubleValue());
+    }
+
+    public static double toRadians(Long angdeg) {
+        return Math.toRadians(angdeg.doubleValue());
     }
 
     public static double toRadians(Double angdeg) {
         return Math.toRadians(angdeg);
     }
 
+    public static double toDegrees(Short angrad) {
+        return Math.toDegrees(angrad.doubleValue());
+    }
+
+    public static double toDegrees(Integer angrad) {
+        return Math.toDegrees(angrad.doubleValue());
+    }
+
+    public static double toDegrees(Float angrad) {
+        return Math.toDegrees(angrad.doubleValue());
+    }
+
+    public static double toDegrees(Long angrad) {
+        return Math.toDegrees(angrad.doubleValue());
+    }
+
     public static double toDegrees(Double angrad) {
         return Math.toDegrees(angrad);
+    }
+
+    public static double exp(Short a) {
+        return Math.exp(a.doubleValue());
+    }
+
+    public static double exp(Integer a) {
+        return Math.exp(a.doubleValue());
+    }
+
+    public static double exp(Float a) {
+        return Math.exp(a.doubleValue());
+    }
+
+    public static double exp(Long a) {
+        return Math.exp(a.doubleValue());
     }
 
     public static double exp(Double a) {
         return Math.exp(a);
     }
 
+    public static double log(Short a) {
+        return Math.log(a.doubleValue());
+    }
+
+    public static double log(Integer a) {
+        return Math.log(a.doubleValue());
+    }
+
+    public static double log(Float a) {
+        return Math.log(a.doubleValue());
+    }
+
+    public static double log(Long a) {
+        return Math.log(a.doubleValue());
+    }
+
     public static double log(Double a) {
         return Math.log(a);
+    }
+
+    public static double log10(Short a) {
+        return Math.log10(a.doubleValue());
+    }
+
+    public static double log10(Integer a) {
+        return Math.log10(a.doubleValue());
+    }
+
+    public static double log10(Float a) {
+        return Math.log10(a.doubleValue());
+    }
+
+    public static double log10(Long a) {
+        return Math.log10(a.doubleValue());
     }
 
     public static double log10(Double a) {
         return Math.log10(a);
     }
 
+    public static double sqrt(Short a) {
+        return Math.sqrt(a.doubleValue());
+    }
+
+    public static double sqrt(Integer a) {
+        return Math.sqrt(a.doubleValue());
+    }
+
+    public static double sqrt(Float a) {
+        return Math.sqrt(a.doubleValue());
+    }
+
+    public static double sqrt(Long a) {
+        return Math.sqrt(a.doubleValue());
+    }
+
     public static double sqrt(Double a) {
         return Math.sqrt(a);
     }
 
+    public static double cbrt(Short a) {
+        return Math.cbrt(a.doubleValue());
+    }
+
+    public static double cbrt(Integer a) {
+        return Math.cbrt(a.doubleValue());
+    }
+
+    public static double cbrt(Float a) {
+        return Math.cbrt(a.doubleValue());
+    }
+
+    public static double cbrt(Long a) {
+        return Math.cbrt(a.doubleValue());
+    }
 
     public static double cbrt(Double a) {
         return Math.cbrt(a);
+    }
+
+    public static double IEEEremainder(Short f1, Short f2) {
+        return Math.IEEEremainder(f1.doubleValue(), f2.doubleValue());
+    }
+
+    public static double IEEEremainder(Integer f1, Integer f2) {
+        return Math.IEEEremainder(f1.doubleValue(), f2.doubleValue());
+    }
+
+    public static double IEEEremainder(Float f1, Float f2) {
+        return Math.IEEEremainder(f1.doubleValue(), f2.doubleValue());
+    }
+
+    public static double IEEEremainder(Long f1, Long f2) {
+        return Math.IEEEremainder(f1.doubleValue(), f2.doubleValue());
     }
 
     public static double IEEEremainder(Double f1, Double f2) {
         return Math.IEEEremainder(f1, f2);
     }
 
+    public static double ceil(Short a) {
+        return Math.ceil(a.doubleValue());
+    }
+
+    public static double ceil(Integer a) {
+        return Math.ceil(a.doubleValue());
+    }
+
+    public static double ceil(Float a) {
+        return Math.ceil(a.doubleValue());
+    }
+
+    public static double ceil(Long a) {
+        return Math.ceil(a.doubleValue());
+    }
+
     public static double ceil(Double a) {
         return Math.ceil(a);
+    }
+
+    public static double floor(Short a) {
+        return Math.floor(a.doubleValue());
+    }
+
+    public static double floor(Integer a) {
+        return Math.floor(a.doubleValue());
+    }
+
+    public static double floor(Float a) {
+        return Math.floor(a.doubleValue());
+    }
+
+    public static double floor(Long a) {
+        return Math.floor(a.doubleValue());
     }
 
     public static double floor(Double a) {
         return Math.floor(a);
     }
 
+    public static double rint(Short a) {
+        return Math.rint(a.doubleValue());
+    }
+
+    public static double rint(Integer a) {
+        return Math.rint(a.doubleValue());
+    }
+
+    public static double rint(Float a) {
+        return Math.rint(a.doubleValue());
+    }
+
+    public static double rint(Long a) {
+        return Math.rint(a.doubleValue());
+    }
+
     public static double rint(Double a) {
         return Math.rint(a);
+    }
+
+    public static double atan2(Short y, Short x) {
+        return Math.atan2(y.doubleValue(), x.doubleValue());
+    }
+
+    public static double atan2(Integer y, Integer x) {
+        return Math.atan2(y.doubleValue(), x.doubleValue());
+    }
+
+    public static double atan2(Float y, Float x) {
+        return Math.atan2(y.doubleValue(), x.doubleValue());
+    }
+
+    public static double atan2(Long y, Long x) {
+        return Math.atan2(y.doubleValue(), x.doubleValue());
     }
 
     public static double atan2(Double y, Double x) {
         return Math.atan2(y, x);
     }
 
+    public static double pow(Short a, Short b) {
+        return Math.pow(a.doubleValue(), b.doubleValue());
+    }
+
+    public static double pow(Integer a, Integer b) {
+        return Math.pow(a.doubleValue(), b.doubleValue());
+    }
+
+    public static double pow(Float a, Float b) {
+        return Math.pow(a.doubleValue(), b.doubleValue());
+    }
+
+    public static double pow(Long a, Long b) {
+        return Math.pow(a.doubleValue(), b.doubleValue());
+    }
+
     public static double pow(Double a, Double b) {
         return Math.pow(a, b);
     }
 
+    public static int round(Short a) {
+        return Math.round(a.floatValue());
+    }
+
+    public static int round(Integer a) {
+        return Math.round(a.floatValue());
+    }
+
     public static int round(Float a) {
         return Math.round(a);
+    }
+
+    public static long round(Long a) {
+        return Math.round(a.doubleValue());
     }
 
     public static long round(Double a) {

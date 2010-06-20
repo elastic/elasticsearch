@@ -134,13 +134,6 @@ public class XContentBooleanFieldMapper extends XContentFieldMapper<Boolean> {
         return "F";
     }
 
-    @Override public String indexedValue(Boolean value) {
-        if (value == null) {
-            return "F";
-        }
-        return value ? "T" : "F";
-    }
-
     @Override protected Field parseCreateField(ParseContext context) throws IOException {
         if (!indexed() && !stored()) {
             return null;

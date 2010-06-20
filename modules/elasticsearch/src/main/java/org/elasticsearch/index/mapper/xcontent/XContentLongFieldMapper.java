@@ -114,11 +114,7 @@ public class XContentLongFieldMapper extends XContentNumberFieldMapper<Long> {
     }
 
     @Override public String indexedValue(String value) {
-        return indexedValue(Long.parseLong(value));
-    }
-
-    @Override public String indexedValue(Long value) {
-        return NumericUtils.longToPrefixCoded(value);
+        return NumericUtils.longToPrefixCoded(Long.parseLong(value));
     }
 
     @Override public Object valueFromTerm(String term) {

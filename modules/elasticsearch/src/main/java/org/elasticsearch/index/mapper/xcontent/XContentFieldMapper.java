@@ -325,10 +325,6 @@ public abstract class XContentFieldMapper<T> implements FieldMapper<T>, XContent
         return value;
     }
 
-    @Override public String indexedValue(T value) {
-        return value.toString();
-    }
-
     @Override public Query queryStringTermQuery(Term term) {
         return null;
     }

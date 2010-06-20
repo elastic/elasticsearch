@@ -157,11 +157,6 @@ public interface FieldMapper<T> {
     String indexedValue(String value);
 
     /**
-     * Returns the indexed value.
-     */
-    String indexedValue(T value);
-
-    /**
      * Should the field query {@link #fieldQuery(String)} be used when detecting this
      * field in query string.
      */

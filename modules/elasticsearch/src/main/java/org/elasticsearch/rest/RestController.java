@@ -71,8 +71,10 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
                 break;
             case OPTIONS:
                 optionsHandlers.insert(path, handler);
+                break;
             case HEAD:
                 headHandlers.insert(path, handler);
+                break;
             default:
                 throw new ElasticSearchIllegalArgumentException("Can't handle [" + method + "] for path [" + path + "]");
         }

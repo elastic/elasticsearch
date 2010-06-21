@@ -107,6 +107,10 @@ public class CloudIndexGateway extends AbstractIndexComponent implements IndexGa
         logger.debug("Using location [{}], container [{}], index_directory [{}], chunk_size [{}]", this.location, this.indexContainer, this.indexDirectory, this.chunkSize);
     }
 
+    @Override public String type() {
+        return "cloud";
+    }
+
     public Location indexLocation() {
         return this.location;
     }

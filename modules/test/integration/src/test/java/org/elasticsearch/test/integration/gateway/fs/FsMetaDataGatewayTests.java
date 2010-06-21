@@ -30,7 +30,7 @@ import org.testng.annotations.Test;
 import static org.elasticsearch.client.Requests.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class FsMetaDataGatewayTests extends AbstractNodesTests {
 
@@ -41,16 +41,15 @@ public class FsMetaDataGatewayTests extends AbstractNodesTests {
         closeAllNodes();
     }
 
-    @BeforeMethod void buildNode1() throws Exception {
+    @BeforeMethod void buildNodeToReset() throws Exception {
         buildNode("server1");
         // since we store (by default) the index snapshot under the gateway, resetting it will reset the index data as well
         ((InternalNode) node("server1")).injector().getInstance(Gateway.class).reset();
+        closeAllNodes();
     }
 
     @Test public void testIndexActions() throws Exception {
-        buildNode("server1");
-        ((InternalNode) node("server1")).injector().getInstance(Gateway.class).reset();
-        node("server1").start();
+        startNode("server1");
 
         client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
 

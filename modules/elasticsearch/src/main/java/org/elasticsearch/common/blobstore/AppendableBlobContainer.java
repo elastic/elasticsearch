@@ -17,24 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway;
+package org.elasticsearch.common.blobstore;
 
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface Gateway extends LifecycleComponent<Gateway> {
+public interface AppendableBlobContainer extends BlobContainer {
 
-    String type();
+    interface AppendBlobListener {
+        void withStream(StreamOutput os) throws IOException;
 
-    void write(MetaData metaData) throws GatewayException;
+        void onCompleted();
 
-    MetaData read() throws GatewayException;
+        void onFailure(Throwable t);
+    }
 
-    Class<? extends Module> suggestIndexGateway();
+    interface AppendableBlob {
 
-    void reset() throws Exception;
+        void append(AppendBlobListener listener);
+
+        void close();
+    }
+
+    AppendableBlob appendBlob(String blobName, boolean append) throws IOException;
 }

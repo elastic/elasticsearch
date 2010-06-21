@@ -27,6 +27,8 @@ import org.elasticsearch.index.IndexComponent;
  */
 public interface IndexGateway extends IndexComponent, CloseableIndexComponent {
 
+    String type();
+
     Class<? extends IndexShardGateway> shardGatewayClass();
 
 }

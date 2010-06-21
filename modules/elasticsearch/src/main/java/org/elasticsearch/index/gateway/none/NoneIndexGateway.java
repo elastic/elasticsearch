@@ -28,12 +28,16 @@ import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.settings.IndexSettings;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class NoneIndexGateway extends AbstractIndexComponent implements IndexGateway {
 
     @Inject public NoneIndexGateway(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
+    }
+
+    @Override public String type() {
+        return "none";
     }
 
     @Override public Class<? extends IndexShardGateway> shardGatewayClass() {

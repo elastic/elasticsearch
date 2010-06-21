@@ -35,7 +35,7 @@ import java.io.*;
  */
 public abstract class Streams {
 
-    public static final int BUFFER_SIZE = 4096;
+    public static final int BUFFER_SIZE = 1024 * 8;
 
 
     //---------------------------------------------------------------------
@@ -50,7 +50,7 @@ public abstract class Streams {
      * @return the number of bytes copied
      * @throws IOException in case of I/O errors
      */
-    public static int copy(File in, File out) throws IOException {
+    public static long copy(File in, File out) throws IOException {
         Preconditions.checkNotNull(in, "No input File specified");
         Preconditions.checkNotNull(out, "No output File specified");
         return copy(new BufferedInputStream(new FileInputStream(in)),
@@ -98,11 +98,11 @@ public abstract class Streams {
      * @return the number of bytes copied
      * @throws IOException in case of I/O errors
      */
-    public static int copy(InputStream in, OutputStream out) throws IOException {
+    public static long copy(InputStream in, OutputStream out) throws IOException {
         Preconditions.checkNotNull(in, "No InputStream specified");
         Preconditions.checkNotNull(out, "No OutputStream specified");
         try {
-            int byteCount = 0;
+            long byteCount = 0;
             byte[] buffer = new byte[BUFFER_SIZE];
             int bytesRead;
             while ((bytesRead = in.read(buffer)) != -1) {

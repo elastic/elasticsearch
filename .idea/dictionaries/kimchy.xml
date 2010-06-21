@@ -2,6 +2,7 @@
   <dictionary name="kimchy">
     <words>
       <w>addr</w>
+      <w>appendable</w>
       <w>args</w>
       <w>asciifolding</w>
       <w>attr</w>

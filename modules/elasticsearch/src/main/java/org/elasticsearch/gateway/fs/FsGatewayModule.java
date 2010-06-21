@@ -23,7 +23,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.gateway.Gateway;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class FsGatewayModule extends AbstractModule {
 

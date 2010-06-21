@@ -17,24 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway;
+package org.elasticsearch.common.blobstore.fs;
 
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.blobstore.BlobMetaData;
+
+import java.io.File;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface Gateway extends LifecycleComponent<Gateway> {
+public class FsBlobMetaData implements BlobMetaData {
 
-    String type();
+    private final File file;
 
-    void write(MetaData metaData) throws GatewayException;
+    public FsBlobMetaData(File file) {
+        this.file = file;
+    }
 
-    MetaData read() throws GatewayException;
+    @Override public String name() {
+        return file.getName();
+    }
 
-    Class<? extends Module> suggestIndexGateway();
-
-    void reset() throws Exception;
+    @Override public long sizeInBytes() {
+        return file.length();
+    }
 }

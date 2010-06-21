@@ -34,8 +34,14 @@ import org.elasticsearch.index.gateway.none.NoneIndexGatewayModule;
  */
 public class NoneGateway extends AbstractLifecycleComponent<Gateway> implements Gateway {
 
+    public static final String TYPE = "none";
+
     @Inject public NoneGateway(Settings settings) {
         super(settings);
+    }
+
+    @Override public String type() {
+        return TYPE;
     }
 
     @Override protected void doStart() throws ElasticSearchException {

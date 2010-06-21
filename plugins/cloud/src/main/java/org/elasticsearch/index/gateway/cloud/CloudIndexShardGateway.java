@@ -120,6 +120,10 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
         logger.trace("Using location [{}], container [{}], shard_directory [{}]", this.shardLocation, this.container, this.shardDirectory);
     }
 
+    @Override public String type() {
+        return "cloud";
+    }
+
     @Override public boolean requiresSnapshotScheduling() {
         return true;
     }

@@ -45,6 +45,10 @@ public class BytesStreamInput extends StreamInput {
         this.count = count;
     }
 
+    public int position() {
+        return this.pos;
+    }
+
     @Override public int read() throws IOException {
         return (pos < count) ? (buf[pos++] & 0xff) : -1;
     }

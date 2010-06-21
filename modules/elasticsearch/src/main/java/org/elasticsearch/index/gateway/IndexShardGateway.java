@@ -34,6 +34,8 @@ import static org.elasticsearch.common.unit.TimeValue.*;
  */
 public interface IndexShardGateway extends IndexShardComponent, CloseableIndexComponent {
 
+    String type();
+
     /**
      * Recovers the state of the shard from the gateway.
      */
@@ -42,7 +44,7 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
     /**
      * Snapshots the given shard into the gateway.
      */
-    SnapshotStatus snapshot(Snapshot snapshot);
+    SnapshotStatus snapshot(Snapshot snapshot) throws IndexShardGatewaySnapshotFailedException;
 
     /**
      * Returns <tt>true</tt> if this gateway requires scheduling management for snapshot

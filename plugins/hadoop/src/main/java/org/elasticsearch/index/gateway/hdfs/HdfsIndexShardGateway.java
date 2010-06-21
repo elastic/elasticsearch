@@ -114,6 +114,10 @@ public class HdfsIndexShardGateway extends AbstractIndexShardComponent implement
         }
     }
 
+    @Override public String type() {
+        return "hdfs";
+    }
+
     @Override public boolean requiresSnapshotScheduling() {
         return true;
     }

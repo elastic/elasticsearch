@@ -17,24 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway;
+package org.elasticsearch.test.integration.gateway.fs;
 
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.test.integration.gateway.AbstractSimpleIndexGatewayTests;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface Gateway extends LifecycleComponent<Gateway> {
+public class ChunkFsIndexGatewayTests extends AbstractSimpleIndexGatewayTests {
 
-    String type();
-
-    void write(MetaData metaData) throws GatewayException;
-
-    MetaData read() throws GatewayException;
-
-    Class<? extends Module> suggestIndexGateway();
-
-    void reset() throws Exception;
 }

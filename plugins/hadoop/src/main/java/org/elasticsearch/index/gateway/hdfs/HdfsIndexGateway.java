@@ -64,6 +64,10 @@ public class HdfsIndexGateway extends AbstractIndexComponent implements IndexGat
         this.indexPath = new Path(new Path(path, "indices"), index.name());
     }
 
+    @Override public String type() {
+        return "hdfs";
+    }
+
     public FileSystem fileSystem() {
         return this.fileSystem;
     }

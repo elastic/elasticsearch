@@ -90,6 +90,10 @@ public class HdfsGateway extends AbstractLifecycleComponent<Gateway> implements 
         logger.debug("Latest metadata found at index [" + currentIndex + "]");
     }
 
+    @Override public String type() {
+        return "fs";
+    }
+
     public FileSystem fileSystem() {
         return this.fileSystem;
     }

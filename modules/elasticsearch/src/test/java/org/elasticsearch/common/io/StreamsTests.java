@@ -39,9 +39,9 @@ public class StreamsTests {
         byte[] content = "content".getBytes();
         ByteArrayInputStream in = new ByteArrayInputStream(content);
         ByteArrayOutputStream out = new ByteArrayOutputStream(content.length);
-        int count = copy(in, out);
+        long count = copy(in, out);
 
-        assertThat(count, equalTo(content.length));
+        assertThat(count, equalTo((long) content.length));
         assertThat(Arrays.equals(content, out.toByteArray()), equalTo(true));
     }
 

@@ -17,24 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway;
+package org.elasticsearch.common.blobstore.support;
 
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.blobstore.BlobMetaData;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface Gateway extends LifecycleComponent<Gateway> {
+public class PlainBlobMetaData implements BlobMetaData {
 
-    String type();
+    private final String name;
 
-    void write(MetaData metaData) throws GatewayException;
+    private final long sizeInBytes;
 
-    MetaData read() throws GatewayException;
+    public PlainBlobMetaData(String name, long sizeInBytes) {
+        this.name = name;
+        this.sizeInBytes = sizeInBytes;
+    }
 
-    Class<? extends Module> suggestIndexGateway();
+    @Override public String name() {
+        return this.name;
+    }
 
-    void reset() throws Exception;
+    @Override public long sizeInBytes() {
+        return this.sizeInBytes;
+    }
 }

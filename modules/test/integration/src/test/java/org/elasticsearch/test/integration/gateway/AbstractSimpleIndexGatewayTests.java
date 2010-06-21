@@ -52,10 +52,11 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         buildNode("server1");
         // since we store (by default) the index snapshot under the gateway, resetting it will reset the index data as well
         ((InternalNode) node("server1")).injector().getInstance(Gateway.class).reset();
+        closeAllNodes();
     }
 
     @Test public void testSnapshotOperations() throws Exception {
-        node("server1").start();
+        startNode("server1");
 
         // Translog tests
 

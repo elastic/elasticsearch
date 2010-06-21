@@ -23,7 +23,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.index.gateway.IndexGateway;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class NoneIndexGatewayModule extends AbstractModule {
 

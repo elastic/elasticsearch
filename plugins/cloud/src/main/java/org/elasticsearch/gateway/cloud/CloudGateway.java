@@ -103,6 +103,10 @@ public class CloudGateway extends AbstractLifecycleComponent<Gateway> implements
         logger.debug("Latest metadata found at index [" + currentIndex + "]");
     }
 
+    @Override public String type() {
+        return "cloud";
+    }
+
     public String container() {
         return this.container;
     }

@@ -44,6 +44,7 @@ public class FsImmutableBlobContainer extends AbstractFsBlobContainer implements
                     raf = new RandomAccessFile(file, "rw");
                 } catch (FileNotFoundException e) {
                     listener.onFailure(e);
+                    return;
                 }
                 try {
                     try {

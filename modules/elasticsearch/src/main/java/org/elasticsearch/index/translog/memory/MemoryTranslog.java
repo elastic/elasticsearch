@@ -36,7 +36,7 @@ import java.util.Queue;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 @ThreadSafe
 public class MemoryTranslog extends AbstractIndexShardComponent implements Translog {

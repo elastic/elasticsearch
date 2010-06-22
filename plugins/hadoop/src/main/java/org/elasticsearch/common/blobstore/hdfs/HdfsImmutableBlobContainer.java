@@ -17,32 +17,35 @@
  * under the License.
  */
 
-package org.elasticsearch.common.blobstore.fs;
+package org.elasticsearch.common.blobstore.hdfs;
 
+import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.Path;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobStores;
-import org.elasticsearch.common.io.FileSystemUtils;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class FsImmutableBlobContainer extends AbstractFsBlobContainer implements ImmutableBlobContainer {
+public class HdfsImmutableBlobContainer extends AbstractHdfsBlobContainer implements ImmutableBlobContainer {
 
-    public FsImmutableBlobContainer(FsBlobStore blobStore, BlobPath blobPath, File path) {
+    public HdfsImmutableBlobContainer(HdfsBlobStore blobStore, BlobPath blobPath, Path path) {
         super(blobStore, blobPath, path);
     }
 
     @Override public void writeBlob(final String blobName, final InputStream is, final long sizeInBytes, final WriterListener listener) {
         blobStore.executorService().execute(new Runnable() {
             @Override public void run() {
-                File file = new File(path, blobName);
-                RandomAccessFile raf;
+                Path file = new Path(path, blobName);
+
+                FSDataOutputStream fileStream;
                 try {
-                    raf = new RandomAccessFile(file, "rw");
-                } catch (FileNotFoundException e) {
+                    fileStream = blobStore.fileSystem().create(file, true);
+                } catch (IOException e) {
                     listener.onFailure(e);
                     return;
                 }
@@ -51,7 +54,7 @@ public class FsImmutableBlobContainer extends AbstractFsBlobContainer implements
                         byte[] buffer = new byte[16 * 1024];
                         int bytesRead;
                         while ((bytesRead = is.read(buffer)) != -1) {
-                            raf.write(buffer, 0, bytesRead);
+                            fileStream.write(buffer, 0, bytesRead);
                         }
                     } finally {
                         try {
@@ -60,18 +63,17 @@ public class FsImmutableBlobContainer extends AbstractFsBlobContainer implements
                             // do nothing
                         }
                         try {
-                            raf.close();
+                            fileStream.close();
                         } catch (IOException ex) {
                             // do nothing
                         }
                     }
-                    FileSystemUtils.syncFile(file);
                     listener.onCompleted();
                 } catch (Exception e) {
                     // just on the safe size, try and delete it on failure
                     try {
-                        if (file.exists()) {
-                            file.delete();
+                        if (blobStore.fileSystem().exists(file)) {
+                            blobStore.fileSystem().delete(file, true);
                         }
                     } catch (Exception e1) {
                         // ignore

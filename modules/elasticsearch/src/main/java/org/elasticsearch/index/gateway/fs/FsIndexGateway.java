@@ -21,7 +21,6 @@ package org.elasticsearch.index.gateway.fs;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.gateway.IndexShardGateway;
@@ -33,7 +32,7 @@ import org.elasticsearch.index.settings.IndexSettings;
  */
 public class FsIndexGateway extends BlobStoreIndexGateway {
 
-    @Inject public FsIndexGateway(Index index, @IndexSettings Settings indexSettings, Environment environment, Gateway gateway) {
+    @Inject public FsIndexGateway(Index index, @IndexSettings Settings indexSettings, Gateway gateway) {
         super(index, indexSettings, gateway);
     }
 

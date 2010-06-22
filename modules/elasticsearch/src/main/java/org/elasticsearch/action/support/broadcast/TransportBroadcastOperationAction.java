@@ -221,24 +221,29 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                     }
                 } else {
                     DiscoveryNode node = nodes.get(shard.currentNodeId());
-                    transportService.sendRequest(node, transportShardAction(), shardRequest, new BaseTransportResponseHandler<ShardResponse>() {
-                        @Override public ShardResponse newInstance() {
-                            return newShardResponse();
-                        }
+                    if (node == null) {
+                        // no node connected, act as failure
+                        onOperation(shard, shardIt, null, false);
+                    } else {
+                        transportService.sendRequest(node, transportShardAction(), shardRequest, new BaseTransportResponseHandler<ShardResponse>() {
+                            @Override public ShardResponse newInstance() {
+                                return newShardResponse();
+                            }
 
-                        @Override public void handleResponse(ShardResponse response) {
-                            onOperation(shard, response, false);
-                        }
+                            @Override public void handleResponse(ShardResponse response) {
+                                onOperation(shard, response, false);
+                            }
 
-                        @Override public void handleException(RemoteTransportException e) {
-                            onOperation(shard, shardIt, e, false);
-                        }
+                            @Override public void handleException(RemoteTransportException e) {
+                                onOperation(shard, shardIt, e, false);
+                            }
 
-                        @Override public boolean spawn() {
-                            // we never spawn here, we will span if needed in onOperation
-                            return false;
-                        }
-                    });
+                            @Override public boolean spawn() {
+                                // we never spawn here, we will span if needed in onOperation
+                                return false;
+                            }
+                        });
+                    }
                 }
             }
         }

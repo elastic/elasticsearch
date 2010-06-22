@@ -183,15 +183,19 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                 onFirstPhaseResult(shard, shardIt, null);
             } else {
                 DiscoveryNode node = nodes.get(shard.currentNodeId());
-                sendExecuteFirstPhase(node, internalSearchRequest(shard, request), new SearchServiceListener<FirstResult>() {
-                    @Override public void onResult(FirstResult result) {
-                        onFirstPhaseResult(shard, result, shardIt);
-                    }
+                if (node == null) {
+                    onFirstPhaseResult(shard, shardIt, null);
+                } else {
+                    sendExecuteFirstPhase(node, internalSearchRequest(shard, request), new SearchServiceListener<FirstResult>() {
+                        @Override public void onResult(FirstResult result) {
+                            onFirstPhaseResult(shard, result, shardIt);
+                        }
 
-                    @Override public void onFailure(Throwable t) {
-                        onFirstPhaseResult(shard, shardIt, t);
-                    }
-                });
+                        @Override public void onFailure(Throwable t) {
+                            onFirstPhaseResult(shard, shardIt, t);
+                        }
+                    });
+                }
             }
         }
 

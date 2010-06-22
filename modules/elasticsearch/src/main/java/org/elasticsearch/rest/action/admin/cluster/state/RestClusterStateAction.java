@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
@@ -58,6 +60,11 @@ public class RestClusterStateAction extends BaseRestHandler {
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
+        ClusterStateRequest clusterStateRequest = Requests.clusterState();
+        clusterStateRequest.filterNodes(request.paramAsBoolean("filter_nodes", clusterStateRequest.filterNodes()));
+        clusterStateRequest.filterRoutingTable(request.paramAsBoolean("filter_routing_table", clusterStateRequest.filterRoutingTable()));
+        clusterStateRequest.filterMetaData(request.paramAsBoolean("filter_metadata", clusterStateRequest.filterMetaData()));
+        clusterStateRequest.filteredIndices(RestActions.splitIndices(request.param("filter_indices", null)));
         client.admin().cluster().state(new ClusterStateRequest(), new ActionListener<ClusterStateResponse>() {
             @Override public void onResponse(ClusterStateResponse response) {
                 try {

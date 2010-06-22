@@ -246,7 +246,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             boolean foundPrimary = false;
             for (final ShardRouting shard : shards) {
                 if (shard.primary()) {
-                    if (!shard.active()) {
+                    if (!shard.active() || !nodes.nodeExists(shard.currentNodeId())) {
                         retryPrimary(fromClusterEvent, shard);
                         return false;
                     }
@@ -403,7 +403,10 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 // we index on a backup that is initializing as well since we might not have got the event
                 // yet that it was started. We will get an exception IllegalShardState exception if its not started
                 // and that's fine, we will ignore it
-                if (shard.unassigned()) {
+
+                // if we don't have that node, it means that it might have failed and will be created again, in
+                // this case, we don't have to do the operation, and just let it failover
+                if (shard.unassigned() || !nodes.nodeExists(shard.currentNodeId())) {
                     if (counter.decrementAndGet() == 0) {
                         if (alreadyThreaded || !request.listenerThreaded()) {
                             listener.onResponse(response);

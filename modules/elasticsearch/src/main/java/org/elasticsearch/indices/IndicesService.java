@@ -30,7 +30,7 @@ import org.elasticsearch.index.service.IndexService;
 import java.util.Set;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 @ThreadSafe
 public interface IndicesService extends Iterable<IndexService>, LifecycleComponent<IndicesService> {

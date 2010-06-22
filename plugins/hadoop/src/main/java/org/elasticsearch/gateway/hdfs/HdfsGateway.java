@@ -20,22 +20,16 @@
 package org.elasticsearch.gateway.hdfs;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.*;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.blobstore.hdfs.HdfsBlobStore;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
-import org.elasticsearch.gateway.Gateway;
-import org.elasticsearch.gateway.GatewayException;
+import org.elasticsearch.gateway.blobstore.BlobStoreGateway;
 
 import java.io.IOException;
 import java.net.URI;
@@ -44,25 +38,17 @@ import java.util.Map;
 /**
  * @author kimchy (shay.banon)
  */
-public class HdfsGateway extends AbstractLifecycleComponent<Gateway> implements Gateway {
+public class HdfsGateway extends BlobStoreGateway {
 
     private final boolean closeFileSystem;
 
     private final FileSystem fileSystem;
 
-    private final String uri;
-
-    private final Path path;
-
-    private final Path metaDataPath;
-
-    private volatile int currentIndex;
-
     @Inject public HdfsGateway(Settings settings, ClusterName clusterName) throws IOException {
         super(settings);
 
         this.closeFileSystem = componentSettings.getAsBoolean("close_fs", true);
-        this.uri = componentSettings.get("uri");
+        String uri = componentSettings.get("uri");
         if (uri == null) {
             throw new ElasticSearchIllegalArgumentException("hdfs gateway requires the 'uri' setting to be set");
         }
@@ -70,11 +56,9 @@ public class HdfsGateway extends AbstractLifecycleComponent<Gateway> implements 
         if (path == null) {
             throw new ElasticSearchIllegalArgumentException("hdfs gateway requires the 'path' path setting to be set");
         }
-        this.path = new Path(new Path(path), clusterName.value());
+        Path hPath = new Path(new Path(path), clusterName.value());
 
-        logger.debug("Using uri [{}], path [{}]", this.uri, this.path);
-
-        this.metaDataPath = new Path(this.path, "metadata");
+        logger.debug("Using uri [{}], path [{}]", uri, hPath);
 
         Configuration conf = new Configuration();
         Settings hdfsSettings = settings.getByPrefix("hdfs.conf.");
@@ -84,141 +68,23 @@ public class HdfsGateway extends AbstractLifecycleComponent<Gateway> implements 
 
         fileSystem = FileSystem.get(URI.create(uri), conf);
 
-        fileSystem.mkdirs(metaDataPath);
-
-        this.currentIndex = findLatestIndex();
-        logger.debug("Latest metadata found at index [" + currentIndex + "]");
+        initialize(new HdfsBlobStore(settings, fileSystem, hPath), clusterName);
     }
 
     @Override public String type() {
-        return "fs";
-    }
-
-    public FileSystem fileSystem() {
-        return this.fileSystem;
-    }
-
-    public Path path() {
-        return this.path;
-    }
-
-    @Override protected void doStart() throws ElasticSearchException {
-    }
-
-    @Override protected void doStop() throws ElasticSearchException {
-    }
-
-    @Override protected void doClose() throws ElasticSearchException {
-        if (closeFileSystem) {
-            try {
-                fileSystem.close();
-            } catch (IOException e) {
-                logger.warn("Failed to close file system {}", fileSystem);
-            }
-        }
-    }
-
-    @Override public void write(MetaData metaData) throws GatewayException {
-        try {
-            final Path file = new Path(metaDataPath, "metadata-" + (currentIndex + 1));
-
-            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(XContentType.JSON);
-            builder.prettyPrint();
-            builder.startObject();
-            MetaData.Builder.toXContent(metaData, builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
-
-            FSDataOutputStream fileStream = fileSystem.create(file, true);
-            fileStream.write(builder.unsafeBytes(), 0, builder.unsafeBytesLength());
-            fileStream.flush();
-            fileStream.sync();
-            fileStream.close();
-
-            currentIndex++;
-
-            FileStatus[] oldFiles = fileSystem.listStatus(metaDataPath, new PathFilter() {
-                @Override public boolean accept(Path path) {
-                    return path.getName().startsWith("metadata-") && !path.getName().equals(file.getName());
-                }
-            });
-
-            if (oldFiles != null) {
-                for (FileStatus oldFile : oldFiles) {
-                    fileSystem.delete(oldFile.getPath(), false);
-                }
-            }
-
-        } catch (IOException e) {
-            throw new GatewayException("can't write new metadata file into the gateway", e);
-        }
-    }
-
-    @Override public MetaData read() throws GatewayException {
-        try {
-            if (currentIndex == -1)
-                return null;
-
-            Path file = new Path(metaDataPath, "metadata-" + currentIndex);
-            return readMetaData(file);
-        } catch (GatewayException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new GatewayException("can't read metadata file from the gateway", e);
-        }
+        return "hdfs";
     }
 
     @Override public Class<? extends Module> suggestIndexGateway() {
         return HdfsIndexGatewayModule.class;
     }
 
-    @Override public void reset() throws IOException {
-        fileSystem.delete(path, true);
-    }
-
-    private int findLatestIndex() throws IOException {
-        FileStatus[] files = fileSystem.listStatus(metaDataPath, new PathFilter() {
-            @Override public boolean accept(Path path) {
-                return path.getName().startsWith("metadata-");
-            }
-        });
-        if (files == null || files.length == 0) {
-            return -1;
-        }
-
-        int index = -1;
-        for (FileStatus file : files) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("[findLatestMetadata]: Processing file [" + file + "]");
-            }
-            String name = file.getPath().getName();
-            int fileIndex = Integer.parseInt(name.substring(name.indexOf('-') + 1));
-            if (fileIndex >= index) {
-                // try and read the meta data
-                try {
-                    readMetaData(file.getPath());
-                    index = fileIndex;
-                } catch (Exception e) {
-                    logger.warn("[findLatestMetadata]: Failed to read metadata from [" + file + "], ignoring...", e);
-                }
-            }
-        }
-
-        return index;
-    }
-
-    private MetaData readMetaData(Path file) throws IOException {
-        FSDataInputStream fileStream = fileSystem.open(file);
-        XContentParser parser = null;
-        try {
-            parser = XContentFactory.xContent(XContentType.JSON).createParser(fileStream);
-            return MetaData.Builder.fromXContent(parser, settings);
-        } finally {
-            if (parser != null) {
-                parser.close();
-            }
+    @Override protected void doClose() throws ElasticSearchException {
+        super.doClose();
+        if (closeFileSystem) {
             try {
-                fileStream.close();
-            } catch (Exception e) {
+                fileSystem.close();
+            } catch (IOException e) {
                 // ignore
             }
         }

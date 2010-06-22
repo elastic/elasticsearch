@@ -220,7 +220,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
 
             if (translogBlob == null) {
                 try {
-                    translogBlob = translogContainer.appendBlob("translog-" + translogSnapshot.translogId(), !snapshot.newTranslogCreated());
+                    translogBlob = translogContainer.appendBlob("translog-" + translogSnapshot.translogId());
                 } catch (IOException e) {
                     throw new IndexShardGatewaySnapshotFailedException(shardId, "Failed to create translog", e);
                 }
@@ -382,7 +382,25 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                     }
                 }
                 indexShard.performRecovery(operations);
-                return new RecoveryStatus.Translog(indexShard.translog().currentId(), operations.size(), new ByteSizeValue(translogData.length, ByteSizeUnit.BYTES));
+
+                // clean all the other translogs
+                for (Long translogIdToDelete : translogIds) {
+                    if (!translogId.equals(translogIdToDelete)) {
+                        try {
+                            translogContainer.deleteBlob("translog-" + translogIdToDelete);
+                        } catch (Exception e) {
+                            // ignore
+                        }
+                    }
+                }
+
+                // only if we can append to an existing translog we should use the current id and continue to append to it
+                long lastTranslogId = indexShard.translog().currentId();
+                if (!translogContainer.canAppendToExistingBlob()) {
+                    lastTranslogId = -1;
+                }
+
+                return new RecoveryStatus.Translog(lastTranslogId, operations.size(), new ByteSizeValue(translogData.length, ByteSizeUnit.BYTES));
             } catch (Exception e) {
                 lastException = e;
                 logger.debug("Failed to read translog, will try the next one", e);

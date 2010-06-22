@@ -43,5 +43,10 @@ public interface AppendableBlobContainer extends BlobContainer {
         void close();
     }
 
-    AppendableBlob appendBlob(String blobName, boolean append) throws IOException;
+    /**
+     * Returns of an appended blob can be opened on an existing blob.
+     */
+    boolean canAppendToExistingBlob();
+
+    AppendableBlob appendBlob(String blobName) throws IOException;
 }

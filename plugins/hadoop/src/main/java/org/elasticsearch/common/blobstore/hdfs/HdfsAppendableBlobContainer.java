@@ -17,40 +17,46 @@
  * under the License.
  */
 
-package org.elasticsearch.common.blobstore.fs;
+package org.elasticsearch.common.blobstore.hdfs;
 
+import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.Path;
 import org.elasticsearch.common.blobstore.AppendableBlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.DataOutputStreamOutput;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class FsAppendableBlobContainer extends AbstractFsBlobContainer implements AppendableBlobContainer {
+public class HdfsAppendableBlobContainer extends AbstractHdfsBlobContainer implements AppendableBlobContainer {
 
-    public FsAppendableBlobContainer(FsBlobStore blobStore, BlobPath blobPath, File path) {
+    public HdfsAppendableBlobContainer(HdfsBlobStore blobStore, BlobPath blobPath, Path path) {
         super(blobStore, blobPath, path);
     }
 
     @Override public AppendableBlob appendBlob(String blobName) throws IOException {
-        return new FsAppendableBlob(new File(path, blobName));
+        return new HdfsAppendableBlob(new Path(path, blobName));
     }
 
     @Override public boolean canAppendToExistingBlob() {
-        return true;
+        return false;
     }
 
-    private class FsAppendableBlob implements AppendableBlob {
+    private class HdfsAppendableBlob implements AppendableBlob {
 
-        private final File file;
+        private final Path file;
 
-        public FsAppendableBlob(File file) throws IOException {
+        private final FSDataOutputStream fsDataStream;
+
+        private final DataOutputStreamOutput out;
+
+        public HdfsAppendableBlob(Path file) throws IOException {
             this.file = file;
+            this.fsDataStream = blobStore.fileSystem().create(file, true);
+            this.out = new DataOutputStreamOutput(fsDataStream);
         }
 
         @Override public void append(final AppendBlobListener listener) {
@@ -58,29 +64,24 @@ public class FsAppendableBlobContainer extends AbstractFsBlobContainer implement
                 @Override public void run() {
                     RandomAccessFile raf = null;
                     try {
-                        raf = new RandomAccessFile(file, "rw");
-                        raf.seek(raf.length());
-                        listener.withStream(new DataOutputStreamOutput(raf));
+                        listener.withStream(out);
+                        out.flush();
+                        fsDataStream.flush();
+                        fsDataStream.sync();
                         listener.onCompleted();
-                        raf.close();
-                        FileSystemUtils.syncFile(file);
                     } catch (IOException e) {
                         listener.onFailure(e);
-                    } finally {
-                        if (raf != null) {
-                            try {
-                                raf.close();
-                            } catch (IOException e) {
-                                // ignore
-                            }
-                        }
                     }
                 }
             });
         }
 
         @Override public void close() {
-            // nothing to do there
+            try {
+                fsDataStream.close();
+            } catch (IOException e) {
+                // ignore
+            }
         }
     }
 }

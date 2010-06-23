@@ -54,7 +54,6 @@ import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerModule;
-import org.elasticsearch.index.store.fs.FsStores;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.jmx.JmxModule;
@@ -219,7 +218,7 @@ public final class InternalNode implements Node {
 
         // Not pretty, but here we go
         try {
-            FileSystemUtils.deleteRecursively(new File(new File(environment.workWithClusterFile(), FsStores.DEFAULT_INDICES_LOCATION),
+            FileSystemUtils.deleteRecursively(new File(new File(environment.workWithClusterFile(), "indices"),
                     injector.getInstance(ClusterService.class).state().nodes().localNodeId()));
         } catch (Exception e) {
             // ignore

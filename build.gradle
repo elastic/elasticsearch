@@ -41,7 +41,7 @@ allprojects {
         mavenRepo urls: 'https://repository.jboss.org/nexus/content/groups/public'
         mavenRepo urls: 'http://repository.codehaus.org/'
         mavenRepo urls: 'http://elasticsearch.googlecode.com/svn/maven'
-        mavenRepo urls: 'http://oss.sonatype.org/content/repositories/snapshots'
+        mavenRepo urls: 'http://oss.sonatype.org/content/repositories/releases'
     }
 }
 

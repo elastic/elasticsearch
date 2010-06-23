@@ -38,7 +38,6 @@ import org.elasticsearch.common.inject.Guice;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Injectors;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
@@ -50,6 +49,8 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.NodeEnvironmentModule;
 import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.http.HttpServer;
@@ -76,7 +77,6 @@ import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 
@@ -107,7 +107,7 @@ public final class InternalNode implements Node {
         Tuple<Settings, Environment> tuple = InternalSettingsPerparer.prepareSettings(pSettings, loadConfigSettings);
 
         ESLogger logger = Loggers.getLogger(Node.class, tuple.v1().get("name"));
-        logger.info("{{}}[{}]: Initializing ...", Version.full(), JvmInfo.jvmInfo().pid());
+        logger.info("{{}}[{}]: initializing ...", Version.full(), JvmInfo.jvmInfo().pid());
 
         this.pluginsService = new PluginsService(tuple.v1(), tuple.v2());
         this.settings = pluginsService.updatedSettings();
@@ -122,6 +122,7 @@ public final class InternalNode implements Node {
         modules.add(new ScriptModule());
         modules.add(new JmxModule(settings));
         modules.add(new EnvironmentModule(environment));
+        modules.add(new NodeEnvironmentModule());
         modules.add(new ClusterNameModule(settings));
         modules.add(new ThreadPoolModule(settings));
         modules.add(new TimerModule());
@@ -146,7 +147,7 @@ public final class InternalNode implements Node {
 
         client = injector.getInstance(Client.class);
 
-        logger.info("{{}}[{}]: Initialized", Version.full(), JvmInfo.jvmInfo().pid());
+        logger.info("{{}}[{}]: initialized", Version.full(), JvmInfo.jvmInfo().pid());
     }
 
     @Override public Settings settings() {
@@ -163,7 +164,7 @@ public final class InternalNode implements Node {
         }
 
         ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
-        logger.info("{{}}[{}]: Starting ...", Version.full(), JvmInfo.jvmInfo().pid());
+        logger.info("{{}}[{}]: starting ...", Version.full(), JvmInfo.jvmInfo().pid());
 
         for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
             injector.getInstance(plugin).start();
@@ -186,7 +187,7 @@ public final class InternalNode implements Node {
         }
         injector.getInstance(JmxService.class).connectAndRegister(discoService.nodeDescription(), injector.getInstance(NetworkService.class));
 
-        logger.info("{{}}[{}]: Started", Version.full(), JvmInfo.jvmInfo().pid());
+        logger.info("{{}}[{}]: started", Version.full(), JvmInfo.jvmInfo().pid());
 
         return this;
     }
@@ -196,7 +197,7 @@ public final class InternalNode implements Node {
             return this;
         }
         ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
-        logger.info("{{}}[{}]: Stopping ...", Version.full(), JvmInfo.jvmInfo().pid());
+        logger.info("{{}}[{}]: stopping ...", Version.full(), JvmInfo.jvmInfo().pid());
 
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).stop();
@@ -216,17 +217,11 @@ public final class InternalNode implements Node {
             injector.getInstance(plugin).stop();
         }
 
-        // Not pretty, but here we go
-        try {
-            FileSystemUtils.deleteRecursively(new File(new File(environment.workWithClusterFile(), "indices"),
-                    injector.getInstance(ClusterService.class).state().nodes().localNodeId()));
-        } catch (Exception e) {
-            // ignore
-        }
+        injector.getInstance(NodeEnvironment.class).close();
 
         Injectors.close(injector);
 
-        logger.info("{{}}[{}]: Stopped", Version.full(), JvmInfo.jvmInfo().pid());
+        logger.info("{{}}[{}]: stopped", Version.full(), JvmInfo.jvmInfo().pid());
 
         return this;
     }
@@ -240,7 +235,7 @@ public final class InternalNode implements Node {
         }
 
         ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
-        logger.info("{{}}[{}]: Closing ...", Version.full(), JvmInfo.jvmInfo().pid());
+        logger.info("{{}}[{}]: closing ...", Version.full(), JvmInfo.jvmInfo().pid());
 
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).close();
@@ -276,7 +271,7 @@ public final class InternalNode implements Node {
 
         ThreadLocals.clearReferencesThreadLocals();
 
-        logger.info("{{}}[{}]: Closed", Version.full(), JvmInfo.jvmInfo().pid());
+        logger.info("{{}}[{}]: closed", Version.full(), JvmInfo.jvmInfo().pid());
     }
 
     public Injector injector() {

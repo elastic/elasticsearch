@@ -20,10 +20,9 @@
 package org.elasticsearch.index.store.fs;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.LocalNodeId;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStore;
@@ -37,15 +36,13 @@ public abstract class FsIndexStore extends AbstractIndexComponent implements Ind
 
     private final File location;
 
-    public FsIndexStore(Index index, @IndexSettings Settings indexSettings, Environment environment, @LocalNodeId String localNodeId) {
+    public FsIndexStore(Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv) {
         super(index, indexSettings);
-        this.location = new File(new File(new File(environment.workWithClusterFile(), "indices"), localNodeId), index.name());
+        this.location = new File(new File(nodeEnv.nodeFile(), "indices"), index.name());
 
         if (!location.exists()) {
-            boolean result = false;
             for (int i = 0; i < 5; i++) {
-                result = location.mkdirs();
-                if (result) {
+                if (location.mkdirs()) {
                     break;
                 }
             }

@@ -403,7 +403,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                 return new RecoveryStatus.Translog(lastTranslogId, operations.size(), new ByteSizeValue(translogData.length, ByteSizeUnit.BYTES));
             } catch (Exception e) {
                 lastException = e;
-                logger.debug("Failed to read translog, will try the next one", e);
+                logger.debug("failed to read translog, will try the next one", e);
             }
         }
         throw new IndexShardGatewayRecoveryException(shardId, "Failed to recovery translog", lastException);
@@ -418,6 +418,11 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         }
         TObjectLongHashMap<String> combinedBlobs = buildCombinedPartsBlobs(blobs);
 
+        int numberOfFiles = 0;
+        long totalSize = 0;
+        int numberOfExistingFiles = 0;
+        long existingTotalSize = 0;
+
         // filter out only the files that we need to recover, and reuse ones that exists in the store
         List<String> filesToRecover = new ArrayList<String>();
         for (TObjectLongIterator<String> it = combinedBlobs.iterator(); it.hasNext();) {
@@ -425,10 +430,14 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             // if the store has the file, and it has the same length, don't recover it
             try {
                 if (store.directory().fileExists(it.key()) && store.directory().fileLength(it.key()) == it.value()) {
+                    numberOfExistingFiles++;
+                    existingTotalSize += it.value();
                     if (logger.isTraceEnabled()) {
                         logger.trace("not recovering [{}], exists in local store and has same size [{}]", it.key(), new ByteSizeValue(it.value()));
                     }
                 } else {
+                    numberOfFiles++;
+                    totalSize += it.value();
                     filesToRecover.add(it.key());
                 }
             } catch (Exception e) {
@@ -437,12 +446,10 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             }
         }
 
-        long totalSize = 0;
         final AtomicLong throttlingWaitTime = new AtomicLong();
         final CountDownLatch latch = new CountDownLatch(filesToRecover.size());
         final CopyOnWriteArrayList<Throwable> failures = new CopyOnWriteArrayList<Throwable>();
         for (final String fileToRecover : filesToRecover) {
-            totalSize += combinedBlobs.get(fileToRecover);
             if (recoveryThrottler.tryStream(shardId, fileToRecover)) {
                 // we managed to get a recovery going
                 recoverFile(fileToRecover, blobs, latch, failures);
@@ -497,7 +504,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             // ignore
         }
 
-        return new RecoveryStatus.Index(version, filesToRecover.size(), new ByteSizeValue(totalSize, ByteSizeUnit.BYTES), TimeValue.timeValueMillis(throttlingWaitTime.get()));
+        return new RecoveryStatus.Index(version, numberOfFiles, new ByteSizeValue(totalSize), numberOfExistingFiles, new ByteSizeValue(existingTotalSize), TimeValue.timeValueMillis(throttlingWaitTime.get()));
     }
 
     private void recoverFile(final String fileToRecover, final ImmutableMap<String, BlobMetaData> blobs, final CountDownLatch latch, final List<Throwable> failures) {

@@ -29,6 +29,7 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Injectors;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.gateway.none.NoneGateway;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexShardAlreadyExistsException;
@@ -94,6 +95,10 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     private final IndexEngine indexEngine;
 
+    private final IndexGateway indexGateway;
+
+    private final IndexStore indexStore;
+
     private final OperationRouting operationRouting;
 
     private volatile ImmutableMap<Integer, Injector> shardsInjectors = ImmutableMap.of();
@@ -104,7 +109,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     @Inject public InternalIndexService(Injector injector, Index index, @IndexSettings Settings indexSettings,
                                         MapperService mapperService, IndexQueryParserService queryParserService, SimilarityService similarityService,
-                                        IndexCache indexCache, IndexEngine indexEngine, OperationRouting operationRouting) {
+                                        IndexCache indexCache, IndexEngine indexEngine, IndexGateway indexGateway, IndexStore indexStore, OperationRouting operationRouting) {
         super(index, indexSettings);
         this.injector = injector;
         this.indexSettings = indexSettings;
@@ -113,6 +118,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         this.similarityService = similarityService;
         this.indexCache = indexCache;
         this.indexEngine = indexEngine;
+        this.indexGateway = indexGateway;
+        this.indexStore = indexStore;
         this.operationRouting = operationRouting;
 
         this.pluginsService = injector.getInstance(PluginsService.class);
@@ -207,7 +214,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
         indicesLifecycle.beforeIndexShardCreated(shardId);
 
-        logger.debug("Creating shard_id[{}]", shardId.id());
+        logger.debug("creating shard_id [{}]", shardId.id());
 
         List<Module> modules = Lists.newArrayList();
         modules.add(new ShardsPluginsModule(indexSettings, pluginsService));
@@ -228,12 +235,14 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
         IndexShard indexShard = shardInjector.getInstance(IndexShard.class);
 
-        // clean the store
-        Store store = shardInjector.getInstance(Store.class);
-        try {
-            store.deleteContent();
-        } catch (IOException e) {
-            logger.warn("Failed to clean store on shard creation", e);
+        // if there is no gateway, clean the store, since we won't recover into it
+        if (indexGateway.type().equals(NoneGateway.TYPE)) {
+            Store store = shardInjector.getInstance(Store.class);
+            try {
+                store.deleteContent();
+            } catch (IOException e) {
+                logger.warn("failed to clean store on shard creation", e);
+            }
         }
 
         indicesLifecycle.afterIndexShardCreated(indexShard);
@@ -258,7 +267,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         }
         shardsInjectors = ImmutableMap.copyOf(tmpShardInjectors);
         if (delete) {
-            logger.debug("Deleting shard_id[{}]", shardId);
+            logger.debug("deleting shard_id [{}]", shardId);
         }
 
         Map<Integer, IndexShard> tmpShardsMap = newHashMap(shards);
@@ -287,16 +296,20 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         // call this before we close the store, so we can release resources for it
         indicesLifecycle.afterIndexShardClosed(indexShard.shardId(), delete);
 
+        // if we delete or have no gateway or the store is not persistent, clean the store...
         Store store = shardInjector.getInstance(Store.class);
-        try {
-            store.fullDelete();
-        } catch (IOException e) {
-            logger.warn("Failed to clean store on shard deletion", e);
+        if (delete || indexGateway.type().equals(NoneGateway.TYPE) || !indexStore.persistent()) {
+            try {
+                store.fullDelete();
+            } catch (IOException e) {
+                logger.warn("failed to clean store on shard deletion", e);
+            }
         }
+        // and close it
         try {
             store.close();
         } catch (IOException e) {
-            logger.warn("Failed to close store on shard deletion", e);
+            logger.warn("failed to close store on shard deletion", e);
         }
 
         Injectors.close(injector);

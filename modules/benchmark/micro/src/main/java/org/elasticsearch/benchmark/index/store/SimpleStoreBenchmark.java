@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -262,18 +263,19 @@ public class SimpleStoreBenchmark {
     public static void main(String[] args) throws Exception {
         Environment environment = new Environment();
         Settings settings = EMPTY_SETTINGS;
-        String localNodeId = "nodeId";
+        NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, environment);
+
         ShardId shardId = new ShardId(new Index("index"), 1);
         String type = args.length > 0 ? args[0] : "ram";
         Store store;
         if (type.equalsIgnoreCase("ram")) {
             store = new RamStore(shardId, settings);
         } else if (type.equalsIgnoreCase("simple-fs")) {
-            store = new SimpleFsStore(shardId, settings, new SimpleFsIndexStore(shardId.index(), settings, environment, localNodeId));
+            store = new SimpleFsStore(shardId, settings, new SimpleFsIndexStore(shardId.index(), settings, nodeEnvironment));
         } else if (type.equalsIgnoreCase("mmap-fs")) {
-            store = new NioFsStore(shardId, settings, new NioFsIndexStore(shardId.index(), settings, environment, localNodeId));
+            store = new NioFsStore(shardId, settings, new NioFsIndexStore(shardId.index(), settings, nodeEnvironment));
         } else if (type.equalsIgnoreCase("nio-fs")) {
-            store = new MmapFsStore(shardId, settings, new MmapFsIndexStore(shardId.index(), settings, environment, localNodeId));
+            store = new MmapFsStore(shardId, settings, new MmapFsIndexStore(shardId.index(), settings, nodeEnvironment));
         } else if (type.equalsIgnoreCase("memory-direct")) {
             Settings byteBufferSettings = settingsBuilder()
                     .put(settings)

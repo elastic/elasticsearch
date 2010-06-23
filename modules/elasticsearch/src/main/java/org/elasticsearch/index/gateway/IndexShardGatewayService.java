@@ -40,7 +40,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.throttler.RecoveryThrottler;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -104,12 +103,6 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                 throw new ElasticSearchIllegalStateException("Trying to recover when the shard is in backup state");
             }
 
-            // clear the store, we are going to recover into it
-            try {
-                store.deleteContent();
-            } catch (IOException e) {
-                logger.debug("Failed to delete store before recovery from gateway", e);
-            }
             indexShard.recovering();
 
             StopWatch throttlingWaitTime = new StopWatch().start();
@@ -128,7 +121,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             throttlingWaitTime.stop();
 
             try {
-                logger.debug("Starting recovery from {}", shardGateway);
+                logger.debug("starting recovery from {}", shardGateway);
                 StopWatch stopWatch = new StopWatch().start();
                 IndexShardGateway.RecoveryStatus recoveryStatus = shardGateway.recover();
 
@@ -143,9 +136,10 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                 stopWatch.stop();
                 if (logger.isDebugEnabled()) {
                     StringBuilder sb = new StringBuilder();
-                    sb.append("Recovery completed from ").append(shardGateway).append(", took [").append(stopWatch.totalTime()).append("], throttling_wait [").append(throttlingWaitTime.totalTime()).append("]\n");
-                    sb.append("    Index    : number_of_files [").append(recoveryStatus.index().numberOfFiles()).append("] with total_size [").append(recoveryStatus.index().totalSize()).append("], throttling_wait [").append(recoveryStatus.index().throttlingWaitTime()).append("]\n");
-                    sb.append("    Translog : translog_id [").append(recoveryStatus.translog().translogId()).append("], number_of_operations [").append(recoveryStatus.translog().numberOfOperations()).append("] with total_size[").append(recoveryStatus.translog().totalSize()).append("]");
+                    sb.append("recovery completed from ").append(shardGateway).append(", took [").append(stopWatch.totalTime()).append("], throttling_wait [").append(throttlingWaitTime.totalTime()).append("]\n");
+                    sb.append("    index    : number_of_files [").append(recoveryStatus.index().numberOfFiles()).append("] with total_size [").append(recoveryStatus.index().totalSize()).append("], throttling_wait [").append(recoveryStatus.index().throttlingWaitTime()).append("]\n");
+                    sb.append("             : reusing_files [").append(recoveryStatus.index().numberOfExistingFiles()).append("] with total_size [").append(recoveryStatus.index().existingTotalSize()).append("]\n");
+                    sb.append("    translog : translog_id [").append(recoveryStatus.translog().translogId()).append("], number_of_operations [").append(recoveryStatus.translog().numberOfOperations()).append("] with total_size[").append(recoveryStatus.translog().totalSize()).append("]");
                     logger.debug(sb.toString());
                 }
                 // refresh the shard
@@ -190,9 +184,9 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             if (snapshotStatus != IndexShardGateway.SnapshotStatus.NA) {
                 if (logger.isDebugEnabled()) {
                     StringBuilder sb = new StringBuilder();
-                    sb.append("Snapshot completed to ").append(shardGateway).append(", took [").append(snapshotStatus.totalTime()).append("]\n");
-                    sb.append("    Index    : number_of_files [").append(snapshotStatus.index().numberOfFiles()).append("] with total_size [").append(snapshotStatus.index().totalSize()).append("], took [").append(snapshotStatus.index().time()).append("]\n");
-                    sb.append("    Translog : number_of_operations [").append(snapshotStatus.translog().numberOfOperations()).append("], took [").append(snapshotStatus.translog().time()).append("]");
+                    sb.append("snapshot completed to ").append(shardGateway).append(", took [").append(snapshotStatus.totalTime()).append("]\n");
+                    sb.append("    index    : number_of_files [").append(snapshotStatus.index().numberOfFiles()).append("] with total_size [").append(snapshotStatus.index().totalSize()).append("], took [").append(snapshotStatus.index().time()).append("]\n");
+                    sb.append("    translog : number_of_operations [").append(snapshotStatus.translog().numberOfOperations()).append("], took [").append(snapshotStatus.translog().time()).append("]");
                     logger.debug(sb.toString());
                 }
             }
@@ -211,11 +205,11 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             snapshotScheduleFuture = null;
         }
         if (!delete && snapshotOnClose) {
-            logger.debug("Snapshotting on close ...");
+            logger.debug("snapshotting on close ...");
             try {
                 snapshot();
             } catch (Exception e) {
-                logger.warn("Failed to snapshot on close", e);
+                logger.warn("failed to snapshot on close", e);
             }
         }
         // don't really delete the shard gateway if we are *not* primary,
@@ -245,7 +239,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
         if (snapshotInterval.millis() != -1) {
             // we need to schedule snapshot
             if (logger.isDebugEnabled()) {
-                logger.debug("Scheduling snapshot every [{}]", snapshotInterval);
+                logger.debug("scheduling snapshot every [{}]", snapshotInterval);
             }
             snapshotScheduleFuture = threadPool.scheduleWithFixedDelay(new SnapshotRunnable(), snapshotInterval);
         }
@@ -256,7 +250,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             try {
                 snapshot();
             } catch (Exception e) {
-                logger.warn("Failed to snapshot (scheduled)", e);
+                logger.warn("failed to snapshot (scheduled)", e);
             }
         }
     }

@@ -472,6 +472,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             throw new IndexShardGatewayRecoveryException(shardId, "Failed to recovery index", failures.get(0));
         }
 
+        // read the gateway data persisted
         long version = -1;
         try {
             if (IndexReader.indexExists(store.directory())) {
@@ -479,6 +480,21 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             }
         } catch (IOException e) {
             throw new IndexShardGatewayRecoveryException(shardId(), "Failed to fetch index version after copying it over", e);
+        }
+
+        /// now, go over and clean files that are in the store, but were not in the gateway
+        try {
+            for (String storeFile : store.directory().listAll()) {
+                if (!blobs.containsKey(storeFile)) {
+                    try {
+                        store.directory().deleteFile(storeFile);
+                    } catch (IOException e) {
+                        // ignore
+                    }
+                }
+            }
+        } catch (IOException e) {
+            // ignore
         }
 
         return new RecoveryStatus.Index(version, filesToRecover.size(), new ByteSizeValue(totalSize, ByteSizeUnit.BYTES), TimeValue.timeValueMillis(throttlingWaitTime.get()));

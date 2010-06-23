@@ -48,6 +48,7 @@ import org.elasticsearch.index.routing.OperationRoutingModule;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
+import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.plugins.IndicesPluginsModule;
@@ -167,7 +168,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
         indicesLifecycle.beforeIndexCreated(index);
 
-        logger.debug("Creating Index [{}], shards [{}]/[{}]", new Object[]{sIndexName, settings.get(SETTING_NUMBER_OF_SHARDS), settings.get(SETTING_NUMBER_OF_REPLICAS)});
+        logger.debug("Creating Index [{}], shards [{}]/[{}]", sIndexName, settings.get(SETTING_NUMBER_OF_SHARDS), settings.get(SETTING_NUMBER_OF_REPLICAS));
 
         Settings indexSettings = settingsBuilder()
                 .put("settingsType", "index")
@@ -182,6 +183,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         modules.add(new LocalNodeIdModule(localNodeId));
         modules.add(new IndexSettingsModule(indexSettings));
         modules.add(new IndicesPluginsModule(indexSettings, pluginsService));
+        modules.add(new IndexStoreModule(indexSettings));
         modules.add(new IndexEngineModule(indexSettings));
         modules.add(new AnalysisModule(indexSettings, indicesAnalysisService));
         modules.add(new SimilarityModule(indexSettings));

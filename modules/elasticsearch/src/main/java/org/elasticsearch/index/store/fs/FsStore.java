@@ -38,9 +38,9 @@ import java.io.IOException;
 /**
  * @author kimchy (shay.banon)
  */
-public abstract class AbstractFsStore<T extends Directory> extends AbstractStore<T> {
+public abstract class FsStore<T extends Directory> extends AbstractStore<T> {
 
-    public AbstractFsStore(ShardId shardId, @IndexSettings Settings indexSettings) {
+    public FsStore(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
     }
 

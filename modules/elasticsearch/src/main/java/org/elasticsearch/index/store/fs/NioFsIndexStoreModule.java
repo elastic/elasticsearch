@@ -20,14 +20,14 @@
 package org.elasticsearch.index.store.fs;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.IndexStore;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class NioFsStoreModule extends AbstractModule {
+public class NioFsIndexStoreModule extends AbstractModule {
 
     @Override protected void configure() {
-        bind(Store.class).to(NioFsStore.class).asEagerSingleton();
+        bind(IndexStore.class).to(NioFsIndexStore.class).asEagerSingleton();
     }
 }

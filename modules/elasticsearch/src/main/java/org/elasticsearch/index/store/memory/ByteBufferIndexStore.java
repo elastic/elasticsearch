@@ -17,27 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store;
+package org.elasticsearch.index.store.memory;
 
-import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.AbstractIndexComponent;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.index.store.Store;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class StoreModule extends AbstractModule {
+public class ByteBufferIndexStore extends AbstractIndexComponent implements IndexStore {
 
-    private final Settings settings;
-
-    private final IndexStore indexStore;
-
-    public StoreModule(Settings settings, IndexStore indexStore) {
-        this.indexStore = indexStore;
-        this.settings = settings;
+    @Inject public ByteBufferIndexStore(Index index, @IndexSettings Settings indexSettings) {
+        super(index, indexSettings);
     }
 
-    @Override protected void configure() {
-        bind(Store.class).to(indexStore.shardStoreClass()).asEagerSingleton();
-        bind(StoreManagement.class).asEagerSingleton();
+    @Override public boolean persistent() {
+        return false;
+    }
+
+    @Override public Class<? extends Store> shardStoreClass() {
+        return ByteBufferStore.class;
     }
 }

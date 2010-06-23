@@ -19,25 +19,17 @@
 
 package org.elasticsearch.index.store;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexComponent;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class StoreModule extends AbstractModule {
+public interface IndexStore extends IndexComponent {
 
-    private final Settings settings;
+    /**
+     * Is the store a persistent store that can survive full restarts.
+     */
+    boolean persistent();
 
-    private final IndexStore indexStore;
-
-    public StoreModule(Settings settings, IndexStore indexStore) {
-        this.indexStore = indexStore;
-        this.settings = settings;
-    }
-
-    @Override protected void configure() {
-        bind(Store.class).to(indexStore.shardStoreClass()).asEagerSingleton();
-        bind(StoreManagement.class).asEagerSingleton();
-    }
+    Class<? extends Store> shardStoreClass();
 }

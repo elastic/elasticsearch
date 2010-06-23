@@ -12,6 +12,7 @@
       <w>blobstore</w>
       <w>bool</w>
       <w>booleans</w>
+      <w>bytebuffer</w>
       <w>cacheable</w>
       <w>camelcase</w>
       <w>canonicalhost</w>

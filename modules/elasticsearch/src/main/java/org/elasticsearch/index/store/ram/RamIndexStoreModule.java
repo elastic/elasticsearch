@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store.fs;
+package org.elasticsearch.index.store.ram;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.IndexStore;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class MmapFsStoreModule extends AbstractModule {
+public class RamIndexStoreModule extends AbstractModule {
 
     @Override protected void configure() {
-        bind(Store.class).to(MmapFsStore.class).asEagerSingleton();
+        bind(IndexStore.class).to(RamIndexStore.class).asEagerSingleton();
     }
 }

@@ -53,6 +53,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.recovery.RecoveryAction;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreModule;
 import org.elasticsearch.index.translog.TranslogModule;
@@ -211,7 +212,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         List<Module> modules = Lists.newArrayList();
         modules.add(new ShardsPluginsModule(indexSettings, pluginsService));
         modules.add(new IndexShardModule(shardId));
-        modules.add(new StoreModule(indexSettings));
+        modules.add(new StoreModule(indexSettings, injector.getInstance(IndexStore.class)));
         modules.add(new DeletionPolicyModule(indexSettings));
         modules.add(new MergePolicyModule(indexSettings));
         modules.add(new MergeSchedulerModule(indexSettings));

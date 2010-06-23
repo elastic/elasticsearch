@@ -17,27 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store;
+package org.elasticsearch.index.store.fs;
 
-import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.LocalNodeId;
+import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.store.Store;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class StoreModule extends AbstractModule {
+public class SimpleFsIndexStore extends FsIndexStore {
 
-    private final Settings settings;
-
-    private final IndexStore indexStore;
-
-    public StoreModule(Settings settings, IndexStore indexStore) {
-        this.indexStore = indexStore;
-        this.settings = settings;
+    @Inject public SimpleFsIndexStore(Index index, @IndexSettings Settings indexSettings, Environment environment, @LocalNodeId String localNodeId) {
+        super(index, indexSettings, environment, localNodeId);
     }
 
-    @Override protected void configure() {
-        bind(Store.class).to(indexStore.shardStoreClass()).asEagerSingleton();
-        bind(StoreManagement.class).asEagerSingleton();
+    @Override public Class<? extends Store> shardStoreClass() {
+        return SimpleFsStore.class;
     }
 }

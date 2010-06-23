@@ -29,9 +29,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.fs.MmapFsStore;
-import org.elasticsearch.index.store.fs.NioFsStore;
-import org.elasticsearch.index.store.fs.SimpleFsStore;
+import org.elasticsearch.index.store.fs.*;
 import org.elasticsearch.index.store.memory.ByteBufferStore;
 import org.elasticsearch.index.store.memory.HeapStore;
 import org.elasticsearch.index.store.ram.RamStore;
@@ -271,11 +269,11 @@ public class SimpleStoreBenchmark {
         if (type.equalsIgnoreCase("ram")) {
             store = new RamStore(shardId, settings);
         } else if (type.equalsIgnoreCase("simple-fs")) {
-            store = new SimpleFsStore(shardId, settings, environment, localNodeId);
+            store = new SimpleFsStore(shardId, settings, new SimpleFsIndexStore(shardId.index(), settings, environment, localNodeId));
         } else if (type.equalsIgnoreCase("mmap-fs")) {
-            store = new NioFsStore(shardId, settings, environment, localNodeId);
+            store = new NioFsStore(shardId, settings, new NioFsIndexStore(shardId.index(), settings, environment, localNodeId));
         } else if (type.equalsIgnoreCase("nio-fs")) {
-            store = new MmapFsStore(shardId, settings, environment, localNodeId);
+            store = new MmapFsStore(shardId, settings, new MmapFsIndexStore(shardId.index(), settings, environment, localNodeId));
         } else if (type.equalsIgnoreCase("memory-direct")) {
             Settings byteBufferSettings = settingsBuilder()
                     .put(settings)

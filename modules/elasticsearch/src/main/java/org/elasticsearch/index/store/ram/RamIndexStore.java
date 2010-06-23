@@ -17,17 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store.fs;
+package org.elasticsearch.index.store.ram;
 
-import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.AbstractIndexComponent;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class SimpleFsStoreModule extends AbstractModule {
+public class RamIndexStore extends AbstractIndexComponent implements IndexStore {
 
-    @Override protected void configure() {
-        bind(Store.class).to(SimpleFsStore.class).asEagerSingleton();
+    @Inject public RamIndexStore(Index index, @IndexSettings Settings indexSettings) {
+        super(index, indexSettings);
+    }
+
+    @Override public boolean persistent() {
+        return false;
+    }
+
+    @Override public Class<? extends Store> shardStoreClass() {
+        return RamStore.class;
     }
 }

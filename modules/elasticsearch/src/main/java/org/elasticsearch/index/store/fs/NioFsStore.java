@@ -23,21 +23,18 @@ import org.apache.lucene.store.*;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.store.SwitchDirectory;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.LocalNodeId;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.support.ForceSyncDirectory;
 
 import java.io.File;
 import java.io.IOException;
 
-import static org.elasticsearch.index.store.fs.FsStores.*;
-
 /**
  * @author kimchy (Shay Banon)
  */
-public class NioFsStore extends AbstractFsStore<Directory> {
+public class NioFsStore extends FsStore<Directory> {
 
     private final boolean syncToDisk;
 
@@ -47,7 +44,7 @@ public class NioFsStore extends AbstractFsStore<Directory> {
 
     private final boolean suggestUseCompoundFile;
 
-    @Inject public NioFsStore(ShardId shardId, @IndexSettings Settings indexSettings, Environment environment, @LocalNodeId String localNodeId) throws IOException {
+    @Inject public NioFsStore(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore) throws IOException {
         super(shardId, indexSettings);
         // by default, we don't need to sync to disk, since we use the gateway
         this.syncToDisk = componentSettings.getAsBoolean("sync_to_disk", false);
@@ -58,7 +55,8 @@ public class NioFsStore extends AbstractFsStore<Directory> {
         } else if (fsLock.equals("simple")) {
             lockFactory = new SimpleFSLockFactory();
         }
-        this.fsDirectory = new CustomNioFSDirectory(createStoreFilePath(environment.workWithClusterFile(), localNodeId, shardId, MAIN_INDEX_SUFFIX), lockFactory, syncToDisk);
+        File location = ((FsIndexStore) indexStore).shardLocation(shardId);
+        this.fsDirectory = new CustomNioFSDirectory(location, lockFactory, syncToDisk);
 
         SwitchDirectory switchDirectory = buildSwitchDirectoryIfNeeded(fsDirectory);
         if (switchDirectory != null) {

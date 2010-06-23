@@ -17,27 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store;
+package org.elasticsearch.index.store.fs;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.store.IndexStore;
 
 /**
  * @author kimchy (Shay Banon)
  */
-public class StoreModule extends AbstractModule {
-
-    private final Settings settings;
-
-    private final IndexStore indexStore;
-
-    public StoreModule(Settings settings, IndexStore indexStore) {
-        this.indexStore = indexStore;
-        this.settings = settings;
-    }
+public class MmapFsIndexStoreModule extends AbstractModule {
 
     @Override protected void configure() {
-        bind(Store.class).to(indexStore.shardStoreClass()).asEagerSingleton();
-        bind(StoreManagement.class).asEagerSingleton();
+        bind(IndexStore.class).to(MmapFsIndexStore.class).asEagerSingleton();
     }
 }

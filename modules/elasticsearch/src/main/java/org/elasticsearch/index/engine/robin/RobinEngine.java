@@ -124,11 +124,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
                 logger.trace("Shard is locked, releasing lock");
                 store.directory().clearLock(IndexWriter.WRITE_LOCK_NAME);
             }
-            IndexWriter writer = new IndexWriter(store.directory(), analysisService.defaultIndexAnalyzer(), true, IndexWriter.MaxFieldLength.UNLIMITED);
-            writer.commit();
-            writer.close();
         } catch (IOException e) {
-            logger.warn("Failed to clean the index", e);
+            logger.warn("Failed to check if index is locked", e);
         }
     }
 
@@ -454,11 +451,12 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             this.nrtResource.forceClose();
         }
         try {
+            // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
             if (indexWriter != null) {
-                indexWriter.close();
+                indexWriter.rollback();
             }
         } catch (IOException e) {
-            throw new CloseEngineException(shardId, "Failed to close engine", e);
+            logger.debug("failed to rollback writer on close", e);
         } finally {
             indexWriter = null;
             rwl.writeLock().unlock();

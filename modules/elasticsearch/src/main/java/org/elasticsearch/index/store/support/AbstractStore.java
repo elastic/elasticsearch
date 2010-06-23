@@ -31,7 +31,7 @@ import org.elasticsearch.index.store.Store;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class AbstractStore<T extends Directory> extends AbstractIndexShardComponent implements Store<T> {
 

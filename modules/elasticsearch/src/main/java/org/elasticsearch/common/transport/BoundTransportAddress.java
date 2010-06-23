@@ -71,6 +71,6 @@ public class BoundTransportAddress implements Streamable {
     }
 
     @Override public String toString() {
-        return "bound_address[" + boundAddress + "], publish_address[" + publishAddress + "]";
+        return "bound_address {" + boundAddress + "}, publish_address {" + publishAddress + "}";
     }
 }

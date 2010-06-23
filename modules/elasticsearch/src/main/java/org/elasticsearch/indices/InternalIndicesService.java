@@ -168,7 +168,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
         indicesLifecycle.beforeIndexCreated(index);
 
-        logger.debug("Creating Index [{}], shards [{}]/[{}]", sIndexName, settings.get(SETTING_NUMBER_OF_SHARDS), settings.get(SETTING_NUMBER_OF_REPLICAS));
+        logger.debug("creating Index [{}], shards [{}]/[{}]", sIndexName, settings.get(SETTING_NUMBER_OF_SHARDS), settings.get(SETTING_NUMBER_OF_REPLICAS));
 
         Settings indexSettings = settingsBuilder()
                 .put("settingsType", "index")
@@ -226,7 +226,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
             throw new IndexMissingException(new Index(index));
         }
         if (delete) {
-            logger.debug("Deleting Index [{}]", index);
+            logger.debug("deleting Index [{}]", index);
         }
 
         Map<String, IndexService> tmpMap = newHashMap(indices);

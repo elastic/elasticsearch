@@ -19,7 +19,10 @@
 
 package org.elasticsearch.index.store.fs;
 
-import org.apache.lucene.store.*;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.LockFactory;
+import org.apache.lucene.store.MMapDirectory;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.store.SwitchDirectory;
 import org.elasticsearch.common.settings.Settings;
@@ -48,14 +51,9 @@ public class MmapFsStore extends FsStore<Directory> {
         super(shardId, indexSettings);
         // by default, we don't need to sync to disk, since we use the gateway
         this.syncToDisk = componentSettings.getAsBoolean("sync_to_disk", false);
-        String fsLock = componentSettings.get("use_fs_lock", "none");
-        LockFactory lockFactory = new NoLockFactory();
-        if (fsLock.equals("native")) {
-            lockFactory = new NativeFSLockFactory();
-        } else if (fsLock.equals("simple")) {
-            lockFactory = new SimpleFSLockFactory();
-        }
+        LockFactory lockFactory = buildLockFactory();
         File location = ((FsIndexStore) indexStore).shardLocation(shardId);
+        location.mkdirs();
         this.fsDirectory = new CustomMMapDirectory(location, lockFactory, syncToDisk);
 
         SwitchDirectory switchDirectory = buildSwitchDirectoryIfNeeded(fsDirectory);

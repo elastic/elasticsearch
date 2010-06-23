@@ -234,15 +234,23 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
         }
 
         public static class Index {
+            public static final Index EMPTY = new Index(-1, 0, new ByteSizeValue(0), 0, new ByteSizeValue(0), timeValueMillis(0));
+
             private long version;
             private int numberOfFiles;
             private ByteSizeValue totalSize;
+            private int numberOfExistingFiles;
+            private ByteSizeValue existingTotalSize;
             private TimeValue throttlingWaitTime;
 
-            public Index(long version, int numberOfFiles, ByteSizeValue totalSize, TimeValue throttlingWaitTime) {
+            public Index(long version, int numberOfFiles, ByteSizeValue totalSize,
+                         int numberOfExistingFiles, ByteSizeValue existingTotalSize,
+                         TimeValue throttlingWaitTime) {
                 this.version = version;
                 this.numberOfFiles = numberOfFiles;
                 this.totalSize = totalSize;
+                this.numberOfExistingFiles = numberOfExistingFiles;
+                this.existingTotalSize = existingTotalSize;
                 this.throttlingWaitTime = throttlingWaitTime;
             }
 
@@ -256,6 +264,14 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
 
             public ByteSizeValue totalSize() {
                 return totalSize;
+            }
+
+            public int numberOfExistingFiles() {
+                return numberOfExistingFiles;
+            }
+
+            public ByteSizeValue existingTotalSize() {
+                return existingTotalSize;
             }
 
             public TimeValue throttlingWaitTime() {

@@ -67,7 +67,7 @@ public class Version {
     }
 
     public static String full() {
-        StringBuilder sb = new StringBuilder("ElasticSearch/");
+        StringBuilder sb = new StringBuilder("elasticsearch/");
         sb.append(number);
         if (snapshotBuild) {
             sb.append("/").append(date);

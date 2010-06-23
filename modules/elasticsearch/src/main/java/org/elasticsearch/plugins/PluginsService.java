@@ -61,7 +61,7 @@ public class PluginsService extends AbstractComponent {
         Map<String, Plugin> plugins = Maps.newHashMap();
         plugins.putAll(loadPluginsFromClasspath(settings));
 
-        logger.info("Loaded {}", plugins.keySet());
+        logger.info("loaded {}", plugins.keySet());
 
         this.plugins = ImmutableMap.copyOf(plugins);
     }
@@ -149,7 +149,7 @@ public class PluginsService extends AbstractComponent {
             }
         }
         if (addURL == null) {
-            logger.debug("Failed to find addURL method on classLoader [" + classLoader + "] to add methods");
+            logger.debug("failed to find addURL method on classLoader [" + classLoader + "] to add methods");
             return;
         }
 
@@ -159,7 +159,7 @@ public class PluginsService extends AbstractComponent {
                 continue;
             }
             if (logger.isTraceEnabled()) {
-                logger.trace("Processing [{}]", pluginFile);
+                logger.trace("processing [{}]", pluginFile);
             }
 
             String pluginNameNoExtension = pluginFile.getName().substring(0, pluginFile.getName().lastIndexOf('.'));
@@ -180,7 +180,7 @@ public class PluginsService extends AbstractComponent {
                     if (size == pluginFile.length()) {
                         extractPlugin = false;
                         if (logger.isTraceEnabled()) {
-                            logger.trace("--- No need to extract plugin, same size [" + size + "]");
+                            logger.trace("--- no need to extract plugin, same size [" + size + "]");
                         }
                     }
                 } catch (Exception e) {
@@ -198,7 +198,7 @@ public class PluginsService extends AbstractComponent {
 
             if (extractPlugin) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("--- Extracting plugin to [" + extractedPluginDir + "]");
+                    logger.trace("--- extracting plugin to [" + extractedPluginDir + "]");
                 }
                 deleteRecursively(extractedPluginDir, false);
 
@@ -216,7 +216,7 @@ public class PluginsService extends AbstractComponent {
                         Streams.copy(zipFile.getInputStream(zipEntry), new FileOutputStream(target));
                     }
                 } catch (Exception e) {
-                    logger.warn("Failed to extract plugin [" + pluginFile + "], ignoring...", e);
+                    logger.warn("failed to extract plugin [" + pluginFile + "], ignoring...", e);
                     continue;
                 } finally {
                     if (zipFile != null) {
@@ -246,7 +246,7 @@ public class PluginsService extends AbstractComponent {
                     addURL.invoke(classLoader, jarToAdd.toURI().toURL());
                 }
             } catch (Exception e) {
-                logger.warn("Failed to add plugin [" + pluginFile + "]", e);
+                logger.warn("failed to add plugin [" + pluginFile + "]", e);
             }
         }
     }
@@ -257,7 +257,7 @@ public class PluginsService extends AbstractComponent {
         try {
             pluginUrls = settings.getClassLoader().getResources("es-plugin.properties");
         } catch (IOException e) {
-            logger.warn("Failed to find plugins from classpath", e);
+            logger.warn("failed to find plugins from classpath", e);
         }
         while (pluginUrls.hasMoreElements()) {
             URL pluginUrl = pluginUrls.nextElement();
@@ -280,7 +280,7 @@ public class PluginsService extends AbstractComponent {
                 }
                 plugins.put(plugin.name(), plugin);
             } catch (Exception e) {
-                logger.warn("Failed to load plugin from [" + pluginUrl + "]", e);
+                logger.warn("failed to load plugin from [" + pluginUrl + "]", e);
             } finally {
                 if (is != null) {
                     try {

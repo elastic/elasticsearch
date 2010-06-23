@@ -226,7 +226,7 @@ public class MetaDataService extends AbstractComponent {
                         .initializeEmpty(newMetaData.index(index));
                 routingTableBuilder.add(indexRoutingBuilder);
 
-                logger.info("Creating Index [{}], cause [{}], shards [{}]/[{}], mappings {}", index, cause, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), fMappings.keySet());
+                logger.info("creating Index [{}], cause [{}], shards [{}]/[{}], mappings {}", index, cause, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), fMappings.keySet());
                 RoutingTable newRoutingTable = shardsRoutingStrategy.reroute(newClusterStateBuilder().state(currentState).routingTable(routingTableBuilder).metaData(newMetaData).build());
                 return newClusterStateBuilder().state(currentState).routingTable(newRoutingTable).metaData(newMetaData).build();
             }
@@ -254,7 +254,7 @@ public class MetaDataService extends AbstractComponent {
             try {
                 mappings.put(fileNameNoSuffix, Streams.copyToString(new FileReader(mappingFile)));
             } catch (IOException e) {
-                logger.warn("Failed to read mapping [" + fileNameNoSuffix + "] from location [" + mappingFile + "], ignoring...", e);
+                logger.warn("failed to read mapping [" + fileNameNoSuffix + "] from location [" + mappingFile + "], ignoring...", e);
             }
         }
     }
@@ -265,7 +265,7 @@ public class MetaDataService extends AbstractComponent {
             throw new IndexMissingException(new Index(index));
         }
 
-        logger.info("Deleting index [{}]", index);
+        logger.info("deleting index [{}]", index);
 
         final CountDownLatch latch = new CountDownLatch(clusterService.state().nodes().size());
         NodeIndexDeletedAction.Listener listener = new NodeIndexDeletedAction.Listener() {
@@ -320,9 +320,9 @@ public class MetaDataService extends AbstractComponent {
         // build the updated mapping source
         final String updatedMappingSource = existingMapper.buildSource();
         if (logger.isDebugEnabled()) {
-            logger.debug("Index [" + index + "]: Update mapping [" + type + "] (dynamic) with source [" + updatedMappingSource + "]");
+            logger.debug("index [" + index + "]: Update mapping [" + type + "] (dynamic) with source [" + updatedMappingSource + "]");
         } else if (logger.isInfoEnabled()) {
-            logger.info("Index [" + index + "]: Update mapping [" + type + "] (dynamic)");
+            logger.info("index [" + index + "]: Update mapping [" + type + "] (dynamic)");
         }
         // publish the new mapping
         clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "]", new ClusterStateUpdateTask() {
@@ -396,9 +396,9 @@ public class MetaDataService extends AbstractComponent {
             }
             mappings.put(index, mapping);
             if (logger.isDebugEnabled()) {
-                logger.debug("Index [" + index + "]: Put mapping [" + mapping.v1() + "] with source [" + mapping.v2() + "]");
+                logger.debug("index [" + index + "]: Put mapping [" + mapping.v1() + "] with source [" + mapping.v2() + "]");
             } else if (logger.isInfoEnabled()) {
-                logger.info("Index [" + index + "]: Put mapping [" + mapping.v1() + "]");
+                logger.info("index [" + index + "]: Put mapping [" + mapping.v1() + "]");
             }
         }
 

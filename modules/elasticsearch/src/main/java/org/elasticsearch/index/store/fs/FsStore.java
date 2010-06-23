@@ -19,8 +19,7 @@
 
 package org.elasticsearch.index.store.fs;
 
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.*;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lucene.store.SwitchDirectory;
@@ -54,6 +53,17 @@ public abstract class FsStore<T extends Directory> extends AbstractStore<T> {
     }
 
     public abstract FSDirectory fsDirectory();
+
+    protected LockFactory buildLockFactory() throws IOException {
+        String fsLock = componentSettings.get("fs_lock", "native");
+        LockFactory lockFactory = new NoLockFactory();
+        if (fsLock.equals("native")) {
+            lockFactory = new NativeFSLockFactory();
+        } else if (fsLock.equals("simple")) {
+            lockFactory = new SimpleFSLockFactory();
+        }
+        return lockFactory;
+    }
 
     protected SwitchDirectory buildSwitchDirectoryIfNeeded(Directory fsDirectory) {
         boolean cache = componentSettings.getAsBoolean("memory.enabled", false);

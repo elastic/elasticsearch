@@ -22,7 +22,7 @@ package org.elasticsearch.env;
 import org.elasticsearch.common.inject.AbstractModule;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class EnvironmentModule extends AbstractModule {
 

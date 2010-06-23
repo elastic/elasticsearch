@@ -21,9 +21,8 @@ package org.elasticsearch.index.store.fs;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.LocalNodeId;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.store.Store;
 
@@ -32,8 +31,8 @@ import org.elasticsearch.index.store.Store;
  */
 public class NioFsIndexStore extends FsIndexStore {
 
-    @Inject public NioFsIndexStore(Index index, @IndexSettings Settings indexSettings, Environment environment, @LocalNodeId String localNodeId) {
-        super(index, indexSettings, environment, localNodeId);
+    @Inject public NioFsIndexStore(Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv) {
+        super(index, indexSettings, nodeEnv);
     }
 
     @Override public Class<? extends Store> shardStoreClass() {

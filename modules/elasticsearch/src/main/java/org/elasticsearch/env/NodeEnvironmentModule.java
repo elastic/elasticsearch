@@ -17,17 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store.fs;
+package org.elasticsearch.env;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.index.store.IndexStore;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class MmapFsIndexStoreModule extends AbstractModule {
+public class NodeEnvironmentModule extends AbstractModule {
+
+    public NodeEnvironmentModule() {
+    }
 
     @Override protected void configure() {
-        bind(IndexStore.class).to(MmapFsIndexStore.class).asEagerSingleton();
+        bind(NodeEnvironment.class).asEagerSingleton();
     }
 }

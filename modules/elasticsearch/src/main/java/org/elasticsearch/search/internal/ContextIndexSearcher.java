@@ -19,10 +19,11 @@
 
 package org.elasticsearch.search.internal;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.lucene.MultiCollector;
+import org.elasticsearch.common.lucene.search.ExtendedIndexSearcher;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.CachedDfSource;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ import java.util.List;
 /**
  * @author kimchy (shay.banon)
  */
-public class ContextIndexSearcher extends IndexSearcher {
+public class ContextIndexSearcher extends ExtendedIndexSearcher {
 
     private SearchContext searchContext;
 
@@ -43,40 +44,9 @@ public class ContextIndexSearcher extends IndexSearcher {
 
     private boolean useGlobalCollectors = false;
 
-    public ContextIndexSearcher(SearchContext searchContext, IndexReader r) {
-        super(r);
+    public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher) {
+        super(searcher.searcher());
         this.searchContext = searchContext;
-    }
-
-    public IndexReader[] subReaders() {
-        return this.subReaders;
-    }
-
-    public int[] docStarts() {
-        return this.docStarts;
-    }
-
-    // taken from DirectoryReader#readerIndex
-
-    public int readerIndex(int doc) {
-        int lo = 0;                                      // search starts array
-        int hi = subReaders.length - 1;                  // for first element less
-
-        while (hi >= lo) {
-            int mid = (lo + hi) >>> 1;
-            int midValue = docStarts[mid];
-            if (doc < midValue)
-                hi = mid - 1;
-            else if (doc > midValue)
-                lo = mid + 1;
-            else {                                      // found a match
-                while (mid + 1 < subReaders.length && docStarts[mid + 1] == midValue) {
-                    mid++;                                  // scan to last match
-                }
-                return mid;
-            }
-        }
-        return hi;
     }
 
     public void dfSource(CachedDfSource dfSource) {

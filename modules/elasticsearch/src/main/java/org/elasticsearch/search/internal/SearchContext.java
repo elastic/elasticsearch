@@ -129,7 +129,7 @@ public class SearchContext implements Releasable {
         this.fetchResult = new FetchSearchResult(id, shardTarget);
         this.indexService = indexService;
 
-        this.searcher = new ContextIndexSearcher(this, engineSearcher.reader());
+        this.searcher = new ContextIndexSearcher(this, engineSearcher);
     }
 
     @Override public boolean release() throws ElasticSearchException {

@@ -49,7 +49,7 @@ public class InternalSettingsPerparer {
         settingsBuilder = settingsBuilder().put(pSettings);
         settingsBuilder.put("path.home", cleanPath(environment.homeFile().getAbsolutePath()));
         settingsBuilder.put("path.work", cleanPath(environment.workFile().getAbsolutePath()));
-        settingsBuilder.put("path.workWithCluster", cleanPath(environment.workWithClusterFile().getAbsolutePath()));
+        settingsBuilder.put("path.work_with_cluster", cleanPath(environment.workWithClusterFile().getAbsolutePath()));
         settingsBuilder.put("path.logs", cleanPath(environment.logsFile().getAbsolutePath()));
 
         if (loadConfigSettings) {

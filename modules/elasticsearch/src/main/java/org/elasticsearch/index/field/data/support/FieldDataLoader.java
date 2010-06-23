@@ -24,9 +24,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermDocs;
 import org.apache.lucene.index.TermEnum;
 import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.common.trove.TIntArrayList;
 import org.elasticsearch.index.field.data.FieldData;
-import org.elasticsearch.index.field.data.FieldDataOptions;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -37,9 +35,9 @@ import java.util.Arrays;
 public class FieldDataLoader {
 
     @SuppressWarnings({"StringEquality"})
-    public static <T extends FieldData> T load(IndexReader reader, String field, FieldDataOptions options, TypeLoader<T> loader) throws IOException {
+    public static <T extends FieldData> T load(IndexReader reader, String field, TypeLoader<T> loader) throws IOException {
 
-        loader.init(options);
+        loader.init();
 
         field = StringHelper.intern(field);
         int[][] orders = new int[reader.maxDoc()][];
@@ -55,9 +53,7 @@ public class FieldDataLoader {
                 if (term == null || term.field() != field) break;
                 loader.collectTerm(term.text());
                 termDocs.seek(termEnum);
-                int df = 0;
                 while (termDocs.next()) {
-                    df++;
                     int doc = termDocs.doc();
                     int[] orderPerDoc = orders[doc];
                     if (orderPerDoc == null) {
@@ -70,9 +66,6 @@ public class FieldDataLoader {
                         orderPerDoc[orderPerDoc.length - 1] = t;
                         orders[doc] = orderPerDoc;
                     }
-                }
-                if (options.hasFreqs()) {
-                    loader.collectFreq(df);
                 }
 
                 t++;
@@ -104,11 +97,9 @@ public class FieldDataLoader {
 
     public static interface TypeLoader<T extends FieldData> {
 
-        void init(FieldDataOptions options);
+        void init();
 
         void collectTerm(String term);
-
-        void collectFreq(int freq);
 
         T buildSingleValue(String fieldName, int[] order);
 
@@ -117,30 +108,10 @@ public class FieldDataLoader {
 
     public static abstract class FreqsTypeLoader<T extends FieldData> implements TypeLoader<T> {
 
-        protected FieldDataOptions options;
-
-        private TIntArrayList freqs;
-
         protected FreqsTypeLoader() {
         }
 
-        @Override public void init(FieldDataOptions options) {
-            this.options = options;
-            if (options.hasFreqs()) {
-                freqs = new TIntArrayList();
-                freqs.add(0);
-            }
-        }
-
-        @Override public void collectFreq(int freq) {
-            freqs.add(freq);
-        }
-
-        protected int[] buildFreqs() {
-            if (freqs == null) {
-                return null;
-            }
-            return freqs.toNativeArray();
+        @Override public void init() {
         }
     }
 }

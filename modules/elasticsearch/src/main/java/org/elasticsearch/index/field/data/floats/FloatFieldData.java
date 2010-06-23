@@ -22,7 +22,6 @@ package org.elasticsearch.index.field.data.floats;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
 import org.elasticsearch.common.trove.TFloatArrayList;
-import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.field.data.support.FieldDataLoader;
 
@@ -36,12 +35,10 @@ public abstract class FloatFieldData extends NumericFieldData<FloatDocFieldData>
     static final float[] EMPTY_FLOAT_ARRAY = new float[0];
 
     protected final float[] values;
-    protected final int[] freqs;
 
-    protected FloatFieldData(String fieldName, FieldDataOptions options, float[] values, int[] freqs) {
-        super(fieldName, options);
+    protected FloatFieldData(String fieldName, float[] values) {
+        super(fieldName);
         this.values = values;
-        this.freqs = freqs;
     }
 
     abstract public float value(int docId);
@@ -61,14 +58,8 @@ public abstract class FloatFieldData extends NumericFieldData<FloatDocFieldData>
     }
 
     @Override public void forEachValue(StringValueProc proc) {
-        if (freqs == null) {
-            for (int i = 1; i < values.length; i++) {
-                proc.onValue(Float.toString(values[i]), -1);
-            }
-        } else {
-            for (int i = 1; i < values.length; i++) {
-                proc.onValue(Float.toString(values[i]), freqs[i]);
-            }
+        for (int i = 1; i < values.length; i++) {
+            proc.onValue(Float.toString(values[i]));
         }
     }
 
@@ -101,24 +92,18 @@ public abstract class FloatFieldData extends NumericFieldData<FloatDocFieldData>
     }
 
     public void forEachValue(ValueProc proc) {
-        if (freqs == null) {
-            for (int i = 1; i < values.length; i++) {
-                proc.onValue(values[i], -1);
-            }
-        } else {
-            for (int i = 1; i < values.length; i++) {
-                proc.onValue(values[i], freqs[i]);
-            }
+        for (int i = 1; i < values.length; i++) {
+            proc.onValue(values[i]);
         }
     }
 
     public static interface ValueProc {
-        void onValue(float value, int freq);
+        void onValue(float value);
     }
 
 
-    public static FloatFieldData load(IndexReader reader, String field, FieldDataOptions options) throws IOException {
-        return FieldDataLoader.load(reader, field, options, new FloatTypeLoader());
+    public static FloatFieldData load(IndexReader reader, String field) throws IOException {
+        return FieldDataLoader.load(reader, field, new FloatTypeLoader());
     }
 
     static class FloatTypeLoader extends FieldDataLoader.FreqsTypeLoader<FloatFieldData> {
@@ -136,11 +121,11 @@ public abstract class FloatFieldData extends NumericFieldData<FloatDocFieldData>
         }
 
         @Override public FloatFieldData buildSingleValue(String field, int[] order) {
-            return new SingleValueFloatFieldData(field, options, order, terms.toNativeArray(), buildFreqs());
+            return new SingleValueFloatFieldData(field, order, terms.toNativeArray());
         }
 
         @Override public FloatFieldData buildMultiValue(String field, int[][] order) {
-            return new MultiValueFloatFieldData(field, options, order, terms.toNativeArray(), buildFreqs());
+            return new MultiValueFloatFieldData(field, order, terms.toNativeArray());
         }
     }
 }

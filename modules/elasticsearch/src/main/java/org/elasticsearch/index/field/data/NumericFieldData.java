@@ -24,8 +24,8 @@ package org.elasticsearch.index.field.data;
  */
 public abstract class NumericFieldData<Doc extends NumericDocFieldData> extends FieldData<Doc> {
 
-    protected NumericFieldData(String fieldName, FieldDataOptions options) {
-        super(fieldName, options);
+    protected NumericFieldData(String fieldName) {
+        super(fieldName);
     }
 
     /**

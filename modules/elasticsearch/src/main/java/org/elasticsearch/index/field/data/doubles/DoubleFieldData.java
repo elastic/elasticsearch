@@ -22,7 +22,6 @@ package org.elasticsearch.index.field.data.doubles;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
 import org.elasticsearch.common.trove.TDoubleArrayList;
-import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.field.data.support.FieldDataLoader;
 
@@ -36,12 +35,10 @@ public abstract class DoubleFieldData extends NumericFieldData<DoubleDocFieldDat
     public static final double[] EMPTY_DOUBLE_ARRAY = new double[0];
 
     protected final double[] values;
-    protected final int[] freqs;
 
-    protected DoubleFieldData(String fieldName, FieldDataOptions options, double[] values, int[] freqs) {
-        super(fieldName, options);
+    protected DoubleFieldData(String fieldName, double[] values) {
+        super(fieldName);
         this.values = values;
-        this.freqs = freqs;
     }
 
     abstract public double value(int docId);
@@ -61,14 +58,8 @@ public abstract class DoubleFieldData extends NumericFieldData<DoubleDocFieldDat
     }
 
     @Override public void forEachValue(StringValueProc proc) {
-        if (freqs == null) {
-            for (int i = 1; i < values.length; i++) {
-                proc.onValue(Double.toString(values[i]), -1);
-            }
-        } else {
-            for (int i = 1; i < values.length; i++) {
-                proc.onValue(Double.toString(values[i]), freqs[i]);
-            }
+        for (int i = 1; i < values.length; i++) {
+            proc.onValue(Double.toString(values[i]));
         }
     }
 
@@ -101,24 +92,18 @@ public abstract class DoubleFieldData extends NumericFieldData<DoubleDocFieldDat
     }
 
     public void forEachValue(ValueProc proc) {
-        if (freqs == null) {
-            for (int i = 1; i < values.length; i++) {
-                proc.onValue(values[i], -1);
-            }
-        } else {
-            for (int i = 1; i < values.length; i++) {
-                proc.onValue(values[i], freqs[i]);
-            }
+        for (int i = 1; i < values.length; i++) {
+            proc.onValue(values[i]);
         }
     }
 
     public static interface ValueProc {
-        void onValue(double value, int freq);
+        void onValue(double value);
     }
 
 
-    public static DoubleFieldData load(IndexReader reader, String field, FieldDataOptions options) throws IOException {
-        return FieldDataLoader.load(reader, field, options, new DoubleTypeLoader());
+    public static DoubleFieldData load(IndexReader reader, String field) throws IOException {
+        return FieldDataLoader.load(reader, field, new DoubleTypeLoader());
     }
 
     static class DoubleTypeLoader extends FieldDataLoader.FreqsTypeLoader<DoubleFieldData> {
@@ -136,11 +121,11 @@ public abstract class DoubleFieldData extends NumericFieldData<DoubleDocFieldDat
         }
 
         @Override public DoubleFieldData buildSingleValue(String field, int[] order) {
-            return new SingleValueDoubleFieldData(field, options, order, terms.toNativeArray(), buildFreqs());
+            return new SingleValueDoubleFieldData(field, order, terms.toNativeArray());
         }
 
         @Override public DoubleFieldData buildMultiValue(String field, int[][] order) {
-            return new MultiValueDoubleFieldData(field, options, order, terms.toNativeArray(), buildFreqs());
+            return new MultiValueDoubleFieldData(field, order, terms.toNativeArray());
         }
     }
 }

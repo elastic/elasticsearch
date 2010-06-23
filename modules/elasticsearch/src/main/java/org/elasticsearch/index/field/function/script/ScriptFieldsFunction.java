@@ -25,7 +25,6 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
-import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.field.function.FieldsFunction;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -92,7 +91,7 @@ public class ScriptFieldsFunction implements FieldsFunction, Map {
                 throw new ElasticSearchIllegalArgumentException("No field found for [" + fieldName + "]");
             }
             try {
-                fieldData = fieldDataCache.cache(mapper.fieldDataType(), reader, mapper.names().indexName(), FieldDataOptions.fieldDataOptions().withFreqs(false));
+                fieldData = fieldDataCache.cache(mapper.fieldDataType(), reader, mapper.names().indexName());
             } catch (IOException e) {
                 throw new ElasticSearchException("Failed to load field data for [" + fieldName + "]", e);
             }

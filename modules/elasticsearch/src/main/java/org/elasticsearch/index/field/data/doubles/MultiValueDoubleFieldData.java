@@ -20,7 +20,6 @@
 package org.elasticsearch.index.field.data.doubles;
 
 import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.index.field.data.FieldDataOptions;
 
 /**
  * @author kimchy (shay.banon)
@@ -42,8 +41,8 @@ public class MultiValueDoubleFieldData extends DoubleFieldData {
     // order with value 0 indicates no value
     private final int[][] order;
 
-    public MultiValueDoubleFieldData(String fieldName, FieldDataOptions options, int[][] order, double[] values, int[] freqs) {
-        super(fieldName, options, values, freqs);
+    public MultiValueDoubleFieldData(String fieldName, int[][] order, double[] values) {
+        super(fieldName, values);
         this.order = order;
     }
 

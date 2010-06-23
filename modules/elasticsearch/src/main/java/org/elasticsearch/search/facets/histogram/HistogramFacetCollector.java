@@ -33,8 +33,6 @@ import org.elasticsearch.search.facets.support.AbstractFacetCollector;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.field.data.FieldDataOptions.*;
-
 /**
  * A histogram facet collector that uses the same field as the key as well as the
  * value.
@@ -81,7 +79,7 @@ public class HistogramFacetCollector extends AbstractFacetCollector {
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName, fieldDataOptions().withFreqs(false));
+        fieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
     }
 
     @Override public Facet facet() {

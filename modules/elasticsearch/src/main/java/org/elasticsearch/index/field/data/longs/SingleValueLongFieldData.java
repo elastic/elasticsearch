@@ -21,7 +21,6 @@ package org.elasticsearch.index.field.data.longs;
 
 import org.elasticsearch.common.joda.time.MutableDateTime;
 import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
 
 /**
@@ -52,8 +51,8 @@ public class SingleValueLongFieldData extends LongFieldData {
     // order with value 0 indicates no value
     private final int[] order;
 
-    public SingleValueLongFieldData(String fieldName, FieldDataOptions options, int[] order, long[] values, int[] freqs) {
-        super(fieldName, options, values, freqs);
+    public SingleValueLongFieldData(String fieldName, int[] order, long[] values) {
+        super(fieldName, values);
         this.order = order;
     }
 

@@ -68,11 +68,8 @@ public abstract class FieldData<Doc extends DocFieldData> {
 
     private final String fieldName;
 
-    private final FieldDataOptions options;
-
-    protected FieldData(String fieldName, FieldDataOptions options) {
+    protected FieldData(String fieldName) {
         this.fieldName = fieldName;
-        this.options = options;
     }
 
     /**
@@ -105,7 +102,7 @@ public abstract class FieldData<Doc extends DocFieldData> {
     public abstract void forEachValue(StringValueProc proc);
 
     public static interface StringValueProc {
-        void onValue(String value, int freq);
+        void onValue(String value);
     }
 
     public abstract void forEachValueInDoc(int docId, StringValueInDocProc proc);
@@ -119,28 +116,24 @@ public abstract class FieldData<Doc extends DocFieldData> {
      */
     public abstract Type type();
 
-    public FieldDataOptions options() {
-        return this.options;
-    }
-
-    public static FieldData load(Type type, IndexReader reader, String fieldName, FieldDataOptions options) throws IOException {
-        return load(type.fieldDataClass, reader, fieldName, options);
+    public static FieldData load(Type type, IndexReader reader, String fieldName) throws IOException {
+        return load(type.fieldDataClass, reader, fieldName);
     }
 
     @SuppressWarnings({"unchecked"})
-    public static <T extends FieldData> T load(Class<T> type, IndexReader reader, String fieldName, FieldDataOptions options) throws IOException {
+    public static <T extends FieldData> T load(Class<T> type, IndexReader reader, String fieldName) throws IOException {
         if (type == StringFieldData.class) {
-            return (T) StringFieldData.load(reader, fieldName, options);
+            return (T) StringFieldData.load(reader, fieldName);
         } else if (type == IntFieldData.class) {
-            return (T) IntFieldData.load(reader, fieldName, options);
+            return (T) IntFieldData.load(reader, fieldName);
         } else if (type == LongFieldData.class) {
-            return (T) LongFieldData.load(reader, fieldName, options);
+            return (T) LongFieldData.load(reader, fieldName);
         } else if (type == FloatFieldData.class) {
-            return (T) FloatFieldData.load(reader, fieldName, options);
+            return (T) FloatFieldData.load(reader, fieldName);
         } else if (type == DoubleFieldData.class) {
-            return (T) DoubleFieldData.load(reader, fieldName, options);
+            return (T) DoubleFieldData.load(reader, fieldName);
         } else if (type == ShortFieldData.class) {
-            return (T) ShortFieldData.load(reader, fieldName, options);
+            return (T) ShortFieldData.load(reader, fieldName);
         }
         throw new ElasticSearchIllegalArgumentException("No support for type [" + type + "] to load field data");
     }

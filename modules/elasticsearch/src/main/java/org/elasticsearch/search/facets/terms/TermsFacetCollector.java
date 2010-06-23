@@ -36,8 +36,6 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
 
-import static org.elasticsearch.index.field.data.FieldDataOptions.*;
-
 /**
  * @author kimchy (shay.banon)
  */
@@ -83,7 +81,7 @@ public class TermsFacetCollector extends AbstractFacetCollector {
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldData = fieldDataCache.cache(fieldDataType, reader, indexFieldName, fieldDataOptions().withFreqs(false));
+        fieldData = fieldDataCache.cache(fieldDataType, reader, indexFieldName);
     }
 
     @Override protected void doCollect(int doc) throws IOException {

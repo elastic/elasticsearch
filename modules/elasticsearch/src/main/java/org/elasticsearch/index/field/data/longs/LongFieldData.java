@@ -24,7 +24,6 @@ import org.apache.lucene.search.FieldCache;
 import org.elasticsearch.common.joda.time.MutableDateTime;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.TLongArrayList;
-import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.field.data.support.FieldDataLoader;
 
@@ -45,12 +44,10 @@ public abstract class LongFieldData extends NumericFieldData<LongDocFieldData> {
     };
 
     protected final long[] values;
-    protected final int[] freqs;
 
-    protected LongFieldData(String fieldName, FieldDataOptions options, long[] values, int[] freqs) {
-        super(fieldName, options);
+    protected LongFieldData(String fieldName, long[] values) {
+        super(fieldName);
         this.values = values;
-        this.freqs = freqs;
     }
 
     abstract public long value(int docId);
@@ -74,14 +71,8 @@ public abstract class LongFieldData extends NumericFieldData<LongDocFieldData> {
     }
 
     @Override public void forEachValue(StringValueProc proc) {
-        if (freqs == null) {
-            for (int i = 1; i < values.length; i++) {
-                proc.onValue(Long.toString(values[i]), -1);
-            }
-        } else {
-            for (int i = 1; i < values.length; i++) {
-                proc.onValue(Long.toString(values[i]), freqs[i]);
-            }
+        for (int i = 1; i < values.length; i++) {
+            proc.onValue(Long.toString(values[i]));
         }
     }
 
@@ -118,24 +109,18 @@ public abstract class LongFieldData extends NumericFieldData<LongDocFieldData> {
     }
 
     public void forEachValue(ValueProc proc) {
-        if (freqs == null) {
-            for (int i = 1; i < values.length; i++) {
-                proc.onValue(values[i], -1);
-            }
-        } else {
-            for (int i = 1; i < values.length; i++) {
-                proc.onValue(values[i], freqs[i]);
-            }
+        for (int i = 1; i < values.length; i++) {
+            proc.onValue(values[i]);
         }
     }
 
     public static interface ValueProc {
-        void onValue(long value, int freq);
+        void onValue(long value);
     }
 
 
-    public static LongFieldData load(IndexReader reader, String field, FieldDataOptions options) throws IOException {
-        return FieldDataLoader.load(reader, field, options, new LongTypeLoader());
+    public static LongFieldData load(IndexReader reader, String field) throws IOException {
+        return FieldDataLoader.load(reader, field, new LongTypeLoader());
     }
 
     static class LongTypeLoader extends FieldDataLoader.FreqsTypeLoader<LongFieldData> {
@@ -153,11 +138,11 @@ public abstract class LongFieldData extends NumericFieldData<LongDocFieldData> {
         }
 
         @Override public LongFieldData buildSingleValue(String field, int[] order) {
-            return new SingleValueLongFieldData(field, options, order, terms.toNativeArray(), buildFreqs());
+            return new SingleValueLongFieldData(field, order, terms.toNativeArray());
         }
 
         @Override public LongFieldData buildMultiValue(String field, int[][] order) {
-            return new MultiValueLongFieldData(field, options, order, terms.toNativeArray(), buildFreqs());
+            return new MultiValueLongFieldData(field, order, terms.toNativeArray());
         }
     }
 }

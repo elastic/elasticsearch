@@ -21,7 +21,6 @@ package org.elasticsearch.index.field.data.strings;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.index.field.data.FieldData;
-import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.field.data.support.FieldDataLoader;
 
 import java.io.IOException;
@@ -33,12 +32,10 @@ import java.util.ArrayList;
 public abstract class StringFieldData extends FieldData<StringDocFieldData> {
 
     protected final String[] values;
-    protected final int[] freqs;
 
-    protected StringFieldData(String fieldName, FieldDataOptions options, String[] values, int[] freqs) {
-        super(fieldName, options);
+    protected StringFieldData(String fieldName, String[] values) {
+        super(fieldName);
         this.values = values;
-        this.freqs = freqs;
     }
 
     abstract public String value(int docId);
@@ -62,19 +59,13 @@ public abstract class StringFieldData extends FieldData<StringDocFieldData> {
     }
 
     @Override public void forEachValue(StringValueProc proc) {
-        if (freqs == null) {
-            for (int i = 1; i < values.length; i++) {
-                proc.onValue(values[i], -1);
-            }
-        } else {
-            for (int i = 1; i < values.length; i++) {
-                proc.onValue(values[i], freqs[i]);
-            }
+        for (int i = 1; i < values.length; i++) {
+            proc.onValue(values[i]);
         }
     }
 
-    public static StringFieldData load(IndexReader reader, String field, FieldDataOptions options) throws IOException {
-        return FieldDataLoader.load(reader, field, options, new StringTypeLoader());
+    public static StringFieldData load(IndexReader reader, String field) throws IOException {
+        return FieldDataLoader.load(reader, field, new StringTypeLoader());
     }
 
     static class StringTypeLoader extends FieldDataLoader.FreqsTypeLoader<StringFieldData> {
@@ -92,11 +83,11 @@ public abstract class StringFieldData extends FieldData<StringDocFieldData> {
         }
 
         @Override public StringFieldData buildSingleValue(String field, int[] order) {
-            return new SingleValueStringFieldData(field, options, order, terms.toArray(new String[terms.size()]), buildFreqs());
+            return new SingleValueStringFieldData(field, order, terms.toArray(new String[terms.size()]));
         }
 
         @Override public StringFieldData buildMultiValue(String field, int[][] order) {
-            return new MultiValueStringFieldData(field, options, order, terms.toArray(new String[terms.size()]), buildFreqs());
+            return new MultiValueStringFieldData(field, order, terms.toArray(new String[terms.size()]));
         }
     }
 }

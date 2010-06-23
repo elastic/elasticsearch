@@ -24,16 +24,13 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.field.data.FieldData;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
 
-import static org.elasticsearch.common.collect.Tuple.*;
 import static org.elasticsearch.common.lucene.DocumentBuilder.*;
-import static org.elasticsearch.index.field.data.FieldDataOptions.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -71,11 +68,8 @@ public class DoubleFieldDataTests {
 
         IndexReader reader = indexWriter.getReader();
 
-        DoubleFieldData.load(reader, "svalue", fieldDataOptions().withFreqs(false));
-        DoubleFieldData.load(reader, "mvalue", fieldDataOptions().withFreqs(false));
-
-        DoubleFieldData sFieldData = DoubleFieldData.load(reader, "svalue", fieldDataOptions().withFreqs(true));
-        DoubleFieldData mFieldData = DoubleFieldData.load(reader, "mvalue", fieldDataOptions().withFreqs(true));
+        DoubleFieldData sFieldData = DoubleFieldData.load(reader, "svalue");
+        DoubleFieldData mFieldData = DoubleFieldData.load(reader, "mvalue");
 
         assertThat(sFieldData.fieldName(), equalTo("svalue"));
         assertThat(sFieldData.type(), equalTo(FieldData.Type.DOUBLE));
@@ -116,23 +110,17 @@ public class DoubleFieldDataTests {
         assertThat(sFieldData.values(4)[0], equalTo(4d));
 
         // check order is correct
-        final ArrayList<Tuple<Double, Integer>> values = new ArrayList<Tuple<Double, Integer>>();
+        final ArrayList<Double> values = new ArrayList<Double>();
         sFieldData.forEachValue(new DoubleFieldData.ValueProc() {
-            @Override public void onValue(double value, int freq) {
-                values.add(tuple(value, freq));
+            @Override public void onValue(double value) {
+                values.add(value);
             }
         });
         assertThat(values.size(), equalTo(3));
 
-        assertThat(values.get(0).v1(), equalTo(3d));
-        assertThat(values.get(0).v2(), equalTo(1));
-
-        assertThat(values.get(1).v1(), equalTo(4d));
-        assertThat(values.get(1).v2(), equalTo(2));
-
-        assertThat(values.get(2).v1(), equalTo(7d));
-        assertThat(values.get(2).v2(), equalTo(1));
-
+        assertThat(values.get(0), equalTo(3d));
+        assertThat(values.get(1), equalTo(4d));
+        assertThat(values.get(2), equalTo(7d));
 
         // mvalue
         assertThat(mFieldData.hasValue(0), equalTo(true));
@@ -163,19 +151,14 @@ public class DoubleFieldDataTests {
         // check order is correct
         values.clear();
         mFieldData.forEachValue(new DoubleFieldData.ValueProc() {
-            @Override public void onValue(double value, int freq) {
-                values.add(tuple(value, freq));
+            @Override public void onValue(double value) {
+                values.add(value);
             }
         });
         assertThat(values.size(), equalTo(3));
 
-        assertThat(values.get(0).v1(), equalTo(102d));
-        assertThat(values.get(0).v2(), equalTo(1));
-
-        assertThat(values.get(1).v1(), equalTo(104d));
-        assertThat(values.get(1).v2(), equalTo(2));
-
-        assertThat(values.get(2).v1(), equalTo(105d));
-        assertThat(values.get(2).v2(), equalTo(1));
+        assertThat(values.get(0), equalTo(102d));
+        assertThat(values.get(1), equalTo(104d));
+        assertThat(values.get(2), equalTo(105d));
     }
 }

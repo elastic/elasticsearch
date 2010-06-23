@@ -20,7 +20,6 @@
 package org.elasticsearch.index.field.data.floats;
 
 import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
 
 /**
@@ -53,8 +52,8 @@ public class MultiValueFloatFieldData extends FloatFieldData {
     // order with value 0 indicates no value
     private final int[][] order;
 
-    public MultiValueFloatFieldData(String fieldName, FieldDataOptions options, int[][] order, float[] values, int[] freqs) {
-        super(fieldName, options, values, freqs);
+    public MultiValueFloatFieldData(String fieldName, int[][] order, float[] values) {
+        super(fieldName, values);
         this.order = order;
     }
 

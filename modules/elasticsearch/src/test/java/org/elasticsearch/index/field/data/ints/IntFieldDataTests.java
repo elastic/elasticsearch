@@ -24,16 +24,13 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.field.data.FieldData;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
 
-import static org.elasticsearch.common.collect.Tuple.*;
 import static org.elasticsearch.common.lucene.DocumentBuilder.*;
-import static org.elasticsearch.index.field.data.FieldDataOptions.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -71,11 +68,8 @@ public class IntFieldDataTests {
 
         IndexReader reader = indexWriter.getReader();
 
-        IntFieldData.load(reader, "svalue", fieldDataOptions().withFreqs(false));
-        IntFieldData.load(reader, "mvalue", fieldDataOptions().withFreqs(false));
-
-        IntFieldData sFieldData = IntFieldData.load(reader, "svalue", fieldDataOptions().withFreqs(true));
-        IntFieldData mFieldData = IntFieldData.load(reader, "mvalue", fieldDataOptions().withFreqs(true));
+        IntFieldData sFieldData = IntFieldData.load(reader, "svalue");
+        IntFieldData mFieldData = IntFieldData.load(reader, "mvalue");
 
         assertThat(sFieldData.fieldName(), equalTo("svalue"));
         assertThat(sFieldData.type(), equalTo(FieldData.Type.INT));
@@ -112,23 +106,17 @@ public class IntFieldDataTests {
         assertThat(sFieldData.values(4)[0], equalTo(4));
 
         // check order is correct
-        final ArrayList<Tuple<Integer, Integer>> values = new ArrayList<Tuple<Integer, Integer>>();
+        final ArrayList<Integer> values = new ArrayList<Integer>();
         sFieldData.forEachValue(new IntFieldData.ValueProc() {
-            @Override public void onValue(int value, int freq) {
-                values.add(tuple(value, freq));
+            @Override public void onValue(int value) {
+                values.add(value);
             }
         });
         assertThat(values.size(), equalTo(3));
 
-        assertThat(values.get(0).v1(), equalTo(3));
-        assertThat(values.get(0).v2(), equalTo(1));
-
-        assertThat(values.get(1).v1(), equalTo(4));
-        assertThat(values.get(1).v2(), equalTo(2));
-
-        assertThat(values.get(2).v1(), equalTo(7));
-        assertThat(values.get(2).v2(), equalTo(1));
-
+        assertThat(values.get(0), equalTo(3));
+        assertThat(values.get(1), equalTo(4));
+        assertThat(values.get(2), equalTo(7));
 
         // mvalue
         assertThat(mFieldData.hasValue(0), equalTo(true));
@@ -156,19 +144,13 @@ public class IntFieldDataTests {
         // check order is correct
         values.clear();
         mFieldData.forEachValue(new IntFieldData.ValueProc() {
-            @Override public void onValue(int value, int freq) {
-                values.add(tuple(value, freq));
+            @Override public void onValue(int value) {
+                values.add(value);
             }
         });
         assertThat(values.size(), equalTo(3));
-
-        assertThat(values.get(0).v1(), equalTo(102));
-        assertThat(values.get(0).v2(), equalTo(1));
-
-        assertThat(values.get(1).v1(), equalTo(104));
-        assertThat(values.get(1).v2(), equalTo(2));
-
-        assertThat(values.get(2).v1(), equalTo(105));
-        assertThat(values.get(2).v2(), equalTo(1));
+        assertThat(values.get(0), equalTo(102));
+        assertThat(values.get(1), equalTo(104));
+        assertThat(values.get(2), equalTo(105));
     }
 }

@@ -27,7 +27,6 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
-import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
@@ -64,26 +63,22 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
         // nothing to do here...
     }
 
-    @Override public FieldData cache(FieldData.Type type, IndexReader reader, String fieldName, FieldDataOptions options) throws IOException {
-        return cache(type.fieldDataClass, reader, fieldName, options);
+    @Override public FieldData cache(FieldData.Type type, IndexReader reader, String fieldName) throws IOException {
+        return cache(type.fieldDataClass, reader, fieldName);
     }
 
-    @Override public <T extends FieldData> T cache(Class<T> type, IndexReader reader, String fieldName, FieldDataOptions options) throws IOException {
+    @Override public <T extends FieldData> T cache(Class<T> type, IndexReader reader, String fieldName) throws IOException {
         ConcurrentMap<String, FieldData> fieldDataCache = cache.get(reader.getFieldCacheKey());
         if (fieldDataCache == null) {
             synchronized (creationMutex) {
                 fieldDataCache = cache.get(reader.getFieldCacheKey());
                 if (fieldDataCache == null) {
                     fieldDataCache = ConcurrentCollections.newConcurrentMap();
+                    cache.put(reader.getFieldCacheKey(), fieldDataCache);
                 }
                 T fieldData = (T) fieldDataCache.get(fieldName);
-                if (fieldData != null) {
-                    if (!options.subsetOf(fieldData.options())) {
-                        fieldData = FieldData.load(type, reader, fieldName, options);
-                        fieldDataCache.put(fieldName, fieldData);
-                    }
-                } else {
-                    fieldData = FieldData.load(type, reader, fieldName, options);
+                if (fieldData == null) {
+                    fieldData = FieldData.load(type, reader, fieldName);
                     fieldDataCache.put(fieldName, fieldData);
                 }
                 return fieldData;
@@ -94,26 +89,10 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
             synchronized (creationMutex) {
                 fieldData = (T) fieldDataCache.get(fieldName);
                 if (fieldData == null) {
-                    fieldData = FieldData.load(type, reader, fieldName, options);
-                    fieldDataCache.put(fieldName, fieldData);
-                } else if (!options.subsetOf(fieldData.options())) {
-                    fieldData = FieldData.load(type, reader, fieldName, options);
+                    fieldData = FieldData.load(type, reader, fieldName);
                     fieldDataCache.put(fieldName, fieldData);
                 }
                 return fieldData;
-            }
-        } else if (!options.subsetOf(fieldData.options())) {
-            synchronized (creationMutex) {
-                fieldData = (T) fieldDataCache.get(fieldName);
-                if (fieldData != null) {
-                    if (!options.subsetOf(fieldData.options())) {
-                        fieldData = FieldData.load(type, reader, fieldName, options);
-                        fieldDataCache.put(fieldName, fieldData);
-                    }
-                } else {
-                    fieldData = FieldData.load(type, reader, fieldName, options);
-                    fieldDataCache.put(fieldName, fieldData);
-                }
             }
         }
         return fieldData;

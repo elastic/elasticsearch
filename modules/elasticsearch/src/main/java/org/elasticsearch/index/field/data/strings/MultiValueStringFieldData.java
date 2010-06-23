@@ -21,7 +21,6 @@ package org.elasticsearch.index.field.data.strings;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.index.field.data.FieldDataOptions;
 
 /**
  * @author kimchy (shay.banon)
@@ -43,8 +42,8 @@ public class MultiValueStringFieldData extends StringFieldData {
     // order with value 0 indicates no value
     private final int[][] order;
 
-    public MultiValueStringFieldData(String fieldName, FieldDataOptions options, int[][] order, String[] values, int[] freqs) {
-        super(fieldName, options, values, freqs);
+    public MultiValueStringFieldData(String fieldName, int[][] order, String[] values) {
+        super(fieldName, values);
         this.order = order;
     }
 

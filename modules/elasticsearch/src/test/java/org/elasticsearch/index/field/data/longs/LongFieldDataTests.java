@@ -24,16 +24,13 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.field.data.FieldData;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
 
-import static org.elasticsearch.common.collect.Tuple.*;
 import static org.elasticsearch.common.lucene.DocumentBuilder.*;
-import static org.elasticsearch.index.field.data.FieldDataOptions.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -71,13 +68,8 @@ public class LongFieldDataTests {
 
         IndexReader reader = indexWriter.getReader();
 
-        // load it once with no freqs
-        LongFieldData.load(reader, "svalue", fieldDataOptions().withFreqs(false));
-        LongFieldData.load(reader, "mvalue", fieldDataOptions().withFreqs(false));
-
-
-        LongFieldData sFieldData = LongFieldData.load(reader, "svalue", fieldDataOptions().withFreqs(true));
-        LongFieldData mFieldData = LongFieldData.load(reader, "mvalue", fieldDataOptions().withFreqs(true));
+        LongFieldData sFieldData = LongFieldData.load(reader, "svalue");
+        LongFieldData mFieldData = LongFieldData.load(reader, "mvalue");
 
         assertThat(sFieldData.fieldName(), equalTo("svalue"));
         assertThat(sFieldData.type(), equalTo(FieldData.Type.LONG));
@@ -117,22 +109,17 @@ public class LongFieldDataTests {
         assertThat(sFieldData.values(4)[0], equalTo(4l));
 
         // check order is correct
-        final ArrayList<Tuple<Long, Integer>> values = new ArrayList<Tuple<Long, Integer>>();
+        final ArrayList<Long> values = new ArrayList<Long>();
         sFieldData.forEachValue(new LongFieldData.ValueProc() {
-            @Override public void onValue(long value, int freq) {
-                values.add(tuple(value, freq));
+            @Override public void onValue(long value) {
+                values.add(value);
             }
         });
         assertThat(values.size(), equalTo(3));
 
-        assertThat(values.get(0).v1(), equalTo(3l));
-        assertThat(values.get(0).v2(), equalTo(1));
-
-        assertThat(values.get(1).v1(), equalTo(4l));
-        assertThat(values.get(1).v2(), equalTo(2));
-
-        assertThat(values.get(2).v1(), equalTo(7l));
-        assertThat(values.get(2).v2(), equalTo(1));
+        assertThat(values.get(0), equalTo(3l));
+        assertThat(values.get(1), equalTo(4l));
+        assertThat(values.get(2), equalTo(7l));
 
 
         // mvalue
@@ -164,19 +151,14 @@ public class LongFieldDataTests {
         // check order is correct
         values.clear();
         mFieldData.forEachValue(new LongFieldData.ValueProc() {
-            @Override public void onValue(long value, int freq) {
-                values.add(tuple(value, freq));
+            @Override public void onValue(long value) {
+                values.add(value);
             }
         });
         assertThat(values.size(), equalTo(3));
 
-        assertThat(values.get(0).v1(), equalTo(102l));
-        assertThat(values.get(0).v2(), equalTo(1));
-
-        assertThat(values.get(1).v1(), equalTo(104l));
-        assertThat(values.get(1).v2(), equalTo(2));
-
-        assertThat(values.get(2).v1(), equalTo(105l));
-        assertThat(values.get(2).v2(), equalTo(1));
+        assertThat(values.get(0), equalTo(102l));
+        assertThat(values.get(1), equalTo(104l));
+        assertThat(values.get(2), equalTo(105l));
     }
 }

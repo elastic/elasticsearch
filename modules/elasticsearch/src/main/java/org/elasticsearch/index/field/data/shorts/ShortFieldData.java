@@ -22,7 +22,6 @@ package org.elasticsearch.index.field.data.shorts;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldCache;
 import org.elasticsearch.common.trove.TShortArrayList;
-import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.field.data.support.FieldDataLoader;
 
@@ -36,12 +35,10 @@ public abstract class ShortFieldData extends NumericFieldData<ShortDocFieldData>
     static final short[] EMPTY_SHORT_ARRAY = new short[0];
 
     protected final short[] values;
-    protected final int[] freqs;
 
-    protected ShortFieldData(String fieldName, FieldDataOptions options, short[] values, int[] freqs) {
-        super(fieldName, options);
+    protected ShortFieldData(String fieldName, short[] values) {
+        super(fieldName);
         this.values = values;
-        this.freqs = freqs;
     }
 
     abstract public short value(int docId);
@@ -57,14 +54,8 @@ public abstract class ShortFieldData extends NumericFieldData<ShortDocFieldData>
     }
 
     @Override public void forEachValue(StringValueProc proc) {
-        if (freqs == null) {
-            for (int i = 1; i < values.length; i++) {
-                proc.onValue(Short.toString(values[i]), -1);
-            }
-        } else {
-            for (int i = 1; i < values.length; i++) {
-                proc.onValue(Short.toString(values[i]), freqs[i]);
-            }
+        for (int i = 1; i < values.length; i++) {
+            proc.onValue(Short.toString(values[i]));
         }
     }
 
@@ -101,24 +92,18 @@ public abstract class ShortFieldData extends NumericFieldData<ShortDocFieldData>
     }
 
     public void forEachValue(ValueProc proc) {
-        if (freqs == null) {
-            for (int i = 1; i < values.length; i++) {
-                proc.onValue(values[i], -1);
-            }
-        } else {
-            for (int i = 1; i < values.length; i++) {
-                proc.onValue(values[i], freqs[i]);
-            }
+        for (int i = 1; i < values.length; i++) {
+            proc.onValue(values[i]);
         }
     }
 
     public static interface ValueProc {
-        void onValue(short value, int freq);
+        void onValue(short value);
     }
 
 
-    public static ShortFieldData load(IndexReader reader, String field, FieldDataOptions options) throws IOException {
-        return FieldDataLoader.load(reader, field, options, new ShortTypeLoader());
+    public static ShortFieldData load(IndexReader reader, String field) throws IOException {
+        return FieldDataLoader.load(reader, field, new ShortTypeLoader());
     }
 
     static class ShortTypeLoader extends FieldDataLoader.FreqsTypeLoader<ShortFieldData> {
@@ -136,11 +121,11 @@ public abstract class ShortFieldData extends NumericFieldData<ShortDocFieldData>
         }
 
         @Override public ShortFieldData buildSingleValue(String field, int[] order) {
-            return new SingleValueShortFieldData(field, options, order, terms.toNativeArray(), buildFreqs());
+            return new SingleValueShortFieldData(field, order, terms.toNativeArray());
         }
 
         @Override public ShortFieldData buildMultiValue(String field, int[][] order) {
-            return new MultiValueShortFieldData(field, options, order, terms.toNativeArray(), buildFreqs());
+            return new MultiValueShortFieldData(field, order, terms.toNativeArray());
         }
     }
 }

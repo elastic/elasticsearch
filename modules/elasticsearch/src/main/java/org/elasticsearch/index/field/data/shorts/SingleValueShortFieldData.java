@@ -20,7 +20,6 @@
 package org.elasticsearch.index.field.data.shorts;
 
 import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
 
 /**
@@ -43,8 +42,8 @@ public class SingleValueShortFieldData extends ShortFieldData {
     // order with value 0 indicates no value
     private final int[] order;
 
-    public SingleValueShortFieldData(String fieldName, FieldDataOptions options, int[] order, short[] values, int[] freqs) {
-        super(fieldName, options, values, freqs);
+    public SingleValueShortFieldData(String fieldName, int[] order, short[] values) {
+        super(fieldName, values);
         this.order = order;
     }
 

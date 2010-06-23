@@ -20,7 +20,6 @@
 package org.elasticsearch.index.field.data.ints;
 
 import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.index.field.data.FieldDataOptions;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
 
 /**
@@ -43,8 +42,8 @@ public class SingleValueIntFieldData extends IntFieldData {
     // order with value 0 indicates no value
     private final int[] order;
 
-    public SingleValueIntFieldData(String fieldName, FieldDataOptions options, int[] order, int[] values, int[] freqs) {
-        super(fieldName, options, values, freqs);
+    public SingleValueIntFieldData(String fieldName, int[] order, int[] values) {
+        super(fieldName, values);
         this.order = order;
     }
 

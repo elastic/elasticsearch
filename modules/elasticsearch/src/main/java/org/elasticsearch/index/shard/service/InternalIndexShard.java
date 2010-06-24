@@ -400,35 +400,30 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
     }
 
-    public void performRecovery(Iterable<Translog.Operation> operations) throws ElasticSearchException {
+    /**
+     * After the store has been recovered, we need to start the engine in order to apply operations
+     */
+    public void performRecoveryPrepareForTranslog() throws ElasticSearchException {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
         engine.start();
-        applyTranslogOperations(operations);
+    }
+
+    public void performRecoveryFinalization() throws ElasticSearchException {
         synchronized (mutex) {
-            logger.debug("Moved to state [STARTED] post recovery (from gateway)");
+            logger.debug("Moved to state [STARTED] post recovery (from another shard)");
             state = IndexShardState.STARTED;
         }
         scheduleRefresherIfNeeded();
+        engine.refresh(new Engine.Refresh(true));
     }
 
-    public void performRecovery(Translog.Snapshot snapshot, boolean phase3) throws ElasticSearchException {
+    public void performRecoveryOperations(Iterable<Translog.Operation> operations) throws ElasticSearchException {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
-        if (!phase3) {
-            // start the engine, but the shard is not started yet...
-            engine.start();
-        }
-        applyTranslogOperations(snapshot);
-        if (phase3) {
-            synchronized (mutex) {
-                logger.debug("Moved to state [STARTED] post recovery (from another shard)");
-                state = IndexShardState.STARTED;
-            }
-            scheduleRefresherIfNeeded();
-        }
+        applyTranslogOperations(operations);
     }
 
     private void applyTranslogOperations(Iterable<Translog.Operation> snapshot) {

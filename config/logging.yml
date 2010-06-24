@@ -1,7 +1,14 @@
 rootLogger: INFO, console, file
 logger:
   # log action execution errors for easier debugging
-  action : DEBUG
+  action: DEBUG
+
+  # gateway
+  #gateway: DEBUG
+  #index.gateway: DEBUG
+
+  # peer shard recovery
+  #index.shard.recovery: DEBUG
 
 appender:
   console:

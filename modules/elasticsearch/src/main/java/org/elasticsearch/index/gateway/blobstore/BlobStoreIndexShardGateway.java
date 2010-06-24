@@ -381,9 +381,11 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                         break;
                     }
                 }
-                indexShard.performRecovery(operations);
+                indexShard.performRecoveryPrepareForTranslog();
+                indexShard.performRecoveryOperations(operations);
+                indexShard.performRecoveryFinalization();
 
-                // clean all the other translogs
+                // clean all the other translog
                 for (Long translogIdToDelete : translogIds) {
                     if (!translogId.equals(translogIdToDelete)) {
                         try {

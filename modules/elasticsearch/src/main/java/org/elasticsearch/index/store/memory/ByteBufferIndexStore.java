@@ -21,19 +21,26 @@ package org.elasticsearch.index.store.memory;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.jvm.JvmStats;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class ByteBufferIndexStore extends AbstractIndexComponent implements IndexStore {
 
+    private final boolean direct;
+
     @Inject public ByteBufferIndexStore(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
+        this.direct = componentSettings.getAsBoolean("direct", true);
     }
 
     @Override public boolean persistent() {
@@ -42,5 +49,20 @@ public class ByteBufferIndexStore extends AbstractIndexComponent implements Inde
 
     @Override public Class<? extends Store> shardStoreClass() {
         return ByteBufferStore.class;
+    }
+
+    @Override public ByteSizeValue backingStoreTotalSpace() {
+        if (direct) {
+            // TODO, we can use sigar...
+            return new ByteSizeValue(-1, ByteSizeUnit.BYTES);
+        }
+        return JvmInfo.jvmInfo().mem().heapMax();
+    }
+
+    @Override public ByteSizeValue backingStoreFreeSpace() {
+        if (direct) {
+            return new ByteSizeValue(-1, ByteSizeUnit.BYTES);
+        }
+        return JvmStats.jvmStats().mem().heapUsed();
     }
 }

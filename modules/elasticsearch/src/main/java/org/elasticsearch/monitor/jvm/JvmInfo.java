@@ -22,6 +22,7 @@ package org.elasticsearch.monitor.jvm;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 
@@ -245,6 +246,38 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         long nonHeapMax = -1;
 
         Mem() {
+        }
+
+        public ByteSizeValue heapInit() {
+            return new ByteSizeValue(heapInit);
+        }
+
+        public ByteSizeValue getHeapInit() {
+            return heapInit();
+        }
+
+        public ByteSizeValue heapMax() {
+            return new ByteSizeValue(heapMax);
+        }
+
+        public ByteSizeValue getHeapMax() {
+            return heapMax();
+        }
+
+        public ByteSizeValue nonHeapInit() {
+            return new ByteSizeValue(nonHeapInit);
+        }
+
+        public ByteSizeValue getNonHeapInit() {
+            return nonHeapInit();
+        }
+
+        public ByteSizeValue nonHeapMax() {
+            return new ByteSizeValue(nonHeapMax);
+        }
+
+        public ByteSizeValue getNonHeapMax() {
+            return nonHeapMax();
         }
 
         public static Mem readMem(StreamInput in) throws IOException {

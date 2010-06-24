@@ -21,11 +21,14 @@ package org.elasticsearch.index.store.memory;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.jvm.JvmStats;
 
 /**
  * @author kimchy (shay.banon)
@@ -42,5 +45,13 @@ public class HeapIndexStore extends AbstractIndexComponent implements IndexStore
 
     @Override public Class<? extends Store> shardStoreClass() {
         return HeapStore.class;
+    }
+
+    @Override public ByteSizeValue backingStoreTotalSpace() {
+        return JvmInfo.jvmInfo().getMem().heapMax();
+    }
+
+    @Override public ByteSizeValue backingStoreFreeSpace() {
+        return JvmStats.jvmStats().getMem().heapUsed();
     }
 }

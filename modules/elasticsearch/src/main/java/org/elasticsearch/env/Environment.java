@@ -60,7 +60,7 @@ public class Environment {
         if (settings.get("path.home") != null) {
             homeFile = new File(cleanPath(settings.get("path.home")));
         } else {
-            homeFile = new File(".");
+            homeFile = new File(System.getProperty("user.dir"));
         }
         homeFile.mkdirs();
 

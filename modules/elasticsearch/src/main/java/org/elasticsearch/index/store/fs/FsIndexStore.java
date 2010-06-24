@@ -74,7 +74,7 @@ public abstract class FsIndexStore extends AbstractIndexComponent implements Ind
         return location;
     }
 
-    public File shardLocation(ShardId shardId) {
+    public File shardIndexLocation(ShardId shardId) {
         return new File(new File(location, Integer.toString(shardId.id())), "index");
     }
 }

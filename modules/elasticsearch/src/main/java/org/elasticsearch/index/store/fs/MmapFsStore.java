@@ -52,7 +52,7 @@ public class MmapFsStore extends FsStore<Directory> {
         // by default, we don't need to sync to disk, since we use the gateway
         this.syncToDisk = componentSettings.getAsBoolean("sync_to_disk", false);
         LockFactory lockFactory = buildLockFactory();
-        File location = ((FsIndexStore) indexStore).shardLocation(shardId);
+        File location = ((FsIndexStore) indexStore).shardIndexLocation(shardId);
         location.mkdirs();
         this.fsDirectory = new CustomMMapDirectory(location, lockFactory, syncToDisk);
 

@@ -461,7 +461,10 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
             }
             currentTranslogPartToWrite = index;
 
-            indexShard.performRecovery(operations);
+            indexShard.performRecoveryPrepareForTranslog();
+            indexShard.performRecoveryOperations(operations);
+            indexShard.performRecoveryFinalization();
+
             return new RecoveryStatus.Translog(latestTranslogId, operations.size(), new ByteSizeValue(size, ByteSizeUnit.BYTES));
         } catch (Exception e) {
             throw new IndexShardGatewayRecoveryException(shardId(), "Failed to perform recovery of translog", e);

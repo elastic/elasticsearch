@@ -19,9 +19,12 @@
 
 package org.elasticsearch.index.store;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexComponent;
 
 /**
+ * Index store is an index level information of the {@link Store} each shard will use.
+ *
  * @author kimchy (shay.banon)
  */
 public interface IndexStore extends IndexComponent {
@@ -31,5 +34,18 @@ public interface IndexStore extends IndexComponent {
      */
     boolean persistent();
 
+    /**
+     * The shard store class that should be used for each shard.
+     */
     Class<? extends Store> shardStoreClass();
+
+    /**
+     * Returns the backing store total space. Return <tt>-1</tt> if not available.
+     */
+    ByteSizeValue backingStoreTotalSpace();
+
+    /**
+     * Returns the backing store free space. Return <tt>-1</tt> if not available.
+     */
+    ByteSizeValue backingStoreFreeSpace();
 }

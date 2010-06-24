@@ -20,6 +20,7 @@
 package org.elasticsearch.index.store.fs;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
@@ -51,6 +52,22 @@ public abstract class FsIndexStore extends AbstractIndexComponent implements Ind
 
     @Override public boolean persistent() {
         return true;
+    }
+
+    @Override public ByteSizeValue backingStoreTotalSpace() {
+        long totalSpace = location.getTotalSpace();
+        if (totalSpace == 0) {
+            totalSpace = -1;
+        }
+        return new ByteSizeValue(totalSpace);
+    }
+
+    @Override public ByteSizeValue backingStoreFreeSpace() {
+        long usableSpace = location.getUsableSpace();
+        if (usableSpace == 0) {
+            usableSpace = -1;
+        }
+        return new ByteSizeValue(usableSpace);
     }
 
     public File location() {

@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.search.facets;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.search.facets.histogram.HistogramFacet;
@@ -56,6 +57,62 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
     protected Client getClient() {
         return client("server1");
+    }
+
+    @Test public void testFacetsWithSize0() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("stag", "111")
+                .startArray("tag").value("xxx").value("yyy").endArray()
+                .endObject()).execute().actionGet();
+        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("stag", "111")
+                .startArray("tag").value("zzz").value("yyy").endArray()
+                .endObject()).execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setSize(0)
+                .setQuery(termQuery("stag", "111"))
+                .addFacetTerms("facet1", "stag", 10)
+                .addFacetTerms("facet2", "tag", 10)
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().hits().length, equalTo(0));
+
+        TermsFacet facet = searchResponse.facets().facet(TermsFacet.class, "facet1");
+        assertThat(facet.name(), equalTo("facet1"));
+        assertThat(facet.entries().size(), equalTo(1));
+        assertThat(facet.entries().get(0).term(), equalTo("111"));
+        assertThat(facet.entries().get(0).count(), equalTo(2));
+
+        searchResponse = client.prepareSearch()
+                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setSize(0)
+                .setQuery(termQuery("stag", "111"))
+                .addFacetTerms("facet1", "stag", 10)
+                .addFacetTerms("facet2", "tag", 10)
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().hits().length, equalTo(0));
+
+        facet = searchResponse.facets().facet(TermsFacet.class, "facet1");
+        assertThat(facet.name(), equalTo("facet1"));
+        assertThat(facet.entries().size(), equalTo(1));
+        assertThat(facet.entries().get(0).term(), equalTo("111"));
+        assertThat(facet.entries().get(0).count(), equalTo(2));
     }
 
     @Test public void testTermsFacets() throws Exception {

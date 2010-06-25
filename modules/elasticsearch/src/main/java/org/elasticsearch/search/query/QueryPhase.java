@@ -94,10 +94,15 @@ public class QueryPhase implements SearchPhase {
             }
 
             TopDocs topDocs;
+            int numDocs = searchContext.from() + searchContext.size();
+            if (numDocs == 0) {
+                // if 0 was asked, change it to 1 since 0 is not allowed
+                numDocs = 1;
+            }
             if (searchContext.sort() != null) {
-                topDocs = searchContext.searcher().search(query, null, searchContext.from() + searchContext.size(), searchContext.sort());
+                topDocs = searchContext.searcher().search(query, null, numDocs, searchContext.sort());
             } else {
-                topDocs = searchContext.searcher().search(query, searchContext.from() + searchContext.size());
+                topDocs = searchContext.searcher().search(query, numDocs);
             }
             searchContext.queryResult().topDocs(topDocs);
         } catch (Exception e) {

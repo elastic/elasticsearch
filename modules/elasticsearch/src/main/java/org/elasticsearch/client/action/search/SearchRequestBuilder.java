@@ -28,15 +28,12 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.action.support.BaseRequestBuilder;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
 import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.builder.SearchSourceFacetsBuilder;
-import org.elasticsearch.search.builder.SearchSourceHighlightBuilder;
-import org.elasticsearch.search.facets.histogram.HistogramFacet;
+import org.elasticsearch.search.facets.AbstractFacetBuilder;
+import org.elasticsearch.search.highlight.HighlightBuilder;
 
-import javax.annotation.Nullable;
 import java.util.Map;
 
 /**
@@ -48,9 +45,7 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
 
     private SearchSourceBuilder sourceBuilder;
 
-    private SearchSourceFacetsBuilder facetsBuilder;
-
-    private SearchSourceHighlightBuilder highlightBuilder;
+    private HighlightBuilder highlightBuilder;
 
     public SearchRequestBuilder(InternalClient client) {
         super(client, new SearchRequest());
@@ -258,261 +253,10 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
     }
 
     /**
-     * Adds a query facet (which results in a count facet returned).
-     *
-     * @param name  The logical name of the facet, it will be returned under the name
-     * @param query The query facet
-     * @see org.elasticsearch.search.facets.query.QueryFacet
+     * Adds a facet to the search operation.
      */
-    public SearchRequestBuilder addFacetQuery(String name, XContentQueryBuilder query) {
-        facetsBuilder().queryFacet(name, query);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetQuery(String name, XContentQueryBuilder query, @Nullable XContentFilterBuilder filter) {
-        facetsBuilder().queryFacet(name, query, filter);
-        return this;
-    }
-
-    /**
-     * Adds a query facet (which results in a count facet returned) with an option to
-     * be global on the index or bounded by the search query.
-     *
-     * @param name  The logical name of the facet, it will be returned under the name
-     * @param query The query facet
-     * @see org.elasticsearch.search.facets.query.QueryFacet
-     */
-    public SearchRequestBuilder addFacetGlobalQuery(String name, XContentQueryBuilder query) {
-        facetsBuilder().queryFacetGlobal(name, query);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetGlobalQuery(String name, XContentQueryBuilder query, @Nullable XContentFilterBuilder filter) {
-        facetsBuilder().queryFacetGlobal(name, query, filter);
-        return this;
-    }
-
-    /**
-     * Adds a term facet for the provided field name.
-     *
-     * @param name      The name of the facet
-     * @param fieldName The field name to run the facet against
-     * @param size      The number of the terms
-     * @see org.elasticsearch.search.facets.terms.TermsFacet
-     */
-    public SearchRequestBuilder addFacetTerms(String name, String fieldName, int size) {
-        facetsBuilder().termsFacet(name, fieldName, size);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetTerms(String name, String fieldName, int size, @Nullable XContentFilterBuilder filter) {
-        facetsBuilder().termsFacet(name, fieldName, size, filter);
-        return this;
-    }
-
-    /**
-     * Adds a <b>global</b> term facet for the provided field name.
-     *
-     * @param name      The name of the facet
-     * @param fieldName The field name to run the facet against
-     * @param size      The number of the terms
-     * @see org.elasticsearch.search.facets.terms.TermsFacet
-     */
-    public SearchRequestBuilder addFacetGlobalTerms(String name, String fieldName, int size) {
-        facetsBuilder().termsFacetGlobal(name, fieldName, size);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetGlobalTerms(String name, String fieldName, int size, @Nullable XContentFilterBuilder filter) {
-        facetsBuilder().termsFacetGlobal(name, fieldName, size, filter);
-        return this;
-    }
-
-    /**
-     * Adds a numeric statistical facet for the provided field name.
-     *
-     * @param name      The name of the facet
-     * @param fieldName The name of the <b>numeric</b> field
-     * @see org.elasticsearch.search.facets.statistical.StatisticalFacet
-     */
-    public SearchRequestBuilder addFacetStatistical(String name, String fieldName) {
-        facetsBuilder().statisticalFacet(name, fieldName);
-        return this;
-    }
-
-    /**
-     * Adds a numeric statistical facet for the provided field name.
-     *
-     * @param name      The name of the facet
-     * @param fieldName The name of the <b>numeric</b> field
-     * @param filter    An optional filter to reduce the scope of the facet
-     * @see org.elasticsearch.search.facets.statistical.StatisticalFacet
-     */
-    public SearchRequestBuilder addFacetStatistical(String name, String fieldName, @Nullable XContentFilterBuilder filter) {
-        facetsBuilder().statisticalFacet(name, fieldName, filter);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetStatisticalScript(String name, String script) {
-        facetsBuilder().statisticalScriptFacet(name, script);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetStatisticalScript(String name, String script, @Nullable Map<String, Object> params) {
-        facetsBuilder().statisticalScriptFacet(name, script, params);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetStatisticalScript(String name, String script, @Nullable Map<String, Object> params, @Nullable XContentFilterBuilder filter) {
-        facetsBuilder().statisticalScriptFacet(name, script, params, filter);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetGlobalStatisticalScript(String name, String script) {
-        facetsBuilder().statisticalScriptFacetGlobal(name, script);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetGlobalStatisticalScript(String name, String script, @Nullable Map<String, Object> params) {
-        facetsBuilder().statisticalScriptFacetGlobal(name, script, params);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetGlobalStatisticalScript(String name, String script, @Nullable Map<String, Object> params, @Nullable XContentFilterBuilder filter) {
-        facetsBuilder().statisticalScriptFacetGlobal(name, script, params, filter);
-        return this;
-    }
-
-    /**
-     * Adds a numeric statistical <b>global</b> facet for the provided field name.
-     *
-     * @param name      The name of the facet
-     * @param fieldName The name of the <b>numeric</b> field
-     * @see org.elasticsearch.search.facets.statistical.StatisticalFacet
-     */
-    public SearchRequestBuilder addFacetGlobalStatistical(String name, String fieldName) {
-        facetsBuilder().statisticalFacetGlobal(name, fieldName);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetGlobalStatistical(String name, String fieldName, @Nullable XContentFilterBuilder filter) {
-        facetsBuilder().statisticalFacetGlobal(name, fieldName, filter);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetHistogram(String name, String fieldName, long interval) {
-        facetsBuilder().histogramFacet(name, fieldName, interval);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetHistogram(String name, String keyFieldName, String valueFieldName, long interval) {
-        facetsBuilder().histogramFacet(name, keyFieldName, valueFieldName, interval);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetHistogram(String name, String fieldName, long interval, @Nullable XContentFilterBuilder filter) {
-        facetsBuilder().histogramFacet(name, fieldName, interval, filter);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetHistogram(String name, String keyFieldName, String valueFieldName, long interval, @Nullable XContentFilterBuilder filter) {
-        facetsBuilder().histogramFacet(name, keyFieldName, valueFieldName, interval, filter);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetHistogram(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType) {
-        facetsBuilder().histogramFacet(name, fieldName, interval, comparatorType);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetHistogram(String name, String keyFieldName, String valueFieldName, long interval, HistogramFacet.ComparatorType comparatorType) {
-        facetsBuilder().histogramFacet(name, keyFieldName, valueFieldName, interval, comparatorType);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetHistogram(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType,
-                                                  @Nullable XContentFilterBuilder filter) {
-        facetsBuilder().histogramFacet(name, fieldName, interval, comparatorType, filter);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetHistogram(String name, String keyFieldName, String valueFieldName, long interval, HistogramFacet.ComparatorType comparatorType,
-                                                  @Nullable XContentFilterBuilder filter) {
-        facetsBuilder().histogramFacet(name, keyFieldName, valueFieldName, interval, comparatorType, filter);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetHistogramGlobal(String name, String fieldName, long interval) {
-        facetsBuilder().histogramFacetGlobal(name, fieldName, interval);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetHistogramGlobal(String name, String keyFieldName, String valueFieldName, long interval) {
-        facetsBuilder().histogramFacetGlobal(name, keyFieldName, valueFieldName, interval);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetHistogramGlobal(String name, String fieldName, long interval, @Nullable XContentFilterBuilder filter) {
-        facetsBuilder().histogramFacetGlobal(name, fieldName, interval, filter);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetHistogramGlobal(String name, String keyFieldName, String valueFieldName, long interval, @Nullable XContentFilterBuilder filter) {
-        facetsBuilder().histogramFacetGlobal(name, keyFieldName, valueFieldName, interval, filter);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetHistogramGlobal(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType) {
-        facetsBuilder().histogramFacetGlobal(name, fieldName, interval, comparatorType);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetHistogramGlobal(String name, String keyFieldName, String valueFieldName, long interval, HistogramFacet.ComparatorType comparatorType) {
-        facetsBuilder().histogramFacetGlobal(name, keyFieldName, valueFieldName, interval, comparatorType);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetHistogramGlobal(String name, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType,
-                                                        @Nullable XContentFilterBuilder filter) {
-        facetsBuilder().histogramFacetGlobal(name, fieldName, interval, comparatorType, filter);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetHistogramGlobal(String name, String keyFieldName, String valueFieldName, long interval, HistogramFacet.ComparatorType comparatorType,
-                                                        @Nullable XContentFilterBuilder filter) {
-        facetsBuilder().histogramFacetGlobal(name, keyFieldName, valueFieldName, interval, comparatorType, filter);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetHistogramScript(String name, String keyScript, String valueScript) {
-        facetsBuilder().histogramScriptFacet(name, keyScript, valueScript);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetHistogramScript(String name, String keyScript, String valueScript, HistogramFacet.ComparatorType comparatorType) {
-        facetsBuilder().histogramScriptFacet(name, keyScript, valueScript, comparatorType);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetHistogramScript(String name, String keyScript, String valueScript, @Nullable Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType,
-                                                        @Nullable XContentFilterBuilder filter) {
-        facetsBuilder().histogramScriptFacet(name, keyScript, valueScript, params, interval, comparatorType, filter);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetHistogramScriptGlobal(String name, String keyScript, String valueScript) {
-        facetsBuilder().histogramScriptFacetGlobal(name, keyScript, valueScript);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetHistogramScriptGlobal(String name, String keyScript, String valueScript, HistogramFacet.ComparatorType comparatorType) {
-        facetsBuilder().histogramScriptFacetGlobal(name, keyScript, valueScript, comparatorType);
-        return this;
-    }
-
-    public SearchRequestBuilder addFacetHistogramScriptGlobal(String name, String keyScript, String valueScript, @Nullable Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType,
-                                                              @Nullable XContentFilterBuilder filter) {
-        facetsBuilder().histogramScriptFacetGlobal(name, keyScript, valueScript, params, interval, comparatorType, filter);
+    public SearchRequestBuilder addFacet(AbstractFacetBuilder facet) {
+        sourceBuilder().facet(facet);
         return this;
     }
 
@@ -590,9 +334,6 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
     }
 
     @Override protected void doExecute(ActionListener<SearchResponse> listener) {
-        if (facetsBuilder != null) {
-            sourceBuilder().facets(facetsBuilder);
-        }
         if (highlightBuilder != null) {
             sourceBuilder().highlight(highlightBuilder);
         }
@@ -607,16 +348,9 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
         return sourceBuilder;
     }
 
-    private SearchSourceFacetsBuilder facetsBuilder() {
-        if (facetsBuilder == null) {
-            facetsBuilder = new SearchSourceFacetsBuilder();
-        }
-        return facetsBuilder;
-    }
-
-    private SearchSourceHighlightBuilder highlightBuilder() {
+    private HighlightBuilder highlightBuilder() {
         if (highlightBuilder == null) {
-            highlightBuilder = new SearchSourceHighlightBuilder();
+            highlightBuilder = new HighlightBuilder();
         }
         return highlightBuilder;
     }

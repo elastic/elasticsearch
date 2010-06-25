@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.facets.FacetBuilders;
 import org.elasticsearch.search.facets.query.QueryFacet;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
@@ -255,7 +256,8 @@ public class TransportTwoServersSearchTests extends AbstractNodesTests {
         SearchSourceBuilder sourceBuilder = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true)
-                .facets(facets().queryFacetGlobal("all", termQuery("multi", "test")).queryFacet("test1", termQuery("name", "test1")));
+                .facet(FacetBuilders.queryFacet("all", termQuery("multi", "test")).global(true))
+                .facet(FacetBuilders.queryFacet("test1", termQuery("name", "test1")));
 
         SearchResponse searchResponse = client.search(searchRequest("test").source(sourceBuilder)).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));

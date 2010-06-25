@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.builder;
+package org.elasticsearch.search.highlight;
 
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
@@ -31,9 +31,9 @@ import static org.elasticsearch.common.collect.Lists.*;
  * A builder for search highlighting.
  *
  * @author kimchy (shay.banon)
- * @see SearchSourceBuilder#highlight()
+ * @see org.elasticsearch.search.builder.SearchSourceBuilder#highlight()
  */
-public class SearchSourceHighlightBuilder implements ToXContent {
+public class HighlightBuilder implements ToXContent {
 
     private List<Field> fields;
 
@@ -51,7 +51,7 @@ public class SearchSourceHighlightBuilder implements ToXContent {
      *
      * @param name The field to highlight
      */
-    public SearchSourceHighlightBuilder field(String name) {
+    public HighlightBuilder field(String name) {
         if (fields == null) {
             fields = newArrayList();
         }
@@ -66,7 +66,7 @@ public class SearchSourceHighlightBuilder implements ToXContent {
      * @param name         The field to highlight
      * @param fragmentSize The size of a fragment in characters
      */
-    public SearchSourceHighlightBuilder field(String name, int fragmentSize) {
+    public HighlightBuilder field(String name, int fragmentSize) {
         if (fields == null) {
             fields = newArrayList();
         }
@@ -82,7 +82,7 @@ public class SearchSourceHighlightBuilder implements ToXContent {
      * @param fragmentSize      The size of a fragment in characters
      * @param numberOfFragments The (maximum) number of fragments
      */
-    public SearchSourceHighlightBuilder field(String name, int fragmentSize, int numberOfFragments) {
+    public HighlightBuilder field(String name, int fragmentSize, int numberOfFragments) {
         if (fields == null) {
             fields = newArrayList();
         }
@@ -96,7 +96,7 @@ public class SearchSourceHighlightBuilder implements ToXContent {
      *
      * @param schemaName The tag scheme name
      */
-    public SearchSourceHighlightBuilder tagsSchema(String schemaName) {
+    public HighlightBuilder tagsSchema(String schemaName) {
         this.tagsSchema = schemaName;
         return this;
     }
@@ -104,7 +104,7 @@ public class SearchSourceHighlightBuilder implements ToXContent {
     /**
      * Explicitly set the pre tags that will be used for highlighting.
      */
-    public SearchSourceHighlightBuilder preTags(String... preTags) {
+    public HighlightBuilder preTags(String... preTags) {
         this.preTags = preTags;
         return this;
     }
@@ -112,7 +112,7 @@ public class SearchSourceHighlightBuilder implements ToXContent {
     /**
      * Explicitly set the post tags that will be used for highlighting.
      */
-    public SearchSourceHighlightBuilder postTags(String... postTags) {
+    public HighlightBuilder postTags(String... postTags) {
         this.postTags = postTags;
         return this;
     }
@@ -122,7 +122,7 @@ public class SearchSourceHighlightBuilder implements ToXContent {
      * highlighted text. Can be <tt>score</tt>, which then it will be ordered
      * by score of the fragments.
      */
-    public SearchSourceHighlightBuilder order(String order) {
+    public HighlightBuilder order(String order) {
         this.order = order;
         return this;
     }

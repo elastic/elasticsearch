@@ -19,26 +19,30 @@
 
 package org.elasticsearch.index.store.fs;
 
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.index.store.support.AbstractIndexStore;
 
 import java.io.File;
+import java.io.IOException;
+import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
  */
-public abstract class FsIndexStore extends AbstractIndexComponent implements IndexStore {
+public abstract class FsIndexStore extends AbstractIndexStore {
 
     private final File location;
 
-    public FsIndexStore(Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv) {
-        super(index, indexSettings);
+    public FsIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, NodeEnvironment nodeEnv) {
+        super(index, indexSettings, indexService);
         this.location = new File(new File(nodeEnv.nodeFile(), "indices"), index.name());
 
         if (!location.exists()) {
@@ -68,6 +72,18 @@ public abstract class FsIndexStore extends AbstractIndexComponent implements Ind
             usableSpace = -1;
         }
         return new ByteSizeValue(usableSpace);
+    }
+
+    @Override protected StoreFilesMetaData listUnallocatedStoreMetaData(ShardId shardId) throws IOException {
+        File shardIndexLocation = shardIndexLocation(shardId);
+        if (!shardIndexLocation.exists()) {
+            return new StoreFilesMetaData(false, ImmutableMap.<String, StoreFileMetaData>of());
+        }
+        Map<String, StoreFileMetaData> files = Maps.newHashMap();
+        for (File file : shardIndexLocation.listFiles()) {
+            files.put(file.getName(), new StoreFileMetaData(file.getName(), file.length()));
+        }
+        return new StoreFilesMetaData(false, files);
     }
 
     public File location() {

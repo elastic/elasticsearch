@@ -67,6 +67,7 @@ import static org.elasticsearch.common.collect.Maps.*;
 import static org.elasticsearch.common.unit.TimeValue.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.*;
+import static org.elasticsearch.search.facets.FacetBuilders.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -326,7 +327,8 @@ public class TwoInstanceUnbalancedShardsEmbeddedSearchTests extends AbstractNode
         SearchSourceBuilder sourceBuilder = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true).sort("age", false)
-                .facets(facets().queryFacet("all", termQuery("multi", "test")).queryFacet("test1", termQuery("name", "test1")));
+                .facet(queryFacet("all").query(termQuery("multi", "test")))
+                .facet(queryFacet("test1").query(termQuery("name", "test1")));
 
         Map<SearchShardTarget, QuerySearchResultProvider> queryResults = newHashMap();
         for (ShardsIterator shardsIt : indicesService.searchShards(clusterService.state(), new String[]{"test"}, null)) {

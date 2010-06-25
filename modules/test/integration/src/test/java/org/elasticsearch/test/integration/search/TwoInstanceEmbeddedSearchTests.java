@@ -36,6 +36,7 @@ import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.controller.ShardDoc;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.search.facets.FacetBuilders;
 import org.elasticsearch.search.facets.query.QueryFacet;
 import org.elasticsearch.search.fetch.FetchSearchRequest;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -320,7 +321,8 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractNodesTests {
         SearchSourceBuilder sourceBuilder = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true).sort("age", false)
-                .facets(facets().queryFacet("all", termQuery("multi", "test")).queryFacet("test1", termQuery("name", "test1")));
+                .facet(FacetBuilders.queryFacet("all", termQuery("multi", "test")))
+                .facet(FacetBuilders.queryFacet("test1", termQuery("name", "test1")));
 
         Map<SearchShardTarget, QuerySearchResultProvider> queryResults = newHashMap();
         for (ShardsIterator shardsIt : indicesService.searchShards(clusterService.state(), new String[]{"test"}, null)) {

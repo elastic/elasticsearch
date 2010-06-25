@@ -29,6 +29,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
+import org.elasticsearch.search.facets.AbstractFacetBuilder;
+import org.elasticsearch.search.highlight.HighlightBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,17 +61,10 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
-     * A static factory method to construct new search facets.
-     */
-    public static SearchSourceFacetsBuilder facets() {
-        return new SearchSourceFacetsBuilder();
-    }
-
-    /**
      * A static factory method to construct new search highlights.
      */
-    public static SearchSourceHighlightBuilder highlight() {
-        return new SearchSourceHighlightBuilder();
+    public static HighlightBuilder highlight() {
+        return new HighlightBuilder();
     }
 
     private XContentQueryBuilder queryBuilder;
@@ -88,9 +83,9 @@ public class SearchSourceBuilder implements ToXContent {
 
     private List<ScriptField> scriptFields;
 
-    private SearchSourceFacetsBuilder facetsBuilder;
+    private List<AbstractFacetBuilder> facets;
 
-    private SearchSourceHighlightBuilder highlightBuilder;
+    private HighlightBuilder highlightBuilder;
 
     private TObjectFloatHashMap<String> indexBoost = null;
 
@@ -209,17 +204,20 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
-     * Adds facets to perform as part of the search.
+     * Add a facet to perform as part of the search.
      */
-    public SearchSourceBuilder facets(SearchSourceFacetsBuilder facetsBuilder) {
-        this.facetsBuilder = facetsBuilder;
+    public SearchSourceBuilder facet(AbstractFacetBuilder facet) {
+        if (facets == null) {
+            facets = Lists.newArrayList();
+        }
+        facets.add(facet);
         return this;
     }
 
     /**
      * Adds highlight to perform as part of the search.
      */
-    public SearchSourceBuilder highlight(SearchSourceHighlightBuilder highlightBuilder) {
+    public SearchSourceBuilder highlight(HighlightBuilder highlightBuilder) {
         this.highlightBuilder = highlightBuilder;
         return this;
     }
@@ -388,8 +386,13 @@ public class SearchSourceBuilder implements ToXContent {
             builder.endObject();
         }
 
-        if (facetsBuilder != null) {
-            facetsBuilder.toXContent(builder, params);
+        if (facets != null) {
+            builder.field("facets");
+            builder.startObject();
+            for (AbstractFacetBuilder facet : facets) {
+                facet.toXContent(builder, params);
+            }
+            builder.endObject();
         }
 
         if (highlightBuilder != null) {

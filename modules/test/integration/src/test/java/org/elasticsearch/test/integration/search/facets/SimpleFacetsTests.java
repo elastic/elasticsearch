@@ -34,6 +34,7 @@ import org.testng.annotations.Test;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.xcontent.FilterBuilders.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
+import static org.elasticsearch.search.facets.FacetBuilders.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -86,8 +87,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         SearchResponse searchResponse = client.prepareSearch()
                 .setSize(0)
                 .setQuery(termQuery("stag", "111"))
-                .addFacetTerms("facet1", "stag", 10)
-                .addFacetTerms("facet2", "tag", 10)
+                .addFacet(termsFacet("facet1").field("stag").size(10))
                 .execute().actionGet();
 
         assertThat(searchResponse.hits().hits().length, equalTo(0));
@@ -102,8 +102,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .setSearchType(SearchType.QUERY_AND_FETCH)
                 .setSize(0)
                 .setQuery(termQuery("stag", "111"))
-                .addFacetTerms("facet1", "stag", 10)
-                .addFacetTerms("facet2", "tag", 10)
+                .addFacet(termsFacet("facet1").field("stag").size(10))
+                .addFacet(termsFacet("facet2").field("tag").size(10))
                 .execute().actionGet();
 
         assertThat(searchResponse.hits().hits().length, equalTo(0));
@@ -139,8 +139,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
         SearchResponse searchResponse = client.prepareSearch()
                 .setQuery(termQuery("stag", "111"))
-                .addFacetTerms("facet1", "stag", 10)
-                .addFacetTerms("facet2", "tag", 10)
+                .addFacet(termsFacet("facet1").field("stag").size(10))
+                .addFacet(termsFacet("facet2").field("tag").size(10))
                 .execute().actionGet();
 
         TermsFacet facet = searchResponse.facets().facet(TermsFacet.class, "facet1");
@@ -157,7 +157,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .addFacetTerms("facet1", "stag", 10, termFilter("tag", "xxx"))
+                .addFacet(termsFacet("facet1").field("stag").size(10).filter(termFilter("tag", "xxx")))
                 .execute().actionGet();
 
         facet = searchResponse.facets().facet(TermsFacet.class, "facet1");
@@ -190,9 +190,9 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
         SearchResponse searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .addFacetStatistical("stats1", "num")
-                .addFacetStatistical("stats2", "multi_num")
-                .addFacetStatisticalScript("stats3", "doc['num'].value * 2")
+                .addFacet(statisticalFacet("stats1").field("num"))
+                .addFacet(statisticalFacet("stats2").field("multi_num"))
+                .addFacet(statisticalScriptFacet("stats3").script("doc['num'].value * 2"))
                 .execute().actionGet();
 
         if (searchResponse.failedShards() > 0) {
@@ -262,10 +262,10 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
         SearchResponse searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .addFacetHistogram("stats1", "num", 100)
-                .addFacetHistogram("stats2", "multi_num", 10)
-                .addFacetHistogram("stats3", "num", "multi_num", 100)
-                .addFacetHistogramScript("stats4", "doc['date'].date.minuteOfHour", "doc['num'].value")
+                .addFacet(histogramFacet("stats1").field("num").interval(100))
+                .addFacet(histogramFacet("stats2").field("multi_num").interval(10))
+                .addFacet(histogramFacet("stats3").keyField("num").valueField("multi_num").interval(100))
+                .addFacet(histogramScriptFacet("stats4").keyScript("doc['date'].date.minuteOfHour").valueScript("doc['num'].value"))
                 .execute().actionGet();
 
         if (searchResponse.failedShards() > 0) {

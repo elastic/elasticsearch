@@ -23,23 +23,23 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.support.AbstractIndexStore;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.jvm.JvmStats;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class ByteBufferIndexStore extends AbstractIndexComponent implements IndexStore {
+public class ByteBufferIndexStore extends AbstractIndexStore {
 
     private final boolean direct;
 
-    @Inject public ByteBufferIndexStore(Index index, @IndexSettings Settings indexSettings) {
-        super(index, indexSettings);
+    @Inject public ByteBufferIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService) {
+        super(index, indexSettings, indexService);
         this.direct = componentSettings.getAsBoolean("direct", true);
     }
 

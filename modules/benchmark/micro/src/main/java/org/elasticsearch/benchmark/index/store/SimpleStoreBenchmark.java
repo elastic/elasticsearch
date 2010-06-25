@@ -271,11 +271,11 @@ public class SimpleStoreBenchmark {
         if (type.equalsIgnoreCase("ram")) {
             store = new RamStore(shardId, settings);
         } else if (type.equalsIgnoreCase("simple-fs")) {
-            store = new SimpleFsStore(shardId, settings, new SimpleFsIndexStore(shardId.index(), settings, nodeEnvironment));
+            store = new SimpleFsStore(shardId, settings, new SimpleFsIndexStore(shardId.index(), settings, null, nodeEnvironment));
         } else if (type.equalsIgnoreCase("mmap-fs")) {
-            store = new NioFsStore(shardId, settings, new NioFsIndexStore(shardId.index(), settings, nodeEnvironment));
+            store = new NioFsStore(shardId, settings, new NioFsIndexStore(shardId.index(), settings, null, nodeEnvironment));
         } else if (type.equalsIgnoreCase("nio-fs")) {
-            store = new MmapFsStore(shardId, settings, new MmapFsIndexStore(shardId.index(), settings, nodeEnvironment));
+            store = new MmapFsStore(shardId, settings, new MmapFsIndexStore(shardId.index(), settings, null, nodeEnvironment));
         } else if (type.equalsIgnoreCase("memory-direct")) {
             Settings byteBufferSettings = settingsBuilder()
                     .put(settings)

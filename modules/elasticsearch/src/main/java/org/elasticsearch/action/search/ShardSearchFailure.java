@@ -96,7 +96,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
     }
 
     @Override public String toString() {
-        return "Search Failure Shard " + shardTarget + ", reason [" + reason + "]";
+        return "shard [" + (shardTarget == null ? "_na" : shardTarget) + "], reason [" + reason + "]";
     }
 
     public static ShardSearchFailure readShardSearchFailure(StreamInput in) throws IOException {

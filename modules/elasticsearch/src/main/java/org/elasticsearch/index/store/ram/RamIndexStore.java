@@ -22,21 +22,21 @@ package org.elasticsearch.index.store.ram;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.support.AbstractIndexStore;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.jvm.JvmStats;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class RamIndexStore extends AbstractIndexComponent implements IndexStore {
+public class RamIndexStore extends AbstractIndexStore {
 
-    @Inject public RamIndexStore(Index index, @IndexSettings Settings indexSettings) {
-        super(index, indexSettings);
+    @Inject public RamIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService) {
+        super(index, indexSettings, indexService);
     }
 
     @Override public boolean persistent() {

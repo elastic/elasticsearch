@@ -21,6 +21,11 @@ package org.elasticsearch.index.store;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexComponent;
+import org.elasticsearch.index.shard.ShardId;
+
+import java.io.IOException;
+import java.util.Iterator;
+import java.util.Map;
 
 /**
  * Index store is an index level information of the {@link Store} each shard will use.
@@ -48,4 +53,50 @@ public interface IndexStore extends IndexComponent {
      * Returns the backing store free space. Return <tt>-1</tt> if not available.
      */
     ByteSizeValue backingStoreFreeSpace();
+
+    /**
+     * Lists the store files metadata for a shard. Note, this should be able to list also
+     * metadata for shards that are no allocated as well.
+     */
+    StoreFilesMetaData listStoreMetaData(ShardId shardId) throws IOException;
+
+    static class StoreFilesMetaData implements Iterable<StoreFileMetaData> {
+        private final boolean allocated;
+        private final Map<String, StoreFileMetaData> files;
+
+        public StoreFilesMetaData(boolean allocated, Map<String, StoreFileMetaData> files) {
+            this.allocated = allocated;
+            this.files = files;
+        }
+
+        public boolean allocated() {
+            return allocated;
+        }
+
+        @Override public Iterator<StoreFileMetaData> iterator() {
+            return files.values().iterator();
+        }
+
+        public StoreFileMetaData file(String name) {
+            return files.get(name);
+        }
+    }
+
+    static class StoreFileMetaData {
+        private final String name;
+        private final long sizeInBytes;
+
+        public StoreFileMetaData(String name, long sizeInBytes) {
+            this.name = name;
+            this.sizeInBytes = sizeInBytes;
+        }
+
+        public String name() {
+            return name;
+        }
+
+        public long sizeInBytes() {
+            return sizeInBytes;
+        }
+    }
 }

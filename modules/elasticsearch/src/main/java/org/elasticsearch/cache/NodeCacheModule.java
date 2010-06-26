@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cache;
 
+import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.elasticsearch.common.inject.AbstractModule;
 
 /**
@@ -28,5 +29,6 @@ public class NodeCacheModule extends AbstractModule {
 
     @Override protected void configure() {
         bind(NodeCache.class).asEagerSingleton();
+        bind(ByteBufferCache.class).asEagerSingleton();
     }
 }

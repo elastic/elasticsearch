@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cache;
 
+import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -28,7 +29,18 @@ import org.elasticsearch.common.settings.Settings;
  */
 public class NodeCache extends AbstractComponent {
 
-    @Inject public NodeCache(Settings settings) {
+    private final ByteBufferCache byteBufferCache;
+
+    @Inject public NodeCache(Settings settings, ByteBufferCache byteBufferCache) {
         super(settings);
+        this.byteBufferCache = byteBufferCache;
+    }
+
+    public void close() {
+        byteBufferCache.close();
+    }
+
+    public ByteBufferCache byteBuffer() {
+        return byteBufferCache;
     }
 }

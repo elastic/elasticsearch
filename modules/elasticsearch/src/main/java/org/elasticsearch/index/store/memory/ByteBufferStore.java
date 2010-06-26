@@ -19,10 +19,9 @@
 
 package org.elasticsearch.index.store.memory;
 
+import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.support.AbstractStore;
@@ -32,25 +31,13 @@ import org.elasticsearch.index.store.support.AbstractStore;
  */
 public class ByteBufferStore extends AbstractStore<ByteBufferDirectory> {
 
-    private final ByteSizeValue bufferSize;
-
-    private final ByteSizeValue cacheSize;
-
-    private final boolean direct;
-
-    private final boolean warmCache;
-
     private final ByteBufferDirectory directory;
 
-    @Inject public ByteBufferStore(ShardId shardId, @IndexSettings Settings indexSettings) {
+    @Inject public ByteBufferStore(ShardId shardId, @IndexSettings Settings indexSettings, ByteBufferCache byteBufferCache) {
         super(shardId, indexSettings);
 
-        this.bufferSize = componentSettings.getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB));
-        this.cacheSize = componentSettings.getAsBytesSize("cache_size", new ByteSizeValue(20, ByteSizeUnit.MB));
-        this.direct = componentSettings.getAsBoolean("direct", true);
-        this.warmCache = componentSettings.getAsBoolean("warm_cache", true);
-        this.directory = new ByteBufferDirectory((int) bufferSize.bytes(), (int) cacheSize.bytes(), direct, warmCache);
-        logger.debug("Using [byte_buffer] store with buffer_size[{}], cache_size[{}], direct[{}], warm_cache[{}]", bufferSize, cacheSize, directory.isDirect(), warmCache);
+        this.directory = new ByteBufferDirectory(byteBufferCache);
+        logger.debug("Using [byte_buffer] store");
     }
 
     @Override public ByteBufferDirectory directory() {

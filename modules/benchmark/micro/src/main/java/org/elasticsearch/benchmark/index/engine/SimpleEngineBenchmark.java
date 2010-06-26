@@ -25,6 +25,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -294,8 +295,7 @@ public class SimpleEngineBenchmark {
         Settings settings = EMPTY_SETTINGS;
 
 //        Store store = new RamStore(shardId, settings);
-        Store store = new ByteBufferStore(shardId, settings);
-//        Store store = new HeapStore(shardId, settings);
+        Store store = new ByteBufferStore(shardId, settings, new ByteBufferCache(settings));
 //        Store store = new NioFsStore(shardId, settings);
 
         store.deleteContent();

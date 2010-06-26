@@ -41,7 +41,7 @@ public class ByteBufferIndexInput extends IndexInput {
 
     public ByteBufferIndexInput(ByteBufferDirectory dir, ByteBufferFile file) throws IOException {
         this.file = file;
-        this.bufferSize = dir.bufferSizeInBytes();
+        this.bufferSize = dir.byteBufferCache.bufferSizeInBytes();
         this.length = file.length();
         switchCurrentBuffer(true);
     }

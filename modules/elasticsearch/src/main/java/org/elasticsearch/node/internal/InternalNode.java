@@ -22,6 +22,7 @@ package org.elasticsearch.node.internal;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.TransportActionModule;
+import org.elasticsearch.cache.NodeCache;
 import org.elasticsearch.cache.NodeCacheModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClientModule;
@@ -255,6 +256,8 @@ public final class InternalNode implements Node {
         for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
             injector.getInstance(plugin).close();
         }
+
+        injector.getInstance(NodeCache.class).close();
 
         injector.getInstance(TimerService.class).close();
         injector.getInstance(ThreadPool.class).shutdown();

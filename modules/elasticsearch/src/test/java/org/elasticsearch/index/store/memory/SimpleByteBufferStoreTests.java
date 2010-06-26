@@ -23,6 +23,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -36,49 +37,62 @@ import static org.hamcrest.Matchers.*;
 public class SimpleByteBufferStoreTests {
 
     @Test public void test1BufferNoCache() throws Exception {
-        ByteBufferDirectory dir = new ByteBufferDirectory(1, 0, true, false);
+        ByteBufferCache cache = new ByteBufferCache(1, 0, true, false);
+        ByteBufferDirectory dir = new ByteBufferDirectory(cache);
         insertData(dir);
         verifyData(dir);
         dir.close();
+        cache.close();
     }
 
     @Test public void test1Buffer() throws Exception {
-        ByteBufferDirectory dir = new ByteBufferDirectory(1, 10, true, false);
+        ByteBufferCache cache = new ByteBufferCache(1, 10, true, false);
+        ByteBufferDirectory dir = new ByteBufferDirectory(cache);
         insertData(dir);
         verifyData(dir);
         dir.close();
+        cache.close();
     }
 
     @Test public void test3Buffer() throws Exception {
-        ByteBufferDirectory dir = new ByteBufferDirectory(3, 10, true, false);
+        ByteBufferCache cache = new ByteBufferCache(3, 10, true, false);
+        ByteBufferDirectory dir = new ByteBufferDirectory(cache);
         insertData(dir);
         verifyData(dir);
         dir.close();
+        cache.close();
     }
 
     @Test public void test10Buffer() throws Exception {
-        ByteBufferDirectory dir = new ByteBufferDirectory(10, 20, true, false);
+        ByteBufferCache cache = new ByteBufferCache(10, 20, true, false);
+        ByteBufferDirectory dir = new ByteBufferDirectory(cache);
         insertData(dir);
         verifyData(dir);
         dir.close();
+        cache.close();
     }
 
     @Test public void test15Buffer() throws Exception {
-        ByteBufferDirectory dir = new ByteBufferDirectory(15, 30, true, false);
+        ByteBufferCache cache = new ByteBufferCache(15, 30, true, false);
+        ByteBufferDirectory dir = new ByteBufferDirectory(cache);
         insertData(dir);
         verifyData(dir);
         dir.close();
+        cache.close();
     }
 
     @Test public void test40Buffer() throws Exception {
-        ByteBufferDirectory dir = new ByteBufferDirectory(40, 80, true, false);
+        ByteBufferCache cache = new ByteBufferCache(40, 80, true, false);
+        ByteBufferDirectory dir = new ByteBufferDirectory(cache);
         insertData(dir);
         verifyData(dir);
         dir.close();
+        cache.close();
     }
 
     @Test public void testSimpleLocking() throws Exception {
-        ByteBufferDirectory dir = new ByteBufferDirectory(40, 80, true, false);
+        ByteBufferCache cache = new ByteBufferCache(40, 80, true, false);
+        ByteBufferDirectory dir = new ByteBufferDirectory(cache);
 
         Lock lock = dir.makeLock("testlock");
 
@@ -94,6 +108,7 @@ public class SimpleByteBufferStoreTests {
         lock.release();
         assertThat(lock.isLocked(), equalTo(false));
         dir.close();
+        cache.close();
     }
 
     private void insertData(ByteBufferDirectory dir) throws IOException {

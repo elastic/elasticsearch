@@ -537,6 +537,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                         indexOutput.close();
                     } catch (IOException e) {
                         onFailure(e);
+                        return;
                     }
                 }
                 recoveryThrottler.streamDone(shardId, fileToRecover);
@@ -595,6 +596,11 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                     }
 
                     @Override public void onFailure(Throwable t) {
+                        try {
+                            fIndexInput.close();
+                        } catch (IOException e) {
+                            // ignore
+                        }
                         failures.add(t);
                         if (counter.decrementAndGet() == 0) {
                             latch.countDown();

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.store.memory;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.store.IndexStore;
@@ -36,13 +35,6 @@ public class MemoryIndexStoreModule extends AbstractModule {
     }
 
     @Override protected void configure() {
-        String location = settings.get("index.store.memory.location", "direct");
-        if ("direct".equalsIgnoreCase(location)) {
-            bind(IndexStore.class).to(ByteBufferIndexStore.class).asEagerSingleton();
-        } else if ("heap".equalsIgnoreCase(location)) {
-            bind(IndexStore.class).to(HeapIndexStore.class).asEagerSingleton();
-        } else {
-            throw new ElasticSearchIllegalArgumentException("Memory location [" + location + "] is invalid, can be one of [direct,heap]");
-        }
+        bind(IndexStore.class).to(ByteBufferIndexStore.class).asEagerSingleton();
     }
 }

@@ -21,6 +21,7 @@ package org.elasticsearch.benchmark.index.store;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -32,7 +33,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.fs.*;
 import org.elasticsearch.index.store.memory.ByteBufferStore;
-import org.elasticsearch.index.store.memory.HeapStore;
 import org.elasticsearch.index.store.ram.RamStore;
 
 import java.lang.management.ManagementFactory;
@@ -42,7 +42,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.concurrent.TimeUnit.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
 
 /**
  * @author kimchy
@@ -264,6 +263,7 @@ public class SimpleStoreBenchmark {
         Environment environment = new Environment();
         Settings settings = EMPTY_SETTINGS;
         NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, environment);
+        ByteBufferCache byteBufferCache = new ByteBufferCache(settings);
 
         ShardId shardId = new ShardId(new Index("index"), 1);
         String type = args.length > 0 ? args[0] : "ram";
@@ -271,22 +271,13 @@ public class SimpleStoreBenchmark {
         if (type.equalsIgnoreCase("ram")) {
             store = new RamStore(shardId, settings);
         } else if (type.equalsIgnoreCase("simple-fs")) {
-            store = new SimpleFsStore(shardId, settings, new SimpleFsIndexStore(shardId.index(), settings, null, nodeEnvironment));
+            store = new SimpleFsStore(shardId, settings, new SimpleFsIndexStore(shardId.index(), settings, null, nodeEnvironment), byteBufferCache);
         } else if (type.equalsIgnoreCase("mmap-fs")) {
-            store = new NioFsStore(shardId, settings, new NioFsIndexStore(shardId.index(), settings, null, nodeEnvironment));
+            store = new NioFsStore(shardId, settings, new NioFsIndexStore(shardId.index(), settings, null, nodeEnvironment), byteBufferCache);
         } else if (type.equalsIgnoreCase("nio-fs")) {
-            store = new MmapFsStore(shardId, settings, new MmapFsIndexStore(shardId.index(), settings, null, nodeEnvironment));
-        } else if (type.equalsIgnoreCase("memory-direct")) {
-            Settings byteBufferSettings = settingsBuilder()
-                    .put(settings)
-                    .put("index.store.bytebuffer.direct", true)
-                    .build();
-            store = new ByteBufferStore(shardId, byteBufferSettings);
-        } else if (type.equalsIgnoreCase("memory-heap")) {
-            Settings memorySettings = settingsBuilder()
-                    .put(settings)
-                    .build();
-            store = new HeapStore(shardId, memorySettings);
+            store = new MmapFsStore(shardId, settings, new MmapFsIndexStore(shardId.index(), settings, null, nodeEnvironment), byteBufferCache);
+        } else if (type.equalsIgnoreCase("memory")) {
+            store = new ByteBufferStore(shardId, settings, byteBufferCache);
         } else {
             throw new IllegalArgumentException("No type store [" + type + "]");
         }

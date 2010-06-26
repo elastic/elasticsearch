@@ -20,16 +20,14 @@
 package org.elasticsearch.index.store.fs;
 
 import org.apache.lucene.store.*;
+import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lucene.store.SwitchDirectory;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.memory.ByteBufferDirectory;
-import org.elasticsearch.index.store.memory.HeapDirectory;
 import org.elasticsearch.index.store.support.AbstractStore;
 
 import java.io.IOException;
@@ -65,22 +63,12 @@ public abstract class FsStore<T extends Directory> extends AbstractStore<T> {
         return lockFactory;
     }
 
-    protected SwitchDirectory buildSwitchDirectoryIfNeeded(Directory fsDirectory) {
+    protected SwitchDirectory buildSwitchDirectoryIfNeeded(Directory fsDirectory, ByteBufferCache byteBufferCache) {
         boolean cache = componentSettings.getAsBoolean("memory.enabled", false);
         if (!cache) {
             return null;
         }
-        ByteSizeValue bufferSize = componentSettings.getAsBytesSize("memory.buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB));
-        ByteSizeValue cacheSize = componentSettings.getAsBytesSize("memory.cache_size", new ByteSizeValue(20, ByteSizeUnit.MB));
-        boolean direct = componentSettings.getAsBoolean("memory.direct", true);
-        boolean warmCache = componentSettings.getAsBoolean("memory.warm_cache", true);
-
-        Directory memDir;
-        if (direct) {
-            memDir = new ByteBufferDirectory((int) bufferSize.bytes(), (int) cacheSize.bytes(), true, warmCache);
-        } else {
-            memDir = new HeapDirectory(bufferSize, cacheSize, warmCache);
-        }
+        Directory memDir = new ByteBufferDirectory(byteBufferCache);
         // see http://lucene.apache.org/java/3_0_1/fileformats.html
         String[] primaryExtensions = componentSettings.getAsArray("memory.extensions", new String[]{"", "del", "gen"});
         return new SwitchDirectory(ImmutableSet.copyOf(primaryExtensions), memDir, fsDirectory, true);

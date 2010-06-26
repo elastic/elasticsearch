@@ -89,10 +89,10 @@ public class ByteBufferIndexOutput extends IndexOutput {
         // and flush() has not been called yet
         setFileLength();
         if (pos < bufferStart || pos >= bufferStart + bufferLength) {
-            currentBufferIndex = (int) (pos / dir.bufferSizeInBytes());
+            currentBufferIndex = (int) (pos / dir.byteBufferCache.bufferSizeInBytes());
             switchCurrentBuffer();
         }
-        currentBuffer.position((int) (pos % dir.bufferSizeInBytes()));
+        currentBuffer.position((int) (pos % dir.byteBufferCache.bufferSizeInBytes()));
     }
 
     @Override public long length() throws IOException {
@@ -101,13 +101,13 @@ public class ByteBufferIndexOutput extends IndexOutput {
 
     private void switchCurrentBuffer() throws IOException {
         if (currentBufferIndex == buffers.size()) {
-            currentBuffer = dir.acquireBuffer();
+            currentBuffer = dir.byteBufferCache.acquireBuffer();
             buffers.add(currentBuffer);
         } else {
             currentBuffer = buffers.get(currentBufferIndex);
         }
         currentBuffer.position(0);
-        bufferStart = (long) dir.bufferSizeInBytes() * (long) currentBufferIndex;
+        bufferStart = (long) dir.byteBufferCache.bufferSizeInBytes() * (long) currentBufferIndex;
         bufferLength = currentBuffer.capacity();
     }
 

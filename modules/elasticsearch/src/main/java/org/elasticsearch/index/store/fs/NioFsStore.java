@@ -23,6 +23,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.store.SwitchDirectory;
 import org.elasticsearch.common.settings.Settings;
@@ -47,7 +48,7 @@ public class NioFsStore extends FsStore<Directory> {
 
     private final boolean suggestUseCompoundFile;
 
-    @Inject public NioFsStore(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore) throws IOException {
+    @Inject public NioFsStore(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, ByteBufferCache byteBufferCache) throws IOException {
         super(shardId, indexSettings);
         // by default, we don't need to sync to disk, since we use the gateway
         this.syncToDisk = componentSettings.getAsBoolean("sync_to_disk", false);
@@ -56,7 +57,7 @@ public class NioFsStore extends FsStore<Directory> {
         location.mkdirs();
         this.fsDirectory = new CustomNioFSDirectory(location, lockFactory, syncToDisk);
 
-        SwitchDirectory switchDirectory = buildSwitchDirectoryIfNeeded(fsDirectory);
+        SwitchDirectory switchDirectory = buildSwitchDirectoryIfNeeded(fsDirectory, byteBufferCache);
         if (switchDirectory != null) {
             suggestUseCompoundFile = false;
             logger.debug("Using [nio_fs] Store with path [{}], cache [true] with extensions [{}]", fsDirectory.getFile(), switchDirectory.primaryExtensions());

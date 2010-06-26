@@ -23,14 +23,11 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SingleInstanceLockFactory;
+import org.elasticsearch.cache.memory.ByteBufferCache;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.lang.reflect.Method;
-import java.nio.ByteBuffer;
 import java.util.Map;
-import java.util.Queue;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -48,94 +45,20 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class ByteBufferDirectory extends Directory {
 
+    final ByteBufferCache byteBufferCache;
+
     private final Map<String, ByteBufferFile> files = new ConcurrentHashMap<String, ByteBufferFile>();
-
-    private final Queue<ByteBuffer> cache;
-
-    private final int bufferSizeInBytes;
-
-    private final int cacheSizeInBytes;
-
-    private final boolean disableCache;
-
-    private final boolean direct;
-
-    private boolean useCleanHack = true;
-
-    public static final boolean CLEAN_SUPPORTED;
-
-    private static final Method directBufferCleaner;
-    private static final Method directBufferCleanerClean;
-
-    static {
-        Method directBufferCleanerX = null;
-        Method directBufferCleanerCleanX = null;
-        boolean v;
-        try {
-            directBufferCleanerX = Class.forName("java.nio.DirectByteBuffer").getMethod("cleaner");
-            directBufferCleanerX.setAccessible(true);
-            directBufferCleanerCleanX = Class.forName("sun.misc.Cleaner").getMethod("clean");
-            directBufferCleanerCleanX.setAccessible(true);
-            v = true;
-        } catch (Exception e) {
-            v = false;
-        }
-        CLEAN_SUPPORTED = v;
-        directBufferCleaner = directBufferCleanerX;
-        directBufferCleanerClean = directBufferCleanerCleanX;
-    }
-
 
     /**
      * Constructs a new byte buffer directory.
-     *
-     * @param bufferSizeInBytes The size of a byte buffer
-     * @param cacheSizeInBytes  The size of the cache, set to <code>0</code> to disable caching
-     * @param direct            Should the byte buffers be stored outside the heap (<code>true</code) or in head (<code>false</code>)
-     * @param warmCache         Should the cache be warmed
      */
-    public ByteBufferDirectory(int bufferSizeInBytes, int cacheSizeInBytes, boolean direct, boolean warmCache) {
-        disableCache = cacheSizeInBytes == 0;
-        if (!disableCache && cacheSizeInBytes < bufferSizeInBytes) {
-            throw new IllegalArgumentException("Cache size [" + cacheSizeInBytes + "] is smaller than buffer size [" + bufferSizeInBytes + "]");
-        }
-        this.bufferSizeInBytes = bufferSizeInBytes;
-        int numberOfCacheEntries = cacheSizeInBytes / bufferSizeInBytes;
-        this.cache = disableCache ? null : new ArrayBlockingQueue<ByteBuffer>(numberOfCacheEntries);
-        this.cacheSizeInBytes = disableCache ? 0 : numberOfCacheEntries * bufferSizeInBytes;
-        this.direct = direct;
+    public ByteBufferDirectory(ByteBufferCache byteBufferCache) {
+        this.byteBufferCache = byteBufferCache;
         setLockFactory(new SingleInstanceLockFactory());
-        if (!disableCache && warmCache) {
-            for (int i = 0; i < numberOfCacheEntries; i++) {
-                cache.add(createBuffer());
-            }
-        }
-    }
-
-    public void setUseClean(final boolean useCleanHack) {
-        if (useCleanHack && !CLEAN_SUPPORTED)
-            throw new IllegalArgumentException("Clean hack not supported on this platform!");
-        this.useCleanHack = useCleanHack;
-    }
-
-    public boolean getUseClean() {
-        return useCleanHack;
-    }
-
-    public int cacheSizeInBytes() {
-        return this.cacheSizeInBytes;
     }
 
     public int bufferSizeInBytes() {
-        return bufferSizeInBytes;
-    }
-
-    public boolean isDirect() {
-        return direct;
-    }
-
-    public boolean isCacheEnabled() {
-        return !disableCache;
+        return byteBufferCache.bufferSizeInBytes();
     }
 
     @Override public String[] listAll() throws IOException {
@@ -208,56 +131,6 @@ public class ByteBufferDirectory extends Directory {
         String[] files = listAll();
         for (String file : files) {
             deleteFile(file);
-        }
-        if (!disableCache) {
-            ByteBuffer buffer = cache.poll();
-            while (buffer != null) {
-                closeBuffer(buffer);
-                buffer = cache.poll();
-            }
-        }
-    }
-
-    void releaseBuffer(ByteBuffer byteBuffer) {
-        if (disableCache) {
-            closeBuffer(byteBuffer);
-            return;
-        }
-        boolean success = cache.offer(byteBuffer);
-        if (!success) {
-            closeBuffer(byteBuffer);
-        }
-    }
-
-    ByteBuffer acquireBuffer() {
-        if (disableCache) {
-            return createBuffer();
-        }
-        ByteBuffer byteBuffer = cache.poll();
-        if (byteBuffer == null) {
-            // everything is taken, return a new one
-            return createBuffer();
-        }
-        byteBuffer.position(0);
-        return byteBuffer;
-    }
-
-    private ByteBuffer createBuffer() {
-        if (isDirect()) {
-            return ByteBuffer.allocateDirect(bufferSizeInBytes());
-        }
-        return ByteBuffer.allocate(bufferSizeInBytes());
-    }
-
-    private void closeBuffer(ByteBuffer byteBuffer) {
-        if (useCleanHack && isDirect()) {
-            try {
-                Object cleaner = directBufferCleaner.invoke(byteBuffer);
-                directBufferCleanerClean.invoke(cleaner);
-            } catch (Exception e) {
-                e.printStackTrace();
-                // silently ignore exception
-            }
         }
     }
 }

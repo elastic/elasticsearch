@@ -69,7 +69,7 @@ public class ByteBufferFile {
     void clean() {
         if (buffers != null) {
             for (ByteBuffer buffer : buffers) {
-                dir.releaseBuffer(buffer);
+                dir.byteBufferCache.releaseBuffer(buffer);
             }
             buffers = null;
         }

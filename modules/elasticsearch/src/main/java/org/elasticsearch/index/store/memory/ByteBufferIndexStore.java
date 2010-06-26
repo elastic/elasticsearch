@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.store.memory;
 
+import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -38,9 +39,10 @@ public class ByteBufferIndexStore extends AbstractIndexStore {
 
     private final boolean direct;
 
-    @Inject public ByteBufferIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService) {
+    @Inject public ByteBufferIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService,
+                                        ByteBufferCache byteBufferCache) {
         super(index, indexSettings, indexService);
-        this.direct = componentSettings.getAsBoolean("direct", true);
+        this.direct = byteBufferCache.direct();
     }
 
     @Override public boolean persistent() {

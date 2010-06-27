@@ -81,7 +81,7 @@ public abstract class AbstractHdfsBlobContainer extends AbstractBlobContainer {
     @Override public void readBlob(final String blobName, final ReadBlobListener listener) {
         blobStore.executorService().execute(new Runnable() {
             @Override public void run() {
-                byte[] buffer = new byte[1024 * 16];
+                byte[] buffer = new byte[blobStore.bufferSizeInBytes()];
 
 
                 FSDataInputStream fileStream;

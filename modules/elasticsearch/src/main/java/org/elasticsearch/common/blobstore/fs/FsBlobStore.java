@@ -22,6 +22,8 @@ package org.elasticsearch.common.blobstore.fs;
 import org.elasticsearch.common.blobstore.*;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.File;
 import java.util.concurrent.ExecutorService;
@@ -39,6 +41,8 @@ public class FsBlobStore implements BlobStore {
 
     private final ExecutorService executorService;
 
+    private final int bufferSizeInBytes;
+
     public FsBlobStore(Settings settings, File path) {
         this.path = path;
         if (!path.exists()) {
@@ -50,7 +54,8 @@ public class FsBlobStore implements BlobStore {
         if (!path.isDirectory()) {
             throw new BlobStoreException("Path is not a directory at [" + path + "]");
         }
-        executorService = Executors.newCachedThreadPool(daemonThreadFactory(settings, "fs_blobstore"));
+        this.bufferSizeInBytes = (int) settings.getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
+        this.executorService = Executors.newCachedThreadPool(daemonThreadFactory(settings, "fs_blobstore"));
     }
 
     @Override public String toString() {
@@ -59,6 +64,10 @@ public class FsBlobStore implements BlobStore {
 
     public File path() {
         return path;
+    }
+
+    public int bufferSizeInBytes() {
+        return this.bufferSizeInBytes;
     }
 
     public ExecutorService executorService() {

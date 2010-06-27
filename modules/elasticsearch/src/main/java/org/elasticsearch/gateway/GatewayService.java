@@ -92,18 +92,18 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
             ClusterState clusterState = clusterService.state();
             if (clusterState.nodes().localNodeMaster() && !clusterState.metaData().recoveredFromGateway()) {
                 if (recoverAfterNodes != -1 && clusterState.nodes().size() < recoverAfterNodes) {
-                    logger.debug("Not recovering from gateway, nodes_size [" + clusterState.nodes().size() + "] < recover_after_nodes [" + recoverAfterNodes + "]");
+                    logger.debug("not recovering from gateway, nodes_size [" + clusterState.nodes().size() + "] < recover_after_nodes [" + recoverAfterNodes + "]");
                 } else {
                     if (readFromGateway.compareAndSet(false, true)) {
                         Boolean waited = readFromGateway(initialStateTimeout);
                         if (waited != null && !waited) {
-                            logger.warn("Waited for {} for indices to be created from the gateway, and not all have been created", initialStateTimeout);
+                            logger.warn("waited for {} for indices to be created from the gateway, and not all have been created", initialStateTimeout);
                         }
                     }
                 }
             }
         } else {
-            logger.debug("Can't wait on start for (possibly) reading state from gateway, will do it asynchronously");
+            logger.debug("can't wait on start for (possibly) reading state from gateway, will do it asynchronously");
         }
         clusterService.add(this);
     }
@@ -131,7 +131,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
             if (!event.state().metaData().recoveredFromGateway()) {
                 ClusterState clusterState = event.state();
                 if (recoverAfterNodes != -1 && clusterState.nodes().size() < recoverAfterNodes) {
-                    logger.debug("Not recovering from gateway, nodes_size [" + clusterState.nodes().size() + "] < recover_after_nodes [" + recoverAfterNodes + "]");
+                    logger.debug("not recovering from gateway, nodes_size [" + clusterState.nodes().size() + "] < recover_after_nodes [" + recoverAfterNodes + "]");
                 } else {
                     if (readFromGateway.compareAndSet(false, true)) {
                         executor.execute(new Runnable() {
@@ -153,12 +153,12 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         }
         executor.execute(new Runnable() {
             @Override public void run() {
-                logger.debug("Writing to gateway");
+                logger.debug("writing to gateway");
                 try {
                     gateway.write(event.state().metaData());
                     // TODO, we need to remember that we failed, maybe add a retry scheduler?
                 } catch (Exception e) {
-                    logger.error("Failed to write to gateway", e);
+                    logger.error("failed to write to gateway", e);
                 }
             }
         });
@@ -170,24 +170,24 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
      * when waiting, and indicates that everything was created within teh wait timeout.
      */
     private Boolean readFromGateway(@Nullable TimeValue waitTimeout) {
-        logger.debug("Reading state from gateway...");
+        logger.debug("reading state from gateway...");
         MetaData metaData;
         try {
             metaData = gateway.read();
         } catch (Exception e) {
-            logger.error("Failed to read from gateway", e);
+            logger.error("failed to read from gateway", e);
             markMetaDataAsReadFromGateway("failure");
             return false;
         }
         if (metaData == null) {
-            logger.debug("No state read from gateway");
+            logger.debug("no state read from gateway");
             markMetaDataAsReadFromGateway("no state");
             return true;
         }
         final MetaData fMetaData = metaData;
         final CountDownLatch latch = new CountDownLatch(fMetaData.indices().size());
         if (recoverAfterTime != null) {
-            logger.debug("Delaying initial state index creation for [{}]", recoverAfterTime);
+            logger.debug("delaying initial state index creation for [{}]", recoverAfterTime);
             threadPool.schedule(new Runnable() {
                 @Override public void run() {
                     updateClusterStateFromGateway(fMetaData, latch);
@@ -237,7 +237,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                             try {
                                 metaDataService.createIndex("gateway", indexMetaData.index(), indexMetaData.settings(), indexMetaData.mappings(), timeValueMillis(initialStateTimeout.millis() - 1000));
                             } catch (Exception e) {
-                                logger.error("Failed to create index [" + indexMetaData.index() + "]", e);
+                                logger.error("failed to create index [" + indexMetaData.index() + "]", e);
                             } finally {
                                 latch.countDown();
                             }

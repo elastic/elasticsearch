@@ -24,11 +24,11 @@ import org.elasticsearch.common.lease.Releasable;
 /**
  * A wrapper around a resource that can be released. Note, release should not be
  * called directly on the resource itself.
- * <p/>
- * <p>Yea, I now, the fact that the resouce itself is releasable basically means that
+ *
+ * <p>Yea, I now, the fact that the resource itself is releasable basically means that
  * users of this class should take care... .
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class BlockingAcquirableResource<T extends Releasable> implements AcquirableResource<T> {
 

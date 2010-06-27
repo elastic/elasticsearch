@@ -22,6 +22,7 @@ package org.elasticsearch.common.blobstore.fs;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
+import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.ImmutableMap;
 
 import java.io.File;
@@ -51,7 +52,7 @@ public abstract class AbstractFsBlobContainer extends AbstractBlobContainer {
         }
         ImmutableMap.Builder<String, BlobMetaData> builder = ImmutableMap.builder();
         for (File file : files) {
-            builder.put(file.getName(), new FsBlobMetaData(file));
+            builder.put(file.getName(), new PlainBlobMetaData(file.getName(), file.length()));
         }
         return builder.build();
     }
@@ -63,7 +64,7 @@ public abstract class AbstractFsBlobContainer extends AbstractBlobContainer {
     @Override public void readBlob(final String blobName, final ReadBlobListener listener) {
         blobStore.executorService().execute(new Runnable() {
             @Override public void run() {
-                byte[] buffer = new byte[1024 * 16];
+                byte[] buffer = new byte[blobStore.bufferSizeInBytes()];
                 FileInputStream is;
                 try {
                     is = new FileInputStream(new File(path, blobName));

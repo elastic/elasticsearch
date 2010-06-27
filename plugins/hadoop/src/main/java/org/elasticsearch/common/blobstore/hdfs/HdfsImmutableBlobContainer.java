@@ -51,7 +51,7 @@ public class HdfsImmutableBlobContainer extends AbstractHdfsBlobContainer implem
                 }
                 try {
                     try {
-                        byte[] buffer = new byte[16 * 1024];
+                        byte[] buffer = new byte[blobStore.bufferSizeInBytes()];
                         int bytesRead;
                         while ((bytesRead = is.read(buffer)) != -1) {
                             fileStream.write(buffer, 0, bytesRead);

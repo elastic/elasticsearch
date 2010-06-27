@@ -26,6 +26,8 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -42,6 +44,8 @@ public class HdfsBlobStore implements BlobStore {
 
     private final Path path;
 
+    private final int bufferSizeInBytes;
+
     private final ExecutorService executorService;
 
     public HdfsBlobStore(Settings settings, FileSystem fileSystem, Path path) throws IOException {
@@ -52,11 +56,16 @@ public class HdfsBlobStore implements BlobStore {
             fileSystem.mkdirs(path);
         }
 
+        this.bufferSizeInBytes = (int) settings.getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
         executorService = Executors.newCachedThreadPool(daemonThreadFactory(settings, "hdfs_blobstore"));
     }
 
     @Override public String toString() {
         return path.toString();
+    }
+
+    public int bufferSizeInBytes() {
+        return this.bufferSizeInBytes;
     }
 
     public FileSystem fileSystem() {

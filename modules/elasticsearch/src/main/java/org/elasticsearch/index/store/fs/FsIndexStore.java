@@ -19,8 +19,11 @@
 
 package org.elasticsearch.index.store.fs;
 
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.NodeEnvironment;
@@ -32,6 +35,7 @@ import org.elasticsearch.index.store.support.AbstractIndexStore;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -74,23 +78,55 @@ public abstract class FsIndexStore extends AbstractIndexStore {
         return new ByteSizeValue(usableSpace);
     }
 
+    @Override public void deleteUnallocated(ShardId shardId) throws IOException {
+        if (indexService.hasShard(shardId.id())) {
+            throw new ElasticSearchIllegalStateException(shardId + " allocated, can't be deleted");
+        }
+        FileSystemUtils.deleteRecursively(shardLocation(shardId));
+    }
+
+    @Override public StoreFilesMetaData[] listUnallocatedStores() throws IOException {
+        File[] shardLocations = location.listFiles();
+        if (shardLocations == null || shardLocations.length == 0) {
+            return new StoreFilesMetaData[0];
+        }
+        List<StoreFilesMetaData> shards = Lists.newArrayList();
+        for (File shardLocation : shardLocations) {
+            int shardId = Integer.parseInt(shardLocation.getName());
+            if (!indexService.hasShard(shardId)) {
+                shards.add(listUnallocatedStoreMetaData(new ShardId(index, shardId)));
+            }
+        }
+        return shards.toArray(new StoreFilesMetaData[shards.size()]);
+    }
+
     @Override protected StoreFilesMetaData listUnallocatedStoreMetaData(ShardId shardId) throws IOException {
         File shardIndexLocation = shardIndexLocation(shardId);
         if (!shardIndexLocation.exists()) {
-            return new StoreFilesMetaData(false, ImmutableMap.<String, StoreFileMetaData>of());
+            return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
         }
         Map<String, StoreFileMetaData> files = Maps.newHashMap();
         for (File file : shardIndexLocation.listFiles()) {
             files.put(file.getName(), new StoreFileMetaData(file.getName(), file.length()));
         }
-        return new StoreFilesMetaData(false, files);
+        return new StoreFilesMetaData(false, shardId, files);
     }
 
     public File location() {
         return location;
     }
 
+    public File shardLocation(ShardId shardId) {
+        return new File(location, Integer.toString(shardId.id()));
+    }
+
     public File shardIndexLocation(ShardId shardId) {
-        return new File(new File(location, Integer.toString(shardId.id())), "index");
+        return new File(shardLocation(shardId), "index");
+    }
+
+    // not used currently, but here to state that this store also defined a file based translog location
+
+    public File shardTranslogLocation(ShardId shardId) {
+        return new File(shardLocation(shardId), "translog");
     }
 }

@@ -80,6 +80,16 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return shards();
     }
 
+    public int countWithState(ShardRoutingState state) {
+        int count = 0;
+        for (ShardRouting shard : this) {
+            if (state == shard.state()) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     public ShardsIterator shardsIt() {
         return new IndexShardsIterator(0);
     }

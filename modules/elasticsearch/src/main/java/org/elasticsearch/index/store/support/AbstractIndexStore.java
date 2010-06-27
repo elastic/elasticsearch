@@ -38,11 +38,19 @@ import java.util.Map;
  */
 public abstract class AbstractIndexStore extends AbstractIndexComponent implements IndexStore {
 
-    private final IndexService indexService;
+    protected final IndexService indexService;
 
     protected AbstractIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService) {
         super(index, indexSettings);
         this.indexService = indexService;
+    }
+
+    @Override public void deleteUnallocated(ShardId shardId) throws IOException {
+        // do nothing here...
+    }
+
+    @Override public StoreFilesMetaData[] listUnallocatedStores() throws IOException {
+        return new StoreFilesMetaData[0];
     }
 
     @Override public StoreFilesMetaData listStoreMetaData(ShardId shardId) throws IOException {
@@ -54,11 +62,11 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
             for (String file : indexShard.store().directory().listAll()) {
                 files.put(file, new StoreFileMetaData(file, indexShard.store().directory().fileLength(file)));
             }
-            return new StoreFilesMetaData(true, files);
+            return new StoreFilesMetaData(true, shardId, files);
         }
     }
 
     protected StoreFilesMetaData listUnallocatedStoreMetaData(ShardId shardId) throws IOException {
-        return new StoreFilesMetaData(false, ImmutableMap.<String, StoreFileMetaData>of());
+        return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
     }
 }

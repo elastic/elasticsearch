@@ -160,6 +160,10 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         return injector;
     }
 
+    @Override public IndexStore store() {
+        return indexStore;
+    }
+
     @Override public IndexCache cache() {
         return indexCache;
     }

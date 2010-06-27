@@ -51,6 +51,7 @@ import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
+import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.IndicesPluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 
@@ -77,6 +78,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     private final IndicesAnalysisService indicesAnalysisService;
 
+    private final IndicesStore indicesStore;
+
     private final Injector injector;
 
     private final PluginsService pluginsService;
@@ -86,11 +89,12 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
     private volatile ImmutableMap<String, IndexService> indices = ImmutableMap.of();
 
     @Inject public InternalIndicesService(Settings settings, IndicesClusterStateService clusterStateService,
-                                          IndicesLifecycle indicesLifecycle, IndicesAnalysisService indicesAnalysisService, Injector injector) {
+                                          IndicesLifecycle indicesLifecycle, IndicesAnalysisService indicesAnalysisService, IndicesStore indicesStore, Injector injector) {
         super(settings);
         this.clusterStateService = clusterStateService;
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indicesAnalysisService = indicesAnalysisService;
+        this.indicesStore = indicesStore;
         this.injector = injector;
 
         this.pluginsService = injector.getInstance(PluginsService.class);
@@ -109,6 +113,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     @Override protected void doClose() throws ElasticSearchException {
         clusterStateService.close();
+        indicesStore.close();
         indicesAnalysisService.close();
     }
 

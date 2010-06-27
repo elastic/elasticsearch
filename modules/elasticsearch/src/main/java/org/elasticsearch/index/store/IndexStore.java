@@ -59,6 +59,13 @@ public interface IndexStore extends IndexComponent {
     ByteSizeValue backingStoreFreeSpace();
 
     /**
+     * Lists all unallocated stores.
+     */
+    StoreFilesMetaData[] listUnallocatedStores() throws IOException;
+
+    void deleteUnallocated(ShardId shardId) throws IOException;
+
+    /**
      * Lists the store files metadata for a shard. Note, this should be able to list also
      * metadata for shards that are no allocated as well.
      */
@@ -66,18 +73,32 @@ public interface IndexStore extends IndexComponent {
 
     static class StoreFilesMetaData implements Iterable<StoreFileMetaData>, Streamable {
         private boolean allocated;
+        private ShardId shardId;
         private Map<String, StoreFileMetaData> files;
 
         StoreFilesMetaData() {
         }
 
-        public StoreFilesMetaData(boolean allocated, Map<String, StoreFileMetaData> files) {
+        public StoreFilesMetaData(boolean allocated, ShardId shardId, Map<String, StoreFileMetaData> files) {
             this.allocated = allocated;
+            this.shardId = shardId;
             this.files = files;
         }
 
         public boolean allocated() {
             return allocated;
+        }
+
+        public ShardId shardId() {
+            return this.shardId;
+        }
+
+        public long totalSizeInBytes() {
+            long totalSizeInBytes = 0;
+            for (StoreFileMetaData file : this) {
+                totalSizeInBytes += file.sizeInBytes();
+            }
+            return totalSizeInBytes;
         }
 
         @Override public Iterator<StoreFileMetaData> iterator() {
@@ -96,6 +117,7 @@ public interface IndexStore extends IndexComponent {
 
         @Override public void readFrom(StreamInput in) throws IOException {
             allocated = in.readBoolean();
+            shardId = ShardId.readShardId(in);
             int size = in.readVInt();
             files = Maps.newHashMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
@@ -106,6 +128,7 @@ public interface IndexStore extends IndexComponent {
 
         @Override public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(allocated);
+            shardId.writeTo(out);
             out.writeVInt(files.size());
             for (StoreFileMetaData md : files.values()) {
                 out.writeUTF(md.name());

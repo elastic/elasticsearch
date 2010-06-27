@@ -31,6 +31,7 @@ import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.routing.OperationRouting;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.index.store.IndexStore;
 
 import java.util.Set;
 
@@ -52,6 +53,8 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard>, Clos
     SimilarityService similarityService();
 
     IndexEngine indexEngine();
+
+    IndexStore store();
 
     IndexShard createShard(int sShardId) throws ElasticSearchException;
 

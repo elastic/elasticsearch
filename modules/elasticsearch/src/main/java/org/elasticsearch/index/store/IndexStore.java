@@ -19,6 +19,10 @@
 
 package org.elasticsearch.index.store;
 
+import org.elasticsearch.common.collect.Maps;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -60,9 +64,12 @@ public interface IndexStore extends IndexComponent {
      */
     StoreFilesMetaData listStoreMetaData(ShardId shardId) throws IOException;
 
-    static class StoreFilesMetaData implements Iterable<StoreFileMetaData> {
-        private final boolean allocated;
-        private final Map<String, StoreFileMetaData> files;
+    static class StoreFilesMetaData implements Iterable<StoreFileMetaData>, Streamable {
+        private boolean allocated;
+        private Map<String, StoreFileMetaData> files;
+
+        StoreFilesMetaData() {
+        }
 
         public StoreFilesMetaData(boolean allocated, Map<String, StoreFileMetaData> files) {
             this.allocated = allocated;
@@ -79,6 +86,31 @@ public interface IndexStore extends IndexComponent {
 
         public StoreFileMetaData file(String name) {
             return files.get(name);
+        }
+
+        public static StoreFilesMetaData readStoreFilesMetaData(StreamInput in) throws IOException {
+            StoreFilesMetaData md = new StoreFilesMetaData();
+            md.readFrom(in);
+            return md;
+        }
+
+        @Override public void readFrom(StreamInput in) throws IOException {
+            allocated = in.readBoolean();
+            int size = in.readVInt();
+            files = Maps.newHashMapWithExpectedSize(size);
+            for (int i = 0; i < size; i++) {
+                StoreFileMetaData md = new StoreFileMetaData(in.readUTF(), in.readVLong());
+                files.put(md.name(), md);
+            }
+        }
+
+        @Override public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(allocated);
+            out.writeVInt(files.size());
+            for (StoreFileMetaData md : files.values()) {
+                out.writeUTF(md.name());
+                out.writeVLong(md.sizeInBytes());
+            }
         }
     }
 

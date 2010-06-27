@@ -34,7 +34,7 @@ public class SerialMergeSchedulerProvider extends AbstractIndexShardComponent im
 
     @Inject public SerialMergeSchedulerProvider(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
-        logger.trace("Using [serial] merge scheduler");
+        logger.trace("using [serial] merge scheduler");
     }
 
     @Override public MergeScheduler newMergeScheduler() {

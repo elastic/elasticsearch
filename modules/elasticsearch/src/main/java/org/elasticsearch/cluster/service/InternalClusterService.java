@@ -143,7 +143,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 try {
                     clusterState = updateTask.execute(previousClusterState);
                 } catch (Exception e) {
-                    StringBuilder sb = new StringBuilder("Failed to execute cluster state update, state:\nVersion [").append(clusterState.version()).append("], source [").append(source).append("]\n");
+                    StringBuilder sb = new StringBuilder("failed to execute cluster state update, state:\nversion [").append(clusterState.version()).append("], source [").append(source).append("]\n");
                     sb.append(clusterState.nodes().prettyPrint());
                     sb.append(clusterState.routingTable().prettyPrint());
                     sb.append(clusterState.readOnlyRoutingNodes().prettyPrint());
@@ -157,19 +157,19 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     } else {
                         // we got this cluster state from the master, filter out based on versions (don't call listeners)
                         if (clusterState.version() < previousClusterState.version()) {
-                            logger.debug("Got old cluster state [" + clusterState.version() + "<" + previousClusterState.version() + "] from source [" + source + "], ignoring");
+                            logger.debug("got old cluster state [" + clusterState.version() + "<" + previousClusterState.version() + "] from source [" + source + "], ignoring");
                             return;
                         }
                     }
 
                     if (logger.isTraceEnabled()) {
-                        StringBuilder sb = new StringBuilder("Cluster State updated:\nVersion [").append(clusterState.version()).append("], source [").append(source).append("]\n");
+                        StringBuilder sb = new StringBuilder("cluster state updated:\nversion [").append(clusterState.version()).append("], source [").append(source).append("]\n");
                         sb.append(clusterState.nodes().prettyPrint());
                         sb.append(clusterState.routingTable().prettyPrint());
                         sb.append(clusterState.readOnlyRoutingNodes().prettyPrint());
                         logger.trace(sb.toString());
                     } else if (logger.isDebugEnabled()) {
-                        logger.debug("Cluster state updated, version [{}], source [{}]", clusterState.version(), source);
+                        logger.debug("cluster state updated, version [{}], source [{}]", clusterState.version(), source);
                     }
 
                     ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent(source, clusterState, previousClusterState);
@@ -178,7 +178,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     if (nodesDelta.hasChanges() && logger.isInfoEnabled()) {
                         String summary = nodesDelta.shortSummary();
                         if (summary.length() > 0) {
-                            logger.info("{}, Reason: {}", summary, source);
+                            logger.info("{}, reason: {}", summary, source);
                         }
                     }
 
@@ -188,7 +188,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                             transportService.connectToNode(node);
                         } catch (Exception e) {
                             // the fault detection will detect it as failed as well
-                            logger.warn("Failed to connect to node [" + node + "]", e);
+                            logger.warn("failed to connect to node [" + node + "]", e);
                         }
                     }
 

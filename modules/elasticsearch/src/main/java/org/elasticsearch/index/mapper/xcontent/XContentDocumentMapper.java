@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.xcontent;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
 import org.elasticsearch.common.Preconditions;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -64,10 +65,17 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
         private String mappingSource;
 
+        private ImmutableMap<String, Object> attributes = ImmutableMap.of();
+
         private XContentMapper.BuilderContext builderContext = new XContentMapper.BuilderContext(new ContentPath(1));
 
         public Builder(XContentObjectMapper.Builder builder) {
             this.rootObjectMapper = builder.build(builderContext);
+        }
+
+        public Builder attributes(ImmutableMap<String, Object> attributes) {
+            this.attributes = attributes;
+            return this;
         }
 
         public Builder sourceField(XContentSourceFieldMapper.Builder builder) {
@@ -125,7 +133,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
         public XContentDocumentMapper build() {
             Preconditions.checkNotNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
-            return new XContentDocumentMapper(rootObjectMapper, uidFieldMapper, idFieldMapper, typeFieldMapper,
+            return new XContentDocumentMapper(rootObjectMapper, attributes, uidFieldMapper, idFieldMapper, typeFieldMapper,
                     sourceFieldMapper, allFieldMapper, indexAnalyzer, searchAnalyzer, boostFieldMapper, mappingSource);
         }
     }
@@ -138,6 +146,8 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
     };
 
     private final String type;
+
+    private volatile ImmutableMap<String, Object> attributes;
 
     private volatile String mappingSource;
 
@@ -166,6 +176,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
     private final Object mutex = new Object();
 
     public XContentDocumentMapper(XContentObjectMapper rootObjectMapper,
+                                  ImmutableMap<String, Object> attributes,
                                   XContentUidFieldMapper uidFieldMapper,
                                   XContentIdFieldMapper idFieldMapper,
                                   XContentTypeFieldMapper typeFieldMapper,
@@ -175,6 +186,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
                                   @Nullable XContentBoostFieldMapper boostFieldMapper,
                                   @Nullable String mappingSource) {
         this.type = rootObjectMapper.name();
+        this.attributes = attributes;
         this.mappingSource = mappingSource;
         this.rootObjectMapper = rootObjectMapper;
         this.uidFieldMapper = uidFieldMapper;
@@ -218,6 +230,10 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
     @Override public String type() {
         return this.type;
+    }
+
+    @Override public ImmutableMap<String, Object> attributes() {
+        return this.attributes;
     }
 
     @Override public String mappingSource() {
@@ -367,7 +383,9 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         MergeContext mergeContext = new MergeContext(this, mergeFlags);
         rootObjectMapper.merge(xContentMergeWith.rootObjectMapper, mergeContext);
         if (!mergeFlags.simulate()) {
-            // update the source to the merged one
+            // let the merge with attributes to override the attributes
+            attributes = mergeWith.attributes();
+            // update the source of the merged one
             mappingSource = buildSource();
         }
         return new MergeResult(mergeContext.buildConflicts());

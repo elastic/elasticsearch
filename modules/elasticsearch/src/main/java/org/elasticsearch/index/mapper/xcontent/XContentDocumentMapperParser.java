@@ -149,6 +149,12 @@ public class XContentDocumentMapperParser implements DocumentMapperParser {
             docBuilder.searchAnalyzer(analysisService.defaultSearchAnalyzer());
         }
 
+        ImmutableMap<String, Object> attributes = ImmutableMap.of();
+        if (rootObj.containsKey("_attributes")) {
+            attributes = ImmutableMap.copyOf((Map<String, Object>) rootObj.get("_attributes"));
+        }
+        docBuilder.attributes(attributes);
+
         docBuilder.mappingSource(source);
 
         XContentDocumentMapper documentMapper = docBuilder.build();

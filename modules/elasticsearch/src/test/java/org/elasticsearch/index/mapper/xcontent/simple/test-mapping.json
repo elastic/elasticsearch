@@ -1,5 +1,8 @@
 {
     person : {
+        "_attributes" : {
+            "param1" : "value1"
+        },
         date_formats : ["yyyy-MM-dd", "dd-MM-yyyy"],
         dynamic : false,
         enabled : true,

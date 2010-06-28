@@ -87,6 +87,7 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
                 builder.metaData(currentState.metaData());
             }
         }
+        builder.blocks(currentState.blocks());
         return new ClusterStateResponse(clusterName, builder.build());
     }
 }

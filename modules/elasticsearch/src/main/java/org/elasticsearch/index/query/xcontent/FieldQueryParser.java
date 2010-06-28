@@ -66,6 +66,7 @@ public class FieldQueryParser extends AbstractIndexComponent implements XContent
         String queryString = null;
         float boost = 1.0f;
         MapperQueryParser.Operator defaultOperator = QueryParser.Operator.OR;
+        boolean allowLeadingWildcard = true;
         boolean lowercaseExpandedTerms = true;
         boolean enablePositionIncrements = true;
         int phraseSlop = 0;
@@ -86,6 +87,8 @@ public class FieldQueryParser extends AbstractIndexComponent implements XContent
                         boost = parser.floatValue();
                     } else if ("enable_position_increments".equals(currentFieldName) || "enablePositionIncrements".equals(currentFieldName)) {
                         enablePositionIncrements = parser.booleanValue();
+                    } else if ("allow_leading_wildcard".equals(currentFieldName) || "allowLeadingWildcard".equals(currentFieldName)) {
+                        allowLeadingWildcard = parser.booleanValue();
                     } else if ("lowercase_expanded_terms".equals(currentFieldName) || "lowercaseExpandedTerms".equals(currentFieldName)) {
                         lowercaseExpandedTerms = parser.booleanValue();
                     } else if ("phrase_slop".equals(currentFieldName) || "phraseSlop".equals(currentFieldName)) {
@@ -127,6 +130,7 @@ public class FieldQueryParser extends AbstractIndexComponent implements XContent
 
         MapperQueryParser queryParser = new MapperQueryParser(fieldName, analyzer, parseContext);
         queryParser.setEnablePositionIncrements(enablePositionIncrements);
+        queryParser.setAllowLeadingWildcard(allowLeadingWildcard);
         queryParser.setLowercaseExpandedTerms(lowercaseExpandedTerms);
         queryParser.setPhraseSlop(phraseSlop);
         queryParser.setDefaultOperator(defaultOperator);

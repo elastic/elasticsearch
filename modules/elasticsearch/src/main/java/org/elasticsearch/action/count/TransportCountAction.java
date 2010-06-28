@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedE
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
@@ -76,6 +77,12 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
 
     @Override protected GroupShardsIterator shards(CountRequest request, ClusterState clusterState) {
         return indicesService.searchShards(clusterState, request.indices(), request.queryHint());
+    }
+
+    @Override protected void checkBlock(CountRequest request, ClusterState state) {
+        for (String index : request.indices()) {
+            state.blocks().indexBlocked(ClusterBlockLevel.READ, index);
+        }
     }
 
     @Override protected CountResponse newResponse(CountRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {

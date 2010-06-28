@@ -33,17 +33,14 @@ import org.elasticsearch.transport.TransportService;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TransportIndexGatewaySnapshotAction extends TransportIndexReplicationOperationAction<IndexGatewaySnapshotRequest, IndexGatewaySnapshotResponse, ShardGatewaySnapshotRequest, ShardGatewaySnapshotResponse> {
-
-    private final ClusterService clusterService;
 
     @Inject public TransportIndexGatewaySnapshotAction(Settings settings, ClusterService clusterService,
                                                        TransportService transportService, ThreadPool threadPool,
                                                        TransportShardGatewaySnapshotAction shardGatewaySnapshotAction) {
-        super(settings, transportService, threadPool, shardGatewaySnapshotAction);
-        this.clusterService = clusterService;
+        super(settings, transportService, clusterService, threadPool, shardGatewaySnapshotAction);
     }
 
     @Override protected IndexGatewaySnapshotRequest newRequestInstance() {

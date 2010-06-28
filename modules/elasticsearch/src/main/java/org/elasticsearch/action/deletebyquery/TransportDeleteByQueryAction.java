@@ -22,6 +22,8 @@ package org.elasticsearch.action.deletebyquery;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.replication.TransportIndicesReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -30,7 +32,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TransportDeleteByQueryAction extends TransportIndicesReplicationOperationAction<DeleteByQueryRequest, DeleteByQueryResponse, IndexDeleteByQueryRequest, IndexDeleteByQueryResponse, ShardDeleteByQueryRequest, ShardDeleteByQueryResponse> {
 
@@ -60,6 +62,12 @@ public class TransportDeleteByQueryAction extends TransportIndicesReplicationOpe
 
     @Override protected String transportAction() {
         return TransportActions.DELETE_BY_QUERY;
+    }
+
+    @Override protected void checkBlock(DeleteByQueryRequest request, ClusterState state) {
+        for (String index : request.indices()) {
+            state.blocks().indexBlockedRaiseException(ClusterBlockLevel.WRITE, index);
+        }
     }
 
     @Override protected IndexDeleteByQueryRequest newIndexRequestInstance(DeleteByQueryRequest request, String index) {

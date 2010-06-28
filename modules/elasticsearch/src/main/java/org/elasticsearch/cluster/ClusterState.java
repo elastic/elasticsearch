@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -46,14 +47,21 @@ public class ClusterState {
 
     private final MetaData metaData;
 
+    private final ClusterBlocks blocks;
+
     // built on demand
     private volatile RoutingNodes routingNodes;
 
-    public ClusterState(long version, MetaData metaData, RoutingTable routingTable, DiscoveryNodes nodes) {
+    public ClusterState(long version, ClusterState state) {
+        this(version, state.metaData(), state.routingTable(), state.nodes(), state.blocks());
+    }
+
+    public ClusterState(long version, MetaData metaData, RoutingTable routingTable, DiscoveryNodes nodes, ClusterBlocks blocks) {
         this.version = version;
         this.metaData = metaData;
         this.routingTable = routingTable;
         this.nodes = nodes;
+        this.blocks = blocks;
     }
 
     public long version() {
@@ -96,6 +104,14 @@ public class ClusterState {
         return readOnlyRoutingNodes();
     }
 
+    public ClusterBlocks blocks() {
+        return this.blocks;
+    }
+
+    public ClusterBlocks getBlocks() {
+        return blocks;
+    }
+
     /**
      * Returns a built (on demand) routing nodes view of the routing table. <b>NOTE, the routing nodes
      * are mutable, use them just for read operations</b>
@@ -106,6 +122,10 @@ public class ClusterState {
         }
         routingNodes = routingTable.routingNodes(metaData);
         return routingNodes;
+    }
+
+    public static Builder builder() {
+        return new Builder();
     }
 
     public static Builder newClusterStateBuilder() {
@@ -121,6 +141,8 @@ public class ClusterState {
         private RoutingTable routingTable = RoutingTable.EMPTY_ROUTING_TABLE;
 
         private DiscoveryNodes nodes = DiscoveryNodes.EMPTY_NODES;
+
+        private ClusterBlocks blocks = ClusterBlocks.EMPTY_CLUSTER_BLOCK;
 
         public Builder nodes(DiscoveryNodes.Builder nodesBuilder) {
             return nodes(nodesBuilder.build());
@@ -149,16 +171,26 @@ public class ClusterState {
             return this;
         }
 
+        public Builder blocks(ClusterBlocks.Builder blocksBuilder) {
+            return blocks(blocksBuilder.build());
+        }
+
+        public Builder blocks(ClusterBlocks block) {
+            this.blocks = block;
+            return this;
+        }
+
         public Builder state(ClusterState state) {
             this.version = state.version();
             this.nodes = state.nodes();
             this.routingTable = state.routingTable();
             this.metaData = state.metaData();
+            this.blocks = state.blocks();
             return this;
         }
 
         public ClusterState build() {
-            return new ClusterState(version, metaData, routingTable, nodes);
+            return new ClusterState(version, metaData, routingTable, nodes, blocks);
         }
 
         public static byte[] toBytes(ClusterState state) throws IOException {
@@ -176,6 +208,7 @@ public class ClusterState {
             MetaData.Builder.writeTo(state.metaData(), out);
             RoutingTable.Builder.writeTo(state.routingTable(), out);
             DiscoveryNodes.Builder.writeTo(state.nodes(), out);
+            ClusterBlocks.Builder.writeClusterBlocks(state.blocks(), out);
         }
 
         public static ClusterState readFrom(StreamInput in, @Nullable Settings globalSettings, @Nullable DiscoveryNode localNode) throws IOException {
@@ -184,6 +217,7 @@ public class ClusterState {
             builder.metaData = MetaData.Builder.readFrom(in, globalSettings);
             builder.routingTable = RoutingTable.Builder.readFrom(in);
             builder.nodes = DiscoveryNodes.Builder.readFrom(in, localNode);
+            builder.blocks = ClusterBlocks.Builder.readClusterBlocks(in);
             return builder.build();
         }
     }

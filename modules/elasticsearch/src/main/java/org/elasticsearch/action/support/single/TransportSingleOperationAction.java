@@ -78,6 +78,10 @@ public abstract class TransportSingleOperationAction<Request extends SingleOpera
 
     protected abstract Response newResponse();
 
+    protected void checkBlock(Request request, ClusterState state) {
+
+    }
+
     private class AsyncSingleAction {
 
         private final ActionListener<Response> listener;
@@ -98,6 +102,8 @@ public abstract class TransportSingleOperationAction<Request extends SingleOpera
 
             // update to the concrete shard to use
             request.index(clusterState.metaData().concreteIndex(request.index()));
+
+            checkBlock(request, clusterState);
 
             this.shardsIt = indicesService.indexServiceSafe(request.index()).operationRouting()
                     .getShards(clusterState, request.type(), request.id());

@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.UUID;
 import org.elasticsearch.common.inject.Inject;
@@ -111,6 +112,10 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
 
     @Override protected String transportAction() {
         return TransportActions.INDEX;
+    }
+
+    @Override protected void checkBlock(IndexRequest request, ClusterState state) {
+        state.blocks().indexBlockedRaiseException(ClusterBlockLevel.WRITE, request.index());
     }
 
     @Override protected ShardsIterator shards(ClusterState clusterState, IndexRequest request) {

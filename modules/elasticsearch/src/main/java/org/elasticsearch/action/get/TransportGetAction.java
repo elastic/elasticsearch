@@ -26,6 +26,8 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.single.TransportSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -61,6 +63,10 @@ public class TransportGetAction extends TransportSingleOperationAction<GetReques
 
     @Override protected String transportShardAction() {
         return "indices/get/shard";
+    }
+
+    @Override protected void checkBlock(GetRequest request, ClusterState state) {
+        state.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, request.index());
     }
 
     @Override protected GetResponse shardOperation(GetRequest request, int shardId) throws ElasticSearchException {

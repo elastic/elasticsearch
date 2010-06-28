@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.replication.TransportShardReplicationOpe
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -87,6 +88,10 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
 
     @Override protected String transportAction() {
         return TransportActions.DELETE;
+    }
+
+    @Override protected void checkBlock(DeleteRequest request, ClusterState state) {
+        state.blocks().indexBlockedRaiseException(ClusterBlockLevel.WRITE, request.index());
     }
 
     @Override protected DeleteResponse shardOperationOnPrimary(ShardOperationRequest shardRequest) {

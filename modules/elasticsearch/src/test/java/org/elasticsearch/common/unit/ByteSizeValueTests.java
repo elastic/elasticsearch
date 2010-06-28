@@ -41,7 +41,7 @@ public class ByteSizeValueTests {
     }
 
     @Test public void testToString() {
-        assertThat("10", is(new ByteSizeValue(10, ByteSizeUnit.BYTES).toString()));
+        assertThat("10b", is(new ByteSizeValue(10, ByteSizeUnit.BYTES).toString()));
         assertThat("1.5kb", is(new ByteSizeValue((long) (1024 * 1.5), ByteSizeUnit.BYTES).toString()));
         assertThat("1.5mb", is(new ByteSizeValue((long) (1024 * 1.5), ByteSizeUnit.KB).toString()));
         assertThat("1.5gb", is(new ByteSizeValue((long) (1024 * 1.5), ByteSizeUnit.MB).toString()));

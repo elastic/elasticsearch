@@ -21,6 +21,8 @@ package org.elasticsearch.gateway;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataService;
@@ -47,6 +49,8 @@ import static org.elasticsearch.common.util.concurrent.DynamicExecutors.*;
  * @author kimchy (shay.banon)
  */
 public class GatewayService extends AbstractLifecycleComponent<GatewayService> implements ClusterStateListener {
+
+    public final ClusterBlock NOT_RECOVERED_FROM_GATEWAY_BLOCK = new ClusterBlock(1, "not recovered from gateway");
 
     private final Gateway gateway;
 
@@ -92,6 +96,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
             ClusterState clusterState = clusterService.state();
             if (clusterState.nodes().localNodeMaster() && !clusterState.metaData().recoveredFromGateway()) {
                 if (recoverAfterNodes != -1 && clusterState.nodes().size() < recoverAfterNodes) {
+                    updateClusterStateBlockedOnNotRecovered();
                     logger.debug("not recovering from gateway, nodes_size [" + clusterState.nodes().size() + "] < recover_after_nodes [" + recoverAfterNodes + "]");
                 } else {
                     if (readFromGateway.compareAndSet(false, true)) {
@@ -187,6 +192,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         final MetaData fMetaData = metaData;
         final CountDownLatch latch = new CountDownLatch(fMetaData.indices().size());
         if (recoverAfterTime != null) {
+            updateClusterStateBlockedOnNotRecovered();
             logger.debug("delaying initial state index creation for [{}]", recoverAfterTime);
             threadPool.schedule(new Runnable() {
                 @Override public void run() {
@@ -217,18 +223,29 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                         .metaData(currentState.metaData())
                                 // mark the metadata as read from gateway
                         .markAsRecoveredFromGateway();
-                return newClusterStateBuilder().state(currentState).metaData(metaDataBuilder).build();
+
+                // remove the block, since we recovered from gateway
+                ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NOT_RECOVERED_FROM_GATEWAY_BLOCK);
+
+                return newClusterStateBuilder().state(currentState).metaData(metaDataBuilder).blocks(blocks).build();
             }
         });
     }
 
     private void updateClusterStateFromGateway(final MetaData fMetaData, final CountDownLatch latch) {
-        clusterService.submitStateUpdateTask("gateway (recovered meta-data)", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("gateway (recovered meta-data)", new ProcessedClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
                 MetaData.Builder metaDataBuilder = newMetaDataBuilder()
                         .metaData(currentState.metaData()).maxNumberOfShardsPerNode(fMetaData.maxNumberOfShardsPerNode());
                 // mark the metadata as read from gateway
                 metaDataBuilder.markAsRecoveredFromGateway();
+                // remove the block, since we recovered from gateway
+                ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NOT_RECOVERED_FROM_GATEWAY_BLOCK);
+
+                return newClusterStateBuilder().state(currentState).metaData(metaDataBuilder).blocks(blocks).build();
+            }
+
+            @Override public void clusterStateProcessed(ClusterState clusterState) {
                 // go over the meta data and create indices, we don't really need to copy over
                 // the meta data per index, since we create the index and it will be added automatically
                 for (final IndexMetaData indexMetaData : fMetaData) {
@@ -244,7 +261,15 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                         }
                     });
                 }
-                return newClusterStateBuilder().state(currentState).metaData(metaDataBuilder).build();
+            }
+        });
+    }
+
+    private void updateClusterStateBlockedOnNotRecovered() {
+        clusterService.submitStateUpdateTask("gateway (block: not recovered from gateway)", new ClusterStateUpdateTask() {
+            @Override public ClusterState execute(ClusterState currentState) {
+                ClusterBlocks blocks = ClusterBlocks.builder().blocks(currentState.blocks()).addGlobalBlock(NOT_RECOVERED_FROM_GATEWAY_BLOCK).build();
+                return ClusterState.builder().state(currentState).blocks(blocks).build();
             }
         });
     }

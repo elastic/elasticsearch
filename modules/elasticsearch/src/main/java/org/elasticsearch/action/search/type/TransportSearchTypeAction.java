@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -107,6 +108,10 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
             nodes = clusterState.nodes();
 
             request.indices(clusterState.metaData().concreteIndices(request.indices()));
+
+            for (String index : request.indices()) {
+                clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index);
+            }
 
             shardsIts = indicesService.searchShards(clusterState, request.indices(), request.queryHint());
             expectedSuccessfulOps = shardsIts.size();

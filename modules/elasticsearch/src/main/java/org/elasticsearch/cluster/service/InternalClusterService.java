@@ -153,7 +153,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 if (previousClusterState != clusterState) {
                     if (clusterState.nodes().localNodeMaster()) {
                         // only the master controls the version numbers
-                        clusterState = new ClusterState(clusterState.version() + 1, clusterState.metaData(), clusterState.routingTable(), clusterState.nodes());
+                        clusterState = new ClusterState(clusterState.version() + 1, clusterState);
                     } else {
                         // we got this cluster state from the master, filter out based on versions (don't call listeners)
                         if (clusterState.version() < previousClusterState.version()) {

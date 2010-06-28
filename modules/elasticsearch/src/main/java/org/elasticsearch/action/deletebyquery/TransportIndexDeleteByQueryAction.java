@@ -21,6 +21,8 @@ package org.elasticsearch.action.deletebyquery;
 
 import org.elasticsearch.action.support.replication.TransportIndexReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -31,18 +33,15 @@ import org.elasticsearch.transport.TransportService;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TransportIndexDeleteByQueryAction extends TransportIndexReplicationOperationAction<IndexDeleteByQueryRequest, IndexDeleteByQueryResponse, ShardDeleteByQueryRequest, ShardDeleteByQueryResponse> {
-
-    private final ClusterService clusterService;
 
     private final IndicesService indicesService;
 
     @Inject public TransportIndexDeleteByQueryAction(Settings settings, ClusterService clusterService, TransportService transportService, IndicesService indicesService,
                                                      ThreadPool threadPool, TransportShardDeleteByQueryAction shardDeleteByQueryAction) {
-        super(settings, transportService, threadPool, shardDeleteByQueryAction);
-        this.clusterService = clusterService;
+        super(settings, transportService, clusterService, threadPool, shardDeleteByQueryAction);
         this.indicesService = indicesService;
     }
 
@@ -69,6 +68,10 @@ public class TransportIndexDeleteByQueryAction extends TransportIndexReplication
 
     @Override protected String transportAction() {
         return "indices/index/deleteByQuery";
+    }
+
+    @Override protected void checkBlock(IndexDeleteByQueryRequest request, ClusterState state) {
+        state.blocks().indexBlockedRaiseException(ClusterBlockLevel.WRITE, request.index());
     }
 
     @Override protected GroupShardsIterator shards(IndexDeleteByQueryRequest request) {

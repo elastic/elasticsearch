@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.index.NodeIndexCreatedAction;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.strategy.ShardsRoutingStrategy;
@@ -105,6 +106,7 @@ public class MetaDataService extends AbstractComponent {
         ClusterState clusterState = clusterService.state();
 
         for (AliasAction aliasAction : aliasActions) {
+            clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.METADATA, aliasAction.index());
             if (!clusterState.metaData().hasIndex(aliasAction.index())) {
                 throw new IndexMissingException(new Index(aliasAction.index()));
             }
@@ -140,6 +142,8 @@ public class MetaDataService extends AbstractComponent {
 
     public synchronized CreateIndexResult createIndex(final String cause, final String index, final Settings indexSettings, Map<String, String> mappings, TimeValue timeout) throws IndexAlreadyExistsException {
         ClusterState clusterState = clusterService.state();
+
+        clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.METADATA, index);
 
         if (clusterState.routingTable().hasIndex(index)) {
             throw new IndexAlreadyExistsException(new Index(index));
@@ -260,14 +264,18 @@ public class MetaDataService extends AbstractComponent {
     }
 
     public synchronized DeleteIndexResult deleteIndex(final String index, TimeValue timeout) throws IndexMissingException {
-        RoutingTable routingTable = clusterService.state().routingTable();
+        ClusterState clusterState = clusterService.state();
+
+        clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.METADATA, index);
+
+        RoutingTable routingTable = clusterState.routingTable();
         if (!routingTable.hasIndex(index)) {
             throw new IndexMissingException(new Index(index));
         }
 
         logger.info("[{}] deleting index", index);
 
-        final CountDownLatch latch = new CountDownLatch(clusterService.state().nodes().size());
+        final CountDownLatch latch = new CountDownLatch(clusterState.nodes().size());
         NodeIndexDeletedAction.Listener listener = new NodeIndexDeletedAction.Listener() {
             @Override public void onNodeIndexDeleted(String fIndex, String nodeId) {
                 if (fIndex.equals(index)) {
@@ -341,6 +349,8 @@ public class MetaDataService extends AbstractComponent {
             throw new IndexMissingException(new Index("_all"));
         }
         for (String index : indices) {
+            clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.METADATA, index);
+
             IndexRoutingTable indexTable = clusterState.routingTable().indicesRouting().get(index);
             if (indexTable == null) {
                 throw new IndexMissingException(new Index(index));

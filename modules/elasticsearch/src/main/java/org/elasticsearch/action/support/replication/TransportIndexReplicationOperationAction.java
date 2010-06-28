@@ -23,6 +23,8 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.BaseAction;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.inject.Inject;
@@ -36,25 +38,35 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class TransportIndexReplicationOperationAction<Request extends IndexReplicationOperationRequest, Response extends ActionResponse, ShardRequest extends ShardReplicationOperationRequest, ShardResponse extends ActionResponse>
         extends BaseAction<Request, Response> {
 
     protected final ThreadPool threadPool;
 
+    protected final ClusterService clusterService;
+
     protected final TransportShardReplicationOperationAction<ShardRequest, ShardResponse> shardAction;
 
-    @Inject public TransportIndexReplicationOperationAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+    @Inject public TransportIndexReplicationOperationAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                                             TransportShardReplicationOperationAction<ShardRequest, ShardResponse> shardAction) {
         super(settings);
         this.threadPool = threadPool;
+        this.clusterService = clusterService;
         this.shardAction = shardAction;
 
         transportService.registerHandler(transportAction(), new TransportHandler());
     }
 
     @Override protected void doExecute(final Request request, final ActionListener<Response> listener) {
+
+        ClusterState clusterState = clusterService.state();
+        // upate to concrete index
+        request.index(clusterState.metaData().concreteIndex(request.index()));
+
+        checkBlock(request, clusterState);
+
         GroupShardsIterator groups;
         try {
             groups = shards(request);
@@ -123,6 +135,10 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
     protected abstract ShardRequest newShardRequestInstance(Request request, int shardId);
 
     protected abstract boolean accumulateExceptions();
+
+    protected void checkBlock(Request request, ClusterState state) {
+
+    }
 
     private class TransportHandler extends BaseTransportRequestHandler<Request> {
 

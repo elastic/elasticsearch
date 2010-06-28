@@ -103,6 +103,10 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         return false;
     }
 
+    protected void checkBlock(Request request, ClusterState state) {
+
+    }
+
     class AsyncBroadcastAction {
 
         private final Request request;
@@ -131,6 +135,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
             // update to concrete indices
             request.indices(clusterState.metaData().concreteIndices(request.indices()));
+            checkBlock(request, clusterState);
 
             nodes = clusterState.nodes();
             shardsIts = shards(request, clusterState);

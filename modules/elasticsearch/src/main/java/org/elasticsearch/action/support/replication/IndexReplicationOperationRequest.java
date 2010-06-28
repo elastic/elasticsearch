@@ -50,6 +50,11 @@ public class IndexReplicationOperationRequest implements ActionRequest {
         return this.index;
     }
 
+    public IndexReplicationOperationRequest index(String index) {
+        this.index = index;
+        return this;
+    }
+
     @Override public boolean listenerThreaded() {
         return this.threadedListener;
     }

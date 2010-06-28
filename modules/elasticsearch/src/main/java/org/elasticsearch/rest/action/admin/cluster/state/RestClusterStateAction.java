@@ -25,12 +25,15 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -75,6 +78,45 @@ public class RestClusterStateAction extends BaseRestHandler {
                     builder.field("cluster_name", response.clusterName().value());
 
                     builder.field("master_node", state.nodes().masterNodeId());
+
+                    // blocks
+                    builder.startObject("blocks");
+
+                    if (state.blocks().globalBlocked()) {
+                        builder.startObject("global");
+                        for (ClusterBlockLevel level : ClusterBlockLevel.values()) {
+                            if (!state.blocks().global(level).isEmpty()) {
+                                builder.startObject(level.name().toLowerCase());
+                                for (ClusterBlock block : state.blocks().global(level)) {
+                                    builder.startObject(Integer.toString(block.id()));
+                                    builder.field("description", block.description());
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
+                        }
+                        builder.endObject();
+                    }
+
+                    if (!state.blocks().indicesBlocked().isEmpty()) {
+                        builder.startObject("indices");
+                        for (String index : state.blocks().indicesBlocked()) {
+                            builder.startObject(index);
+                            for (Map.Entry<ClusterBlockLevel, ImmutableSet<ClusterBlock>> entry : state.blocks().indexBlocks(index).entrySet()) {
+                                ClusterBlockLevel level = entry.getKey();
+                                builder.startObject(level.name().toLowerCase());
+                                for (ClusterBlock block : entry.getValue()) {
+                                    builder.startObject(Integer.toString(block.id()));
+                                    builder.field("description", block.description());
+                                    builder.endObject();
+                                }
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+
+                    builder.endObject();
 
                     // nodes
                     builder.startObject("nodes");

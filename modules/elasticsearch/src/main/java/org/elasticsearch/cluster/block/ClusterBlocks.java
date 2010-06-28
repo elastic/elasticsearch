@@ -49,6 +49,38 @@ public class ClusterBlocks {
         return levelHolders[level.id()].global();
     }
 
+    public boolean globalBlocked() {
+        for (ClusterBlockLevel level : ClusterBlockLevel.values()) {
+            if (!levelHolders[level.id()].global().isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public ImmutableSet<String> indicesBlocked() {
+        Set<String> indices = Sets.newHashSet();
+        for (ClusterBlockLevel level : ClusterBlockLevel.values()) {
+            for (String index : indices(level).keySet()) {
+                ImmutableSet<ClusterBlock> indexBlocks = indices(level).get(index);
+                if (indexBlocks != null && !indexBlocks.isEmpty()) {
+                    indices.add(index);
+                }
+            }
+        }
+        return ImmutableSet.copyOf(indices);
+    }
+
+    public ImmutableMap<ClusterBlockLevel, ImmutableSet<ClusterBlock>> indexBlocks(String index) {
+        ImmutableMap.Builder<ClusterBlockLevel, ImmutableSet<ClusterBlock>> builder = ImmutableMap.builder();
+        for (ClusterBlockLevel level : ClusterBlockLevel.values()) {
+            if (indices(level).containsKey(index) && !indices(level).get(index).isEmpty()) {
+                builder.put(level, indices(level).get(index));
+            }
+        }
+        return builder.build();
+    }
+
     public ImmutableMap<String, ImmutableSet<ClusterBlock>> indices(ClusterBlockLevel level) {
         return levelHolders[level.id()].indices();
     }

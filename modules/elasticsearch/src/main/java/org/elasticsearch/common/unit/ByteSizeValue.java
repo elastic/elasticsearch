@@ -109,7 +109,7 @@ public class ByteSizeValue implements Serializable, Streamable {
     @Override public String toString() {
         long bytes = bytes();
         double value = bytes;
-        String suffix = "";
+        String suffix = "b";
         if (bytes >= ByteSizeUnit.C3) {
             value = gbFrac();
             suffix = "gb";

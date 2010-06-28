@@ -46,7 +46,7 @@ import java.net.URL;
 import static org.elasticsearch.common.collect.MapBuilder.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 @ThreadSafe
 public class MapperService extends AbstractIndexComponent implements Iterable<DocumentMapper> {
@@ -59,8 +59,6 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     private final String dynamicMappingLocation;
 
     private final URL dynamicMappingUrl;
-
-    private final ClassLoader indexClassLoader;
 
     private final String dynamicMappingSource;
 
@@ -87,7 +85,6 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         super(index, indexSettings);
         this.documentParser = new XContentDocumentMapperParser(analysisService);
         this.searchAnalyzer = new SmartIndexNameSearchAnalyzer(analysisService.defaultSearchAnalyzer());
-        this.indexClassLoader = indexSettings.getClassLoader();
 
         this.dynamic = componentSettings.getAsBoolean("dynamic", true);
         String dynamicMappingLocation = componentSettings.get("dynamic_mapping_location");
@@ -97,7 +94,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 dynamicMappingUrl = environment.resolveConfig("dynamic-mapping.json");
             } catch (FailedToResolveConfigException e) {
                 // not there, default to the built in one
-                dynamicMappingUrl = indexClassLoader.getResource("org/elasticsearch/index/mapper/xcontent/dynamic-mapping.json");
+                dynamicMappingUrl = indexSettings.getClassLoader().getResource("org/elasticsearch/index/mapper/xcontent/dynamic-mapping.json");
             }
         } else {
             try {
@@ -127,7 +124,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         } else {
             dynamicMappingSource = null;
         }
-        logger.debug("Using dynamic[{}] with location[{}] and source[{}]", new Object[]{dynamic, dynamicMappingLocation, dynamicMappingSource});
+        logger.debug("using dynamic[{}] with location[{}] and source[{}]", dynamic, dynamicMappingLocation, dynamicMappingSource);
     }
 
     @Override public UnmodifiableIterator<DocumentMapper> iterator() {

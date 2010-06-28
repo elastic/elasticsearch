@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Fieldable;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 
 import javax.annotation.Nullable;
@@ -38,6 +39,11 @@ public interface DocumentMapper {
      * returns <tt>null</tt>.
      */
     String mappingSource();
+
+    /**
+     * Attributes of this type mappings.
+     */
+    ImmutableMap<String, Object> attributes();
 
     /**
      * Generates the source of the mapper based on the current mappings.

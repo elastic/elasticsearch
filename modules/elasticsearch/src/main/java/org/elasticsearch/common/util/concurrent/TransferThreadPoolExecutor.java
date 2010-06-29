@@ -175,6 +175,7 @@ public class TransferThreadPoolExecutor extends AbstractExecutorService {
     private void executeNonBlocking(Runnable command) {
         // note, there might be starvation of some commands that were added to the queue,
         // while others are being transferred directly
+        queueSize.getAndIncrement();
         boolean succeeded = workQueue.tryTransfer(command);
         if (succeeded) {
             return;

@@ -46,22 +46,24 @@ public class SimpleMemoryMonitorBenchmark {
 
         Settings settings = settingsBuilder()
                 .put("cluster.routing.schedule", 200, TimeUnit.MILLISECONDS)
-                .put("index.engine.robin.refreshInterval", 1, TimeUnit.SECONDS)
-                .put(SETTING_NUMBER_OF_SHARDS, 5)
+                .put("index.engine.robin.refreshInterval", "-1")
+                .put(SETTING_NUMBER_OF_SHARDS, 2)
                 .put(SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();
 
         Node node1 = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "server1")).node();
         Node node2 = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "server2")).node();
 
-        Client client1 = node1.client();
+        Node client = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "client")).client(true).node();
+
+        Client client1 = client.client();
 
         Thread.sleep(1000);
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
         Thread.sleep(5000);
 
         StopWatch stopWatch = new StopWatch().start();
-        int COUNT = 2000000;
+        int COUNT = 200000;
         System.out.println("Indexing [" + COUNT + "] ...");
         for (int i = 0; i < COUNT; i++) {
             client1.index(
@@ -76,7 +78,10 @@ public class SimpleMemoryMonitorBenchmark {
                 stopWatch.start();
             }
         }
-        System.out.println("Indexing took " + stopWatch.stop().totalTime());
+        stopWatch.stop();
+        System.out.println("Indexing took " + stopWatch.totalTime() + ", TPS " + (((double) COUNT) / stopWatch.totalTime().secondsFrac()));
+
+        client.close();
 
         node1.close();
         node2.close();

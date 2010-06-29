@@ -23,6 +23,8 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetaDataService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -54,6 +56,10 @@ public class TransportCreateIndexAction extends TransportMasterNodeOperationActi
 
     @Override protected CreateIndexResponse newResponse() {
         return new CreateIndexResponse();
+    }
+
+    @Override protected void checkBlock(CreateIndexRequest request, ClusterState state) {
+        state.blocks().indexBlockedRaiseException(ClusterBlockLevel.METADATA, request.index());
     }
 
     @Override protected CreateIndexResponse masterOperation(CreateIndexRequest request) throws ElasticSearchException {

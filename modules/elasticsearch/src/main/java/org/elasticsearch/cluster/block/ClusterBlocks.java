@@ -155,7 +155,7 @@ public class ClusterBlocks {
         private LevelHolder[] levelHolders;
 
         public Builder() {
-            levelHolders = new LevelHolder[3];
+            levelHolders = new LevelHolder[ClusterBlockLevel.values().length];
             for (int i = 0; i < levelHolders.length; i++) {
                 levelHolders[i] = new LevelHolder();
             }
@@ -216,7 +216,7 @@ public class ClusterBlocks {
         }
 
         public ClusterBlocks build() {
-            ImmutableLevelHolder[] holders = new ImmutableLevelHolder[3];
+            ImmutableLevelHolder[] holders = new ImmutableLevelHolder[ClusterBlockLevel.values().length];
             for (ClusterBlockLevel level : ClusterBlockLevel.values()) {
                 ImmutableMap.Builder<String, ImmutableSet<ClusterBlock>> indicesBuilder = ImmutableMap.builder();
                 for (Map.Entry<String, Set<ClusterBlock>> entry : levelHolders[level.id()].indices().entrySet()) {
@@ -228,7 +228,7 @@ public class ClusterBlocks {
         }
 
         public static ClusterBlocks readClusterBlocks(StreamInput in) throws IOException {
-            ImmutableLevelHolder[] holders = new ImmutableLevelHolder[3];
+            ImmutableLevelHolder[] holders = new ImmutableLevelHolder[ClusterBlockLevel.values().length];
             for (ClusterBlockLevel level : ClusterBlockLevel.values()) {
                 ImmutableSet<ClusterBlock> global = readBlockSet(in);
                 ImmutableMap.Builder<String, ImmutableSet<ClusterBlock>> indicesBuilder = ImmutableMap.builder();

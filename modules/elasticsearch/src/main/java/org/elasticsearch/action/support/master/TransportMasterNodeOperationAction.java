@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.BaseAction;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -60,12 +61,17 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
 
     protected abstract Response masterOperation(Request request) throws ElasticSearchException;
 
+    protected void checkBlock(Request request, ClusterState state) {
+
+    }
+
     @Override protected void doExecute(final Request request, final ActionListener<Response> listener) {
         DiscoveryNodes nodes = clusterService.state().nodes();
         if (nodes.localNodeMaster()) {
             threadPool.execute(new Runnable() {
                 @Override public void run() {
                     try {
+                        checkBlock(request, clusterService.state());
                         Response response = masterOperation(request);
                         listener.onResponse(response);
                     } catch (Exception e) {
@@ -101,6 +107,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
 
         @Override public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
             if (clusterService.state().nodes().localNodeMaster()) {
+                checkBlock(request, clusterService.state());
                 Response response = masterOperation(request);
                 channel.sendResponse(response);
             } else {

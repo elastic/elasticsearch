@@ -24,6 +24,7 @@ import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetaDataService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -56,6 +57,15 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
 
     @Override protected PutMappingResponse newResponse() {
         return new PutMappingResponse();
+    }
+
+    @Override protected void checkBlock(PutMappingRequest request, ClusterState state) {
+        // update to concrete indices
+        request.indices(state.metaData().concreteIndices(request.indices()));
+
+        for (String index : request.indices()) {
+            state.blocks().indexBlockedRaiseException(ClusterBlockLevel.METADATA, index);
+        }
     }
 
     @Override protected PutMappingResponse masterOperation(PutMappingRequest request) throws ElasticSearchException {

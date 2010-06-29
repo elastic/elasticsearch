@@ -42,6 +42,8 @@ import javax.annotation.Nullable;
 @ThreadSafe
 public interface Engine extends IndexShardComponent, CloseableComponent {
 
+    void indexingBuffer(ByteSizeValue indexingBufferSize);
+
     /**
      * Starts the Engine.
      *

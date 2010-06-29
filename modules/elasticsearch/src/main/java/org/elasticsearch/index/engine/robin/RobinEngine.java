@@ -60,7 +60,7 @@ import static org.elasticsearch.common.util.concurrent.resource.AcquirableResour
  */
 public class RobinEngine extends AbstractIndexShardComponent implements Engine, ScheduledRefreshableEngine {
 
-    private final ByteSizeValue ramBufferSize;
+    private volatile ByteSizeValue indexingBufferSize;
 
     private final TimeValue refreshInterval;
 
@@ -105,7 +105,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         Preconditions.checkNotNull(deletionPolicy, "Snapshot deletion policy must be provided to the engine");
         Preconditions.checkNotNull(translog, "Translog must be provided to the engine");
 
-        this.ramBufferSize = componentSettings.getAsBytesSize("ram_buffer_size", new ByteSizeValue(64, ByteSizeUnit.MB));
+        this.indexingBufferSize = componentSettings.getAsBytesSize("indexing_buffer_size", new ByteSizeValue(64, ByteSizeUnit.MB));
         this.refreshInterval = componentSettings.getAsTime("refresh_interval", timeValueSeconds(1));
         this.termIndexInterval = componentSettings.getAsInt("term_index_interval", IndexWriter.DEFAULT_TERM_INDEX_INTERVAL);
 
@@ -129,12 +129,20 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         }
     }
 
+    @Override public void indexingBuffer(ByteSizeValue indexingBufferSize) {
+        this.indexingBufferSize = indexingBufferSize;
+        IndexWriter indexWriter = this.indexWriter;
+        if (indexWriter != null) {
+            indexWriter.setRAMBufferSizeMB(indexingBufferSize.mbFrac());
+        }
+    }
+
     @Override public void start() throws EngineException {
         if (indexWriter != null) {
             throw new EngineAlreadyStartedException(shardId);
         }
         if (logger.isDebugEnabled()) {
-            logger.debug("Starting engine with ram_buffer_size[" + ramBufferSize + "], refresh_interval[" + refreshInterval + "]");
+            logger.debug("Starting engine with ram_buffer_size[" + indexingBufferSize + "], refresh_interval[" + refreshInterval + "]");
         }
         try {
             this.indexWriter = createWriter();
@@ -477,7 +485,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             indexWriter.setMergeScheduler(mergeScheduler.newMergeScheduler());
             indexWriter.setMergePolicy(mergePolicyProvider.newMergePolicy(indexWriter));
             indexWriter.setSimilarity(similarityService.defaultIndexSimilarity());
-            indexWriter.setRAMBufferSizeMB(ramBufferSize.mbFrac());
+            indexWriter.setRAMBufferSizeMB(indexingBufferSize.mbFrac());
             indexWriter.setTermIndexInterval(termIndexInterval);
         } catch (IOException e) {
             safeClose(indexWriter);

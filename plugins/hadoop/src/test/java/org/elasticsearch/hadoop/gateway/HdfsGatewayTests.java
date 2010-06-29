@@ -63,8 +63,8 @@ public class HdfsGatewayTests {
     private Node buildNode() {
         Settings settings = settingsBuilder()
                 .put("gateway.type", "hdfs")
-//                .put("gateway.hdfs.uri", "hdfs://training-vm.local:8022")
                 .put("gateway.hdfs.uri", "file:///")
+//                .put("gateway.hdfs.uri", "hdfs://training-vm.local:8022")
                 .put("gateway.hdfs.path", "work/hdfs/gateway")
                 .build();
         return nodeBuilder().settings(settingsBuilder().put(settings).put("node.name", "node1")).build();

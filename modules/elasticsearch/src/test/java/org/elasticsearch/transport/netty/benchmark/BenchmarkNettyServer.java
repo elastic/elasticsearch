@@ -30,7 +30,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class BenchmarkNettyServer {
 
@@ -42,6 +42,7 @@ public class BenchmarkNettyServer {
                 .build();
 
         final ThreadPool threadPool = new CachedThreadPool(settings);
+//        final ThreadPool threadPool = new ScalingThreadPool(settings);
         final TimerService timerService = new TimerService(settings, threadPool);
         final TransportService transportService = new TransportService(new NettyTransport(settings, threadPool), threadPool, timerService).start();
 

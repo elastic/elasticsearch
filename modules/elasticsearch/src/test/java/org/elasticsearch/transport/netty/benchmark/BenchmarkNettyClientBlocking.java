@@ -40,17 +40,17 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * @author kimchy (shay.banon)
  */
-public class BenchmarkNettyClient {
+public class BenchmarkNettyClientBlocking {
 
 
     public static void main(String[] args) {
-        final boolean waitForRequest = true;
-        final boolean spawn = true;
         final ByteSizeValue payloadSize = new ByteSizeValue(100, ByteSizeUnit.BYTES);
-        final int NUMBER_OF_CLIENTS = 1;
+        final int NUMBER_OF_CLIENTS = 3;
         final int NUMBER_OF_ITERATIONS = 100000;
         final byte[] payload = new byte[(int) payloadSize.bytes()];
         final AtomicLong idGenerator = new AtomicLong();
+
+        final BenchmarkTransportResponseHandler responseHandler = new BenchmarkTransportResponseHandler();
 
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("network.server", false)
@@ -65,59 +65,24 @@ public class BenchmarkNettyClient {
 
         transportService.connectToNode(node);
 
+        // warm things up
         for (int i = 0; i < 10000; i++) {
             BenchmarkMessage message = new BenchmarkMessage(1, payload);
-            transportService.submitRequest(node, "benchmark", message, new BaseTransportResponseHandler<BenchmarkMessage>() {
-                @Override public BenchmarkMessage newInstance() {
-                    return new BenchmarkMessage();
-                }
-
-                @Override public void handleResponse(BenchmarkMessage response) {
-                }
-
-                @Override public void handleException(RemoteTransportException exp) {
-                    exp.printStackTrace();
-                }
-            }).txGet();
+            transportService.submitRequest(node, "benchmark", message, responseHandler).txGet();
         }
 
 
         Thread[] clients = new Thread[NUMBER_OF_CLIENTS];
-        final CountDownLatch latch = new CountDownLatch(NUMBER_OF_CLIENTS * NUMBER_OF_ITERATIONS);
+        final CountDownLatch latch = new CountDownLatch(NUMBER_OF_CLIENTS);
         for (int i = 0; i < NUMBER_OF_CLIENTS; i++) {
             clients[i] = new Thread(new Runnable() {
                 @Override public void run() {
                     for (int j = 0; j < NUMBER_OF_ITERATIONS; j++) {
                         final long id = idGenerator.incrementAndGet();
                         BenchmarkMessage message = new BenchmarkMessage(id, payload);
-                        BaseTransportResponseHandler<BenchmarkMessage> handler = new BaseTransportResponseHandler<BenchmarkMessage>() {
-                            @Override public BenchmarkMessage newInstance() {
-                                return new BenchmarkMessage();
-                            }
-
-                            @Override public void handleResponse(BenchmarkMessage response) {
-                                if (response.id != id) {
-                                    System.out.println("NO ID MATCH [" + response.id + "] and [" + id + "]");
-                                }
-                                latch.countDown();
-                            }
-
-                            @Override public void handleException(RemoteTransportException exp) {
-                                exp.printStackTrace();
-                                latch.countDown();
-                            }
-
-                            @Override public boolean spawn() {
-                                return spawn;
-                            }
-                        };
-
-                        if (waitForRequest) {
-                            transportService.submitRequest(node, "benchmark", message, handler).txGet();
-                        } else {
-                            transportService.sendRequest(node, "benchmark", message, handler);
-                        }
+                        transportService.submitRequest(node, "benchmark", message, responseHandler).txGet();
                     }
+                    latch.countDown();
                 }
             });
         }
@@ -138,5 +103,23 @@ public class BenchmarkNettyClient {
 
         transportService.close();
         threadPool.shutdownNow();
+    }
+
+    private static final class BenchmarkTransportResponseHandler extends BaseTransportResponseHandler<BenchmarkMessage> {
+
+        @Override public BenchmarkMessage newInstance() {
+            return new BenchmarkMessage();
+        }
+
+        @Override public void handleResponse(BenchmarkMessage response) {
+        }
+
+        @Override public void handleException(RemoteTransportException exp) {
+            exp.printStackTrace();
+        }
+
+        @Override public boolean spawn() {
+            return false;
+        }
     }
 }

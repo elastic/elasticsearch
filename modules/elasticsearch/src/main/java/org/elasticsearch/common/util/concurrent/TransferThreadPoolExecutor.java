@@ -19,11 +19,14 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.jsr166y.LinkedTransferQueue;
+import org.elasticsearch.common.util.concurrent.jsr166y.TransferQueue;
 
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -31,9 +34,9 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  * @author kimchy (shay.banon)
  */
-public class ScalingThreadPoolExecutor extends AbstractExecutorService {
+public class TransferThreadPoolExecutor extends AbstractExecutorService {
 
-    private final BlockingQueue<Runnable> workQueue = new LinkedTransferQueue<Runnable>();
+    private final TransferQueue<Runnable> workQueue = new LinkedTransferQueue<Runnable>();
 
     private final AtomicInteger queueSize = new AtomicInteger();
 
@@ -98,6 +101,12 @@ public class ScalingThreadPoolExecutor extends AbstractExecutorService {
     static final int TERMINATED = 3;
 
 
+    private final boolean blocking;
+
+    private final int blockingCapacity;
+
+    private final long blockingTime;
+
     /**
      * Core pool size, updated only while holding mainLock, but
      * volatile to allow concurrent readability even during updates.
@@ -122,39 +131,130 @@ public class ScalingThreadPoolExecutor extends AbstractExecutorService {
      * Current pool size, updated only while holding mainLock but
      * volatile to allow concurrent readability even during updates.
      */
-    private volatile int poolSize;
+    private final AtomicInteger poolSize = new AtomicInteger();
 
+    public static TransferThreadPoolExecutor newScalingExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, ThreadFactory threadFactory) {
+        return new TransferThreadPoolExecutor(corePoolSize, maximumPoolSize, keepAliveTime, unit, false, 0, TimeUnit.NANOSECONDS, 0, threadFactory);
+    }
 
-    private final ScheduledFuture scheduledFuture;
+    public static TransferThreadPoolExecutor newBlockingExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
+                                                                 long blockingTime, TimeUnit blockingUnit, int blockingCapacity,
+                                                                 ThreadFactory threadFactory) {
+        return new TransferThreadPoolExecutor(corePoolSize, maximumPoolSize, keepAliveTime, unit, true, blockingTime, blockingUnit, blockingCapacity, threadFactory);
+    }
 
-    public ScalingThreadPoolExecutor(int corePoolSize, int maximumPoolSize, TimeValue keepAlive,
-                                     ThreadFactory threadFactory,
-                                     ScheduledExecutorService scheduler, TimeValue schedulerInterval) {
+    private TransferThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
+                                       boolean blocking, long blockingTime, TimeUnit blockingUnit, int blockingCapacity,
+                                       ThreadFactory threadFactory) {
+        this.blocking = blocking;
+        this.blockingTime = blockingUnit.toNanos(blockingTime);
+        this.blockingCapacity = blockingCapacity;
         this.corePoolSize = corePoolSize;
         this.maximumPoolSize = maximumPoolSize;
-        this.keepAliveTime = keepAlive.nanos();
+        this.keepAliveTime = unit.toNanos(keepAliveTime);
         this.threadFactory = threadFactory;
 
         for (int i = 0; i < corePoolSize; i++) {
-            Thread t = addThread();
-            if (t != null)
+            Thread t = addWorker();
+            if (t != null) {
+                poolSize.incrementAndGet();
                 t.start();
+            }
         }
-
-        this.scheduledFuture = scheduler.scheduleWithFixedDelay(new Scheduler(), schedulerInterval.nanos(),
-                schedulerInterval.nanos(), TimeUnit.NANOSECONDS);
     }
 
 
     @Override public void execute(Runnable command) {
-        queueSize.incrementAndGet();
-        workQueue.add(command);
+        if (blocking) {
+            executeBlocking(command);
+        } else {
+            executeNonBlocking(command);
+        }
+    }
+
+    private void executeNonBlocking(Runnable command) {
+        // note, there might be starvation of some commands that were added to the queue,
+        // while others are being transferred directly
+        boolean succeeded = workQueue.tryTransfer(command);
+        if (succeeded) {
+            return;
+        }
+        int currentPoolSize = poolSize.get();
+        if (currentPoolSize < maximumPoolSize) {
+            // if we manage to add a worker, add it, and tryTransfer again
+            if (poolSize.compareAndSet(currentPoolSize, currentPoolSize + 1)) {
+                Thread t = addWorker();
+                if (t == null) {
+                    poolSize.decrementAndGet();
+                    workQueue.add(command);
+                } else {
+                    t.start();
+                    succeeded = workQueue.tryTransfer(command);
+                    if (!succeeded) {
+                        workQueue.add(command);
+                    }
+                }
+            } else {
+                succeeded = workQueue.tryTransfer(command);
+                if (!succeeded) {
+                    workQueue.add(command);
+                }
+            }
+        } else {
+            workQueue.add(command);
+        }
+    }
+
+    private void executeBlocking(Runnable command) {
+        int currentCapacity = queueSize.getAndIncrement();
+        boolean succeeded = workQueue.tryTransfer(command);
+        if (succeeded) {
+            return;
+        }
+        int currentPoolSize = poolSize.get();
+        if (currentPoolSize < maximumPoolSize) {
+            // if we manage to add a worker, add it, and tryTransfer again
+            if (poolSize.compareAndSet(currentPoolSize, currentPoolSize + 1)) {
+                Thread t = addWorker();
+                if (t == null) {
+                    poolSize.decrementAndGet();
+                    workQueue.add(command);
+                } else {
+                    t.start();
+                    succeeded = workQueue.tryTransfer(command);
+                    if (!succeeded) {
+                        transferOrAddBlocking(command, currentCapacity);
+                    }
+                }
+            } else {
+                succeeded = workQueue.tryTransfer(command);
+                if (!succeeded) {
+                    transferOrAddBlocking(command, currentCapacity);
+                }
+            }
+        } else {
+            transferOrAddBlocking(command, currentCapacity);
+        }
+    }
+
+    private void transferOrAddBlocking(Runnable command, int currentCapacity) {
+        if (currentCapacity < blockingCapacity) {
+            workQueue.add(command);
+        } else {
+            boolean succeeded;
+            try {
+                succeeded = workQueue.tryTransfer(command, blockingTime, TimeUnit.NANOSECONDS);
+                if (!succeeded) {
+                    throw new RejectedExecutionException("Rejected execution after waiting "
+                            + TimeUnit.NANOSECONDS.toSeconds(blockingTime) + "ms for task [" + command.getClass() + "] to be executed.");
+                }
+            } catch (InterruptedException e) {
+                throw new RejectedExecutionException(e);
+            }
+        }
     }
 
     @Override public void shutdown() {
-        if (!scheduledFuture.isCancelled()) {
-            scheduledFuture.cancel(false);
-        }
         final ReentrantLock mainLock = this.mainLock;
         mainLock.lock();
         try {
@@ -179,9 +279,6 @@ public class ScalingThreadPoolExecutor extends AbstractExecutorService {
     }
 
     @Override public List<Runnable> shutdownNow() {
-        if (!scheduledFuture.isCancelled()) {
-            scheduledFuture.cancel(false);
-        }
         final ReentrantLock mainLock = this.mainLock;
         mainLock.lock();
         try {
@@ -238,7 +335,7 @@ public class ScalingThreadPoolExecutor extends AbstractExecutorService {
      * @return the number of threads
      */
     public int getPoolSize() {
-        return poolSize;
+        return poolSize.get();
     }
 
     /**
@@ -262,31 +359,17 @@ public class ScalingThreadPoolExecutor extends AbstractExecutorService {
         }
     }
 
-    private final class Scheduler implements Runnable {
-        @Override public void run() {
-            if (queueSize.get() > 0 && poolSize < maximumPoolSize) {
-                final ReentrantLock mainLock = ScalingThreadPoolExecutor.this.mainLock;
-                mainLock.lock();
-                try {
-                    int currentQueueSize = queueSize.get();
-                    if (currentQueueSize > 0 && poolSize < maximumPoolSize) {
-                        int incrementBy = currentQueueSize;
-                        if (poolSize + incrementBy > maximumPoolSize) {
-                            incrementBy = maximumPoolSize - poolSize;
-                        }
-                        for (int i = 0; i < incrementBy; i++) {
-                            Thread t = addThread();
-                            if (t != null)
-                                t.start();
-                        }
-                    }
-                } finally {
-                    mainLock.unlock();
-                }
-            }
-        }
+    public int getCorePoolSize() {
+        return corePoolSize;
     }
 
+    public int getMaximumPoolSize() {
+        return maximumPoolSize;
+    }
+
+    public int getQueueSize() {
+        return queueSize.get();
+    }
 
     private final class Worker implements Runnable {
         /**
@@ -380,7 +463,7 @@ public class ScalingThreadPoolExecutor extends AbstractExecutorService {
                 Runnable r;
                 if (state == SHUTDOWN)  // Help drain queue
                     r = workQueue.poll();
-                else if (poolSize > corePoolSize)
+                else if (poolSize.get() > corePoolSize)
                     r = workQueue.poll(keepAliveTime, TimeUnit.NANOSECONDS);
                 else
                     r = workQueue.take();
@@ -445,7 +528,7 @@ public class ScalingThreadPoolExecutor extends AbstractExecutorService {
         mainLock.lock();
         try {
             workers.remove(w);
-            if (--poolSize == 0)
+            if (poolSize.decrementAndGet() == 0)
                 tryTerminate();
         } finally {
             mainLock.unlock();
@@ -464,11 +547,12 @@ public class ScalingThreadPoolExecutor extends AbstractExecutorService {
      * shutdown or shutdownNow, if there are no live threads.
      */
     private void tryTerminate() {
-        if (poolSize == 0) {
+        if (poolSize.get() == 0) {
             int state = runState;
             if (state < STOP && queueSize.get() > 0) {
                 state = RUNNING; // disable termination check below
                 Thread t = addThread();
+                poolSize.incrementAndGet();
                 if (t != null)
                     t.start();
             }
@@ -476,6 +560,20 @@ public class ScalingThreadPoolExecutor extends AbstractExecutorService {
                 runState = TERMINATED;
                 termination.signalAll();
             }
+        }
+    }
+
+    /**
+     * Creates and returns a new thread running firstTask as its first
+     * task. Executed under mainLock.
+     */
+    private Thread addWorker() {
+        final ReentrantLock mainLock = this.mainLock;
+        mainLock.lock();
+        try {
+            return addThread();
+        } finally {
+            mainLock.unlock();
         }
     }
 
@@ -489,7 +587,6 @@ public class ScalingThreadPoolExecutor extends AbstractExecutorService {
         if (t != null) {
             w.thread = t;
             workers.add(w);
-            ++poolSize;
         }
         return t;
     }

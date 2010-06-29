@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.indices;
+package org.elasticsearch.indices.memory;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -34,6 +34,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.IndicesService;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -43,7 +44,7 @@ import java.util.Set;
 import static org.elasticsearch.common.collect.Sets.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class IndicesMemoryCleaner extends AbstractComponent {
 

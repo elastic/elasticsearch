@@ -14,6 +14,7 @@
       <w>booleans</w>
       <w>bytebuffer</w>
       <w>cacheable</w>
+      <w>calc</w>
       <w>camelcase</w>
       <w>canonicalhost</w>
       <w>checksum</w>

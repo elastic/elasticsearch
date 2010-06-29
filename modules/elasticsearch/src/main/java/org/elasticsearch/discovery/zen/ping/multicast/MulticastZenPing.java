@@ -52,7 +52,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.cluster.node.DiscoveryNode.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
-import static org.elasticsearch.common.util.concurrent.DynamicExecutors.*;
+import static org.elasticsearch.common.util.concurrent.Executors.*;
 
 /**
  * @author kimchy (shay.banon)

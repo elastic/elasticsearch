@@ -33,7 +33,7 @@ import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import static org.elasticsearch.common.util.concurrent.DynamicExecutors.*;
+import static org.elasticsearch.common.util.concurrent.Executors.*;
 
 /**
  * @author kimchy (shay.banon)

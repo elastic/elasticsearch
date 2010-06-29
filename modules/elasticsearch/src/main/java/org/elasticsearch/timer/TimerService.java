@@ -34,7 +34,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.unit.TimeValue.*;
-import static org.elasticsearch.common.util.concurrent.DynamicExecutors.*;
+import static org.elasticsearch.common.util.concurrent.Executors.*;
 
 /**
  * @author kimchy (Shay Banon)

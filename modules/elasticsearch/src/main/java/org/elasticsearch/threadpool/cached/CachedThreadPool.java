@@ -22,10 +22,9 @@ package org.elasticsearch.threadpool.cached;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.DynamicExecutors;
+import org.elasticsearch.common.util.concurrent.Executors;
 import org.elasticsearch.threadpool.support.AbstractThreadPool;
 
-import java.util.concurrent.Executors;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -56,8 +55,8 @@ public class CachedThreadPool extends AbstractThreadPool {
         executorService = new ThreadPoolExecutor(0, Integer.MAX_VALUE,
                 keepAlive.millis(), TimeUnit.MILLISECONDS,
                 new SynchronousQueue<Runnable>(),
-                DynamicExecutors.daemonThreadFactory(settings, "[tp]"));
-        scheduledExecutorService = Executors.newScheduledThreadPool(scheduledSize, DynamicExecutors.daemonThreadFactory(settings, "[sc]"));
+                Executors.daemonThreadFactory(settings, "[tp]"));
+        scheduledExecutorService = java.util.concurrent.Executors.newScheduledThreadPool(scheduledSize, Executors.daemonThreadFactory(settings, "[sc]"));
         started = true;
     }
 

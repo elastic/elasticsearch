@@ -107,6 +107,7 @@ public class ScalingThreadPoolTest {
         //Assert.assertEquals("wrong pool size. ", min, pool.getPoolSize()); //BUG in ThreadPool - Bug ID: 6458662
         assertThat("idle threads didn't shrink below max. (" + pool.getPoolSize() + ")", pool.getPoolSize(), greaterThan(0));
         assertThat("idle threads didn't shrink below max. (" + pool.getPoolSize() + ")", pool.getPoolSize(), lessThan(max));
+        pool.shutdown();
     }
 
 
@@ -151,5 +152,6 @@ public class ScalingThreadPoolTest {
         assertThat("tasks not complete", tasksExecuted.get(), equalTo(ntasks));
 //        assertThat("didn't scale above core pool size. (" + pool.getLargestPoolSize() + ")", pool.getLargestPoolSize(), greaterThan(min));
 //        assertThat("Largest pool size exceeds max. (" + pool.getLargestPoolSize() + ")", pool.getLargestPoolSize(), lessThanOrEqualTo(max));
+        pool.shutdown();
     }
 }

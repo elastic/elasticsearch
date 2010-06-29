@@ -17,20 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.util.concurrent;
+package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.common.util.concurrent.DynamicExecutors;
-import org.elasticsearch.common.util.concurrent.ThreadBarrier;
 import org.testng.annotations.Test;
 
+import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class BlockingThreadPoolTest {
 
@@ -40,7 +39,7 @@ public class BlockingThreadPoolTest {
         final long waitTime = 1000; //1 second
         final ThreadBarrier barrier = new ThreadBarrier(max + 1);
 
-        ThreadPoolExecutor pool = (ThreadPoolExecutor) DynamicExecutors.newBlockingThreadPool(min, max, 60000, 1, waitTime);
+        TransferThreadPoolExecutor pool = TransferThreadPoolExecutor.newBlockingExecutor(min, max, 60000, TimeUnit.MILLISECONDS, waitTime, TimeUnit.MILLISECONDS, 1, Executors.defaultThreadFactory());
         assertThat("Min property", pool.getCorePoolSize(), equalTo(min));
         assertThat("Max property", pool.getMaximumPoolSize(), equalTo(max));
 
@@ -67,13 +66,13 @@ public class BlockingThreadPoolTest {
         assertThat("wrong active size", pool.getActiveCount(), equalTo(max));
 
         //Queue should be empty, lets occupy it's only free space
-        assertThat("queue isn't empty", pool.getQueue().size(), equalTo(0));
+        assertThat("queue isn't empty", pool.getQueueSize(), equalTo(0));
         pool.execute(new Runnable() {
             public void run() {
                 //dummy task
             }
         });
-        assertThat("queue isn't full", pool.getQueue().size(), equalTo(1));
+        assertThat("queue isn't full", pool.getQueueSize(), equalTo(1));
 
         //request should block since queue is full
         try {

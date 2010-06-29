@@ -23,24 +23,24 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.DynamicExecutors;
-import org.elasticsearch.common.util.concurrent.ScalingThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.TransferThreadPoolExecutor;
 import org.elasticsearch.threadpool.support.AbstractThreadPool;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.common.unit.TimeValue.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class ScalingThreadPool extends AbstractThreadPool {
 
     final int min;
     final int max;
     final TimeValue keepAlive;
-    final TimeValue interval;
 
     final int scheduledSize;
 
@@ -53,12 +53,10 @@ public class ScalingThreadPool extends AbstractThreadPool {
         this.min = componentSettings.getAsInt("min", 10);
         this.max = componentSettings.getAsInt("max", 100);
         this.keepAlive = componentSettings.getAsTime("keep_alive", timeValueSeconds(60));
-        this.interval = componentSettings.getAsTime("interval", timeValueSeconds(5));
         this.scheduledSize = componentSettings.getAsInt("scheduled_size", 20);
         logger.debug("Initializing {} thread pool with min[{}], max[{}], keep_alive[{}], scheduled_size[{}]", getType(), min, max, keepAlive, scheduledSize);
         scheduledExecutorService = Executors.newScheduledThreadPool(scheduledSize, DynamicExecutors.daemonThreadFactory(settings, "[sc]"));
-        executorService = new ScalingThreadPoolExecutor(min, max, keepAlive, DynamicExecutors.daemonThreadFactory(settings, "[tp]"), scheduledExecutorService,
-                interval);
+        executorService = TransferThreadPoolExecutor.newScalingExecutor(min, max, keepAlive.nanos(), TimeUnit.NANOSECONDS, DynamicExecutors.daemonThreadFactory(settings, "[tp]"));
         started = true;
     }
 
@@ -75,11 +73,11 @@ public class ScalingThreadPool extends AbstractThreadPool {
     }
 
     @Override public int getPoolSize() {
-        return ((ScalingThreadPoolExecutor) executorService).getPoolSize();
+        return ((TransferThreadPoolExecutor) executorService).getPoolSize();
     }
 
     @Override public int getActiveCount() {
-        return ((ScalingThreadPoolExecutor) executorService).getActiveCount();
+        return ((TransferThreadPoolExecutor) executorService).getActiveCount();
     }
 
     @Override public int getSchedulerPoolSize() {

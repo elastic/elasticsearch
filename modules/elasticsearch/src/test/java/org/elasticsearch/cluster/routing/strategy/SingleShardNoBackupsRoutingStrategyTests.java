@@ -54,7 +54,7 @@ public class SingleShardNoBackupsRoutingStrategyTests {
     private final ESLogger logger = Loggers.getLogger(SingleShardNoBackupsRoutingStrategyTests.class);
 
     @Test public void testSingleIndexStartedShard() {
-        DefaultShardsRoutingStrategy strategy = new DefaultShardsRoutingStrategy();
+        ShardsRoutingStrategy strategy = new ShardsRoutingStrategy();
 
         logger.info("Building initial routing table");
 
@@ -154,7 +154,7 @@ public class SingleShardNoBackupsRoutingStrategyTests {
     }
 
     @Test public void testSingleIndexShardFailed() {
-        DefaultShardsRoutingStrategy strategy = new DefaultShardsRoutingStrategy();
+        ShardsRoutingStrategy strategy = new ShardsRoutingStrategy();
 
         logger.info("Building initial routing table");
 
@@ -203,7 +203,7 @@ public class SingleShardNoBackupsRoutingStrategyTests {
     }
 
     @Test public void testMultiIndexEvenDistribution() {
-        DefaultShardsRoutingStrategy strategy = new DefaultShardsRoutingStrategy();
+        ShardsRoutingStrategy strategy = new ShardsRoutingStrategy();
 
         final int numberOfIndices = 50;
         logger.info("Building initial routing table with " + numberOfIndices + " indices");
@@ -330,7 +330,7 @@ public class SingleShardNoBackupsRoutingStrategyTests {
     }
 
     @Test public void testMultiIndexUnevenNodes() {
-        DefaultShardsRoutingStrategy strategy = new DefaultShardsRoutingStrategy();
+        ShardsRoutingStrategy strategy = new ShardsRoutingStrategy();
 
         final int numberOfIndices = 10;
         logger.info("Building initial routing table with " + numberOfIndices + " indices");

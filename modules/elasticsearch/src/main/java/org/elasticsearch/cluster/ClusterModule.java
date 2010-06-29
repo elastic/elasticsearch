@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.MetaDataService;
 import org.elasticsearch.cluster.routing.RoutingService;
-import org.elasticsearch.cluster.routing.strategy.DefaultShardsRoutingStrategy;
 import org.elasticsearch.cluster.routing.strategy.ShardsRoutingStrategy;
 import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -45,9 +44,7 @@ public class ClusterModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(ShardsRoutingStrategy.class)
-                .to(settings.getAsClass("cluster.routing.shards.type", DefaultShardsRoutingStrategy.class))
-                .asEagerSingleton();
+        bind(ShardsRoutingStrategy.class).asEagerSingleton();
 
         bind(ClusterService.class).to(InternalClusterService.class).asEagerSingleton();
         bind(MetaDataService.class).asEagerSingleton();

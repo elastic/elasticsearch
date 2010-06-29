@@ -50,7 +50,7 @@ public class FailedShardsRoutingTests {
     private final ESLogger logger = Loggers.getLogger(FailedShardsRoutingTests.class);
 
     @Test public void testFailures() {
-        DefaultShardsRoutingStrategy strategy = new DefaultShardsRoutingStrategy();
+        ShardsRoutingStrategy strategy = new ShardsRoutingStrategy();
 
         logger.info("Building initial routing table");
 
@@ -152,7 +152,7 @@ public class FailedShardsRoutingTests {
     }
 
     @Test public void test10ShardsWith1ReplicaFailure() {
-        DefaultShardsRoutingStrategy strategy = new DefaultShardsRoutingStrategy();
+        ShardsRoutingStrategy strategy = new ShardsRoutingStrategy();
 
         logger.info("Building initial routing table");
 

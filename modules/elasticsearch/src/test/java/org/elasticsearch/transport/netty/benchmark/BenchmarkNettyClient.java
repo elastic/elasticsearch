@@ -44,17 +44,16 @@ public class BenchmarkNettyClient {
 
 
     public static void main(String[] args) {
+        final boolean waitForRequest = true;
+        final boolean spawn = true;
         final ByteSizeValue payloadSize = new ByteSizeValue(100, ByteSizeUnit.BYTES);
         final int NUMBER_OF_CLIENTS = 1;
-        final int NUMBER_OF_ITERATIONS = 500000;
+        final int NUMBER_OF_ITERATIONS = 100000;
         final byte[] payload = new byte[(int) payloadSize.bytes()];
         final AtomicLong idGenerator = new AtomicLong();
-        final boolean waitForRequest = false;
-        final boolean spawn = true;
 
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("network.server", false)
-                .put("transport.netty.connectionsPerNode", 5)
                 .build();
 
         final ThreadPool threadPool = new CachedThreadPool(settings);
@@ -64,6 +63,22 @@ public class BenchmarkNettyClient {
         final DiscoveryNode node = new DiscoveryNode("server", new InetSocketTransportAddress("localhost", 9999));
 
         transportService.connectToNode(node);
+
+        for (int i = 0; i < 10000; i++) {
+            BenchmarkMessage message = new BenchmarkMessage(1, payload);
+            transportService.submitRequest(node, "benchmark", message, new BaseTransportResponseHandler<BenchmarkMessage>() {
+                @Override public BenchmarkMessage newInstance() {
+                    return new BenchmarkMessage();
+                }
+
+                @Override public void handleResponse(BenchmarkMessage response) {
+                }
+
+                @Override public void handleException(RemoteTransportException exp) {
+                    exp.printStackTrace();
+                }
+            }).txGet();
+        }
 
 
         Thread[] clients = new Thread[NUMBER_OF_CLIENTS];

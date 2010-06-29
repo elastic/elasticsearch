@@ -78,13 +78,16 @@ public class ShardsRoutingStrategy {
         // create a sorted list of from nodes with least number of shards to the maximum ones
         applyNewNodes(routingNodes, dataNodes);
 
+        // elect primaries *before* allocating unassigned, so backups of primaries that failed
+        // will be moved to primary state and not wait for primaries to be allocated and recovered (*from gateway*)
+        changed |= electPrimaries(routingNodes);
+
         // now allocate all the unassigned to available nodes
         if (routingNodes.hasUnassigned()) {
             changed |= allocateUnassigned(routingNodes);
+            // elect primaries again, in case this is needed with unassigned allocation
+            changed |= electPrimaries(routingNodes);
         }
-
-        // elect new primaries (backups that should become primaries)
-        changed |= electPrimaries(routingNodes);
 
         // rebalance
         changed |= rebalance(routingNodes);

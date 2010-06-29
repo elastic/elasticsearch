@@ -22,12 +22,14 @@ package org.elasticsearch.memcached.netty;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.netty.OpenChannelsHandler;
 import org.elasticsearch.common.netty.bootstrap.ServerBootstrap;
 import org.elasticsearch.common.netty.channel.Channel;
 import org.elasticsearch.common.netty.channel.ChannelPipeline;
 import org.elasticsearch.common.netty.channel.ChannelPipelineFactory;
 import org.elasticsearch.common.netty.channel.Channels;
 import org.elasticsearch.common.netty.channel.socket.nio.NioServerSocketChannelFactory;
+import org.elasticsearch.common.netty.channel.socket.oio.OioServerSocketChannelFactory;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -60,6 +62,8 @@ public class NettyMemcachedServerTransport extends AbstractLifecycleComponent<Me
 
     private final int workerCount;
 
+    private final boolean blockingServer;
+
     private final String port;
 
     private final String bindHost;
@@ -90,6 +94,7 @@ public class NettyMemcachedServerTransport extends AbstractLifecycleComponent<Me
         this.networkService = networkService;
 
         this.workerCount = componentSettings.getAsInt("worker_count", Runtime.getRuntime().availableProcessors());
+        this.blockingServer = componentSettings.getAsBoolean("memcached.blocking_server", componentSettings.getAsBoolean(TCP_BLOCKING_SERVER, componentSettings.getAsBoolean(TCP_BLOCKING, false)));
         this.port = componentSettings.get("port", settings.get("memcached.port", "11211-11311"));
         this.bindHost = componentSettings.get("bind_host");
         this.publishHost = componentSettings.get("publish_host");
@@ -107,10 +112,17 @@ public class NettyMemcachedServerTransport extends AbstractLifecycleComponent<Me
     @Override protected void doStart() throws ElasticSearchException {
         this.serverOpenChannels = new OpenChannelsHandler();
 
-        serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory(
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "memcachedBoss")),
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "memcachedIoWorker")),
-                workerCount));
+        if (blockingServer) {
+            serverBootstrap = new ServerBootstrap(new OioServerSocketChannelFactory(
+                    Executors.newCachedThreadPool(daemonThreadFactory(settings, "memcached_server_boss")),
+                    Executors.newCachedThreadPool(daemonThreadFactory(settings, "memcached_server_worker"))
+            ));
+        } else {
+            serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory(
+                    Executors.newCachedThreadPool(daemonThreadFactory(settings, "memcached_server_boss")),
+                    Executors.newCachedThreadPool(daemonThreadFactory(settings, "memcached_server_worker")),
+                    workerCount));
+        }
 
         ChannelPipelineFactory pipelineFactory = new ChannelPipelineFactory() {
             @Override public ChannelPipeline getPipeline() throws Exception {

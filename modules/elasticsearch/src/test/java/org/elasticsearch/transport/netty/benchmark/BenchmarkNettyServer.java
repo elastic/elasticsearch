@@ -39,6 +39,7 @@ public class BenchmarkNettyServer {
 
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("transport.netty.port", 9999)
+                .put("network.tcp.blocking", false)
                 .build();
 
         final ThreadPool threadPool = new CachedThreadPool(settings);

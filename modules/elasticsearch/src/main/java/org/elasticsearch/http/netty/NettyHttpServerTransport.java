@@ -26,6 +26,7 @@ import org.elasticsearch.common.netty.OpenChannelsHandler;
 import org.elasticsearch.common.netty.bootstrap.ServerBootstrap;
 import org.elasticsearch.common.netty.channel.*;
 import org.elasticsearch.common.netty.channel.socket.nio.NioServerSocketChannelFactory;
+import org.elasticsearch.common.netty.channel.socket.oio.OioServerSocketChannelFactory;
 import org.elasticsearch.common.netty.handler.codec.http.HttpChunkAggregator;
 import org.elasticsearch.common.netty.handler.codec.http.HttpRequestDecoder;
 import org.elasticsearch.common.netty.handler.codec.http.HttpResponseEncoder;
@@ -73,6 +74,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     private final int workerCount;
 
+    private final boolean blockingServer;
+
     private final String port;
 
     private final String bindHost;
@@ -104,6 +107,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         this.networkService = networkService;
         ByteSizeValue maxContentLength = componentSettings.getAsBytesSize("max_content_length", settings.getAsBytesSize("http.max_content_length", new ByteSizeValue(100, ByteSizeUnit.MB)));
         this.workerCount = componentSettings.getAsInt("worker_count", Runtime.getRuntime().availableProcessors());
+        this.blockingServer = componentSettings.getAsBoolean("http.blocking_server", componentSettings.getAsBoolean(TCP_BLOCKING_SERVER, componentSettings.getAsBoolean(TCP_BLOCKING, false)));
         this.port = componentSettings.get("port", settings.get("http.port", "9200-9300"));
         this.bindHost = componentSettings.get("bind_host");
         this.publishHost = componentSettings.get("publish_host");
@@ -128,10 +132,17 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     @Override protected void doStart() throws ElasticSearchException {
         this.serverOpenChannels = new OpenChannelsHandler();
 
-        serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory(
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "httpBoss")),
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "httpIoWorker")),
-                workerCount));
+        if (blockingServer) {
+            serverBootstrap = new ServerBootstrap(new OioServerSocketChannelFactory(
+                    Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_boss")),
+                    Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_worker"))
+            ));
+        } else {
+            serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory(
+                    Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_boss")),
+                    Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_worker")),
+                    workerCount));
+        }
 
         final HttpRequestHandler requestHandler = new HttpRequestHandler(this);
 

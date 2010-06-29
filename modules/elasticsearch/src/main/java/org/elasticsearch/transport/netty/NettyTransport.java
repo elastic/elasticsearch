@@ -37,6 +37,8 @@ import org.elasticsearch.common.netty.buffer.ChannelBuffers;
 import org.elasticsearch.common.netty.channel.*;
 import org.elasticsearch.common.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.elasticsearch.common.netty.channel.socket.nio.NioServerSocketChannelFactory;
+import org.elasticsearch.common.netty.channel.socket.oio.OioClientSocketChannelFactory;
+import org.elasticsearch.common.netty.channel.socket.oio.OioServerSocketChannelFactory;
 import org.elasticsearch.common.netty.logging.InternalLogger;
 import org.elasticsearch.common.netty.logging.InternalLoggerFactory;
 import org.elasticsearch.common.network.NetworkService;
@@ -88,6 +90,10 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     final int workerCount;
 
+    final boolean blockingServer;
+
+    final boolean blockingClient;
+
     final String port;
 
     final String bindHost;
@@ -138,6 +144,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         this.networkService = networkService;
 
         this.workerCount = componentSettings.getAsInt("worker_count", Runtime.getRuntime().availableProcessors());
+        this.blockingServer = componentSettings.getAsBoolean("transport.tcp.blocking_server", componentSettings.getAsBoolean(TCP_BLOCKING_SERVER, componentSettings.getAsBoolean(TCP_BLOCKING, false)));
+        this.blockingClient = componentSettings.getAsBoolean("transport.tcp.blocking_client", componentSettings.getAsBoolean(TCP_BLOCKING_CLIENT, componentSettings.getAsBoolean(TCP_BLOCKING, false)));
         this.port = componentSettings.get("port", settings.get("transport.tcp.port", "9300-9400"));
         this.bindHost = componentSettings.get("bind_host");
         this.publishHost = componentSettings.get("publish_host");
@@ -166,10 +174,14 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override protected void doStart() throws ElasticSearchException {
-        clientBootstrap = new ClientBootstrap(new NioClientSocketChannelFactory(
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "transportClientBoss")),
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "transportClientIoWorker")),
-                workerCount));
+        if (blockingClient) {
+            clientBootstrap = new ClientBootstrap(new OioClientSocketChannelFactory(Executors.newCachedThreadPool(daemonThreadFactory(settings, "transport_client_worker"))));
+        } else {
+            clientBootstrap = new ClientBootstrap(new NioClientSocketChannelFactory(
+                    Executors.newCachedThreadPool(daemonThreadFactory(settings, "transport_client_boss")),
+                    Executors.newCachedThreadPool(daemonThreadFactory(settings, "transport_client_worker")),
+                    workerCount));
+        }
         ChannelPipelineFactory clientPipelineFactory = new ChannelPipelineFactory() {
             @Override public ChannelPipeline getPipeline() throws Exception {
                 ChannelPipeline pipeline = Channels.pipeline();
@@ -201,10 +213,17 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
 
         serverOpenChannels = new OpenChannelsHandler();
-        serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory(
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "transportServerBoss")),
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "transportServerIoWorker")),
-                workerCount));
+        if (blockingServer) {
+            serverBootstrap = new ServerBootstrap(new OioServerSocketChannelFactory(
+                    Executors.newCachedThreadPool(daemonThreadFactory(settings, "transport_server_boss")),
+                    Executors.newCachedThreadPool(daemonThreadFactory(settings, "transport_server_worker"))
+            ));
+        } else {
+            serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory(
+                    Executors.newCachedThreadPool(daemonThreadFactory(settings, "transport_server_boss")),
+                    Executors.newCachedThreadPool(daemonThreadFactory(settings, "transport_server_worker")),
+                    workerCount));
+        }
         ChannelPipelineFactory serverPipelineFactory = new ChannelPipelineFactory() {
             @Override public ChannelPipeline getPipeline() throws Exception {
                 ChannelPipeline pipeline = Channels.pipeline();

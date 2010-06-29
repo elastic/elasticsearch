@@ -48,6 +48,9 @@ public class NetworkService extends AbstractComponent {
         public static final String TCP_REUSE_ADDRESS = "network.tcp.reuse_address";
         public static final String TCP_SEND_BUFFER_SIZE = "network.tcp.send_buffer_size";
         public static final String TCP_RECEIVE_BUFFER_SIZE = "network.tcp.receive_buffer_size";
+        public static final String TCP_BLOCKING = "network.tcp.blocking";
+        public static final String TCP_BLOCKING_SERVER = "network.tcp.blocking_server";
+        public static final String TCP_BLOCKING_CLIENT = "network.tcp.blocking_client";
     }
 
     public static interface CustomNameResolver {

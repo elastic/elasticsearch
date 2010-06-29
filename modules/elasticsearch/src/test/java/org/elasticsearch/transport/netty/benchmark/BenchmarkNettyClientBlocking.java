@@ -54,6 +54,7 @@ public class BenchmarkNettyClientBlocking {
 
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("network.server", false)
+                .put("network.tcp.blocking", false)
                 .build();
 
         final ThreadPool threadPool = new CachedThreadPool(settings);

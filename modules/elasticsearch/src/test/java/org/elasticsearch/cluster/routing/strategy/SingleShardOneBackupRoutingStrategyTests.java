@@ -46,7 +46,7 @@ public class SingleShardOneBackupRoutingStrategyTests {
     private final ESLogger logger = Loggers.getLogger(SingleShardOneBackupRoutingStrategyTests.class);
 
     @Test public void testSingleIndexFirstStartPrimaryThenBackups() {
-        DefaultShardsRoutingStrategy strategy = new DefaultShardsRoutingStrategy();
+        ShardsRoutingStrategy strategy = new ShardsRoutingStrategy();
 
         logger.info("Building initial routing table");
 

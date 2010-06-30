@@ -70,7 +70,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.*;
 import static org.elasticsearch.common.unit.TimeValue.*;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
-import static org.elasticsearch.common.util.concurrent.Executors.*;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.*;
 import static org.elasticsearch.transport.Transport.Helper.*;
 
 /**

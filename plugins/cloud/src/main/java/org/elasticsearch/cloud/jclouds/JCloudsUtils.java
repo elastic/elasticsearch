@@ -23,7 +23,7 @@ import com.google.inject.Module;
 import org.elasticsearch.cloud.jclouds.logging.JCloudsLoggingModule;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.Executors;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.jclouds.concurrent.config.ExecutorServiceModule;
 
 /**
@@ -34,7 +34,7 @@ public class JCloudsUtils {
     public static Iterable<? extends Module> buildModules(Settings settings) {
         return ImmutableList.of(new JCloudsLoggingModule(settings),
                 new ExecutorServiceModule(
-                        java.util.concurrent.Executors.newCachedThreadPool(Executors.daemonThreadFactory(settings, "jclouds-user")),
-                        java.util.concurrent.Executors.newCachedThreadPool(Executors.daemonThreadFactory(settings, "jclouds-io"))));
+                        java.util.concurrent.Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory(settings, "jclouds-user")),
+                        java.util.concurrent.Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory(settings, "jclouds-io"))));
     }
 }

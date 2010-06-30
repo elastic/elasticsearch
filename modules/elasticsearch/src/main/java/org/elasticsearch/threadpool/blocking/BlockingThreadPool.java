@@ -24,7 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.Executors;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.TransferThreadPoolExecutor;
 import org.elasticsearch.threadpool.support.AbstractThreadPool;
 
@@ -62,8 +62,8 @@ public class BlockingThreadPool extends AbstractThreadPool {
         this.waitTime = componentSettings.getAsTime("wait_time", timeValueSeconds(60));
         this.keepAlive = componentSettings.getAsTime("keep_alive", timeValueSeconds(60));
         logger.debug("Initializing {} thread pool with min[{}], max[{}], keep_alive[{}], capacity[{}], wait_time[{}], scheduled_size[{}]", getType(), min, max, keepAlive, capacity, waitTime, scheduledSize);
-        executorService = TransferThreadPoolExecutor.newBlockingExecutor(min, max, keepAlive.millis(), TimeUnit.MILLISECONDS, waitTime.millis(), TimeUnit.MILLISECONDS, capacity, Executors.daemonThreadFactory(settings, "[tp]"));
-        scheduledExecutorService = java.util.concurrent.Executors.newScheduledThreadPool(scheduledSize, Executors.daemonThreadFactory(settings, "[sc]"));
+        executorService = TransferThreadPoolExecutor.newBlockingExecutor(min, max, keepAlive.millis(), TimeUnit.MILLISECONDS, waitTime.millis(), TimeUnit.MILLISECONDS, capacity, EsExecutors.daemonThreadFactory(settings, "[tp]"));
+        scheduledExecutorService = java.util.concurrent.Executors.newScheduledThreadPool(scheduledSize, EsExecutors.daemonThreadFactory(settings, "[sc]"));
         started = true;
     }
 

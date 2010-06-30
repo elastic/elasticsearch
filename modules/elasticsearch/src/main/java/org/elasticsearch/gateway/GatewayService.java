@@ -44,7 +44,7 @@ import static java.util.concurrent.Executors.*;
 import static org.elasticsearch.cluster.ClusterState.*;
 import static org.elasticsearch.cluster.metadata.MetaData.*;
 import static org.elasticsearch.common.unit.TimeValue.*;
-import static org.elasticsearch.common.util.concurrent.Executors.*;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.*;
 
 /**
  * @author kimchy (shay.banon)

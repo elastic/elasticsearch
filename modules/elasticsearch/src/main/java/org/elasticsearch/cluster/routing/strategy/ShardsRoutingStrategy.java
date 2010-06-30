@@ -22,6 +22,10 @@ package org.elasticsearch.cluster.routing.strategy;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 
 import java.util.Iterator;
 import java.util.List;
@@ -33,7 +37,15 @@ import static org.elasticsearch.common.collect.Sets.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class ShardsRoutingStrategy {
+public class ShardsRoutingStrategy extends AbstractComponent {
+
+    public ShardsRoutingStrategy() {
+        super(ImmutableSettings.Builder.EMPTY_SETTINGS);
+    }
+
+    @Inject public ShardsRoutingStrategy(Settings settings) {
+        super(settings);
+    }
 
     /**
      * Applies the started shards. Note, shards can be called several times within this method.

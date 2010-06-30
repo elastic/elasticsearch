@@ -11,7 +11,7 @@ for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
 REM ***** JAVA options *****
 
 set JAVA_OPTS=^
- -Xms128m^
+ -Xms256m^
  -Xmx1G^
  -Djline.enabled=false^
  -XX:+AggressiveOpts^

@@ -38,6 +38,8 @@ public class ClusterStateRequest extends MasterNodeOperationRequest {
 
     private boolean filterMetaData = false;
 
+    private boolean filterBlocks = false;
+
     private String[] filteredIndices = Strings.EMPTY_ARRAY;
 
     public ClusterStateRequest() {
@@ -74,6 +76,15 @@ public class ClusterStateRequest extends MasterNodeOperationRequest {
         return this;
     }
 
+    public boolean filterBlocks() {
+        return filterBlocks;
+    }
+
+    public ClusterStateRequest filterBlocks(boolean filterBlocks) {
+        this.filterBlocks = filterBlocks;
+        return this;
+    }
+
     public String[] filteredIndices() {
         return filteredIndices;
     }
@@ -87,6 +98,7 @@ public class ClusterStateRequest extends MasterNodeOperationRequest {
         filterRoutingTable = in.readBoolean();
         filterNodes = in.readBoolean();
         filterMetaData = in.readBoolean();
+        filterBlocks = in.readBoolean();
         int size = in.readVInt();
         if (size > 0) {
             filteredIndices = new String[size];
@@ -100,6 +112,7 @@ public class ClusterStateRequest extends MasterNodeOperationRequest {
         out.writeBoolean(filterRoutingTable);
         out.writeBoolean(filterNodes);
         out.writeBoolean(filterMetaData);
+        out.writeBoolean(filterBlocks);
         out.writeVInt(filteredIndices.length);
         for (String filteredIndex : filteredIndices) {
             out.writeUTF(filteredIndex);

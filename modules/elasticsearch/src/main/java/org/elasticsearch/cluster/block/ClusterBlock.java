@@ -22,6 +22,8 @@ package org.elasticsearch.cluster.block;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -29,18 +31,21 @@ import java.io.Serializable;
 /**
  * @author kimchy (shay.banon)
  */
-public class ClusterBlock implements Serializable, Streamable {
+public class ClusterBlock implements Serializable, Streamable, ToXContent {
 
     private int id;
 
     private String description;
 
+    private ClusterBlockLevel[] levels;
+
     private ClusterBlock() {
     }
 
-    public ClusterBlock(int id, String description) {
+    public ClusterBlock(int id, String description, ClusterBlockLevel... levels) {
         this.id = id;
         this.description = description;
+        this.levels = levels;
     }
 
     public int id() {
@@ -49,6 +54,30 @@ public class ClusterBlock implements Serializable, Streamable {
 
     public String description() {
         return this.description;
+    }
+
+    public ClusterBlockLevel[] levels() {
+        return this.levels();
+    }
+
+    public boolean contains(ClusterBlockLevel level) {
+        for (ClusterBlockLevel testLevel : levels) {
+            if (testLevel == level) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(Integer.toString(id));
+        builder.field("description", description);
+        builder.startArray("levels");
+        for (ClusterBlockLevel level : levels) {
+            builder.value(level.name().toLowerCase());
+        }
+        builder.endArray();
+        builder.endObject();
     }
 
     public static ClusterBlock readClusterBlock(StreamInput in) throws IOException {
@@ -60,11 +89,19 @@ public class ClusterBlock implements Serializable, Streamable {
     @Override public void readFrom(StreamInput in) throws IOException {
         id = in.readVInt();
         description = in.readUTF();
+        levels = new ClusterBlockLevel[in.readVInt()];
+        for (int i = 0; i < levels.length; i++) {
+            levels[i] = ClusterBlockLevel.fromId(in.readVInt());
+        }
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
         out.writeUTF(description);
+        out.writeVInt(levels.length);
+        for (ClusterBlockLevel level : levels) {
+            out.writeVInt(level.id());
+        }
     }
 
     @Override public boolean equals(Object o) {

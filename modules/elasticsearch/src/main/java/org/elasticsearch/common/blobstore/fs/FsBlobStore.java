@@ -30,7 +30,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.util.concurrent.Executors.*;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.*;
 
 /**
  * @author kimchy (shay.banon)

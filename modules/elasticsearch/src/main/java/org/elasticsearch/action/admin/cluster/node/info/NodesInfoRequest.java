@@ -28,7 +28,7 @@ import org.elasticsearch.action.support.nodes.NodesOperationRequest;
  */
 public class NodesInfoRequest extends NodesOperationRequest {
 
-    protected NodesInfoRequest() {
+    public NodesInfoRequest() {
     }
 
     /**

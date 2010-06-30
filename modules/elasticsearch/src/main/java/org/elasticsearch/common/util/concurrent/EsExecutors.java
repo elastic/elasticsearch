@@ -26,7 +26,7 @@ import java.util.concurrent.ThreadFactory;
 /**
  * @author kimchy (shay.banon)
  */
-public class Executors {
+public class EsExecutors {
 
     public static ThreadFactory daemonThreadFactory(Settings settings, String namePrefix) {
         String name = settings.get("name");
@@ -74,6 +74,6 @@ public class Executors {
     /**
      * Cannot instantiate.
      */
-    private Executors() {
+    private EsExecutors() {
     }
 }

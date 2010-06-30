@@ -25,6 +25,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.blobstore.*;
+import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
@@ -100,12 +101,14 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         this.store = store;
         this.recoveryThrottler = recoveryThrottler;
 
-        this.chunkSize = ((BlobStoreIndexGateway) indexGateway).chunkSize(); // can be null -> no chunking
-        this.blobStore = ((BlobStoreIndexGateway) indexGateway).blobStore();
-        this.shardPath = ((BlobStoreIndexGateway) indexGateway).indexPath().add(Integer.toString(shardId.id()));
+        BlobStoreIndexGateway blobStoreIndexGateway = (BlobStoreIndexGateway) indexGateway;
 
-        this.indexContainer = blobStore.immutableBlobContainer(shardPath.add("index"));
-        this.translogContainer = blobStore.appendableBlobContainer(shardPath.add("translog"));
+        this.chunkSize = blobStoreIndexGateway.chunkSize(); // can be null -> no chunking
+        this.blobStore = blobStoreIndexGateway.blobStore();
+        this.shardPath = blobStoreIndexGateway.shardPath(shardId.id());
+
+        this.indexContainer = blobStore.immutableBlobContainer(blobStoreIndexGateway.shardIndexPath(shardId.id()));
+        this.translogContainer = blobStore.appendableBlobContainer(blobStoreIndexGateway.shardTranslogPath(shardId.id()));
     }
 
     @Override public String toString() {
@@ -621,7 +624,17 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         }
     }
 
-    private TObjectLongHashMap<String> buildCombinedPartsBlobs(ImmutableMap<String, BlobMetaData> blobs) {
+    public static ImmutableMap<String, BlobMetaData> aggregateParts(ImmutableMap<String, BlobMetaData> blobs) {
+        TObjectLongHashMap<String> combined = buildCombinedPartsBlobs(blobs);
+        ImmutableMap.Builder<String, BlobMetaData> builder = ImmutableMap.builder();
+        for (TObjectLongIterator<String> it = combined.iterator(); it.hasNext();) {
+            it.advance();
+            builder.put(it.key(), new PlainBlobMetaData(it.key(), it.value()));
+        }
+        return builder.build();
+    }
+
+    private static TObjectLongHashMap<String> buildCombinedPartsBlobs(ImmutableMap<String, BlobMetaData> blobs) {
         TObjectLongHashMap<String> combinedBlobs = new TObjectLongHashMap<String>();
         for (BlobMetaData blob : blobs.values()) {
             String cleanName;

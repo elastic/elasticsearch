@@ -20,8 +20,11 @@
 package org.elasticsearch.index.gateway.blobstore;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.gateway.Gateway;
@@ -31,6 +34,8 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.settings.IndexSettings;
+
+import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
@@ -60,6 +65,11 @@ public abstract class BlobStoreIndexGateway extends AbstractIndexComponent imple
         this.indexPath = this.gateway.basePath().add("indices").add(index.name());
     }
 
+    public ImmutableMap<String, BlobMetaData> listIndexBlobs(int shardId) throws IOException {
+        ImmutableBlobContainer indexContainer = blobStore.immutableBlobContainer(shardIndexPath(shardId));
+        return BlobStoreIndexShardGateway.aggregateParts(indexContainer.listBlobs());
+    }
+
     @Override public String toString() {
         return type() + "://" + blobStore + "/" + indexPath;
     }
@@ -74,6 +84,18 @@ public abstract class BlobStoreIndexGateway extends AbstractIndexComponent imple
 
     public ByteSizeValue chunkSize() {
         return this.chunkSize;
+    }
+
+    public BlobPath shardPath(int shardId) {
+        return indexPath.add(Integer.toString(shardId));
+    }
+
+    public BlobPath shardIndexPath(int shardId) {
+        return shardPath(shardId).add("index");
+    }
+
+    public BlobPath shardTranslogPath(int shardId) {
+        return shardPath(shardId).add("translog");
     }
 
     @Override public void close(boolean delete) throws ElasticSearchException {

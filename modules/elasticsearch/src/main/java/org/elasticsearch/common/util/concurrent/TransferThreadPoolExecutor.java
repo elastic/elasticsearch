@@ -496,7 +496,7 @@ public class TransferThreadPoolExecutor extends AbstractExecutorService {
         mainLock.lock();
         boolean canExit;
         try {
-            canExit = runState >= STOP || (queueSize.get() == 0 && poolSize.get() > corePoolSize);
+            canExit = runState >= STOP || (queueSize.get() == 0 && (runState >= SHUTDOWN || poolSize.get() > corePoolSize));
         } finally {
             mainLock.unlock();
         }

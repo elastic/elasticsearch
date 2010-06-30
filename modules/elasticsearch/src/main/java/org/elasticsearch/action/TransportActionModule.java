@@ -53,7 +53,6 @@ import org.elasticsearch.action.mlt.TransportMoreLikeThisAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.search.type.*;
-import org.elasticsearch.action.terms.TransportTermsAction;
 import org.elasticsearch.common.inject.AbstractModule;
 
 /**
@@ -95,7 +94,6 @@ public class TransportActionModule extends AbstractModule {
         bind(TransportGetAction.class).asEagerSingleton();
         bind(TransportDeleteAction.class).asEagerSingleton();
         bind(TransportCountAction.class).asEagerSingleton();
-        bind(TransportTermsAction.class).asEagerSingleton();
 
         bind(TransportShardDeleteByQueryAction.class).asEagerSingleton();
         bind(TransportIndexDeleteByQueryAction.class).asEagerSingleton();

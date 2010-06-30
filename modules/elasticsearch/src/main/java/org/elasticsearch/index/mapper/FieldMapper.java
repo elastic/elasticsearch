@@ -119,11 +119,6 @@ public interface FieldMapper<T> {
     Object valueForSearch(Fieldable field);
 
     /**
-     * Returns the value that will be returned to the user (similar to {@link #valueForSearch(org.apache.lucene.document.Fieldable)}).
-     */
-    Object valueForSearch(Object value);
-
-    /**
      * Returns the actual value of the field.
      */
     T value(Fieldable field);
@@ -138,18 +133,6 @@ public interface FieldMapper<T> {
      * manner {@link #valueForSearch(org.apache.lucene.document.Fieldable)} does with fields.
      */
     Object valueFromTerm(String term);
-
-    /**
-     * Parses a string that represents the field into its value. For example, with numbers,
-     * it parses "1" to 1.
-     */
-    Object valueFromString(String text);
-
-    /**
-     * Return <tt>true</tt> if this term value indicates breaking out of term enumeration on this
-     * field. The term text passed is the one returned from {@link #valueFromTerm(String)}.
-     */
-    boolean shouldBreakTermEnumeration(Object text);
 
     /**
      * Returns the indexed value.

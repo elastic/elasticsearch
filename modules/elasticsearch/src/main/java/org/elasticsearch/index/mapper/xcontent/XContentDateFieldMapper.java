@@ -133,10 +133,6 @@ public class XContentDateFieldMapper extends XContentNumberFieldMapper<Long> {
         return valueAsString(field);
     }
 
-    @Override public Object valueForSearch(Object value) {
-        return dateTimeFormatter.printer().print((Long) value);
-    }
-
     @Override public String valueAsString(Fieldable field) {
         Long value = value(field);
         if (value == null) {
@@ -155,10 +151,6 @@ public class XContentDateFieldMapper extends XContentNumberFieldMapper<Long> {
             return null;
         }
         return NumericUtils.prefixCodedToLong(term);
-    }
-
-    @Override public Object valueFromString(String text) {
-        return dateTimeFormatter.parser().parseMillis(text);
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {

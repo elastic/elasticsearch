@@ -125,10 +125,6 @@ public class XContentFloatFieldMapper extends XContentNumberFieldMapper<Float> {
         return NumericUtils.prefixCodedToFloat(term);
     }
 
-    @Override public Object valueFromString(String text) {
-        return Float.parseFloat(text);
-    }
-
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Float.parseFloat(lowerTerm),

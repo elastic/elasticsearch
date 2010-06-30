@@ -126,10 +126,6 @@ public class XContentDoubleFieldMapper extends XContentNumberFieldMapper<Double>
         return NumericUtils.prefixCodedToDouble(term);
     }
 
-    @Override public Object valueFromString(String text) {
-        return Double.parseDouble(text);
-    }
-
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Double.parseDouble(lowerTerm),

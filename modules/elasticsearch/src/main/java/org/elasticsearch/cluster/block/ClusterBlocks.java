@@ -37,48 +37,54 @@ import java.util.Set;
  */
 public class ClusterBlocks {
 
-    public static final ClusterBlocks EMPTY_CLUSTER_BLOCK = new ClusterBlocks(new ImmutableLevelHolder[]{ImmutableLevelHolder.EMPTY, ImmutableLevelHolder.EMPTY, ImmutableLevelHolder.EMPTY});
+    public static final ClusterBlocks EMPTY_CLUSTER_BLOCK = new ClusterBlocks(ImmutableSet.<ClusterBlock>of(), ImmutableMap.<String, ImmutableSet<ClusterBlock>>of());
+
+    private final ImmutableSet<ClusterBlock> global;
+
+    private final ImmutableMap<String, ImmutableSet<ClusterBlock>> indicesBlocks;
 
     private final ImmutableLevelHolder[] levelHolders;
 
-    ClusterBlocks(ImmutableLevelHolder[] levelHolders) {
-        this.levelHolders = levelHolders;
+    ClusterBlocks(ImmutableSet<ClusterBlock> global, ImmutableMap<String, ImmutableSet<ClusterBlock>> indicesBlocks) {
+        this.global = global;
+        this.indicesBlocks = indicesBlocks;
+
+        levelHolders = new ImmutableLevelHolder[ClusterBlockLevel.values().length];
+        for (ClusterBlockLevel level : ClusterBlockLevel.values()) {
+            ImmutableSet.Builder<ClusterBlock> globalBuilder = ImmutableSet.builder();
+            for (ClusterBlock block : global) {
+                if (block.contains(level)) {
+                    globalBuilder.add(block);
+                }
+            }
+
+
+            ImmutableMap.Builder<String, ImmutableSet<ClusterBlock>> indicesBuilder = ImmutableMap.builder();
+            for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : indicesBlocks.entrySet()) {
+                ImmutableSet.Builder<ClusterBlock> indexBuilder = ImmutableSet.builder();
+                for (ClusterBlock block : entry.getValue()) {
+                    if (block.contains(level)) {
+                        indexBuilder.add(block);
+                    }
+                }
+
+                indicesBuilder.put(entry.getKey(), indexBuilder.build());
+            }
+
+            levelHolders[level.id()] = new ImmutableLevelHolder(globalBuilder.build(), indicesBuilder.build());
+        }
+    }
+
+    public ImmutableSet<ClusterBlock> global() {
+        return global;
+    }
+
+    public ImmutableMap<String, ImmutableSet<ClusterBlock>> indices() {
+        return indicesBlocks;
     }
 
     public ImmutableSet<ClusterBlock> global(ClusterBlockLevel level) {
         return levelHolders[level.id()].global();
-    }
-
-    public boolean globalBlocked() {
-        for (ClusterBlockLevel level : ClusterBlockLevel.values()) {
-            if (!levelHolders[level.id()].global().isEmpty()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public ImmutableSet<String> indicesBlocked() {
-        Set<String> indices = Sets.newHashSet();
-        for (ClusterBlockLevel level : ClusterBlockLevel.values()) {
-            for (String index : indices(level).keySet()) {
-                ImmutableSet<ClusterBlock> indexBlocks = indices(level).get(index);
-                if (indexBlocks != null && !indexBlocks.isEmpty()) {
-                    indices.add(index);
-                }
-            }
-        }
-        return ImmutableSet.copyOf(indices);
-    }
-
-    public ImmutableMap<ClusterBlockLevel, ImmutableSet<ClusterBlock>> indexBlocks(String index) {
-        ImmutableMap.Builder<ClusterBlockLevel, ImmutableSet<ClusterBlock>> builder = ImmutableMap.builder();
-        for (ClusterBlockLevel level : ClusterBlockLevel.values()) {
-            if (indices(level).containsKey(index) && !indices(level).get(index).isEmpty()) {
-                builder.put(level, indices(level).get(index));
-            }
-        }
-        return builder.build();
     }
 
     public ImmutableMap<String, ImmutableSet<ClusterBlock>> indices(ClusterBlockLevel level) {
@@ -152,111 +158,81 @@ public class ClusterBlocks {
 
     public static class Builder {
 
-        private LevelHolder[] levelHolders;
+        private Set<ClusterBlock> global = Sets.newHashSet();
+
+        private Map<String, Set<ClusterBlock>> indices = Maps.newHashMap();
 
         public Builder() {
-            levelHolders = new LevelHolder[ClusterBlockLevel.values().length];
-            for (int i = 0; i < levelHolders.length; i++) {
-                levelHolders[i] = new LevelHolder();
-            }
         }
 
         public Builder blocks(ClusterBlocks blocks) {
-            for (ClusterBlockLevel level : ClusterBlockLevel.values()) {
-                levelHolders[level.id()].global().addAll(blocks.global(level));
-                for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : blocks.indices(level).entrySet()) {
-                    if (!levelHolders[level.id()].indices().containsKey(entry.getKey())) {
-                        levelHolders[level.id()].indices().put(entry.getKey(), Sets.<ClusterBlock>newHashSet());
-                    }
-                    levelHolders[level.id()].indices().get(entry.getKey()).addAll(entry.getValue());
+            global.addAll(blocks.global());
+            for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : blocks.indices().entrySet()) {
+                if (!indices.containsKey(entry.getKey())) {
+                    indices.put(entry.getKey(), Sets.<ClusterBlock>newHashSet());
                 }
+                indices.get(entry.getKey()).addAll(entry.getValue());
             }
             return this;
         }
 
         public Builder addGlobalBlock(ClusterBlock block) {
-            for (ClusterBlockLevel level : ClusterBlockLevel.values()) {
-                addGlobalBlock(level, block);
-            }
-            return this;
-        }
-
-        public Builder addGlobalBlock(ClusterBlockLevel level, ClusterBlock block) {
-            levelHolders[level.id()].global().add(block);
+            global.add(block);
             return this;
         }
 
         public Builder removeGlobalBlock(ClusterBlock block) {
-            for (ClusterBlockLevel level : ClusterBlockLevel.values()) {
-                removeGlobalBlock(level, block);
+            global.remove(block);
+            return this;
+        }
+
+        public Builder addIndexBlock(String index, ClusterBlock block) {
+            if (!indices.containsKey(index)) {
+                indices.put(index, Sets.<ClusterBlock>newHashSet());
             }
+            indices.get(index).add(block);
             return this;
         }
 
-        public Builder removeGlobalBlock(ClusterBlockLevel level, ClusterBlock block) {
-            levelHolders[level.id()].global().remove(block);
-            return this;
-        }
-
-        public Builder addIndexBlock(String index, ClusterBlockLevel level, ClusterBlock block) {
-            if (!levelHolders[level.id()].indices().containsKey(index)) {
-                levelHolders[level.id()].indices().put(index, Sets.<ClusterBlock>newHashSet());
-            }
-            levelHolders[level.id()].indices().get(index).add(block);
-            return this;
-        }
-
-        public Builder removeIndexBlock(String index, ClusterBlockLevel level, ClusterBlock block) {
-            Set<ClusterBlock> indexBlocks = levelHolders[level.id()].indices().get(index);
-            if (indexBlocks == null) {
+        public Builder removeIndexBlock(String index, ClusterBlock block) {
+            if (!indices.containsKey(index)) {
                 return this;
             }
-            indexBlocks.remove(block);
+            indices.get(index).remove(block);
             return this;
         }
 
         public ClusterBlocks build() {
-            ImmutableLevelHolder[] holders = new ImmutableLevelHolder[ClusterBlockLevel.values().length];
-            for (ClusterBlockLevel level : ClusterBlockLevel.values()) {
-                ImmutableMap.Builder<String, ImmutableSet<ClusterBlock>> indicesBuilder = ImmutableMap.builder();
-                for (Map.Entry<String, Set<ClusterBlock>> entry : levelHolders[level.id()].indices().entrySet()) {
-                    indicesBuilder.put(entry.getKey(), ImmutableSet.copyOf(entry.getValue()));
-                }
-                holders[level.id()] = new ImmutableLevelHolder(ImmutableSet.copyOf(levelHolders[level.id()].global()), indicesBuilder.build());
+            ImmutableMap.Builder<String, ImmutableSet<ClusterBlock>> indicesBuilder = ImmutableMap.builder();
+            for (Map.Entry<String, Set<ClusterBlock>> entry : indices.entrySet()) {
+                indicesBuilder.put(entry.getKey(), ImmutableSet.copyOf(entry.getValue()));
             }
-            return new ClusterBlocks(holders);
+            return new ClusterBlocks(ImmutableSet.copyOf(global), indicesBuilder.build());
         }
 
         public static ClusterBlocks readClusterBlocks(StreamInput in) throws IOException {
-            ImmutableLevelHolder[] holders = new ImmutableLevelHolder[ClusterBlockLevel.values().length];
-            for (ClusterBlockLevel level : ClusterBlockLevel.values()) {
-                ImmutableSet<ClusterBlock> global = readBlockSet(in);
-                ImmutableMap.Builder<String, ImmutableSet<ClusterBlock>> indicesBuilder = ImmutableMap.builder();
-                int size = in.readVInt();
-                for (int j = 0; j < size; j++) {
-                    indicesBuilder.put(in.readUTF().intern(), readBlockSet(in));
-                }
-                holders[level.id()] = new ImmutableLevelHolder(global, indicesBuilder.build());
+            ImmutableSet<ClusterBlock> global = readBlockSet(in);
+            ImmutableMap.Builder<String, ImmutableSet<ClusterBlock>> indicesBuilder = ImmutableMap.builder();
+            int size = in.readVInt();
+            for (int j = 0; j < size; j++) {
+                indicesBuilder.put(in.readUTF().intern(), readBlockSet(in));
             }
-            return new ClusterBlocks(holders);
+            return new ClusterBlocks(global, indicesBuilder.build());
         }
 
-        public static void writeClusterBlocks(ClusterBlocks clusterBlock, StreamOutput out) throws IOException {
-            for (ClusterBlockLevel level : ClusterBlockLevel.values()) {
-                writeBlockSet(clusterBlock.global(level), out);
-                out.writeVInt(clusterBlock.indices(level).size());
-                for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : clusterBlock.indices(level).entrySet()) {
-                    out.writeUTF(entry.getKey());
-                    writeBlockSet(entry.getValue(), out);
-                }
+        public static void writeClusterBlocks(ClusterBlocks blocks, StreamOutput out) throws IOException {
+            writeBlockSet(blocks.global(), out);
+            out.writeVInt(blocks.indices().size());
+            for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : blocks.indices().entrySet()) {
+                out.writeUTF(entry.getKey());
+                writeBlockSet(entry.getValue(), out);
             }
         }
 
         private static void writeBlockSet(ImmutableSet<ClusterBlock> blocks, StreamOutput out) throws IOException {
             out.writeVInt(blocks.size());
             for (ClusterBlock block : blocks) {
-                out.writeVInt(block.id());
-                out.writeUTF(block.description());
+                block.writeTo(out);
             }
         }
 
@@ -264,7 +240,7 @@ public class ClusterBlocks {
             ImmutableSet.Builder<ClusterBlock> builder = ImmutableSet.builder();
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
-                builder.add(new ClusterBlock(in.readVInt(), in.readUTF().intern()));
+                builder.add(ClusterBlock.readClusterBlock(in));
             }
             return builder.build();
         }

@@ -26,7 +26,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -67,6 +66,7 @@ public class RestClusterStateAction extends BaseRestHandler {
         clusterStateRequest.filterNodes(request.paramAsBoolean("filter_nodes", clusterStateRequest.filterNodes()));
         clusterStateRequest.filterRoutingTable(request.paramAsBoolean("filter_routing_table", clusterStateRequest.filterRoutingTable()));
         clusterStateRequest.filterMetaData(request.paramAsBoolean("filter_metadata", clusterStateRequest.filterMetaData()));
+        clusterStateRequest.filterBlocks(request.paramAsBoolean("filter_blocks", clusterStateRequest.filterBlocks()));
         clusterStateRequest.filteredIndices(RestActions.splitIndices(request.param("filter_indices", null)));
         client.admin().cluster().state(new ClusterStateRequest(), new ActionListener<ClusterStateResponse>() {
             @Override public void onResponse(ClusterStateResponse response) {
@@ -82,34 +82,20 @@ public class RestClusterStateAction extends BaseRestHandler {
                     // blocks
                     builder.startObject("blocks");
 
-                    if (state.blocks().globalBlocked()) {
+                    if (!state.blocks().global().isEmpty()) {
                         builder.startObject("global");
-                        for (ClusterBlockLevel level : ClusterBlockLevel.values()) {
-                            if (!state.blocks().global(level).isEmpty()) {
-                                builder.startObject(level.name().toLowerCase());
-                                for (ClusterBlock block : state.blocks().global(level)) {
-                                    builder.startObject(Integer.toString(block.id()));
-                                    builder.field("description", block.description());
-                                    builder.endObject();
-                                }
-                                builder.endObject();
-                            }
+                        for (ClusterBlock block : state.blocks().global()) {
+                            block.toXContent(builder, request);
                         }
                         builder.endObject();
                     }
 
-                    if (!state.blocks().indicesBlocked().isEmpty()) {
+                    if (!state.blocks().indices().isEmpty()) {
                         builder.startObject("indices");
-                        for (String index : state.blocks().indicesBlocked()) {
-                            builder.startObject(index);
-                            for (Map.Entry<ClusterBlockLevel, ImmutableSet<ClusterBlock>> entry : state.blocks().indexBlocks(index).entrySet()) {
-                                ClusterBlockLevel level = entry.getKey();
-                                builder.startObject(level.name().toLowerCase());
-                                for (ClusterBlock block : entry.getValue()) {
-                                    builder.startObject(Integer.toString(block.id()));
-                                    builder.field("description", block.description());
-                                    builder.endObject();
-                                }
+                        for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : state.blocks().indices().entrySet()) {
+                            builder.startObject(entry.getKey());
+                            for (ClusterBlock block : entry.getValue()) {
+                                block.toXContent(builder, request);
                             }
                             builder.endObject();
                         }

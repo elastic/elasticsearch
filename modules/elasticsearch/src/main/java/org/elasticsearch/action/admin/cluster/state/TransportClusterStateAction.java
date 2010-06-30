@@ -71,6 +71,9 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
         if (!request.filterRoutingTable()) {
             builder.routingTable(currentState.routingTable());
         }
+        if (!request.filterBlocks()) {
+            builder.blocks(currentState.blocks());
+        }
         if (!request.filterMetaData()) {
             if (request.filteredIndices().length > 0) {
                 MetaData.Builder mdBuilder = newMetaDataBuilder();
@@ -87,7 +90,6 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
                 builder.metaData(currentState.metaData());
             }
         }
-        builder.blocks(currentState.blocks());
         return new ClusterStateResponse(clusterName, builder.build());
     }
 }

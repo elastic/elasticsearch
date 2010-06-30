@@ -22,6 +22,7 @@ package org.elasticsearch.gateway;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -50,7 +51,7 @@ import static org.elasticsearch.common.util.concurrent.Executors.*;
  */
 public class GatewayService extends AbstractLifecycleComponent<GatewayService> implements ClusterStateListener {
 
-    public final ClusterBlock NOT_RECOVERED_FROM_GATEWAY_BLOCK = new ClusterBlock(1, "not recovered from gateway");
+    public final ClusterBlock NOT_RECOVERED_FROM_GATEWAY_BLOCK = new ClusterBlock(1, "not recovered from gateway", ClusterBlockLevel.ALL);
 
     private final Gateway gateway;
 

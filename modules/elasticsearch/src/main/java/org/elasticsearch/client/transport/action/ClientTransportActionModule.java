@@ -45,7 +45,6 @@ import org.elasticsearch.client.transport.action.get.ClientTransportGetAction;
 import org.elasticsearch.client.transport.action.index.ClientTransportIndexAction;
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchAction;
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchScrollAction;
-import org.elasticsearch.client.transport.action.terms.ClientTransportTermsAction;
 import org.elasticsearch.common.inject.AbstractModule;
 
 /**
@@ -61,7 +60,6 @@ public class ClientTransportActionModule extends AbstractModule {
         bind(ClientTransportCountAction.class).asEagerSingleton();
         bind(ClientTransportSearchAction.class).asEagerSingleton();
         bind(ClientTransportSearchScrollAction.class).asEagerSingleton();
-        bind(ClientTransportTermsAction.class).asEagerSingleton();
 
         bind(ClientTransportIndicesStatusAction.class).asEagerSingleton();
         bind(ClientTransportRefreshAction.class).asEagerSingleton();

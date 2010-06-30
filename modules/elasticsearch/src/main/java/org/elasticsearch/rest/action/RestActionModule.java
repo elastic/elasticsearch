@@ -49,7 +49,6 @@ import org.elasticsearch.rest.action.main.RestMainAction;
 import org.elasticsearch.rest.action.mlt.RestMoreLikeThisAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
-import org.elasticsearch.rest.action.terms.RestTermsAction;
 
 /**
  * @author kimchy (Shay Banon)
@@ -94,7 +93,6 @@ public class RestActionModule extends AbstractModule {
         bind(RestDeleteByQueryAction.class).asEagerSingleton();
 
         bind(RestCountAction.class).asEagerSingleton();
-        bind(RestTermsAction.class).asEagerSingleton();
 
         bind(RestSearchAction.class).asEagerSingleton();
         bind(RestSearchScrollAction.class).asEagerSingleton();

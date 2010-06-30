@@ -34,8 +34,6 @@ import org.elasticsearch.action.index.IndexResponse
 import org.elasticsearch.action.mlt.MoreLikeThisRequest
 import org.elasticsearch.action.search.SearchRequest
 import org.elasticsearch.action.search.SearchResponse
-import org.elasticsearch.action.terms.TermsRequest
-import org.elasticsearch.action.terms.TermsResponse
 import org.elasticsearch.client.Client
 import org.elasticsearch.client.action.count.CountRequestBuilder
 import org.elasticsearch.client.action.delete.DeleteRequestBuilder
@@ -44,7 +42,6 @@ import org.elasticsearch.client.action.get.GetRequestBuilder
 import org.elasticsearch.client.action.index.IndexRequestBuilder
 import org.elasticsearch.client.action.search.SearchRequestBuilder
 import org.elasticsearch.client.action.support.BaseRequestBuilder
-import org.elasticsearch.client.action.terms.TermsRequestBuilder
 import org.elasticsearch.client.internal.InternalClient
 import org.elasticsearch.common.xcontent.XContentType
 import org.elasticsearch.groovy.client.action.GActionFuture
@@ -286,28 +283,6 @@ class GClient {
 
     void search(SearchRequest request, ActionListener<SearchResponse> listener) {
         client.search(request, listener)
-    }
-
-    TermsRequestBuilder prepareTerms(String... indices) {
-        return client.prepareTerms(indices)
-    }
-
-    GActionFuture<TermsResponse> terms(Closure c) {
-        TermsRequest request = new TermsRequest()
-        c.resolveStrategy = resolveStrategy
-        c.setDelegate request
-        c.call()
-        terms(request)
-    }
-
-    GActionFuture<TermsResponse> terms(TermsRequest request) {
-        GActionFuture<TermsResponse> future = new GActionFuture<TermsResponse>(internalClient.threadPool(), request);
-        client.terms(request, future)
-        return future
-    }
-
-    void terms(TermsRequest request, ActionListener<TermsResponse> listener) {
-        client.terms(request, listener)
     }
 
     GActionFuture<SearchResponse> moreLikeThis(Closure c) {

@@ -36,8 +36,6 @@ import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.action.terms.TermsRequest;
-import org.elasticsearch.action.terms.TermsResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.client.transport.action.ClientTransportActionModule;
@@ -279,14 +277,6 @@ public class TransportClient extends AbstractClient {
 
     @Override public void searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         internalClient.searchScroll(request, listener);
-    }
-
-    @Override public ActionFuture<TermsResponse> terms(TermsRequest request) {
-        return internalClient.terms(request);
-    }
-
-    @Override public void terms(TermsRequest request, ActionListener<TermsResponse> listener) {
-        internalClient.terms(request, listener);
     }
 
     @Override public ActionFuture<SearchResponse> moreLikeThis(MoreLikeThisRequest request) {

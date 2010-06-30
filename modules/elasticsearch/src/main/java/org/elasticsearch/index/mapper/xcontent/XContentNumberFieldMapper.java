@@ -156,15 +156,6 @@ public abstract class XContentNumberFieldMapper<T extends Number> extends XConte
 
     @Override public abstract Object valueFromTerm(String term);
 
-    @Override public abstract Object valueFromString(String text);
-
-    /**
-     * Breaks on this text if its <tt>null</tt>.
-     */
-    @Override public boolean shouldBreakTermEnumeration(Object text) {
-        return text == null;
-    }
-
     @Override protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
         builder.field("precision_step", precisionStep);

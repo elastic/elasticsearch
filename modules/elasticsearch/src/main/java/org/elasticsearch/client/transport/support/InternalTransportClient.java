@@ -36,8 +36,6 @@ import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.action.terms.TermsRequest;
-import org.elasticsearch.action.terms.TermsResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.client.support.AbstractClient;
@@ -50,7 +48,6 @@ import org.elasticsearch.client.transport.action.index.ClientTransportIndexActio
 import org.elasticsearch.client.transport.action.mlt.ClientTransportMoreLikeThisAction;
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchAction;
 import org.elasticsearch.client.transport.action.search.ClientTransportSearchScrollAction;
-import org.elasticsearch.client.transport.action.terms.ClientTransportTermsAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -81,8 +78,6 @@ public class InternalTransportClient extends AbstractClient implements InternalC
 
     private final ClientTransportSearchScrollAction searchScrollAction;
 
-    private final ClientTransportTermsAction termsAction;
-
     private final ClientTransportMoreLikeThisAction moreLikeThisAction;
 
     @Inject public InternalTransportClient(Settings settings, ThreadPool threadPool,
@@ -90,7 +85,7 @@ public class InternalTransportClient extends AbstractClient implements InternalC
                                            ClientTransportIndexAction indexAction, ClientTransportDeleteAction deleteAction, ClientTransportGetAction getAction,
                                            ClientTransportDeleteByQueryAction deleteByQueryAction, ClientTransportCountAction countAction,
                                            ClientTransportSearchAction searchAction, ClientTransportSearchScrollAction searchScrollAction,
-                                           ClientTransportTermsAction termsAction, ClientTransportMoreLikeThisAction moreLikeThisAction) {
+                                           ClientTransportMoreLikeThisAction moreLikeThisAction) {
         this.threadPool = threadPool;
         this.nodesService = nodesService;
         this.adminClient = adminClient;
@@ -102,7 +97,6 @@ public class InternalTransportClient extends AbstractClient implements InternalC
         this.countAction = countAction;
         this.searchAction = searchAction;
         this.searchScrollAction = searchScrollAction;
-        this.termsAction = termsAction;
         this.moreLikeThisAction = moreLikeThisAction;
     }
 
@@ -232,23 +226,6 @@ public class InternalTransportClient extends AbstractClient implements InternalC
         nodesService.execute(new TransportClientNodesService.NodeCallback<Object>() {
             @Override public Object doWithNode(DiscoveryNode node) throws ElasticSearchException {
                 searchScrollAction.execute(node, request, listener);
-                return null;
-            }
-        });
-    }
-
-    @Override public ActionFuture<TermsResponse> terms(final TermsRequest request) {
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<TermsResponse>>() {
-            @Override public ActionFuture<TermsResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
-                return termsAction.execute(node, request);
-            }
-        });
-    }
-
-    @Override public void terms(final TermsRequest request, final ActionListener<TermsResponse> listener) {
-        nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<Void>>() {
-            @Override public ActionFuture<Void> doWithNode(DiscoveryNode node) throws ElasticSearchException {
-                termsAction.execute(node, request, listener);
                 return null;
             }
         });

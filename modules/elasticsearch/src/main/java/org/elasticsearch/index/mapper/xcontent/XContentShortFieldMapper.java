@@ -125,10 +125,6 @@ public class XContentShortFieldMapper extends XContentNumberFieldMapper<Short> {
         return NumericUtils.prefixCodedToInt(term);
     }
 
-    @Override public Object valueFromString(String text) {
-        return Short.parseShort(text);
-    }
-
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Integer.parseInt(lowerTerm),

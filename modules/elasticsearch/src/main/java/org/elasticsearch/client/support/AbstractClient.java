@@ -26,7 +26,6 @@ import org.elasticsearch.client.action.get.GetRequestBuilder;
 import org.elasticsearch.client.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.action.search.SearchScrollRequestBuilder;
-import org.elasticsearch.client.action.terms.TermsRequestBuilder;
 import org.elasticsearch.client.internal.InternalClient;
 
 import javax.annotation.Nullable;
@@ -78,9 +77,5 @@ public abstract class AbstractClient implements InternalClient {
 
     @Override public CountRequestBuilder prepareCount(String... indices) {
         return new CountRequestBuilder(this).setIndices(indices);
-    }
-
-    @Override public TermsRequestBuilder prepareTerms(String... indices) {
-        return new TermsRequestBuilder(this).setIndices(indices);
     }
 }

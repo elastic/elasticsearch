@@ -35,8 +35,6 @@ import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.action.terms.TermsRequest;
-import org.elasticsearch.action.terms.TermsResponse;
 import org.elasticsearch.client.action.count.CountRequestBuilder;
 import org.elasticsearch.client.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.client.action.deletebyquery.DeleteByQueryRequestBuilder;
@@ -44,7 +42,6 @@ import org.elasticsearch.client.action.get.GetRequestBuilder;
 import org.elasticsearch.client.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.action.search.SearchScrollRequestBuilder;
-import org.elasticsearch.client.action.terms.TermsRequestBuilder;
 
 import javax.annotation.Nullable;
 
@@ -275,32 +272,6 @@ public interface Client {
      * A search scroll request to continue searching a previous scrollable search request.
      */
     SearchScrollRequestBuilder prepareSearchScroll(String scrollId);
-
-    /**
-     * A terms request  to get terms in one or more indices of specific fields and their
-     * document frequencies (in how many document each term exists).
-     *
-     * @param request The term request
-     * @return The result future
-     * @see Requests#termsRequest(String...)
-     */
-    ActionFuture<TermsResponse> terms(TermsRequest request);
-
-    /**
-     * A terms request  to get terms in one or more indices of specific fields and their
-     * document frequencies (in how many document each term exists).
-     *
-     * @param request  The term request
-     * @param listener A listener to be notified of the result
-     * @see Requests#termsRequest(String...)
-     */
-    void terms(TermsRequest request, ActionListener<TermsResponse> listener);
-
-    /**
-     * A terms request  to get terms in one or more indices of specific fields and their
-     * document frequencies (in how many document each term exists).
-     */
-    TermsRequestBuilder prepareTerms(String... indices);
 
     /**
      * A more like this action to search for documents that are "like" a specific document.

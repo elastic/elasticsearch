@@ -125,10 +125,6 @@ public class XContentLongFieldMapper extends XContentNumberFieldMapper<Long> {
         return NumericUtils.prefixCodedToLong(term);
     }
 
-    @Override public Object valueFromString(String text) {
-        return Long.parseLong(text);
-    }
-
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : Long.parseLong(lowerTerm),

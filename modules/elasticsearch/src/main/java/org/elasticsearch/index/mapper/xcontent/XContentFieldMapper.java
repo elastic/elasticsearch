@@ -299,26 +299,11 @@ public abstract class XContentFieldMapper<T> implements FieldMapper<T>, XContent
         return valueAsString(field);
     }
 
-    @Override public Object valueForSearch(Object value) {
-        return value;
-    }
-
     /**
      * Simply returns the same string.
      */
     @Override public Object valueFromTerm(String term) {
         return term;
-    }
-
-    @Override public Object valueFromString(String text) {
-        return text;
-    }
-
-    /**
-     * Never break on this term enumeration value.
-     */
-    @Override public boolean shouldBreakTermEnumeration(Object text) {
-        return false;
     }
 
     @Override public String indexedValue(String value) {

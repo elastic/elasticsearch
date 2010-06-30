@@ -39,9 +39,6 @@ import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.mlt.TransportMoreLikeThisAction;
 import org.elasticsearch.action.search.*;
-import org.elasticsearch.action.terms.TermsRequest;
-import org.elasticsearch.action.terms.TermsResponse;
-import org.elasticsearch.action.terms.TransportTermsAction;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.client.support.AbstractClient;
@@ -72,15 +69,13 @@ public class NodeClient extends AbstractClient implements InternalClient {
 
     private final TransportSearchScrollAction searchScrollAction;
 
-    private final TransportTermsAction termsAction;
-
     private final TransportMoreLikeThisAction moreLikeThisAction;
 
     @Inject public NodeClient(Settings settings, ThreadPool threadPool, NodeAdminClient admin,
                               TransportIndexAction indexAction, TransportDeleteAction deleteAction,
                               TransportDeleteByQueryAction deleteByQueryAction, TransportGetAction getAction, TransportCountAction countAction,
                               TransportSearchAction searchAction, TransportSearchScrollAction searchScrollAction,
-                              TransportTermsAction termsAction, TransportMoreLikeThisAction moreLikeThisAction) {
+                              TransportMoreLikeThisAction moreLikeThisAction) {
         this.threadPool = threadPool;
         this.admin = admin;
         this.indexAction = indexAction;
@@ -90,7 +85,6 @@ public class NodeClient extends AbstractClient implements InternalClient {
         this.countAction = countAction;
         this.searchAction = searchAction;
         this.searchScrollAction = searchScrollAction;
-        this.termsAction = termsAction;
         this.moreLikeThisAction = moreLikeThisAction;
     }
 
@@ -160,14 +154,6 @@ public class NodeClient extends AbstractClient implements InternalClient {
 
     @Override public void searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         searchScrollAction.execute(request, listener);
-    }
-
-    @Override public ActionFuture<TermsResponse> terms(TermsRequest request) {
-        return termsAction.execute(request);
-    }
-
-    @Override public void terms(TermsRequest request, ActionListener<TermsResponse> listener) {
-        termsAction.execute(request, listener);
     }
 
     @Override public ActionFuture<SearchResponse> moreLikeThis(MoreLikeThisRequest request) {

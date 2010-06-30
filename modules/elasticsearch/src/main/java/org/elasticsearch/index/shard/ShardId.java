@@ -104,6 +104,6 @@ public class ShardId implements Serializable, Streamable {
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         index.writeTo(out);
-        out.writeInt(shardId);
+        out.writeVInt(shardId);
     }
 }

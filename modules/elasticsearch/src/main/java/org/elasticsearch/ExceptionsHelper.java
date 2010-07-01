@@ -33,10 +33,10 @@ public final class ExceptionsHelper {
         int counter = 0;
         Throwable result = t;
         while (result instanceof ElasticSearchWrapperException) {
-            if (t.getCause() == null) {
+            if (result.getCause() == null) {
                 return result;
             }
-            if (t.getCause() == t) {
+            if (result.getCause() == result) {
                 return result;
             }
             if (counter++ > 10) {

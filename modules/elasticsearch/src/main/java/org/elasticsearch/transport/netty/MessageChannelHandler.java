@@ -75,11 +75,14 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         byte status = buffer.readByte();
         boolean isRequest = isRequest(status);
 
-        TransportResponseHandler handler = null;
         if (isRequest) {
-            handleRequest(event, streamIn, requestId);
+            TransportRequestHandler handler = handleRequest(event, streamIn, requestId);
+            if (buffer.readerIndex() < expectedIndexReader) {
+                logger.warn("Message not fully read (request) for [{}] and handler {}, resetting", requestId, handler);
+                buffer.readerIndex(expectedIndexReader);
+            }
         } else {
-            handler = transportServiceAdapter.remove(requestId);
+            TransportResponseHandler handler = transportServiceAdapter.remove(requestId);
             // ignore if its null, the adapter logs it
             if (handler != null) {
                 if (isError(status)) {
@@ -91,10 +94,10 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 // if its null, skip those bytes
                 buffer.readerIndex(markedReaderIndex + size);
             }
-        }
-        if (buffer.readerIndex() < expectedIndexReader) {
-            logger.warn("Message not fully read for [{}] and handler {}, resetting", requestId, handler);
-            buffer.readerIndex(expectedIndexReader);
+            if (buffer.readerIndex() < expectedIndexReader) {
+                logger.warn("Message not fully read (response) for [{}] and handler {}, resetting", requestId, handler);
+                buffer.readerIndex(expectedIndexReader);
+            }
         }
     }
 
@@ -157,7 +160,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         }
     }
 
-    private void handleRequest(MessageEvent event, StreamInput buffer, long requestId) throws IOException {
+    private TransportRequestHandler handleRequest(MessageEvent event, StreamInput buffer, long requestId) throws IOException {
         final String action = buffer.readUTF();
 
         final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, action, event.getChannel(), requestId);
@@ -187,6 +190,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 //noinspection unchecked
                 handler.messageReceived(streamable, transportChannel);
             }
+            return handler;
         } catch (Exception e) {
             try {
                 transportChannel.sendResponse(e);
@@ -195,6 +199,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 logger.warn("Actual Exception", e1);
             }
         }
+        return null;
     }
 
     @Override public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {

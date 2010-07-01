@@ -134,7 +134,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 nodeAttributes.put("zen.master", "false");
             }
         }
-        localNode = new DiscoveryNode(settings.get("name"), UUID.randomUUID().toString(), transportService.boundAddress().publishAddress(), nodeAttributes);
+        // note, we rely on the fact that its a new id each time we start, see FD and "kill -9" handling
+        String nodeId = UUID.randomUUID().toString();
+        localNode = new DiscoveryNode(settings.get("name"), nodeId, transportService.boundAddress().publishAddress(), nodeAttributes);
         latestDiscoNodes = new DiscoveryNodes.Builder().put(localNode).localNodeId(localNode.id()).build();
         nodesFD.updateNodes(latestDiscoNodes);
         pingService.start();

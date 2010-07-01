@@ -44,7 +44,7 @@ public final class ExceptionsHelper {
                 logger.warn("Exception cause unwrapping ran for 10 levels...", t);
                 return result;
             }
-            result = t.getCause();
+            result = result.getCause();
         }
         return result;
     }

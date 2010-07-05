@@ -17,19 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.index.translog.memory;
+package org.elasticsearch.test.integration.gateway.fs;
 
-import org.elasticsearch.index.translog.AbstractSimpleTranslogTests;
-import org.elasticsearch.index.translog.Translog;
-
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
+import org.elasticsearch.test.integration.gateway.AbstractSimpleIndexGatewayTests;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class MemorySimpleTranslogTests extends AbstractSimpleTranslogTests {
+public class BlobStoreSmallBufferSizeFsIndexGatewayTests extends AbstractSimpleIndexGatewayTests {
 
-    @Override protected Translog create() {
-        return new MemoryTranslog(shardId, EMPTY_SETTINGS);
-    }
 }

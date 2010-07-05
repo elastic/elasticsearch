@@ -58,14 +58,14 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
 
         private final long lastIndexVersion;
         private final long lastTranslogId;
-        private final int lastTranslogSize;
+        private final long lastTranslogLength;
 
-        public Snapshot(SnapshotIndexCommit indexCommit, Translog.Snapshot translogSnapshot, long lastIndexVersion, long lastTranslogId, int lastTranslogSize) {
+        public Snapshot(SnapshotIndexCommit indexCommit, Translog.Snapshot translogSnapshot, long lastIndexVersion, long lastTranslogId, long lastTranslogLength) {
             this.indexCommit = indexCommit;
             this.translogSnapshot = translogSnapshot;
             this.lastIndexVersion = lastIndexVersion;
             this.lastTranslogId = lastTranslogId;
-            this.lastTranslogSize = lastTranslogSize;
+            this.lastTranslogLength = lastTranslogLength;
         }
 
         /**
@@ -92,7 +92,7 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
             if (newTranslogCreated()) {
                 throw new ElasticSearchIllegalStateException("Should not be called when there is a new translog");
             }
-            return translogSnapshot.size() > lastTranslogSize;
+            return translogSnapshot.length() > lastTranslogLength;
         }
 
         public SnapshotIndexCommit indexCommit() {
@@ -111,8 +111,8 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
             return lastTranslogId;
         }
 
-        public int lastTranslogSize() {
-            return lastTranslogSize;
+        public long lastTranslogPosition() {
+            return lastTranslogLength;
         }
     }
 
@@ -210,9 +210,11 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
             private long translogId;
             private int numberOfOperations;
             private ByteSizeValue totalSize;
+            private long translogLength;
 
-            public Translog(long translogId, int numberOfOperations, ByteSizeValue totalSize) {
+            public Translog(long translogId, long translogLength, int numberOfOperations, ByteSizeValue totalSize) {
                 this.translogId = translogId;
+                this.translogLength = translogLength;
                 this.numberOfOperations = numberOfOperations;
                 this.totalSize = totalSize;
             }
@@ -222,6 +224,10 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
              */
             public long translogId() {
                 return translogId;
+            }
+
+            public long translogLength() {
+                return translogLength;
             }
 
             public int numberOfOperations() {

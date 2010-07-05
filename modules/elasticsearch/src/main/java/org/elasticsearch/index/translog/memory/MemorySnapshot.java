@@ -20,37 +20,28 @@
 package org.elasticsearch.index.translog.memory;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.collect.Iterables;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.translog.Translog;
 
-import java.io.IOException;
-import java.util.Arrays;
 import java.util.Iterator;
-
-import static org.elasticsearch.index.translog.TranslogStreams.*;
+import java.util.Queue;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class MemorySnapshot implements Translog.Snapshot {
 
-    private long id;
+    private final long id;
 
-    Translog.Operation[] operations;
+    private final Iterator<Translog.Operation> operationsIt;
 
-    public MemorySnapshot() {
-    }
+    private final long length;
 
-    public MemorySnapshot(Translog.Snapshot snapshot) {
-        this(snapshot.translogId(), Iterables.toArray(snapshot, Translog.Operation.class));
-    }
+    private long position = 0;
 
-    public MemorySnapshot(long id, Translog.Operation[] operations) {
+    public MemorySnapshot(long id, Queue<Translog.Operation> operations, long length) {
         this.id = id;
-        this.operations = operations;
+        this.operationsIt = operations.iterator();
+        this.length = length;
     }
 
     @Override public long translogId() {
@@ -61,34 +52,29 @@ public class MemorySnapshot implements Translog.Snapshot {
         return true;
     }
 
-    @Override public int size() {
-        return operations.length;
+    @Override public long length() {
+        return length;
     }
 
-    @Override public Iterator<Translog.Operation> iterator() {
-        return Arrays.asList(operations).iterator();
+    @Override public long position() {
+        return this.position;
     }
 
-    @Override public Iterable<Translog.Operation> skipTo(int skipTo) {
-        if (operations.length < skipTo) {
-            throw new ElasticSearchIllegalArgumentException("skipTo [" + skipTo + "] is bigger than size [" + size() + "]");
+    @Override public boolean hasNext() {
+        return position < length;
+    }
+
+    @Override public Translog.Operation next() {
+        Translog.Operation operation = operationsIt.next();
+        position++;
+        return operation;
+    }
+
+    @Override public void seekForward(long position) {
+        long numberToSeek = this.position + position;
+        while (numberToSeek-- != 0) {
+            operationsIt.next();
         }
-        return Arrays.asList(Arrays.copyOfRange(operations, skipTo, operations.length));
-    }
-
-    @Override public void readFrom(StreamInput in) throws IOException {
-        id = in.readLong();
-        operations = new Translog.Operation[in.readVInt()];
-        for (int i = 0; i < operations.length; i++) {
-            operations[i] = readTranslogOperation(in);
-        }
-    }
-
-    @Override public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(id);
-        out.writeVInt(operations.length);
-        for (Translog.Operation op : operations) {
-            writeTranslogOperation(out, op);
-        }
+        this.position = position;
     }
 }

@@ -202,12 +202,12 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
             }
             throttlingWaitTime.stop();
 
-            logger.debug("starting recovery from {}", targetNode);
             try {
                 if (closed) {
                     throw new IgnoreRecoveryException("Recovery closed");
                 }
 
+                logger.debug("starting recovery from {}", targetNode);
                 // build a list of the current files located locally, maybe we don't need to recover them...
                 StartRecoveryRequest startRecoveryRequest = new StartRecoveryRequest(node, markAsRelocated, store.listWithMd5());
 
@@ -253,6 +253,7 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
                 if (closed) {
                     throw new IgnoreRecoveryException("Recovery closed", e);
                 }
+                logger.trace("recovery from [{}] failed", e, targetNode);
                 Throwable cause = ExceptionsHelper.unwrapCause(e);
                 if (cause instanceof ActionNotFoundTransportException || cause instanceof IndexShardNotStartedException) {
                     // the remote shard has not yet registered the action or not started yet, we need to ignore this recovery attempt, and restore the state previous to recovering
@@ -367,11 +368,16 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
                                         existingTotalSize += md.sizeInBytes();
                                         useExisting = true;
                                         if (logger.isTraceEnabled()) {
-                                            logger.trace("not recovering [{}], exists in local store and has md5 [{}]", name, md.md5());
+                                            logger.trace("recovery [phase1] to {}: not recovering [{}], exists in local store and has md5 [{}]", node, name, md.md5());
                                         }
                                     }
                                 }
                                 if (!useExisting) {
+                                    if (startRecoveryRequest.existingFiles.containsKey(name)) {
+                                        logger.trace("recovery [phase1] to {}: recovering [{}], exists in local store, but has different md5: remote [{}], local [{}]", node, name, startRecoveryRequest.existingFiles.get(name).md5(), md.md5());
+                                    } else {
+                                        logger.trace("recovery [phase1] to {}: recovering [{}], does not exists in remote", node, name);
+                                    }
                                     recoveryStatus.phase1FileNames.add(name);
                                     recoveryStatus.phase1FileSizes.add(md.sizeInBytes());
                                     totalSize += md.sizeInBytes();
@@ -457,17 +463,17 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
                             if (closed) {
                                 throw new IndexShardClosedException(shardId);
                             }
-                            logger.trace("recovery [phase2] to {}: sending [{}] transaction log operations", node, snapshot.size());
+                            logger.trace("recovery [phase2] to {}: sending transaction log operations", node);
                             StopWatch stopWatch = new StopWatch().start();
 
                             transportService.submitRequest(node, prepareForTranslogOperationsTransportAction, VoidStreamable.INSTANCE, VoidTransportResponseHandler.INSTANCE).txGet();
 
-                            sendSnapshot(snapshot);
+                            int totalOperations = sendSnapshot(snapshot);
 
                             stopWatch.stop();
                             logger.trace("recovery [phase2] to {}: took [{}]", node, stopWatch.totalTime());
                             recoveryStatus.phase2Time = stopWatch.totalTime().millis();
-                            recoveryStatus.phase2Operations = snapshot.size();
+                            recoveryStatus.phase2Operations = totalOperations;
                         } catch (ElasticSearchInterruptedException e) {
                             // we got interrupted since we are closing, ignore the recovery
                             throw new IgnoreRecoveryException("Interrupted in phase 2 files");
@@ -482,9 +488,9 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
                             if (closed) {
                                 throw new IndexShardClosedException(shardId);
                             }
-                            logger.trace("recovery [phase3] to {}: sending [{}] transaction log operations", node, snapshot.size());
+                            logger.trace("recovery [phase3] to {}: sending transaction log operations", node);
                             StopWatch stopWatch = new StopWatch().start();
-                            sendSnapshot(snapshot);
+                            int totalOperations = sendSnapshot(snapshot);
                             transportService.submitRequest(node, finalizeRecoveryTransportAction, VoidStreamable.INSTANCE, VoidTransportResponseHandler.INSTANCE).txGet();
                             if (startRecoveryRequest.markAsRelocated) {
                                 // TODO what happens if the recovery process fails afterwards, we need to mark this back to started
@@ -499,7 +505,7 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
                             stopWatch.stop();
                             logger.trace("recovery [phase3] to {}: took [{}]", node, stopWatch.totalTime());
                             recoveryStatus.phase3Time = stopWatch.totalTime().millis();
-                            recoveryStatus.phase3Operations = snapshot.size();
+                            recoveryStatus.phase3Operations = totalOperations;
                         } catch (ElasticSearchInterruptedException e) {
                             // we got interrupted since we are closing, ignore the recovery
                             throw new IgnoreRecoveryException("Interrupted in phase 2 files");
@@ -508,12 +514,25 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
                         }
                     }
 
-                    private void sendSnapshot(Translog.Snapshot snapshot) throws ElasticSearchException {
+                    private int sendSnapshot(Translog.Snapshot snapshot) throws ElasticSearchException {
                         TranslogOperationsRequest request = new TranslogOperationsRequest();
-                        for (Translog.Operation operation : snapshot) {
-                            request.operations.add(operation);
+                        int translogBatchSize = 10; // TODO make this configurable
+                        int counter = 0;
+                        int totalOperations = 0;
+                        while (snapshot.hasNext()) {
+                            request.operations.add(snapshot.next());
+                            totalOperations++;
+                            if (++counter == translogBatchSize) {
+                                transportService.submitRequest(node, translogOperationsTransportAction, request, VoidTransportResponseHandler.INSTANCE).txGet();
+                                counter = 0;
+                                request.operations.clear();
+                            }
                         }
-                        transportService.submitRequest(node, translogOperationsTransportAction, request, VoidTransportResponseHandler.INSTANCE).txGet();
+                        // send the leftover
+                        if (!request.operations.isEmpty()) {
+                            transportService.submitRequest(node, translogOperationsTransportAction, request, VoidTransportResponseHandler.INSTANCE).txGet();
+                        }
+                        return totalOperations;
                     }
                 });
                 channel.sendResponse(recoveryStatus);
@@ -696,7 +715,9 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
                 if (closed) {
                     throw new IndexShardClosedException(shardId);
                 }
-                indexShard.performRecoveryOperations(snapshot.operations);
+                for (Translog.Operation operation : snapshot.operations) {
+                    indexShard.performRecoveryOperation(operation);
+                }
                 channel.sendResponse(VoidStreamable.INSTANCE);
             } finally {
                 receiveSnapshotRecoveryThread = null;

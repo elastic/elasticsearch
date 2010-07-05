@@ -37,7 +37,7 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 @ThreadSafe
 public interface Translog extends IndexShardComponent {
@@ -89,19 +89,25 @@ public interface Translog extends IndexShardComponent {
      * A snapshot of the transaction log, allows to iterate over all the transaction log operations.
      */
     @NotThreadSafe
-    static interface Snapshot extends Iterable<Operation>, Releasable, Streamable {
+    static interface Snapshot extends Releasable {
 
         /**
          * The id of the translog the snapshot was taken with.
          */
         long translogId();
 
-        /**
-         * The number of translog operations in the snapshot.
-         */
-        int size();
+        long position();
 
-        Iterable<Operation> skipTo(int skipTo);
+        /**
+         * Returns the internal length (*not* number of operations) of this snapshot.
+         */
+        long length();
+
+        boolean hasNext();
+
+        Operation next();
+
+        void seekForward(long position);
     }
 
     /**

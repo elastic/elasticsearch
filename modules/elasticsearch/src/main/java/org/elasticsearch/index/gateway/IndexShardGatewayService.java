@@ -29,10 +29,7 @@ import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
-import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.Store;
@@ -65,7 +62,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
 
     private volatile long lastTranslogId = -1;
 
-    private volatile int lastTranslogSize;
+    private volatile long lastTranslogLength;
 
     private final AtomicBoolean recovered = new AtomicBoolean();
 
@@ -133,7 +130,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
 
             lastIndexVersion = recoveryStatus.index().version();
             lastTranslogId = recoveryStatus.translog().translogId();
-            lastTranslogSize = recoveryStatus.translog().numberOfOperations();
+            lastTranslogLength = recoveryStatus.translog().translogLength();
 
             // start the shard if the gateway has not started it already
             if (indexShard.state() != IndexShardState.STARTED) {
@@ -151,6 +148,18 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             // refresh the shard
             indexShard.refresh(new Engine.Refresh(false));
             scheduleSnapshotIfNeeded();
+        } catch (IndexShardGatewayRecoveryException e) {
+            if ((e.getCause() instanceof IndexShardClosedException) || (e.getCause() instanceof IndexShardNotStartedException)) {
+                // got closed on us, just ignore this recovery
+                throw new IgnoreGatewayRecoveryException(shardId, "shard closed");
+            }
+            throw e;
+        } catch (IndexShardClosedException e) {
+            // got closed on us, just ignore this recovery
+            throw new IgnoreGatewayRecoveryException(shardId, "shard closed");
+        } catch (IndexShardNotStartedException e) {
+            // got closed on us, just ignore this recovery
+            throw new IgnoreGatewayRecoveryException(shardId, "shard closed");
         } finally {
             recoveryThrottler.recoveryDone(shardId, "gateway");
         }
@@ -171,14 +180,14 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
         try {
             IndexShardGateway.SnapshotStatus snapshotStatus = indexShard.snapshot(new Engine.SnapshotHandler<IndexShardGateway.SnapshotStatus>() {
                 @Override public IndexShardGateway.SnapshotStatus snapshot(SnapshotIndexCommit snapshotIndexCommit, Translog.Snapshot translogSnapshot) throws EngineException {
-                    if (lastIndexVersion != snapshotIndexCommit.getVersion() || lastTranslogId != translogSnapshot.translogId() || lastTranslogSize != translogSnapshot.size()) {
+                    if (lastIndexVersion != snapshotIndexCommit.getVersion() || lastTranslogId != translogSnapshot.translogId() || lastTranslogLength != translogSnapshot.length()) {
 
                         IndexShardGateway.SnapshotStatus snapshotStatus =
-                                shardGateway.snapshot(new IndexShardGateway.Snapshot(snapshotIndexCommit, translogSnapshot, lastIndexVersion, lastTranslogId, lastTranslogSize));
+                                shardGateway.snapshot(new IndexShardGateway.Snapshot(snapshotIndexCommit, translogSnapshot, lastIndexVersion, lastTranslogId, lastTranslogLength));
 
                         lastIndexVersion = snapshotIndexCommit.getVersion();
                         lastTranslogId = translogSnapshot.translogId();
-                        lastTranslogSize = translogSnapshot.size();
+                        lastTranslogLength = translogSnapshot.length();
                         return snapshotStatus;
                     }
                     return IndexShardGateway.SnapshotStatus.NA;

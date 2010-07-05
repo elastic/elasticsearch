@@ -27,8 +27,6 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import java.util.Iterator;
-
 import static org.elasticsearch.index.translog.TranslogSizeMatcher.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
@@ -55,7 +53,6 @@ public abstract class AbstractSimpleTranslogTests {
 
     @Test public void testSimpleOperations() {
         Translog.Snapshot snapshot = translog.snapshot();
-
         assertThat(snapshot, translogSize(0));
         snapshot.release();
 
@@ -80,15 +77,25 @@ public abstract class AbstractSimpleTranslogTests {
         snapshot.release();
 
         snapshot = translog.snapshot();
-        Iterator<Translog.Operation> it = snapshot.iterator();
-        Translog.Create create = (Translog.Create) it.next();
+
+        assertThat(snapshot.hasNext(), equalTo(true));
+        Translog.Create create = (Translog.Create) snapshot.next();
         assertThat(create.source(), equalTo(new byte[]{1}));
-        Translog.Index index = (Translog.Index) it.next();
+
+        assertThat(snapshot.hasNext(), equalTo(true));
+        Translog.Index index = (Translog.Index) snapshot.next();
         assertThat(index.source(), equalTo(new byte[]{2}));
-        Translog.Delete delete = (Translog.Delete) it.next();
+
+        assertThat(snapshot.hasNext(), equalTo(true));
+        Translog.Delete delete = (Translog.Delete) snapshot.next();
         assertThat(delete.uid(), equalTo(newUid("3")));
-        Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) it.next();
+
+        assertThat(snapshot.hasNext(), equalTo(true));
+        Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) snapshot.next();
         assertThat(deleteByQuery.source(), equalTo(new byte[]{4}));
+
+        assertThat(snapshot.hasNext(), equalTo(false));
+
         snapshot.release();
 
         long firstId = translog.currentId();
@@ -108,16 +115,27 @@ public abstract class AbstractSimpleTranslogTests {
         translog.add(new Translog.Create("test", "1", new byte[]{1}));
         snapshot = translog.snapshot();
         assertThat(snapshot, translogSize(1));
-        Translog.Create create = (Translog.Create) snapshot.iterator().next();
+        snapshot.release();
+
+        snapshot = translog.snapshot();
+        Translog.Create create = (Translog.Create) snapshot.next();
         assertThat(create.source(), equalTo(new byte[]{1}));
         snapshot.release();
 
+        Translog.Snapshot snapshot1 = translog.snapshot();
+
         translog.add(new Translog.Index("test", "2", new byte[]{2}));
-        snapshot = translog.snapshot(snapshot);
+        snapshot = translog.snapshot(snapshot1);
         assertThat(snapshot, translogSize(1));
-        Translog.Index index = (Translog.Index) snapshot.iterator().next();
-        assertThat(index.source(), equalTo(new byte[]{2}));
         snapshot.release();
+
+        snapshot = translog.snapshot(snapshot1);
+        assertThat(snapshot.hasNext(), equalTo(true));
+        Translog.Index index = (Translog.Index) snapshot.next();
+        assertThat(index.source(), equalTo(new byte[]{2}));
+        assertThat(snapshot.hasNext(), equalTo(false));
+        snapshot.release();
+        snapshot1.release();
     }
 
     @Test public void testSnapshotWithNewTranslog() {
@@ -136,8 +154,13 @@ public abstract class AbstractSimpleTranslogTests {
 
         snapshot = translog.snapshot(actualSnapshot);
         assertThat(snapshot, translogSize(1));
-        Translog.Index index = (Translog.Index) snapshot.iterator().next();
+        snapshot.release();
+
+        snapshot = translog.snapshot(actualSnapshot);
+        assertThat(snapshot.hasNext(), equalTo(true));
+        Translog.Index index = (Translog.Index) snapshot.next();
         assertThat(index.source(), equalTo(new byte[]{3}));
+        assertThat(snapshot.hasNext(), equalTo(false));
 
         actualSnapshot.release();
         snapshot.release();

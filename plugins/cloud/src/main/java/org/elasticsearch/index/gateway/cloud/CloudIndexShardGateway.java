@@ -24,12 +24,11 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cloud.blobstore.CloudBlobStoreService;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.FastByteArrayInputStream;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Directories;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
@@ -251,17 +250,9 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
             try {
                 long time = System.currentTimeMillis();
 
-                BytesStreamOutput streamOutput = BytesStreamOutput.Cached.cached();
-                streamOutput.writeInt(translogSnapshot.size());
-                for (Translog.Operation operation : translogSnapshot) {
-                    translogNumberOfOperations++;
-                    writeTranslogOperation(streamOutput, operation);
+                if (true) {
+                    throw new ElasticSearchIllegalStateException("cloud plugin is currently disabled");
                 }
-
-                Blob blob = blobStoreContext.getBlobStore().newBlob(translogBlobName);
-                blob.setContentLength(streamOutput.size());
-                blob.setPayload(new FastByteArrayInputStream(streamOutput.unsafeByteArray(), 0, streamOutput.size()));
-                blobStoreContext.getBlobStore().putBlob(container, blob);
 
                 currentTranslogPartToWrite++;
 
@@ -274,17 +265,9 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
             try {
                 long time = System.currentTimeMillis();
 
-                BytesStreamOutput streamOutput = BytesStreamOutput.Cached.cached();
-                streamOutput.writeInt(translogSnapshot.size() - snapshot.lastTranslogSize());
-                for (Translog.Operation operation : translogSnapshot.skipTo(snapshot.lastTranslogSize())) {
-                    translogNumberOfOperations++;
-                    writeTranslogOperation(streamOutput, operation);
+                if (true) {
+                    throw new ElasticSearchIllegalStateException("cloud plugin is currently disabled");
                 }
-
-                Blob blob = blobStoreContext.getBlobStore().newBlob(translogBlobName);
-                blob.setContentLength(streamOutput.size());
-                blob.setPayload(new FastByteArrayInputStream(streamOutput.unsafeByteArray(), 0, streamOutput.size()));
-                blobStoreContext.getBlobStore().putBlob(container, blob);
 
                 currentTranslogPartToWrite++;
 
@@ -433,7 +416,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
         if (latestTranslogId == -1) {
             // no recovery file found, start the shard and bail
             indexShard.start();
-            return new RecoveryStatus.Translog(-1, 0, new ByteSizeValue(0, ByteSizeUnit.BYTES));
+            return new RecoveryStatus.Translog(-1, 0, 0, new ByteSizeValue(0, ByteSizeUnit.BYTES));
         }
 
 
@@ -462,10 +445,9 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
             currentTranslogPartToWrite = index;
 
             indexShard.performRecoveryPrepareForTranslog();
-            indexShard.performRecoveryOperations(operations);
             indexShard.performRecoveryFinalization();
 
-            return new RecoveryStatus.Translog(latestTranslogId, operations.size(), new ByteSizeValue(size, ByteSizeUnit.BYTES));
+            return new RecoveryStatus.Translog(latestTranslogId, operations.size(), 0, new ByteSizeValue(size, ByteSizeUnit.BYTES));
         } catch (Exception e) {
             throw new IndexShardGatewayRecoveryException(shardId(), "Failed to perform recovery of translog", e);
         }

@@ -98,7 +98,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         this.queryParserService = queryParserService;
         this.indexCache = indexCache;
         state = IndexShardState.CREATED;
-        logger.debug("Moved to state [CREATED]");
+        logger.debug("state: [CREATED]");
     }
 
     public Store store() {
@@ -123,7 +123,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
         if (this.shardRouting != null) {
             if (!shardRouting.primary() && this.shardRouting.primary()) {
-                logger.warn("Suspect illegal state: Trying to move shard from primary mode to backup mode");
+                logger.warn("suspect illegal state: trying to move shard from primary mode to backup mode");
             }
         }
         this.shardRouting = shardRouting;
@@ -146,8 +146,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             if (state == IndexShardState.RECOVERING) {
                 throw new IndexShardRecoveringException(shardId);
             }
+            logger.debug("state: [{}]->[{}]", state, IndexShardState.RECOVERING);
             state = IndexShardState.RECOVERING;
-            logger.debug("Moved to state [RECOVERING]");
             return returnValue;
         }
     }
@@ -157,7 +157,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             if (this.state != IndexShardState.RECOVERING) {
                 throw new IndexShardNotRecoveringException(shardId, state);
             }
-            logger.debug("Restored to state [{}] from state [{}]", stateToRestore, state);
+            logger.debug("state: [{}]->[{}], restored after recovery", state, stateToRestore);
             this.state = stateToRestore;
         }
         return this;
@@ -168,7 +168,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             if (state != IndexShardState.STARTED) {
                 throw new IndexShardNotStartedException(shardId, state);
             }
-            logger.debug("Moved to state [RELOCATED]");
+            logger.debug("state: [{}]->[{}]", state, IndexShardState.RELOCATED);
             state = IndexShardState.RELOCATED;
         }
         return this;
@@ -187,7 +187,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             }
             engine.start();
             scheduleRefresherIfNeeded();
-            logger.debug("Moved to state [STARTED]");
+            logger.debug("state: [{}]->[{}]", state, IndexShardState.STARTED);
             state = IndexShardState.STARTED;
         }
         return this;
@@ -217,7 +217,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
         ParsedDocument doc = docMapper.parse(type, id, source);
         if (logger.isTraceEnabled()) {
-            logger.trace("Indexing {}", doc);
+            logger.trace("index {}", doc);
         }
         engine.create(new Engine.Create(doc.doc(), docMapper.mappers().indexAnalyzer(), docMapper.type(), doc.id(), doc.source()));
         return doc;
@@ -235,7 +235,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
         ParsedDocument doc = docMapper.parse(type, id, source);
         if (logger.isTraceEnabled()) {
-            logger.trace("Indexing {}", doc);
+            logger.trace("index {}", doc);
         }
         engine.index(new Engine.Index(docMapper.uidMapper().term(doc.uid()), doc.doc(), docMapper.mappers().indexAnalyzer(), docMapper.type(), doc.id(), doc.source()));
         return doc;
@@ -257,7 +257,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     private void innerDelete(Term uid) {
         if (logger.isTraceEnabled()) {
-            logger.trace("Deleting [{}]", uid.text());
+            logger.trace("delete [{}]", uid.text());
         }
         engine.delete(new Engine.Delete(uid));
     }
@@ -282,7 +282,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         query = filterByTypesIfNeeded(query, types);
 
         if (logger.isTraceEnabled()) {
-            logger.trace("Deleting By Query [{}]", query);
+            logger.trace("delete_by_query [{}]", query);
         }
 
         engine.delete(new Engine.DeleteByQuery(query, querySource, queryParserName, types));
@@ -299,13 +299,13 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             int docId = Lucene.docId(searcher.reader(), docMapper.uidMapper().term(type, id));
             if (docId == Lucene.NO_DOC) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("Get for [{}#{}] returned no result", type, id);
+                    logger.trace("get for [{}#{}] returned no result", type, id);
                 }
                 return null;
             }
             Document doc = searcher.reader().document(docId, docMapper.sourceMapper().fieldSelector());
             if (logger.isTraceEnabled()) {
-                logger.trace("Get for [{}#{}] returned [{}]", type, id, doc);
+                logger.trace("get for [{}#{}] returned [{}]", type, id, doc);
             }
             return docMapper.sourceMapper().value(doc);
         } catch (IOException e) {
@@ -338,7 +338,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         try {
             long count = Lucene.count(searcher.searcher(), query, minScore);
             if (logger.isTraceEnabled()) {
-                logger.trace("Count of [{}] is [{}]", query, count);
+                logger.trace("count of [{}] is [{}]", query, count);
             }
             return count;
         } catch (IOException e) {
@@ -351,7 +351,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override public void refresh(Engine.Refresh refresh) throws ElasticSearchException {
         writeAllowed();
         if (logger.isTraceEnabled()) {
-            logger.trace("Refresh with {}", refresh);
+            logger.trace("refresh with {}", refresh);
         }
         engine.refresh(refresh);
     }
@@ -359,7 +359,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override public void flush(Engine.Flush flush) throws ElasticSearchException {
         writeAllowed();
         if (logger.isTraceEnabled()) {
-            logger.trace("Flush with {}", flush);
+            logger.trace("flush with {}", flush);
         }
         engine.flush(flush);
     }
@@ -367,7 +367,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override public void optimize(Engine.Optimize optimize) throws ElasticSearchException {
         writeAllowed();
         if (logger.isTraceEnabled()) {
-            logger.trace("Optimize with {}", optimize);
+            logger.trace("optimize with {}", optimize);
         }
         engine.optimize(optimize);
     }
@@ -399,7 +399,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     refreshScheduledFuture = null;
                 }
             }
-            logger.debug("Moved to state [CLOSED]");
+            logger.debug("state: [{}]->[{}]", state, IndexShardState.CLOSED);
             state = IndexShardState.CLOSED;
         }
     }
@@ -416,42 +416,36 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     public void performRecoveryFinalization() throws ElasticSearchException {
         synchronized (mutex) {
-            logger.debug("Moved to state [STARTED] post recovery (from another shard)");
+            logger.debug("state: [{}]->[{}]", state, IndexShardState.STARTED);
             state = IndexShardState.STARTED;
         }
         scheduleRefresherIfNeeded();
         engine.refresh(new Engine.Refresh(true));
     }
 
-    public void performRecoveryOperations(Iterable<Translog.Operation> operations) throws ElasticSearchException {
+    public void performRecoveryOperation(Translog.Operation operation) throws ElasticSearchException {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
-        applyTranslogOperations(operations);
-    }
-
-    private void applyTranslogOperations(Iterable<Translog.Operation> snapshot) {
-        for (Translog.Operation operation : snapshot) {
-            switch (operation.opType()) {
-                case CREATE:
-                    Translog.Create create = (Translog.Create) operation;
-                    innerCreate(create.type(), create.id(), create.source());
-                    break;
-                case SAVE:
-                    Translog.Index index = (Translog.Index) operation;
-                    innerIndex(index.type(), index.id(), index.source());
-                    break;
-                case DELETE:
-                    Translog.Delete delete = (Translog.Delete) operation;
-                    innerDelete(delete.uid());
-                    break;
-                case DELETE_BY_QUERY:
-                    Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) operation;
-                    innerDeleteByQuery(deleteByQuery.source(), deleteByQuery.queryParserName(), deleteByQuery.types());
-                    break;
-                default:
-                    throw new ElasticSearchIllegalStateException("No operation defined for [" + operation + "]");
-            }
+        switch (operation.opType()) {
+            case CREATE:
+                Translog.Create create = (Translog.Create) operation;
+                innerCreate(create.type(), create.id(), create.source());
+                break;
+            case SAVE:
+                Translog.Index index = (Translog.Index) operation;
+                innerIndex(index.type(), index.id(), index.source());
+                break;
+            case DELETE:
+                Translog.Delete delete = (Translog.Delete) operation;
+                innerDelete(delete.uid());
+                break;
+            case DELETE_BY_QUERY:
+                Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) operation;
+                innerDeleteByQuery(deleteByQuery.source(), deleteByQuery.queryParserName(), deleteByQuery.types());
+                break;
+            default:
+                throw new ElasticSearchIllegalStateException("No operation defined for [" + operation + "]");
         }
     }
 

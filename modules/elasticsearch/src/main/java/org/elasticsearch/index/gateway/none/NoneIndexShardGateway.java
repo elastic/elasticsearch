@@ -32,6 +32,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 
+import java.io.IOException;
+
 /**
  * @author kimchy (shay.banon)
  */
@@ -46,8 +48,14 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
 
     @Override public RecoveryStatus recover() throws IndexShardGatewayRecoveryException {
         // in the none case, we simply start the shard
+        // clean the store, there should be nothing there...
+        try {
+            indexShard.store().deleteContent();
+        } catch (IOException e) {
+            logger.warn("failed to clean store before starting shard", e);
+        }
         indexShard.start();
-        return new RecoveryStatus(RecoveryStatus.Index.EMPTY, new RecoveryStatus.Translog(-1, 0, new ByteSizeValue(0, ByteSizeUnit.BYTES)));
+        return new RecoveryStatus(RecoveryStatus.Index.EMPTY, new RecoveryStatus.Translog(-1, 0, 0, new ByteSizeValue(0, ByteSizeUnit.BYTES)));
     }
 
     @Override public String type() {

@@ -244,16 +244,6 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
         IndexShard indexShard = shardInjector.getInstance(IndexShard.class);
 
-        // if there is no gateway, clean the store, since we won't recover into it
-        if (indexGateway.type().equals(NoneGateway.TYPE)) {
-            Store store = shardInjector.getInstance(Store.class);
-            try {
-                store.deleteContent();
-            } catch (IOException e) {
-                logger.warn("failed to clean store on shard creation", e);
-            }
-        }
-
         indicesLifecycle.afterIndexShardCreated(indexShard);
 
         shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();

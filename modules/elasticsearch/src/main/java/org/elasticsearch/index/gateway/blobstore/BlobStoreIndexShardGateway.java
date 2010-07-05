@@ -29,10 +29,11 @@ import org.elasticsearch.common.Hex;
 import org.elasticsearch.common.blobstore.*;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.io.FastByteArrayInputStream;
+import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.lucene.store.ThreadSafeInputStreamIndexInput;
@@ -55,12 +56,14 @@ import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.indices.recovery.throttler.RecoveryThrottler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import javax.annotation.Nullable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.lang.ref.SoftReference;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
@@ -72,8 +75,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static org.elasticsearch.index.translog.TranslogStreams.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -100,6 +101,8 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
     protected final AppendableBlobContainer translogContainer;
 
     protected final ConcurrentMap<String, String> cachedMd5 = ConcurrentCollections.newConcurrentMap();
+
+    private volatile SoftReference<FastByteArrayOutputStream> cachedBos = new SoftReference<FastByteArrayOutputStream>(new FastByteArrayOutputStream());
 
     private volatile AppendableBlobContainer.AppendableBlob translogBlob;
 
@@ -245,20 +248,25 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             final AtomicReference<Throwable> failure = new AtomicReference<Throwable>();
             translogBlob.append(new AppendableBlobContainer.AppendBlobListener() {
                 @Override public void withStream(StreamOutput os) throws IOException {
-                    int deltaNumberOfOperations;
-                    Iterable<Translog.Operation> operationsIt;
-                    if (snapshot.newTranslogCreated()) {
-                        deltaNumberOfOperations = translogSnapshot.size();
-                        operationsIt = translogSnapshot;
-                    } else {
-                        deltaNumberOfOperations = translogSnapshot.size() - snapshot.lastTranslogSize();
-                        operationsIt = translogSnapshot.skipTo(snapshot.lastTranslogSize());
+                    if (!snapshot.newTranslogCreated()) {
+                        translogSnapshot.seekForward(snapshot.lastTranslogPosition());
                     }
-                    os.writeInt(deltaNumberOfOperations);
-                    for (Translog.Operation operation : operationsIt) {
-                        writeTranslogOperation(os, operation);
+                    FastByteArrayOutputStream bos = cachedBos.get();
+                    if (bos == null) {
+                        bos = new FastByteArrayOutputStream();
+                        cachedBos = new SoftReference<FastByteArrayOutputStream>(bos);
                     }
-                    translogNumberOfOperations.set(deltaNumberOfOperations);
+                    int totalNumberOfOperations = 0;
+                    OutputStreamStreamOutput bosOs = new OutputStreamStreamOutput(bos);
+                    while (translogSnapshot.hasNext()) {
+                        bos.reset();
+                        TranslogStreams.writeTranslogOperation(bosOs, translogSnapshot.next());
+                        bosOs.flush();
+                        os.writeVInt(bos.size());
+                        os.writeBytes(bos.unsafeByteArray(), bos.size());
+                        totalNumberOfOperations++;
+                    }
+                    translogNumberOfOperations.set(totalNumberOfOperations);
                 }
 
                 @Override public void onCompleted() {
@@ -360,54 +368,105 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             translogId = IndexReader.getCurrentVersion(store.directory());
         } catch (FileNotFoundException e) {
             // no index, that fine
-            return new RecoveryStatus.Translog(-1, 0, new ByteSizeValue(0));
+            indexShard.start();
+            return new RecoveryStatus.Translog(-1, 0, 0, new ByteSizeValue(0));
         } catch (IOException e) {
             throw new IndexShardGatewayRecoveryException(shardId, "Failed to recovery translog, can't read current index version", e);
         }
         if (!translogContainer.blobExists("translog-" + translogId)) {
-            return new RecoveryStatus.Translog(-1, 0, new ByteSizeValue(0));
+            // no recovery file found, start the shard and bail
+            indexShard.start();
+            return new RecoveryStatus.Translog(-1, 0, 0, new ByteSizeValue(0));
         }
 
         try {
             indexShard.performRecoveryPrepareForTranslog();
-            int totalOperations = 0;
-            byte[] translogData = translogContainer.readBlobFully("translog-" + translogId);
-            BytesStreamInput si = new BytesStreamInput(translogData);
-            while (true) {
-                // we recover them in parts, each part container the number of operations, and then the list of them
-                try {
-                    int numberOfOperations = si.readInt();
-                    ArrayList<Translog.Operation> operations = Lists.newArrayList();
-                    for (int i = 0; i < numberOfOperations; i++) {
-                        operations.add(readTranslogOperation(si));
-                        totalOperations++;
+
+            final AtomicReference<Throwable> failure = new AtomicReference<Throwable>();
+            final CountDownLatch latch = new CountDownLatch(1);
+            final AtomicInteger totalOperations = new AtomicInteger();
+            final AtomicLong totalSize = new AtomicLong();
+
+            translogContainer.readBlob("translog-" + translogId, new BlobContainer.ReadBlobListener() {
+                FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
+                boolean ignore = false;
+
+                @Override public synchronized void onPartial(byte[] data, int offset, int size) throws IOException {
+                    if (ignore) {
+                        return;
                     }
-                    indexShard.performRecoveryOperations(operations);
-                    if (si.position() == translogData.length) {
-                        // we have reached the end of the stream, bail
-                        break;
+                    bos.write(data, offset, size);
+                    BytesStreamInput si = new BytesStreamInput(bos.unsafeByteArray(), 0, bos.size());
+                    int position;
+                    while (true) {
+                        try {
+                            position = si.position();
+                            int opSize = si.readVInt();
+                            int curPos = si.position();
+                            if ((si.position() + opSize) > bos.size()) {
+                                break;
+                            }
+                            Translog.Operation operation = TranslogStreams.readTranslogOperation(si);
+                            if ((si.position() - curPos) != opSize) {
+                                logger.warn("mismatch in size, expected [{}], got [{}]", opSize, si.position() - curPos);
+                            }
+                            totalOperations.incrementAndGet();
+                            indexShard.performRecoveryOperation(operation);
+                            if (si.position() >= bos.size()) {
+                                position = si.position();
+                                break;
+                            }
+                        } catch (Exception e) {
+                            logger.warn("failed to retrieve translog after [{}] operations, ignoring the rest, considered corrupted", e, totalOperations.get());
+                            ignore = true;
+                            latch.countDown();
+                            return;
+                        }
                     }
-                } catch (IOException e) {
-                    if (si.position() >= translogData.length) {
-                        // we have reached the end of hte stream, we wrote partial operations, ignore the exception...
-                    } else {
-                        throw e;
+
+                    totalSize.addAndGet(position);
+                    FastByteArrayOutputStream newBos = new FastByteArrayOutputStream();
+
+                    int leftOver = bos.size() - position;
+                    if (leftOver > 0) {
+                        newBos.write(bos.unsafeByteArray(), position, leftOver);
                     }
+
+                    bos = newBos;
                 }
+
+                @Override public synchronized void onCompleted() {
+                    latch.countDown();
+                }
+
+                @Override public synchronized void onFailure(Throwable t) {
+                    failure.set(t);
+                    latch.countDown();
+                }
+            });
+
+            latch.await();
+            if (failure.get() != null) {
+                throw failure.get();
             }
+
             indexShard.performRecoveryFinalization();
 
             // only if we can append to an existing translog we should use the current id and continue to append to it
             long lastTranslogId = indexShard.translog().currentId();
+            Translog.Snapshot translogSnapshot = indexShard.translog().snapshot();
+            long lastTranslogLength = translogSnapshot.length();
+            translogSnapshot.release();
             if (!translogContainer.canAppendToExistingBlob()) {
                 // flush the index, so we generate a new translog based on a new index version
                 indexShard.flush(new Engine.Flush());
                 lastTranslogId = -1;
+                lastTranslogLength = 0;
             }
 
-            return new RecoveryStatus.Translog(lastTranslogId, totalOperations, new ByteSizeValue(translogData.length, ByteSizeUnit.BYTES));
-        } catch (Exception e) {
-            throw new IndexShardGatewayRecoveryException(shardId, "Failed to recovery translog, can't read current index version", e);
+            return new RecoveryStatus.Translog(lastTranslogId, lastTranslogLength, totalOperations.get(), new ByteSizeValue(totalSize.get(), ByteSizeUnit.BYTES));
+        } catch (Throwable e) {
+            throw new IndexShardGatewayRecoveryException(shardId, "Failed to recovery translog", e);
         }
     }
 

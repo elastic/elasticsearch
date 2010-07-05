@@ -31,8 +31,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
 
-import java.util.ArrayList;
 import java.util.Queue;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -47,10 +47,9 @@ public class MemoryTranslog extends AbstractIndexShardComponent implements Trans
 
     private volatile long id;
 
-    // we use LinkedBlockingQueue and not LinkedTransferQueue since we clear it on #newTranslog
-    // and with LinkedTransferQueue, nodes are not really cleared, just marked causing for memory
-    // not to be cleaned properly (besides, clear is  heavy..., "while ... poll").
     private volatile Queue<Operation> operations;
+
+    private final AtomicInteger operationCounter = new AtomicInteger();
 
     @Inject public MemoryTranslog(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
@@ -72,18 +71,20 @@ public class MemoryTranslog extends AbstractIndexShardComponent implements Trans
         synchronized (mutex) {
             estimatedMemorySize.set(0);
             operations = new LinkedTransferQueue<Operation>();
+            operationCounter.set(0);
             this.id = id;
         }
     }
 
     @Override public void add(Operation operation) throws TranslogException {
         operations.add(operation);
+        operationCounter.incrementAndGet();
         estimatedMemorySize.addAndGet(operation.estimateSize() + 50);
     }
 
     @Override public Snapshot snapshot() {
         synchronized (mutex) {
-            return new MemorySnapshot(currentId(), operations.toArray(new Operation[0]));
+            return new MemorySnapshot(currentId(), operations, operationCounter.get());
         }
     }
 
@@ -93,19 +94,12 @@ public class MemoryTranslog extends AbstractIndexShardComponent implements Trans
             if (currentId() != snapshot.translogId()) {
                 return snapshot();
             }
-            ArrayList<Operation> retVal = new ArrayList<Operation>();
-            int counter = 0;
-            int snapshotSize = memorySnapshot.operations.length;
-            for (Operation operation : operations) {
-                if (++counter > snapshotSize) {
-                    retVal.add(operation);
-                }
-            }
-            return new MemorySnapshot(currentId(), retVal.toArray(new Operation[retVal.size()]));
+            MemorySnapshot newSnapshot = new MemorySnapshot(currentId(), operations, operationCounter.get());
+            newSnapshot.seekForward(memorySnapshot.length());
+            return newSnapshot;
         }
     }
 
     @Override public void close() {
     }
-
 }

@@ -260,9 +260,10 @@ public abstract class AbstractSimpleEngineTests {
         engine.snapshot(new Engine.SnapshotHandler<Void>() {
             @Override public Void snapshot(final SnapshotIndexCommit snapshotIndexCommit1, final Translog.Snapshot translogSnapshot1) {
                 assertThat(snapshotIndexCommit1, snapshotIndexCommitExists());
-                assertThat(translogSnapshot1, translogSize(1));
-                Translog.Create create1 = (Translog.Create) translogSnapshot1.iterator().next();
+                assertThat(translogSnapshot1.hasNext(), equalTo(true));
+                Translog.Create create1 = (Translog.Create) translogSnapshot1.next();
                 assertThat(create1.source(), equalTo(B_1));
+                assertThat(translogSnapshot1.hasNext(), equalTo(false));
 
                 Future<Object> future = executorService.submit(new Callable<Object>() {
                     @Override public Object call() throws Exception {
@@ -288,9 +289,10 @@ public abstract class AbstractSimpleEngineTests {
                         assertThat(snapshotIndexCommit1, snapshotIndexCommitExists());
                         assertThat(snapshotIndexCommit2, snapshotIndexCommitExists());
                         assertThat(snapshotIndexCommit2.getSegmentsFileName(), not(equalTo(snapshotIndexCommit1.getSegmentsFileName())));
-                        assertThat(translogSnapshot2, translogSize(1));
-                        Translog.Create create3 = (Translog.Create) translogSnapshot2.iterator().next();
+                        assertThat(translogSnapshot2.hasNext(), equalTo(true));
+                        Translog.Create create3 = (Translog.Create) translogSnapshot2.next();
                         assertThat(create3.source(), equalTo(B_3));
+                        assertThat(translogSnapshot2.hasNext(), equalTo(false));
                         return null;
                     }
                 });
@@ -351,9 +353,10 @@ public abstract class AbstractSimpleEngineTests {
             }
 
             @Override public void phase2(Translog.Snapshot snapshot) throws EngineException {
-                assertThat(snapshot, translogSize(1));
-                Translog.Create create = (Translog.Create) snapshot.iterator().next();
+                assertThat(snapshot.hasNext(), equalTo(true));
+                Translog.Create create = (Translog.Create) snapshot.next();
                 assertThat(create.source(), equalTo(B_2));
+                assertThat(snapshot.hasNext(), equalTo(false));
             }
 
             @Override public void phase3(Translog.Snapshot snapshot) throws EngineException {
@@ -375,8 +378,9 @@ public abstract class AbstractSimpleEngineTests {
             }
 
             @Override public void phase2(Translog.Snapshot snapshot) throws EngineException {
-                assertThat(snapshot, translogSize(1));
-                Translog.Create create = (Translog.Create) snapshot.iterator().next();
+                assertThat(snapshot.hasNext(), equalTo(true));
+                Translog.Create create = (Translog.Create) snapshot.next();
+                assertThat(snapshot.hasNext(), equalTo(false));
                 assertThat(create.source(), equalTo(B_2));
 
                 // add for phase3
@@ -384,8 +388,9 @@ public abstract class AbstractSimpleEngineTests {
             }
 
             @Override public void phase3(Translog.Snapshot snapshot) throws EngineException {
-                assertThat(snapshot, translogSize(1));
-                Translog.Create create = (Translog.Create) snapshot.iterator().next();
+                assertThat(snapshot.hasNext(), equalTo(true));
+                Translog.Create create = (Translog.Create) snapshot.next();
+                assertThat(snapshot.hasNext(), equalTo(false));
                 assertThat(create.source(), equalTo(B_3));
             }
         });

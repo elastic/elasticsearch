@@ -126,6 +126,18 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return nodesToShards.get(nodeId);
     }
 
+    public MutableShardRouting findPrimaryForBackup(MutableShardRouting shard) {
+        assert !shard.primary();
+        for (RoutingNode routingNode : nodesToShards.values()) {
+            for (MutableShardRouting shardRouting : routingNode) {
+                if (shardRouting.shardId().equals(shard.shardId()) && shardRouting.primary()) {
+                    return shardRouting;
+                }
+            }
+        }
+        return null;
+    }
+
     public int numberOfShardsOfType(ShardRoutingState state) {
         int count = 0;
         for (RoutingNode routingNode : this) {

@@ -26,7 +26,6 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.io.stream.DataOutputStreamOutput;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
 
 /**
  * @author kimchy (shay.banon)
@@ -62,7 +61,6 @@ public class HdfsAppendableBlobContainer extends AbstractHdfsBlobContainer imple
         @Override public void append(final AppendBlobListener listener) {
             blobStore.executorService().execute(new Runnable() {
                 @Override public void run() {
-                    RandomAccessFile raf = null;
                     try {
                         listener.withStream(out);
                         out.flush();

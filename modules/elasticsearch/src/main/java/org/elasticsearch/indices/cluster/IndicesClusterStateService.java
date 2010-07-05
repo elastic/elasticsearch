@@ -363,7 +363,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                         try {
                             indexService.cleanShard(shardId);
                         } catch (Exception e1) {
-                            logger.warn("[{}][{}] failed to delete shard after failed startup", e, indexService.index().name(), shardRouting.id());
+                            logger.warn("[{}][{}] failed to delete shard after failed startup", e1, indexService.index().name(), shardRouting.id());
                         }
                     }
                     try {

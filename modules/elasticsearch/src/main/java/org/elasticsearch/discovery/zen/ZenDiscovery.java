@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUID;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -155,9 +156,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     @Override protected void doStop() throws ElasticSearchException {
         pingService.stop();
-        if (masterFD.masterNode() != null) {
-            masterFD.stop("zen disco stop");
-        }
+        masterFD.stop("zen disco stop");
         nodesFD.stop();
         initialStateSent.set(false);
         if (sendLeaveRequest) {
@@ -284,6 +283,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     private void handleNodeFailure(final DiscoveryNode node, String reason) {
+        if (lifecycleState() != Lifecycle.State.STARTED) {
+            // not started, ignore a node failure
+            return;
+        }
         if (!master) {
             // nothing to do here...
             return;
@@ -304,6 +307,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     private void handleMasterGone(final DiscoveryNode masterNode, String reason) {
+        if (lifecycleState() != Lifecycle.State.STARTED) {
+            // not started, ignore a master failure
+            return;
+        }
         if (master) {
             // we might get this on both a master telling us shutting down, and then the disconnect failure
             return;

@@ -57,7 +57,7 @@ public class TransportShardGatewaySnapshotAction extends TransportShardReplicati
     @Override protected ShardGatewaySnapshotResponse shardOperationOnPrimary(ShardOperationRequest shardRequest) {
         IndexShardGatewayService shardGatewayService = indicesService.indexServiceSafe(shardRequest.request.index())
                 .shardInjectorSafe(shardRequest.shardId).getInstance(IndexShardGatewayService.class);
-        shardGatewayService.snapshot();
+        shardGatewayService.snapshot("api");
         return new ShardGatewaySnapshotResponse();
     }
 

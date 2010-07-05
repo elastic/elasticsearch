@@ -240,28 +240,27 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                         .metaData(currentState.metaData()).maxNumberOfShardsPerNode(fMetaData.maxNumberOfShardsPerNode());
                 // mark the metadata as read from gateway
                 metaDataBuilder.markAsRecoveredFromGateway();
-                // remove the block, since we recovered from gateway
-                ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NOT_RECOVERED_FROM_GATEWAY_BLOCK);
-
-                return newClusterStateBuilder().state(currentState).metaData(metaDataBuilder).blocks(blocks).build();
+                return newClusterStateBuilder().state(currentState).metaData(metaDataBuilder).build();
             }
 
             @Override public void clusterStateProcessed(ClusterState clusterState) {
                 // go over the meta data and create indices, we don't really need to copy over
                 // the meta data per index, since we create the index and it will be added automatically
                 for (final IndexMetaData indexMetaData : fMetaData) {
-                    threadPool.execute(new Runnable() {
-                        @Override public void run() {
-                            try {
-                                metaDataService.createIndex("gateway", indexMetaData.index(), indexMetaData.settings(), indexMetaData.mappings(), timeValueMillis(initialStateTimeout.millis() - 1000));
-                            } catch (Exception e) {
-                                logger.error("failed to create index [" + indexMetaData.index() + "]", e);
-                            } finally {
-                                latch.countDown();
-                            }
-                        }
-                    });
+                    try {
+                        metaDataService.createIndex("gateway", indexMetaData.index(), indexMetaData.settings(), indexMetaData.mappings(), timeValueMillis(10));
+                    } catch (Exception e) {
+                        logger.error("failed to create index [" + indexMetaData.index() + "]", e);
+                    } finally {
+                        latch.countDown();
+                    }
                 }
+                clusterService.submitStateUpdateTask("gateway (remove block)", new ClusterStateUpdateTask() {
+                    @Override public ClusterState execute(ClusterState currentState) {
+                        ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NOT_RECOVERED_FROM_GATEWAY_BLOCK);
+                        return newClusterStateBuilder().state(currentState).blocks(blocks).build();
+                    }
+                });
             }
         });
     }

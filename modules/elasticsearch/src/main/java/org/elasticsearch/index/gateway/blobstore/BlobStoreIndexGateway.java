@@ -67,7 +67,7 @@ public abstract class BlobStoreIndexGateway extends AbstractIndexComponent imple
 
     public ImmutableMap<String, BlobMetaData> listIndexBlobs(int shardId) throws IOException {
         ImmutableBlobContainer indexContainer = blobStore.immutableBlobContainer(shardIndexPath(shardId));
-        return BlobStoreIndexShardGateway.aggregateParts(indexContainer.listBlobs());
+        return BlobStoreIndexShardGateway.buildVirtualBlobs(indexContainer, indexContainer.listBlobs(), null);
     }
 
     @Override public String toString() {

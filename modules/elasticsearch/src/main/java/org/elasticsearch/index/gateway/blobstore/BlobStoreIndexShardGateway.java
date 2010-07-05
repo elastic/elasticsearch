@@ -24,21 +24,25 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.Digest;
+import org.elasticsearch.common.Hex;
 import org.elasticsearch.common.blobstore.*;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.collect.Sets;
+import org.elasticsearch.common.io.FastByteArrayInputStream;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.lucene.store.ThreadSafeInputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.trove.TObjectLongHashMap;
-import org.elasticsearch.common.trove.TObjectLongIterator;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
@@ -49,15 +53,20 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.throttler.RecoveryThrottler;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import javax.annotation.Nullable;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.security.MessageDigest;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -89,6 +98,8 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
     protected final ImmutableBlobContainer indexContainer;
 
     protected final AppendableBlobContainer translogContainer;
+
+    protected final ConcurrentMap<String, String> cachedMd5 = ConcurrentCollections.newConcurrentMap();
 
     private volatile AppendableBlobContainer.AppendableBlob translogBlob;
 
@@ -137,7 +148,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         final Translog.Snapshot translogSnapshot = snapshot.translogSnapshot();
 
         ImmutableMap<String, BlobMetaData> indicesBlobs = null;
-        TObjectLongHashMap<String> combinedIndicesBlobs = null;
+        ImmutableMap<String, BlobMetaData> virtualIndicesBlobs = null;
 
         int indexNumberOfFiles = 0;
         long indexTotalFilesSize = 0;
@@ -151,13 +162,19 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             } catch (IOException e) {
                 throw new IndexShardGatewaySnapshotFailedException(shardId, "Failed to list indices files from gateway", e);
             }
-            combinedIndicesBlobs = buildCombinedPartsBlobs(indicesBlobs);
+            virtualIndicesBlobs = buildVirtualBlobs(indexContainer, indicesBlobs, cachedMd5);
 
             // snapshot into the index
             final CountDownLatch latch = new CountDownLatch(snapshotIndexCommit.getFiles().length);
             final CopyOnWriteArrayList<Throwable> failures = new CopyOnWriteArrayList<Throwable>();
 
             for (final String fileName : snapshotIndexCommit.getFiles()) {
+                StoreFileMetaData snapshotFileMetaData;
+                try {
+                    snapshotFileMetaData = store.metaDataWithMd5(fileName);
+                } catch (IOException e) {
+                    throw new IndexShardGatewaySnapshotFailedException(shardId, "Failed to get store file metadata", e);
+                }
                 // don't copy over the segments file, it will be copied over later on as part of the
                 // final snapshot phase
                 if (fileName.equals(snapshotIndexCommit.getSegmentsFileName())) {
@@ -165,13 +182,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                     continue;
                 }
                 // if the file exists in the gateway, and has the same length, don't copy it over
-                long fileSize;
-                try {
-                    fileSize = snapshotIndexCommit.getDirectory().fileLength(fileName);
-                } catch (IOException e) {
-                    throw new IndexShardGatewaySnapshotFailedException(shardId, "Failed to get length on local store", e);
-                }
-                if (combinedIndicesBlobs.contains(fileName) && combinedIndicesBlobs.get(fileName) == fileSize) {
+                if (virtualIndicesBlobs.containsKey(fileName) && virtualIndicesBlobs.get(fileName).md5().equals(snapshotFileMetaData.md5())) {
                     latch.countDown();
                     continue;
                 }
@@ -179,10 +190,11 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                 // we are snapshotting the file
 
                 indexNumberOfFiles++;
-                indexTotalFilesSize += fileSize;
+                indexTotalFilesSize += snapshotFileMetaData.sizeInBytes();
 
-                if (combinedIndicesBlobs.contains(fileName)) {
+                if (virtualIndicesBlobs.containsKey(fileName)) {
                     try {
+                        cachedMd5.remove(fileName);
                         indexContainer.deleteBlobsByPrefix(fileName);
                     } catch (IOException e) {
                         logger.debug("failed to delete [" + fileName + "] before snapshotting, ignoring...");
@@ -190,7 +202,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                 }
 
                 try {
-                    snapshotFile(snapshotIndexCommit.getDirectory(), fileName, latch, failures);
+                    snapshotFile(snapshotIndexCommit.getDirectory(), snapshotFileMetaData, latch, failures);
                 } catch (IOException e) {
                     failures.add(e);
                     latch.countDown();
@@ -277,24 +289,26 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             try {
                 indexNumberOfFiles++;
                 if (indicesBlobs.containsKey(snapshotIndexCommit.getSegmentsFileName())) {
+                    cachedMd5.remove(snapshotIndexCommit.getSegmentsFileName());
                     indexContainer.deleteBlob(snapshotIndexCommit.getSegmentsFileName());
                 }
-                indexTotalFilesSize += snapshotIndexCommit.getDirectory().fileLength(snapshotIndexCommit.getSegmentsFileName());
-                long time = System.currentTimeMillis();
 
-                IndexInput indexInput = snapshotIndexCommit.getDirectory().openInput(snapshotIndexCommit.getSegmentsFileName());
-                try {
-                    InputStreamIndexInput is = new InputStreamIndexInput(indexInput, Long.MAX_VALUE);
-                    indexContainer.writeBlob(snapshotIndexCommit.getSegmentsFileName(), is, is.actualSizeToRead());
-                } finally {
-                    try {
-                        indexInput.close();
-                    } catch (Exception e) {
-                        // ignore
-                    }
+                StoreFileMetaData snapshotFileMetaData = store.metaDataWithMd5(snapshotIndexCommit.getSegmentsFileName());
+                indexTotalFilesSize += snapshotFileMetaData.sizeInBytes();
+
+                long time = System.currentTimeMillis();
+                CountDownLatch latch = new CountDownLatch(1);
+                CopyOnWriteArrayList<Throwable> failures = new CopyOnWriteArrayList<Throwable>();
+                snapshotFile(snapshotIndexCommit.getDirectory(), snapshotFileMetaData, latch, failures);
+                latch.await();
+                if (!failures.isEmpty()) {
+                    throw new IndexShardGatewaySnapshotFailedException(shardId(), "Failed to perform snapshot (segment index file)", failures.get(failures.size() - 1));
                 }
                 indexTime += (System.currentTimeMillis() - time);
             } catch (Exception e) {
+                if (e instanceof IndexShardGatewaySnapshotFailedException) {
+                    throw (IndexShardGatewaySnapshotFailedException) e;
+                }
                 throw new IndexShardGatewaySnapshotFailedException(shardId(), "Failed to finalize index snapshot into [" + snapshotIndexCommit.getSegmentsFileName() + "]", e);
             }
         }
@@ -310,18 +324,18 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
 
         // delete old index files
         if (indexDirty) {
-            for (TObjectLongIterator<String> it = combinedIndicesBlobs.iterator(); it.hasNext();) {
-                it.advance();
+            for (BlobMetaData md : virtualIndicesBlobs.values()) {
                 boolean found = false;
                 for (final String fileName : snapshotIndexCommit.getFiles()) {
-                    if (it.key().equals(fileName)) {
+                    if (md.name().equals(fileName)) {
                         found = true;
                         break;
                     }
                 }
                 if (!found) {
                     try {
-                        indexContainer.deleteBlobsByPrefix(it.key());
+                        cachedMd5.remove(md.name());
+                        indexContainer.deleteBlobsByPrefix(md.name());
                     } catch (IOException e) {
                         logger.debug("failed to delete unused index files, will retry later...", e);
                     }
@@ -341,87 +355,70 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
     }
 
     private RecoveryStatus.Translog recoverTranslog() throws IndexShardGatewayRecoveryException {
-        final ImmutableMap<String, BlobMetaData> blobs;
+        long translogId;
         try {
-            blobs = translogContainer.listBlobsByPrefix("translog-");
+            translogId = IndexReader.getCurrentVersion(store.directory());
+        } catch (FileNotFoundException e) {
+            // no index, that fine
+            return new RecoveryStatus.Translog(-1, 0, new ByteSizeValue(0));
         } catch (IOException e) {
-            throw new IndexShardGatewayRecoveryException(shardId, "Failed to list content of gateway", e);
+            throw new IndexShardGatewayRecoveryException(shardId, "Failed to recovery translog, can't read current index version", e);
+        }
+        if (!translogContainer.blobExists("translog-" + translogId)) {
+            return new RecoveryStatus.Translog(-1, 0, new ByteSizeValue(0));
         }
 
-        List<Long> translogIds = Lists.newArrayList();
-        for (BlobMetaData blob : blobs.values()) {
-            long translogId = Long.parseLong(blob.name().substring(blob.name().indexOf('-') + 1));
-            translogIds.add(translogId);
-        }
-
-        if (translogIds.isEmpty()) {
-            // no recovery file found, start the shard and bail
-            indexShard.start();
-            return new RecoveryStatus.Translog(-1, 0, new ByteSizeValue(0, ByteSizeUnit.BYTES));
-        }
-
-        Collections.sort(translogIds, new Comparator<Long>() {
-            @Override public int compare(Long o1, Long o2) {
-                return (int) (o2 - o1);
-            }
-        });
-
-        // try and recover from the latest translog id down to the first
-        Exception lastException = null;
-        for (Long translogId : translogIds) {
-            try {
-                ArrayList<Translog.Operation> operations = Lists.newArrayList();
-                byte[] translogData = translogContainer.readBlobFully("translog-" + translogId);
-                BytesStreamInput si = new BytesStreamInput(translogData);
-                while (true) {
-                    // we recover them in parts, each part container the number of operations, and then the list of them
+        try {
+            indexShard.performRecoveryPrepareForTranslog();
+            int totalOperations = 0;
+            byte[] translogData = translogContainer.readBlobFully("translog-" + translogId);
+            BytesStreamInput si = new BytesStreamInput(translogData);
+            while (true) {
+                // we recover them in parts, each part container the number of operations, and then the list of them
+                try {
                     int numberOfOperations = si.readInt();
+                    ArrayList<Translog.Operation> operations = Lists.newArrayList();
                     for (int i = 0; i < numberOfOperations; i++) {
                         operations.add(readTranslogOperation(si));
+                        totalOperations++;
                     }
+                    indexShard.performRecoveryOperations(operations);
                     if (si.position() == translogData.length) {
                         // we have reached the end of the stream, bail
                         break;
                     }
-                }
-                indexShard.performRecoveryPrepareForTranslog();
-                indexShard.performRecoveryOperations(operations);
-                indexShard.performRecoveryFinalization();
-
-                // clean all the other translog
-                for (Long translogIdToDelete : translogIds) {
-                    if (!translogId.equals(translogIdToDelete)) {
-                        try {
-                            translogContainer.deleteBlob("translog-" + translogIdToDelete);
-                        } catch (Exception e) {
-                            // ignore
-                        }
+                } catch (IOException e) {
+                    if (si.position() >= translogData.length) {
+                        // we have reached the end of hte stream, we wrote partial operations, ignore the exception...
+                    } else {
+                        throw e;
                     }
                 }
-
-                // only if we can append to an existing translog we should use the current id and continue to append to it
-                long lastTranslogId = indexShard.translog().currentId();
-                if (!translogContainer.canAppendToExistingBlob()) {
-                    lastTranslogId = -1;
-                }
-
-                return new RecoveryStatus.Translog(lastTranslogId, operations.size(), new ByteSizeValue(translogData.length, ByteSizeUnit.BYTES));
-            } catch (Exception e) {
-                lastException = e;
-                logger.debug("failed to read translog, will try the next one", e);
             }
+            indexShard.performRecoveryFinalization();
+
+            // only if we can append to an existing translog we should use the current id and continue to append to it
+            long lastTranslogId = indexShard.translog().currentId();
+            if (!translogContainer.canAppendToExistingBlob()) {
+                // flush the index, so we generate a new translog based on a new index version
+                indexShard.flush(new Engine.Flush());
+                lastTranslogId = -1;
+            }
+
+            return new RecoveryStatus.Translog(lastTranslogId, totalOperations, new ByteSizeValue(translogData.length, ByteSizeUnit.BYTES));
+        } catch (Exception e) {
+            throw new IndexShardGatewayRecoveryException(shardId, "Failed to recovery translog, can't read current index version", e);
         }
-        throw new IndexShardGatewayRecoveryException(shardId, "Failed to recovery translog", lastException);
     }
 
     private RecoveryStatus.Index recoverIndex() throws IndexShardGatewayRecoveryException {
-        final ImmutableMap<String, BlobMetaData> blobs;
+        final ImmutableMap<String, BlobMetaData> indicesBlobs;
         try {
-            blobs = indexContainer.listBlobs();
+            indicesBlobs = indexContainer.listBlobs();
         } catch (IOException e) {
             throw new IndexShardGatewayRecoveryException(shardId, "Failed to list content of gateway", e);
         }
-        TObjectLongHashMap<String> combinedBlobs = buildCombinedPartsBlobs(blobs);
+        ImmutableMap<String, BlobMetaData> virtualIndicesBlobs = buildVirtualBlobs(indexContainer, indicesBlobs, cachedMd5);
 
         int numberOfFiles = 0;
         long totalSize = 0;
@@ -429,43 +426,54 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         long existingTotalSize = 0;
 
         // filter out only the files that we need to recover, and reuse ones that exists in the store
-        List<String> filesToRecover = new ArrayList<String>();
-        for (TObjectLongIterator<String> it = combinedBlobs.iterator(); it.hasNext();) {
-            it.advance();
+        List<BlobMetaData> filesToRecover = new ArrayList<BlobMetaData>();
+        for (BlobMetaData virtualMd : virtualIndicesBlobs.values()) {
             // if the store has the file, and it has the same length, don't recover it
             try {
-                if (store.directory().fileExists(it.key()) && store.directory().fileLength(it.key()) == it.value()) {
+                StoreFileMetaData storeMd = store.metaDataWithMd5(virtualMd.name());
+                if (storeMd != null && storeMd.md5().equals(virtualMd.md5())) {
                     numberOfExistingFiles++;
-                    existingTotalSize += it.value();
+                    existingTotalSize += virtualMd.sizeInBytes();
                     if (logger.isTraceEnabled()) {
-                        logger.trace("not recovering [{}], exists in local store and has same size [{}]", it.key(), new ByteSizeValue(it.value()));
+                        logger.trace("not_recovering [{}], exists in local store and has same md5 [{}]", virtualMd.name(), virtualMd.md5());
                     }
                 } else {
+                    if (logger.isTraceEnabled()) {
+                        if (storeMd == null) {
+                            logger.trace("recovering [{}], does not exists in local store", virtualMd.name());
+                        } else {
+                            logger.trace("recovering [{}], exists in local store but has different md5: gateway [{}], local [{}]", virtualMd.name(), virtualMd.md5(), storeMd.md5());
+                        }
+                    }
                     numberOfFiles++;
-                    totalSize += it.value();
-                    filesToRecover.add(it.key());
+                    totalSize += virtualMd.sizeInBytes();
+                    filesToRecover.add(virtualMd);
                 }
             } catch (Exception e) {
-                filesToRecover.add(it.key());
-                logger.debug("failed to check local store for existence of [{}]", it.key());
+                filesToRecover.add(virtualMd);
+                logger.debug("failed to check local store for existence of [{}]", e, virtualMd.name());
             }
+        }
+
+        if (logger.isTraceEnabled()) {
+            logger.trace("recovering_files [{}] with total_size [{}], reusing_files [{}] with total_size [{}]", numberOfFiles, new ByteSizeValue(totalSize), numberOfExistingFiles, new ByteSizeValue(existingTotalSize));
         }
 
         final AtomicLong throttlingWaitTime = new AtomicLong();
         final CountDownLatch latch = new CountDownLatch(filesToRecover.size());
         final CopyOnWriteArrayList<Throwable> failures = new CopyOnWriteArrayList<Throwable>();
-        for (final String fileToRecover : filesToRecover) {
-            if (recoveryThrottler.tryStream(shardId, fileToRecover)) {
+        for (final BlobMetaData fileToRecover : filesToRecover) {
+            if (recoveryThrottler.tryStream(shardId, fileToRecover.name())) {
                 // we managed to get a recovery going
-                recoverFile(fileToRecover, blobs, latch, failures);
+                recoverFile(fileToRecover, indicesBlobs, latch, failures);
             } else {
                 // lets reschedule to do it next time
                 threadPool.schedule(new Runnable() {
                     @Override public void run() {
                         throttlingWaitTime.addAndGet(recoveryThrottler.throttleInterval().millis());
-                        if (recoveryThrottler.tryStream(shardId, fileToRecover)) {
+                        if (recoveryThrottler.tryStream(shardId, fileToRecover.name())) {
                             // we managed to get a recovery going
-                            recoverFile(fileToRecover, blobs, latch, failures);
+                            recoverFile(fileToRecover, indicesBlobs, latch, failures);
                         } else {
                             threadPool.schedule(this, recoveryThrottler.throttleInterval());
                         }
@@ -497,7 +505,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         /// now, go over and clean files that are in the store, but were not in the gateway
         try {
             for (String storeFile : store.directory().listAll()) {
-                if (!blobs.containsKey(storeFile)) {
+                if (!virtualIndicesBlobs.containsKey(storeFile)) {
                     try {
                         store.directory().deleteFile(storeFile);
                     } catch (IOException e) {
@@ -512,20 +520,34 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         return new RecoveryStatus.Index(version, numberOfFiles, new ByteSizeValue(totalSize), numberOfExistingFiles, new ByteSizeValue(existingTotalSize), TimeValue.timeValueMillis(throttlingWaitTime.get()));
     }
 
-    private void recoverFile(final String fileToRecover, final ImmutableMap<String, BlobMetaData> blobs, final CountDownLatch latch, final List<Throwable> failures) {
+    private void recoverFile(final BlobMetaData fileToRecover, final ImmutableMap<String, BlobMetaData> blobs, final CountDownLatch latch, final List<Throwable> failures) {
         final IndexOutput indexOutput;
         try {
-            indexOutput = store.directory().createOutput(fileToRecover);
+            indexOutput = store.directory().createOutput(fileToRecover.name());
         } catch (IOException e) {
-            recoveryThrottler.streamDone(shardId, fileToRecover);
+            recoveryThrottler.streamDone(shardId, fileToRecover.name());
             failures.add(e);
             latch.countDown();
             return;
         }
+
+        String firstFileToRecover = fileToRecover.name();
+        if (!blobs.containsKey(fileToRecover.name())) {
+            // chunking, append part0 to it
+            firstFileToRecover = fileToRecover.name() + "part0";
+        }
+        if (!blobs.containsKey(firstFileToRecover)) {
+            // no file, what to do, what to do?
+            logger.warn("no file [{}] to recover, even though it has md5, ignoring it", fileToRecover.name());
+            latch.countDown();
+            return;
+        }
         final AtomicInteger partIndex = new AtomicInteger();
-        indexContainer.readBlob(fileToRecover, new BlobContainer.ReadBlobListener() {
+        final MessageDigest digest = Digest.getMd5Digest();
+        indexContainer.readBlob(firstFileToRecover, new BlobContainer.ReadBlobListener() {
             @Override public synchronized void onPartial(byte[] data, int offset, int size) throws IOException {
                 indexOutput.writeBytes(data, offset, size);
+                digest.update(data, offset, size);
             }
 
             @Override public synchronized void onCompleted() {
@@ -543,25 +565,31 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                         return;
                     }
                 }
-                recoveryThrottler.streamDone(shardId, fileToRecover);
+                // double check the md5, warn if it does not equal...
+                String md5 = Hex.encodeHexString(digest.digest());
+                if (!md5.equals(fileToRecover.md5())) {
+                    logger.warn("file [{}] has different md5, actual read content [{}], store [{}]", fileToRecover.name(), md5, fileToRecover.md5());
+                }
+
+                recoveryThrottler.streamDone(shardId, fileToRecover.name());
                 latch.countDown();
             }
 
             @Override public void onFailure(Throwable t) {
-                recoveryThrottler.streamDone(shardId, fileToRecover);
+                recoveryThrottler.streamDone(shardId, fileToRecover.name());
                 failures.add(t);
                 latch.countDown();
             }
         });
     }
 
-    private void snapshotFile(Directory dir, String fileName, final CountDownLatch latch, final List<Throwable> failures) throws IOException {
+    private void snapshotFile(Directory dir, final StoreFileMetaData fileMetaData, final CountDownLatch latch, final List<Throwable> failures) throws IOException {
         long chunkBytes = Long.MAX_VALUE;
         if (chunkSize != null) {
             chunkBytes = chunkSize.bytes();
         }
 
-        long totalLength = dir.fileLength(fileName);
+        long totalLength = fileMetaData.sizeInBytes();
         long numberOfChunks = totalLength / chunkBytes;
         if (totalLength % chunkBytes > 0) {
             numberOfChunks++;
@@ -570,18 +598,20 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             numberOfChunks++;
         }
 
+        final long fNumberOfChunks = numberOfChunks;
         final AtomicLong counter = new AtomicLong(numberOfChunks);
-        for (long i = 0; i < numberOfChunks; i++) {
+        for (long i = 0; i < fNumberOfChunks; i++) {
             final long chunkNumber = i;
 
             IndexInput indexInput = null;
             try {
-                indexInput = dir.openInput(fileName);
+                indexInput = dir.openInput(fileMetaData.name());
                 indexInput.seek(chunkNumber * chunkBytes);
                 InputStreamIndexInput is = new ThreadSafeInputStreamIndexInput(indexInput, chunkBytes);
 
-                String blobName = fileName;
-                if (chunkNumber > 0) {
+                String blobName = fileMetaData.name();
+                if (fNumberOfChunks > 1) {
+                    // if we do chunks, then all of them are in the form of "[xxx].part[N]".
                     blobName += ".part" + chunkNumber;
                 }
 
@@ -594,7 +624,18 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                             // ignore
                         }
                         if (counter.decrementAndGet() == 0) {
-                            latch.countDown();
+                            // now, write the expected md5
+                            byte[] md5 = Digest.md5HexToByteArray(fileMetaData.md5());
+                            indexContainer.writeBlob(fileMetaData.name() + ".md5", new FastByteArrayInputStream(md5), md5.length, new ImmutableBlobContainer.WriterListener() {
+                                @Override public void onCompleted() {
+                                    latch.countDown();
+                                }
+
+                                @Override public void onFailure(Throwable t) {
+                                    failures.add(t);
+                                    latch.countDown();
+                                }
+                            });
                         }
                     }
 
@@ -624,28 +665,48 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         }
     }
 
-    public static ImmutableMap<String, BlobMetaData> aggregateParts(ImmutableMap<String, BlobMetaData> blobs) {
-        TObjectLongHashMap<String> combined = buildCombinedPartsBlobs(blobs);
+    public static ImmutableMap<String, BlobMetaData> buildVirtualBlobs(ImmutableBlobContainer container, ImmutableMap<String, BlobMetaData> blobs, @Nullable Map<String, String> cachedMd5) {
+        // create a set of all the actual files based on .md5 extension
+        Set<String> names = Sets.newHashSet();
+        for (BlobMetaData blob : blobs.values()) {
+            if (blob.name().endsWith(".md5")) {
+                names.add(blob.name().substring(0, blob.name().lastIndexOf(".md5")));
+            }
+        }
         ImmutableMap.Builder<String, BlobMetaData> builder = ImmutableMap.builder();
-        for (TObjectLongIterator<String> it = combined.iterator(); it.hasNext();) {
-            it.advance();
-            builder.put(it.key(), new PlainBlobMetaData(it.key(), it.value()));
+        for (String name : names) {
+            long sizeInBytes = 0;
+            if (blobs.containsKey(name)) {
+                // no chunking
+                sizeInBytes = blobs.get(name).sizeInBytes();
+            } else {
+                // chunking...
+                int part = 0;
+                while (true) {
+                    BlobMetaData md = blobs.get(name + ".part" + part);
+                    if (md == null) {
+                        break;
+                    }
+                    sizeInBytes += md.sizeInBytes();
+                    part++;
+                }
+            }
+
+            if (cachedMd5 != null && cachedMd5.containsKey(name)) {
+                builder.put(name, new PlainBlobMetaData(name, sizeInBytes, cachedMd5.get(name)));
+            } else {
+                // no md5, get it
+                try {
+                    String md5 = Digest.md5HexFromByteArray(container.readBlobFully(name + ".md5"));
+                    if (cachedMd5 != null) {
+                        cachedMd5.put(name, md5);
+                    }
+                    builder.put(name, new PlainBlobMetaData(name, sizeInBytes, md5));
+                } catch (IOException e) {
+                    // don't add it!
+                }
+            }
         }
         return builder.build();
-    }
-
-    private static TObjectLongHashMap<String> buildCombinedPartsBlobs(ImmutableMap<String, BlobMetaData> blobs) {
-        TObjectLongHashMap<String> combinedBlobs = new TObjectLongHashMap<String>();
-        for (BlobMetaData blob : blobs.values()) {
-            String cleanName;
-            int partIndex = blob.name().indexOf(".part");
-            if (partIndex == -1) {
-                cleanName = blob.name();
-            } else {
-                cleanName = blob.name().substring(0, partIndex);
-            }
-            combinedBlobs.adjustOrPutValue(cleanName, blob.sizeInBytes(), blob.sizeInBytes());
-        }
-        return combinedBlobs;
     }
 }

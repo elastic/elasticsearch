@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.index.NodeIndexCreatedAction;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
@@ -200,10 +201,6 @@ public class MetaDataService extends AbstractComponent {
         nodeIndexCreatedAction.add(nodeCreatedListener);
         clusterService.submitStateUpdateTask("create-index [" + index + "], cause [" + cause + "]", new ClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
-                RoutingTable.Builder routingTableBuilder = new RoutingTable.Builder();
-                for (IndexRoutingTable indexRoutingTable : currentState.routingTable().indicesRouting().values()) {
-                    routingTableBuilder.add(indexRoutingTable);
-                }
                 ImmutableSettings.Builder indexSettingsBuilder = settingsBuilder().put(indexSettings);
                 if (indexSettings.get(SETTING_NUMBER_OF_SHARDS) == null) {
                     indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
@@ -222,13 +219,8 @@ public class MetaDataService extends AbstractComponent {
                         .put(indexMetaData)
                         .build();
 
-                IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(index)
-                        .initializeEmpty(newMetaData.index(index));
-                routingTableBuilder.add(indexRoutingBuilder);
-
                 logger.info("[{}] creating index, cause [{}], shards [{}]/[{}], mappings {}", index, cause, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), fMappings.keySet());
-                RoutingTable newRoutingTable = shardsRoutingStrategy.reroute(newClusterStateBuilder().state(currentState).routingTable(routingTableBuilder).metaData(newMetaData).build());
-                return newClusterStateBuilder().state(currentState).routingTable(newRoutingTable).metaData(newMetaData).build();
+                return newClusterStateBuilder().state(currentState).metaData(newMetaData).build();
             }
         });
 
@@ -240,6 +232,34 @@ public class MetaDataService extends AbstractComponent {
         } finally {
             nodeIndexCreatedAction.remove(nodeCreatedListener);
         }
+
+        final CountDownLatch latch2 = new CountDownLatch(1);
+        // do the reroute after indices have been created on all the other nodes so we can query them for some info
+        clusterService.submitStateUpdateTask("reroute after index [" + index + "] creation", new ProcessedClusterStateUpdateTask() {
+            @Override public ClusterState execute(ClusterState currentState) {
+                RoutingTable.Builder routingTableBuilder = new RoutingTable.Builder();
+                for (IndexRoutingTable indexRoutingTable : currentState.routingTable().indicesRouting().values()) {
+                    routingTableBuilder.add(indexRoutingTable);
+                }
+                IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(index)
+                        .initializeEmpty(currentState.metaData().index(index));
+                routingTableBuilder.add(indexRoutingBuilder);
+                RoutingTable newRoutingTable = shardsRoutingStrategy.reroute(newClusterStateBuilder().state(currentState).routingTable(routingTableBuilder).build());
+                return newClusterStateBuilder().state(currentState).routingTable(newRoutingTable).build();
+            }
+
+            @Override public void clusterStateProcessed(ClusterState clusterState) {
+                latch2.countDown();
+            }
+        });
+
+        // wait till it got processed (on the master, we are the master)
+        try {
+            latch2.await(timeout.millis(), TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            // ignore
+        }
+
         return new CreateIndexResult(acknowledged);
     }
 
@@ -343,8 +363,7 @@ public class MetaDataService extends AbstractComponent {
             throw new IndexMissingException(new Index("_all"));
         }
         for (String index : indices) {
-            IndexRoutingTable indexTable = clusterState.routingTable().indicesRouting().get(index);
-            if (indexTable == null) {
+            if (!clusterState.metaData().hasIndex(index)) {
                 throw new IndexMissingException(new Index(index));
             }
         }

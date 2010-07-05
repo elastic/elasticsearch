@@ -50,7 +50,6 @@ import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
-import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.IndicesPluginsModule;
 import org.elasticsearch.plugins.PluginsService;
@@ -72,8 +71,6 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
 @ThreadSafe
 public class InternalIndicesService extends AbstractLifecycleComponent<IndicesService> implements IndicesService {
 
-    private final IndicesClusterStateService clusterStateService;
-
     private final InternalIndicesLifecycle indicesLifecycle;
 
     private final IndicesAnalysisService indicesAnalysisService;
@@ -88,10 +85,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     private volatile ImmutableMap<String, IndexService> indices = ImmutableMap.of();
 
-    @Inject public InternalIndicesService(Settings settings, IndicesClusterStateService clusterStateService,
-                                          IndicesLifecycle indicesLifecycle, IndicesAnalysisService indicesAnalysisService, IndicesStore indicesStore, Injector injector) {
+    @Inject public InternalIndicesService(Settings settings, IndicesLifecycle indicesLifecycle, IndicesAnalysisService indicesAnalysisService, IndicesStore indicesStore, Injector injector) {
         super(settings);
-        this.clusterStateService = clusterStateService;
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indicesAnalysisService = indicesAnalysisService;
         this.indicesStore = indicesStore;
@@ -101,18 +96,15 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
     }
 
     @Override protected void doStart() throws ElasticSearchException {
-        clusterStateService.start();
     }
 
     @Override protected void doStop() throws ElasticSearchException {
-        clusterStateService.stop();
         for (String index : indices.keySet()) {
             deleteIndex(index, false);
         }
     }
 
     @Override protected void doClose() throws ElasticSearchException {
-        clusterStateService.close();
         indicesStore.close();
         indicesAnalysisService.close();
     }

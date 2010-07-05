@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
@@ -85,11 +84,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
 
     public RoutingTableValidation validate(MetaData metaData) {
         RoutingTableValidation validation = new RoutingTableValidation();
-        for (IndexMetaData indexMetaData : metaData) {
-            if (!indicesRouting.containsKey(indexMetaData.index())) {
-                validation.addIndexFailure(indexMetaData.index(), "Exists in metadata and does not exists in routing table");
-            }
-        }
         for (IndexRoutingTable indexRoutingTable : this) {
             indexRoutingTable.validate(validation, metaData);
         }

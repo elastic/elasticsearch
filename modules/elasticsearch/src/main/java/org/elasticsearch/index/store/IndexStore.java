@@ -105,6 +105,10 @@ public interface IndexStore extends IndexComponent {
             return files.values().iterator();
         }
 
+        public boolean fileExists(String name) {
+            return files.containsKey(name);
+        }
+
         public StoreFileMetaData file(String name) {
             return files.get(name);
         }
@@ -121,7 +125,7 @@ public interface IndexStore extends IndexComponent {
             int size = in.readVInt();
             files = Maps.newHashMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
-                StoreFileMetaData md = new StoreFileMetaData(in.readUTF(), in.readVLong());
+                StoreFileMetaData md = StoreFileMetaData.readStoreFileMetaData(in);
                 files.put(md.name(), md);
             }
         }
@@ -131,27 +135,8 @@ public interface IndexStore extends IndexComponent {
             shardId.writeTo(out);
             out.writeVInt(files.size());
             for (StoreFileMetaData md : files.values()) {
-                out.writeUTF(md.name());
-                out.writeVLong(md.sizeInBytes());
+                md.writeTo(out);
             }
-        }
-    }
-
-    static class StoreFileMetaData {
-        private final String name;
-        private final long sizeInBytes;
-
-        public StoreFileMetaData(String name, long sizeInBytes) {
-            this.name = name;
-            this.sizeInBytes = sizeInBytes;
-        }
-
-        public String name() {
-            return name;
-        }
-
-        public long sizeInBytes() {
-            return sizeInBytes;
         }
     }
 }

@@ -52,13 +52,17 @@ public abstract class AbstractFsBlobContainer extends AbstractBlobContainer {
         }
         ImmutableMap.Builder<String, BlobMetaData> builder = ImmutableMap.builder();
         for (File file : files) {
-            builder.put(file.getName(), new PlainBlobMetaData(file.getName(), file.length()));
+            builder.put(file.getName(), new PlainBlobMetaData(file.getName(), file.length(), null));
         }
         return builder.build();
     }
 
     public boolean deleteBlob(String blobName) throws IOException {
         return new File(path, blobName).delete();
+    }
+
+    @Override public boolean blobExists(String blobName) {
+        return new File(path, blobName).exists();
     }
 
     @Override public void readBlob(final String blobName, final ReadBlobListener listener) {

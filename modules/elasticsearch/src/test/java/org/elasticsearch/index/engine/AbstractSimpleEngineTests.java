@@ -40,6 +40,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.io.IOException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -76,7 +77,7 @@ public abstract class AbstractSimpleEngineTests {
         store.close();
     }
 
-    protected Store createStore() {
+    protected Store createStore() throws IOException {
         return new RamStore(shardId, EMPTY_SETTINGS);
     }
 

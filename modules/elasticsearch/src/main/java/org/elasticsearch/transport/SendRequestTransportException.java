@@ -29,8 +29,4 @@ public class SendRequestTransportException extends RemoteTransportException {
     public SendRequestTransportException(DiscoveryNode node, String action, Throwable cause) {
         super(node == null ? null : node.name(), node == null ? null : node.address(), action, cause);
     }
-
-    @Override public Throwable fillInStackTrace() {
-        return fillStack();
-    }
 }

@@ -19,11 +19,10 @@
 
 package org.elasticsearch.index.store.ram;
 
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.support.AbstractStore;
@@ -33,22 +32,18 @@ import java.io.IOException;
 /**
  * @author kimchy (Shay Banon)
  */
-public class RamStore extends AbstractStore<RAMDirectory> {
+public class RamStore extends AbstractStore {
 
-    private RAMDirectory directory;
+    private Directory directory;
 
-    @Inject public RamStore(ShardId shardId, @IndexSettings Settings indexSettings) {
+    @Inject public RamStore(ShardId shardId, @IndexSettings Settings indexSettings) throws IOException {
         super(shardId, indexSettings);
-        this.directory = new RAMDirectory();
+        this.directory = wrapDirectory(new RAMDirectory());
         logger.debug("Using [ram] Store");
     }
 
-    @Override public RAMDirectory directory() {
+    @Override public Directory directory() {
         return directory;
-    }
-
-    @Override public ByteSizeValue estimateSize() throws IOException {
-        return new ByteSizeValue(directory.sizeInBytes(), ByteSizeUnit.BYTES);
     }
 
     /**

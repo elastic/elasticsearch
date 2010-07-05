@@ -43,8 +43,6 @@ public class MemoryTranslog extends AbstractIndexShardComponent implements Trans
 
     private final Object mutex = new Object();
 
-    private final AtomicLong idGenerator = new AtomicLong();
-
     private final AtomicLong estimatedMemorySize = new AtomicLong();
 
     private volatile long id;
@@ -56,7 +54,6 @@ public class MemoryTranslog extends AbstractIndexShardComponent implements Trans
 
     @Inject public MemoryTranslog(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
-        newTranslog();
     }
 
     @Override public long currentId() {
@@ -71,11 +68,11 @@ public class MemoryTranslog extends AbstractIndexShardComponent implements Trans
         return new ByteSizeValue(estimatedMemorySize.get(), ByteSizeUnit.BYTES);
     }
 
-    @Override public void newTranslog() {
+    @Override public void newTranslog(long id) {
         synchronized (mutex) {
             estimatedMemorySize.set(0);
             operations = new LinkedTransferQueue<Operation>();
-            id = idGenerator.getAndIncrement();
+            this.id = id;
         }
     }
 

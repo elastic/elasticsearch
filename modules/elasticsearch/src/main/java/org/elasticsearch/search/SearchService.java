@@ -97,7 +97,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private final ImmutableMap<String, SearchParseElement> elementParsers;
 
-    @Inject public SearchService(Settings settings, ClusterService clusterService, IndicesService indicesService, TimerService timerService,
+    @Inject public SearchService(Settings settings, ClusterService clusterService, IndicesService indicesService, IndicesLifecycle indicesLifecycle, TimerService timerService,
                                  ScriptService scriptService, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase) {
         super(settings);
         this.clusterService = clusterService;
@@ -116,7 +116,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         elementParsers.putAll(queryPhase.parseElements());
         elementParsers.putAll(fetchPhase.parseElements());
         this.elementParsers = ImmutableMap.copyOf(elementParsers);
-        indicesService.indicesLifecycle().addListener(indicesLifecycleListener);
+        indicesLifecycle.addListener(indicesLifecycleListener);
     }
 
     @Override protected void doStart() throws ElasticSearchException {

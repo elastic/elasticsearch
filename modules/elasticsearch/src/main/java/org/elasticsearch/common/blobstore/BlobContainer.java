@@ -46,6 +46,8 @@ public interface BlobContainer {
 
     BlobPath path();
 
+    boolean blobExists(String blobName);
+
     void readBlob(String blobName, ReadBlobListener listener);
 
     byte[] readBlobFully(String blobName) throws IOException;

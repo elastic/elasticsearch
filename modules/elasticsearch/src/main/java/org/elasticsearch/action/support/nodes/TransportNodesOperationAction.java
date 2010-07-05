@@ -227,6 +227,10 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
         @Override public boolean spawn() {
             return false;
         }
+
+        @Override public String toString() {
+            return transportAction();
+        }
     }
 
     private class NodeTransportHandler extends BaseTransportRequestHandler<NodeRequest> {
@@ -237,6 +241,10 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
 
         @Override public void messageReceived(NodeRequest request, TransportChannel channel) throws Exception {
             channel.sendResponse(nodeOperation(request));
+        }
+
+        @Override public String toString() {
+            return transportNodeAction();
         }
     }
 }

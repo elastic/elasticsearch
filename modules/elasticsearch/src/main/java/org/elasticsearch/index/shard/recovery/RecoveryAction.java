@@ -46,6 +46,7 @@ import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.indices.recovery.throttler.RecoveryThrottler;
@@ -208,10 +209,7 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
                 }
 
                 // build a list of the current files located locally, maybe we don't need to recover them...
-                StartRecoveryRequest startRecoveryRequest = new StartRecoveryRequest(node, markAsRelocated);
-                for (String storeFile : store.directory().listAll()) {
-                    startRecoveryRequest.existingFiles.put(storeFile, store.directory().fileLength(storeFile));
-                }
+                StartRecoveryRequest startRecoveryRequest = new StartRecoveryRequest(node, markAsRelocated, store.listWithMd5());
 
                 StopWatch stopWatch = null;
                 RecoveryStatus recoveryStatus = null;
@@ -301,22 +299,26 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
 
         boolean markAsRelocated;
 
-        Map<String, Long> existingFiles = Maps.newHashMap();
+        // name -> (md5, size)
+        Map<String, StoreFileMetaData> existingFiles;
 
         private StartRecoveryRequest() {
         }
 
-        private StartRecoveryRequest(DiscoveryNode node, boolean markAsRelocated) {
+        private StartRecoveryRequest(DiscoveryNode node, boolean markAsRelocated, Map<String, StoreFileMetaData> existingFiles) {
             this.node = node;
             this.markAsRelocated = markAsRelocated;
+            this.existingFiles = existingFiles;
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {
             node = DiscoveryNode.readNode(in);
             markAsRelocated = in.readBoolean();
             int size = in.readVInt();
+            existingFiles = Maps.newHashMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
-                existingFiles.put(in.readUTF(), in.readVLong());
+                StoreFileMetaData md = StoreFileMetaData.readStoreFileMetaData(in);
+                existingFiles.put(md.name(), md);
             }
         }
 
@@ -324,9 +326,8 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
             node.writeTo(out);
             out.writeBoolean(markAsRelocated);
             out.writeVInt(existingFiles.size());
-            for (Map.Entry<String, Long> entry : existingFiles.entrySet()) {
-                out.writeUTF(entry.getKey());
-                out.writeVLong(entry.getValue());
+            for (StoreFileMetaData md : existingFiles.values()) {
+                md.writeTo(out);
             }
         }
     }
@@ -350,27 +351,30 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
                 cleanOpenIndex();
                 final RecoveryStatus recoveryStatus = new RecoveryStatus();
                 indexShard.recover(new Engine.RecoveryHandler() {
-                    @Override public void phase1(SnapshotIndexCommit snapshot) throws ElasticSearchException {
+                    @Override public void phase1(final SnapshotIndexCommit snapshot) throws ElasticSearchException {
                         long totalSize = 0;
                         long existingTotalSize = 0;
                         try {
                             StopWatch stopWatch = new StopWatch().start();
 
                             for (String name : snapshot.getFiles()) {
-                                IndexInput indexInput = store.directory().openInput(name);
-                                long length = indexInput.length();
-                                try {
-                                    if (startRecoveryRequest.existingFiles.containsKey(name) && startRecoveryRequest.existingFiles.get(name) == length) {
+                                StoreFileMetaData md = store.metaDataWithMd5(name);
+                                boolean useExisting = false;
+                                if (startRecoveryRequest.existingFiles.containsKey(name)) {
+                                    if (md.md5().equals(startRecoveryRequest.existingFiles.get(name).md5())) {
                                         recoveryStatus.phase1ExistingFileNames.add(name);
-                                        recoveryStatus.phase1ExistingFileSizes.add(length);
-                                        existingTotalSize += length;
-                                    } else {
-                                        recoveryStatus.phase1FileNames.add(name);
-                                        recoveryStatus.phase1FileSizes.add(length);
-                                        totalSize += length;
+                                        recoveryStatus.phase1ExistingFileSizes.add(md.sizeInBytes());
+                                        existingTotalSize += md.sizeInBytes();
+                                        useExisting = true;
+                                        if (logger.isTraceEnabled()) {
+                                            logger.trace("not recovering [{}], exists in local store and has md5 [{}]", name, md.md5());
+                                        }
                                     }
-                                } finally {
-                                    indexInput.close();
+                                }
+                                if (!useExisting) {
+                                    recoveryStatus.phase1FileNames.add(name);
+                                    recoveryStatus.phase1FileSizes.add(md.sizeInBytes());
+                                    totalSize += md.sizeInBytes();
                                 }
                             }
                             recoveryStatus.phase1TotalSize = totalSize;
@@ -378,7 +382,7 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
 
                             final AtomicLong throttlingWaitTime = new AtomicLong();
 
-                            logger.trace("recovery [phase1] to {}: recovering [{}] files with total size of [{}]", node, recoveryStatus.phase1FileNames.size(), new ByteSizeValue(totalSize));
+                            logger.trace("recovery [phase1] to {}: recovering_files [{}] with total_size [{}], reusing_files [{}] with total_size [{}]", node, recoveryStatus.phase1FileNames.size(), new ByteSizeValue(totalSize), recoveryStatus.phase1ExistingFileNames.size(), new ByteSizeValue(existingTotalSize));
 
                             final CountDownLatch latch = new CountDownLatch(recoveryStatus.phase1FileNames.size());
                             final AtomicReference<Exception> lastException = new AtomicReference<Exception>();
@@ -395,7 +399,7 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
 
                                             final int BUFFER_SIZE = (int) fileChunkSize.bytes();
                                             byte[] buf = new byte[BUFFER_SIZE];
-                                            indexInput = store.directory().openInput(name);
+                                            indexInput = snapshot.getDirectory().openInput(name);
                                             long len = indexInput.length();
                                             long readCount = 0;
                                             while (readCount < len) {

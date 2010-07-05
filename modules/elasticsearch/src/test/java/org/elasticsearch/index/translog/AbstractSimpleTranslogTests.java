@@ -44,7 +44,7 @@ public abstract class AbstractSimpleTranslogTests {
 
     @BeforeMethod public void setUp() {
         translog = create();
-        translog.newTranslog();
+        translog.newTranslog(0);
     }
 
     @AfterMethod public void tearDown() {
@@ -92,7 +92,7 @@ public abstract class AbstractSimpleTranslogTests {
         snapshot.release();
 
         long firstId = translog.currentId();
-        translog.newTranslog();
+        translog.newTranslog(1);
         assertThat(translog.currentId(), Matchers.not(equalTo(firstId)));
 
         snapshot = translog.snapshot();
@@ -130,7 +130,7 @@ public abstract class AbstractSimpleTranslogTests {
 
         translog.add(new Translog.Index("test", "2", new byte[]{2}));
 
-        translog.newTranslog();
+        translog.newTranslog(2);
 
         translog.add(new Translog.Index("test", "3", new byte[]{3}));
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.IndexShardComponent;
 
@@ -28,12 +29,20 @@ import java.io.IOException;
 /**
  * @author kimchy (shay.banon)
  */
-public interface Store<T extends Directory> extends IndexShardComponent {
+public interface Store extends IndexShardComponent {
 
     /**
      * The Lucene {@link Directory} this store is using.
      */
-    T directory();
+    Directory directory();
+
+    StoreFileMetaData metaData(String name) throws IOException;
+
+    StoreFileMetaData metaDataWithMd5(String name) throws IOException;
+
+    ImmutableMap<String, StoreFileMetaData> list() throws IOException;
+
+    ImmutableMap<String, StoreFileMetaData> listWithMd5() throws IOException;
 
     /**
      * Just deletes the content of the store.

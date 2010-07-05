@@ -20,6 +20,8 @@
 package org.elasticsearch.index.merge.scheduler;
 
 import org.apache.lucene.index.ConcurrentMergeScheduler;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeScheduler;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -27,8 +29,10 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.io.IOException;
+
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponent implements MergeSchedulerProvider {
 
@@ -43,8 +47,17 @@ public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponen
     }
 
     @Override public MergeScheduler newMergeScheduler() {
-        ConcurrentMergeScheduler concurrentMergeScheduler = new ConcurrentMergeScheduler();
+        ConcurrentMergeScheduler concurrentMergeScheduler = new CustomConcurrentMergeScheduler();
         concurrentMergeScheduler.setMaxThreadCount(maxThreadCount);
         return concurrentMergeScheduler;
+    }
+
+    private class CustomConcurrentMergeScheduler extends ConcurrentMergeScheduler {
+
+        @Override protected MergeThread getMergeThread(IndexWriter writer, MergePolicy.OneMerge merge) throws IOException {
+            MergeThread thread = super.getMergeThread(writer, merge);
+            thread.setName("[" + shardId.index().name() + "][" + shardId.id() + "]: " + thread.getName());
+            return thread;
+        }
     }
 }

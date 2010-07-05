@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.store.support.ForceSyncDirectory;
 
 import java.io.File;
 import java.io.IOException;
@@ -38,9 +37,7 @@ import java.io.IOException;
 /**
  * @author kimchy (shay.banon)
  */
-public class NioFsStore extends FsStore<Directory> {
-
-    private final boolean syncToDisk;
+public class NioFsStore extends FsStore {
 
     private final NIOFSDirectory fsDirectory;
 
@@ -50,21 +47,19 @@ public class NioFsStore extends FsStore<Directory> {
 
     @Inject public NioFsStore(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, ByteBufferCache byteBufferCache) throws IOException {
         super(shardId, indexSettings);
-        // by default, we don't need to sync to disk, since we use the gateway
-        this.syncToDisk = componentSettings.getAsBoolean("sync_to_disk", false);
         LockFactory lockFactory = buildLockFactory();
         File location = ((FsIndexStore) indexStore).shardIndexLocation(shardId);
         location.mkdirs();
-        this.fsDirectory = new CustomNioFSDirectory(location, lockFactory, syncToDisk);
+        this.fsDirectory = new NIOFSDirectory(location, lockFactory);
 
         SwitchDirectory switchDirectory = buildSwitchDirectoryIfNeeded(fsDirectory, byteBufferCache);
         if (switchDirectory != null) {
             suggestUseCompoundFile = false;
             logger.debug("Using [nio_fs] Store with path [{}], cache [true] with extensions [{}]", fsDirectory.getFile(), switchDirectory.primaryExtensions());
-            directory = switchDirectory;
+            directory = wrapDirectory(switchDirectory);
         } else {
             suggestUseCompoundFile = true;
-            directory = fsDirectory;
+            directory = wrapDirectory(fsDirectory);
             logger.debug("Using [nio_fs] Store with path [{}]", fsDirectory.getFile());
         }
     }
@@ -79,26 +74,5 @@ public class NioFsStore extends FsStore<Directory> {
 
     @Override public boolean suggestUseCompoundFile() {
         return suggestUseCompoundFile;
-    }
-
-    private static class CustomNioFSDirectory extends NIOFSDirectory implements ForceSyncDirectory {
-
-        private final boolean syncToDisk;
-
-        private CustomNioFSDirectory(File path, LockFactory lockFactory, boolean syncToDisk) throws IOException {
-            super(path, lockFactory);
-            this.syncToDisk = syncToDisk;
-        }
-
-        @Override public void sync(String name) throws IOException {
-            if (!syncToDisk) {
-                return;
-            }
-            super.sync(name);
-        }
-
-        @Override public void forceSync(String name) throws IOException {
-            super.sync(name);
-        }
     }
 }

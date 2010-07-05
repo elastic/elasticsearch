@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.store.memory;
 
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -26,21 +27,23 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.support.AbstractStore;
 
+import java.io.IOException;
+
 /**
  * @author kimchy (shay.banon)
  */
-public class ByteBufferStore extends AbstractStore<ByteBufferDirectory> {
+public class ByteBufferStore extends AbstractStore {
 
-    private final ByteBufferDirectory directory;
+    private final Directory directory;
 
-    @Inject public ByteBufferStore(ShardId shardId, @IndexSettings Settings indexSettings, ByteBufferCache byteBufferCache) {
+    @Inject public ByteBufferStore(ShardId shardId, @IndexSettings Settings indexSettings, ByteBufferCache byteBufferCache) throws IOException {
         super(shardId, indexSettings);
 
-        this.directory = new ByteBufferDirectory(byteBufferCache);
+        this.directory = wrapDirectory(new ByteBufferDirectory(byteBufferCache));
         logger.debug("Using [byte_buffer] store");
     }
 
-    @Override public ByteBufferDirectory directory() {
+    @Override public Directory directory() {
         return directory;
     }
 

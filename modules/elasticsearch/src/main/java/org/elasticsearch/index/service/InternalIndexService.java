@@ -57,6 +57,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreModule;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogModule;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
@@ -158,6 +159,10 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     @Override public Injector injector() {
         return injector;
+    }
+
+    @Override public IndexGateway gateway() {
+        return indexGateway;
     }
 
     @Override public IndexStore store() {
@@ -290,12 +295,14 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         RecoveryAction recoveryAction = shardInjector.getInstance(RecoveryAction.class);
         if (recoveryAction != null) recoveryAction.close();
 
-        shardInjector.getInstance(IndexShardGatewayService.class).close(deleteGateway);
-
+        // this logic is tricky, we want to close the engine so we rollback the changes done to it
+        // and close the shard so no operations are allowed to it
         indexShard.close();
-
-        Engine engine = shardInjector.getInstance(Engine.class);
-        engine.close();
+        shardInjector.getInstance(Engine.class).close();
+        // now, we can snapshot to the gateway, it will be only the translog
+        shardInjector.getInstance(IndexShardGatewayService.class).close(deleteGateway);
+        // now we can close the translog
+        shardInjector.getInstance(Translog.class).close();
 
         // call this before we close the store, so we can release resources for it
         indicesLifecycle.afterIndexShardClosed(indexShard.shardId(), delete);

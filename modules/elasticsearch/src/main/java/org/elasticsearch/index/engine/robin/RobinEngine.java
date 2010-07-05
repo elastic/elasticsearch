@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LogMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.inject.Inject;
@@ -151,6 +152,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         }
 
         try {
+            translog.newTranslog(IndexReader.getCurrentVersion(store.directory()));
             this.nrtResource = buildNrtResource(indexWriter);
         } catch (IOException e) {
             try {
@@ -250,30 +252,39 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
     }
 
     @Override public void refresh(Refresh refresh) throws EngineException {
-        // this engine always acts as if waitForOperations=true
-        if (refreshMutex.compareAndSet(false, true)) {
-            IndexWriter currentWriter = indexWriter;
-            try {
-                if (dirty) {
-                    dirty = false;
-                    AcquirableResource<ReaderSearcherHolder> current = nrtResource;
-                    IndexReader newReader = current.resource().reader().reopen(true);
-                    if (newReader != current.resource().reader()) {
-                        IndexSearcher indexSearcher = new IndexSearcher(newReader);
-                        indexSearcher.setSimilarity(similarityService.defaultSearchSimilarity());
-                        nrtResource = newAcquirableResource(new ReaderSearcherHolder(indexSearcher));
-                        current.markForClose();
+        // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
+        // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
+        rwl.readLock().lock();
+        try {
+            // this engine always acts as if waitForOperations=true
+            if (refreshMutex.compareAndSet(false, true)) {
+                IndexWriter currentWriter = indexWriter;
+                try {
+                    if (dirty) {
+                        dirty = false;
+                        AcquirableResource<ReaderSearcherHolder> current = nrtResource;
+                        IndexReader newReader = current.resource().reader().reopen(true);
+                        if (newReader != current.resource().reader()) {
+                            IndexSearcher indexSearcher = new IndexSearcher(newReader);
+                            indexSearcher.setSimilarity(similarityService.defaultSearchSimilarity());
+                            nrtResource = newAcquirableResource(new ReaderSearcherHolder(indexSearcher));
+                            current.markForClose();
+                        }
                     }
-                }
-            } catch (Exception e) {
-                if (currentWriter != indexWriter) {
+                } catch (AlreadyClosedException e) {
                     // an index writer got replaced on us, ignore
-                } else {
-                    throw new RefreshFailedEngineException(shardId, e);
+                } catch (Exception e) {
+                    if (currentWriter != indexWriter) {
+                        // an index writer got replaced on us, ignore
+                    } else {
+                        throw new RefreshFailedEngineException(shardId, e);
+                    }
+                } finally {
+                    refreshMutex.set(false);
                 }
-            } finally {
-                refreshMutex.set(false);
             }
+        } finally {
+            rwl.readLock().unlock();
         }
     }
 
@@ -300,6 +311,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
                     AcquirableResource<ReaderSearcherHolder> current = nrtResource;
                     nrtResource = buildNrtResource(indexWriter);
                     current.markForClose();
+                    translog.newTranslog(IndexReader.getCurrentVersion(store.directory()));
                 } catch (IOException e) {
                     throw new FlushFailedEngineException(shardId, e);
                 } finally {
@@ -308,7 +320,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             } else {
                 try {
                     indexWriter.commit();
-                    translog.newTranslog();
+                    translog.newTranslog(IndexReader.getCurrentVersion(store.directory()));
                 } catch (IOException e) {
                     throw new FlushFailedEngineException(shardId, e);
                 }
@@ -461,7 +473,11 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         try {
             // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
             if (indexWriter != null) {
-                indexWriter.rollback();
+                try {
+                    indexWriter.rollback();
+                } catch (AlreadyClosedException e) {
+                    // ignore
+                }
             }
         } catch (IOException e) {
             logger.debug("failed to rollback writer on close", e);

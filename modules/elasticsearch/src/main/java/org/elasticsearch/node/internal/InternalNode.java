@@ -58,6 +58,7 @@ import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerModule;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.jmx.JmxModule;
 import org.elasticsearch.jmx.JmxService;
 import org.elasticsearch.monitor.MonitorModule;
@@ -172,6 +173,7 @@ public final class InternalNode implements Node {
         }
 
         injector.getInstance(IndicesService.class).start();
+        injector.getInstance(IndicesClusterStateService.class).start();
         injector.getInstance(ClusterService.class).start();
         injector.getInstance(RoutingService.class).start();
         injector.getInstance(SearchService.class).start();
@@ -209,6 +211,7 @@ public final class InternalNode implements Node {
         injector.getInstance(MonitorService.class).stop();
         injector.getInstance(GatewayService.class).stop();
         injector.getInstance(SearchService.class).stop();
+        injector.getInstance(IndicesClusterStateService.class).stop();
         injector.getInstance(IndicesService.class).stop();
         injector.getInstance(RestController.class).stop();
         injector.getInstance(TransportService.class).stop();
@@ -248,6 +251,7 @@ public final class InternalNode implements Node {
         injector.getInstance(MonitorService.class).close();
         injector.getInstance(GatewayService.class).close();
         injector.getInstance(SearchService.class).close();
+        injector.getInstance(IndicesClusterStateService.class).close();
         injector.getInstance(IndicesService.class).close();
         injector.getInstance(RestController.class).close();
         injector.getInstance(TransportService.class).close();

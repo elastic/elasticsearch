@@ -53,7 +53,7 @@ public abstract class AbstractHdfsBlobContainer extends AbstractBlobContainer {
         }
         ImmutableMap.Builder<String, BlobMetaData> builder = ImmutableMap.builder();
         for (FileStatus file : files) {
-            builder.put(file.getPath().getName(), new PlainBlobMetaData(file.getPath().getName(), file.getLen()));
+            builder.put(file.getPath().getName(), new PlainBlobMetaData(file.getPath().getName(), file.getLen(), null));
         }
         return builder.build();
     }
@@ -69,13 +69,21 @@ public abstract class AbstractHdfsBlobContainer extends AbstractBlobContainer {
         }
         ImmutableMap.Builder<String, BlobMetaData> builder = ImmutableMap.builder();
         for (FileStatus file : files) {
-            builder.put(file.getPath().getName(), new PlainBlobMetaData(file.getPath().getName(), file.getLen()));
+            builder.put(file.getPath().getName(), new PlainBlobMetaData(file.getPath().getName(), file.getLen(), null));
         }
         return builder.build();
     }
 
     public boolean deleteBlob(String blobName) throws IOException {
         return blobStore.fileSystem().delete(new Path(path, blobName), true);
+    }
+
+    @Override public boolean blobExists(String blobName) {
+        try {
+            return blobStore.fileSystem().exists(new Path(path, blobName));
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     @Override public void readBlob(final String blobName, final ReadBlobListener listener) {

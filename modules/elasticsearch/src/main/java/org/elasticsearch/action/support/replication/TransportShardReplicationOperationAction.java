@@ -42,6 +42,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
@@ -243,6 +244,10 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
          */
         public boolean start(final boolean fromClusterEvent) throws ElasticSearchException {
             ClusterState clusterState = clusterService.state();
+            if (!indicesService.hasIndex(request.index()) || !clusterState.routingTable().hasIndex(request.index())) {
+                retryPrimary(fromClusterEvent, null);
+                return false;
+            }
             nodes = clusterState.nodes();
             try {
                 shards = shards(clusterState, request);
@@ -254,8 +259,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             boolean foundPrimary = false;
             for (final ShardRouting shard : shards) {
                 if (shard.primary()) {
-                    if (!shard.active() || !nodes.nodeExists(shard.currentNodeId())) {
-                        retryPrimary(fromClusterEvent, shard);
+                    if (!shard.active() || !nodes.nodeExists(shard.currentNodeId()) || !indicesService.hasIndex(request.index())) {
+                        retryPrimary(fromClusterEvent, shard.shardId());
                         return false;
                     }
 
@@ -315,7 +320,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             return true;
         }
 
-        private void retryPrimary(boolean fromClusterEvent, final ShardRouting shard) {
+        private void retryPrimary(boolean fromClusterEvent, final ShardId shardId) {
             if (!fromClusterEvent) {
                 // make it threaded operation so we fork on the discovery listener thread
                 request.operationThreaded(true);
@@ -328,7 +333,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     }
 
                     @Override public void onTimeout(TimeValue timeValue) {
-                        final PrimaryNotStartedActionException failure = new PrimaryNotStartedActionException(shard.shardId(), "Timeout waiting for [" + timeValue + "]");
+                        final PrimaryNotStartedActionException failure = new PrimaryNotStartedActionException(shardId, "Timeout waiting for [" + timeValue + "]");
                         if (request.listenerThreaded()) {
                             threadPool.execute(new Runnable() {
                                 @Override public void run() {
@@ -349,7 +354,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 performBackups(response, alreadyThreaded);
             } catch (IndexShardNotStartedException e) {
                 // still in recovery, retry (we know that its not UNASSIGNED OR INITIALIZING since we are checking it in the calling method)
-                retryPrimary(fromDiscoveryListener, shard);
+                retryPrimary(fromDiscoveryListener, shard.shardId());
             } catch (Exception e) {
                 if (logger.isDebugEnabled()) {
                     logger.debug(shard.shortSummary() + ": Failed to execute [" + request + "]", e);

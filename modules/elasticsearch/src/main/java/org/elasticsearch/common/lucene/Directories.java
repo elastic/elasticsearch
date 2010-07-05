@@ -21,7 +21,10 @@ package org.elasticsearch.common.lucene;
 
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.store.*;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.store.support.ForceSyncDirectory;
 
@@ -33,7 +36,7 @@ import static org.elasticsearch.common.io.FileSystemUtils.*;
 /**
  * A set of utilities for Lucene {@link Directory}.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class Directories {
 
@@ -45,8 +48,16 @@ public class Directories {
      */
     public static void deleteFiles(Directory directory) throws IOException {
         String[] files = directory.listAll();
+        IOException lastException = null;
         for (String file : files) {
-            directory.deleteFile(file);
+            try {
+                directory.deleteFile(file);
+            } catch (IOException e) {
+                lastException = e;
+            }
+        }
+        if (lastException != null) {
+            throw lastException;
         }
     }
 
@@ -71,13 +82,6 @@ public class Directories {
      */
     public static Collection<IndexCommit> listCommits(Directory directory) throws IOException {
         return IndexReader.listCommits(directory);
-    }
-
-    /**
-     * Computes the checksum of the given file name with the directory.
-     */
-    public static long checksum(Directory dir, String name) throws IOException {
-        return checksum(dir.openInput(name));
     }
 
     public static void copyFromDirectory(Directory dir, String fileName, File copyTo, boolean nativeCopy) throws IOException {
@@ -212,26 +216,6 @@ public class Directories {
                 // ignore
             }
         }
-    }
-
-    /**
-     * Computes the checksum of the content represented by the provided index input.
-     *
-     * <p>Closes the index input once checksum is computed.
-     */
-    public static long checksum(IndexInput indexInput) throws IOException {
-        final int BUFFER_SIZE = 16384;
-        byte[] buf = new byte[BUFFER_SIZE];
-        ChecksumIndexInput cii = new ChecksumIndexInput(indexInput);
-        long len = cii.length();
-        long readCount = 0;
-        while (readCount < len) {
-            int toRead = readCount + BUFFER_SIZE > len ? (int) (len - readCount) : BUFFER_SIZE;
-            cii.readBytes(buf, 0, toRead);
-            readCount += toRead;
-        }
-        cii.close();
-        return cii.getChecksum();
     }
 
     private Directories() {

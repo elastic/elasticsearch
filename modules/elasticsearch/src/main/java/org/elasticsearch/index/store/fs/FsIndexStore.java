@@ -20,6 +20,7 @@
 package org.elasticsearch.index.store.fs;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.common.Digest;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
@@ -31,9 +32,11 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.store.support.AbstractIndexStore;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -107,7 +110,15 @@ public abstract class FsIndexStore extends AbstractIndexStore {
         }
         Map<String, StoreFileMetaData> files = Maps.newHashMap();
         for (File file : shardIndexLocation.listFiles()) {
-            files.put(file.getName(), new StoreFileMetaData(file.getName(), file.length()));
+            // calculate md5
+            FileInputStream is = new FileInputStream(file);
+            String md5;
+            try {
+                md5 = Digest.md5Hex(is);
+            } finally {
+                is.close();
+            }
+            files.put(file.getName(), new StoreFileMetaData(file.getName(), file.length(), file.lastModified(), md5));
         }
         return new StoreFilesMetaData(false, shardId, files);
     }

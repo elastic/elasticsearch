@@ -20,7 +20,6 @@
 package org.elasticsearch.index.store.support;
 
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
@@ -29,9 +28,9 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.index.store.StoreFileMetaData;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
@@ -58,11 +57,7 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
         if (indexShard == null) {
             return listUnallocatedStoreMetaData(shardId);
         } else {
-            Map<String, StoreFileMetaData> files = Maps.newHashMap();
-            for (String file : indexShard.store().directory().listAll()) {
-                files.put(file, new StoreFileMetaData(file, indexShard.store().directory().fileLength(file)));
-            }
-            return new StoreFilesMetaData(true, shardId, files);
+            return new StoreFilesMetaData(true, shardId, indexShard.store().listWithMd5());
         }
     }
 

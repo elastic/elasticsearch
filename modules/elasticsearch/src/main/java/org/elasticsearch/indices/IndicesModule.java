@@ -26,6 +26,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.memory.IndexingMemoryBufferController;
 import org.elasticsearch.indices.memory.IndicesMemoryCleaner;
 import org.elasticsearch.indices.recovery.throttler.RecoveryThrottler;
+import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 
 /**
  * @author kimchy (shay.banon)
@@ -46,5 +47,6 @@ public class IndicesModule extends AbstractModule {
         bind(IndicesMemoryCleaner.class).asEagerSingleton();
         bind(IndexingMemoryBufferController.class).asEagerSingleton();
         bind(IndicesAnalysisService.class).asEagerSingleton();
+        bind(TransportNodesListShardStoreMetaData.class).asEagerSingleton();
     }
 }

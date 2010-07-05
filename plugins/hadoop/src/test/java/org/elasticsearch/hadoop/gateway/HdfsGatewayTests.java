@@ -71,6 +71,7 @@ public class HdfsGatewayTests {
     }
 
     @AfterMethod void closeNodes() throws Exception {
+        node.stop();
         ((InternalNode) node).injector().getInstance(Gateway.class).reset();
         node.close();
     }
@@ -86,6 +87,12 @@ public class HdfsGatewayTests {
         } catch (IndexAlreadyExistsException e) {
             // all is well
         }
+
+        logger.info("Running Cluster Health (wait for the shards to startup)");
+        ClusterHealthResponse clusterHealth = node.client().admin().cluster().health(clusterHealth().waitForYellowStatus().waitForActiveShards(1)).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
 
         // Translog tests
         // create a mapping
@@ -118,7 +125,7 @@ public class HdfsGatewayTests {
         node = buildNode().start();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = node.client().admin().cluster().health(clusterHealth().waitForYellowStatus()).actionGet();
+        clusterHealth = node.client().admin().cluster().health(clusterHealth().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
@@ -151,7 +158,7 @@ public class HdfsGatewayTests {
         node = buildNode().start();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        clusterHealth = node.client().admin().cluster().health(clusterHealth().waitForYellowStatus()).actionGet();
+        clusterHealth = node.client().admin().cluster().health(clusterHealth().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
@@ -180,7 +187,7 @@ public class HdfsGatewayTests {
         node = buildNode().start();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        clusterHealth = node.client().admin().cluster().health(clusterHealth().waitForYellowStatus()).actionGet();
+        clusterHealth = node.client().admin().cluster().health(clusterHealth().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));

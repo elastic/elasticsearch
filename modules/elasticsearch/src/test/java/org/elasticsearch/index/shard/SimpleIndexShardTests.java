@@ -45,6 +45,8 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.io.IOException;
+
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.hamcrest.MatcherAssert.*;
@@ -59,7 +61,7 @@ public class SimpleIndexShardTests {
 
     private IndexShard indexShard;
 
-    @BeforeMethod public void createIndexShard() {
+    @BeforeMethod public void createIndexShard() throws IOException {
         Settings settings = EMPTY_SETTINGS;
         Environment environment = new Environment(settings);
         ShardId shardId = new ShardId("test", 1);

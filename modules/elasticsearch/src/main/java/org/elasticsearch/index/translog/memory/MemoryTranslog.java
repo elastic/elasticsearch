@@ -60,7 +60,7 @@ public class MemoryTranslog extends AbstractIndexShardComponent implements Trans
     }
 
     @Override public int size() {
-        return operations.size();
+        return operationCounter.get();
     }
 
     @Override public ByteSizeValue estimateMemorySize() {

@@ -117,17 +117,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         this.mergeScheduler = mergeScheduler;
         this.analysisService = analysisService;
         this.similarityService = similarityService;
-
-        // clear the index dir by creating a new index
-        try {
-            // release locks when started
-            if (IndexWriter.isLocked(store.directory())) {
-                logger.trace("Shard is locked, releasing lock");
-                store.directory().clearLock(IndexWriter.WRITE_LOCK_NAME);
-            }
-        } catch (IOException e) {
-            logger.warn("Failed to check if index is locked", e);
-        }
     }
 
     @Override public void indexingBuffer(ByteSizeValue indexingBufferSize) {

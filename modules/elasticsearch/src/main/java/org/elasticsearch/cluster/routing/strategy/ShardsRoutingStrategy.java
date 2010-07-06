@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.strategy;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -61,6 +62,7 @@ public class ShardsRoutingStrategy extends AbstractComponent {
         if (!applyStartedShards(routingNodes, startedShardEntries)) {
             return clusterState.routingTable();
         }
+        reroute(routingNodes, clusterState.nodes());
         return new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData());
     }
 
@@ -74,6 +76,8 @@ public class ShardsRoutingStrategy extends AbstractComponent {
         if (!applyFailedShards(routingNodes, failedShardEntries)) {
             return clusterState.routingTable();
         }
+        // If we reroute again, the failed shard will try and be assigned to the same node, which we do no do in the applyFailedShards
+//        reroute(routingNodes, clusterState.nodes());
         return new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData());
     }
 
@@ -84,8 +88,14 @@ public class ShardsRoutingStrategy extends AbstractComponent {
      */
     public RoutingTable reroute(ClusterState clusterState) {
         RoutingNodes routingNodes = clusterState.routingNodes();
+        if (!reroute(routingNodes, clusterState.nodes())) {
+            return clusterState.routingTable();
+        }
+        return new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData());
+    }
 
-        Iterable<DiscoveryNode> dataNodes = clusterState.nodes().dataNodes().values();
+    private boolean reroute(RoutingNodes routingNodes, DiscoveryNodes nodes) {
+        Iterable<DiscoveryNode> dataNodes = nodes.dataNodes().values();
 
         boolean changed = false;
         // first, clear from the shards any node id they used to belong to that is now dead
@@ -111,11 +121,7 @@ public class ShardsRoutingStrategy extends AbstractComponent {
         // rebalance
         changed |= rebalance(routingNodes);
 
-        if (!changed) {
-            return clusterState.routingTable();
-        }
-
-        return new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData());
+        return changed;
     }
 
     private boolean rebalance(RoutingNodes routingNodes) {
@@ -207,6 +213,13 @@ public class ShardsRoutingStrategy extends AbstractComponent {
         int lastNode = 0;
         while (unassignedIterator.hasNext()) {
             MutableShardRouting shard = unassignedIterator.next();
+            if (!shard.primary()) {
+                // if its a backup, only allocate it if the primary is active
+                MutableShardRouting primary = routingNodes.findPrimaryForBackup(shard);
+                if (primary == null || !primary.active()) {
+                    continue;
+                }
+            }
             for (int i = 0; i < nodes.size(); i++) {
                 RoutingNode node = nodes.get(lastNode);
                 lastNode++;
@@ -229,12 +242,19 @@ public class ShardsRoutingStrategy extends AbstractComponent {
 
         // allocate all the unassigned shards above the average per node.
         for (Iterator<MutableShardRouting> it = routingNodes.unassigned().iterator(); it.hasNext();) {
-            MutableShardRouting shardRoutingEntry = it.next();
+            MutableShardRouting shard = it.next();
+            if (!shard.primary()) {
+                // if its a backup, only allocate it if the primary is active
+                MutableShardRouting primary = routingNodes.findPrimaryForBackup(shard);
+                if (primary == null || !primary.active()) {
+                    continue;
+                }
+            }
             // go over the nodes and try and allocate the remaining ones
             for (RoutingNode routingNode : routingNodes.nodesToShards().values()) {
-                if (routingNode.canAllocate(routingNodes.metaData(), routingNodes.routingTable()) && routingNode.canAllocate(shardRoutingEntry)) {
+                if (routingNode.canAllocate(routingNodes.metaData(), routingNodes.routingTable()) && routingNode.canAllocate(shard)) {
                     changed = true;
-                    routingNode.add(shardRoutingEntry);
+                    routingNode.add(shard);
                     it.remove();
                     break;
                 }

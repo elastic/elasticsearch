@@ -39,7 +39,7 @@ import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TenShardsOneBackupRoutingTests {
 
@@ -89,24 +89,13 @@ public class TenShardsOneBackupRoutingTests {
             assertThat(routingTable.index("test").shard(i).backupsShards().get(0).currentNodeId(), nullValue());
         }
 
-        logger.info("Add another node and perform rerouting");
+        logger.info("Add another node and perform rerouting, nothing will happen since primary not started");
         clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes()).put(newNode("node2"))).build();
         prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState);
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
-        assertThat(prevRoutingTable != routingTable, equalTo(true));
-        assertThat(routingTable.index("test").shards().size(), equalTo(10));
-        for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
-            assertThat(routingTable.index("test").shard(i).size(), equalTo(2));
-            assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(2));
-            assertThat(routingTable.index("test").shard(i).primaryShard().state(), equalTo(INITIALIZING));
-            assertThat(routingTable.index("test").shard(i).primaryShard().currentNodeId(), equalTo("node1"));
-            assertThat(routingTable.index("test").shard(i).backupsShards().size(), equalTo(1));
-            // backup shards are initializing as well, we make sure that they recover from primary *started* shards in the IndicesClusterStateService
-            assertThat(routingTable.index("test").shard(i).backupsShards().get(0).state(), equalTo(INITIALIZING));
-            assertThat(routingTable.index("test").shard(i).backupsShards().get(0).currentNodeId(), equalTo("node2"));
-        }
+        assertThat(prevRoutingTable == routingTable, equalTo(true));
 
         logger.info("Start the primary shard (on node1)");
         RoutingNodes routingNodes = routingTable.routingNodes(clusterState.metaData());

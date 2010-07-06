@@ -47,7 +47,7 @@ import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class SingleShardNoBackupsRoutingStrategyTests {
 
@@ -283,26 +283,7 @@ public class SingleShardNoBackupsRoutingStrategyTests {
 
         logger.info("Marking the shard as started");
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsOfType(INITIALIZING));
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
-
-        assertThat(routingTable != prevRoutingTable, equalTo(true));
-        for (int i = 0; i < numberOfIndices; i++) {
-            assertThat(routingTable.index("test" + i).shards().size(), equalTo(1));
-            assertThat(routingTable.index("test" + i).shard(0).size(), equalTo(1));
-            assertThat(routingTable.index("test" + i).shard(0).shards().size(), equalTo(1));
-            assertThat(routingTable.index("test" + i).shard(0).shards().get(0).unassigned(), equalTo(false));
-            assertThat(routingTable.index("test" + i).shard(0).shards().get(0).state(), equalTo(STARTED));
-            assertThat(routingTable.index("test" + i).shard(0).shards().get(0).primary(), equalTo(true));
-            // make sure we still have 2 shards initializing per node on the first 25 nodes
-            String nodeId = routingTable.index("test" + i).shard(0).shards().get(0).currentNodeId();
-            int nodeIndex = Integer.parseInt(nodeId.substring("node".length()));
-            assertThat(nodeIndex, lessThan(25));
-        }
-
-        logger.info("Perform another round of reroute after we started the shards (we don't do automatic reroute when applying started shards)");
-        prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState);
+        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
@@ -351,7 +332,7 @@ public class SingleShardNoBackupsRoutingStrategyTests {
 
         assertThat(routingTable.indicesRouting().size(), equalTo(numberOfIndices));
 
-        logger.info("Starting 3 nodes and retouring");
+        logger.info("Starting 3 nodes and rerouting");
         clusterState = newClusterStateBuilder().state(clusterState)
                 .nodes(newNodesBuilder().put(newNode("node1")).put(newNode("node2")).put(newNode("node3")))
                 .build();
@@ -385,26 +366,9 @@ public class SingleShardNoBackupsRoutingStrategyTests {
 
         routingNodes = routingTable.routingNodes(metaData);
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsOfType(INITIALIZING));
+        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
-        assertThat(prevRoutingTable != routingTable, equalTo(true));
-        for (int i = 0; i < numberOfIndices; i++) {
-            assertThat(routingTable.index("test" + i).shards().size(), equalTo(1));
-            assertThat(routingTable.index("test" + i).shard(0).size(), equalTo(1));
-            assertThat(routingTable.index("test" + i).shard(0).shards().size(), equalTo(1));
-            assertThat(routingTable.index("test" + i).shard(0).shards().get(0).state(), equalTo(STARTED));
-        }
-        routingNodes = routingTable.routingNodes(metaData);
-        assertThat(routingNodes.numberOfShardsOfType(STARTED), equalTo(numberOfIndices));
-        assertThat(routingNodes.node("node1").numberOfShardsWithState(STARTED), anyOf(equalTo(3), equalTo(4)));
-        assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED), anyOf(equalTo(3), equalTo(4)));
-        assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED), anyOf(equalTo(3), equalTo(4)));
-
-        logger.info("Now, reroute so we start the relocation process for even distribution (4 should be relocated)");
-        prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState);
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
         assertThat(prevRoutingTable != routingTable, equalTo(true));
         for (int i = 0; i < numberOfIndices; i++) {
             assertThat(routingTable.index("test" + i).shards().size(), equalTo(1));
@@ -418,7 +382,7 @@ public class SingleShardNoBackupsRoutingStrategyTests {
 
         logger.info("Now, mark the relocated as started");
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsOfType(INITIALIZING));
+        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 //        routingTable = strategy.reroute(new RoutingStrategyInfo(metaData, routingTable), nodes);
 

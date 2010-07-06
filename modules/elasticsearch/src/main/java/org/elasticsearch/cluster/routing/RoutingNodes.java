@@ -146,7 +146,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return count;
     }
 
-    public List<MutableShardRouting> shardsOfType(ShardRoutingState state) {
+    public List<MutableShardRouting> shardsWithState(ShardRoutingState... state) {
         List<MutableShardRouting> shards = newArrayList();
         for (RoutingNode routingNode : this) {
             shards.addAll(routingNode.shardsWithState(state));

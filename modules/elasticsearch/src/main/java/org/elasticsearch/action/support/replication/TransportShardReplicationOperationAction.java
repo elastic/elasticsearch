@@ -333,6 +333,11 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     }
 
                     @Override public void onTimeout(TimeValue timeValue) {
+                        // just to be on the safe side, see if we can start it now?
+                        if (start(true)) {
+                            clusterService.remove(this);
+                            return;
+                        }
                         final PrimaryNotStartedActionException failure = new PrimaryNotStartedActionException(shardId, "Timeout waiting for [" + timeValue + "]");
                         if (request.listenerThreaded()) {
                             threadPool.execute(new Runnable() {

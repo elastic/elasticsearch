@@ -85,7 +85,7 @@ public class ByteBufferCache extends AbstractComponent {
         super(settings);
 
         this.bufferSizeInBytes = (int) componentSettings.getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
-        long cacheSizeInBytes = componentSettings.getAsBytesSize("cache_size", new ByteSizeValue(20, ByteSizeUnit.MB)).bytes();
+        long cacheSizeInBytes = componentSettings.getAsBytesSize("cache_size", new ByteSizeValue(200, ByteSizeUnit.MB)).bytes();
         this.direct = componentSettings.getAsBoolean("direct", true);
         boolean warmCache = componentSettings.getAsBoolean("warm_cache", false);
 

@@ -167,7 +167,11 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
             synchronized (mutex) {
                 MapBuilder<String, StoreFileMetaData> builder = MapBuilder.newMapBuilder();
                 for (String file : delegate.listAll()) {
-                    builder.put(file, new StoreFileMetaData(file, delegate.fileLength(file), delegate.fileModified(file), preComputedMd5(file)));
+                    try {
+                        builder.put(file, new StoreFileMetaData(file, delegate.fileLength(file), delegate.fileModified(file), preComputedMd5(file)));
+                    } catch (FileNotFoundException e) {
+                        // ignore
+                    }
                 }
                 filesMetadata = builder.immutableMap();
                 files = filesMetadata.keySet().toArray(new String[filesMetadata.size()]);

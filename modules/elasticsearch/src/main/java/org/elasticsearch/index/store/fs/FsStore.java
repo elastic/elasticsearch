@@ -22,6 +22,7 @@ package org.elasticsearch.index.store.fs;
 import org.apache.lucene.store.*;
 import org.elasticsearch.cache.memory.ByteBufferCache;
 import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lucene.store.SwitchDirectory;
 import org.elasticsearch.common.settings.Settings;
@@ -73,7 +74,7 @@ public abstract class FsStore extends AbstractStore {
         return lockFactory;
     }
 
-    protected SwitchDirectory buildSwitchDirectoryIfNeeded(Directory fsDirectory, ByteBufferCache byteBufferCache) {
+    protected Tuple<SwitchDirectory, Boolean> buildSwitchDirectoryIfNeeded(Directory fsDirectory, ByteBufferCache byteBufferCache) {
         boolean cache = componentSettings.getAsBoolean("memory.enabled", false);
         if (!cache) {
             return null;
@@ -81,6 +82,17 @@ public abstract class FsStore extends AbstractStore {
         Directory memDir = new ByteBufferDirectory(byteBufferCache);
         // see http://lucene.apache.org/java/3_0_1/fileformats.html
         String[] primaryExtensions = componentSettings.getAsArray("memory.extensions", new String[]{"", "del", "gen"});
-        return new SwitchDirectory(ImmutableSet.copyOf(primaryExtensions), memDir, fsDirectory, true);
+        if (primaryExtensions == null || primaryExtensions.length == 0) {
+            return null;
+        }
+        Boolean forceUseCompound = null;
+        for (String extension : primaryExtensions) {
+            if (!("".equals(extension) || "del".equals(extension) || "gen".equals(extension))) {
+                // caching internal CFS extension, don't use compound file extension
+                forceUseCompound = false;
+            }
+        }
+
+        return new Tuple<SwitchDirectory, Boolean>(new SwitchDirectory(ImmutableSet.copyOf(primaryExtensions), memDir, fsDirectory, true), forceUseCompound);
     }
 }

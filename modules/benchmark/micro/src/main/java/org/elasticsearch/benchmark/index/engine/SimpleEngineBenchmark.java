@@ -295,7 +295,7 @@ public class SimpleEngineBenchmark {
         Settings settings = EMPTY_SETTINGS;
 
 //        Store store = new RamStore(shardId, settings);
-        Store store = new ByteBufferStore(shardId, settings, new ByteBufferCache(settings));
+        Store store = new ByteBufferStore(shardId, settings, null, new ByteBufferCache(settings));
 //        Store store = new NioFsStore(shardId, settings);
 
         store.deleteContent();

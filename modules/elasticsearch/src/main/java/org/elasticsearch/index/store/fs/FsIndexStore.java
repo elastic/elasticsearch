@@ -27,6 +27,7 @@ import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.service.IndexService;
@@ -40,6 +41,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * @author kimchy (shay.banon)
@@ -47,6 +49,8 @@ import java.util.Map;
 public abstract class FsIndexStore extends AbstractIndexStore {
 
     private final File location;
+
+    private final ConcurrentMap<ShardId, ConcurrentMap<String, String>> cachedUnallocatedMd5s = ConcurrentCollections.newConcurrentMap();
 
     public FsIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, NodeEnvironment nodeEnv) {
         super(index, indexSettings, indexService);
@@ -108,19 +112,31 @@ public abstract class FsIndexStore extends AbstractIndexStore {
         if (!shardIndexLocation.exists()) {
             return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
         }
+        ConcurrentMap<String, String> shardIdCachedMd5s = cachedUnallocatedMd5s.get(shardId);
+        if (shardIdCachedMd5s == null) {
+            shardIdCachedMd5s = ConcurrentCollections.newConcurrentMap();
+            cachedUnallocatedMd5s.put(shardId, shardIdCachedMd5s);
+        }
         Map<String, StoreFileMetaData> files = Maps.newHashMap();
         for (File file : shardIndexLocation.listFiles()) {
             // calculate md5
             FileInputStream is = new FileInputStream(file);
-            String md5;
-            try {
-                md5 = Digest.md5Hex(is);
-            } finally {
-                is.close();
+            String md5 = shardIdCachedMd5s.get(file.getName());
+            if (md5 == null) {
+                try {
+                    md5 = Digest.md5Hex(is);
+                } finally {
+                    is.close();
+                }
+                shardIdCachedMd5s.put(file.getName(), md5);
             }
             files.put(file.getName(), new StoreFileMetaData(file.getName(), file.length(), file.lastModified(), md5));
         }
         return new StoreFilesMetaData(false, shardId, files);
+    }
+
+    ConcurrentMap<String, String> cachedShardMd5s(ShardId shardId) {
+        return cachedUnallocatedMd5s.get(shardId);
     }
 
     public File location() {

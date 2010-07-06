@@ -46,7 +46,7 @@ public class NioFsStore extends FsStore {
     private final boolean suggestUseCompoundFile;
 
     @Inject public NioFsStore(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, ByteBufferCache byteBufferCache) throws IOException {
-        super(shardId, indexSettings);
+        super(shardId, indexSettings, indexStore);
         LockFactory lockFactory = buildLockFactory();
         File location = ((FsIndexStore) indexStore).shardIndexLocation(shardId);
         location.mkdirs();

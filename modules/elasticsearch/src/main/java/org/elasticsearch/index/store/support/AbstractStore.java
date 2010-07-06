@@ -32,6 +32,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 
@@ -45,6 +46,8 @@ import java.util.Map;
  */
 public abstract class AbstractStore extends AbstractIndexShardComponent implements Store {
 
+    protected final IndexStore indexStore;
+
     private volatile ImmutableMap<String, StoreFileMetaData> filesMetadata = ImmutableMap.of();
 
     private volatile String[] files = Strings.EMPTY_ARRAY;
@@ -53,8 +56,9 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
 
     private final boolean sync;
 
-    protected AbstractStore(ShardId shardId, @IndexSettings Settings indexSettings) {
+    protected AbstractStore(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore) {
         super(shardId, indexSettings);
+        this.indexStore = indexStore;
         this.sync = componentSettings.getAsBoolean("sync", false);
     }
 
@@ -147,6 +151,9 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
         directory().close();
     }
 
+    protected String preComputedMd5(String fileName) {
+        return null;
+    }
 
     /**
      * The idea of the store directory is to cache file level meta data, as well as md5 of it
@@ -160,7 +167,7 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
             synchronized (mutex) {
                 MapBuilder<String, StoreFileMetaData> builder = MapBuilder.newMapBuilder();
                 for (String file : delegate.listAll()) {
-                    builder.put(file, new StoreFileMetaData(file, delegate.fileLength(file), delegate.fileModified(file), null));
+                    builder.put(file, new StoreFileMetaData(file, delegate.fileLength(file), delegate.fileModified(file), preComputedMd5(file)));
                 }
                 filesMetadata = builder.immutableMap();
                 files = filesMetadata.keySet().toArray(new String[filesMetadata.size()]);

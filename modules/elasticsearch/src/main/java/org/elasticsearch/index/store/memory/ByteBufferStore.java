@@ -25,6 +25,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.support.AbstractStore;
 
 import java.io.IOException;
@@ -36,8 +37,8 @@ public class ByteBufferStore extends AbstractStore {
 
     private final Directory directory;
 
-    @Inject public ByteBufferStore(ShardId shardId, @IndexSettings Settings indexSettings, ByteBufferCache byteBufferCache) throws IOException {
-        super(shardId, indexSettings);
+    @Inject public ByteBufferStore(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, ByteBufferCache byteBufferCache) throws IOException {
+        super(shardId, indexSettings, indexStore);
 
         this.directory = wrapDirectory(new ByteBufferDirectory(byteBufferCache));
         logger.debug("Using [byte_buffer] store");

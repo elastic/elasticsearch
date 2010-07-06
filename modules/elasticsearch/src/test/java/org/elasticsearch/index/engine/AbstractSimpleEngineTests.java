@@ -78,7 +78,7 @@ public abstract class AbstractSimpleEngineTests {
     }
 
     protected Store createStore() throws IOException {
-        return new RamStore(shardId, EMPTY_SETTINGS);
+        return new RamStore(shardId, EMPTY_SETTINGS, null);
     }
 
     protected Translog createTranslog() {

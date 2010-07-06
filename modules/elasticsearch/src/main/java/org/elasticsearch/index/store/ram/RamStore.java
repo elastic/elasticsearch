@@ -25,6 +25,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.support.AbstractStore;
 
 import java.io.IOException;
@@ -36,8 +37,8 @@ public class RamStore extends AbstractStore {
 
     private Directory directory;
 
-    @Inject public RamStore(ShardId shardId, @IndexSettings Settings indexSettings) throws IOException {
-        super(shardId, indexSettings);
+    @Inject public RamStore(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore) throws IOException {
+        super(shardId, indexSettings, indexStore);
         this.directory = wrapDirectory(new RAMDirectory());
         logger.debug("Using [ram] Store");
     }

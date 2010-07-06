@@ -71,7 +71,7 @@ public class SimpleIndexShardTests {
         IndexCache indexCache = new IndexCache(shardId.index());
 
         SnapshotDeletionPolicy policy = new SnapshotDeletionPolicy(new KeepOnlyLastDeletionPolicy(shardId, settings));
-        Store store = new RamStore(shardId, settings);
+        Store store = new RamStore(shardId, settings, null);
         MemoryTranslog translog = new MemoryTranslog(shardId, settings);
         Engine engine = new RobinEngine(shardId, settings, store, policy, translog,
                 new LogByteSizeMergePolicyProvider(store), new SerialMergeSchedulerProvider(shardId, settings),

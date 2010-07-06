@@ -269,7 +269,7 @@ public class SimpleStoreBenchmark {
         String type = args.length > 0 ? args[0] : "ram";
         Store store;
         if (type.equalsIgnoreCase("ram")) {
-            store = new RamStore(shardId, settings);
+            store = new RamStore(shardId, settings, null);
         } else if (type.equalsIgnoreCase("simple-fs")) {
             store = new SimpleFsStore(shardId, settings, new SimpleFsIndexStore(shardId.index(), settings, null, nodeEnvironment), byteBufferCache);
         } else if (type.equalsIgnoreCase("mmap-fs")) {
@@ -277,7 +277,7 @@ public class SimpleStoreBenchmark {
         } else if (type.equalsIgnoreCase("nio-fs")) {
             store = new MmapFsStore(shardId, settings, new MmapFsIndexStore(shardId.index(), settings, null, nodeEnvironment), byteBufferCache);
         } else if (type.equalsIgnoreCase("memory")) {
-            store = new ByteBufferStore(shardId, settings, byteBufferCache);
+            store = new ByteBufferStore(shardId, settings, null, byteBufferCache);
         } else {
             throw new IllegalArgumentException("No type store [" + type + "]");
         }

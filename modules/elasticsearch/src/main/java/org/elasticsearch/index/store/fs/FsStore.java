@@ -27,18 +27,28 @@ import org.elasticsearch.common.lucene.store.SwitchDirectory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.memory.ByteBufferDirectory;
 import org.elasticsearch.index.store.support.AbstractStore;
 
 import java.io.IOException;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * @author kimchy (shay.banon)
  */
 public abstract class FsStore extends AbstractStore {
 
-    public FsStore(ShardId shardId, @IndexSettings Settings indexSettings) {
-        super(shardId, indexSettings);
+    public FsStore(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore) {
+        super(shardId, indexSettings, indexStore);
+    }
+
+    @Override protected String preComputedMd5(String fileName) {
+        ConcurrentMap<String, String> shardIdCachedMd5s = ((FsIndexStore) indexStore).cachedShardMd5s(shardId);
+        if (shardIdCachedMd5s == null) {
+            return null;
+        }
+        return shardIdCachedMd5s.get(fileName);
     }
 
     @Override public void fullDelete() throws IOException {

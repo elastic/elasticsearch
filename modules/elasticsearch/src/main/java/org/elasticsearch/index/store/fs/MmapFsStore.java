@@ -24,6 +24,7 @@ import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.MMapDirectory;
 import org.elasticsearch.cache.memory.ByteBufferCache;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.store.SwitchDirectory;
 import org.elasticsearch.common.settings.Settings;
@@ -52,16 +53,21 @@ public class MmapFsStore extends FsStore {
         location.mkdirs();
         this.fsDirectory = new MMapDirectory(location, lockFactory);
 
-        SwitchDirectory switchDirectory = buildSwitchDirectoryIfNeeded(fsDirectory, byteBufferCache);
+        boolean suggestUseCompoundFile;
+        Tuple<SwitchDirectory, Boolean> switchDirectory = buildSwitchDirectoryIfNeeded(fsDirectory, byteBufferCache);
         if (switchDirectory != null) {
-            suggestUseCompoundFile = false;
-            logger.debug("Using [mmap_fs] Store with path [{}], cache [true] with extensions [{}]", fsDirectory.getFile(), switchDirectory.primaryExtensions());
-            directory = wrapDirectory(switchDirectory);
+            suggestUseCompoundFile = true;
+            if (switchDirectory.v2() != null) {
+                suggestUseCompoundFile = switchDirectory.v2();
+            }
+            logger.debug("Using [mmap_fs] Store with path [{}], cache [true] with extensions [{}]", fsDirectory.getFile(), switchDirectory.v1().primaryExtensions());
+            directory = wrapDirectory(switchDirectory.v1());
         } else {
             suggestUseCompoundFile = true;
             directory = wrapDirectory(fsDirectory);
             logger.debug("Using [mmap_fs] Store with path [{}]", fsDirectory.getFile());
         }
+        this.suggestUseCompoundFile = suggestUseCompoundFile;
     }
 
     @Override public FSDirectory fsDirectory() {

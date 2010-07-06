@@ -196,7 +196,11 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     @Override public synchronized void close(boolean delete) {
         try {
             for (int shardId : shardIds()) {
-                deleteShard(shardId, delete, delete);
+                try {
+                    deleteShard(shardId, delete, delete);
+                } catch (Exception e) {
+                    logger.warn("failed to close shard, delete [{}]", e, delete);
+                }
             }
         } finally {
             indicesLifecycle.removeListener(cleanCacheOnIndicesLifecycleListener);

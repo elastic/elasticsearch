@@ -269,6 +269,8 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
                     }
                 } else if (cause instanceof IgnoreRecoveryException) {
                     throw (IgnoreRecoveryException) cause;
+                } else if (cause instanceof NodeNotConnectedException) {
+                    throw new IgnoreRecoveryException("Ignore recovery attemot, remote node not connected", e);
                 }
                 throw new RecoveryFailedException(shardId, node, targetNode, e);
             } catch (Exception e) {

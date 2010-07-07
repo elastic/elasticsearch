@@ -61,7 +61,7 @@ public interface Translog extends IndexShardComponent {
      * Creates a new transaction log internally. Note, users of this class should make
      * sure that no operations are performed on the trans log when this is called.
      */
-    void newTranslog(long id);
+    void newTranslog(long id) throws TranslogException;
 
     /**
      * Adds a create operation to the transaction log.
@@ -107,7 +107,7 @@ public interface Translog extends IndexShardComponent {
 
         Operation next();
 
-        void seekForward(long position);
+        void seekForward(long length);
     }
 
     /**

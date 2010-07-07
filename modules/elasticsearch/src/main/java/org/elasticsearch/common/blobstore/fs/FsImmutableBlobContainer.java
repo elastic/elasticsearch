@@ -24,7 +24,10 @@ import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobStores;
 import org.elasticsearch.common.io.FileSystemUtils;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.RandomAccessFile;
 
 /**
  * @author kimchy (shay.banon)
@@ -42,7 +45,9 @@ public class FsImmutableBlobContainer extends AbstractFsBlobContainer implements
                 RandomAccessFile raf;
                 try {
                     raf = new RandomAccessFile(file, "rw");
-                } catch (FileNotFoundException e) {
+                    // clean the file if it exists
+                    raf.setLength(0);
+                } catch (Exception e) {
                     listener.onFailure(e);
                     return;
                 }

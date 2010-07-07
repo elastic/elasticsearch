@@ -32,6 +32,7 @@ import java.io.IOException;
 public class TermsFacetBuilder extends AbstractFacetBuilder {
     private String fieldName;
     private int size = 10;
+    private String[] exclude;
 
     public TermsFacetBuilder(String name) {
         super(name);
@@ -52,6 +53,11 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
+    public TermsFacetBuilder exclude(String... exclude) {
+        this.exclude = exclude;
+        return this;
+    }
+
     public TermsFacetBuilder size(int size) {
         this.size = size;
         return this;
@@ -66,6 +72,13 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
         builder.startObject(TermsFacetCollectorParser.NAME);
         builder.field("field", fieldName);
         builder.field("size", size);
+        if (exclude != null) {
+            builder.startArray("exclude");
+            for (String ex : exclude) {
+                builder.value(ex);
+            }
+            builder.endArray();
+        }
         builder.endObject();
 
         if (filter != null) {

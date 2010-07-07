@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.facets.terms;
 
+import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.facets.collector.FacetCollector;
 import org.elasticsearch.search.facets.collector.FacetCollectorParser;
@@ -43,9 +44,18 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
 
         String fieldName = null;
         XContentParser.Token token;
+        ImmutableSet<String> excluded = ImmutableSet.of();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if ("exclude".equals(fieldName)) {
+                    ImmutableSet.Builder<String> builder = ImmutableSet.builder();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        builder.add(parser.text());
+                    }
+                    excluded = builder.build();
+                }
             } else if (token.isValue()) {
                 if ("field".equals(fieldName)) {
                     field = parser.text();
@@ -54,6 +64,6 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
                 }
             }
         }
-        return new TermsFacetCollector(facetName, field, size, context.fieldDataCache(), context.mapperService());
+        return new TermsFacetCollector(facetName, field, size, context.fieldDataCache(), context.mapperService(), excluded);
     }
 }

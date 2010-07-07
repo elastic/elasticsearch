@@ -165,6 +165,45 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().size(), equalTo(1));
         assertThat(facet.entries().get(0).term(), equalTo("111"));
         assertThat(facet.entries().get(0).count(), equalTo(1));
+
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addFacet(termsFacet("facet1").field("tag").size(10))
+                .execute().actionGet();
+
+        facet = searchResponse.facets().facet(TermsFacet.class, "facet1");
+        assertThat(facet.name(), equalTo("facet1"));
+        assertThat(facet.entries().size(), equalTo(3));
+        assertThat(facet.entries().get(0).term(), equalTo("yyy"));
+        assertThat(facet.entries().get(0).count(), equalTo(2));
+        assertThat(facet.entries().get(1).term(), anyOf(equalTo("xxx"), equalTo("zzz")));
+        assertThat(facet.entries().get(1).count(), equalTo(1));
+        assertThat(facet.entries().get(2).term(), anyOf(equalTo("xxx"), equalTo("zzz")));
+        assertThat(facet.entries().get(2).count(), equalTo(1));
+
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addFacet(termsFacet("facet1").field("tag").size(1))
+                .execute().actionGet();
+
+        facet = searchResponse.facets().facet(TermsFacet.class, "facet1");
+        assertThat(facet.name(), equalTo("facet1"));
+        assertThat(facet.entries().size(), equalTo(1));
+        assertThat(facet.entries().get(0).term(), equalTo("yyy"));
+        assertThat(facet.entries().get(0).count(), equalTo(2));
+
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addFacet(termsFacet("facet1").field("tag").size(10).exclude("yyy"))
+                .execute().actionGet();
+
+        facet = searchResponse.facets().facet(TermsFacet.class, "facet1");
+        assertThat(facet.name(), equalTo("facet1"));
+        assertThat(facet.entries().size(), equalTo(2));
+        assertThat(facet.entries().get(0).term(), anyOf(equalTo("xxx"), equalTo("zzz")));
+        assertThat(facet.entries().get(0).count(), equalTo(1));
+        assertThat(facet.entries().get(1).term(), anyOf(equalTo("xxx"), equalTo("zzz")));
+        assertThat(facet.entries().get(1).count(), equalTo(1));
     }
 
     @Test public void testStatsFacets() throws Exception {

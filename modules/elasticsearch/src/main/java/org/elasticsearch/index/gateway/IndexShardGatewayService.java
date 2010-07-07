@@ -206,6 +206,8 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                     logger.debug(sb.toString());
                 }
             }
+        } catch (IllegalStateException e) {
+            // ignore, snapshot deletion policy not started yet...
         } catch (IllegalIndexShardStateException e) {
             // ignore, that's fine
         } catch (IndexShardGatewaySnapshotFailedException e) {

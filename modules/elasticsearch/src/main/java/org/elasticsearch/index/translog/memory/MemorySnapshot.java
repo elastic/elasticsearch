@@ -70,11 +70,11 @@ public class MemorySnapshot implements Translog.Snapshot {
         return operation;
     }
 
-    @Override public void seekForward(long position) {
-        long numberToSeek = this.position + position;
+    @Override public void seekForward(long length) {
+        long numberToSeek = this.position + length;
         while (numberToSeek-- != 0) {
             operationsIt.next();
         }
-        this.position = position;
+        this.position += length;
     }
 }

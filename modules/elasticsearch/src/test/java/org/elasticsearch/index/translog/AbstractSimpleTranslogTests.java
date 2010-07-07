@@ -118,6 +118,7 @@ public abstract class AbstractSimpleTranslogTests {
         snapshot.release();
 
         snapshot = translog.snapshot();
+        assertThat(snapshot.hasNext(), equalTo(true));
         Translog.Create create = (Translog.Create) snapshot.next();
         assertThat(create.source(), equalTo(new byte[]{1}));
         snapshot.release();

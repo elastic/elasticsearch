@@ -28,6 +28,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.SnapshotFailedEngineException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -206,10 +207,14 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                     logger.debug(sb.toString());
                 }
             }
-        } catch (IllegalStateException e) {
-            // ignore, snapshot deletion policy not started yet...
+        } catch (SnapshotFailedEngineException e) {
+            if (e.getCause() instanceof IllegalStateException) {
+                // ignore, that's fine, snapshot has not started yet
+            } else {
+                throw new IndexShardGatewaySnapshotFailedException(shardId, "Failed to snapshot", e);
+            }
         } catch (IllegalIndexShardStateException e) {
-            // ignore, that's fine
+            // ignore, that's fine, snapshot has not started yet
         } catch (IndexShardGatewaySnapshotFailedException e) {
             throw e;
         } catch (Exception e) {

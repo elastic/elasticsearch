@@ -79,6 +79,8 @@ task explodedDist(dependsOn: [configurations.distLib], description: 'Builds a mi
         include 'README.textile'
     }
 
+    ant.replace(dir: explodedDistBinDir, token: "@ES_VERSION@", value: versionNumber)
+
     ant.delete { fileset(dir: explodedDistLibDir, includes: "$archivesBaseName-*-javadoc.jar") }
     ant.delete { fileset(dir: explodedDistLibDir, includes: "$archivesBaseName-*-sources.jar") }
     ant.delete { fileset(dir: explodedDistLibDir, includes: "slf4j-*.jar") } // no need for slf4j

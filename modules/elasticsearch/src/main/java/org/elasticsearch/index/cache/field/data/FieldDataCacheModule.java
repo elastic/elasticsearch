@@ -22,10 +22,10 @@ package org.elasticsearch.index.cache.field.data;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.field.data.weak.WeakFieldDataCache;
+import org.elasticsearch.index.cache.field.data.soft.SoftFieldDataCache;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class FieldDataCacheModule extends AbstractModule {
 
@@ -41,7 +41,7 @@ public class FieldDataCacheModule extends AbstractModule {
 
     @Override protected void configure() {
         bind(FieldDataCache.class)
-                .to(settings.getAsClass(FieldDataCacheSettings.FIELD_DATA_CACHE_TYPE, WeakFieldDataCache.class, "org.elasticsearch.index.cache.field.", "FieldDataCache"))
+                .to(settings.getAsClass(FieldDataCacheSettings.FIELD_DATA_CACHE_TYPE, SoftFieldDataCache.class, "org.elasticsearch.index.cache.field.", "FieldDataCache"))
                 .in(Scopes.SINGLETON);
     }
 }

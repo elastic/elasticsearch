@@ -168,6 +168,9 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
     }
 
     public synchronized void startRecovery(DiscoveryNode node, DiscoveryNode targetNode, boolean markAsRelocated) throws ElasticSearchException {
+        if (targetNode == null) {
+            throw new IgnoreRecoveryException("No node to recovery from, retry next time...");
+        }
         sendStartRecoveryThread = Thread.currentThread();
         try {
             // mark the shard as recovering

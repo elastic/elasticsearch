@@ -177,6 +177,10 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             // do not snapshot when in the process of relocation of primaries so we won't get conflicts
             return;
         }
+        if (indexShard.state() == IndexShardState.CREATED) {
+            // shard has just been created, ignore it and return
+            return;
+        }
         try {
             IndexShardGateway.SnapshotStatus snapshotStatus = indexShard.snapshot(new Engine.SnapshotHandler<IndexShardGateway.SnapshotStatus>() {
                 @Override public IndexShardGateway.SnapshotStatus snapshot(SnapshotIndexCommit snapshotIndexCommit, Translog.Snapshot translogSnapshot) throws EngineException {

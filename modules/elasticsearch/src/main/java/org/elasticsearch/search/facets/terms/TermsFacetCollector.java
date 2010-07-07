@@ -22,6 +22,7 @@ package org.elasticsearch.search.facets.terms;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.TObjectIntHashMap;
 import org.elasticsearch.common.trove.TObjectIntIterator;
@@ -60,12 +61,15 @@ public class TermsFacetCollector extends AbstractFacetCollector {
 
     private FieldData fieldData;
 
-    private final AggregatorValueProc aggregator;
+    private final StaticAggregatorValueProc aggregator;
 
-    public TermsFacetCollector(String facetName, String fieldName, int size, FieldDataCache fieldDataCache, MapperService mapperService) {
+    private final ImmutableSet<String> excluded;
+
+    public TermsFacetCollector(String facetName, String fieldName, int size, FieldDataCache fieldDataCache, MapperService mapperService, ImmutableSet<String> excluded) {
         super(facetName);
         this.fieldDataCache = fieldDataCache;
         this.size = size;
+        this.excluded = excluded;
 
         FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);
         this.fieldName = fieldName;
@@ -76,8 +80,11 @@ public class TermsFacetCollector extends AbstractFacetCollector {
             this.indexFieldName = fieldName;
             this.fieldDataType = FieldData.Type.STRING;
         }
-
-        aggregator = new AggregatorValueProc(popFacets());
+        if (excluded.isEmpty()) {
+            aggregator = new StaticAggregatorValueProc(popFacets());
+        } else {
+            aggregator = new AggregatorValueProc(popFacets());
+        }
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
@@ -122,11 +129,25 @@ public class TermsFacetCollector extends AbstractFacetCollector {
         }
     }
 
-    public static class AggregatorValueProc implements FieldData.StringValueInDocProc {
+    public class AggregatorValueProc extends StaticAggregatorValueProc {
+
+        public AggregatorValueProc(TObjectIntHashMap<String> facets) {
+            super(facets);
+        }
+
+        @Override public void onValue(int docId, String value) {
+            if (excluded.contains(value)) {
+                return;
+            }
+            super.onValue(docId, value);
+        }
+    }
+
+    public static class StaticAggregatorValueProc implements FieldData.StringValueInDocProc {
 
         private final TObjectIntHashMap<String> facets;
 
-        public AggregatorValueProc(TObjectIntHashMap<String> facets) {
+        public StaticAggregatorValueProc(TObjectIntHashMap<String> facets) {
             this.facets = facets;
         }
 

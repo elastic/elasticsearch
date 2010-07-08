@@ -124,6 +124,9 @@ public abstract class AbstractSimpleTranslogTests {
         snapshot.release();
 
         Translog.Snapshot snapshot1 = translog.snapshot();
+        // we use the translogSize to also navigate to the last position on this snapshot
+        // so snapshot(Snapshot) will work properly
+        assertThat(snapshot1, translogSize(1));
 
         translog.add(new Translog.Index("test", "2", new byte[]{2}));
         snapshot = translog.snapshot(snapshot1);

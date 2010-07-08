@@ -58,13 +58,15 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
 
         private final long lastIndexVersion;
         private final long lastTranslogId;
+        private final long lastTranslogPosition;
         private final long lastTranslogLength;
 
-        public Snapshot(SnapshotIndexCommit indexCommit, Translog.Snapshot translogSnapshot, long lastIndexVersion, long lastTranslogId, long lastTranslogLength) {
+        public Snapshot(SnapshotIndexCommit indexCommit, Translog.Snapshot translogSnapshot, long lastIndexVersion, long lastTranslogId, long lastTranslogPosition, long lastTranslogLength) {
             this.indexCommit = indexCommit;
             this.translogSnapshot = translogSnapshot;
             this.lastIndexVersion = lastIndexVersion;
             this.lastTranslogId = lastTranslogId;
+            this.lastTranslogPosition = lastTranslogPosition;
             this.lastTranslogLength = lastTranslogLength;
         }
 
@@ -112,6 +114,10 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
         }
 
         public long lastTranslogPosition() {
+            return lastTranslogPosition;
+        }
+
+        public long lastTranslogLength() {
             return lastTranslogLength;
         }
     }
@@ -207,35 +213,14 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
         }
 
         public static class Translog {
-            private long translogId;
             private int numberOfOperations;
-            private ByteSizeValue totalSize;
-            private long translogLength;
 
-            public Translog(long translogId, long translogLength, int numberOfOperations, ByteSizeValue totalSize) {
-                this.translogId = translogId;
-                this.translogLength = translogLength;
+            public Translog(int numberOfOperations) {
                 this.numberOfOperations = numberOfOperations;
-                this.totalSize = totalSize;
-            }
-
-            /**
-             * The translog id recovered, <tt>-1</tt> indicating no translog.
-             */
-            public long translogId() {
-                return translogId;
-            }
-
-            public long translogLength() {
-                return translogLength;
             }
 
             public int numberOfOperations() {
                 return numberOfOperations;
-            }
-
-            public ByteSizeValue totalSize() {
-                return totalSize;
             }
         }
 

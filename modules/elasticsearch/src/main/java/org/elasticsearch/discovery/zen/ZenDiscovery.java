@@ -108,7 +108,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.initialPingTimeout = componentSettings.getAsTime("initial_ping_timeout", timeValueSeconds(3));
         this.sendLeaveRequest = componentSettings.getAsBoolean("send_leave_request", true);
 
-        logger.debug("Using initial_ping_timeout [{}]", initialPingTimeout);
+        logger.debug("using initial_ping_timeout [{}]", initialPingTimeout);
 
         this.electMaster = new ElectMasterService(settings);
 
@@ -164,7 +164,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 try {
                     membership.sendLeaveRequestBlocking(latestDiscoNodes.masterNode(), localNode, TimeValue.timeValueSeconds(1));
                 } catch (Exception e) {
-                    logger.debug("Failed to send leave request to master [{}]", e, latestDiscoNodes.masterNode());
+                    logger.debug("failed to send leave request to master [{}]", e, latestDiscoNodes.masterNode());
                 }
             } else {
                 DiscoveryNode[] possibleMasters = electMaster.nextPossibleMasters(latestDiscoNodes.nodes().values(), 5);
@@ -175,7 +175,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     try {
                         membership.sendLeaveRequest(latestDiscoNodes.masterNode(), possibleMaster);
                     } catch (Exception e) {
-                        logger.debug("Failed to send leave request from master [{}] to possible master [{}]", e, latestDiscoNodes.masterNode(), possibleMaster);
+                        logger.debug("failed to send leave request from master [{}] to possible master [{}]", e, latestDiscoNodes.masterNode(), possibleMaster);
                     }
                 }
             }
@@ -251,7 +251,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     // first, make sure we can connect to the master
                     transportService.connectToNode(masterNode);
                 } catch (Exception e) {
-                    logger.warn("Failed to connect to master [{}], retrying...", e, masterNode);
+                    logger.warn("failed to connect to master [{}], retrying...", e, masterNode);
                     retry = true;
                     continue;
                 }
@@ -260,12 +260,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     membership.sendJoinRequestBlocking(masterNode, localNode, initialPingTimeout);
                 } catch (Exception e) {
                     if (e instanceof ElasticSearchException) {
-                        logger.info("Failed to send join request to master [{}], reason [{}]", masterNode, ((ElasticSearchException) e).getDetailedMessage());
+                        logger.info("failed to send join request to master [{}], reason [{}]", masterNode, ((ElasticSearchException) e).getDetailedMessage());
                     } else {
-                        logger.info("Failed to send join request to master [{}], reason [{}]", masterNode, e.getMessage());
+                        logger.info("failed to send join request to master [{}], reason [{}]", masterNode, e.getMessage());
                     }
                     if (logger.isTraceEnabled()) {
-                        logger.trace("Detailed failed reason", e);
+                        logger.trace("detailed failed reason", e);
                     }
                     // failed to send the join request, retry
                     retry = true;
@@ -316,7 +316,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             return;
         }
 
-        logger.info("Master [{}] left, reason [{}]", masterNode, reason);
+        logger.info("master [{}] left, reason [{}]", masterNode, reason);
         List<DiscoveryNode> nodes = newArrayList(latestDiscoNodes.nodes().values());
         nodes.remove(masterNode); // remove the master node from the list, it has failed
         DiscoveryNode electedMaster = electMaster.electMaster(nodes); // elect master
@@ -353,7 +353,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     void handleNewClusterState(final ClusterState clusterState) {
         if (master) {
-            logger.warn("Master should not receive new cluster state from [{}]", clusterState.nodes().masterNode());
+            logger.warn("master should not receive new cluster state from [{}]", clusterState.nodes().masterNode());
         } else {
             latestDiscoNodes = clusterState.nodes();
 
@@ -363,7 +363,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             }
 
             if (clusterState.nodes().localNode() == null) {
-                logger.warn("Received a cluster state from [{}] and not part of the cluster, should not happen", clusterState.nodes().masterNode());
+                logger.warn("received a cluster state from [{}] and not part of the cluster, should not happen", clusterState.nodes().masterNode());
             } else {
                 clusterService.submitStateUpdateTask("zen-disco-receive(from [" + clusterState.nodes().masterNode() + "])", new ProcessedClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
@@ -400,7 +400,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
         if (!transportService.addressSupported(node.address().getClass())) {
             // TODO, what should we do now? Maybe inform that node that its crap?
-            logger.warn("Received a wrong address type from [{}], ignoring...", node);
+            logger.warn("received a wrong address type from [{}], ignoring...", node);
         } else {
             // try and connect to the node, if it fails, we can raise an exception back to the client...
             transportService.connectToNode(node);
@@ -409,7 +409,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 @Override public ClusterState execute(ClusterState currentState) {
                     if (currentState.nodes().nodeExists(node.id())) {
                         // no change, the node already exists in the cluster
-                        logger.warn("Received a join request for an existing node [{}]", node);
+                        logger.warn("received a join request for an existing node [{}]", node);
                         return currentState;
                     }
                     return newClusterStateBuilder().state(currentState).nodes(currentState.nodes().newNode(node)).build();
@@ -501,7 +501,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             try {
                 membership.sendJoinRequest(masterNode, localNode);
             } catch (Exception e) {
-                logger.warn("Failed to send join request on disconnection from master [{}]", masterNode);
+                logger.warn("failed to send join request on disconnection from master [{}]", masterNode);
             }
         }
     }

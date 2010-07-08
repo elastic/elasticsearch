@@ -115,7 +115,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         this.bufferSize = componentSettings.getAsInt("buffer_size", 2048);
         this.ttl = componentSettings.getAsInt("ttl", 3);
 
-        logger.debug("Using group [{}], with port [{}], ttl [{}], and address [{}]", group, port, ttl, address);
+        logger.debug("using group [{}], with port [{}], ttl [{}], and address [{}]", group, port, ttl, address);
 
         this.transportService.registerHandler(MulticastPingResponseRequestHandler.ACTION, new MulticastPingResponseRequestHandler());
     }
@@ -206,7 +206,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                 try {
                     sendPingRequest(id);
                 } catch (Exception e) {
-                    logger.debug("[{}] Failed to send second ping request", e, id);
+                    logger.debug("[{}] failed to send second ping request", e, id);
                 }
             }
         }, timeout.millis() / 2, TimeUnit.MILLISECONDS);
@@ -233,7 +233,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             try {
                 multicastSocket.send(datagramPacketSend);
                 if (logger.isTraceEnabled()) {
-                    logger.trace("[{}] Sending ping request", id);
+                    logger.trace("[{}] sending ping request", id);
                 }
             } catch (IOException e) {
                 receivedResponses.remove(id);
@@ -252,11 +252,11 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
         @Override public void messageReceived(MulticastPingResponse request, TransportChannel channel) throws Exception {
             if (logger.isTraceEnabled()) {
-                logger.trace("[{}] Received {}", request.id, request.pingResponse);
+                logger.trace("[{}] received {}", request.id, request.pingResponse);
             }
             ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.get(request.id);
             if (responses == null) {
-                logger.warn("Received ping response with no matching id [{}]", request.id);
+                logger.warn("received ping response with no matching id [{}]", request.id);
             } else {
                 responses.put(request.pingResponse.target(), request.pingResponse);
             }
@@ -306,7 +306,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                             continue;
                         } catch (Exception e) {
                             if (running) {
-                                logger.warn("Failed to receive packet", e);
+                                logger.warn("failed to receive packet", e);
                             }
                             continue;
                         }
@@ -316,7 +316,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                             clusterName = ClusterName.readClusterName(input);
                             requestingNodeX = readNode(input);
                         } catch (Exception e) {
-                            logger.warn("Failed to read requesting node from {}", e, datagramPacketReceive.getSocketAddress());
+                            logger.warn("failed to read requesting node from {}", e, datagramPacketReceive.getSocketAddress());
                             continue;
                         }
                     }
@@ -335,7 +335,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                     multicastPingResponse.pingResponse = new PingResponse(discoveryNodes.localNode(), discoveryNodes.masterNode(), clusterName);
 
                     if (logger.isTraceEnabled()) {
-                        logger.trace("[{}] Received ping_request from [{}], sending {}", id, requestingNode, multicastPingResponse.pingResponse);
+                        logger.trace("[{}] received ping_request from [{}], sending {}", id, requestingNode, multicastPingResponse.pingResponse);
                     }
 
                     if (!transportService.nodeConnected(requestingNode)) {
@@ -346,11 +346,11 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                                 try {
                                     transportService.connectToNode(requestingNode);
                                 } catch (Exception e) {
-                                    logger.warn("Failed to connect to requesting node {}", e, requestingNode);
+                                    logger.warn("failed to connect to requesting node {}", e, requestingNode);
                                 }
                                 transportService.sendRequest(requestingNode, MulticastPingResponseRequestHandler.ACTION, multicastPingResponse, new VoidTransportResponseHandler(false) {
                                     @Override public void handleException(RemoteTransportException exp) {
-                                        logger.warn("Failed to receive confirmation on sent ping response to [{}]", exp, requestingNode);
+                                        logger.warn("failed to receive confirmation on sent ping response to [{}]", exp, requestingNode);
                                     }
                                 });
                             }
@@ -358,12 +358,12 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                     } else {
                         transportService.sendRequest(requestingNode, MulticastPingResponseRequestHandler.ACTION, multicastPingResponse, new VoidTransportResponseHandler(false) {
                             @Override public void handleException(RemoteTransportException exp) {
-                                logger.warn("Failed to receive confirmation on sent ping response to [{}]", exp, requestingNode);
+                                logger.warn("failed to receive confirmation on sent ping response to [{}]", exp, requestingNode);
                             }
                         });
                     }
                 } catch (Exception e) {
-                    logger.warn("Unexpected exception in multicast receiver", e);
+                    logger.warn("unexpected exception in multicast receiver", e);
                 }
             }
         }

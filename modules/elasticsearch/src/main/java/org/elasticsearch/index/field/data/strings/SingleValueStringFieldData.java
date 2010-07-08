@@ -19,8 +19,10 @@
 
 package org.elasticsearch.index.field.data.strings;
 
+import org.apache.lucene.search.FieldComparator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.thread.ThreadLocals;
+import org.elasticsearch.index.cache.field.data.FieldDataCache;
 
 /**
  * @author kimchy (shay.banon)
@@ -39,6 +41,18 @@ public class SingleValueStringFieldData extends StringFieldData {
     public SingleValueStringFieldData(String fieldName, int[] order, String[] values) {
         super(fieldName, values);
         this.order = order;
+    }
+
+    @Override public FieldComparator newComparator(FieldDataCache fieldDataCache, int numHits, String field, int sortPos, boolean reversed) {
+        return new StringOrdValFieldDataComparator(numHits, field, sortPos, reversed, fieldDataCache);
+    }
+
+    int[] order() {
+        return order;
+    }
+
+    String[] values() {
+        return this.values;
     }
 
     @Override public boolean multiValued() {

@@ -156,17 +156,7 @@ public class SearchSourceBuilder implements ToXContent {
                 reverse = true;
             }
         }
-        return sort(name, null, reverse);
-    }
-
-    /**
-     * Add a sort against the given field name and if it should be revered or not.
-     *
-     * @param name    The name of the field to sort by
-     * @param reverse Should be soring be reversed or not
-     */
-    public SearchSourceBuilder sort(String name, boolean reverse) {
-        return sort(name, null, reverse);
+        return sort(name, reverse);
     }
 
     /**
@@ -175,31 +165,20 @@ public class SearchSourceBuilder implements ToXContent {
      * @param name The name of the field to sort by
      */
     public SearchSourceBuilder sort(String name) {
-        return sort(name, null, false);
-    }
-
-    /**
-     * Add a sort against the given field name of the given type.
-     *
-     * @param name The name of the field to sort by
-     * @param type The type of sort to perform
-     */
-    public SearchSourceBuilder sort(String name, String type) {
-        return sort(name, type, false);
+        return sort(name, false);
     }
 
     /**
      * Add a sort against the given field name and if it should be revered or not.
      *
      * @param name    The name of the field to sort by
-     * @param type    The type of the sort to perform
      * @param reverse Should the sort be reversed or not
      */
-    public SearchSourceBuilder sort(String name, String type, boolean reverse) {
+    public SearchSourceBuilder sort(String name, boolean reverse) {
         if (sortFields == null) {
             sortFields = newArrayListWithCapacity(2);
         }
-        sortFields.add(new SortTuple(name, reverse, type));
+        sortFields.add(new SortTuple(name, reverse));
         return this;
     }
 
@@ -366,11 +345,8 @@ public class SearchSourceBuilder implements ToXContent {
             for (SortTuple sortTuple : sortFields) {
                 builder.field(sortTuple.fieldName());
                 builder.startObject();
-                if (sortTuple.reverse) {
+                if (sortTuple.reverse()) {
                     builder.field("reverse", true);
-                }
-                if (sortTuple.type != null) {
-                    builder.field("type", sortTuple.type());
                 }
                 builder.endObject();
             }
@@ -429,12 +405,10 @@ public class SearchSourceBuilder implements ToXContent {
     private static class SortTuple {
         private final String fieldName;
         private final boolean reverse;
-        private final String type;
 
-        private SortTuple(String fieldName, boolean reverse, String type) {
+        private SortTuple(String fieldName, boolean reverse) {
             this.fieldName = fieldName;
             this.reverse = reverse;
-            this.type = type;
         }
 
         public String fieldName() {
@@ -443,10 +417,6 @@ public class SearchSourceBuilder implements ToXContent {
 
         public boolean reverse() {
             return reverse;
-        }
-
-        public String type() {
-            return type;
         }
     }
 }

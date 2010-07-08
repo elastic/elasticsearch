@@ -21,12 +21,9 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
-import org.elasticsearch.common.trove.TObjectIntHashMap;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldMappers;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
@@ -39,22 +36,12 @@ import java.util.List;
  */
 public class SortParseElement implements SearchParseElement {
 
-    private final TObjectIntHashMap<String> sortFieldTypesMapper = new ExtTObjectIntHasMap<String>().defaultReturnValue(-1);
-
     private static final SortField SORT_SCORE = new SortField(null, SortField.SCORE);
     private static final SortField SORT_SCORE_REVERSE = new SortField(null, SortField.SCORE, true);
     private static final SortField SORT_DOC = new SortField(null, SortField.DOC);
     private static final SortField SORT_DOC_REVERSE = new SortField(null, SortField.DOC, true);
 
     public SortParseElement() {
-        sortFieldTypesMapper.put("string", SortField.STRING);
-        sortFieldTypesMapper.put("int", SortField.INT);
-        sortFieldTypesMapper.put("float", SortField.FLOAT);
-        sortFieldTypesMapper.put("long", SortField.LONG);
-        sortFieldTypesMapper.put("double", SortField.DOUBLE);
-        sortFieldTypesMapper.put("short", SortField.SHORT);
-        sortFieldTypesMapper.put("byte", SortField.BYTE);
-        sortFieldTypesMapper.put("string_val", SortField.STRING_VAL);
     }
 
     @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
@@ -65,7 +52,7 @@ public class SortParseElement implements SearchParseElement {
                 if (token == XContentParser.Token.START_OBJECT) {
                     addCompoundSortField(parser, context, sortFields);
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    addSortField(context, sortFields, parser.text(), false, -1);
+                    addSortField(context, sortFields, parser.text(), false);
                 }
             }
         } else {
@@ -83,36 +70,18 @@ public class SortParseElement implements SearchParseElement {
                 String fieldName = parser.currentName();
                 boolean reverse = false;
                 String innerJsonName = null;
-                int type = -1;
                 token = parser.nextToken();
                 if (token == XContentParser.Token.VALUE_STRING) {
                     String direction = parser.text();
                     if (direction.equals("asc")) {
-                        if ("score".equals(fieldName)) {
-                            reverse = true;
-                        } else {
-                            reverse = false;
-                        }
+                        reverse = "score".equals(fieldName);
                     } else if (direction.equals("desc")) {
-                        if ("score".equals(fieldName)) {
-                            reverse = false;
-                        } else {
-                            reverse = true;
-                        }
+                        reverse = !"score".equals(fieldName);
                     }
                 } else {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             innerJsonName = parser.currentName();
-                        } else if (token == XContentParser.Token.VALUE_STRING) {
-                            if ("type".equals(innerJsonName)) {
-                                type = sortFieldTypesMapper.get(parser.text());
-                                if (type == -1) {
-                                    throw new SearchParseException(context, "No sort type for [" + parser.text() + "] with field [" + fieldName + "]");
-                                }
-                            } else if ("reverse".equals(innerJsonName)) {
-                                reverse = Booleans.parseBoolean(parser.text(), reverse);
-                            }
                         } else if (token.isValue()) {
                             if ("reverse".equals(innerJsonName)) {
                                 reverse = parser.booleanValue();
@@ -120,12 +89,12 @@ public class SortParseElement implements SearchParseElement {
                         }
                     }
                 }
-                addSortField(context, sortFields, fieldName, reverse, type);
+                addSortField(context, sortFields, fieldName, reverse);
             }
         }
     }
 
-    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse, int type) {
+    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse) {
         if ("score".equals(fieldName)) {
             if (reverse) {
                 sortFields.add(SORT_SCORE_REVERSE);
@@ -139,18 +108,11 @@ public class SortParseElement implements SearchParseElement {
                 sortFields.add(SORT_DOC);
             }
         } else {
-            FieldMappers fieldMappers = context.mapperService().smartNameFieldMappers(fieldName);
-            if (fieldMappers == null || fieldMappers.mappers().isEmpty()) {
-                if (type == -1) {
-                    throw new SearchParseException(context, "No built in mapping found for [" + fieldName + "], and no explicit type defined");
-                }
-            } else {
-                fieldName = fieldMappers.mappers().get(0).names().indexName();
-                if (type == -1) {
-                    type = fieldMappers.mappers().get(0).sortType();
-                }
+            FieldMapper fieldMapper = context.mapperService().smartNameFieldMapper(fieldName);
+            if (fieldMapper == null) {
+                throw new SearchParseException(context, "No mapping found for [" + fieldName + "]");
             }
-            sortFields.add(new SortField(fieldName, type, reverse));
+            sortFields.add(new SortField(fieldName, fieldMapper.fieldDataType().newFieldComparatorSource(context.fieldDataCache()), reverse));
         }
     }
 }

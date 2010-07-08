@@ -161,8 +161,6 @@ public abstract class XContentNumberFieldMapper<T extends Number> extends XConte
         builder.field("precision_step", precisionStep);
     }
 
-    @Override public abstract int sortType();
-
     @Override public abstract FieldData.Type fieldDataType();
 
     /**

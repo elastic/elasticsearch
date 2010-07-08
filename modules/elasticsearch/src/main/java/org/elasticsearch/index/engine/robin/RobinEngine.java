@@ -120,10 +120,14 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
     }
 
     @Override public void indexingBuffer(ByteSizeValue indexingBufferSize) {
-        this.indexingBufferSize = indexingBufferSize;
+        if (indexingBufferSize.mbFrac() > 2048.0) {
+            this.indexingBufferSize = new ByteSizeValue(2048, ByteSizeUnit.MB);
+        } else {
+            this.indexingBufferSize = indexingBufferSize;
+        }
         IndexWriter indexWriter = this.indexWriter;
         if (indexWriter != null) {
-            indexWriter.setRAMBufferSizeMB(indexingBufferSize.mbFrac());
+            indexWriter.setRAMBufferSizeMB(this.indexingBufferSize.mbFrac());
         }
     }
 

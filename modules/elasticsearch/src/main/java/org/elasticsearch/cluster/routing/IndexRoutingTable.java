@@ -210,9 +210,9 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
 
 
     public String prettyPrint() {
-        StringBuilder sb = new StringBuilder("-- Index[" + index + "]\n");
+        StringBuilder sb = new StringBuilder("-- index [" + index + "]\n");
         for (IndexShardRoutingTable indexShard : this) {
-            sb.append("----ShardId[").append(indexShard.shardId().index().name()).append("][").append(indexShard.shardId().id()).append("]\n");
+            sb.append("----shard_id [").append(indexShard.shardId().index().name()).append("][").append(indexShard.shardId().id()).append("]\n");
             for (ShardRouting shard : indexShard) {
                 sb.append("--------").append(shard.shortSummary()).append("\n");
             }

@@ -171,11 +171,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     public String prettyPrint() {
-        StringBuilder sb = new StringBuilder("Routing Nodes:\n");
+        StringBuilder sb = new StringBuilder("routing_nodes:\n");
         for (RoutingNode routingNode : this) {
             sb.append(routingNode.prettyPrint());
         }
-        sb.append("---- Unassigned\n");
+        sb.append("---- unassigned\n");
         for (MutableShardRouting shardEntry : unassigned) {
             sb.append("--------").append(shardEntry.shortSummary()).append('\n');
         }

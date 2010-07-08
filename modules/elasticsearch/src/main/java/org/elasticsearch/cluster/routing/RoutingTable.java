@@ -220,7 +220,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
     }
 
     public String prettyPrint() {
-        StringBuilder sb = new StringBuilder("Routing Table:\n");
+        StringBuilder sb = new StringBuilder("routing_table:\n");
         for (Map.Entry<String, IndexRoutingTable> entry : indicesRouting.entrySet()) {
             sb.append(entry.getValue().prettyPrint()).append('\n');
         }

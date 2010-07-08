@@ -93,7 +93,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
             hosts.addAll(Strings.commaDelimitedListToSet(componentSettings.get("hosts")));
         }
 
-        logger.debug("Using initial hosts {}", hosts);
+        logger.debug("using initial hosts {}", hosts);
 
         List<DiscoveryNode> nodes = Lists.newArrayList();
         int idCounter = 0;
@@ -219,7 +219,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                             }
                             ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.get(response.id);
                             if (responses == null) {
-                                logger.warn("Received ping response with no matching id [{}]", response.id);
+                                logger.warn("received ping response with no matching id [{}]", response.id);
                             } else {
                                 responses.put(pingResponse.target(), pingResponse);
                             }
@@ -237,7 +237,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                         if (disconnect) {
                             transportService.disconnectFromNode(nodeToSend);
                         }
-                        logger.warn("Failed to send ping to [{}]", exp, node);
+                        logger.warn("failed to send ping to [{}]", exp, node);
                     }
                 }
             });

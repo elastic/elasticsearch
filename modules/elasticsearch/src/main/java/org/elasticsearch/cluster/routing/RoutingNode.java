@@ -145,7 +145,7 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
 
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder();
-        sb.append("-----NodeId[").append(nodeId).append("]\n");
+        sb.append("-----node_id[").append(nodeId).append("]\n");
         for (MutableShardRouting entry : shards) {
             sb.append("--------").append(entry.shortSummary()).append('\n');
         }

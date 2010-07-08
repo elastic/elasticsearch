@@ -196,7 +196,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
 
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder();
-        sb.append("Nodes: \n");
+        sb.append("nodes: \n");
         for (DiscoveryNode node : this) {
             sb.append("   ").append(node);
             if (node == localNode()) {
@@ -272,16 +272,16 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
             if (!removed() && masterNodeChanged()) {
                 if (newMasterNode.id().equals(localNodeId)) {
                     // we are the master, no nodes we removed, we are actually the first master
-                    sb.append("New Master ").append(newMasterNode());
+                    sb.append("new_master ").append(newMasterNode());
                 } else {
                     // we are not the master, so we just got this event. No nodes were removed, so its not a *new* master
-                    sb.append("Detected Master ").append(newMasterNode());
+                    sb.append("detected_master ").append(newMasterNode());
                 }
             } else {
                 if (masterNodeChanged()) {
-                    sb.append("Master {New ").append(newMasterNode());
+                    sb.append("master {new ").append(newMasterNode());
                     if (previousMasterNode() != null) {
-                        sb.append(", Previous ").append(previousMasterNode());
+                        sb.append(", previous ").append(previousMasterNode());
                     }
                     sb.append("}");
                 }
@@ -289,7 +289,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
                     if (masterNodeChanged()) {
                         sb.append(", ");
                     }
-                    sb.append("Removed {");
+                    sb.append("removed {");
                     for (DiscoveryNode node : removedNodes()) {
                         sb.append(node).append(',');
                     }
@@ -302,7 +302,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
                     if (removed() || masterNodeChanged()) {
                         sb.append(", ");
                     }
-                    sb.append("Added {");
+                    sb.append("added {");
                     for (DiscoveryNode node : addedNodes()) {
                         if (!node.id().equals(localNodeId)) {
                             // don't print ourself

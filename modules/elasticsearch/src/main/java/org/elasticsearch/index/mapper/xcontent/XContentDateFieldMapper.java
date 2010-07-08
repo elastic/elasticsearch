@@ -21,7 +21,10 @@ package org.elasticsearch.index.mapper.xcontent;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.NumericRangeFilter;
+import org.apache.lucene.search.NumericRangeQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
@@ -200,10 +203,6 @@ public class XContentDateFieldMapper extends XContentNumberFieldMapper<Long> {
             field = new Field(names.indexName(), popCachedStream(precisionStep).setLongValue(value));
         }
         return field;
-    }
-
-    @Override public int sortType() {
-        return SortField.LONG;
     }
 
     @Override public FieldData.Type fieldDataType() {

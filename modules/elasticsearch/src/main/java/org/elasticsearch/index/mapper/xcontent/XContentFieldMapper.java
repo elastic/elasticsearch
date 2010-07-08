@@ -344,10 +344,6 @@ public abstract class XContentFieldMapper<T> implements FieldMapper<T>, XContent
         mergeContext.addConflict("Mapper [" + names.fullName() + "] exists, can't merge");
     }
 
-    @Override public int sortType() {
-        return SortField.STRING;
-    }
-
     @Override public FieldData.Type fieldDataType() {
         return FieldData.Type.STRING;
     }

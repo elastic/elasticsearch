@@ -21,7 +21,10 @@ package org.elasticsearch.index.mapper.xcontent;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.NumericRangeFilter;
+import org.apache.lucene.search.NumericRangeQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -167,10 +170,6 @@ public class XContentBoostFieldMapper extends XContentNumberFieldMapper<Float> i
             value = context.parser().floatValue();
         }
         return value;
-    }
-
-    @Override public int sortType() {
-        return SortField.FLOAT;
     }
 
     @Override public FieldData.Type fieldDataType() {

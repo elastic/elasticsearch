@@ -20,14 +20,23 @@
 package org.elasticsearch.index.field.data;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.FieldComparatorSource;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.thread.ThreadLocals;
+import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
+import org.elasticsearch.index.field.data.doubles.DoubleFieldDataComparator;
 import org.elasticsearch.index.field.data.floats.FloatFieldData;
+import org.elasticsearch.index.field.data.floats.FloatFieldDataComparator;
 import org.elasticsearch.index.field.data.ints.IntFieldData;
+import org.elasticsearch.index.field.data.ints.IntFieldDataComparator;
 import org.elasticsearch.index.field.data.longs.LongFieldData;
+import org.elasticsearch.index.field.data.longs.LongFieldDataComparator;
 import org.elasticsearch.index.field.data.shorts.ShortFieldData;
+import org.elasticsearch.index.field.data.shorts.ShortFieldDataComparator;
 import org.elasticsearch.index.field.data.strings.StringFieldData;
+import org.elasticsearch.index.field.data.strings.StringOrdValFieldDataComparator;
 
 import java.io.IOException;
 
@@ -39,25 +48,109 @@ import java.io.IOException;
 public abstract class FieldData<Doc extends DocFieldData> {
 
     public static enum Type {
-        STRING(StringFieldData.class, false),
-        SHORT(ShortFieldData.class, true),
-        INT(IntFieldData.class, true),
-        LONG(LongFieldData.class, true),
-        FLOAT(FloatFieldData.class, true),
-        DOUBLE(DoubleFieldData.class, true);
+        STRING() {
 
-        public final Class<? extends FieldData> fieldDataClass;
+            @Override public Class<? extends FieldData> fieldDataClass() {
+                return StringFieldData.class;
+            }
 
-        private final boolean isNumeric;
+            @Override public boolean isNumeric() {
+                return false;
+            }
 
-        Type(Class<? extends FieldData> clazz, boolean numeric) {
-            this.fieldDataClass = clazz;
-            this.isNumeric = numeric;
-        }
+            @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache) {
+                return new FieldComparatorSource() {
+                    @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                        return new StringOrdValFieldDataComparator(numHits, fieldname, sortPos, reversed, cache);
+                    }
+                };
+            }},
+        SHORT() {
+            @Override public Class<? extends FieldData> fieldDataClass() {
+                return ShortFieldData.class;
+            }
 
-        public boolean isNumeric() {
-            return isNumeric;
-        }
+            @Override public boolean isNumeric() {
+                return true;
+            }
+
+            @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache) {
+                return new FieldComparatorSource() {
+                    @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                        return new ShortFieldDataComparator(numHits, fieldname, cache);
+                    }
+                };
+            }},
+        INT() {
+            @Override public Class<? extends FieldData> fieldDataClass() {
+                return IntFieldData.class;
+            }
+
+            @Override public boolean isNumeric() {
+                return true;
+            }
+
+            @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache) {
+                return new FieldComparatorSource() {
+                    @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                        return new IntFieldDataComparator(numHits, fieldname, cache);
+                    }
+                };
+            }},
+        LONG() {
+            @Override public Class<? extends FieldData> fieldDataClass() {
+                return LongFieldData.class;
+            }
+
+            @Override public boolean isNumeric() {
+                return true;
+            }
+
+            @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache) {
+                return new FieldComparatorSource() {
+                    @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                        return new LongFieldDataComparator(numHits, fieldname, cache);
+                    }
+                };
+            }},
+        FLOAT() {
+            @Override public Class<? extends FieldData> fieldDataClass() {
+                return FloatFieldData.class;
+            }
+
+            @Override public boolean isNumeric() {
+                return true;
+            }
+
+            @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache) {
+                return new FieldComparatorSource() {
+                    @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                        return new FloatFieldDataComparator(numHits, fieldname, cache);
+                    }
+                };
+            }},
+        DOUBLE() {
+            @Override public Class<? extends FieldData> fieldDataClass() {
+                return DoubleFieldData.class;
+            }
+
+            @Override public boolean isNumeric() {
+                return true;
+            }
+
+            @Override public FieldComparatorSource newFieldComparatorSource(final FieldDataCache cache) {
+                return new FieldComparatorSource() {
+                    @Override public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                        return new DoubleFieldDataComparator(numHits, fieldname, cache);
+                    }
+                };
+            }};
+
+        public abstract Class<? extends FieldData> fieldDataClass();
+
+        public abstract boolean isNumeric();
+
+        public abstract FieldComparatorSource newFieldComparatorSource(FieldDataCache cache);
     }
 
     private final ThreadLocal<ThreadLocals.CleanableValue<Doc>> cachedDocFieldData = new ThreadLocal<ThreadLocals.CleanableValue<Doc>>() {
@@ -116,8 +209,10 @@ public abstract class FieldData<Doc extends DocFieldData> {
      */
     public abstract Type type();
 
+    public abstract FieldComparator newComparator(FieldDataCache fieldDataCache, int numHits, String field, int sortPos, boolean reversed);
+
     public static FieldData load(Type type, IndexReader reader, String fieldName) throws IOException {
-        return load(type.fieldDataClass, reader, fieldName);
+        return load(type.fieldDataClass(), reader, fieldName);
     }
 
     @SuppressWarnings({"unchecked"})

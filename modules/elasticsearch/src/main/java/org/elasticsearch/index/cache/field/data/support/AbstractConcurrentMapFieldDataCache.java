@@ -64,7 +64,7 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
     }
 
     @Override public FieldData cache(FieldData.Type type, IndexReader reader, String fieldName) throws IOException {
-        return cache(type.fieldDataClass, reader, fieldName);
+        return cache(type.fieldDataClass(), reader, fieldName);
     }
 
     @Override public <T extends FieldData> T cache(Class<T> type, IndexReader reader, String fieldName) throws IOException {

@@ -40,10 +40,6 @@ public class HdfsAppendableBlobContainer extends AbstractHdfsBlobContainer imple
         return new HdfsAppendableBlob(new Path(path, blobName));
     }
 
-    @Override public boolean canAppendToExistingBlob() {
-        return false;
-    }
-
     private class HdfsAppendableBlob implements AppendableBlob {
 
         private final Path file;

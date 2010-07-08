@@ -34,7 +34,6 @@ import org.elasticsearch.common.lucene.Directories;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.lucene.store.ThreadSafeInputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
@@ -416,7 +415,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
         if (latestTranslogId == -1) {
             // no recovery file found, start the shard and bail
             indexShard.start();
-            return new RecoveryStatus.Translog(-1, 0, 0, new ByteSizeValue(0, ByteSizeUnit.BYTES));
+            return new RecoveryStatus.Translog(0);
         }
 
 
@@ -447,7 +446,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
             indexShard.performRecoveryPrepareForTranslog();
             indexShard.performRecoveryFinalization();
 
-            return new RecoveryStatus.Translog(latestTranslogId, operations.size(), 0, new ByteSizeValue(size, ByteSizeUnit.BYTES));
+            return new RecoveryStatus.Translog(operations.size());
         } catch (Exception e) {
             throw new IndexShardGatewayRecoveryException(shardId(), "Failed to perform recovery of translog", e);
         }

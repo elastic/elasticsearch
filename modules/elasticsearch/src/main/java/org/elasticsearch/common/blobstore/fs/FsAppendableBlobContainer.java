@@ -41,10 +41,6 @@ public class FsAppendableBlobContainer extends AbstractFsBlobContainer implement
         return new FsAppendableBlob(new File(path, blobName));
     }
 
-    @Override public boolean canAppendToExistingBlob() {
-        return true;
-    }
-
     private class FsAppendableBlob implements AppendableBlob {
 
         private final File file;

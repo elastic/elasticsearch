@@ -167,6 +167,31 @@ public abstract class AbstractSimpleTranslogTests {
         snapshot.release();
     }
 
+    @Test public void testSnapshotWithSeekForward() {
+        Translog.Snapshot snapshot = translog.snapshot();
+        assertThat(snapshot, translogSize(0));
+        snapshot.release();
+
+        translog.add(new Translog.Create("test", "1", new byte[]{1}));
+        snapshot = translog.snapshot();
+        assertThat(snapshot, translogSize(1));
+        long lastPosition = snapshot.position();
+        snapshot.release();
+
+        translog.add(new Translog.Create("test", "2", new byte[]{1}));
+        snapshot = translog.snapshot();
+        snapshot.seekForward(lastPosition);
+        assertThat(snapshot, translogSize(1));
+        snapshot.release();
+
+        snapshot = translog.snapshot();
+        snapshot.seekForward(lastPosition);
+        assertThat(snapshot.hasNext(), equalTo(true));
+        Translog.Create create = (Translog.Create) snapshot.next();
+        assertThat(create.id(), equalTo("2"));
+        snapshot.release();
+    }
+
     private Term newUid(String id) {
         return new Term("_uid", id);
     }

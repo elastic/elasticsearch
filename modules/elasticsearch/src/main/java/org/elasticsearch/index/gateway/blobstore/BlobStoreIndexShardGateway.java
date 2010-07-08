@@ -38,7 +38,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.lucene.store.ThreadSafeInputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -369,14 +368,14 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         } catch (FileNotFoundException e) {
             // no index, that fine
             indexShard.start();
-            return new RecoveryStatus.Translog(-1, 0, 0, new ByteSizeValue(0));
+            return new RecoveryStatus.Translog(0);
         } catch (IOException e) {
             throw new IndexShardGatewayRecoveryException(shardId, "Failed to recovery translog, can't read current index version", e);
         }
         if (!translogContainer.blobExists("translog-" + translogId)) {
             // no recovery file found, start the shard and bail
             indexShard.start();
-            return new RecoveryStatus.Translog(-1, 0, 0, new ByteSizeValue(0));
+            return new RecoveryStatus.Translog(0);
         }
 
         try {
@@ -452,19 +451,10 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
 
             indexShard.performRecoveryFinalization();
 
-            // only if we can append to an existing translog we should use the current id and continue to append to it
-            long lastTranslogId = indexShard.translog().currentId();
-            Translog.Snapshot translogSnapshot = indexShard.translog().snapshot();
-            long lastTranslogLength = translogSnapshot.length();
-            translogSnapshot.release();
-            if (!translogContainer.canAppendToExistingBlob()) {
-                // flush the index, so we generate a new translog based on a new index version
-                indexShard.flush(new Engine.Flush());
-                lastTranslogId = -1;
-                lastTranslogLength = 0;
-            }
+            // flush the index, so we create a new transaction log
+            indexShard.flush(new Engine.Flush());
 
-            return new RecoveryStatus.Translog(lastTranslogId, lastTranslogLength, totalOperations.get(), new ByteSizeValue(totalSize.get(), ByteSizeUnit.BYTES));
+            return new RecoveryStatus.Translog(totalOperations.get());
         } catch (Throwable e) {
             throw new IndexShardGatewayRecoveryException(shardId, "Failed to recovery translog", e);
         }

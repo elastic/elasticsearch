@@ -63,6 +63,8 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
 
     private volatile long lastTranslogId = -1;
 
+    private volatile long lastTranslogPosition;
+
     private volatile long lastTranslogLength;
 
     private final AtomicBoolean recovered = new AtomicBoolean();
@@ -130,8 +132,9 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             IndexShardGateway.RecoveryStatus recoveryStatus = shardGateway.recover();
 
             lastIndexVersion = recoveryStatus.index().version();
-            lastTranslogId = recoveryStatus.translog().translogId();
-            lastTranslogLength = recoveryStatus.translog().translogLength();
+            lastTranslogId = -1;
+            lastTranslogPosition = 0;
+            lastTranslogLength = 0;
 
             // start the shard if the gateway has not started it already
             if (indexShard.state() != IndexShardState.STARTED) {
@@ -143,7 +146,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                 sb.append("recovery completed from ").append(shardGateway).append(", took [").append(stopWatch.totalTime()).append("], throttling_wait [").append(throttlingWaitTime.totalTime()).append("]\n");
                 sb.append("    index    : recovered_files [").append(recoveryStatus.index().numberOfFiles()).append("] with total_size [").append(recoveryStatus.index().totalSize()).append("], throttling_wait [").append(recoveryStatus.index().throttlingWaitTime()).append("]\n");
                 sb.append("             : reusing_files   [").append(recoveryStatus.index().numberOfExistingFiles()).append("] with total_size [").append(recoveryStatus.index().existingTotalSize()).append("]\n");
-                sb.append("    translog : translog_id [").append(recoveryStatus.translog().translogId()).append("], number_of_operations [").append(recoveryStatus.translog().numberOfOperations()).append("] with total_size[").append(recoveryStatus.translog().totalSize()).append("]");
+                sb.append("    translog : number_of_operations [").append(recoveryStatus.translog().numberOfOperations()).append("]");
                 logger.debug(sb.toString());
             }
             // refresh the shard
@@ -185,13 +188,14 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
         try {
             IndexShardGateway.SnapshotStatus snapshotStatus = indexShard.snapshot(new Engine.SnapshotHandler<IndexShardGateway.SnapshotStatus>() {
                 @Override public IndexShardGateway.SnapshotStatus snapshot(SnapshotIndexCommit snapshotIndexCommit, Translog.Snapshot translogSnapshot) throws EngineException {
-                    if (lastIndexVersion != snapshotIndexCommit.getVersion() || lastTranslogId != translogSnapshot.translogId() || lastTranslogLength != translogSnapshot.length()) {
+                    if (lastIndexVersion != snapshotIndexCommit.getVersion() || lastTranslogId != translogSnapshot.translogId() || lastTranslogLength < translogSnapshot.length()) {
 
                         IndexShardGateway.SnapshotStatus snapshotStatus =
-                                shardGateway.snapshot(new IndexShardGateway.Snapshot(snapshotIndexCommit, translogSnapshot, lastIndexVersion, lastTranslogId, lastTranslogLength));
+                                shardGateway.snapshot(new IndexShardGateway.Snapshot(snapshotIndexCommit, translogSnapshot, lastIndexVersion, lastTranslogId, lastTranslogPosition, lastTranslogLength));
 
                         lastIndexVersion = snapshotIndexCommit.getVersion();
                         lastTranslogId = translogSnapshot.translogId();
+                        lastTranslogPosition = translogSnapshot.position();
                         lastTranslogLength = translogSnapshot.length();
                         return snapshotStatus;
                     }

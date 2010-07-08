@@ -44,10 +44,6 @@ public class ImmutableAppendableBlobContainer extends AbstractBlobContainer impl
         this.container = container;
     }
 
-    @Override public boolean canAppendToExistingBlob() {
-        return false;
-    }
-
     @Override public AppendableBlob appendBlob(final String blobName) throws IOException {
         return new AppendableBlob() {
             int part = 0;

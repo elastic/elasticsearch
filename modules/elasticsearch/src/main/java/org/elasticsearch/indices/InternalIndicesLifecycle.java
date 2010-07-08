@@ -27,6 +27,7 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 
+import javax.annotation.Nullable;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -84,9 +85,9 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
         }
     }
 
-    public void beforeIndexShardClosed(IndexShard indexShard, boolean delete) {
+    public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, boolean delete) {
         for (Listener listener : listeners) {
-            listener.beforeIndexShardClosed(indexShard, delete);
+            listener.beforeIndexShardClosed(shardId, indexShard, delete);
         }
     }
 

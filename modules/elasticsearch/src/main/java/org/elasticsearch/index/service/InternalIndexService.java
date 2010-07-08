@@ -64,6 +64,7 @@ import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ShardsPluginsModule;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -277,29 +278,51 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         IndexShard indexShard = tmpShardsMap.remove(shardId);
         shards = ImmutableMap.copyOf(tmpShardsMap);
 
-        indicesLifecycle.beforeIndexShardClosed(indexShard, delete);
+        ShardId sId = new ShardId(index, shardId);
+
+        indicesLifecycle.beforeIndexShardClosed(sId, indexShard, delete);
 
         for (Class<? extends CloseableIndexComponent> closeable : pluginsService.shardServices()) {
-            shardInjector.getInstance(closeable).close(delete);
+            try {
+                shardInjector.getInstance(closeable).close(delete);
+            } catch (Exception e) {
+                logger.debug("failed to clean plugin shard service [{}]", e, closeable);
+            }
         }
 
         // close shard actions
-        shardInjector.getInstance(IndexShardManagement.class).close();
+        if (indexShard != null) {
+            shardInjector.getInstance(IndexShardManagement.class).close();
+        }
 
         RecoveryAction recoveryAction = shardInjector.getInstance(RecoveryAction.class);
         if (recoveryAction != null) recoveryAction.close();
 
         // this logic is tricky, we want to close the engine so we rollback the changes done to it
         // and close the shard so no operations are allowed to it
-        indexShard.close();
-        shardInjector.getInstance(Engine.class).close();
-        // now, we can snapshot to the gateway, it will be only the translog
-        shardInjector.getInstance(IndexShardGatewayService.class).close(deleteGateway);
-        // now we can close the translog
-        shardInjector.getInstance(Translog.class).close();
+        if (indexShard != null) {
+            indexShard.close();
+        }
+        try {
+            shardInjector.getInstance(Engine.class).close();
+        } catch (Exception e) {
+            // ignore
+        }
+        try {
+            // now, we can snapshot to the gateway, it will be only the translog
+            shardInjector.getInstance(IndexShardGatewayService.class).close(deleteGateway);
+        } catch (Exception e) {
+            // ignore
+        }
+        try {
+            // now we can close the translog
+            shardInjector.getInstance(Translog.class).close();
+        } catch (Exception e) {
+            // ignore
+        }
 
         // call this before we close the store, so we can release resources for it
-        indicesLifecycle.afterIndexShardClosed(indexShard.shardId(), delete);
+        indicesLifecycle.afterIndexShardClosed(sId, delete);
 
         // if we delete or have no gateway or the store is not persistent, clean the store...
         Store store = shardInjector.getInstance(Store.class);
@@ -322,7 +345,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     class CleanCacheOnIndicesLifecycleListener extends IndicesLifecycle.Listener {
 
-        @Override public void beforeIndexShardClosed(IndexShard indexShard, boolean delete) {
+        @Override public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, boolean delete) {
             indexCache.clearUnreferenced();
         }
 

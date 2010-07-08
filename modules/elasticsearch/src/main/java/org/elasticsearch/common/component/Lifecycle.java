@@ -104,6 +104,11 @@ public class Lifecycle {
         return state == State.CLOSED;
     }
 
+    public boolean stoppedOrClosed() {
+        Lifecycle.State state = this.state;
+        return state == State.STOPPED || state == State.CLOSED;
+    }
+
     public boolean canMoveToStarted() throws ElasticSearchIllegalStateException {
         State localState = this.state;
         if (localState == State.INITIALIZED || localState == State.STOPPED) {

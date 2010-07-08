@@ -345,14 +345,14 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                                 // connect to the node if possible
                                 try {
                                     transportService.connectToNode(requestingNode);
+                                    transportService.sendRequest(requestingNode, MulticastPingResponseRequestHandler.ACTION, multicastPingResponse, new VoidTransportResponseHandler(false) {
+                                        @Override public void handleException(RemoteTransportException exp) {
+                                            logger.warn("failed to receive confirmation on sent ping response to [{}]", exp, requestingNode);
+                                        }
+                                    });
                                 } catch (Exception e) {
                                     logger.warn("failed to connect to requesting node {}", e, requestingNode);
                                 }
-                                transportService.sendRequest(requestingNode, MulticastPingResponseRequestHandler.ACTION, multicastPingResponse, new VoidTransportResponseHandler(false) {
-                                    @Override public void handleException(RemoteTransportException exp) {
-                                        logger.warn("failed to receive confirmation on sent ping response to [{}]", exp, requestingNode);
-                                    }
-                                });
                             }
                         });
                     } else {

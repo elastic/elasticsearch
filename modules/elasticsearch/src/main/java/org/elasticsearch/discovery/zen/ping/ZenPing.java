@@ -93,6 +93,9 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
 
         @Override public void writeTo(StreamOutput out) throws IOException {
             clusterName.writeTo(out);
+            if (target == null) {
+                System.out.println("ARGH!");
+            }
             target.writeTo(out);
             if (master == null) {
                 out.writeBoolean(false);

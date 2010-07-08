@@ -78,6 +78,8 @@ public class FsSnapshot implements Translog.Snapshot {
             int opSize = dis.readInt();
             position += 4;
             if ((position + opSize) > length) {
+                // restore the position to before we read the opSize
+                position -= 4;
                 return false;
             }
             position += opSize;

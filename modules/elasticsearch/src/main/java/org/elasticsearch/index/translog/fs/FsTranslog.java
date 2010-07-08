@@ -108,6 +108,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                 bosOs.flush();
                 raf.raf().writeInt(bos.size());
                 raf.raf().write(bos.unsafeByteArray(), 0, bos.size());
+                operationCounter.incrementAndGet();
             } catch (Exception e) {
                 throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
             }
@@ -134,7 +135,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                 FsSnapshot fsSnapshot = (FsSnapshot) snapshot;
                 raf.increaseRefCount();
                 FsSnapshot newSnapshot = new FsSnapshot(shardId, id, raf, raf.raf().getFilePointer());
-                newSnapshot.seekForward(fsSnapshot.length());
+                newSnapshot.seekForward(fsSnapshot.position());
                 return newSnapshot;
             } catch (IOException e) {
                 throw new TranslogException(shardId, "Failed to snapshot", e);

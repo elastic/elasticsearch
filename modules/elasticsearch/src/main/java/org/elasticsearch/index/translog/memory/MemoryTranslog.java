@@ -95,7 +95,7 @@ public class MemoryTranslog extends AbstractIndexShardComponent implements Trans
                 return snapshot();
             }
             MemorySnapshot newSnapshot = new MemorySnapshot(currentId(), operations, operationCounter.get());
-            newSnapshot.seekForward(memorySnapshot.length());
+            newSnapshot.seekForward(memorySnapshot.position());
             return newSnapshot;
         }
     }

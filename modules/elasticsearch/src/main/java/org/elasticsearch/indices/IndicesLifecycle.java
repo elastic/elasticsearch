@@ -24,6 +24,8 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 
+import javax.annotation.Nullable;
+
 /**
  * A global component allowing to register for lifecycle of an index (create/closed) and
  * an index shard (created/closed).
@@ -101,7 +103,7 @@ public interface IndicesLifecycle {
          * @param indexShard The index shard
          * @param delete     Does the index shard gets closed because of a delete command, or because the node is shutting down
          */
-        public void beforeIndexShardClosed(IndexShard indexShard, boolean delete) {
+        public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, boolean delete) {
 
         }
 

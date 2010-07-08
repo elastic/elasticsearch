@@ -58,6 +58,7 @@ import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.timer.TimerService;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -399,8 +400,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             releaseContextsForIndex(indexService.index());
         }
 
-        @Override public void beforeIndexShardClosed(IndexShard indexShard, boolean delete) {
-            releaseContextsForShard(indexShard.shardId());
+        @Override public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, boolean delete) {
+            releaseContextsForShard(shardId);
         }
     }
 

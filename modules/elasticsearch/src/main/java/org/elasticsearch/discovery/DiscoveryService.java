@@ -57,13 +57,13 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
         try {
             discovery.start();
             try {
-                logger.trace("Waiting for {} for the initial state to be set by the discovery", initialStateTimeout);
+                logger.trace("waiting for {} for the initial state to be set by the discovery", initialStateTimeout);
                 if (latch.await(initialStateTimeout.millis(), TimeUnit.MILLISECONDS)) {
-                    logger.trace("Initial state set from discovery");
+                    logger.trace("initial state set from discovery");
                     initialStateReceived = true;
                 } else {
                     initialStateReceived = false;
-                    logger.warn("Waited for {} and no initial state was set by the discovery", initialStateTimeout);
+                    logger.warn("waited for {} and no initial state was set by the discovery", initialStateTimeout);
                 }
             } catch (InterruptedException e) {
                 // ignore

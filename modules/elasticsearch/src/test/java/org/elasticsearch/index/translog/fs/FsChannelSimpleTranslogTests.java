@@ -31,10 +31,10 @@ import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class FsSimpleTranslogTests extends AbstractSimpleTranslogTests {
+public class FsChannelSimpleTranslogTests extends AbstractSimpleTranslogTests {
 
     @Override protected Translog create() {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, new File("work/fs-translog"));
+        return new FsTranslog(shardId, EMPTY_SETTINGS, new File("work/fs-translog"), false);
     }
 
     @AfterTest public void cleanup() {

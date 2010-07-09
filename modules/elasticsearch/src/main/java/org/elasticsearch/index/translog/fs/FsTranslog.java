@@ -46,6 +46,8 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
 
     private final File location;
 
+    private final boolean useStream;
+
     private final Object mutex = new Object();
 
     private volatile long id;
@@ -57,13 +59,21 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     private volatile SoftReference<FastByteArrayOutputStream> cachedBos = new SoftReference<FastByteArrayOutputStream>(new FastByteArrayOutputStream());
 
     @Inject public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv) {
-        this(shardId, indexSettings, new File(new File(new File(new File(nodeEnv.nodeFile(), "indices"), shardId.index().name()), Integer.toString(shardId.id())), "translog"));
+        super(shardId, indexSettings);
+        this.location = new File(new File(new File(new File(nodeEnv.nodeFile(), "indices"), shardId.index().name()), Integer.toString(shardId.id())), "translog");
+        this.location.mkdirs();
+        this.useStream = componentSettings.getAsBoolean("use_stream", false);
     }
 
     public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, File location) {
+        this(shardId, indexSettings, location, false);
+    }
+
+    public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, File location, boolean useStream) {
         super(shardId, indexSettings);
         this.location = location;
-        location.mkdirs();
+        this.location.mkdirs();
+        this.useStream = useStream;
     }
 
     @Override public long currentId() {
@@ -119,7 +129,11 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         synchronized (mutex) {
             try {
                 raf.increaseRefCount();
-                return new FsSnapshot(shardId, this.id, raf, raf.raf().getFilePointer());
+                if (useStream) {
+                    return new FsStreamSnapshot(shardId, this.id, raf, raf.raf().getFilePointer());
+                } else {
+                    return new FsChannelSnapshot(shardId, this.id, raf, raf.raf().getFilePointer());
+                }
             } catch (IOException e) {
                 throw new TranslogException(shardId, "Failed to snapshot", e);
             }
@@ -132,11 +146,16 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                 return snapshot();
             }
             try {
-                FsSnapshot fsSnapshot = (FsSnapshot) snapshot;
                 raf.increaseRefCount();
-                FsSnapshot newSnapshot = new FsSnapshot(shardId, id, raf, raf.raf().getFilePointer());
-                newSnapshot.seekForward(fsSnapshot.position());
-                return newSnapshot;
+                if (useStream) {
+                    FsStreamSnapshot newSnapshot = new FsStreamSnapshot(shardId, id, raf, raf.raf().getFilePointer());
+                    newSnapshot.seekForward(snapshot.position());
+                    return newSnapshot;
+                } else {
+                    FsChannelSnapshot newSnapshot = new FsChannelSnapshot(shardId, id, raf, raf.raf().getFilePointer());
+                    newSnapshot.seekForward(snapshot.position());
+                    return newSnapshot;
+                }
             } catch (IOException e) {
                 throw new TranslogException(shardId, "Failed to snapshot", e);
             }

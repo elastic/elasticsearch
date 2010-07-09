@@ -23,18 +23,16 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogException;
 import org.elasticsearch.index.translog.TranslogStreams;
 
-import java.io.DataInputStream;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class FsSnapshot implements Translog.Snapshot {
+public class FsChannelSnapshot implements Translog.Snapshot {
 
     private final ShardId shardId;
 
@@ -42,22 +40,22 @@ public class FsSnapshot implements Translog.Snapshot {
 
     private final RafReference raf;
 
-    private final long length;
+    private final FileChannel channel;
 
-    private final DataInputStream dis;
+    private final long length;
 
     private Translog.Operation lastOperationRead = null;
 
     private int position = 0;
 
-    private byte[] cachedData;
+    private ByteBuffer cacheBuffer;
 
-    public FsSnapshot(ShardId shardId, long id, RafReference raf, long length) throws FileNotFoundException {
+    public FsChannelSnapshot(ShardId shardId, long id, RafReference raf, long length) throws FileNotFoundException {
         this.shardId = shardId;
         this.id = id;
         this.raf = raf;
+        this.channel = raf.raf().getChannel();
         this.length = length;
-        this.dis = new DataInputStream(new FileInputStream(raf.file()));
     }
 
     @Override public long translogId() {
@@ -77,21 +75,31 @@ public class FsSnapshot implements Translog.Snapshot {
             if (position > length) {
                 return false;
             }
-            int opSize = dis.readInt();
+            if (cacheBuffer == null) {
+                cacheBuffer = ByteBuffer.allocate(1024);
+            }
+            cacheBuffer.limit(4);
+            int bytesRead = channel.read(cacheBuffer, position);
+            if (bytesRead < 4) {
+                return false;
+            }
+            cacheBuffer.flip();
+            int opSize = cacheBuffer.getInt();
             position += 4;
             if ((position + opSize) > length) {
                 // restore the position to before we read the opSize
                 position -= 4;
                 return false;
             }
-            position += opSize;
-            if (cachedData == null) {
-                cachedData = new byte[opSize];
-            } else if (cachedData.length < opSize) {
-                cachedData = new byte[opSize];
+            if (cacheBuffer.capacity() < opSize) {
+                cacheBuffer = ByteBuffer.allocate(opSize);
             }
-            dis.readFully(cachedData, 0, opSize);
-            lastOperationRead = TranslogStreams.readTranslogOperation(new BytesStreamInput(cachedData, 0, opSize));
+            cacheBuffer.clear();
+            cacheBuffer.limit(opSize);
+            channel.read(cacheBuffer, position);
+            cacheBuffer.flip();
+            position += opSize;
+            lastOperationRead = TranslogStreams.readTranslogOperation(new BytesStreamInput(cacheBuffer.array(), 0, opSize));
             return true;
         } catch (Exception e) {
             return false;
@@ -104,19 +112,9 @@ public class FsSnapshot implements Translog.Snapshot {
 
     @Override public void seekForward(long length) {
         this.position += length;
-        try {
-            this.dis.skip(length);
-        } catch (IOException e) {
-            throw new TranslogException(shardId, "failed to seek forward", e);
-        }
     }
 
     @Override public boolean release() throws ElasticSearchException {
-        try {
-            dis.close();
-        } catch (IOException e) {
-            // ignore
-        }
         raf.decreaseRefCount();
         return true;
     }

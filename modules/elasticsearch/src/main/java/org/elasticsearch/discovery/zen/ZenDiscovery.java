@@ -364,6 +364,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         builder.masterNodeId(electedMaster.id());
                         masterFD.restart(electedMaster, "possible elected master since master left (reason = " + reason + ")");
                     } else {
+                        logger.warn("master_left and no other node elected to become master, current nodes: {}", nodes);
                         builder.masterNodeId(null);
                         clusterBlocks = ClusterBlocks.builder().blocks(clusterBlocks).addGlobalBlock(NO_MASTER_BLOCK).build();
                         masterFD.stop("no master elected since master left (reason = " + reason + ")");

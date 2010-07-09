@@ -50,6 +50,8 @@ public class FsSnapshot implements Translog.Snapshot {
 
     private int position = 0;
 
+    private byte[] cachedData;
+
     public FsSnapshot(ShardId shardId, long id, RafReference raf, long length) throws FileNotFoundException {
         this.shardId = shardId;
         this.id = id;
@@ -83,9 +85,13 @@ public class FsSnapshot implements Translog.Snapshot {
                 return false;
             }
             position += opSize;
-            byte[] data = new byte[opSize];
-            dis.readFully(data);
-            lastOperationRead = TranslogStreams.readTranslogOperation(new BytesStreamInput(data));
+            if (cachedData == null) {
+                cachedData = new byte[opSize];
+            } else if (cachedData.length < opSize) {
+                cachedData = new byte[opSize];
+            }
+            dis.readFully(cachedData, 0, opSize);
+            lastOperationRead = TranslogStreams.readTranslogOperation(new BytesStreamInput(cachedData, 0, opSize));
             return true;
         } catch (Exception e) {
             return false;

@@ -137,8 +137,10 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         updateTasksExecutor.execute(new Runnable() {
             @Override public void run() {
                 if (!lifecycle.started()) {
+                    logger.debug("processing [{}]: ignoring, cluster_service not started", source);
                     return;
                 }
+                logger.debug("processing [{}]: execute", source);
                 ClusterState previousClusterState = clusterState;
                 try {
                     clusterState = updateTask.execute(previousClusterState);
@@ -215,6 +217,10 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     if (updateTask instanceof ProcessedClusterStateUpdateTask) {
                         ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(clusterState);
                     }
+
+                    logger.debug("processing [{}]: done applying updated cluster_state", source);
+                } else {
+                    logger.debug("processing [{}]: no change in cluster_state", source);
                 }
             }
         });

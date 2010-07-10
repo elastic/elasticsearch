@@ -19,15 +19,22 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.index.shard.IndexShardException;
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.index.shard.ShardId;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class PrimaryNotStartedActionException extends IndexShardException {
+public class PrimaryNotStartedActionException extends ElasticSearchException {
 
     public PrimaryNotStartedActionException(ShardId shardId, String message) {
-        super(shardId, message);
+        super(buildMessage(shardId, message));
+    }
+
+    private static String buildMessage(ShardId shardId, String message) {
+        if (shardId == null) {
+            return message;
+        }
+        return "[" + shardId.index() + "][" + shardId.id() + "]" + message;
     }
 }

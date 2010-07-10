@@ -291,7 +291,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     }
 
                     @Override public void clusterStateProcessed(ClusterState clusterState) {
-                        sendInitialStateEventIfNeeded();
+                        // don't send initial state event, since we want to get the cluster state from the master that includes us first
+//                        sendInitialStateEventIfNeeded();
                     }
                 });
             }

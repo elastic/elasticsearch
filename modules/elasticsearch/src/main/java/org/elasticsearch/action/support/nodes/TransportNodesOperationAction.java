@@ -88,7 +88,6 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
         return nodesIds;
     }
 
-
     private class AsyncAction {
 
         private final Request request;
@@ -117,11 +116,27 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
                     nodesIds[index++] = node.id();
                 }
             }
+            for (int i = 0; i < nodesIds.length; i++) {
+                if (nodesIds[i].equals("_local")) {
+                    nodesIds[i] = clusterState.nodes().localNodeId();
+                } else if (nodesIds[i].equals("_master")) {
+                    nodesIds[i] = clusterState.nodes().masterNodeId();
+                }
+            }
             this.nodesIds = filterNodeIds(clusterState.nodes(), nodesIds);
-            this.responses = new AtomicReferenceArray<Object>(nodesIds.length);
+            this.responses = new AtomicReferenceArray<Object>(this.nodesIds.length);
         }
 
         private void start() {
+            if (nodesIds.length == 0) {
+                // nothing to notify
+                threadPool.execute(new Runnable() {
+                    @Override public void run() {
+                        listener.onResponse(newResponse(request, responses));
+                    }
+                });
+                return;
+            }
             for (final String nodeId : nodesIds) {
                 final DiscoveryNode node = clusterState.nodes().nodes().get(nodeId);
                 if (nodeId.equals("_local") || nodeId.equals(clusterState.nodes().localNodeId())) {

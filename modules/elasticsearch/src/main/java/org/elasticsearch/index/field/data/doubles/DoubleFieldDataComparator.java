@@ -26,6 +26,7 @@ import org.elasticsearch.index.field.data.support.NumericFieldDataComparator;
 /**
  * @author kimchy (shay.banon)
  */
+// LUCENE MONITOR: Monitor against FieldComparator.Double
 public class DoubleFieldDataComparator extends NumericFieldDataComparator {
 
     private final double[] values;

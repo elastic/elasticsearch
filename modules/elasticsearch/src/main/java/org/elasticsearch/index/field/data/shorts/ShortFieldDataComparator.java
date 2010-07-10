@@ -26,6 +26,7 @@ import org.elasticsearch.index.field.data.support.NumericFieldDataComparator;
 /**
  * @author kimchy (shay.banon)
  */
+// LUCENE MONITOR: Monitor against FieldComparator.Short
 public class ShortFieldDataComparator extends NumericFieldDataComparator {
 
     private final short[] values;

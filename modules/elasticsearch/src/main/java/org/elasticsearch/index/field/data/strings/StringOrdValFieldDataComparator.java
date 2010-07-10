@@ -29,6 +29,7 @@ import java.io.IOException;
 /**
  * @author kimchy (shay.banon)
  */
+// LUCENE MONITOR: Monitor against FieldComparator#String
 public class StringOrdValFieldDataComparator extends FieldComparator {
 
     private final FieldDataCache fieldDataCache;

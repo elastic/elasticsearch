@@ -62,7 +62,6 @@ public class Environment {
         } else {
             homeFile = new File(System.getProperty("user.dir"));
         }
-        homeFile.mkdirs();
 
         if (settings.get("path.conf") != null) {
             configFile = new File(cleanPath(settings.get("path.conf")));
@@ -81,9 +80,7 @@ public class Environment {
         } else {
             workFile = new File(homeFile, "work");
         }
-        workFile.mkdirs();
         workWithClusterFile = new File(workFile, ClusterName.clusterNameFromSettings(settings).value());
-        workWithClusterFile.mkdirs();
 
         if (settings.get("path.logs") != null) {
             logsFile = new File(cleanPath(settings.get("path.logs")));

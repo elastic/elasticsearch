@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -83,6 +84,10 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
 
     protected abstract boolean accumulateExceptions();
 
+    protected String[] filterNodeIds(DiscoveryNodes nodes, String[] nodesIds) {
+        return nodesIds;
+    }
+
 
     private class AsyncAction {
 
@@ -112,7 +117,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
                     nodesIds[index++] = node.id();
                 }
             }
-            this.nodesIds = nodesIds;
+            this.nodesIds = filterNodeIds(clusterState.nodes(), nodesIds);
             this.responses = new AtomicReferenceArray<Object>(nodesIds.length);
         }
 

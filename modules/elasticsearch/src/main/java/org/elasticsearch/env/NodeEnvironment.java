@@ -21,6 +21,7 @@ package org.elasticsearch.env;
 
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NativeFSLockFactory;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -47,6 +48,12 @@ public class NodeEnvironment extends AbstractComponent {
 
     @Inject public NodeEnvironment(Settings settings, Environment environment) throws IOException {
         super(settings);
+
+        if (!settings.getAsBoolean("node.data", true) || settings.getAsBoolean("node.client", false)) {
+            nodeFile = null;
+            lock = null;
+            return;
+        }
 
         Lock lock = null;
         File dir = null;
@@ -77,7 +84,14 @@ public class NodeEnvironment extends AbstractComponent {
         }
     }
 
+    public boolean hasNodeFile() {
+        return nodeFile != null && lock != null;
+    }
+
     public File nodeFile() {
+        if (nodeFile == null || lock == null) {
+            throw new ElasticSearchIllegalStateException("node is not configured to store local location");
+        }
         return nodeFile;
     }
 

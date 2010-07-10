@@ -25,8 +25,11 @@ import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import org.elasticsearch.search.facets.AbstractFacetBuilder;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 /**
+ * A facet builder of histogram facets.
+ *
  * @author kimchy (shay.banon)
  */
 public class HistogramFacetBuilder extends AbstractFacetBuilder {
@@ -35,29 +38,57 @@ public class HistogramFacetBuilder extends AbstractFacetBuilder {
     private long interval = -1;
     private HistogramFacet.ComparatorType comparatorType;
 
+    /**
+     * Constructs a new histogram facet with the provided facet logical name.
+     *
+     * @param name The logical name of the facet
+     */
     public HistogramFacetBuilder(String name) {
         super(name);
     }
 
+    /**
+     * The field name to perform the histogram facet. Translates to perform the histogram facet
+     * using the provided field as both the {@link #keyField(String)} and {@link #valueField(String)}.
+     */
     public HistogramFacetBuilder field(String field) {
         this.keyFieldName = field;
         this.valueFieldName = field;
         return this;
     }
 
+    /**
+     * The field name to use in order to control where the hit will "fall into" within the histogram
+     * entries. Essentially, using the key field numeric value, the hit will be "rounded" into the relevant
+     * bucket controlled by the interval.
+     */
     public HistogramFacetBuilder keyField(String keyField) {
         this.keyFieldName = keyField;
         return this;
     }
 
+    /**
+     * The field name to use as the value of the hit to compute data based on values within the interval
+     * (for example, total).
+     */
     public HistogramFacetBuilder valueField(String valueField) {
         this.valueFieldName = valueField;
         return this;
     }
 
+    /**
+     * The interval used to control the bucket "size" where each key value of a hit will fall into.
+     */
     public HistogramFacetBuilder interval(long interval) {
         this.interval = interval;
         return this;
+    }
+
+    /**
+     * The interval used to control the bucket "size" where each key value of a hit will fall into.
+     */
+    public HistogramFacetBuilder interval(long interval, TimeUnit unit) {
+        return interval(unit.toMillis(interval));
     }
 
     public HistogramFacetBuilder comparator(HistogramFacet.ComparatorType comparatorType) {
@@ -65,11 +96,18 @@ public class HistogramFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
+    /**
+     * Should the facet run in global mode (not bounded by the search query) or not (bounded by
+     * the search query). Defaults to <tt>false</tt>.
+     */
     public HistogramFacetBuilder global(boolean global) {
         this.global = global;
         return this;
     }
 
+    /**
+     * An additional filter used to further filter down the set of documents the facet will run on.
+     */
     public HistogramFacetBuilder filter(XContentFilterBuilder filter) {
         this.filter = filter;
         return this;

@@ -26,22 +26,40 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Numeric histogram information.
+ * Numeric histogram facet.
  *
  * @author kimchy (shay.banon)
  */
 public interface HistogramFacet extends Facet, Iterable<HistogramFacet.Entry> {
 
+    /**
+     * The key field name used with this facet.
+     */
     String keyFieldName();
 
+    /**
+     * The key field name used with this facet.
+     */
     String getKeyFieldName();
 
+    /**
+     * The value field name used with this facet.
+     */
     String valueFieldName();
 
+    /**
+     * The value field name used with this facet.
+     */
     String getValueFieldName();
 
+    /**
+     * An ordered list of histogram facet entries.
+     */
     List<Entry> entries();
 
+    /**
+     * An ordered list of histogram facet entries.
+     */
     List<Entry> getEntries();
 
     public static enum ComparatorType {
@@ -131,6 +149,9 @@ public interface HistogramFacet extends Facet, Iterable<HistogramFacet.Entry> {
     }
 
 
+    /**
+     * A histogram entry representing a single entry within the result of a histogram facet.
+     */
     public class Entry {
         private final long key;
         private final long count;
@@ -142,34 +163,58 @@ public interface HistogramFacet extends Facet, Iterable<HistogramFacet.Entry> {
             this.total = total;
         }
 
+        /**
+         * The key value of the histogram.
+         */
         public long key() {
             return key;
         }
 
+        /**
+         * The key value of the histogram.
+         */
         public long getKey() {
             return key();
         }
 
+        /**
+         * The number of hits that fall within that key "range" or "interval".
+         */
         public long count() {
             return count;
         }
 
+        /**
+         * The number of hits that fall within that key "range" or "interval".
+         */
         public long getCount() {
             return count();
         }
 
+        /**
+         * The sum / total of the value field that fall within this key "interval".
+         */
         public double total() {
             return total;
         }
 
+        /**
+         * The sum / total of the value field that fall within this key "interval".
+         */
         public double getTotal() {
             return total();
         }
 
+        /**
+         * The mean of this facet interval.
+         */
         public double mean() {
             return total / count;
         }
 
+        /**
+         * The mean of this facet interval.
+         */
         public double getMean() {
             return mean();
         }

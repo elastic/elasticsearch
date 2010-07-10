@@ -72,7 +72,6 @@ public class DumpMonitorService extends AbstractComponent {
         } else {
             dumpLocationFile = new File(workFile, "dump");
         }
-        boolean success = dumpLocationFile.mkdirs();
 
         Map<String, DumpContributor> contributorMap = newHashMap();
         if (contributors != null) {

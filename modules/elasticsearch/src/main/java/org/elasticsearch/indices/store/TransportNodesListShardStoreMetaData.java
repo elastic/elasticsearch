@@ -25,7 +25,9 @@ import org.elasticsearch.action.support.nodes.*;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,6 +41,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
@@ -80,6 +83,18 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
 
     @Override protected NodeStoreFilesMetaData newNodeResponse() {
         return new NodeStoreFilesMetaData();
+    }
+
+    // only list stores on data node
+
+    @Override protected String[] filterNodeIds(DiscoveryNodes nodes, String[] nodesIds) {
+        Set<String> onlyDataNodeIds = Sets.newHashSet();
+        for (String nodeId : nodesIds) {
+            if (nodes.nodeExists(nodeId) && nodes.get(nodeId).dataNode()) {
+                onlyDataNodeIds.add(nodeId);
+            }
+        }
+        return onlyDataNodeIds.toArray(new String[onlyDataNodeIds.size()]);
     }
 
     @Override protected NodesStoreFilesMetaData newResponse(Request request, AtomicReferenceArray responses) {

@@ -54,14 +54,10 @@ public abstract class FsIndexStore extends AbstractIndexStore {
 
     public FsIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, NodeEnvironment nodeEnv) {
         super(index, indexSettings, indexService);
-        this.location = new File(new File(nodeEnv.nodeFile(), "indices"), index.name());
-
-        if (!location.exists()) {
-            for (int i = 0; i < 5; i++) {
-                if (location.mkdirs()) {
-                    break;
-                }
-            }
+        if (nodeEnv.hasNodeFile()) {
+            this.location = new File(new File(nodeEnv.nodeFile(), "indices"), index.name());
+        } else {
+            this.location = null;
         }
     }
 
@@ -70,22 +66,31 @@ public abstract class FsIndexStore extends AbstractIndexStore {
     }
 
     @Override public ByteSizeValue backingStoreTotalSpace() {
+        if (location == null) {
+            return new ByteSizeValue(0);
+        }
         long totalSpace = location.getTotalSpace();
         if (totalSpace == 0) {
-            totalSpace = -1;
+            totalSpace = 0;
         }
         return new ByteSizeValue(totalSpace);
     }
 
     @Override public ByteSizeValue backingStoreFreeSpace() {
+        if (location == null) {
+            return new ByteSizeValue(0);
+        }
         long usableSpace = location.getUsableSpace();
         if (usableSpace == 0) {
-            usableSpace = -1;
+            usableSpace = 0;
         }
         return new ByteSizeValue(usableSpace);
     }
 
     @Override public void deleteUnallocated(ShardId shardId) throws IOException {
+        if (location == null) {
+            return;
+        }
         if (indexService.hasShard(shardId.id())) {
             throw new ElasticSearchIllegalStateException(shardId + " allocated, can't be deleted");
         }
@@ -93,6 +98,9 @@ public abstract class FsIndexStore extends AbstractIndexStore {
     }
 
     @Override public StoreFilesMetaData[] listUnallocatedStores() throws IOException {
+        if (location == null) {
+            return new StoreFilesMetaData[0];
+        }
         File[] shardLocations = location.listFiles();
         if (shardLocations == null || shardLocations.length == 0) {
             return new StoreFilesMetaData[0];
@@ -108,6 +116,9 @@ public abstract class FsIndexStore extends AbstractIndexStore {
     }
 
     @Override protected StoreFilesMetaData listUnallocatedStoreMetaData(ShardId shardId) throws IOException {
+        if (location == null) {
+            return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
+        }
         File shardIndexLocation = shardIndexLocation(shardId);
         if (!shardIndexLocation.exists()) {
             return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
@@ -137,10 +148,6 @@ public abstract class FsIndexStore extends AbstractIndexStore {
 
     ConcurrentMap<String, String> cachedShardMd5s(ShardId shardId) {
         return cachedUnallocatedMd5s.get(shardId);
-    }
-
-    public File location() {
-        return location;
     }
 
     public File shardLocation(ShardId shardId) {

@@ -42,7 +42,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
@@ -449,10 +448,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                 throw failure.get();
             }
 
-            indexShard.performRecoveryFinalization();
-
-            // flush the index, so we create a new transaction log
-            indexShard.flush(new Engine.Flush());
+            indexShard.performRecoveryFinalization(true);
 
             return new RecoveryStatus.Translog(totalOperations.get());
         } catch (Throwable e) {

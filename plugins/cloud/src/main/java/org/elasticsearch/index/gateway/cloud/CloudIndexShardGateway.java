@@ -444,7 +444,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
             currentTranslogPartToWrite = index;
 
             indexShard.performRecoveryPrepareForTranslog();
-            indexShard.performRecoveryFinalization();
+            indexShard.performRecoveryFinalization(true);
 
             return new RecoveryStatus.Translog(operations.size());
         } catch (Exception e) {

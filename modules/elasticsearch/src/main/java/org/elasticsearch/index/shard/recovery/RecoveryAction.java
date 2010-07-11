@@ -700,7 +700,7 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
         @Override public void messageReceived(VoidStreamable stream, TransportChannel channel) throws Exception {
             receiveSnapshotRecoveryThread = Thread.currentThread();
             try {
-                indexShard.performRecoveryFinalization();
+                indexShard.performRecoveryFinalization(false);
                 channel.sendResponse(VoidStreamable.INSTANCE);
             } finally {
                 receiveSnapshotRecoveryThread = null;

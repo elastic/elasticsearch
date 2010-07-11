@@ -112,7 +112,7 @@ public class DfsSearchResult implements SearchPhaseResult {
         } else {
             freqs = new int[freqsSize];
             for (int i = 0; i < freqs.length; i++) {
-                freqs[i] = in.readInt();
+                freqs[i] = in.readVInt();
             }
         }
         maxDoc = in.readVInt();
@@ -128,7 +128,7 @@ public class DfsSearchResult implements SearchPhaseResult {
         }
         out.writeVInt(freqs.length);
         for (int freq : freqs) {
-            out.writeInt(freq);
+            out.writeVInt(freq);
         }
         out.writeVInt(maxDoc);
     }

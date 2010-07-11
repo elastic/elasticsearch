@@ -53,7 +53,7 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
             logger.warn("failed to clean store before starting shard", e);
         }
         indexShard.start();
-        return new RecoveryStatus(RecoveryStatus.Index.EMPTY, new RecoveryStatus.Translog(0));
+        return new RecoveryStatus(RecoveryStatus.Index.EMPTY, RecoveryStatus.Translog.EMPTY);
     }
 
     @Override public String type() {

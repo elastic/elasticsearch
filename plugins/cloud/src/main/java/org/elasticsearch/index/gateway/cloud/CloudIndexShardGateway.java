@@ -397,7 +397,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
             throw new IndexShardGatewayRecoveryException(shardId(), "Failed to fetch index version after copying it over", e);
         }
 
-        return new RecoveryStatus.Index(version, filesMetaDatas.size(), new ByteSizeValue(totalSize), 0, new ByteSizeValue(0), TimeValue.timeValueMillis(throttlingWaitTime.get()));
+        return new RecoveryStatus.Index(version, filesMetaDatas.size(), new ByteSizeValue(totalSize), 0, new ByteSizeValue(0), TimeValue.timeValueMillis(throttlingWaitTime.get()), TimeValue.timeValueMillis(-1));
     }
 
     private RecoveryStatus.Translog recoverTranslog() throws IndexShardGatewayRecoveryException {
@@ -415,7 +415,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
         if (latestTranslogId == -1) {
             // no recovery file found, start the shard and bail
             indexShard.start();
-            return new RecoveryStatus.Translog(0);
+            return new RecoveryStatus.Translog(0, TimeValue.timeValueMillis(0));
         }
 
 
@@ -446,7 +446,7 @@ public class CloudIndexShardGateway extends AbstractIndexShardComponent implemen
             indexShard.performRecoveryPrepareForTranslog();
             indexShard.performRecoveryFinalization(true);
 
-            return new RecoveryStatus.Translog(operations.size());
+            return new RecoveryStatus.Translog(operations.size(), TimeValue.timeValueMillis(-1));
         } catch (Exception e) {
             throw new IndexShardGatewayRecoveryException(shardId(), "Failed to perform recovery of translog", e);
         }

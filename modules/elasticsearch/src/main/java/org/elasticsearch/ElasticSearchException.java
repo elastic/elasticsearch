@@ -63,13 +63,15 @@ public class ElasticSearchException extends RuntimeException {
     public String getDetailedMessage() {
         if (getCause() != null) {
             StringBuilder sb = new StringBuilder();
-            if (super.getMessage() != null) {
-                sb.append(super.getMessage()).append("; ");
+            sb.append(toString()).append("; ");
+            if (getCause() instanceof ElasticSearchException) {
+                sb.append(((ElasticSearchException) getCause()).getDetailedMessage());
+            } else {
+                sb.append(getCause());
             }
-            sb.append("nested exception is ").append(getCause());
             return sb.toString();
         } else {
-            return super.getMessage();
+            return super.toString();
         }
     }
 

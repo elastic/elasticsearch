@@ -87,6 +87,8 @@ public class MetaDataService extends AbstractComponent {
 
     private final NodeMappingCreatedAction nodeMappingCreatedAction;
 
+    private final Object mutex = new Object();
+
     @Inject public MetaDataService(Settings settings, Environment environment, ClusterService clusterService, IndicesService indicesService, ShardsRoutingStrategy shardsRoutingStrategy,
                                    NodeIndexCreatedAction nodeIndexCreatedAction, NodeIndexDeletedAction nodeIndexDeletedAction,
                                    NodeMappingCreatedAction nodeMappingCreatedAction) {
@@ -102,94 +104,46 @@ public class MetaDataService extends AbstractComponent {
 
     // TODO should find nicer solution than sync here, since we block for timeout (same for other ops)
 
-    public synchronized IndicesAliasesResult indicesAliases(final List<AliasAction> aliasActions) {
-        ClusterState clusterState = clusterService.state();
+    public IndicesAliasesResult indicesAliases(final List<AliasAction> aliasActions) {
+        synchronized (mutex) {
+            ClusterState clusterState = clusterService.state();
 
-        for (AliasAction aliasAction : aliasActions) {
-            if (!clusterState.metaData().hasIndex(aliasAction.index())) {
-                throw new IndexMissingException(new Index(aliasAction.index()));
-            }
-        }
-
-        clusterService.submitStateUpdateTask("index-aliases", new ClusterStateUpdateTask() {
-            @Override public ClusterState execute(ClusterState currentState) {
-                MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
-                for (AliasAction aliasAction : aliasActions) {
-                    IndexMetaData indexMetaData = builder.get(aliasAction.index());
-                    if (indexMetaData == null) {
-                        throw new IndexMissingException(new Index(aliasAction.index()));
-                    }
-                    Set<String> indexAliases = newHashSet(indexMetaData.settings().getAsArray("index.aliases"));
-                    if (aliasAction.actionType() == AliasAction.Type.ADD) {
-                        indexAliases.add(aliasAction.alias());
-                    } else if (aliasAction.actionType() == AliasAction.Type.REMOVE) {
-                        indexAliases.remove(aliasAction.alias());
-                    }
-
-                    Settings settings = settingsBuilder().put(indexMetaData.settings())
-                            .putArray("index.aliases", indexAliases.toArray(new String[indexAliases.size()]))
-                            .build();
-
-                    builder.put(newIndexMetaDataBuilder(indexMetaData).settings(settings));
+            for (AliasAction aliasAction : aliasActions) {
+                if (!clusterState.metaData().hasIndex(aliasAction.index())) {
+                    throw new IndexMissingException(new Index(aliasAction.index()));
                 }
-                return newClusterStateBuilder().state(currentState).metaData(builder).build();
             }
-        });
 
-        return new IndicesAliasesResult();
+            clusterService.submitStateUpdateTask("index-aliases", new ClusterStateUpdateTask() {
+                @Override public ClusterState execute(ClusterState currentState) {
+                    MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
+                    for (AliasAction aliasAction : aliasActions) {
+                        IndexMetaData indexMetaData = builder.get(aliasAction.index());
+                        if (indexMetaData == null) {
+                            throw new IndexMissingException(new Index(aliasAction.index()));
+                        }
+                        Set<String> indexAliases = newHashSet(indexMetaData.settings().getAsArray("index.aliases"));
+                        if (aliasAction.actionType() == AliasAction.Type.ADD) {
+                            indexAliases.add(aliasAction.alias());
+                        } else if (aliasAction.actionType() == AliasAction.Type.REMOVE) {
+                            indexAliases.remove(aliasAction.alias());
+                        }
+
+                        Settings settings = settingsBuilder().put(indexMetaData.settings())
+                                .putArray("index.aliases", indexAliases.toArray(new String[indexAliases.size()]))
+                                .build();
+
+                        builder.put(newIndexMetaDataBuilder(indexMetaData).settings(settings));
+                    }
+                    return newClusterStateBuilder().state(currentState).metaData(builder).build();
+                }
+            });
+
+            return new IndicesAliasesResult();
+        }
     }
 
-    public synchronized CreateIndexResult createIndex(final String cause, final String index, final Settings indexSettings, Map<String, String> mappings, TimeValue timeout) throws IndexAlreadyExistsException {
-        ClusterState clusterState = clusterService.state();
-
-        if (clusterState.routingTable().hasIndex(index)) {
-            throw new IndexAlreadyExistsException(new Index(index));
-        }
-        if (clusterState.metaData().hasIndex(index)) {
-            throw new IndexAlreadyExistsException(new Index(index));
-        }
-        if (index.contains(" ")) {
-            throw new InvalidIndexNameException(new Index(index), index, "must not contain whitespace");
-        }
-        if (index.contains(",")) {
-            throw new InvalidIndexNameException(new Index(index), index, "must not contain ',");
-        }
-        if (index.contains("#")) {
-            throw new InvalidIndexNameException(new Index(index), index, "must not contain '#");
-        }
-        if (index.charAt(0) == '_') {
-            throw new InvalidIndexNameException(new Index(index), index, "must not start with '_'");
-        }
-        if (!index.toLowerCase().equals(index)) {
-            throw new InvalidIndexNameException(new Index(index), index, "must be lowercase");
-        }
-        if (!Strings.validFileName(index)) {
-            throw new InvalidIndexNameException(new Index(index), index, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
-        }
-        if (clusterState.metaData().aliases().contains(index)) {
-            throw new InvalidIndexNameException(new Index(index), index, "an alias with the same name already exists");
-        }
-
-        // add to the mappings files that exists within the config/mappings location
-        if (mappings == null) {
-            mappings = Maps.newHashMap();
-        } else {
-            mappings = Maps.newHashMap(mappings);
-        }
-        File mappingsDir = new File(environment.configFile(), "mappings");
-        if (mappingsDir.exists() && mappingsDir.isDirectory()) {
-            File defaultMappingsDir = new File(mappingsDir, "_default");
-            if (mappingsDir.exists() && mappingsDir.isDirectory()) {
-                addMappings(mappings, defaultMappingsDir);
-            }
-            File indexMappingsDir = new File(mappingsDir, index);
-            if (mappingsDir.exists() && mappingsDir.isDirectory()) {
-                addMappings(mappings, indexMappingsDir);
-            }
-        }
-
-        final Map<String, String> fMappings = mappings;
-
+    public CreateIndexResult createIndex(final String cause, final String index, final Settings indexSettings, Map<String, String> mappings, TimeValue timeout) throws IndexAlreadyExistsException {
         final CountDownLatch latch = new CountDownLatch(clusterService.state().nodes().size());
         NodeIndexCreatedAction.Listener nodeCreatedListener = new NodeIndexCreatedAction.Listener() {
             @Override public void onNodeIndexCreated(String mIndex, String nodeId) {
@@ -198,31 +152,83 @@ public class MetaDataService extends AbstractComponent {
                 }
             }
         };
-        nodeIndexCreatedAction.add(nodeCreatedListener);
-        clusterService.submitStateUpdateTask("create-index [" + index + "], cause [" + cause + "]", new ClusterStateUpdateTask() {
-            @Override public ClusterState execute(ClusterState currentState) {
-                ImmutableSettings.Builder indexSettingsBuilder = settingsBuilder().put(indexSettings);
-                if (indexSettings.get(SETTING_NUMBER_OF_SHARDS) == null) {
-                    indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
-                }
-                if (indexSettings.get(SETTING_NUMBER_OF_REPLICAS) == null) {
-                    indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
-                }
-                Settings actualIndexSettings = indexSettingsBuilder.build();
+        synchronized (mutex) {
+            ClusterState clusterState = clusterService.state();
 
-                IndexMetaData.Builder indexMetaData = newIndexMetaDataBuilder(index).settings(actualIndexSettings);
-                for (Map.Entry<String, String> entry : fMappings.entrySet()) {
-                    indexMetaData.putMapping(entry.getKey(), entry.getValue());
-                }
-                MetaData newMetaData = newMetaDataBuilder()
-                        .metaData(currentState.metaData())
-                        .put(indexMetaData)
-                        .build();
-
-                logger.info("[{}] creating index, cause [{}], shards [{}]/[{}], mappings {}", index, cause, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), fMappings.keySet());
-                return newClusterStateBuilder().state(currentState).metaData(newMetaData).build();
+            if (clusterState.routingTable().hasIndex(index)) {
+                throw new IndexAlreadyExistsException(new Index(index));
             }
-        });
+            if (clusterState.metaData().hasIndex(index)) {
+                throw new IndexAlreadyExistsException(new Index(index));
+            }
+            if (index.contains(" ")) {
+                throw new InvalidIndexNameException(new Index(index), index, "must not contain whitespace");
+            }
+            if (index.contains(",")) {
+                throw new InvalidIndexNameException(new Index(index), index, "must not contain ',");
+            }
+            if (index.contains("#")) {
+                throw new InvalidIndexNameException(new Index(index), index, "must not contain '#");
+            }
+            if (index.charAt(0) == '_') {
+                throw new InvalidIndexNameException(new Index(index), index, "must not start with '_'");
+            }
+            if (!index.toLowerCase().equals(index)) {
+                throw new InvalidIndexNameException(new Index(index), index, "must be lowercase");
+            }
+            if (!Strings.validFileName(index)) {
+                throw new InvalidIndexNameException(new Index(index), index, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+            }
+            if (clusterState.metaData().aliases().contains(index)) {
+                throw new InvalidIndexNameException(new Index(index), index, "an alias with the same name already exists");
+            }
+
+            // add to the mappings files that exists within the config/mappings location
+            if (mappings == null) {
+                mappings = Maps.newHashMap();
+            } else {
+                mappings = Maps.newHashMap(mappings);
+            }
+            File mappingsDir = new File(environment.configFile(), "mappings");
+            if (mappingsDir.exists() && mappingsDir.isDirectory()) {
+                File defaultMappingsDir = new File(mappingsDir, "_default");
+                if (mappingsDir.exists() && mappingsDir.isDirectory()) {
+                    addMappings(mappings, defaultMappingsDir);
+                }
+                File indexMappingsDir = new File(mappingsDir, index);
+                if (mappingsDir.exists() && mappingsDir.isDirectory()) {
+                    addMappings(mappings, indexMappingsDir);
+                }
+            }
+
+            final Map<String, String> fMappings = mappings;
+
+            nodeIndexCreatedAction.add(nodeCreatedListener);
+            clusterService.submitStateUpdateTask("create-index [" + index + "], cause [" + cause + "]", new ClusterStateUpdateTask() {
+                @Override public ClusterState execute(ClusterState currentState) {
+                    ImmutableSettings.Builder indexSettingsBuilder = settingsBuilder().put(indexSettings);
+                    if (indexSettings.get(SETTING_NUMBER_OF_SHARDS) == null) {
+                        indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
+                    }
+                    if (indexSettings.get(SETTING_NUMBER_OF_REPLICAS) == null) {
+                        indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
+                    }
+                    Settings actualIndexSettings = indexSettingsBuilder.build();
+
+                    IndexMetaData.Builder indexMetaData = newIndexMetaDataBuilder(index).settings(actualIndexSettings);
+                    for (Map.Entry<String, String> entry : fMappings.entrySet()) {
+                        indexMetaData.putMapping(entry.getKey(), entry.getValue());
+                    }
+                    MetaData newMetaData = newMetaDataBuilder()
+                            .metaData(currentState.metaData())
+                            .put(indexMetaData)
+                            .build();
+
+                    logger.info("[{}] creating index, cause [{}], shards [{}]/[{}], mappings {}", index, cause, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), fMappings.keySet());
+                    return newClusterStateBuilder().state(currentState).metaData(newMetaData).build();
+                }
+            });
+        }
 
         boolean acknowledged;
         try {
@@ -279,16 +285,8 @@ public class MetaDataService extends AbstractComponent {
         }
     }
 
-    public synchronized DeleteIndexResult deleteIndex(final String index, TimeValue timeout) throws IndexMissingException {
+    public DeleteIndexResult deleteIndex(final String index, TimeValue timeout) throws IndexMissingException {
         ClusterState clusterState = clusterService.state();
-
-        RoutingTable routingTable = clusterState.routingTable();
-        if (!routingTable.hasIndex(index)) {
-            throw new IndexMissingException(new Index(index));
-        }
-
-        logger.info("[{}] deleting index", index);
-
         final CountDownLatch latch = new CountDownLatch(clusterState.nodes().size());
         NodeIndexDeletedAction.Listener listener = new NodeIndexDeletedAction.Listener() {
             @Override public void onNodeIndexDeleted(String fIndex, String nodeId) {
@@ -298,24 +296,35 @@ public class MetaDataService extends AbstractComponent {
             }
         };
         nodeIndexDeletedAction.add(listener);
-        clusterService.submitStateUpdateTask("delete-index [" + index + "]", new ClusterStateUpdateTask() {
-            @Override public ClusterState execute(ClusterState currentState) {
-                RoutingTable.Builder routingTableBuilder = new RoutingTable.Builder();
-                for (IndexRoutingTable indexRoutingTable : currentState.routingTable().indicesRouting().values()) {
-                    if (!indexRoutingTable.index().equals(index)) {
-                        routingTableBuilder.add(indexRoutingTable);
-                    }
-                }
-                MetaData newMetaData = newMetaDataBuilder()
-                        .metaData(currentState.metaData())
-                        .remove(index)
-                        .build();
+        synchronized (mutex) {
 
-                RoutingTable newRoutingTable = shardsRoutingStrategy.reroute(
-                        newClusterStateBuilder().state(currentState).routingTable(routingTableBuilder).metaData(newMetaData).build());
-                return newClusterStateBuilder().state(currentState).routingTable(newRoutingTable).metaData(newMetaData).build();
+            RoutingTable routingTable = clusterState.routingTable();
+            if (!routingTable.hasIndex(index)) {
+                throw new IndexMissingException(new Index(index));
             }
-        });
+
+            logger.info("[{}] deleting index", index);
+
+            clusterService.submitStateUpdateTask("delete-index [" + index + "]", new ClusterStateUpdateTask() {
+                @Override public ClusterState execute(ClusterState currentState) {
+                    RoutingTable.Builder routingTableBuilder = new RoutingTable.Builder();
+                    for (IndexRoutingTable indexRoutingTable : currentState.routingTable().indicesRouting().values()) {
+                        if (!indexRoutingTable.index().equals(index)) {
+                            routingTableBuilder.add(indexRoutingTable);
+                        }
+                    }
+                    MetaData newMetaData = newMetaDataBuilder()
+                            .metaData(currentState.metaData())
+                            .remove(index)
+                            .build();
+
+                    RoutingTable newRoutingTable = shardsRoutingStrategy.reroute(
+                            newClusterStateBuilder().state(currentState).routingTable(routingTableBuilder).metaData(newMetaData).build());
+                    return newClusterStateBuilder().state(currentState).routingTable(newRoutingTable).metaData(newMetaData).build();
+                }
+            });
+        }
+
         boolean acknowledged;
         try {
             acknowledged = latch.await(timeout.millis(), TimeUnit.MILLISECONDS);
@@ -327,102 +336,40 @@ public class MetaDataService extends AbstractComponent {
         return new DeleteIndexResult(acknowledged);
     }
 
-    public synchronized void updateMapping(final String index, final String type, final String mappingSource) {
-        MapperService mapperService = indicesService.indexServiceSafe(index).mapperService();
+    public void updateMapping(final String index, final String type, final String mappingSource) {
+        synchronized (mutex) {
+            MapperService mapperService = indicesService.indexServiceSafe(index).mapperService();
 
-        DocumentMapper existingMapper = mapperService.documentMapper(type);
-        // parse the updated one
-        DocumentMapper updatedMapper = mapperService.parse(type, mappingSource);
-        if (existingMapper == null) {
-            existingMapper = updatedMapper;
-        } else {
-            // merge from the updated into the existing, ignore conflicts (we know we have them, we just want the new ones)
-            existingMapper.merge(updatedMapper, mergeFlags().simulate(false));
-        }
-        // build the updated mapping source
-        final String updatedMappingSource = existingMapper.buildSource();
-        if (logger.isDebugEnabled()) {
-            logger.debug("[{}] update mapping [{}] (dynamic) with source [{}]", index, type, updatedMappingSource);
-        } else if (logger.isInfoEnabled()) {
-            logger.info("[{}] update mapping [{}] (dynamic)", index, type);
-        }
-        // publish the new mapping
-        clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "]", new ClusterStateUpdateTask() {
-            @Override public ClusterState execute(ClusterState currentState) {
-                MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
-                IndexMetaData indexMetaData = currentState.metaData().index(index);
-                builder.put(newIndexMetaDataBuilder(indexMetaData).putMapping(type, updatedMappingSource));
-                return newClusterStateBuilder().state(currentState).metaData(builder).build();
+            DocumentMapper existingMapper = mapperService.documentMapper(type);
+            // parse the updated one
+            DocumentMapper updatedMapper = mapperService.parse(type, mappingSource);
+            if (existingMapper == null) {
+                existingMapper = updatedMapper;
+            } else {
+                // merge from the updated into the existing, ignore conflicts (we know we have them, we just want the new ones)
+                existingMapper.merge(updatedMapper, mergeFlags().simulate(false));
             }
-        });
+            // build the updated mapping source
+            final String updatedMappingSource = existingMapper.buildSource();
+            if (logger.isDebugEnabled()) {
+                logger.debug("[{}] update mapping [{}] (dynamic) with source [{}]", index, type, updatedMappingSource);
+            } else if (logger.isInfoEnabled()) {
+                logger.info("[{}] update mapping [{}] (dynamic)", index, type);
+            }
+            // publish the new mapping
+            clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "]", new ClusterStateUpdateTask() {
+                @Override public ClusterState execute(ClusterState currentState) {
+                    MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
+                    IndexMetaData indexMetaData = currentState.metaData().index(index);
+                    builder.put(newIndexMetaDataBuilder(indexMetaData).putMapping(type, updatedMappingSource));
+                    return newClusterStateBuilder().state(currentState).metaData(builder).build();
+                }
+            });
+        }
     }
 
-    public synchronized PutMappingResult putMapping(final String[] indices, String mappingType, final String mappingSource, boolean ignoreConflicts, TimeValue timeout) throws ElasticSearchException {
+    public PutMappingResult putMapping(final String[] indices, String mappingType, final String mappingSource, boolean ignoreConflicts, TimeValue timeout) throws ElasticSearchException {
         ClusterState clusterState = clusterService.state();
-        if (indices.length == 0) {
-            throw new IndexMissingException(new Index("_all"));
-        }
-        for (String index : indices) {
-            if (!clusterState.metaData().hasIndex(index)) {
-                throw new IndexMissingException(new Index(index));
-            }
-        }
-
-        Map<String, DocumentMapper> newMappers = newHashMap();
-        Map<String, DocumentMapper> existingMappers = newHashMap();
-        for (String index : indices) {
-            IndexService indexService = indicesService.indexService(index);
-            if (indexService != null) {
-                // try and parse it (no need to add it here) so we can bail early in case of parsing exception
-                DocumentMapper newMapper = indexService.mapperService().parse(mappingType, mappingSource);
-                newMappers.put(index, newMapper);
-                DocumentMapper existingMapper = indexService.mapperService().documentMapper(mappingType);
-                if (existingMapper != null) {
-                    // first, simulate
-                    DocumentMapper.MergeResult mergeResult = existingMapper.merge(newMapper, mergeFlags().simulate(true));
-                    // if we have conflicts, and we are not supposed to ignore them, throw an exception
-                    if (!ignoreConflicts && mergeResult.hasConflicts()) {
-                        throw new MergeMappingException(mergeResult.conflicts());
-                    }
-                    existingMappers.put(index, existingMapper);
-                }
-            } else {
-                throw new IndexMissingException(new Index(index));
-            }
-        }
-
-        if (mappingType == null) {
-            mappingType = newMappers.values().iterator().next().type();
-        } else if (!mappingType.equals(newMappers.values().iterator().next().type())) {
-            throw new InvalidTypeNameException("Type name provided does not match type name within mapping definition");
-        }
-        if (mappingType.charAt(0) == '_') {
-            throw new InvalidTypeNameException("Document mapping type name can't start with '_'");
-        }
-
-        final Map<String, Tuple<String, String>> mappings = newHashMap();
-        for (Map.Entry<String, DocumentMapper> entry : newMappers.entrySet()) {
-            Tuple<String, String> mapping;
-            String index = entry.getKey();
-            // do the actual merge here on the master, and update the mapping source
-            DocumentMapper newMapper = entry.getValue();
-            if (existingMappers.containsKey(entry.getKey())) {
-                // we have an existing mapping, do the merge here (on the master), it will automatically update the mapping source
-                DocumentMapper existingMapper = existingMappers.get(entry.getKey());
-                existingMapper.merge(newMapper, mergeFlags().simulate(false));
-                // use the merged mapping source
-                mapping = new Tuple<String, String>(existingMapper.type(), existingMapper.buildSource());
-            } else {
-                mapping = new Tuple<String, String>(newMapper.type(), newMapper.buildSource());
-            }
-            mappings.put(index, mapping);
-            if (logger.isDebugEnabled()) {
-                logger.debug("[{}] put_mapping [{}] with source [{}]", index, mapping.v1(), mapping.v2());
-            } else if (logger.isInfoEnabled()) {
-                logger.info("[{}] put_mapping [{}]", index, mapping.v1());
-            }
-        }
-
         final CountDownLatch latch = new CountDownLatch(clusterService.state().nodes().size() * indices.length);
         final Set<String> indicesSet = newHashSet(indices);
         final String fMappingType = mappingType;
@@ -433,22 +380,88 @@ public class MetaDataService extends AbstractComponent {
                 }
             }
         };
-        nodeMappingCreatedAction.add(listener);
-
-        clusterService.submitStateUpdateTask("put-mapping [" + mappingType + "]", new ClusterStateUpdateTask() {
-            @Override public ClusterState execute(ClusterState currentState) {
-                MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
-                for (String indexName : indices) {
-                    IndexMetaData indexMetaData = currentState.metaData().index(indexName);
-                    if (indexMetaData == null) {
-                        throw new IndexMissingException(new Index(indexName));
-                    }
-                    Tuple<String, String> mapping = mappings.get(indexName);
-                    builder.put(newIndexMetaDataBuilder(indexMetaData).putMapping(mapping.v1(), mapping.v2()));
-                }
-                return newClusterStateBuilder().state(currentState).metaData(builder).build();
+        synchronized (mutex) {
+            if (indices.length == 0) {
+                throw new IndexMissingException(new Index("_all"));
             }
-        });
+            for (String index : indices) {
+                if (!clusterState.metaData().hasIndex(index)) {
+                    throw new IndexMissingException(new Index(index));
+                }
+            }
+
+            Map<String, DocumentMapper> newMappers = newHashMap();
+            Map<String, DocumentMapper> existingMappers = newHashMap();
+            for (String index : indices) {
+                IndexService indexService = indicesService.indexService(index);
+                if (indexService != null) {
+                    // try and parse it (no need to add it here) so we can bail early in case of parsing exception
+                    DocumentMapper newMapper = indexService.mapperService().parse(mappingType, mappingSource);
+                    newMappers.put(index, newMapper);
+                    DocumentMapper existingMapper = indexService.mapperService().documentMapper(mappingType);
+                    if (existingMapper != null) {
+                        // first, simulate
+                        DocumentMapper.MergeResult mergeResult = existingMapper.merge(newMapper, mergeFlags().simulate(true));
+                        // if we have conflicts, and we are not supposed to ignore them, throw an exception
+                        if (!ignoreConflicts && mergeResult.hasConflicts()) {
+                            throw new MergeMappingException(mergeResult.conflicts());
+                        }
+                        existingMappers.put(index, existingMapper);
+                    }
+                } else {
+                    throw new IndexMissingException(new Index(index));
+                }
+            }
+
+            if (mappingType == null) {
+                mappingType = newMappers.values().iterator().next().type();
+            } else if (!mappingType.equals(newMappers.values().iterator().next().type())) {
+                throw new InvalidTypeNameException("Type name provided does not match type name within mapping definition");
+            }
+            if (mappingType.charAt(0) == '_') {
+                throw new InvalidTypeNameException("Document mapping type name can't start with '_'");
+            }
+
+            final Map<String, Tuple<String, String>> mappings = newHashMap();
+            for (Map.Entry<String, DocumentMapper> entry : newMappers.entrySet()) {
+                Tuple<String, String> mapping;
+                String index = entry.getKey();
+                // do the actual merge here on the master, and update the mapping source
+                DocumentMapper newMapper = entry.getValue();
+                if (existingMappers.containsKey(entry.getKey())) {
+                    // we have an existing mapping, do the merge here (on the master), it will automatically update the mapping source
+                    DocumentMapper existingMapper = existingMappers.get(entry.getKey());
+                    existingMapper.merge(newMapper, mergeFlags().simulate(false));
+                    // use the merged mapping source
+                    mapping = new Tuple<String, String>(existingMapper.type(), existingMapper.buildSource());
+                } else {
+                    mapping = new Tuple<String, String>(newMapper.type(), newMapper.buildSource());
+                }
+                mappings.put(index, mapping);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("[{}] put_mapping [{}] with source [{}]", index, mapping.v1(), mapping.v2());
+                } else if (logger.isInfoEnabled()) {
+                    logger.info("[{}] put_mapping [{}]", index, mapping.v1());
+                }
+            }
+
+            nodeMappingCreatedAction.add(listener);
+
+            clusterService.submitStateUpdateTask("put-mapping [" + mappingType + "]", new ClusterStateUpdateTask() {
+                @Override public ClusterState execute(ClusterState currentState) {
+                    MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
+                    for (String indexName : indices) {
+                        IndexMetaData indexMetaData = currentState.metaData().index(indexName);
+                        if (indexMetaData == null) {
+                            throw new IndexMissingException(new Index(indexName));
+                        }
+                        Tuple<String, String> mapping = mappings.get(indexName);
+                        builder.put(newIndexMetaDataBuilder(indexMetaData).putMapping(mapping.v1(), mapping.v2()));
+                    }
+                    return newClusterStateBuilder().state(currentState).metaData(builder).build();
+                }
+            });
+        }
 
         boolean acknowledged;
         try {

@@ -21,14 +21,12 @@ package org.elasticsearch.indices.store;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.*;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,7 +40,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
@@ -58,15 +55,8 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         this.indicesService = indicesService;
     }
 
-    public ActionFuture<NodesStoreFilesMetaData> list(ShardId shardId, boolean onlyUnallocated) {
-        ClusterState state = clusterService.state();
-        Set<String> nodesIds = Sets.newHashSet();
-        for (DiscoveryNode node : state.nodes()) {
-            if (node.dataNode()) {
-                nodesIds.add(node.id());
-            }
-        }
-        return execute(new Request(shardId, onlyUnallocated, nodesIds.toArray(new String[nodesIds.size()])));
+    public ActionFuture<NodesStoreFilesMetaData> list(ShardId shardId, boolean onlyUnallocated, String[] nodesIds) {
+        return execute(new Request(shardId, onlyUnallocated, nodesIds));
     }
 
     @Override protected String transportAction() {
@@ -93,27 +83,19 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         return new NodeStoreFilesMetaData();
     }
 
-    // only list stores on data node
-
-    @Override protected String[] filterNodeIds(DiscoveryNodes nodes, String[] nodesIds) {
-        Set<String> onlyDataNodeIds = Sets.newHashSet();
-        for (String nodeId : nodesIds) {
-            if (nodes.nodeExists(nodeId) && nodes.get(nodeId).dataNode()) {
-                onlyDataNodeIds.add(nodeId);
-            }
-        }
-        return onlyDataNodeIds.toArray(new String[onlyDataNodeIds.size()]);
-    }
-
     @Override protected NodesStoreFilesMetaData newResponse(Request request, AtomicReferenceArray responses) {
         final List<NodeStoreFilesMetaData> nodeStoreFilesMetaDatas = Lists.newArrayList();
+        final List<FailedNodeException> failures = Lists.newArrayList();
         for (int i = 0; i < responses.length(); i++) {
             Object resp = responses.get(i);
             if (resp instanceof NodeStoreFilesMetaData) { // will also filter out null response for unallocated ones
                 nodeStoreFilesMetaDatas.add((NodeStoreFilesMetaData) resp);
+            } else if (resp instanceof FailedNodeException) {
+                failures.add((FailedNodeException) resp);
             }
         }
-        return new NodesStoreFilesMetaData(clusterName, nodeStoreFilesMetaDatas.toArray(new NodeStoreFilesMetaData[nodeStoreFilesMetaDatas.size()]));
+        return new NodesStoreFilesMetaData(clusterName, nodeStoreFilesMetaDatas.toArray(new NodeStoreFilesMetaData[nodeStoreFilesMetaDatas.size()]),
+                failures.toArray(new FailedNodeException[failures.size()]));
     }
 
     @Override protected NodeStoreFilesMetaData nodeOperation(NodeRequest request) throws ElasticSearchException {
@@ -129,7 +111,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
     }
 
     @Override protected boolean accumulateExceptions() {
-        return false;
+        return true;
     }
 
     static class Request extends NodesOperationRequest {
@@ -162,11 +144,18 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
 
     public static class NodesStoreFilesMetaData extends NodesOperationResponse<NodeStoreFilesMetaData> {
 
+        private FailedNodeException[] failures;
+
         NodesStoreFilesMetaData() {
         }
 
-        public NodesStoreFilesMetaData(ClusterName clusterName, NodeStoreFilesMetaData[] nodes) {
+        public NodesStoreFilesMetaData(ClusterName clusterName, NodeStoreFilesMetaData[] nodes, FailedNodeException[] failures) {
             super(clusterName, nodes);
+            this.failures = failures;
+        }
+
+        public FailedNodeException[] failures() {
+            return failures;
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {

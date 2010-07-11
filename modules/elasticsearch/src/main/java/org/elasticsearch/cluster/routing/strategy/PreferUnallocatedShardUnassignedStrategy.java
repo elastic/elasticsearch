@@ -20,14 +20,17 @@
 package org.elasticsearch.cluster.routing.strategy;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.gateway.blobstore.BlobStoreIndexGateway;
 import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.store.IndexStore;
@@ -36,6 +39,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 
 import java.util.Iterator;
+import java.util.Set;
 
 /**
  * @author kimchy (shay.banon)
@@ -53,8 +57,19 @@ public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent 
         this.transportNodesListShardStoreMetaData = transportNodesListShardStoreMetaData;
     }
 
-    public boolean allocateUnassigned(RoutingNodes routingNodes) {
+    public boolean allocateUnassigned(RoutingNodes routingNodes, DiscoveryNodes nodes) {
         boolean changed = false;
+
+        Set<String> nodesIds = Sets.newHashSet();
+        for (DiscoveryNode node : nodes) {
+            if (node.dataNode()) {
+                nodesIds.add(node.id());
+            }
+        }
+
+        if (nodesIds.isEmpty()) {
+            return changed;
+        }
 
         Iterator<MutableShardRouting> unassignedIterator = routingNodes.unassigned().iterator();
         while (unassignedIterator.hasNext()) {
@@ -68,7 +83,25 @@ public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent 
                 continue;
             }
 
-            TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData = transportNodesListShardStoreMetaData.list(shard.shardId(), false).actionGet();
+            if (!shard.primary()) {
+                // if its a backup, only allocate it if the primary is active
+                MutableShardRouting primary = routingNodes.findPrimaryForBackup(shard);
+                if (primary == null || !primary.active()) {
+                    continue;
+                }
+            }
+
+            TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData = transportNodesListShardStoreMetaData.list(shard.shardId(), false, nodesIds.toArray(new String[nodesIds.size()])).actionGet();
+
+            if (logger.isWarnEnabled()) {
+                if (nodesStoreFilesMetaData.failures().length > 0) {
+                    StringBuilder sb = new StringBuilder(shard + ": failures when trying to list stores on nodes:\n");
+                    for (int i = 0; i < nodesStoreFilesMetaData.failures().length; i++) {
+                        sb.append(i).append(". ").append(nodesStoreFilesMetaData.failures()[i].getDetailedMessage()).append("\n");
+                    }
+                    logger.warn(sb.toString());
+                }
+            }
 
             long lastSizeMatched = 0;
             DiscoveryNode lastDiscoNodeMatched = null;
@@ -76,6 +109,7 @@ public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent 
 
             for (TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData nodeStoreFilesMetaData : nodesStoreFilesMetaData) {
                 DiscoveryNode discoNode = nodeStoreFilesMetaData.node();
+                logger.trace("{}: checking node [{}]", shard, discoNode);
                 IndexStore.StoreFilesMetaData storeFilesMetaData = nodeStoreFilesMetaData.storeFilesMetaData();
 
                 if (storeFilesMetaData == null) {
@@ -104,16 +138,39 @@ public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent 
                     try {
                         ImmutableMap<String, BlobMetaData> indexBlobsMetaData = indexGateway.listIndexBlobs(shard.id());
 
+                        if (logger.isDebugEnabled()) {
+                            StringBuilder sb = new StringBuilder(shard + ": checking for pre_allocation (gateway) on node " + discoNode + "\n");
+                            sb.append("    gateway_files:\n");
+                            for (BlobMetaData md : indexBlobsMetaData.values()) {
+                                sb.append("        [").append(md.name()).append("], size [").append(new ByteSizeValue(md.sizeInBytes())).append("], md5 [").append(md.md5()).append("]\n");
+                            }
+                            sb.append("    node_files:\n");
+                            for (StoreFileMetaData md : storeFilesMetaData) {
+                                sb.append("        [").append(md.name()).append("], size [").append(new ByteSizeValue(md.sizeInBytes())).append("], md5 [").append(md.md5()).append("]\n");
+                            }
+                            logger.debug(sb.toString());
+                        }
+                        logger.trace("{}: checking for pre_allocation (gateway) on node [{}]\n   gateway files", shard, discoNode, indexBlobsMetaData.keySet());
                         long sizeMatched = 0;
                         for (StoreFileMetaData storeFileMetaData : storeFilesMetaData) {
-                            if (indexBlobsMetaData.containsKey(storeFileMetaData.name()) && indexBlobsMetaData.get(storeFileMetaData.name()).md5().equals(storeFileMetaData.md5())) {
-                                sizeMatched += storeFileMetaData.sizeInBytes();
+                            if (indexBlobsMetaData.containsKey(storeFileMetaData.name())) {
+                                if (indexBlobsMetaData.get(storeFileMetaData.name()).md5().equals(storeFileMetaData.md5())) {
+                                    logger.trace("{}: [{}] reusing file since it exists on remote node and on gateway (same md5) with size [{}]", shard, storeFileMetaData.name(), new ByteSizeValue(storeFileMetaData.sizeInBytes()));
+                                    sizeMatched += storeFileMetaData.sizeInBytes();
+                                } else {
+                                    logger.trace("{}: [{}] ignore file since it exists on remote node and on gateway but has different md5, remote node [{}], gateway [{}]", shard, storeFileMetaData.name(), storeFileMetaData.md5(), indexBlobsMetaData.get(storeFileMetaData.name()).md5());
+                                }
+                            } else {
+                                logger.trace("{}: [{}] exists on remote node, does not exists on gateway", shard, storeFileMetaData.name());
                             }
                         }
                         if (sizeMatched > lastSizeMatched) {
                             lastSizeMatched = sizeMatched;
                             lastDiscoNodeMatched = discoNode;
                             lastNodeMatched = node;
+                            logger.trace("{}: node elected for pre_allocation [{}], total_size_matched [{}]", shard, discoNode, new ByteSizeValue(sizeMatched));
+                        } else {
+                            logger.trace("{}: node ignored for pre_allocation [{}], total_size_matched [{}] smaller than last_size_matched [{}]", shard, discoNode, new ByteSizeValue(sizeMatched), new ByteSizeValue(lastSizeMatched));
                         }
 
                         continue;
@@ -152,7 +209,7 @@ public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent 
 
             if (lastNodeMatched != null) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("[{}][{}] allocating to [{}] in order to reuse its unallocated persistent store", shard.index(), shard.id(), lastDiscoNodeMatched);
+                    logger.debug("[{}][{}]: allocating [{}] to [{}] in order to reuse its unallocated persistent store with total_size [{}]", shard.index(), shard.id(), shard, lastDiscoNodeMatched, new ByteSizeValue(lastSizeMatched));
                 }
                 // we found a match
                 changed = true;

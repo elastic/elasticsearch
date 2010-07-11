@@ -286,7 +286,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                                 // want handlers to worry about stack overflows
                                 threadPool.execute(new Runnable() {
                                     @Override public void run() {
-                                        holderToNotify.handler().handleException(new NodeDisconnectedTransportException(node, holderToNotify.action()));
+                                        holderToNotify.handler().handleException(new NodeDisconnectedException(node, holderToNotify.action()));
                                     }
                                 });
                             }

@@ -111,7 +111,7 @@ public class ShardsRoutingStrategy extends AbstractComponent {
         // now allocate all the unassigned to available nodes
         if (routingNodes.hasUnassigned()) {
             if (preferUnallocatedShardUnassignedStrategy != null) {
-                changed |= preferUnallocatedShardUnassignedStrategy.allocateUnassigned(routingNodes);
+                changed |= preferUnallocatedShardUnassignedStrategy.allocateUnassigned(routingNodes, nodes);
             }
             changed |= allocateUnassigned(routingNodes);
             // elect primaries again, in case this is needed with unassigned allocation

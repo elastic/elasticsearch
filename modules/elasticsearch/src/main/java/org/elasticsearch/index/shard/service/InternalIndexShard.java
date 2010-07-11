@@ -414,7 +414,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         engine.start();
     }
 
-    public void performRecoveryFinalization() throws ElasticSearchException {
+    public void performRecoveryFinalization(boolean withFlush) throws ElasticSearchException {
+        if (withFlush) {
+            engine.flush(new Engine.Flush());
+        }
         synchronized (mutex) {
             logger.debug("state: [{}]->[{}]", state, IndexShardState.STARTED);
             state = IndexShardState.STARTED;

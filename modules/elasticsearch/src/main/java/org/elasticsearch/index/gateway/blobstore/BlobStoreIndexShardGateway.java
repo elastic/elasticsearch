@@ -26,6 +26,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Digest;
 import org.elasticsearch.common.Hex;
+import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.blobstore.*;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -367,16 +368,18 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         } catch (FileNotFoundException e) {
             // no index, that fine
             indexShard.start();
-            return new RecoveryStatus.Translog(0);
+            return RecoveryStatus.Translog.EMPTY;
         } catch (IOException e) {
             throw new IndexShardGatewayRecoveryException(shardId, "Failed to recovery translog, can't read current index version", e);
         }
         if (!translogContainer.blobExists("translog-" + translogId)) {
             // no recovery file found, start the shard and bail
             indexShard.start();
-            return new RecoveryStatus.Translog(0);
+            return RecoveryStatus.Translog.EMPTY;
         }
 
+
+        StopWatch timer = new StopWatch().start();
         try {
             indexShard.performRecoveryPrepareForTranslog();
 
@@ -450,13 +453,14 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
 
             indexShard.performRecoveryFinalization(true);
 
-            return new RecoveryStatus.Translog(totalOperations.get());
+            return new RecoveryStatus.Translog(totalOperations.get(), timer.stop().totalTime());
         } catch (Throwable e) {
             throw new IndexShardGatewayRecoveryException(shardId, "Failed to recovery translog", e);
         }
     }
 
     private RecoveryStatus.Index recoverIndex() throws IndexShardGatewayRecoveryException {
+        StopWatch timer = new StopWatch().start();
         final ImmutableMap<String, BlobMetaData> indicesBlobs;
         try {
             indicesBlobs = indexContainer.listBlobs();
@@ -562,7 +566,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             // ignore
         }
 
-        return new RecoveryStatus.Index(version, numberOfFiles, new ByteSizeValue(totalSize), numberOfExistingFiles, new ByteSizeValue(existingTotalSize), TimeValue.timeValueMillis(throttlingWaitTime.get()));
+        return new RecoveryStatus.Index(version, numberOfFiles, new ByteSizeValue(totalSize), numberOfExistingFiles, new ByteSizeValue(existingTotalSize), TimeValue.timeValueMillis(throttlingWaitTime.get()), timer.stop().totalTime());
     }
 
     private void recoverFile(final BlobMetaData fileToRecover, final ImmutableMap<String, BlobMetaData> blobs, final CountDownLatch latch, final List<Throwable> failures) {

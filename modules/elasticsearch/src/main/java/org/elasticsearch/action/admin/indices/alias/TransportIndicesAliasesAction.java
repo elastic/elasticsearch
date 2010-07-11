@@ -63,7 +63,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
         }
     }
 
-    @Override protected IndicesAliasesResponse masterOperation(IndicesAliasesRequest request) throws ElasticSearchException {
+    @Override protected IndicesAliasesResponse masterOperation(IndicesAliasesRequest request, ClusterState state) throws ElasticSearchException {
         MetaDataService.IndicesAliasesResult indicesAliasesResult = metaDataService.indicesAliases(request.aliasActions());
         return new IndicesAliasesResponse();
     }

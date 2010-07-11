@@ -62,7 +62,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeOperationActi
         state.blocks().indexBlockedRaiseException(ClusterBlockLevel.METADATA, request.index());
     }
 
-    @Override protected CreateIndexResponse masterOperation(CreateIndexRequest request) throws ElasticSearchException {
+    @Override protected CreateIndexResponse masterOperation(CreateIndexRequest request, ClusterState state) throws ElasticSearchException {
         String cause = request.cause();
         if (cause.length() == 0) {
             cause = "api";

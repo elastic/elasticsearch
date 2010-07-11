@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaDataService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -63,7 +64,7 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
         return new MappingUpdatedResponse();
     }
 
-    @Override protected MappingUpdatedResponse masterOperation(MappingUpdatedRequest request) throws ElasticSearchException {
+    @Override protected MappingUpdatedResponse masterOperation(MappingUpdatedRequest request, ClusterState state) throws ElasticSearchException {
         metaDataService.updateMapping(request.index(), request.type(), request.mappingSource());
         return new MappingUpdatedResponse();
     }

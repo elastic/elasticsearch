@@ -64,7 +64,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
         return new ClusterHealthResponse();
     }
 
-    @Override protected ClusterHealthResponse masterOperation(ClusterHealthRequest request) throws ElasticSearchException {
+    @Override protected ClusterHealthResponse masterOperation(ClusterHealthRequest request, ClusterState state) throws ElasticSearchException {
         int waitFor = 3;
         if (request.waitForStatus() == null) {
             waitFor--;

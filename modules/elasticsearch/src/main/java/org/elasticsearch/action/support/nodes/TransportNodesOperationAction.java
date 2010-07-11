@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.nodes;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.Actions;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.NoSuchNodeException;
 import org.elasticsearch.action.support.BaseAction;
@@ -108,21 +109,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
             this.request = request;
             this.listener = listener;
             clusterState = clusterService.state();
-            String[] nodesIds = request.nodesIds();
-            if (nodesIds == null || nodesIds.length == 0 || (nodesIds.length == 1 && nodesIds[0].equals("_all"))) {
-                int index = 0;
-                nodesIds = new String[clusterState.nodes().size()];
-                for (DiscoveryNode node : clusterState.nodes()) {
-                    nodesIds[index++] = node.id();
-                }
-            }
-            for (int i = 0; i < nodesIds.length; i++) {
-                if (nodesIds[i].equals("_local")) {
-                    nodesIds[i] = clusterState.nodes().localNodeId();
-                } else if (nodesIds[i].equals("_master")) {
-                    nodesIds[i] = clusterState.nodes().masterNodeId();
-                }
-            }
+            String[] nodesIds = Actions.buildNodesIds(clusterState.nodes(), request.nodesIds());
             this.nodesIds = filterNodeIds(clusterState.nodes(), nodesIds);
             this.responses = new AtomicReferenceArray<Object>(this.nodesIds.length);
         }

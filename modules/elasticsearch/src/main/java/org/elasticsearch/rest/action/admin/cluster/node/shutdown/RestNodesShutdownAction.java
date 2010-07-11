@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
@@ -51,16 +52,16 @@ public class RestNodesShutdownAction extends BaseRestHandler {
         nodesShutdownRequest.listenerThreaded(false);
         nodesShutdownRequest.delay(request.paramAsTime("delay", nodesShutdownRequest.delay()));
         client.admin().cluster().nodesShutdown(nodesShutdownRequest, new ActionListener<NodesShutdownResponse>() {
-            @Override public void onResponse(NodesShutdownResponse result) {
+            @Override public void onResponse(NodesShutdownResponse response) {
                 try {
                     XContentBuilder builder = restContentBuilder(request);
                     builder.startObject();
-                    builder.field("cluster_name", result.clusterName().value());
+                    builder.field("cluster_name", response.clusterName().value());
 
                     builder.startObject("nodes");
-                    for (NodesShutdownResponse.NodeShutdownResponse nodeInfo : result) {
-                        builder.startObject(nodeInfo.node().id());
-                        builder.field("name", nodeInfo.node().name());
+                    for (DiscoveryNode node : response.nodes()) {
+                        builder.startObject(node.id());
+                        builder.field("name", node.name());
                         builder.endObject();
                     }
                     builder.endObject();

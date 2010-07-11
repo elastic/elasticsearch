@@ -24,12 +24,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
-import org.elasticsearch.common.trove.TObjectIntProcedure;
+import org.elasticsearch.common.trove.TObjectIntIterator;
 
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class AggregatedDfs implements Streamable {
 
@@ -71,33 +71,13 @@ public class AggregatedDfs implements Streamable {
 
     @Override public void writeTo(final StreamOutput out) throws IOException {
         out.writeVInt(dfMap.size());
-        WriteToProcedure writeToProcedure = new WriteToProcedure(out);
-        if (!dfMap.forEachEntry(writeToProcedure)) {
-            throw writeToProcedure.exception;
+
+        for (TObjectIntIterator<Term> it = dfMap.iterator(); it.hasNext();) {
+            it.advance();
+            out.writeUTF(it.key().field());
+            out.writeUTF(it.key().text());
+            out.writeVInt(it.value());
         }
         out.writeVLong(maxDoc);
-    }
-
-    private static class WriteToProcedure implements TObjectIntProcedure<Term> {
-
-        private final StreamOutput out;
-
-        IOException exception;
-
-        private WriteToProcedure(StreamOutput out) {
-            this.out = out;
-        }
-
-        @Override public boolean execute(Term a, int b) {
-            try {
-                out.writeUTF(a.field());
-                out.writeUTF(a.text());
-                out.writeVInt(b);
-                return true;
-            } catch (IOException e) {
-                exception = e;
-            }
-            return false;
-        }
     }
 }

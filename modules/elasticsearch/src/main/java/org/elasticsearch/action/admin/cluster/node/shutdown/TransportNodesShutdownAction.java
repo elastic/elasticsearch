@@ -132,7 +132,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
                     } catch (InterruptedException e) {
                         // ignore
                     }
-                    logger.info("[cluster_shutdown]: done shutting done all nodes except master, proceeding to master");
+                    logger.info("[cluster_shutdown]: done shutting down all nodes except master, proceeding to master");
 
                     // now, kill the master
                     logger.trace("[cluster_shutdown]: shutting down the master [{}]", state.nodes().masterNode());

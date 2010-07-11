@@ -62,7 +62,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
         state.blocks().indexBlockedRaiseException(ClusterBlockLevel.METADATA, request.index());
     }
 
-    @Override protected DeleteIndexResponse masterOperation(DeleteIndexRequest request) throws ElasticSearchException {
+    @Override protected DeleteIndexResponse masterOperation(DeleteIndexRequest request, ClusterState state) throws ElasticSearchException {
         MetaDataService.DeleteIndexResult deleteIndexResult = metaDataService.deleteIndex(request.index(), request.timeout());
         return new DeleteIndexResponse(deleteIndexResult.acknowledged());
     }

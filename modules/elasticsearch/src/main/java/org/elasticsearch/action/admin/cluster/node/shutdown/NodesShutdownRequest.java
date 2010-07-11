@@ -19,7 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
-import org.elasticsearch.action.support.nodes.NodesOperationRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -29,23 +31,24 @@ import java.io.IOException;
 import static org.elasticsearch.common.unit.TimeValue.*;
 
 /**
- * A request to shutdown one ore more nodes (or the whole cluster).
- *
  * @author kimchy (shay.banon)
  */
-public class NodesShutdownRequest extends NodesOperationRequest {
+public class NodesShutdownRequest extends MasterNodeOperationRequest {
+
+    String[] nodesIds = Strings.EMPTY_ARRAY;
 
     TimeValue delay = TimeValue.timeValueSeconds(1);
 
-    protected NodesShutdownRequest() {
+    NodesShutdownRequest() {
     }
 
-    /**
-     * Shuts down nodes based on the nodes ids specified. If none are passed, <b>all</b>
-     * nodes will be shutdown.
-     */
     public NodesShutdownRequest(String... nodesIds) {
-        super(nodesIds);
+        this.nodesIds = nodesIds;
+    }
+
+    public NodesShutdownRequest nodesIds(String... nodesIds) {
+        this.nodesIds = nodesIds;
+        return this;
     }
 
     /**
@@ -56,6 +59,10 @@ public class NodesShutdownRequest extends NodesOperationRequest {
         return this;
     }
 
+    public TimeValue delay() {
+        return this.delay;
+    }
+
     /**
      * The delay for the shutdown to occur. Defaults to <tt>1s</tt>.
      */
@@ -63,17 +70,32 @@ public class NodesShutdownRequest extends NodesOperationRequest {
         return delay(TimeValue.parseTimeValue(delay, null));
     }
 
-    public TimeValue delay() {
-        return this.delay;
+    @Override public ActionRequestValidationException validate() {
+        return null;
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         delay = readTimeValue(in);
+        int size = in.readVInt();
+        if (size > 0) {
+            nodesIds = new String[size];
+            for (int i = 0; i < nodesIds.length; i++) {
+                nodesIds[i] = in.readUTF();
+            }
+        }
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         delay.writeTo(out);
+        if (nodesIds == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(nodesIds.length);
+            for (String nodeId : nodesIds) {
+                out.writeUTF(nodeId);
+            }
+        }
     }
 }

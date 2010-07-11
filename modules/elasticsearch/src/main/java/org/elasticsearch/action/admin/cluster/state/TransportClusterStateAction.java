@@ -62,7 +62,7 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
         return new ClusterStateResponse();
     }
 
-    @Override protected ClusterStateResponse masterOperation(ClusterStateRequest request) throws ElasticSearchException {
+    @Override protected ClusterStateResponse masterOperation(ClusterStateRequest request, ClusterState state) throws ElasticSearchException {
         ClusterState currentState = clusterService.state();
         ClusterState.Builder builder = newClusterStateBuilder();
         if (!request.filterNodes()) {

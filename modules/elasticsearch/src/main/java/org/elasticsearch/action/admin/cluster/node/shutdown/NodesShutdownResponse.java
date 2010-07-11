@@ -19,8 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
-import org.elasticsearch.action.support.nodes.NodeOperationResponse;
-import org.elasticsearch.action.support.nodes.NodesOperationResponse;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,44 +30,49 @@ import java.io.IOException;
 /**
  * @author kimchy (shay.banon)
  */
-public class NodesShutdownResponse extends NodesOperationResponse<NodesShutdownResponse.NodeShutdownResponse> {
+public class NodesShutdownResponse implements ActionResponse {
+
+    private ClusterName clusterName;
+
+    private DiscoveryNode[] nodes;
 
     NodesShutdownResponse() {
     }
 
-    public NodesShutdownResponse(ClusterName clusterName, NodeShutdownResponse[] nodes) {
-        super(clusterName, nodes);
+    public NodesShutdownResponse(ClusterName clusterName, DiscoveryNode[] nodes) {
+        this.clusterName = clusterName;
+        this.nodes = nodes;
+    }
+
+    public ClusterName clusterName() {
+        return this.clusterName;
+    }
+
+    public ClusterName getClusterName() {
+        return clusterName();
+    }
+
+    public DiscoveryNode[] nodes() {
+        return this.nodes;
+    }
+
+    public DiscoveryNode[] getNodes() {
+        return nodes();
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        nodes = new NodeShutdownResponse[in.readVInt()];
+        clusterName = ClusterName.readClusterName(in);
+        nodes = new DiscoveryNode[in.readVInt()];
         for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = NodeShutdownResponse.readNodeShutdownResponse(in);
+            nodes[i] = DiscoveryNode.readNode(in);
         }
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+        clusterName.writeTo(out);
         out.writeVInt(nodes.length);
-        for (NodeShutdownResponse node : nodes) {
+        for (DiscoveryNode node : nodes) {
             node.writeTo(out);
-        }
-    }
-
-    public static class NodeShutdownResponse extends NodeOperationResponse {
-
-        NodeShutdownResponse() {
-        }
-
-        public NodeShutdownResponse(DiscoveryNode node) {
-            super(node);
-        }
-
-        public static NodeShutdownResponse readNodeShutdownResponse(StreamInput in) throws IOException {
-            NodeShutdownResponse res = new NodeShutdownResponse();
-            res.readFrom(in);
-            return res;
         }
     }
 }

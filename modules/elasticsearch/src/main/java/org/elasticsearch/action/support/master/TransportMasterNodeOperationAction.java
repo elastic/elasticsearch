@@ -34,7 +34,7 @@ import org.elasticsearch.transport.*;
 /**
  * A base class for operations that needs to be performed on the master node.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class TransportMasterNodeOperationAction<Request extends MasterNodeOperationRequest, Response extends ActionResponse> extends BaseAction<Request, Response> {
 
@@ -59,20 +59,25 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
 
     protected abstract Response newResponse();
 
-    protected abstract Response masterOperation(Request request) throws ElasticSearchException;
+    protected abstract Response masterOperation(Request request, ClusterState state) throws ElasticSearchException;
 
     protected void checkBlock(Request request, ClusterState state) {
 
     }
 
+    protected void processBeforeDelegationToMaster(Request request, ClusterState state) {
+
+    }
+
     @Override protected void doExecute(final Request request, final ActionListener<Response> listener) {
-        DiscoveryNodes nodes = clusterService.state().nodes();
+        final ClusterState clusterState = clusterService.state();
+        DiscoveryNodes nodes = clusterState.nodes();
         if (nodes.localNodeMaster()) {
             threadPool.execute(new Runnable() {
                 @Override public void run() {
                     try {
-                        checkBlock(request, clusterService.state());
-                        Response response = masterOperation(request);
+                        checkBlock(request, clusterState);
+                        Response response = masterOperation(request, clusterState);
                         listener.onResponse(response);
                     } catch (Exception e) {
                         listener.onFailure(e);
@@ -83,6 +88,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
             if (nodes.masterNode() == null) {
                 throw new ElasticSearchIllegalStateException("No master node discovered or set");
             }
+            processBeforeDelegationToMaster(request, clusterState);
             transportService.sendRequest(nodes.masterNode(), transportAction(), request, new BaseTransportResponseHandler<Response>() {
                 @Override public Response newInstance() {
                     return newResponse();
@@ -106,9 +112,10 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
         }
 
         @Override public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
-            if (clusterService.state().nodes().localNodeMaster()) {
-                checkBlock(request, clusterService.state());
-                Response response = masterOperation(request);
+            final ClusterState clusterState = clusterService.state();
+            if (clusterState.nodes().localNodeMaster()) {
+                checkBlock(request, clusterState);
+                Response response = masterOperation(request, clusterState);
                 channel.sendResponse(response);
             } else {
                 transportService.sendRequest(clusterService.state().nodes().masterNode(), transportAction(), request, new BaseTransportResponseHandler<Response>() {

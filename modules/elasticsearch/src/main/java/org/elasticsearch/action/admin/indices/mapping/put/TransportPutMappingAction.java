@@ -68,7 +68,7 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
         }
     }
 
-    @Override protected PutMappingResponse masterOperation(PutMappingRequest request) throws ElasticSearchException {
+    @Override protected PutMappingResponse masterOperation(PutMappingRequest request, ClusterState state) throws ElasticSearchException {
         ClusterState clusterState = clusterService.state();
 
         // update to concrete indices

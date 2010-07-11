@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.support.nodes.*;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.Lists;
@@ -58,7 +59,14 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
     }
 
     public ActionFuture<NodesStoreFilesMetaData> list(ShardId shardId, boolean onlyUnallocated) {
-        return execute(new Request(shardId, onlyUnallocated));
+        ClusterState state = clusterService.state();
+        Set<String> nodesIds = Sets.newHashSet();
+        for (DiscoveryNode node : state.nodes()) {
+            if (node.dataNode()) {
+                nodesIds.add(node.id());
+            }
+        }
+        return execute(new Request(shardId, onlyUnallocated, nodesIds.toArray(new String[nodesIds.size()])));
     }
 
     @Override protected String transportAction() {

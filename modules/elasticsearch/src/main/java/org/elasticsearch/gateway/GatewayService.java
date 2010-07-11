@@ -247,13 +247,17 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                 // go over the meta data and create indices, we don't really need to copy over
                 // the meta data per index, since we create the index and it will be added automatically
                 for (final IndexMetaData indexMetaData : fMetaData) {
-                    try {
-                        metaDataService.createIndex("gateway", indexMetaData.index(), indexMetaData.settings(), indexMetaData.mappings(), timeValueMillis(10));
-                    } catch (Exception e) {
-                        logger.error("failed to create index [" + indexMetaData.index() + "]", e);
-                    } finally {
-                        latch.countDown();
-                    }
+                    threadPool.execute(new Runnable() {
+                        @Override public void run() {
+                            try {
+                                metaDataService.createIndex("gateway", indexMetaData.index(), indexMetaData.settings(), indexMetaData.mappings(), timeValueSeconds(30));
+                            } catch (Exception e) {
+                                logger.error("failed to create index [" + indexMetaData.index() + "]", e);
+                            } finally {
+                                latch.countDown();
+                            }
+                        }
+                    });
                 }
                 clusterService.submitStateUpdateTask("gateway (remove block)", new ClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {

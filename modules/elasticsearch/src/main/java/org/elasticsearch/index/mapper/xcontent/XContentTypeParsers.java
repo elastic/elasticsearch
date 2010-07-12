@@ -23,6 +23,7 @@ import org.apache.lucene.document.Field;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperParsingException;
 
 import java.util.Map;
@@ -64,12 +65,24 @@ public class XContentTypeParsers {
             } else if (propName.equals("omit_term_freq_and_positions")) {
                 builder.omitTermFreqAndPositions(nodeBooleanValue(propNode));
             } else if (propName.equals("index_analyzer")) {
-                builder.indexAnalyzer(parserContext.analysisService().analyzer(propNode.toString()));
+                NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
+                if (analyzer == null) {
+                    throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
+                }
+                builder.indexAnalyzer(analyzer);
             } else if (propName.equals("search_analyzer")) {
-                builder.searchAnalyzer(parserContext.analysisService().analyzer(propNode.toString()));
+                NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
+                if (analyzer == null) {
+                    throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
+                }
+                builder.searchAnalyzer(analyzer);
             } else if (propName.equals("analyzer")) {
-                builder.indexAnalyzer(parserContext.analysisService().analyzer(propNode.toString()));
-                builder.searchAnalyzer(parserContext.analysisService().analyzer(propNode.toString()));
+                NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
+                if (analyzer == null) {
+                    throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
+                }
+                builder.indexAnalyzer(analyzer);
+                builder.searchAnalyzer(analyzer);
             } else if (propName.equals("include_in_all")) {
                 builder.includeInAll(nodeBooleanValue(propNode));
             }

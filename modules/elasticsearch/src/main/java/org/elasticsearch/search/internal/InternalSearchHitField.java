@@ -55,6 +55,17 @@ public class InternalSearchHitField implements SearchHitField {
         return name();
     }
 
+    @Override public Object value() {
+        if (values == null || values.isEmpty()) {
+            return null;
+        }
+        return values.get(0);
+    }
+
+    @Override public Object getValue() {
+        return value();
+    }
+
     public List<Object> values() {
         return values;
     }

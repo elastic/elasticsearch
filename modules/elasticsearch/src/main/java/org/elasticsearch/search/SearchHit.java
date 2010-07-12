@@ -110,6 +110,8 @@ public interface SearchHit extends Streamable, ToXContent, Iterable<SearchHitFie
      */
     Explanation getExplanation();
 
+    public SearchHitField field(String fieldName);
+
     /**
      * A map of hit fields (from field name to hit fields) if additional fields
      * were required to be loaded.

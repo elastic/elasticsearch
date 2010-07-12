@@ -140,7 +140,11 @@ public class StringOrdValFieldDataComparator extends FieldComparator {
     }
 
     @Override public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        SingleValueStringFieldData fieldData = (SingleValueStringFieldData) fieldDataCache.cache(FieldData.Type.STRING, reader, field);
+        FieldData cleanFieldData = fieldDataCache.cache(FieldData.Type.STRING, reader, field);
+        if (cleanFieldData instanceof MultiValueStringFieldData) {
+            throw new IOException("Can't sort on string types with more than one value per doc, or more than one token per field");
+        }
+        SingleValueStringFieldData fieldData = (SingleValueStringFieldData) cleanFieldData;
         currentReaderGen++;
         order = fieldData.order();
         lookup = fieldData.values();

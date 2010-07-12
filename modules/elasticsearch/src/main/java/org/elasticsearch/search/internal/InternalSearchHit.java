@@ -167,6 +167,10 @@ public class InternalSearchHit implements SearchHit {
         return fields.values().iterator();
     }
 
+    @Override public SearchHitField field(String fieldName) {
+        return fields().get(fieldName);
+    }
+
     @Override public Map<String, SearchHitField> fields() {
         return fields;
     }

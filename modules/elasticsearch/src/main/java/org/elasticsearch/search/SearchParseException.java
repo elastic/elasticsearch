@@ -22,7 +22,7 @@ package org.elasticsearch.search;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class SearchParseException extends SearchContextException {
 

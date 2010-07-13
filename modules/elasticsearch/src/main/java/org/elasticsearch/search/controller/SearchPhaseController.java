@@ -20,10 +20,7 @@
 package org.elasticsearch.search.controller;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.ShardFieldDocSortedHitQueue;
-import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.collect.Iterables;
 import org.elasticsearch.common.collect.Lists;
@@ -83,8 +80,29 @@ public class SearchPhaseController {
         }
         PriorityQueue queue;
         if (queryResultProvider.queryResult().topDocs() instanceof TopFieldDocs) {
-            // sorting ...
-            queue = new ShardFieldDocSortedHitQueue(((TopFieldDocs) queryResultProvider.queryResult().topDocs()).fields, queueSize); // we need to accumulate for all and then filter the from
+            // sorting, first if the type is a String, chance CUSTOM to STRING so we handle nulls properly
+            TopFieldDocs fieldDocs = (TopFieldDocs) queryResultProvider.queryResult().topDocs();
+            for (int i = 0; i < fieldDocs.fields.length; i++) {
+                boolean resolvedField = false;
+                for (QuerySearchResultProvider resultProvider : results) {
+                    for (ScoreDoc doc : resultProvider.queryResult().topDocs().scoreDocs) {
+                        FieldDoc fDoc = (FieldDoc) doc;
+                        if (fDoc.fields[i] != null) {
+                            if (fDoc.fields[i] instanceof String) {
+                                fieldDocs.fields[i] = new SortField(fieldDocs.fields[i].getField(), SortField.STRING, fieldDocs.fields[i].getReverse());
+                            }
+                            resolvedField = true;
+                            break;
+                        }
+                    }
+                    if (resolvedField) {
+                        break;
+                    }
+                }
+            }
+            queue = new ShardFieldDocSortedHitQueue(fieldDocs.fields, queueSize);
+
+            // we need to accumulate for all and then filter the from
             for (QuerySearchResultProvider resultProvider : results) {
                 QuerySearchResult result = resultProvider.queryResult();
                 ScoreDoc[] scoreDocs = result.topDocs().scoreDocs;

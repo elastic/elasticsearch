@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.search.sort;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
@@ -139,5 +140,71 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
         assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("2"));
         assertThat((String) searchResponse.hits().getAt(1).field("id").value(), equalTo("1"));
+    }
+
+    @Test public void testDocumentsWithNullValue() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("id", "1")
+                .field("svalue", "aaa")
+                .endObject()).execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("id", "2")
+                .nullField("svalue")
+                .endObject()).execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("id", "3")
+                .field("svalue", "bbb")
+                .endObject()).execute().actionGet();
+
+
+        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addScriptField("id", "doc['id'].value")
+                .addSort("svalue", SearchSourceBuilder.Order.ASC)
+                .execute().actionGet();
+
+        if (searchResponse.failedShards() > 0) {
+            logger.warn("Failed shards:");
+            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
+                logger.warn("-> {}", shardSearchFailure);
+            }
+        }
+        assertThat(searchResponse.failedShards(), equalTo(0));
+
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(3l));
+        assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("2"));
+        assertThat((String) searchResponse.hits().getAt(1).field("id").value(), equalTo("1"));
+        assertThat((String) searchResponse.hits().getAt(2).field("id").value(), equalTo("3"));
+
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addScriptField("id", "doc['id'].value")
+                .addSort("svalue", SearchSourceBuilder.Order.DESC)
+                .execute().actionGet();
+
+        if (searchResponse.failedShards() > 0) {
+            logger.warn("Failed shards:");
+            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
+                logger.warn("-> {}", shardSearchFailure);
+            }
+        }
+        assertThat(searchResponse.failedShards(), equalTo(0));
+
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(3l));
+        assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("3"));
+        assertThat((String) searchResponse.hits().getAt(1).field("id").value(), equalTo("1"));
+        assertThat((String) searchResponse.hits().getAt(2).field("id").value(), equalTo("2"));
     }
 }

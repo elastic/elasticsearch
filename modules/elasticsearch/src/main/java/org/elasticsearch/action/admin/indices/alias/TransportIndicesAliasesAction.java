@@ -26,23 +26,26 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasAction;
-import org.elasticsearch.cluster.metadata.MetaDataService;
+import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class TransportIndicesAliasesAction extends TransportMasterNodeOperationAction<IndicesAliasesRequest, IndicesAliasesResponse> {
 
-    private final MetaDataService metaDataService;
+    private final MetaDataIndexAliasesService indexAliasesService;
 
     @Inject public TransportIndicesAliasesAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                                 ThreadPool threadPool, MetaDataService metaDataService) {
+                                                 ThreadPool threadPool, MetaDataIndexAliasesService indexAliasesService) {
         super(settings, transportService, clusterService, threadPool);
-        this.metaDataService = metaDataService;
+        this.indexAliasesService = indexAliasesService;
     }
 
     @Override protected String transportAction() {
@@ -64,7 +67,35 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
     }
 
     @Override protected IndicesAliasesResponse masterOperation(IndicesAliasesRequest request, ClusterState state) throws ElasticSearchException {
-        MetaDataService.IndicesAliasesResult indicesAliasesResult = metaDataService.indicesAliases(request.aliasActions());
-        return new IndicesAliasesResponse();
+        final AtomicReference<IndicesAliasesResponse> responseRef = new AtomicReference<IndicesAliasesResponse>();
+        final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        indexAliasesService.indicesAliases(new MetaDataIndexAliasesService.Request(request.aliasActions().toArray(new AliasAction[request.aliasActions().size()])), new MetaDataIndexAliasesService.Listener() {
+            @Override public void onResponse(MetaDataIndexAliasesService.Response response) {
+                responseRef.set(new IndicesAliasesResponse());
+                latch.countDown();
+            }
+
+            @Override public void onFailure(Throwable t) {
+                failureRef.set(t);
+                latch.countDown();
+            }
+        });
+
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            failureRef.set(e);
+        }
+
+        if (failureRef.get() != null) {
+            if (failureRef.get() instanceof ElasticSearchException) {
+                throw (ElasticSearchException) failureRef.get();
+            } else {
+                throw new ElasticSearchException(failureRef.get().getMessage(), failureRef.get());
+            }
+        }
+
+        return responseRef.get();
     }
 }

@@ -74,17 +74,25 @@ public abstract class AbstractThreadPool extends AbstractComponent implements Th
         return scheduledExecutorService.scheduleWithFixedDelay(command, initialDelay, delay, unit);
     }
 
+    @Override public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, TimeValue interval) {
+        return scheduleWithFixedDelay(command, interval.millis(), interval.millis(), TimeUnit.MILLISECONDS);
+    }
+
     @Override public void shutdown() {
         started = false;
-        logger.debug("Shutting down {} thread pool", getType());
+        logger.debug("shutting down {} thread pool", getType());
         executorService.shutdown();
         scheduledExecutorService.shutdown();
     }
 
     @Override public void shutdownNow() {
         started = false;
-        executorService.shutdownNow();
-        scheduledExecutorService.shutdownNow();
+        if (!executorService.isTerminated()) {
+            executorService.shutdownNow();
+        }
+        if (!executorService.isTerminated()) {
+            scheduledExecutorService.shutdownNow();
+        }
     }
 
     @Override public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
@@ -119,10 +127,6 @@ public abstract class AbstractThreadPool extends AbstractComponent implements Th
 
     @Override public ScheduledFuture<?> schedule(Runnable command, TimeValue delay) {
         return schedule(command, delay.millis(), TimeUnit.MILLISECONDS);
-    }
-
-    @Override public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, TimeValue interval) {
-        return scheduleWithFixedDelay(command, interval.millis(), interval.millis(), TimeUnit.MILLISECONDS);
     }
 
     @Override public void execute(Runnable command) {

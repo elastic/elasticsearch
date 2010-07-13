@@ -24,7 +24,10 @@ import org.elasticsearch.cluster.action.index.NodeIndexCreatedAction;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.metadata.MetaDataService;
+import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
+import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
+import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.strategy.PreferUnallocatedShardUnassignedStrategy;
 import org.elasticsearch.cluster.routing.strategy.ShardsRoutingStrategy;
@@ -33,7 +36,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class ClusterModule extends AbstractModule {
 
@@ -49,7 +52,11 @@ public class ClusterModule extends AbstractModule {
         bind(ShardsRoutingStrategy.class).asEagerSingleton();
 
         bind(ClusterService.class).to(InternalClusterService.class).asEagerSingleton();
-        bind(MetaDataService.class).asEagerSingleton();
+        bind(MetaDataCreateIndexService.class).asEagerSingleton();
+        bind(MetaDataDeleteIndexService.class).asEagerSingleton();
+        bind(MetaDataMappingService.class).asEagerSingleton();
+        bind(MetaDataIndexAliasesService.class).asEagerSingleton();
+
         bind(RoutingService.class).asEagerSingleton();
 
         bind(ShardStateAction.class).asEagerSingleton();

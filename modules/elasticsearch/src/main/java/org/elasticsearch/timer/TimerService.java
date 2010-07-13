@@ -41,6 +41,11 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.*;
  */
 public class TimerService extends AbstractComponent {
 
+    public static enum ExecutionType {
+        DEFAULT,
+        THREADED
+    }
+
     private final ThreadPool threadPool;
 
     private final TimeEstimator timeEstimator;
@@ -79,12 +84,39 @@ public class TimerService extends AbstractComponent {
         return timeEstimator.time();
     }
 
-    public Timeout newTimeout(TimerTask task, TimeValue delay) {
-        return newTimeout(task, delay.nanos(), TimeUnit.NANOSECONDS);
+    public Timeout newTimeout(TimerTask task, TimeValue delay, ExecutionType executionType) {
+        return newTimeout(task, delay.nanos(), TimeUnit.NANOSECONDS, executionType);
     }
 
-    public Timeout newTimeout(TimerTask task, long delay, TimeUnit unit) {
+    public Timeout newTimeout(TimerTask task, long delay, TimeUnit unit, ExecutionType executionType) {
+        if (executionType == ExecutionType.THREADED) {
+            task = new ThreadedTimerTask(threadPool, task);
+        }
         return timer.newTimeout(task, delay, unit);
+    }
+
+    private class ThreadedTimerTask implements TimerTask {
+
+        private final ThreadPool threadPool;
+
+        private final TimerTask task;
+
+        private ThreadedTimerTask(ThreadPool threadPool, TimerTask task) {
+            this.threadPool = threadPool;
+            this.task = task;
+        }
+
+        @Override public void run(final Timeout timeout) throws Exception {
+            threadPool.execute(new Runnable() {
+                @Override public void run() {
+                    try {
+                        task.run(timeout);
+                    } catch (Exception e) {
+                        logger.warn("An exception was thrown by " + TimerTask.class.getSimpleName() + ".", e);
+                    }
+                }
+            });
+        }
     }
 
     private static class TimeEstimator implements Runnable {

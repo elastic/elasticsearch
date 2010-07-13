@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataService;
+import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -63,7 +63,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
 
     private final DiscoveryService discoveryService;
 
-    private final MetaDataService metaDataService;
+    private final MetaDataCreateIndexService createIndexService;
 
 
     private final TimeValue initialStateTimeout;
@@ -75,13 +75,13 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
     private final AtomicBoolean readFromGateway = new AtomicBoolean();
 
     @Inject public GatewayService(Settings settings, Gateway gateway, ClusterService clusterService, DiscoveryService discoveryService,
-                                  ThreadPool threadPool, MetaDataService metaDataService) {
+                                  ThreadPool threadPool, MetaDataCreateIndexService createIndexService) {
         super(settings);
         this.gateway = gateway;
         this.clusterService = clusterService;
         this.discoveryService = discoveryService;
         this.threadPool = threadPool;
-        this.metaDataService = metaDataService;
+        this.createIndexService = createIndexService;
         this.initialStateTimeout = componentSettings.getAsTime("initial_state_timeout", TimeValue.timeValueSeconds(30));
         // allow to control a delay of when indices will get created
         this.recoverAfterTime = componentSettings.getAsTime("recover_after_time", null);
@@ -247,15 +247,13 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                 // go over the meta data and create indices, we don't really need to copy over
                 // the meta data per index, since we create the index and it will be added automatically
                 for (final IndexMetaData indexMetaData : fMetaData) {
-                    threadPool.execute(new Runnable() {
-                        @Override public void run() {
-                            try {
-                                metaDataService.createIndex("gateway", indexMetaData.index(), indexMetaData.settings(), indexMetaData.mappings(), timeValueSeconds(30));
-                            } catch (Exception e) {
-                                logger.error("failed to create index [" + indexMetaData.index() + "]", e);
-                            } finally {
-                                latch.countDown();
-                            }
+                    createIndexService.createIndex(new MetaDataCreateIndexService.Request("gateway", indexMetaData.index()).settings(indexMetaData.settings()).mappings(indexMetaData.mappings()).timeout(timeValueSeconds(30)), new MetaDataCreateIndexService.Listener() {
+                        @Override public void onResponse(MetaDataCreateIndexService.Response response) {
+                            latch.countDown();
+                        }
+
+                        @Override public void onFailure(Throwable t) {
+                            logger.error("failed to create index [{}]", indexMetaData.index(), t);
                         }
                     });
                 }

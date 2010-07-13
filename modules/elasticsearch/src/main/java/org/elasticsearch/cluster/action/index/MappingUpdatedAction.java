@@ -26,7 +26,7 @@ import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaDataService;
+import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,16 +40,16 @@ import java.io.IOException;
  * Called by shards in the cluster when their mapping was dynamically updated and it needs to be updated
  * in the cluster state meta data (and broadcast to all members).
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class MappingUpdatedAction extends TransportMasterNodeOperationAction<MappingUpdatedAction.MappingUpdatedRequest, MappingUpdatedAction.MappingUpdatedResponse> {
 
-    private final MetaDataService metaDataService;
+    private final MetaDataMappingService metaDataMappingService;
 
     @Inject public MappingUpdatedAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                        MetaDataService metaDataService) {
+                                        MetaDataMappingService metaDataMappingService) {
         super(settings, transportService, clusterService, threadPool);
-        this.metaDataService = metaDataService;
+        this.metaDataMappingService = metaDataMappingService;
     }
 
     @Override protected String transportAction() {
@@ -65,7 +65,7 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
     }
 
     @Override protected MappingUpdatedResponse masterOperation(MappingUpdatedRequest request, ClusterState state) throws ElasticSearchException {
-        metaDataService.updateMapping(request.index(), request.type(), request.mappingSource());
+        metaDataMappingService.updateMapping(request.index(), request.type(), request.mappingSource());
         return new MappingUpdatedResponse();
     }
 

@@ -177,7 +177,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         Timeout timeoutX = null;
         try {
             if (timeout != null) {
-                timeoutX = timerService.newTimeout(new TimeoutTimerTask(requestId), timeout);
+                timeoutX = timerService.newTimeout(new TimeoutTimerTask(requestId), timeout, TimerService.ExecutionType.THREADED);
             }
             clientHandlers.put(requestId, new RequestHolder<T>(handler, node, action, timeoutX));
             transport.sendRequest(node, requestId, action, message);
@@ -313,13 +313,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             if (holder != null) {
                 // add it to the timeout information holder, in case we are going to get a response later
                 timeoutInfoHandlers.put(requestId, new TimeoutInfoHolder(holder.node(), holder.action()));
-                // callback that an exception happened, but on a different thread since we don't
-                // want handlers to worry about stack overflows
-                threadPool.execute(new Runnable() {
-                    @Override public void run() {
-                        holder.handler().handleException(new ReceiveTimeoutTransportException(holder.node(), holder.action()));
-                    }
-                });
+                holder.handler().handleException(new ReceiveTimeoutTransportException(holder.node(), holder.action()));
             }
         }
     }

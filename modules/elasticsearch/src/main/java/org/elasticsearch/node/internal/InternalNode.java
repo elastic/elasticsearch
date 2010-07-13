@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.routing.RoutingService;
+import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -241,42 +242,66 @@ public final class InternalNode implements Node {
         ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
         logger.info("{{}}[{}]: closing ...", Version.full(), JvmInfo.jvmInfo().pid());
 
+        StopWatch stopWatch = new StopWatch("node_close");
+        stopWatch.start("http");
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).close();
         }
+        stopWatch.stop().start("client");
         injector.getInstance(Client.class).close();
+        stopWatch.stop().start("routing");
         injector.getInstance(RoutingService.class).close();
+        stopWatch.stop().start("cluster");
         injector.getInstance(ClusterService.class).close();
+        stopWatch.stop().start("discovery");
         injector.getInstance(DiscoveryService.class).close();
+        stopWatch.stop().start("monitor");
         injector.getInstance(MonitorService.class).close();
+        stopWatch.stop().start("gateway");
         injector.getInstance(GatewayService.class).close();
+        stopWatch.stop().start("search");
         injector.getInstance(SearchService.class).close();
+        stopWatch.stop().start("indices_cluster");
         injector.getInstance(IndicesClusterStateService.class).close();
+        stopWatch.stop().start("indices");
         injector.getInstance(IndicesService.class).close();
+        stopWatch.stop().start("rest");
         injector.getInstance(RestController.class).close();
+        stopWatch.stop().start("transport");
         injector.getInstance(TransportService.class).close();
+        stopWatch.stop().start("http_client");
         injector.getInstance(HttpClientService.class).close();
 
         for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
+            stopWatch.stop().start("plugin(" + plugin.getName() + ")");
             injector.getInstance(plugin).close();
         }
 
+        stopWatch.stop().start("node_cache");
         injector.getInstance(NodeCache.class).close();
 
+        stopWatch.stop().start("timer");
         injector.getInstance(TimerService.class).close();
+        stopWatch.stop().start("thread_pool");
         injector.getInstance(ThreadPool.class).shutdown();
         try {
             injector.getInstance(ThreadPool.class).awaitTermination(10, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             // ignore
         }
+        stopWatch.stop().start("thread_pool_force_shutdown");
         try {
             injector.getInstance(ThreadPool.class).shutdownNow();
         } catch (Exception e) {
             // ignore
         }
+        stopWatch.stop();
 
         ThreadLocals.clearReferencesThreadLocals();
+
+        if (logger.isTraceEnabled()) {
+            logger.trace("Close times for each service:\n{}", stopWatch.prettyPrint());
+        }
 
         logger.info("{{}}[{}]: closed", Version.full(), JvmInfo.jvmInfo().pid());
     }

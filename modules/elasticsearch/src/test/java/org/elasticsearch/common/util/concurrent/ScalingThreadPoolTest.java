@@ -31,6 +31,7 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (shay.banon)
  */
+@Test(enabled = false)
 public class ScalingThreadPoolTest {
 
     @Test public void testScaleUp() throws Exception {

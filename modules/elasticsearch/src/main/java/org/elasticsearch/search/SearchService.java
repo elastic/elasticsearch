@@ -317,7 +317,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
         context.keepAlive(keepAlive);
         context.accessed(timerService.estimatedTimeInMillis());
-        context.keepAliveTimeout(timerService.newTimeout(new KeepAliveTimerTask(context), keepAlive));
+        context.keepAliveTimeout(timerService.newTimeout(new KeepAliveTimerTask(context), keepAlive, TimerService.ExecutionType.DEFAULT));
 
         return context;
     }
@@ -424,7 +424,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 freeContext(context.id());
             } else {
                 // Read occurred before the timeout - set a new timeout with shorter delay.
-                context.keepAliveTimeout(timerService.newTimeout(this, nextDelay, TimeUnit.MILLISECONDS));
+                context.keepAliveTimeout(timerService.newTimeout(this, nextDelay, TimeUnit.MILLISECONDS, TimerService.ExecutionType.DEFAULT));
             }
         }
     }

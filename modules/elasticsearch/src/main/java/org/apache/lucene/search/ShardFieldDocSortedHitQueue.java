@@ -29,4 +29,8 @@ public class ShardFieldDocSortedHitQueue extends FieldDocSortedHitQueue {
         super(size);
         setFields(fields);
     }
+
+    @Override public void setFields(SortField[] fields) {
+        super.setFields(fields);
+    }
 }

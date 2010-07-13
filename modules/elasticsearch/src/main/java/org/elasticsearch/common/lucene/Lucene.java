@@ -134,16 +134,18 @@ public class Lucene {
                 for (int j = 0; j < cFields.length; j++) {
                     byte type = in.readByte();
                     if (type == 0) {
-                        cFields[j] = in.readUTF();
+                        cFields[j] = null;
                     } else if (type == 1) {
-                        cFields[j] = in.readInt();
+                        cFields[j] = in.readUTF();
                     } else if (type == 2) {
-                        cFields[j] = in.readLong();
+                        cFields[j] = in.readInt();
                     } else if (type == 3) {
-                        cFields[j] = in.readFloat();
+                        cFields[j] = in.readLong();
                     } else if (type == 4) {
-                        cFields[j] = in.readDouble();
+                        cFields[j] = in.readFloat();
                     } else if (type == 5) {
+                        cFields[j] = in.readDouble();
+                    } else if (type == 6) {
                         cFields[j] = in.readByte();
                     } else {
                         throw new IOException("Can't match type [" + type + "]");
@@ -198,27 +200,31 @@ public class Lucene {
                 FieldDoc fieldDoc = (FieldDoc) doc;
                 out.writeVInt(fieldDoc.fields.length);
                 for (Comparable field : fieldDoc.fields) {
-                    Class type = field.getClass();
-                    if (type == String.class) {
+                    if (field == null) {
                         out.writeByte((byte) 0);
-                        out.writeUTF((String) field);
-                    } else if (type == Integer.class) {
-                        out.writeByte((byte) 1);
-                        out.writeInt((Integer) field);
-                    } else if (type == Long.class) {
-                        out.writeByte((byte) 2);
-                        out.writeLong((Long) field);
-                    } else if (type == Float.class) {
-                        out.writeByte((byte) 3);
-                        out.writeFloat((Float) field);
-                    } else if (type == Double.class) {
-                        out.writeByte((byte) 4);
-                        out.writeDouble((Double) field);
-                    } else if (type == Byte.class) {
-                        out.writeByte((byte) 5);
-                        out.writeByte((Byte) field);
                     } else {
-                        throw new IOException("Can't handle sort field value of type [" + type + "]");
+                        Class type = field.getClass();
+                        if (type == String.class) {
+                            out.writeByte((byte) 1);
+                            out.writeUTF((String) field);
+                        } else if (type == Integer.class) {
+                            out.writeByte((byte) 2);
+                            out.writeInt((Integer) field);
+                        } else if (type == Long.class) {
+                            out.writeByte((byte) 3);
+                            out.writeLong((Long) field);
+                        } else if (type == Float.class) {
+                            out.writeByte((byte) 4);
+                            out.writeFloat((Float) field);
+                        } else if (type == Double.class) {
+                            out.writeByte((byte) 5);
+                            out.writeDouble((Double) field);
+                        } else if (type == Byte.class) {
+                            out.writeByte((byte) 6);
+                            out.writeByte((Byte) field);
+                        } else {
+                            throw new IOException("Can't handle sort field value of type [" + type + "]");
+                        }
                     }
                 }
 

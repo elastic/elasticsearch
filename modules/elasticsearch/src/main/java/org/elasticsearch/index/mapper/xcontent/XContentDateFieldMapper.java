@@ -36,6 +36,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericDateAnalyzer;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeMappingException;
 
 import java.io.IOException;
 import java.util.Map;
@@ -104,7 +105,7 @@ public class XContentDateFieldMapper extends XContentNumberFieldMapper<Long> {
 
     private final FormatDateTimeFormatter dateTimeFormatter;
 
-    private final String nullValue;
+    private String nullValue;
 
     protected XContentDateFieldMapper(Names names, FormatDateTimeFormatter dateTimeFormatter, int precisionStep,
                                       Field.Index index, Field.Store store,
@@ -211,6 +212,13 @@ public class XContentDateFieldMapper extends XContentNumberFieldMapper<Long> {
 
     @Override protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+        super.merge(mergeWith, mergeContext);
+        if (!mergeContext.mergeFlags().simulate()) {
+            this.nullValue = ((XContentDateFieldMapper) mergeWith).nullValue;
+        }
     }
 
     @Override protected void doXContentBody(XContentBuilder builder) throws IOException {

@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeMappingException;
 
 import java.io.IOException;
 import java.util.Map;
@@ -89,7 +90,7 @@ public class XContentStringFieldMapper extends XContentFieldMapper<String> imple
     }
 
 
-    private final String nullValue;
+    private String nullValue;
 
     private Boolean includeInAll;
 
@@ -146,6 +147,14 @@ public class XContentStringFieldMapper extends XContentFieldMapper<String> imple
 
     @Override protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+        super.merge(mergeWith, mergeContext);
+        if (!mergeContext.mergeFlags().simulate()) {
+            this.includeInAll = ((XContentStringFieldMapper) mergeWith).includeInAll;
+            this.nullValue = ((XContentStringFieldMapper) mergeWith).nullValue;
+        }
     }
 
     @Override protected void doXContentBody(XContentBuilder builder) throws IOException {

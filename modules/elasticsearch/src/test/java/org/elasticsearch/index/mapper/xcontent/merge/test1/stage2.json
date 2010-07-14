@@ -1,7 +1,7 @@
 {
     person : {
         properties : {
-            name : {type : "integer"},
+            name : {type : "string"},
             age : {type : "integer"}
         }
     }

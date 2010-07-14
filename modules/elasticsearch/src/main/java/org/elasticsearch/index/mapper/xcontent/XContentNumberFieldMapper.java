@@ -31,6 +31,7 @@ import org.elasticsearch.common.trove.TIntObjectHashMap;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.mapper.MergeMappingException;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -87,7 +88,7 @@ public abstract class XContentNumberFieldMapper<T extends Number> extends XConte
         }
     };
 
-    protected final int precisionStep;
+    protected int precisionStep;
 
     protected Boolean includeInAll;
 
@@ -155,6 +156,14 @@ public abstract class XContentNumberFieldMapper<T extends Number> extends XConte
     }
 
     @Override public abstract Object valueFromTerm(String term);
+
+    @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+        super.merge(mergeWith, mergeContext);
+        if (!mergeContext.mergeFlags().simulate()) {
+            this.precisionStep = ((XContentNumberFieldMapper) mergeWith).precisionStep;
+            this.includeInAll = ((XContentNumberFieldMapper) mergeWith).includeInAll;
+        }
+    }
 
     @Override protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);

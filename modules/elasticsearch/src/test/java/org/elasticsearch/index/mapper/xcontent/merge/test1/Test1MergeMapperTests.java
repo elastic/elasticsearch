@@ -44,13 +44,13 @@ public class Test1MergeMapperTests {
         XContentDocumentMapper stage2 = (XContentDocumentMapper) new XContentDocumentMapperParser(new AnalysisService(new Index("test"))).parse(stage2Mapping);
 
         DocumentMapper.MergeResult mergeResult = stage1.merge(stage2, mergeFlags().simulate(true));
-        assertThat(mergeResult.hasConflicts(), equalTo(true));
+        assertThat(mergeResult.hasConflicts(), equalTo(false));
         // since we are simulating, we should not have the age mapping
         assertThat(stage1.mappers().smartName("age"), nullValue());
         // now merge, don't simulate
         mergeResult = stage1.merge(stage2, mergeFlags().simulate(false));
         // there is still merge failures
-        assertThat(mergeResult.hasConflicts(), equalTo(true));
+        assertThat(mergeResult.hasConflicts(), equalTo(false));
         // but we have the age in
         assertThat(stage1.mappers().smartName("age"), notNullValue());
     }

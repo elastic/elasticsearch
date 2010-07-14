@@ -65,6 +65,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
     @Override protected void doStop() throws ElasticSearchException {
         if (scheduledRoutingTableFuture != null) {
             scheduledRoutingTableFuture.cancel(true);
+            scheduledRoutingTableFuture = null;
         }
         clusterService.remove(this);
     }

@@ -315,7 +315,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     return;
                 }
                 try {
-                    RecoveryAction recoveryAction = indexService.shardInjector(shardId).getInstance(RecoveryAction.class);
+                    RecoveryAction recoveryAction = indexService.shardInjectorSafe(shardId).getInstance(RecoveryAction.class);
                     if (!shardRouting.primary()) {
                         // recovery from primary
                         IndexShardRoutingTable shardRoutingTable = routingTable.index(shardRouting.index()).shard(shardRouting.id());

@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery.zen.membership;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,10 +29,8 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.VoidTransportResponseHandler;
+import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
+import org.elasticsearch.transport.*;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -42,18 +41,21 @@ import java.util.concurrent.TimeUnit;
 public class MembershipAction extends AbstractComponent {
 
     public static interface MembershipListener {
-        void onJoin(DiscoveryNode node);
+        ClusterState onJoin(DiscoveryNode node);
 
         void onLeave(DiscoveryNode node);
     }
 
     private final TransportService transportService;
 
+    private final DiscoveryNodesProvider nodesProvider;
+
     private final MembershipListener listener;
 
-    public MembershipAction(Settings settings, TransportService transportService, MembershipListener listener) {
+    public MembershipAction(Settings settings, TransportService transportService, DiscoveryNodesProvider nodesProvider, MembershipListener listener) {
         super(settings);
         this.transportService = transportService;
+        this.nodesProvider = nodesProvider;
         this.listener = listener;
 
         transportService.registerHandler(JoinRequestRequestHandler.ACTION, new JoinRequestRequestHandler());
@@ -74,30 +76,59 @@ public class MembershipAction extends AbstractComponent {
     }
 
     public void sendJoinRequest(DiscoveryNode masterNode, DiscoveryNode node) {
-        transportService.sendRequest(masterNode, JoinRequestRequestHandler.ACTION, new JoinRequest(node), VoidTransportResponseHandler.INSTANCE_NOSPAWN);
+        transportService.sendRequest(masterNode, JoinRequestRequestHandler.ACTION, new JoinRequest(node, false), VoidTransportResponseHandler.INSTANCE_NOSPAWN);
     }
 
-    public void sendJoinRequestBlocking(DiscoveryNode masterNode, DiscoveryNode node, TimeValue timeout) throws ElasticSearchException {
-        transportService.submitRequest(masterNode, JoinRequestRequestHandler.ACTION, new JoinRequest(node), VoidTransportResponseHandler.INSTANCE_NOSPAWN).txGet(timeout.millis(), TimeUnit.MILLISECONDS);
+    public ClusterState sendJoinRequestBlocking(DiscoveryNode masterNode, DiscoveryNode node, TimeValue timeout) throws ElasticSearchException {
+        return transportService.submitRequest(masterNode, JoinRequestRequestHandler.ACTION, new JoinRequest(node, true), new FutureTransportResponseHandler<JoinResponse>() {
+            @Override public JoinResponse newInstance() {
+                return new JoinResponse();
+            }
+        }).txGet(timeout.millis(), TimeUnit.MILLISECONDS).clusterState;
     }
 
-    private static class JoinRequest implements Streamable {
+    static class JoinRequest implements Streamable {
 
-        private DiscoveryNode node;
+        DiscoveryNode node;
+
+        boolean withClusterState;
 
         private JoinRequest() {
         }
 
-        private JoinRequest(DiscoveryNode node) {
+        private JoinRequest(DiscoveryNode node, boolean withClusterState) {
             this.node = node;
+            this.withClusterState = withClusterState;
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {
             node = DiscoveryNode.readNode(in);
+            withClusterState = in.readBoolean();
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
             node.writeTo(out);
+            out.writeBoolean(withClusterState);
+        }
+    }
+
+    class JoinResponse implements Streamable {
+
+        ClusterState clusterState;
+
+        JoinResponse() {
+        }
+
+        JoinResponse(ClusterState clusterState) {
+            this.clusterState = clusterState;
+        }
+
+        @Override public void readFrom(StreamInput in) throws IOException {
+            clusterState = ClusterState.Builder.readFrom(in, settings, nodesProvider.nodes().localNode());
+        }
+
+        @Override public void writeTo(StreamOutput out) throws IOException {
+            ClusterState.Builder.writeTo(clusterState, out);
         }
     }
 
@@ -110,8 +141,12 @@ public class MembershipAction extends AbstractComponent {
         }
 
         @Override public void messageReceived(JoinRequest request, TransportChannel channel) throws Exception {
-            listener.onJoin(request.node);
-            channel.sendResponse(VoidStreamable.INSTANCE);
+            ClusterState clusterState = listener.onJoin(request.node);
+            if (request.withClusterState) {
+                channel.sendResponse(new JoinResponse(clusterState));
+            } else {
+                channel.sendResponse(VoidStreamable.INSTANCE);
+            }
         }
     }
 

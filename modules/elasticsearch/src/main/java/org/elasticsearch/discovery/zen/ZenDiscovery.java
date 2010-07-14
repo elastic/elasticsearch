@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUID;
@@ -128,7 +129,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         this.publishClusterState = new PublishClusterStateAction(settings, transportService, this, new NewClusterStateListener());
         this.pingService.setNodesProvider(this);
-        this.membership = new MembershipAction(settings, transportService, new MembershipListener());
+        this.membership = new MembershipAction(settings, transportService, this, new MembershipListener());
     }
 
     @Override protected void doStart() throws ElasticSearchException {
@@ -268,8 +269,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     continue;
                 }
                 // send join request
+                ClusterState clusterState;
                 try {
-                    membership.sendJoinRequestBlocking(masterNode, localNode, initialPingTimeout);
+                    clusterState = membership.sendJoinRequestBlocking(masterNode, localNode, initialPingTimeout);
                 } catch (Exception e) {
                     if (e instanceof ElasticSearchException) {
                         logger.info("failed to send join request to master [{}], reason [{}]", masterNode, ((ElasticSearchException) e).getDetailedMessage());
@@ -284,10 +286,15 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     continue;
                 }
                 masterFD.start(masterNode, "initial_join");
+
+                // we update the metadata once we managed to join, so we pre-create indices and so on (no shards allocation)
+                final MetaData metaData = clusterState.metaData();
                 clusterService.submitStateUpdateTask("zen-disco-join (detected master)", new ProcessedClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
                         ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NO_MASTER_BLOCK).build();
-                        return newClusterStateBuilder().state(currentState).blocks(clusterBlocks).build();
+                        // make sure we have the local node id set, we might need it as a result of the new metadata
+                        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.newNodesBuilder().putAll(currentState.nodes()).put(localNode).localNodeId(localNode.id());
+                        return newClusterStateBuilder().state(currentState).nodes(nodesBuilder).blocks(clusterBlocks).metaData(metaData).build();
                     }
 
                     @Override public void clusterStateProcessed(ClusterState clusterState) {
@@ -508,8 +515,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     private class MembershipListener implements MembershipAction.MembershipListener {
-        @Override public void onJoin(DiscoveryNode node) {
+        @Override public ClusterState onJoin(DiscoveryNode node) {
             handleJoinRequest(node);
+            return clusterService.state();
         }
 
         @Override public void onLeave(DiscoveryNode node) {

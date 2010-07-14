@@ -34,6 +34,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericLongAnalyzer;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeMappingException;
 
 import java.io.IOException;
 import java.util.Map;
@@ -90,9 +91,9 @@ public class XContentLongFieldMapper extends XContentNumberFieldMapper<Long> {
         }
     }
 
-    private final Long nullValue;
+    private Long nullValue;
 
-    private final String nullValueAsString;
+    private String nullValueAsString;
 
     protected XContentLongFieldMapper(Names names, int precisionStep, Field.Index index, Field.Store store,
                                       float boost, boolean omitNorms, boolean omitTermFreqAndPositions,
@@ -192,6 +193,14 @@ public class XContentLongFieldMapper extends XContentNumberFieldMapper<Long> {
 
     @Override protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+        super.merge(mergeWith, mergeContext);
+        if (!mergeContext.mergeFlags().simulate()) {
+            this.nullValue = ((XContentLongFieldMapper) mergeWith).nullValue;
+            this.nullValueAsString = ((XContentLongFieldMapper) mergeWith).nullValueAsString;
+        }
     }
 
     @Override protected void doXContentBody(XContentBuilder builder) throws IOException {

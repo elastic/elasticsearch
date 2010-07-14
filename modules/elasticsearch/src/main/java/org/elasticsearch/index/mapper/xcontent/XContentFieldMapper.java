@@ -193,11 +193,11 @@ public abstract class XContentFieldMapper<T> implements FieldMapper<T>, XContent
 
     protected final Field.TermVector termVector;
 
-    protected final float boost;
+    protected float boost;
 
-    protected final boolean omitNorms;
+    protected boolean omitNorms;
 
-    protected final boolean omitTermFreqAndPositions;
+    protected boolean omitTermFreqAndPositions;
 
     protected final NamedAnalyzer indexAnalyzer;
 
@@ -341,7 +341,39 @@ public abstract class XContentFieldMapper<T> implements FieldMapper<T>, XContent
     }
 
     @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        mergeContext.addConflict("Mapper [" + names.fullName() + "] exists, can't merge");
+        if (!this.getClass().equals(mergeWith.getClass())) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] of different type");
+        }
+        XContentFieldMapper fieldMergeWith = (XContentFieldMapper) mergeWith;
+        if (!this.index.equals(fieldMergeWith.index)) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different index values");
+        }
+        if (!this.store.equals(fieldMergeWith.store)) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different store values");
+        }
+        if (!this.termVector.equals(fieldMergeWith.termVector)) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different term_vector values");
+        }
+        if (this.indexAnalyzer == null) {
+            if (fieldMergeWith.indexAnalyzer != null) {
+                mergeContext.addConflict("mapper [" + names.fullName() + "] has different index_analyzer");
+            }
+        } else if (!this.indexAnalyzer.name().equals(fieldMergeWith.indexAnalyzer.name())) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different index_analyzer");
+        }
+        if (this.searchAnalyzer == null) {
+            if (fieldMergeWith.searchAnalyzer != null) {
+                mergeContext.addConflict("mapper [" + names.fullName() + "] has different search_analyzer");
+            }
+        } else if (!this.searchAnalyzer.name().equals(fieldMergeWith.searchAnalyzer.name())) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different search_analyzer");
+        }
+        if (!mergeContext.mergeFlags().simulate()) {
+            // apply changeable values
+            this.boost = fieldMergeWith.boost;
+            this.omitNorms = fieldMergeWith.omitNorms;
+            this.omitTermFreqAndPositions = fieldMergeWith.omitTermFreqAndPositions;
+        }
     }
 
     @Override public FieldData.Type fieldDataType() {

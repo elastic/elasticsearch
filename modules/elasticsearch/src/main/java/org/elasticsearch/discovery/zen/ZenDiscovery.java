@@ -437,16 +437,19 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
     }
 
-    private void handleJoinRequest(final DiscoveryNode node) {
+    private ClusterState handleJoinRequest(final DiscoveryNode node) {
         if (!master) {
             throw new ElasticSearchIllegalStateException("Node [" + localNode + "] not master for join request from [" + node + "]");
         }
+
+        ClusterState state = clusterService.state();
         if (!transportService.addressSupported(node.address().getClass())) {
             // TODO, what should we do now? Maybe inform that node that its crap?
             logger.warn("received a wrong address type from [{}], ignoring...", node);
         } else {
             // try and connect to the node, if it fails, we can raise an exception back to the client...
             transportService.connectToNode(node);
+            state = clusterService.state();
 
             clusterService.submitStateUpdateTask("zen-disco-receive(from node[" + node + "])", new ClusterStateUpdateTask() {
                 @Override public ClusterState execute(ClusterState currentState) {
@@ -459,6 +462,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 }
             });
         }
+        return state;
     }
 
     private DiscoveryNode findMaster() {
@@ -516,8 +520,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private class MembershipListener implements MembershipAction.MembershipListener {
         @Override public ClusterState onJoin(DiscoveryNode node) {
-            handleJoinRequest(node);
-            return clusterService.state();
+            return handleJoinRequest(node);
         }
 
         @Override public void onLeave(DiscoveryNode node) {

@@ -57,6 +57,8 @@ public class TermsFacetCollector extends AbstractFacetCollector {
 
     private final int size;
 
+    private final int numberOfShards;
+
     private final FieldData.Type fieldDataType;
 
     private FieldData fieldData;
@@ -65,10 +67,11 @@ public class TermsFacetCollector extends AbstractFacetCollector {
 
     private final ImmutableSet<String> excluded;
 
-    public TermsFacetCollector(String facetName, String fieldName, int size, FieldDataCache fieldDataCache, MapperService mapperService, ImmutableSet<String> excluded) {
+    public TermsFacetCollector(String facetName, String fieldName, int size, int numberOfShards, FieldDataCache fieldDataCache, MapperService mapperService, ImmutableSet<String> excluded) {
         super(facetName);
         this.fieldDataCache = fieldDataCache;
         this.size = size;
+        this.numberOfShards = numberOfShards;
         this.excluded = excluded;
 
         FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);
@@ -101,7 +104,8 @@ public class TermsFacetCollector extends AbstractFacetCollector {
             pushFacets(facets);
             return new InternalTermsFacet(facetName, fieldName, InternalTermsFacet.ComparatorType.COUNT, size, ImmutableList.<InternalTermsFacet.Entry>of());
         } else {
-            BoundedTreeSet<InternalTermsFacet.Entry> ordered = new BoundedTreeSet<InternalTermsFacet.Entry>(InternalTermsFacet.ComparatorType.COUNT.comparator(), size);
+            // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
+            BoundedTreeSet<InternalTermsFacet.Entry> ordered = new BoundedTreeSet<InternalTermsFacet.Entry>(InternalTermsFacet.ComparatorType.COUNT.comparator(), size * numberOfShards);
             for (TObjectIntIterator<String> it = facets.iterator(); it.hasNext();) {
                 it.advance();
                 ordered.add(new InternalTermsFacet.Entry(it.key(), it.value()));

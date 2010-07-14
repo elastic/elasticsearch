@@ -22,7 +22,7 @@ package org.elasticsearch.index.translog;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.translog.memory.MemoryTranslog;
+import org.elasticsearch.index.translog.fs.FsTranslog;
 
 /**
  * @author kimchy (shay.banon)
@@ -41,7 +41,7 @@ public class TranslogModule extends AbstractModule {
 
     @Override protected void configure() {
         bind(Translog.class)
-                .to(settings.getAsClass(TranslogSettings.TYPE, MemoryTranslog.class))
+                .to(settings.getAsClass(TranslogSettings.TYPE, FsTranslog.class))
                 .in(Scopes.SINGLETON);
     }
 }

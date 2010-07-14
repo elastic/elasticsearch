@@ -191,7 +191,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                 if (node == null) {
                     onFirstPhaseResult(shard, shardIt, null);
                 } else {
-                    sendExecuteFirstPhase(node, internalSearchRequest(shard, request), new SearchServiceListener<FirstResult>() {
+                    sendExecuteFirstPhase(node, internalSearchRequest(shard, shardsIts.size(), request), new SearchServiceListener<FirstResult>() {
                         @Override public void onResult(FirstResult result) {
                             onFirstPhaseResult(shard, result, shardIt);
                         }

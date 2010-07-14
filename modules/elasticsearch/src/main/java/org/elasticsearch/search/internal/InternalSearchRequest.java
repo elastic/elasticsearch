@@ -51,13 +51,15 @@ import static org.elasticsearch.search.Scroll.*;
  * }
  * </pre>
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class InternalSearchRequest implements Streamable {
 
     private String index;
 
     private int shardId;
+
+    private int numberOfShards;
 
     private Scroll scroll;
 
@@ -76,13 +78,14 @@ public class InternalSearchRequest implements Streamable {
     public InternalSearchRequest() {
     }
 
-    public InternalSearchRequest(ShardRouting shardRouting) {
-        this(shardRouting.index(), shardRouting.id());
+    public InternalSearchRequest(ShardRouting shardRouting, int numberOfShards) {
+        this(shardRouting.index(), shardRouting.id(), numberOfShards);
     }
 
-    public InternalSearchRequest(String index, int shardId) {
+    public InternalSearchRequest(String index, int shardId, int numberOfShards) {
         this.index = index;
         this.shardId = shardId;
+        this.numberOfShards = numberOfShards;
     }
 
     public String index() {
@@ -91,6 +94,10 @@ public class InternalSearchRequest implements Streamable {
 
     public int shardId() {
         return shardId;
+    }
+
+    public int numberOfShards() {
+        return numberOfShards;
     }
 
     public byte[] source() {
@@ -164,6 +171,7 @@ public class InternalSearchRequest implements Streamable {
     @Override public void readFrom(StreamInput in) throws IOException {
         index = in.readUTF();
         shardId = in.readVInt();
+        numberOfShards = in.readVInt();
         if (in.readBoolean()) {
             scroll = readScroll(in);
         }
@@ -198,6 +206,7 @@ public class InternalSearchRequest implements Streamable {
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(index);
         out.writeVInt(shardId);
+        out.writeVInt(numberOfShards);
         if (scroll == null) {
             out.writeBoolean(false);
         } else {

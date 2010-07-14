@@ -64,6 +64,6 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
                 }
             }
         }
-        return new TermsFacetCollector(facetName, field, size, context.fieldDataCache(), context.mapperService(), excluded);
+        return new TermsFacetCollector(facetName, field, size, context.numberOfShards(), context.fieldDataCache(), context.mapperService(), excluded);
     }
 }

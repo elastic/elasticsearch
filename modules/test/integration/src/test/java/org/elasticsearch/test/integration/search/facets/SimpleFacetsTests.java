@@ -208,6 +208,76 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().get(1).count(), equalTo(1));
     }
 
+    @Test public void testTermFacetWithEqualTermDistribution() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        // at the end of the index, we should have 10 of each `bar`, `foo`, and `baz`
+        for (int i = 0; i < 5; i++) {
+            client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                    .field("text", "foo bar")
+                    .endObject()).execute().actionGet();
+        }
+        for (int i = 0; i < 5; i++) {
+            client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                    .field("text", "bar baz")
+                    .endObject()).execute().actionGet();
+        }
+
+        for (int i = 0; i < 5; i++) {
+            client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                    .field("text", "baz foo")
+                    .endObject()).execute().actionGet();
+        }
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addFacet(termsFacet("facet1").field("text").size(3))
+                .execute().actionGet();
+
+        TermsFacet facet = searchResponse.facets().facet(TermsFacet.class, "facet1");
+        assertThat(facet.name(), equalTo("facet1"));
+        assertThat(facet.entries().size(), equalTo(3));
+        for (int i = 0; i < 3; i++) {
+            assertThat(facet.entries().get(i).term(), anyOf(equalTo("foo"), equalTo("bar"), equalTo("baz")));
+            assertThat(facet.entries().get(i).count(), equalTo(10));
+        }
+
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addFacet(termsFacet("facet1").field("text").size(2))
+                .execute().actionGet();
+
+        facet = searchResponse.facets().facet(TermsFacet.class, "facet1");
+        assertThat(facet.name(), equalTo("facet1"));
+        assertThat(facet.entries().size(), equalTo(2));
+        for (int i = 0; i < 2; i++) {
+            assertThat(facet.entries().get(i).term(), anyOf(equalTo("foo"), equalTo("bar"), equalTo("baz")));
+            assertThat(facet.entries().get(i).count(), equalTo(10));
+        }
+
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addFacet(termsFacet("facet1").field("text").size(1))
+                .execute().actionGet();
+
+        facet = searchResponse.facets().facet(TermsFacet.class, "facet1");
+        assertThat(facet.name(), equalTo("facet1"));
+        assertThat(facet.entries().size(), equalTo(1));
+        for (int i = 0; i < 1; i++) {
+            assertThat(facet.entries().get(i).term(), anyOf(equalTo("foo"), equalTo("bar"), equalTo("baz")));
+            assertThat(facet.entries().get(i).count(), equalTo(10));
+        }
+    }
+
     @Test public void testStatsFacets() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();

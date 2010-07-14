@@ -57,6 +57,8 @@ public class SearchContext implements Releasable {
 
     private final SearchShardTarget shardTarget;
 
+    private final int numberOfShards;
+
     private final Engine.Searcher engineSearcher;
 
     private final ScriptService scriptService;
@@ -116,10 +118,11 @@ public class SearchContext implements Releasable {
 
     private volatile Timeout keepAliveTimeout;
 
-    public SearchContext(long id, SearchShardTarget shardTarget, TimeValue timeout,
+    public SearchContext(long id, SearchShardTarget shardTarget, int numberOfShards, TimeValue timeout,
                          String[] types, Engine.Searcher engineSearcher, IndexService indexService, ScriptService scriptService) {
         this.id = id;
         this.shardTarget = shardTarget;
+        this.numberOfShards = numberOfShards;
         this.timeout = timeout;
         this.types = types;
         this.engineSearcher = engineSearcher;
@@ -153,6 +156,10 @@ public class SearchContext implements Releasable {
 
     public SearchShardTarget shardTarget() {
         return this.shardTarget;
+    }
+
+    public int numberOfShards() {
+        return this.numberOfShards;
     }
 
     public String[] types() {

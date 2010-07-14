@@ -62,13 +62,13 @@ public class RestClusterStateAction extends BaseRestHandler {
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
-        ClusterStateRequest clusterStateRequest = Requests.clusterState();
+        final ClusterStateRequest clusterStateRequest = Requests.clusterState();
         clusterStateRequest.filterNodes(request.paramAsBoolean("filter_nodes", clusterStateRequest.filterNodes()));
         clusterStateRequest.filterRoutingTable(request.paramAsBoolean("filter_routing_table", clusterStateRequest.filterRoutingTable()));
         clusterStateRequest.filterMetaData(request.paramAsBoolean("filter_metadata", clusterStateRequest.filterMetaData()));
         clusterStateRequest.filterBlocks(request.paramAsBoolean("filter_blocks", clusterStateRequest.filterBlocks()));
         clusterStateRequest.filteredIndices(RestActions.splitIndices(request.param("filter_indices", null)));
-        client.admin().cluster().state(new ClusterStateRequest(), new ActionListener<ClusterStateResponse>() {
+        client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override public void onResponse(ClusterStateResponse response) {
                 try {
                     ClusterState state = response.state();
@@ -77,117 +77,132 @@ public class RestClusterStateAction extends BaseRestHandler {
 
                     builder.field("cluster_name", response.clusterName().value());
 
-                    builder.field("master_node", state.nodes().masterNodeId());
+                    if (!clusterStateRequest.filterNodes()) {
+                        builder.field("master_node", state.nodes().masterNodeId());
+                    }
 
                     // blocks
-                    builder.startObject("blocks");
+                    if (!clusterStateRequest.filterBlocks()) {
+                        builder.startObject("blocks");
 
-                    if (!state.blocks().global().isEmpty()) {
-                        builder.startObject("global");
-                        for (ClusterBlock block : state.blocks().global()) {
-                            block.toXContent(builder, request);
+                        if (!state.blocks().global().isEmpty()) {
+                            builder.startObject("global");
+                            for (ClusterBlock block : state.blocks().global()) {
+                                block.toXContent(builder, request);
+                            }
+                            builder.endObject();
                         }
+
+                        if (!state.blocks().indices().isEmpty()) {
+                            builder.startObject("indices");
+                            for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : state.blocks().indices().entrySet()) {
+                                builder.startObject(entry.getKey());
+                                for (ClusterBlock block : entry.getValue()) {
+                                    block.toXContent(builder, request);
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
+                        }
+
                         builder.endObject();
                     }
 
-                    if (!state.blocks().indices().isEmpty()) {
-                        builder.startObject("indices");
-                        for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : state.blocks().indices().entrySet()) {
-                            builder.startObject(entry.getKey());
-                            for (ClusterBlock block : entry.getValue()) {
-                                block.toXContent(builder, request);
-                            }
+                    // nodes
+                    if (!clusterStateRequest.filterNodes()) {
+                        builder.startObject("nodes");
+                        for (DiscoveryNode node : state.nodes()) {
+                            builder.startObject(node.id());
+                            builder.field("name", node.name());
+                            builder.field("transport_address", node.address().toString());
                             builder.endObject();
                         }
                         builder.endObject();
                     }
 
-                    builder.endObject();
+                    // meta data
+                    if (!clusterStateRequest.filterMetaData()) {
+                        builder.startObject("metadata");
 
-                    // nodes
-                    builder.startObject("nodes");
-                    for (DiscoveryNode node : state.nodes()) {
-                        builder.startObject(node.id());
-                        builder.field("name", node.name());
-                        builder.field("transport_address", node.address().toString());
+                        builder.startObject("indices");
+                        for (IndexMetaData indexMetaData : state.metaData()) {
+                            builder.startObject(indexMetaData.index());
+
+                            builder.startObject("settings");
+                            Settings settings = settingsFilter.filterSettings(indexMetaData.settings());
+                            for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
+                                builder.field(entry.getKey(), entry.getValue());
+                            }
+                            builder.endObject();
+
+                            builder.startObject("mappings");
+                            for (Map.Entry<String, String> entry : indexMetaData.mappings().entrySet()) {
+                                XContentParser parser = XContentFactory.xContent(entry.getValue()).createParser(entry.getValue());
+                                Map<String, Object> mapping = parser.map();
+                                if (mapping.size() == 1 && mapping.containsKey(entry.getKey())) {
+                                    // the type name is the root value, reduce it
+                                    mapping = (Map<String, Object>) mapping.get(entry.getKey());
+                                }
+                                builder.field(entry.getKey());
+                                builder.map(mapping);
+                            }
+                            builder.endObject();
+
+                            builder.startArray("aliases");
+                            for (String alias : indexMetaData.aliases()) {
+                                builder.value(alias);
+                            }
+                            builder.endArray();
+
+                            builder.endObject();
+                        }
+                        builder.endObject();
+
                         builder.endObject();
                     }
-                    builder.endObject();
 
-                    // meta data
-                    builder.startObject("metadata");
-                    builder.startObject("indices");
-                    for (IndexMetaData indexMetaData : state.metaData()) {
-                        builder.startObject(indexMetaData.index());
-
-                        builder.startObject("settings");
-                        Settings settings = settingsFilter.filterSettings(indexMetaData.settings());
-                        for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-                            builder.field(entry.getKey(), entry.getValue());
-                        }
-                        builder.endObject();
-
-                        builder.startObject("mappings");
-                        for (Map.Entry<String, String> entry : indexMetaData.mappings().entrySet()) {
-                            XContentParser parser = XContentFactory.xContent(entry.getValue()).createParser(entry.getValue());
-                            Map<String, Object> mapping = parser.map();
-                            if (mapping.size() == 1 && mapping.containsKey(entry.getKey())) {
-                                // the type name is the root value, reduce it
-                                mapping = (Map<String, Object>) mapping.get(entry.getKey());
+                    // routing table
+                    if (!clusterStateRequest.filterRoutingTable()) {
+                        builder.startObject("routing_table");
+                        builder.startObject("indices");
+                        for (IndexRoutingTable indexRoutingTable : state.routingTable()) {
+                            builder.startObject(indexRoutingTable.index());
+                            builder.startObject("shards");
+                            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                                builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
+                                for (ShardRouting shardRouting : indexShardRoutingTable) {
+                                    jsonShardRouting(builder, shardRouting);
+                                }
+                                builder.endArray();
                             }
-                            builder.field(entry.getKey());
-                            builder.map(mapping);
+                            builder.endObject();
+                            builder.endObject();
                         }
                         builder.endObject();
+                        builder.endObject();
+                    }
 
-                        builder.startArray("aliases");
-                        for (String alias : indexMetaData.aliases()) {
-                            builder.value(alias);
+                    // routing nodes
+                    if (!clusterStateRequest.filterRoutingTable()) {
+                        builder.startObject("routing_nodes");
+                        builder.startArray("unassigned");
+                        for (ShardRouting shardRouting : state.readOnlyRoutingNodes().unassigned()) {
+                            jsonShardRouting(builder, shardRouting);
                         }
                         builder.endArray();
 
-                        builder.endObject();
-                    }
-                    builder.endObject();
-                    builder.endObject();
-
-                    // routing table
-                    builder.startObject("routing_table");
-                    builder.startObject("indices");
-                    for (IndexRoutingTable indexRoutingTable : state.routingTable()) {
-                        builder.startObject(indexRoutingTable.index());
-                        builder.startObject("shards");
-                        for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                            builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
-                            for (ShardRouting shardRouting : indexShardRoutingTable) {
+                        builder.startObject("nodes");
+                        for (RoutingNode routingNode : state.readOnlyRoutingNodes()) {
+                            builder.startArray(routingNode.nodeId());
+                            for (ShardRouting shardRouting : routingNode) {
                                 jsonShardRouting(builder, shardRouting);
                             }
                             builder.endArray();
                         }
                         builder.endObject();
+
                         builder.endObject();
                     }
-                    builder.endObject();
-                    builder.endObject();
-
-                    // routing nodes
-                    builder.startObject("routing_nodes");
-                    builder.startArray("unassigned");
-                    for (ShardRouting shardRouting : state.readOnlyRoutingNodes().unassigned()) {
-                        jsonShardRouting(builder, shardRouting);
-                    }
-                    builder.endArray();
-
-                    builder.startObject("nodes");
-                    for (RoutingNode routingNode : state.readOnlyRoutingNodes()) {
-                        builder.startArray(routingNode.nodeId());
-                        for (ShardRouting shardRouting : routingNode) {
-                            jsonShardRouting(builder, shardRouting);
-                        }
-                        builder.endArray();
-                    }
-                    builder.endObject();
-                    builder.endObject();
 
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, RestResponse.Status.OK, builder));

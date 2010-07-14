@@ -95,9 +95,9 @@ public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent 
 
             if (logger.isWarnEnabled()) {
                 if (nodesStoreFilesMetaData.failures().length > 0) {
-                    StringBuilder sb = new StringBuilder(shard + ": failures when trying to list stores on nodes:\n");
+                    StringBuilder sb = new StringBuilder(shard + ": failures when trying to list stores on nodes:");
                     for (int i = 0; i < nodesStoreFilesMetaData.failures().length; i++) {
-                        sb.append(i).append(". ").append(nodesStoreFilesMetaData.failures()[i].getDetailedMessage()).append("\n");
+                        sb.append("\n    -> ").append(nodesStoreFilesMetaData.failures()[i].getDetailedMessage());
                     }
                     logger.warn(sb.toString());
                 }

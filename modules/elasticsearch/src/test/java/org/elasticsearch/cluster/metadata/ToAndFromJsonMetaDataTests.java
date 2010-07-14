@@ -40,7 +40,6 @@ public class ToAndFromJsonMetaDataTests {
     @Test
     public void testSimpleJsonFromAndTo() throws IOException {
         MetaData metaData = newMetaDataBuilder()
-                .maxNumberOfShardsPerNode(2)
                 .put(newIndexMetaDataBuilder("test1")
                         .numberOfShards(1)
                         .numberOfReplicas(2))
@@ -64,7 +63,6 @@ public class ToAndFromJsonMetaDataTests {
         System.out.println("ToJson: " + metaDataSource);
 
         MetaData parsedMetaData = MetaData.Builder.fromXContent(XContentFactory.xContent(XContentType.JSON).createParser(metaDataSource), null);
-        assertThat(parsedMetaData.maxNumberOfShardsPerNode(), equalTo(2));
 
         IndexMetaData indexMetaData = parsedMetaData.index("test1");
         assertThat(indexMetaData.numberOfShards(), equalTo(1));

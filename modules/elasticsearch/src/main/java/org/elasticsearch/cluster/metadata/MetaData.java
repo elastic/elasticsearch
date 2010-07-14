@@ -51,9 +51,6 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     private final ImmutableMap<String, IndexMetaData> indices;
 
-    // limits the number of shards per node
-    private final int maxNumberOfShardsPerNode;
-
     private final transient int totalNumberOfShards;
     private final boolean recoveredFromGateway;
 
@@ -64,10 +61,9 @@ public class MetaData implements Iterable<IndexMetaData> {
     private final ImmutableMap<String, String[]> aliasAndIndexToIndexMap;
     private final ImmutableMap<String, ImmutableSet<String>> aliasAndIndexToIndexMap2;
 
-    private MetaData(ImmutableMap<String, IndexMetaData> indices, boolean recoveredFromGateway, int maxNumberOfShardsPerNode) {
+    private MetaData(ImmutableMap<String, IndexMetaData> indices, boolean recoveredFromGateway) {
         this.indices = ImmutableMap.copyOf(indices);
         this.recoveredFromGateway = recoveredFromGateway;
-        this.maxNumberOfShardsPerNode = maxNumberOfShardsPerNode;
         int totalNumberOfShards = 0;
         for (IndexMetaData indexMetaData : indices.values()) {
             totalNumberOfShards += indexMetaData.totalNumberOfShards();
@@ -212,14 +208,6 @@ public class MetaData implements Iterable<IndexMetaData> {
         return indices();
     }
 
-    public int maxNumberOfShardsPerNode() {
-        return this.maxNumberOfShardsPerNode;
-    }
-
-    public int getMaxNumberOfShardsPerNode() {
-        return maxNumberOfShardsPerNode();
-    }
-
     public int totalNumberOfShards() {
         return this.totalNumberOfShards;
     }
@@ -237,9 +225,6 @@ public class MetaData implements Iterable<IndexMetaData> {
     }
 
     public static class Builder {
-
-        // limits the number of shards per node
-        private int maxNumberOfShardsPerNode = 100;
 
         private MapBuilder<String, IndexMetaData> indices = newMapBuilder();
 
@@ -269,11 +254,6 @@ public class MetaData implements Iterable<IndexMetaData> {
             return this;
         }
 
-        public Builder maxNumberOfShardsPerNode(int maxNumberOfShardsPerNode) {
-            this.maxNumberOfShardsPerNode = maxNumberOfShardsPerNode;
-            return this;
-        }
-
         /**
          * Indicates that this cluster state has been recovered from the gateawy.
          */
@@ -283,7 +263,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         }
 
         public MetaData build() {
-            return new MetaData(indices.immutableMap(), recoveredFromGateway, maxNumberOfShardsPerNode);
+            return new MetaData(indices.immutableMap(), recoveredFromGateway);
         }
 
         public static String toXContent(MetaData metaData) throws IOException {
@@ -296,7 +276,6 @@ public class MetaData implements Iterable<IndexMetaData> {
 
         public static void toXContent(MetaData metaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject("meta-data");
-            builder.field("max_number_of_shards_per_node", metaData.maxNumberOfShardsPerNode());
 
             builder.startObject("indices");
             for (IndexMetaData indexMetaData : metaData) {
@@ -325,10 +304,6 @@ public class MetaData implements Iterable<IndexMetaData> {
                             builder.put(IndexMetaData.Builder.fromXContent(parser, globalSettings));
                         }
                     }
-                } else if (token.isValue()) {
-                    if ("max_number_of_shards_per_node".equals(currentFieldName)) {
-                        builder.maxNumberOfShardsPerNode(parser.intValue());
-                    }
                 }
             }
             return builder.build();
@@ -336,7 +311,6 @@ public class MetaData implements Iterable<IndexMetaData> {
 
         public static MetaData readFrom(StreamInput in, @Nullable Settings globalSettings) throws IOException {
             Builder builder = new Builder();
-            builder.maxNumberOfShardsPerNode(in.readInt());
             // we only serialize it using readFrom, not in to/from XContent
             builder.recoveredFromGateway = in.readBoolean();
             int size = in.readVInt();
@@ -347,7 +321,6 @@ public class MetaData implements Iterable<IndexMetaData> {
         }
 
         public static void writeTo(MetaData metaData, StreamOutput out) throws IOException {
-            out.writeInt(metaData.maxNumberOfShardsPerNode());
             out.writeBoolean(metaData.recoveredFromGateway());
             out.writeVInt(metaData.indices.size());
             for (IndexMetaData indexMetaData : metaData) {

@@ -236,8 +236,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
     private void updateClusterStateFromGateway(final MetaData fMetaData, final CountDownLatch latch) {
         clusterService.submitStateUpdateTask("gateway (recovered meta-data)", new ProcessedClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
-                MetaData.Builder metaDataBuilder = newMetaDataBuilder()
-                        .metaData(currentState.metaData()).maxNumberOfShardsPerNode(fMetaData.maxNumberOfShardsPerNode());
+                MetaData.Builder metaDataBuilder = newMetaDataBuilder().metaData(currentState.metaData());
                 // mark the metadata as read from gateway
                 metaDataBuilder.markAsRecoveredFromGateway();
                 return newClusterStateBuilder().state(currentState).metaData(metaDataBuilder).build();

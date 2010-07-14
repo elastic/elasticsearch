@@ -120,7 +120,7 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
     }
 
     public boolean canAllocate(MetaData metaData, RoutingTable routingTable) {
-        return shards().size() < metaData.maxNumberOfShardsPerNode();
+        return true;
     }
 
     public boolean canAllocate(ShardRouting requested) {

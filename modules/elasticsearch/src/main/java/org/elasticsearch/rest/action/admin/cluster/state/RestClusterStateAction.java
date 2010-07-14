@@ -116,7 +116,6 @@ public class RestClusterStateAction extends BaseRestHandler {
 
                     // meta data
                     builder.startObject("metadata");
-                    builder.field("max_number_of_shards_per_node", state.metaData().maxNumberOfShardsPerNode());
                     builder.startObject("indices");
                     for (IndexMetaData indexMetaData : state.metaData()) {
                         builder.startObject(indexMetaData.index());

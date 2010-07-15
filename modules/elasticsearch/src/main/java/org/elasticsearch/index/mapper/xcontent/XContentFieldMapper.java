@@ -31,6 +31,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapperListener;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 
 import java.io.IOException;
@@ -277,15 +278,19 @@ public abstract class XContentFieldMapper<T> implements FieldMapper<T>, XContent
     }
 
     @Override public void parse(ParseContext context) throws IOException {
-        Fieldable field = parseCreateField(context);
-        if (field == null) {
-            return;
-        }
-        field.setOmitNorms(omitNorms);
-        field.setOmitTermFreqAndPositions(omitTermFreqAndPositions);
-        field.setBoost(boost);
-        if (context.listener().beforeFieldAdded(this, field, context)) {
-            context.doc().add(field);
+        try {
+            Fieldable field = parseCreateField(context);
+            if (field == null) {
+                return;
+            }
+            field.setOmitNorms(omitNorms);
+            field.setOmitTermFreqAndPositions(omitTermFreqAndPositions);
+            field.setBoost(boost);
+            if (context.listener().beforeFieldAdded(this, field, context)) {
+                context.doc().add(field);
+            }
+        } catch (Exception e) {
+            throw new MapperParsingException("Failed to parse [" + names.fullName() + "]", e);
         }
     }
 

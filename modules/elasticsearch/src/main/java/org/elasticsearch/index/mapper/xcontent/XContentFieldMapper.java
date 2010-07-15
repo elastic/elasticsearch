@@ -347,7 +347,13 @@ public abstract class XContentFieldMapper<T> implements FieldMapper<T>, XContent
 
     @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         if (!this.getClass().equals(mergeWith.getClass())) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] of different type");
+            String mergedType = mergeWith.getClass().getSimpleName();
+            if (mergeWith instanceof XContentFieldMapper) {
+                mergedType = ((XContentFieldMapper) mergeWith).contentType();
+            }
+            mergeContext.addConflict("mapper [" + names.fullName() + "] of different type, current_type [" + contentType() + "], merged_type [" + mergedType + "]");
+            // different types, return
+            return;
         }
         XContentFieldMapper fieldMergeWith = (XContentFieldMapper) mergeWith;
         if (!this.index.equals(fieldMergeWith.index)) {
@@ -363,6 +369,8 @@ public abstract class XContentFieldMapper<T> implements FieldMapper<T>, XContent
             if (fieldMergeWith.indexAnalyzer != null) {
                 mergeContext.addConflict("mapper [" + names.fullName() + "] has different index_analyzer");
             }
+        } else if (fieldMergeWith.indexAnalyzer == null) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different index_analyzer");
         } else if (!this.indexAnalyzer.name().equals(fieldMergeWith.indexAnalyzer.name())) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different index_analyzer");
         }
@@ -370,6 +378,8 @@ public abstract class XContentFieldMapper<T> implements FieldMapper<T>, XContent
             if (fieldMergeWith.searchAnalyzer != null) {
                 mergeContext.addConflict("mapper [" + names.fullName() + "] has different search_analyzer");
             }
+        } else if (fieldMergeWith.searchAnalyzer == null) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different search_analyzer");
         } else if (!this.searchAnalyzer.name().equals(fieldMergeWith.searchAnalyzer.name())) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different search_analyzer");
         }

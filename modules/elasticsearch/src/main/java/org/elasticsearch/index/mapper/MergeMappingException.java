@@ -29,7 +29,7 @@ public class MergeMappingException extends MapperException {
     private final String[] failures;
 
     public MergeMappingException(String[] failures) {
-        super("Merge failed with failures [" + Arrays.toString(failures) + "]");
+        super("Merge failed with failures {" + Arrays.toString(failures) + "}");
         this.failures = failures;
     }
 

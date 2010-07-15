@@ -190,7 +190,12 @@ public class SearchPhaseController {
         float maxScore = Float.NEGATIVE_INFINITY;
         for (QuerySearchResultProvider queryResultProvider : queryResults.values()) {
             totalHits += queryResultProvider.queryResult().topDocs().totalHits;
-            maxScore = Math.max(maxScore, queryResultProvider.queryResult().topDocs().getMaxScore());
+            if (!Float.isNaN(queryResultProvider.queryResult().topDocs().getMaxScore())) {
+                maxScore = Math.max(maxScore, queryResultProvider.queryResult().topDocs().getMaxScore());
+            }
+        }
+        if (Float.isInfinite(maxScore)) {
+            maxScore = Float.NaN;
         }
 
         // clean the fetch counter

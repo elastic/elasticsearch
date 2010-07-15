@@ -197,6 +197,9 @@ public class XContentIntegerFieldMapper extends XContentNumberFieldMapper<Intege
 
     @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         super.merge(mergeWith, mergeContext);
+        if (!this.getClass().equals(mergeWith.getClass())) {
+            return;
+        }
         if (!mergeContext.mergeFlags().simulate()) {
             this.nullValue = ((XContentIntegerFieldMapper) mergeWith).nullValue;
             this.nullValueAsString = ((XContentIntegerFieldMapper) mergeWith).nullValueAsString;

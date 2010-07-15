@@ -91,9 +91,9 @@ public class MetaDataMappingService extends AbstractComponent {
                 // build the updated mapping source
                 final String updatedMappingSource = existingMapper.buildSource();
                 if (logger.isDebugEnabled()) {
-                    logger.debug("[{}] update mapping [{}] (dynamic) with source [{}]", index, type, updatedMappingSource);
+                    logger.debug("[{}] update_mapping [{}] (dynamic) with source [{}]", index, type, updatedMappingSource);
                 } else if (logger.isInfoEnabled()) {
-                    logger.info("[{}] update mapping [{}] (dynamic)", index, type);
+                    logger.info("[{}] update_mapping [{}] (dynamic)", index, type);
                 }
 
                 MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
@@ -152,26 +152,45 @@ public class MetaDataMappingService extends AbstractComponent {
                     }
 
                     final Map<String, Tuple<String, String>> mappings = newHashMap();
+                    int expectedReplies = 0;
                     for (Map.Entry<String, DocumentMapper> entry : newMappers.entrySet()) {
-                        Tuple<String, String> mapping;
                         String index = entry.getKey();
                         // do the actual merge here on the master, and update the mapping source
                         DocumentMapper newMapper = entry.getValue();
                         if (existingMappers.containsKey(entry.getKey())) {
                             // we have an existing mapping, do the merge here (on the master), it will automatically update the mapping source
                             DocumentMapper existingMapper = existingMappers.get(entry.getKey());
+                            String existingSource = existingMapper.mappingSource();
                             existingMapper.merge(newMapper, mergeFlags().simulate(false));
-                            // use the merged mapping source
-                            mapping = new Tuple<String, String>(existingMapper.type(), existingMapper.buildSource());
+                            String updatedSource = existingMapper.buildSource();
+                            if (existingSource.equals(updatedSource)) {
+                                // same source, no changes, ignore it
+                            } else {
+                                expectedReplies += (currentState.nodes().size() - 1); // for this index, on update, don't include the master, since we update it already
+                                // use the merged mapping source
+                                mappings.put(index, new Tuple<String, String>(existingMapper.type(), updatedSource));
+                                if (logger.isDebugEnabled()) {
+                                    logger.debug("[{}] update_mapping [{}] with source [{}]", index, existingMapper.type(), updatedSource);
+                                } else if (logger.isInfoEnabled()) {
+                                    logger.info("[{}] update_mapping [{}]", index, existingMapper.type());
+                                }
+                            }
                         } else {
-                            mapping = new Tuple<String, String>(newMapper.type(), newMapper.buildSource());
+                            expectedReplies += currentState.nodes().size();
+                            String newSource = newMapper.buildSource();
+                            mappings.put(index, new Tuple<String, String>(newMapper.type(), newSource));
+                            if (logger.isDebugEnabled()) {
+                                logger.debug("[{}] create_mapping [{}] with source [{}]", index, newMapper.type(), newSource);
+                            } else if (logger.isInfoEnabled()) {
+                                logger.info("[{}] create_mapping [{}]", index, newMapper.type());
+                            }
                         }
-                        mappings.put(index, mapping);
-                        if (logger.isDebugEnabled()) {
-                            logger.debug("[{}] put_mapping [{}] with source [{}]", index, mapping.v1(), mapping.v2());
-                        } else if (logger.isInfoEnabled()) {
-                            logger.info("[{}] put_mapping [{}]", index, mapping.v1());
-                        }
+                    }
+
+                    if (mappings.isEmpty()) {
+                        // no changes, return
+                        listener.onResponse(new Response(true));
+                        return currentState;
                     }
 
                     MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
@@ -181,11 +200,13 @@ public class MetaDataMappingService extends AbstractComponent {
                             throw new IndexMissingException(new Index(indexName));
                         }
                         Tuple<String, String> mapping = mappings.get(indexName);
-                        builder.put(newIndexMetaDataBuilder(indexMetaData).putMapping(mapping.v1(), mapping.v2()));
+                        if (mapping != null) {
+                            builder.put(newIndexMetaDataBuilder(indexMetaData).putMapping(mapping.v1(), mapping.v2()));
+                        }
                     }
 
 
-                    final AtomicInteger counter = new AtomicInteger(clusterService.state().nodes().size() * request.indices.length);
+                    final AtomicInteger counter = new AtomicInteger(expectedReplies);
                     final Set<String> indicesSet = newHashSet(request.indices);
                     final NodeMappingCreatedAction.Listener nodeMappingListener = new NodeMappingCreatedAction.Listener() {
                         @Override public void onNodeMappingCreated(NodeMappingCreatedAction.NodeMappingCreatedResponse response) {

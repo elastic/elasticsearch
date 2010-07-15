@@ -198,6 +198,9 @@ public class XContentDoubleFieldMapper extends XContentNumberFieldMapper<Double>
 
     @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         super.merge(mergeWith, mergeContext);
+        if (!this.getClass().equals(mergeWith.getClass())) {
+            return;
+        }
         if (!mergeContext.mergeFlags().simulate()) {
             this.nullValue = ((XContentDoubleFieldMapper) mergeWith).nullValue;
             this.nullValueAsString = ((XContentDoubleFieldMapper) mergeWith).nullValueAsString;

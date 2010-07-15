@@ -151,6 +151,9 @@ public class XContentStringFieldMapper extends XContentFieldMapper<String> imple
 
     @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         super.merge(mergeWith, mergeContext);
+        if (!this.getClass().equals(mergeWith.getClass())) {
+            return;
+        }
         if (!mergeContext.mergeFlags().simulate()) {
             this.includeInAll = ((XContentStringFieldMapper) mergeWith).includeInAll;
             this.nullValue = ((XContentStringFieldMapper) mergeWith).nullValue;

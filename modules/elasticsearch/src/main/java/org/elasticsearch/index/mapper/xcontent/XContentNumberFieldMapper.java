@@ -159,6 +159,9 @@ public abstract class XContentNumberFieldMapper<T extends Number> extends XConte
 
     @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         super.merge(mergeWith, mergeContext);
+        if (!this.getClass().equals(mergeWith.getClass())) {
+            return;
+        }
         if (!mergeContext.mergeFlags().simulate()) {
             this.precisionStep = ((XContentNumberFieldMapper) mergeWith).precisionStep;
             this.includeInAll = ((XContentNumberFieldMapper) mergeWith).includeInAll;

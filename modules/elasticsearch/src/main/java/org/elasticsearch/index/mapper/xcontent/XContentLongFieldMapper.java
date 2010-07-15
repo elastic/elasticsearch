@@ -197,6 +197,9 @@ public class XContentLongFieldMapper extends XContentNumberFieldMapper<Long> {
 
     @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         super.merge(mergeWith, mergeContext);
+        if (!this.getClass().equals(mergeWith.getClass())) {
+            return;
+        }
         if (!mergeContext.mergeFlags().simulate()) {
             this.nullValue = ((XContentLongFieldMapper) mergeWith).nullValue;
             this.nullValueAsString = ((XContentLongFieldMapper) mergeWith).nullValueAsString;

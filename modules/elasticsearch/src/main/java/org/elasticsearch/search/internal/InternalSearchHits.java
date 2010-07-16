@@ -98,7 +98,11 @@ public class InternalSearchHits implements SearchHits {
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("hits");
         builder.field("total", totalHits);
-        builder.field("max_score", maxScore);
+        if (Float.isNaN(maxScore)) {
+            builder.nullField("max_score");
+        } else {
+            builder.field("max_score", maxScore);
+        }
         builder.field("hits");
         builder.startArray();
         for (SearchHit hit : hits) {

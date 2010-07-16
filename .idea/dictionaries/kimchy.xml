@@ -2,10 +2,12 @@
   <dictionary name="kimchy">
     <words>
       <w>addr</w>
+      <w>amazonaws</w>
       <w>appendable</w>
       <w>args</w>
       <w>asciifolding</w>
       <w>attr</w>
+      <w>auth</w>
       <w>banon</w>
       <w>bindhost</w>
       <w>birthdate</w>

@@ -19,121 +19,28 @@
 
 package org.elasticsearch.index.gateway.cloud;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.cloud.blobstore.CloudBlobStoreService;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.gateway.Gateway;
-import org.elasticsearch.gateway.cloud.CloudGateway;
-import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.gateway.IndexShardGateway;
+import org.elasticsearch.index.gateway.blobstore.BlobStoreIndexGateway;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.jclouds.blobstore.BlobStoreContext;
-import org.jclouds.domain.Location;
-
-import java.util.Set;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class CloudIndexGateway extends AbstractIndexComponent implements IndexGateway {
+public class CloudIndexGateway extends BlobStoreIndexGateway {
 
-    private final Gateway gateway;
-
-    private final String indexContainer;
-
-    private final String indexDirectory;
-
-    private final Location location;
-
-    private final ByteSizeValue chunkSize;
-
-    private final BlobStoreContext blobStoreContext;
-
-    @Inject public CloudIndexGateway(Index index, @IndexSettings Settings indexSettings, ClusterName clusterName, CloudBlobStoreService blobStoreService, Gateway gateway) {
-        super(index, indexSettings);
-        this.blobStoreContext = blobStoreService.context();
-        this.gateway = gateway;
-
-        String location = componentSettings.get("location");
-        String container = componentSettings.get("container");
-        ByteSizeValue chunkSize = componentSettings.getAsBytesSize("chunk_size", null);
-
-        if (gateway instanceof CloudGateway) {
-            CloudGateway cloudGateway = (CloudGateway) gateway;
-            if (container == null) {
-                container = cloudGateway.container();
-            }
-            if (chunkSize == null) {
-                chunkSize = cloudGateway.chunkSize();
-            }
-        }
-
-        if (chunkSize == null) {
-            chunkSize = new ByteSizeValue(1, ByteSizeUnit.GB);
-        }
-
-        if (location == null) {
-            if (gateway instanceof CloudGateway) {
-                CloudGateway cloudGateway = (CloudGateway) gateway;
-                this.location = cloudGateway.location();
-            } else {
-                this.location = null;
-            }
-        } else {
-            Location matchedLocation = null;
-            Set<? extends Location> assignableLocations = blobStoreContext.getBlobStore().listAssignableLocations();
-            for (Location oLocation : assignableLocations) {
-                if (oLocation.getId().equals(location)) {
-                    matchedLocation = oLocation;
-                    break;
-                }
-            }
-            this.location = matchedLocation;
-            if (this.location == null) {
-                throw new ElasticSearchIllegalArgumentException("Not a valid location [" + location + "], available locations " + assignableLocations);
-            }
-        }
-        this.indexContainer = container;
-        this.indexDirectory = clusterName.value() + "/indices/" + index.name();
-        this.chunkSize = chunkSize;
-
-        logger.debug("Using location [{}], container [{}], index_directory [{}], chunk_size [{}]", this.location, this.indexContainer, this.indexDirectory, this.chunkSize);
+    @Inject public CloudIndexGateway(Index index, @IndexSettings Settings indexSettings, Gateway gateway) {
+        super(index, indexSettings, gateway);
     }
 
     @Override public String type() {
         return "cloud";
     }
 
-    public Location indexLocation() {
-        return this.location;
-    }
-
-    public String indexContainer() {
-        return this.indexContainer;
-    }
-
-    public String indexDirectory() {
-        return this.indexDirectory;
-    }
-
-    public ByteSizeValue chunkSize() {
-        return this.chunkSize;
-    }
-
     @Override public Class<? extends IndexShardGateway> shardGatewayClass() {
         return CloudIndexShardGateway.class;
-    }
-
-    @Override public void close(boolean delete) throws ElasticSearchException {
-        if (!delete) {
-            return;
-        }
     }
 }

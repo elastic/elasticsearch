@@ -20,6 +20,7 @@
 package org.elasticsearch.common.blobstore.fs;
 
 import org.elasticsearch.common.blobstore.*;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -35,7 +36,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class FsBlobStore implements BlobStore {
+public class FsBlobStore extends AbstractComponent implements BlobStore {
 
     private final File path;
 
@@ -44,6 +45,7 @@ public class FsBlobStore implements BlobStore {
     private final int bufferSizeInBytes;
 
     public FsBlobStore(Settings settings, File path) {
+        super(settings);
         this.path = path;
         if (!path.exists()) {
             boolean b = path.mkdirs();

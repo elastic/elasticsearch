@@ -26,6 +26,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.jclouds.concurrent.config.ExecutorServiceModule;
 
+import java.util.concurrent.Executors;
+
 /**
  * @author kimchy (shay.banon)
  */
@@ -34,7 +36,7 @@ public class JCloudsUtils {
     public static Iterable<? extends Module> buildModules(Settings settings) {
         return ImmutableList.of(new JCloudsLoggingModule(settings),
                 new ExecutorServiceModule(
-                        java.util.concurrent.Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory(settings, "jclouds-user")),
-                        java.util.concurrent.Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory(settings, "jclouds-io"))));
+                        Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory(settings, "jclouds-user")),
+                        Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory(settings, "jclouds-io"))));
     }
 }

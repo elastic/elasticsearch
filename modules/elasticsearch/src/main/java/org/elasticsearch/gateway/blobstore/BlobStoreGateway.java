@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.GatewayException;
 
+import javax.annotation.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
@@ -57,9 +58,9 @@ public abstract class BlobStoreGateway extends AbstractLifecycleComponent<Gatewa
         super(settings);
     }
 
-    protected void initialize(BlobStore blobStore, ClusterName clusterName) throws IOException {
+    protected void initialize(BlobStore blobStore, ClusterName clusterName, @Nullable ByteSizeValue defaultChunkSize) throws IOException {
         this.blobStore = blobStore;
-        this.chunkSize = componentSettings.getAsBytesSize("chunk_size", null);
+        this.chunkSize = componentSettings.getAsBytesSize("chunk_size", defaultChunkSize);
         this.basePath = BlobPath.cleanPath().add(clusterName.value());
         this.metaDataBlobContainer = blobStore.immutableBlobContainer(basePath.add("metadata"));
         this.currentIndex = findLatestIndex();

@@ -55,6 +55,17 @@ public class BlobPath implements Iterable<String> {
         return new BlobPath(builder.addAll(paths).add(path).build());
     }
 
+    public String buildAsString(String separator) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < paths.size(); i++) {
+            sb.append(paths.get(i));
+            if (i < (paths.size() - 1)) {
+                sb.append(separator);
+            }
+        }
+        return sb.toString();
+    }
+
     @Override public String toString() {
         StringBuilder sb = new StringBuilder();
         for (String path : paths) {

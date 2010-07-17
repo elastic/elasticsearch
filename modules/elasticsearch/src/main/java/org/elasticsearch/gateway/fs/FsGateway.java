@@ -47,7 +47,7 @@ public class FsGateway extends BlobStoreGateway {
         } else {
             gatewayFile = new File(location);
         }
-        initialize(new FsBlobStore(componentSettings, gatewayFile), clusterName);
+        initialize(new FsBlobStore(componentSettings, gatewayFile), clusterName, null);
     }
 
     @Override public String type() {

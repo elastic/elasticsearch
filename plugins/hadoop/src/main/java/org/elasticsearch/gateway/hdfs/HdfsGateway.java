@@ -68,7 +68,7 @@ public class HdfsGateway extends BlobStoreGateway {
 
         fileSystem = FileSystem.get(URI.create(uri), conf);
 
-        initialize(new HdfsBlobStore(settings, fileSystem, hPath), clusterName);
+        initialize(new HdfsBlobStore(settings, fileSystem, hPath), clusterName, null);
     }
 
     @Override public String type() {

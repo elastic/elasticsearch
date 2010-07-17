@@ -83,6 +83,10 @@ public class CloudBlobStore extends AbstractComponent implements BlobStore {
         sync().createContainerInLocation(this.location, container);
     }
 
+    @Override public String toString() {
+        return container;
+    }
+
     public int bufferSizeInBytes() {
         return this.bufferSizeInBytes;
     }

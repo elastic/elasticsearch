@@ -39,7 +39,7 @@ public class CloudImmutableBlobContainer extends AbstractCloudBlobContainer impl
     }
 
     @Override public void writeBlob(String blobName, InputStream is, long sizeInBytes, final WriterListener listener) {
-        Blob blob = cloudBlobStore.sync().newBlob(blobName);
+        Blob blob = cloudBlobStore.sync().newBlob(buildBlobPath(blobName));
         blob.setPayload(is);
         blob.setContentLength(sizeInBytes);
         final ListenableFuture<String> future = cloudBlobStore.async().putBlob(cloudBlobStore.container(), blob);

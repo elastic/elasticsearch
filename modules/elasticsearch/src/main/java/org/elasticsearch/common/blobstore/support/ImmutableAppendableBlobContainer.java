@@ -86,6 +86,8 @@ public class ImmutableAppendableBlobContainer extends AbstractBlobContainer impl
                 part++;
                 if (container.blobExists(blobName + ".a" + part)) {
                     container.readBlob(blobName + ".a" + part, this);
+                } else {
+                    listener.onCompleted();
                 }
             }
 

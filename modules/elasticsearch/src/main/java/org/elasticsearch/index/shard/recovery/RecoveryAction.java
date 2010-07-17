@@ -780,7 +780,7 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
             }
             synchronized (indexOutput) {
                 try {
-                    indexOutput.writeBytes(request.content, request.content.length);
+                    indexOutput.writeBytes(request.content, request.contentLength);
                     if (indexOutput.getFilePointer() == request.length) {
                         // we are done
                         indexOutput.close();
@@ -804,8 +804,7 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
         long position;
         long length;
         byte[] content;
-
-        transient int contentLength;
+        int contentLength;
 
         private FileChunk() {
         }
@@ -822,7 +821,8 @@ public class RecoveryAction extends AbstractIndexShardComponent implements Close
             name = in.readUTF();
             position = in.readVLong();
             length = in.readVLong();
-            content = new byte[in.readVInt()];
+            contentLength = in.readVInt();
+            content = new byte[contentLength];
             in.readFully(content);
         }
 

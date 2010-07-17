@@ -226,7 +226,11 @@ public class InternalSearchHit implements SearchHit {
 //        builder.field("_node", shard.nodeId());
         builder.field("_type", type());
         builder.field("_id", id());
-        builder.field("_score", score);
+        if (Float.isNaN(score)) {
+            builder.nullField("_score");
+        } else {
+            builder.field("_score", score);
+        }
         if (source() != null) {
             if (XContentFactory.xContentType(source()) == builder.contentType()) {
                 builder.rawField("_source", source());

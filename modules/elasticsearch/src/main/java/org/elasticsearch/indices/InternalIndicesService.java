@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.CloseableIndexComponent;
@@ -56,11 +57,13 @@ import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.IndicesPluginsModule;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.common.collect.MapBuilder.*;
@@ -73,6 +76,8 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
  */
 @ThreadSafe
 public class InternalIndicesService extends AbstractLifecycleComponent<IndicesService> implements IndicesService {
+
+    private final ThreadPool threadPool;
 
     private final InternalIndicesLifecycle indicesLifecycle;
 
@@ -88,8 +93,9 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     private volatile ImmutableMap<String, IndexService> indices = ImmutableMap.of();
 
-    @Inject public InternalIndicesService(Settings settings, IndicesLifecycle indicesLifecycle, IndicesAnalysisService indicesAnalysisService, IndicesStore indicesStore, Injector injector) {
+    @Inject public InternalIndicesService(Settings settings, ThreadPool threadPool, IndicesLifecycle indicesLifecycle, IndicesAnalysisService indicesAnalysisService, IndicesStore indicesStore, Injector injector) {
         super(settings);
+        this.threadPool = threadPool;
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indicesAnalysisService = indicesAnalysisService;
         this.indicesStore = indicesStore;
@@ -112,8 +118,25 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
     }
 
     @Override protected void doStop() throws ElasticSearchException {
-        for (String index : indices.keySet()) {
-            deleteIndex(index, false);
+        ImmutableSet<String> indices = ImmutableSet.copyOf(this.indices.keySet());
+        final CountDownLatch latch = new CountDownLatch(indices.size());
+        for (final String index : indices) {
+            threadPool.cached().execute(new Runnable() {
+                @Override public void run() {
+                    try {
+                        deleteIndex(index, false);
+                    } catch (Exception e) {
+                        logger.warn("failed to delete index on stop [" + index + "]", e);
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+            });
+        }
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            // ignore
         }
     }
 
@@ -227,21 +250,25 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         deleteIndex(index, true);
     }
 
-    private synchronized void deleteIndex(String index, boolean delete) throws ElasticSearchException {
-        Injector indexInjector = indicesInjectors.remove(index);
-        if (indexInjector == null) {
-            if (!delete) {
-                return;
+    private void deleteIndex(String index, boolean delete) throws ElasticSearchException {
+        Injector indexInjector;
+        IndexService indexService;
+        synchronized (this) {
+            indexInjector = indicesInjectors.remove(index);
+            if (indexInjector == null) {
+                if (!delete) {
+                    return;
+                }
+                throw new IndexMissingException(new Index(index));
             }
-            throw new IndexMissingException(new Index(index));
-        }
-        if (delete) {
-            logger.debug("deleting Index [{}]", index);
-        }
+            if (delete) {
+                logger.debug("deleting Index [{}]", index);
+            }
 
-        Map<String, IndexService> tmpMap = newHashMap(indices);
-        IndexService indexService = tmpMap.remove(index);
-        indices = ImmutableMap.copyOf(tmpMap);
+            Map<String, IndexService> tmpMap = newHashMap(indices);
+            indexService = tmpMap.remove(index);
+            indices = ImmutableMap.copyOf(tmpMap);
+        }
 
         indicesLifecycle.beforeIndexClosed(indexService, delete);
 

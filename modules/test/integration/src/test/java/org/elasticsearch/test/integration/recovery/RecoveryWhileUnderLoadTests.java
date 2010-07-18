@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.recovery;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
@@ -82,6 +83,9 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
 
         // now start another node, while we index
         startNode("server2");
+
+        // make sure the cluster state is green, and all has been recovered
+        assertThat(client("server1").admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.GREEN));
 
 
         // wait till we index 10,0000

@@ -20,7 +20,9 @@
 package org.elasticsearch.index.service;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchInterruptedException;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.component.CloseableIndexComponent;
@@ -62,16 +64,17 @@ import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ShardsPluginsModule;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.common.collect.MapBuilder.*;
 import static org.elasticsearch.common.collect.Maps.*;
-import static org.elasticsearch.common.collect.Sets.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -81,6 +84,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     private final Injector injector;
 
     private final Settings indexSettings;
+
+    private final ThreadPool threadPool;
 
     private final PluginsService pluginsService;
 
@@ -108,11 +113,12 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     private final CleanCacheOnIndicesLifecycleListener cleanCacheOnIndicesLifecycleListener = new CleanCacheOnIndicesLifecycleListener();
 
-    @Inject public InternalIndexService(Injector injector, Index index, @IndexSettings Settings indexSettings,
+    @Inject public InternalIndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, ThreadPool threadPool,
                                         MapperService mapperService, IndexQueryParserService queryParserService, SimilarityService similarityService,
                                         IndexCache indexCache, IndexEngine indexEngine, IndexGateway indexGateway, IndexStore indexStore, OperationRouting operationRouting) {
         super(index, indexSettings);
         this.injector = injector;
+        this.threadPool = threadPool;
         this.indexSettings = indexSettings;
         this.mapperService = mapperService;
         this.queryParserService = queryParserService;
@@ -153,8 +159,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         return indexShard;
     }
 
-    @Override public Set<Integer> shardIds() {
-        return newHashSet(shards.keySet());
+    @Override public ImmutableSet<Integer> shardIds() {
+        return ImmutableSet.copyOf(shards.keySet());
     }
 
     @Override public Injector injector() {
@@ -193,14 +199,27 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         return indexEngine;
     }
 
-    @Override public synchronized void close(boolean delete) {
+    @Override public void close(final boolean delete) {
         try {
-            for (int shardId : shardIds()) {
-                try {
-                    deleteShard(shardId, delete, delete);
-                } catch (Exception e) {
-                    logger.warn("failed to close shard, delete [{}]", e, delete);
-                }
+            Set<Integer> shardIds = shardIds();
+            final CountDownLatch latch = new CountDownLatch(shardIds.size());
+            for (final int shardId : shardIds) {
+                threadPool.cached().execute(new Runnable() {
+                    @Override public void run() {
+                        try {
+                            deleteShard(shardId, delete, delete);
+                        } catch (Exception e) {
+                            logger.warn("failed to close shard, delete [{}]", e, delete);
+                        } finally {
+                            latch.countDown();
+                        }
+                    }
+                });
+            }
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+                throw new ElasticSearchInterruptedException("interrupted closing index [ " + index().name() + "]", e);
             }
         } finally {
             indicesLifecycle.removeListener(cleanCacheOnIndicesLifecycleListener);
@@ -259,23 +278,27 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         deleteShard(shardId, true, false);
     }
 
-    private synchronized void deleteShard(int shardId, boolean delete, boolean deleteGateway) throws ElasticSearchException {
-        Map<Integer, Injector> tmpShardInjectors = newHashMap(shardsInjectors);
-        Injector shardInjector = tmpShardInjectors.remove(shardId);
-        if (shardInjector == null) {
-            if (!delete) {
-                return;
+    private void deleteShard(int shardId, boolean delete, boolean deleteGateway) throws ElasticSearchException {
+        Injector shardInjector;
+        IndexShard indexShard;
+        synchronized (this) {
+            Map<Integer, Injector> tmpShardInjectors = newHashMap(shardsInjectors);
+            shardInjector = tmpShardInjectors.remove(shardId);
+            if (shardInjector == null) {
+                if (!delete) {
+                    return;
+                }
+                throw new IndexShardMissingException(new ShardId(index, shardId));
             }
-            throw new IndexShardMissingException(new ShardId(index, shardId));
-        }
-        shardsInjectors = ImmutableMap.copyOf(tmpShardInjectors);
-        if (delete) {
-            logger.debug("deleting shard_id [{}]", shardId);
-        }
+            shardsInjectors = ImmutableMap.copyOf(tmpShardInjectors);
+            if (delete) {
+                logger.debug("deleting shard_id [{}]", shardId);
+            }
 
-        Map<Integer, IndexShard> tmpShardsMap = newHashMap(shards);
-        IndexShard indexShard = tmpShardsMap.remove(shardId);
-        shards = ImmutableMap.copyOf(tmpShardsMap);
+            Map<Integer, IndexShard> tmpShardsMap = newHashMap(shards);
+            indexShard = tmpShardsMap.remove(shardId);
+            shards = ImmutableMap.copyOf(tmpShardsMap);
+        }
 
         ShardId sId = new ShardId(index, shardId);
 

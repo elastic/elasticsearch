@@ -20,6 +20,7 @@
 package org.elasticsearch.index.service;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.component.CloseableIndexComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.index.IndexComponent;
@@ -33,8 +34,6 @@ import org.elasticsearch.index.routing.OperationRouting;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
-
-import java.util.Set;
 
 /**
  * @author kimchy (shay.banon)
@@ -68,7 +67,7 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard>, Clos
 
     int numberOfShards();
 
-    Set<Integer> shardIds();
+    ImmutableSet<Integer> shardIds();
 
     boolean hasShard(int shardId);
 

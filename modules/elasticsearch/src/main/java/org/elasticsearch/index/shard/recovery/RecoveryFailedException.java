@@ -24,11 +24,15 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.index.shard.ShardId;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class RecoveryFailedException extends ElasticSearchException {
 
-    public RecoveryFailedException(ShardId shardId, DiscoveryNode node, DiscoveryNode targetNode, Throwable cause) {
-        super(shardId + ": Recovery failed from " + targetNode + " into " + node, cause);
+    public RecoveryFailedException(StartRecoveryRequest request, Throwable cause) {
+        this(request.shardId(), request.sourceNode(), request.targetNode(), cause);
+    }
+
+    public RecoveryFailedException(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, Throwable cause) {
+        super(shardId + ": Recovery failed from " + sourceNode + " into " + targetNode, cause);
     }
 }

@@ -20,7 +20,6 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.index.shard.recovery.RecoveryAction;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 
@@ -39,7 +38,5 @@ public class IndexShardModule extends AbstractModule {
         bind(ShardId.class).toInstance(shardId);
         bind(IndexShard.class).to(InternalIndexShard.class).asEagerSingleton();
         bind(IndexShardManagement.class).asEagerSingleton();
-
-        bind(RecoveryAction.class).asEagerSingleton();
     }
 }

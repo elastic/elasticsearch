@@ -21,6 +21,8 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.recovery.RecoverySource;
+import org.elasticsearch.index.shard.recovery.RecoveryTarget;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.memory.IndexingMemoryBufferController;
@@ -41,8 +43,13 @@ public class IndicesModule extends AbstractModule {
 
     @Override protected void configure() {
         bind(IndicesLifecycle.class).to(InternalIndicesLifecycle.class).asEagerSingleton();
+
         bind(IndicesService.class).to(InternalIndicesService.class).asEagerSingleton();
+
         bind(RecoveryThrottler.class).asEagerSingleton();
+        bind(RecoveryTarget.class).asEagerSingleton();
+        bind(RecoverySource.class).asEagerSingleton();
+
         bind(IndicesClusterStateService.class).asEagerSingleton();
         bind(IndicesMemoryCleaner.class).asEagerSingleton();
         bind(IndexingMemoryBufferController.class).asEagerSingleton();

@@ -51,7 +51,6 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShardManagement;
 import org.elasticsearch.index.shard.IndexShardModule;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.recovery.RecoveryAction;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
@@ -294,9 +293,6 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         if (indexShard != null) {
             shardInjector.getInstance(IndexShardManagement.class).close();
         }
-
-        RecoveryAction recoveryAction = shardInjector.getInstance(RecoveryAction.class);
-        if (recoveryAction != null) recoveryAction.close();
 
         // this logic is tricky, we want to close the engine so we rollback the changes done to it
         // and close the shard so no operations are allowed to it

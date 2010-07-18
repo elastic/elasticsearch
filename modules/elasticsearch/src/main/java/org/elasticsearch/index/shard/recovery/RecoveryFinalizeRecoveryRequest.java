@@ -19,30 +19,36 @@
 
 package org.elasticsearch.index.shard.recovery;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.shard.IndexShardException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.index.shard.ShardId;
+
+import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class RecoverFilesRecoveryException extends IndexShardException {
+class RecoveryFinalizeRecoveryRequest implements Streamable {
 
-    private final int numberOfFiles;
+    private ShardId shardId;
 
-    private final ByteSizeValue totalFilesSize;
-
-    public RecoverFilesRecoveryException(ShardId shardId, int numberOfFiles, ByteSizeValue totalFilesSize, Throwable cause) {
-        super(shardId, "Failed to transfer [" + numberOfFiles + "] files with total size of [" + totalFilesSize + "]", cause);
-        this.numberOfFiles = numberOfFiles;
-        this.totalFilesSize = totalFilesSize;
+    RecoveryFinalizeRecoveryRequest() {
     }
 
-    public int numberOfFiles() {
-        return numberOfFiles;
+    RecoveryFinalizeRecoveryRequest(ShardId shardId) {
+        this.shardId = shardId;
     }
 
-    public ByteSizeValue totalFilesSize() {
-        return totalFilesSize;
+    public ShardId shardId() {
+        return shardId;
+    }
+
+    @Override public void readFrom(StreamInput in) throws IOException {
+        shardId = ShardId.readShardId(in);
+    }
+
+    @Override public void writeTo(StreamOutput out) throws IOException {
+        shardId.writeTo(out);
     }
 }

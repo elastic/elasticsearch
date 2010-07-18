@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.gateway;
 
-import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.CloseableIndexComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -94,79 +93,97 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
         scheduleSnapshotIfNeeded();
     }
 
+    public static interface RecoveryListener {
+        void onRecoveryDone();
+
+        void onIgnoreRecovery(String reason);
+
+        void onRecoveryFailed(IndexShardGatewayRecoveryException e);
+    }
+
     /**
      * Recovers the state of the shard from the gateway.
      */
-    public synchronized void recover() throws IndexShardGatewayRecoveryException, IgnoreGatewayRecoveryException {
+    public void recover(final RecoveryListener listener) throws IndexShardGatewayRecoveryException, IgnoreGatewayRecoveryException {
         if (!recovered.compareAndSet(false, true)) {
-            throw new IgnoreGatewayRecoveryException(shardId, "already recovered");
+            listener.onIgnoreRecovery("already recovered");
+            return;
         }
         if (indexShard.state() == IndexShardState.CLOSED) {
             // got closed on us, just ignore this recovery
-            throw new IgnoreGatewayRecoveryException(shardId, "shard closed");
+            listener.onIgnoreRecovery("shard closed");
+            return;
         }
         if (!indexShard.routingEntry().primary()) {
-            throw new ElasticSearchIllegalStateException("Trying to recover when the shard is in backup state");
+            listener.onRecoveryFailed(new IndexShardGatewayRecoveryException(shardId, "Trying to recover when the shard is in backup state", null));
+            return;
         }
 
-        indexShard.recovering();
+        threadPool.execute(new Runnable() {
+            @Override public void run() {
 
-        StopWatch throttlingWaitTime = new StopWatch().start();
-        // we know we are on a thread, we can spin till we can engage in recovery
-        while (!recoveryThrottler.tryRecovery(shardId, "gateway")) {
-            try {
-                Thread.sleep(recoveryThrottler.throttleInterval().millis());
-            } catch (InterruptedException e) {
-                if (indexShard.ignoreRecoveryAttempt()) {
-                    throw new IgnoreGatewayRecoveryException(shardId, "Interrupted while waiting for recovery, but we should ignore ...");
+                indexShard.recovering();
+
+                StopWatch throttlingWaitTime = new StopWatch().start();
+                // we know we are on a thread, we can spin till we can engage in recovery
+                while (!recoveryThrottler.tryRecovery(shardId, "gateway")) {
+                    try {
+                        Thread.sleep(recoveryThrottler.throttleInterval().millis());
+                    } catch (InterruptedException e) {
+                        if (indexShard.ignoreRecoveryAttempt()) {
+                            listener.onIgnoreRecovery("Interrupted while waiting for recovery, but we should ignore ...");
+                            return;
+                        }
+                        listener.onRecoveryFailed(new IndexShardGatewayRecoveryException(shardId, "Interrupted while waiting to recovery", e));
+                    }
                 }
-                // we got interrupted, mark it as failed
-                throw new IndexShardGatewayRecoveryException(shardId, "Interrupted while waiting to recovery", e);
-            }
-        }
-        throttlingWaitTime.stop();
+                throttlingWaitTime.stop();
 
-        try {
-            logger.debug("starting recovery from {}", shardGateway);
-            StopWatch stopWatch = new StopWatch().start();
-            IndexShardGateway.RecoveryStatus recoveryStatus = shardGateway.recover();
+                try {
+                    logger.debug("starting recovery from {}", shardGateway);
+                    StopWatch stopWatch = new StopWatch().start();
+                    IndexShardGateway.RecoveryStatus recoveryStatus = shardGateway.recover();
 
-            lastIndexVersion = recoveryStatus.index().version();
-            lastTranslogId = -1;
-            lastTranslogPosition = 0;
-            lastTranslogLength = 0;
+                    lastIndexVersion = recoveryStatus.index().version();
+                    lastTranslogId = -1;
+                    lastTranslogPosition = 0;
+                    lastTranslogLength = 0;
 
-            // start the shard if the gateway has not started it already
-            if (indexShard.state() != IndexShardState.STARTED) {
-                indexShard.start();
+                    // start the shard if the gateway has not started it already
+                    if (indexShard.state() != IndexShardState.STARTED) {
+                        indexShard.start();
+                    }
+                    stopWatch.stop();
+                    if (logger.isDebugEnabled()) {
+                        StringBuilder sb = new StringBuilder();
+                        sb.append("recovery completed from ").append(shardGateway).append(", took [").append(stopWatch.totalTime()).append("], throttling_wait [").append(throttlingWaitTime.totalTime()).append("]\n");
+                        sb.append("    index    : recovered_files [").append(recoveryStatus.index().numberOfFiles()).append("] with total_size [").append(recoveryStatus.index().totalSize()).append("], took [").append(recoveryStatus.index().took()).append("], throttling_wait [").append(recoveryStatus.index().throttlingWaitTime()).append("]\n");
+                        sb.append("             : reusing_files   [").append(recoveryStatus.index().numberOfExistingFiles()).append("] with total_size [").append(recoveryStatus.index().existingTotalSize()).append("]\n");
+                        sb.append("    translog : number_of_operations [").append(recoveryStatus.translog().numberOfOperations()).append("], took [").append(recoveryStatus.translog().took()).append("]");
+                        logger.debug(sb.toString());
+                    }
+                    // refresh the shard
+                    indexShard.refresh(new Engine.Refresh(false));
+                    listener.onRecoveryDone();
+                    scheduleSnapshotIfNeeded();
+                } catch (IndexShardGatewayRecoveryException e) {
+                    if ((e.getCause() instanceof IndexShardClosedException) || (e.getCause() instanceof IndexShardNotStartedException)) {
+                        // got closed on us, just ignore this recovery
+                        listener.onIgnoreRecovery("shard closed");
+                        return;
+                    }
+                    listener.onRecoveryFailed(e);
+                } catch (IndexShardClosedException e) {
+                    listener.onIgnoreRecovery("shard closed");
+                } catch (IndexShardNotStartedException e) {
+                    listener.onIgnoreRecovery("shard closed");
+                } catch (Exception e) {
+                    listener.onRecoveryFailed(new IndexShardGatewayRecoveryException(shardId, "failed recovery", e));
+                } finally {
+                    recoveryThrottler.recoveryDone(shardId, "gateway");
+                }
             }
-            stopWatch.stop();
-            if (logger.isDebugEnabled()) {
-                StringBuilder sb = new StringBuilder();
-                sb.append("recovery completed from ").append(shardGateway).append(", took [").append(stopWatch.totalTime()).append("], throttling_wait [").append(throttlingWaitTime.totalTime()).append("]\n");
-                sb.append("    index    : recovered_files [").append(recoveryStatus.index().numberOfFiles()).append("] with total_size [").append(recoveryStatus.index().totalSize()).append("], took [").append(recoveryStatus.index().took()).append("], throttling_wait [").append(recoveryStatus.index().throttlingWaitTime()).append("]\n");
-                sb.append("             : reusing_files   [").append(recoveryStatus.index().numberOfExistingFiles()).append("] with total_size [").append(recoveryStatus.index().existingTotalSize()).append("]\n");
-                sb.append("    translog : number_of_operations [").append(recoveryStatus.translog().numberOfOperations()).append("], took [").append(recoveryStatus.translog().took()).append("]");
-                logger.debug(sb.toString());
-            }
-            // refresh the shard
-            indexShard.refresh(new Engine.Refresh(false));
-            scheduleSnapshotIfNeeded();
-        } catch (IndexShardGatewayRecoveryException e) {
-            if ((e.getCause() instanceof IndexShardClosedException) || (e.getCause() instanceof IndexShardNotStartedException)) {
-                // got closed on us, just ignore this recovery
-                throw new IgnoreGatewayRecoveryException(shardId, "shard closed");
-            }
-            throw e;
-        } catch (IndexShardClosedException e) {
-            // got closed on us, just ignore this recovery
-            throw new IgnoreGatewayRecoveryException(shardId, "shard closed");
-        } catch (IndexShardNotStartedException e) {
-            // got closed on us, just ignore this recovery
-            throw new IgnoreGatewayRecoveryException(shardId, "shard closed");
-        } finally {
-            recoveryThrottler.recoveryDone(shardId, "gateway");
-        }
+        });
     }
 
     /**

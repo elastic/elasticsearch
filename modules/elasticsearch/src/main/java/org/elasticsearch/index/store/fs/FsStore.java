@@ -32,6 +32,7 @@ import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.memory.ByteBufferDirectory;
 import org.elasticsearch.index.store.support.AbstractStore;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
 
@@ -67,7 +68,31 @@ public abstract class FsStore extends AbstractStore {
         String fsLock = componentSettings.get("fs_lock", "native");
         LockFactory lockFactory = new NoLockFactory();
         if (fsLock.equals("native")) {
-            lockFactory = new NativeFSLockFactory();
+            // TODO LUCENE MONITOR: this is not needed in next Lucene version
+            lockFactory = new NativeFSLockFactory() {
+                @Override public void clearLock(String lockName) throws IOException {
+                    // Note that this isn't strictly required anymore
+                    // because the existence of these files does not mean
+                    // they are locked, but, still do this in case people
+                    // really want to see the files go away:
+                    if (lockDir.exists()) {
+
+                        // Try to release the lock first - if it's held by another process, this
+                        // method should not silently fail.
+                        // NOTE: makeLock fixes the lock name by prefixing it w/ lockPrefix.
+                        // Therefore it should be called before the code block next which prefixes
+                        // the given name.
+                        makeLock(lockName).release();
+
+                        if (lockPrefix != null) {
+                            lockName = lockPrefix + "-" + lockName;
+                        }
+
+                        // As mentioned above, we don't care if the deletion of the file failed.
+                        new File(lockDir, lockName).delete();
+                    }
+                }
+            };
         } else if (fsLock.equals("simple")) {
             lockFactory = new SimpleFSLockFactory();
         }

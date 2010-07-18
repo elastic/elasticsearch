@@ -133,34 +133,39 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
     }
 
     @Override public void start() throws EngineException {
-        if (indexWriter != null) {
-            throw new EngineAlreadyStartedException(shardId);
-        }
-        if (logger.isDebugEnabled()) {
-            logger.debug("Starting engine with ram_buffer_size[" + indexingBufferSize + "], refresh_interval[" + refreshInterval + "]");
-        }
+        rwl.writeLock().lock();
         try {
-            this.indexWriter = createWriter();
-        } catch (IOException e) {
-            throw new EngineCreationFailureException(shardId, "Failed to create engine", e);
-        }
-
-        try {
-            translog.newTranslog(IndexReader.getCurrentVersion(store.directory()));
-            this.nrtResource = buildNrtResource(indexWriter);
-        } catch (IOException e) {
+            if (indexWriter != null) {
+                throw new EngineAlreadyStartedException(shardId);
+            }
+            if (logger.isDebugEnabled()) {
+                logger.debug("Starting engine with ram_buffer_size[" + indexingBufferSize + "], refresh_interval[" + refreshInterval + "]");
+            }
             try {
-                indexWriter.rollback();
-            } catch (IOException e1) {
-                // ignore
-            } finally {
+                this.indexWriter = createWriter();
+            } catch (IOException e) {
+                throw new EngineCreationFailureException(shardId, "Failed to create engine", e);
+            }
+
+            try {
+                translog.newTranslog(IndexReader.getCurrentVersion(store.directory()));
+                this.nrtResource = buildNrtResource(indexWriter);
+            } catch (IOException e) {
                 try {
-                    indexWriter.close();
+                    indexWriter.rollback();
                 } catch (IOException e1) {
                     // ignore
+                } finally {
+                    try {
+                        indexWriter.close();
+                    } catch (IOException e1) {
+                        // ignore
+                    }
                 }
+                throw new EngineCreationFailureException(shardId, "Failed to open reader on writer", e);
             }
-            throw new EngineCreationFailureException(shardId, "Failed to open reader on writer", e);
+        } finally {
+            rwl.writeLock().unlock();
         }
     }
 
@@ -461,10 +466,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         }
         closed = true;
         rwl.writeLock().lock();
-        if (nrtResource != null) {
-            this.nrtResource.forceClose();
-        }
         try {
+            if (nrtResource != null) {
+                this.nrtResource.forceClose();
+            }
             // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
             if (indexWriter != null) {
                 try {
@@ -486,8 +491,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         try {
             // release locks when started
             if (IndexWriter.isLocked(store.directory())) {
-                logger.trace("Shard is locked, releasing lock");
-                store.directory().clearLock(IndexWriter.WRITE_LOCK_NAME);
+                logger.warn("shard is locked, releasing lock");
+                IndexWriter.unlock(store.directory());
             }
             boolean create = !IndexReader.indexExists(store.directory());
             indexWriter = new IndexWriter(store.directory(),

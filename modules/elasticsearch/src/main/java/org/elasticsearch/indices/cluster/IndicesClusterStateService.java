@@ -38,16 +38,18 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexShardAlreadyExistsException;
 import org.elasticsearch.index.IndexShardMissingException;
-import org.elasticsearch.index.gateway.IgnoreGatewayRecoveryException;
+import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.recovery.IgnoreRecoveryException;
-import org.elasticsearch.index.shard.recovery.RecoveryAction;
+import org.elasticsearch.index.shard.recovery.RecoveryFailedException;
+import org.elasticsearch.index.shard.recovery.RecoveryTarget;
+import org.elasticsearch.index.shard.recovery.StartRecoveryRequest;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -70,6 +72,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
     private final ThreadPool threadPool;
 
+    private final RecoveryTarget recoveryTarget;
+
     private final ShardStateAction shardStateAction;
 
     private final NodeIndexCreatedAction nodeIndexCreatedAction;
@@ -79,13 +83,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private final NodeMappingCreatedAction nodeMappingCreatedAction;
 
     @Inject public IndicesClusterStateService(Settings settings, IndicesService indicesService, ClusterService clusterService,
-                                              ThreadPool threadPool, ShardStateAction shardStateAction,
+                                              ThreadPool threadPool, RecoveryTarget recoveryTarget, ShardStateAction shardStateAction,
                                               NodeIndexCreatedAction nodeIndexCreatedAction, NodeIndexDeletedAction nodeIndexDeletedAction,
                                               NodeMappingCreatedAction nodeMappingCreatedAction) {
         super(settings);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
+        this.recoveryTarget = recoveryTarget;
         this.shardStateAction = shardStateAction;
         this.nodeIndexCreatedAction = nodeIndexCreatedAction;
         this.nodeIndexDeletedAction = nodeIndexDeletedAction;
@@ -308,71 +313,104 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             return;
         }
 
-        threadPool.execute(new Runnable() {
-            @Override public void run() {
-                // recheck here, since the cluster event can be called
-                if (indexShard.ignoreRecoveryAttempt()) {
-                    return;
-                }
-                try {
-                    RecoveryAction recoveryAction = indexService.shardInjectorSafe(shardId).getInstance(RecoveryAction.class);
-                    if (!shardRouting.primary()) {
-                        // recovery from primary
-                        IndexShardRoutingTable shardRoutingTable = routingTable.index(shardRouting.index()).shard(shardRouting.id());
-                        for (ShardRouting entry : shardRoutingTable) {
-                            if (entry.primary() && entry.started()) {
-                                // only recover from started primary, if we can't find one, we will do it next round
-                                DiscoveryNode node = nodes.get(entry.currentNodeId());
-                                try {
-                                    // we are recovering a backup from a primary, so no need to mark it as relocated
-                                    recoveryAction.startRecovery(nodes.localNode(), node, false);
-                                    shardStateAction.shardStarted(shardRouting, "after recovery (backup) from node [" + node + "]");
-                                } catch (IgnoreRecoveryException e) {
-                                    // that's fine, since we might be called concurrently, just ignore this
-                                    break;
-                                }
-                                break;
-                            }
-                        }
-                    } else {
-                        if (shardRouting.relocatingNodeId() == null) {
-                            // we are the first primary, recover from the gateway
-                            IndexShardGatewayService shardGatewayService = indexService.shardInjector(shardId).getInstance(IndexShardGatewayService.class);
-                            try {
-                                shardGatewayService.recover();
-                                shardStateAction.shardStarted(shardRouting, "after recovery from gateway");
-                            } catch (IgnoreGatewayRecoveryException e) {
-                                // that's fine, we might be called concurrently, just ignore this, we already recovered
-                            }
-                        } else {
-                            // relocating primaries, recovery from the relocating shard
-                            DiscoveryNode node = nodes.get(shardRouting.relocatingNodeId());
-                            try {
-                                // we mark the primary we are going to recover from as relocated at the end of phase 3
-                                // so operations will start moving to the new primary
-                                recoveryAction.startRecovery(nodes.localNode(), node, true);
-                                shardStateAction.shardStarted(shardRouting, "after recovery (primary) from node [" + node + "]");
-                            } catch (IgnoreRecoveryException e) {
-                                // that's fine, since we might be called concurrently, just ignore this, we are already recovering
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    logger.warn("[{}][{}] failed to start shard", e, indexService.index().name(), shardRouting.id());
-                    if (indexService.hasShard(shardId)) {
-                        try {
-                            indexService.cleanShard(shardId);
-                        } catch (Exception e1) {
-                            logger.warn("[{}][{}] failed to delete shard after failed startup", e1, indexService.index().name(), shardRouting.id());
-                        }
-                    }
+
+        if (!shardRouting.primary()) {
+            // recovery from primary
+            IndexShardRoutingTable shardRoutingTable = routingTable.index(shardRouting.index()).shard(shardRouting.id());
+            for (ShardRouting entry : shardRoutingTable) {
+                if (entry.primary() && entry.started()) {
+                    // only recover from started primary, if we can't find one, we will do it next round
+                    final DiscoveryNode sourceNode = nodes.get(entry.currentNodeId());
                     try {
-                        shardStateAction.shardFailed(shardRouting, "Failed to start shard, message [" + detailedMessage(e) + "]");
-                    } catch (Exception e1) {
-                        logger.warn("[{}][{}] failed to mark shard as failed after a failed start", e1, indexService.index().name(), shardRouting.id());
+                        // we are recovering a backup from a primary, so no need to mark it as relocated
+                        final StartRecoveryRequest request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(), false, indexShard.store().listWithMd5());
+                        recoveryTarget.startRecovery(request, new PeerRecoveryListener(request, shardRouting, indexService));
+                    } catch (Exception e) {
+                        handleRecoveryFailure(indexService, shardRouting, true, e);
+                        break;
                     }
+                    break;
                 }
             }
-        });
+        } else {
+            if (shardRouting.relocatingNodeId() == null) {
+                // we are the first primary, recover from the gateway
+                IndexShardGatewayService shardGatewayService = indexService.shardInjector(shardId).getInstance(IndexShardGatewayService.class);
+                shardGatewayService.recover(new IndexShardGatewayService.RecoveryListener() {
+                    @Override public void onRecoveryDone() {
+                        shardStateAction.shardStarted(shardRouting, "after recovery from gateway");
+                    }
+
+                    @Override public void onIgnoreRecovery(String reason) {
+                    }
+
+                    @Override public void onRecoveryFailed(IndexShardGatewayRecoveryException e) {
+                        handleRecoveryFailure(indexService, shardRouting, true, e);
+                    }
+                });
+            } else {
+                // relocating primaries, recovery from the relocating shard
+                final DiscoveryNode sourceNode = nodes.get(shardRouting.relocatingNodeId());
+                try {
+                    // we are recovering a backup from a primary, so no need to mark it as relocated
+                    final StartRecoveryRequest request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(), false, indexShard.store().listWithMd5());
+                    recoveryTarget.startRecovery(request, new PeerRecoveryListener(request, shardRouting, indexService));
+                } catch (Exception e) {
+                    handleRecoveryFailure(indexService, shardRouting, true, e);
+                }
+            }
+        }
+    }
+
+    private class PeerRecoveryListener implements RecoveryTarget.RecoveryListener {
+
+        private final StartRecoveryRequest request;
+
+        private final ShardRouting shardRouting;
+
+        private final IndexService indexService;
+
+        private PeerRecoveryListener(StartRecoveryRequest request, ShardRouting shardRouting, IndexService indexService) {
+            this.request = request;
+            this.shardRouting = shardRouting;
+            this.indexService = indexService;
+        }
+
+        @Override public void onRecoveryDone() {
+            shardStateAction.shardStarted(shardRouting, "after recovery (backup) from node [" + request.sourceNode() + "]");
+        }
+
+        @Override public void onRetryRecovery(TimeValue retryAfter) {
+            threadPool.schedule(new Runnable() {
+                @Override public void run() {
+                    recoveryTarget.startRecovery(request, PeerRecoveryListener.this);
+                }
+            }, retryAfter);
+        }
+
+        @Override public void onIgnoreRecovery(String reason) {
+        }
+
+        @Override public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+            handleRecoveryFailure(indexService, shardRouting, sendShardFailure, e);
+        }
+    }
+
+    private void handleRecoveryFailure(IndexService indexService, ShardRouting shardRouting, boolean sendShardFailure, Throwable failure) {
+        logger.warn("[{}][{}] failed to start shard", failure, indexService.index().name(), shardRouting.shardId().id());
+        if (indexService.hasShard(shardRouting.shardId().id())) {
+            try {
+                indexService.cleanShard(shardRouting.shardId().id());
+            } catch (Exception e1) {
+                logger.warn("[{}][{}] failed to delete shard after failed startup", e1, indexService.index().name(), shardRouting.shardId().id());
+            }
+        }
+        if (sendShardFailure) {
+            try {
+                shardStateAction.shardFailed(shardRouting, "Failed to start shard, message [" + detailedMessage(failure) + "]");
+            } catch (Exception e1) {
+                logger.warn("[{}][{}] failed to mark shard as failed after a failed start", e1, indexService.index().name(), shardRouting.id());
+            }
+        }
     }
 }

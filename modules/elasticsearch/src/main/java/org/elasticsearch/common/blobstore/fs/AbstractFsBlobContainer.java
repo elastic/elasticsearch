@@ -66,7 +66,7 @@ public abstract class AbstractFsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override public void readBlob(final String blobName, final ReadBlobListener listener) {
-        blobStore.executorService().execute(new Runnable() {
+        blobStore.executor().execute(new Runnable() {
             @Override public void run() {
                 byte[] buffer = new byte[blobStore.bufferSizeInBytes()];
                 FileInputStream is;

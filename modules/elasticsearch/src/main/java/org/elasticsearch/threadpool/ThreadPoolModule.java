@@ -27,7 +27,7 @@ import org.elasticsearch.threadpool.cached.CachedThreadPoolModule;
 import static org.elasticsearch.common.inject.ModulesFactory.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class ThreadPoolModule extends AbstractModule {
 

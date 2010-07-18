@@ -119,7 +119,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             return;
         }
 
-        threadPool.execute(new Runnable() {
+        threadPool.cached().execute(new Runnable() {
             @Override public void run() {
 
                 indexShard.recovering();

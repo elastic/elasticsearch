@@ -94,7 +94,7 @@ public class AbstractCloudBlobContainer extends AbstractBlobContainer {
                     listener.onFailure(e);
                 }
             }
-        }, cloudBlobStore.executorService());
+        }, cloudBlobStore.executor());
     }
 
     // inDirectory expects a directory, not a blob prefix

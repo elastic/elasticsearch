@@ -38,7 +38,7 @@ public class HdfsImmutableBlobContainer extends AbstractHdfsBlobContainer implem
     }
 
     @Override public void writeBlob(final String blobName, final InputStream is, final long sizeInBytes, final WriterListener listener) {
-        blobStore.executorService().execute(new Runnable() {
+        blobStore.executor().execute(new Runnable() {
             @Override public void run() {
                 Path file = new Path(path, blobName);
 

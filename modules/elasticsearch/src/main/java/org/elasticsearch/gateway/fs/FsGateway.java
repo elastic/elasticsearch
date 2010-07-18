@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.blobstore.BlobStoreGateway;
 import org.elasticsearch.index.gateway.fs.FsIndexGatewayModule;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.File;
 import java.io.IOException;
@@ -36,7 +37,7 @@ import java.io.IOException;
  */
 public class FsGateway extends BlobStoreGateway {
 
-    @Inject public FsGateway(Settings settings, Environment environment, ClusterName clusterName) throws IOException {
+    @Inject public FsGateway(Settings settings, Environment environment, ClusterName clusterName, ThreadPool threadPool) throws IOException {
         super(settings);
 
         File gatewayFile;
@@ -47,7 +48,7 @@ public class FsGateway extends BlobStoreGateway {
         } else {
             gatewayFile = new File(location);
         }
-        initialize(new FsBlobStore(componentSettings, gatewayFile), clusterName, null);
+        initialize(new FsBlobStore(componentSettings, threadPool.cached(), gatewayFile), clusterName, null);
     }
 
     @Override public String type() {

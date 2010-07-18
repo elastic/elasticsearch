@@ -388,7 +388,19 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }, retryAfter);
         }
 
-        @Override public void onIgnoreRecovery(String reason) {
+        @Override public void onIgnoreRecovery(boolean cleanShard, String reason) {
+            if (!cleanShard) {
+                return;
+            }
+            if (indexService.hasShard(shardRouting.shardId().id())) {
+                try {
+                    indexService.cleanShard(shardRouting.shardId().id());
+                } catch (IndexShardMissingException e) {
+                    // the node got closed on us, ignore it
+                } catch (Exception e1) {
+                    logger.warn("[{}][{}] failed to delete shard after ignore recovery", e1, indexService.index().name(), shardRouting.shardId().id());
+                }
+            }
         }
 
         @Override public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
@@ -401,6 +413,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         if (indexService.hasShard(shardRouting.shardId().id())) {
             try {
                 indexService.cleanShard(shardRouting.shardId().id());
+            } catch (IndexShardMissingException e) {
+                // the node got closed on us, ignore it
             } catch (Exception e1) {
                 logger.warn("[{}][{}] failed to delete shard after failed startup", e1, indexService.index().name(), shardRouting.shardId().id());
             }

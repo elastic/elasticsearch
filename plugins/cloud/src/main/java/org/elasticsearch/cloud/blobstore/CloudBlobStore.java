@@ -34,11 +34,7 @@ import org.jclouds.blobstore.BlobStoreContext;
 import org.jclouds.domain.Location;
 
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.common.util.concurrent.EsExecutors.*;
+import java.util.concurrent.Executor;
 
 /**
  * @author kimchy (shay.banon)
@@ -51,17 +47,17 @@ public class CloudBlobStore extends AbstractComponent implements BlobStore {
 
     private final Location location;
 
-    private final ExecutorService executorService;
+    private final Executor executor;
 
     private final int bufferSizeInBytes;
 
-    public CloudBlobStore(Settings settings, BlobStoreContext blobStoreContext, String container, String location) {
+    public CloudBlobStore(Settings settings, BlobStoreContext blobStoreContext, Executor executor, String container, String location) {
         super(settings);
         this.blobStoreContext = blobStoreContext;
         this.container = container;
+        this.executor = executor;
 
         this.bufferSizeInBytes = (int) settings.getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
-        this.executorService = Executors.newCachedThreadPool(daemonThreadFactory(settings, "cloud_blobstore"));
 
         if (location == null) {
             this.location = null;
@@ -91,8 +87,8 @@ public class CloudBlobStore extends AbstractComponent implements BlobStore {
         return this.bufferSizeInBytes;
     }
 
-    public ExecutorService executorService() {
-        return executorService;
+    public Executor executor() {
+        return executor;
     }
 
     public String container() {
@@ -124,12 +120,5 @@ public class CloudBlobStore extends AbstractComponent implements BlobStore {
     }
 
     @Override public void close() {
-        executorService.shutdown();
-        try {
-            executorService.awaitTermination(10, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            // ignore
-        }
-        executorService.shutdownNow();
     }
 }

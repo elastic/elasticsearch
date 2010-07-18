@@ -56,7 +56,7 @@ public class CloudImmutableBlobContainer extends AbstractCloudBlobContainer impl
                     listener.onFailure(t);
                 }
             }
-        }, cloudBlobStore.executorService());
+        }, cloudBlobStore.executor());
     }
 
     @Override public void writeBlob(String blobName, InputStream is, long sizeInBytes) throws IOException {

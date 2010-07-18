@@ -152,7 +152,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         pingService.start();
 
         // do the join on a different thread, the DiscoveryService waits for 30s anyhow till it is discovered
-        threadPool.execute(new Runnable() {
+        threadPool.cached().execute(new Runnable() {
             @Override public void run() {
                 joinCluster();
             }
@@ -377,7 +377,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         clusterBlocks = ClusterBlocks.builder().blocks(clusterBlocks).addGlobalBlock(NO_MASTER_BLOCK).build();
                         masterFD.stop("no master elected since master left (reason = " + reason + ")");
                         // try and join the cluster again...
-                        threadPool.execute(new Runnable() {
+                        threadPool.cached().execute(new Runnable() {
                             @Override public void run() {
                                 joinCluster();
                             }

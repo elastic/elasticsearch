@@ -74,8 +74,8 @@ public class AlphaMemoryMonitor extends AbstractLifecycleComponent<MemoryMonitor
         this.threadPool = threadPool;
         this.indicesMemoryCleaner = indicesMemoryCleaner;
 
-        this.upperMemoryThreshold = componentSettings.getAsDouble("upper_memory_threshold", 0.8);
-        this.lowerMemoryThreshold = componentSettings.getAsDouble("lower_memory_threshold", 0.5);
+        this.upperMemoryThreshold = componentSettings.getAsDouble("upper_memory_threshold", 0.95);
+        this.lowerMemoryThreshold = componentSettings.getAsDouble("lower_memory_threshold", 0.8);
         this.interval = componentSettings.getAsTime("interval", timeValueMillis(500));
         this.fullThreshold = componentSettings.getAsInt("full_threshold", 2);
         this.cleanThreshold = componentSettings.getAsInt("clean_threshold", 10);

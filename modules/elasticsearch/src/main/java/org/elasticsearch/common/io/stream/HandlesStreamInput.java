@@ -80,7 +80,7 @@ public class HandlesStreamInput extends StreamInput {
         } else if (b == 3) {
             return identityHandles.get(in.readVInt());
         } else {
-            throw new IOException("Expected handle header");
+            throw new IOException("Expected handle header, got [" + b + "]");
         }
     }
 

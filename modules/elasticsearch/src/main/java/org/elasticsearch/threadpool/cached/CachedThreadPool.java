@@ -51,12 +51,13 @@ public class CachedThreadPool extends AbstractThreadPool {
         super(settings);
         this.scheduledSize = componentSettings.getAsInt("scheduled_size", 20);
         this.keepAlive = componentSettings.getAsTime("keep_alive", timeValueSeconds(60));
-        logger.debug("Initializing {} thread pool with keep_alive[{}], scheduled_size[{}]", new Object[]{getType(), keepAlive, scheduledSize});
+        logger.debug("Initializing {} thread pool with keep_alive[{}], scheduled_size[{}]", getType(), keepAlive, scheduledSize);
         executorService = new ThreadPoolExecutor(0, Integer.MAX_VALUE,
                 keepAlive.millis(), TimeUnit.MILLISECONDS,
                 new SynchronousQueue<Runnable>(),
                 EsExecutors.daemonThreadFactory(settings, "[tp]"));
         scheduledExecutorService = java.util.concurrent.Executors.newScheduledThreadPool(scheduledSize, EsExecutors.daemonThreadFactory(settings, "[sc]"));
+        cached = executorService;
         started = true;
     }
 

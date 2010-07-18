@@ -65,6 +65,7 @@ import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
 
@@ -211,6 +212,16 @@ public class TransportClient extends AbstractClient {
 
         injector.getInstance(TimerService.class).close();
         injector.getInstance(ThreadPool.class).shutdown();
+        try {
+            injector.getInstance(ThreadPool.class).awaitTermination(10, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            // ignore
+        }
+        try {
+            injector.getInstance(ThreadPool.class).shutdownNow();
+        } catch (Exception e) {
+            // ignore
+        }
 
         ThreadLocals.clearReferencesThreadLocals();
     }

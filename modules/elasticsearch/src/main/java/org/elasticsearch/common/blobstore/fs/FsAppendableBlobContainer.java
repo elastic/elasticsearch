@@ -50,7 +50,7 @@ public class FsAppendableBlobContainer extends AbstractFsBlobContainer implement
         }
 
         @Override public void append(final AppendBlobListener listener) {
-            blobStore.executorService().execute(new Runnable() {
+            blobStore.executor().execute(new Runnable() {
                 @Override public void run() {
                     RandomAccessFile raf = null;
                     try {

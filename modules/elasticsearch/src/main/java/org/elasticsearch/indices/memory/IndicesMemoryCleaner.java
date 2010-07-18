@@ -67,9 +67,13 @@ public class IndicesMemoryCleaner extends AbstractComponent {
                 totalShards++;
                 Translog translog = ((InternalIndexShard) indexShard).translog();
                 if (translog.size() > translogNumberOfOperationsThreshold) {
-                    cleanedShards++;
-                    cleaned = indexShard.estimateFlushableMemorySize().bytes();
-                    indexShard.flush(new Engine.Flush());
+                    try {
+                        indexShard.flush(new Engine.Flush());
+                        cleanedShards++;
+                        cleaned = indexShard.estimateFlushableMemorySize().bytes();
+                    } catch (FlushNotAllowedEngineException e) {
+                        // ignore this exception, we are not allowed to perform flush
+                    }
                 }
             }
         }

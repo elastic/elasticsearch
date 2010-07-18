@@ -40,6 +40,8 @@ public abstract class AbstractThreadPool extends AbstractComponent implements Th
 
     protected ScheduledExecutorService scheduledExecutorService;
 
+    protected ExecutorService cached;
+
     protected AbstractThreadPool(Settings settings) {
         super(settings);
     }
@@ -56,6 +58,10 @@ public abstract class AbstractThreadPool extends AbstractComponent implements Th
 
     @Override public boolean isStarted() {
         return started;
+    }
+
+    @Override public Executor cached() {
+        return cached;
     }
 
     @Override public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
@@ -83,6 +89,9 @@ public abstract class AbstractThreadPool extends AbstractComponent implements Th
         logger.debug("shutting down {} thread pool", getType());
         executorService.shutdown();
         scheduledExecutorService.shutdown();
+        if (!cached.isShutdown()) {
+            cached.shutdown();
+        }
     }
 
     @Override public void shutdownNow() {
@@ -93,10 +102,14 @@ public abstract class AbstractThreadPool extends AbstractComponent implements Th
         if (!executorService.isTerminated()) {
             scheduledExecutorService.shutdownNow();
         }
+        if (!cached.isTerminated()) {
+            cached.shutdownNow();
+        }
     }
 
     @Override public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
         boolean result = executorService.awaitTermination(timeout, unit);
+        result &= cached.awaitTermination(timeout, unit);
         result &= scheduledExecutorService.awaitTermination(timeout, unit);
         return result;
     }

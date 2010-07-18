@@ -74,7 +74,7 @@ public class ShardStateAction extends AbstractComponent {
     }
 
     public void shardFailed(final ShardRouting shardRouting, final String reason) throws ElasticSearchException {
-        logger.warn("Sending failed shard for {}, reason [{}]", shardRouting, reason);
+        logger.warn("sending failed shard for {}, reason [{}]", shardRouting, reason);
         DiscoveryNodes nodes = clusterService.state().nodes();
         if (nodes.localNodeMaster()) {
             threadPool.execute(new Runnable() {
@@ -90,7 +90,7 @@ public class ShardStateAction extends AbstractComponent {
 
     public void shardStarted(final ShardRouting shardRouting, final String reason) throws ElasticSearchException {
         if (logger.isDebugEnabled()) {
-            logger.debug("Sending shard started for {}, reason [{}]", shardRouting, reason);
+            logger.debug("sending shard started for {}, reason [{}]", shardRouting, reason);
         }
         DiscoveryNodes nodes = clusterService.state().nodes();
         if (nodes.localNodeMaster()) {
@@ -106,7 +106,7 @@ public class ShardStateAction extends AbstractComponent {
     }
 
     private void innerShardFailed(final ShardRouting shardRouting, final String reason) {
-        logger.warn("Received shard failed for {}, reason [{}]", shardRouting, reason);
+        logger.warn("received shard failed for {}, reason [{}]", shardRouting, reason);
         clusterService.submitStateUpdateTask("shard-failed (" + shardRouting + "), reason [" + reason + "]", new ClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
                 RoutingTable routingTable = currentState.routingTable();
@@ -131,7 +131,7 @@ public class ShardStateAction extends AbstractComponent {
 
     private void innerShardStarted(final ShardRouting shardRouting, final String reason) {
         if (logger.isDebugEnabled()) {
-            logger.debug("Received shard started for {}, reason [{}]", shardRouting, reason);
+            logger.debug("received shard started for {}, reason [{}]", shardRouting, reason);
         }
         clusterService.submitStateUpdateTask("shard-started (" + shardRouting + "), reason [" + reason + "]", new ClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {

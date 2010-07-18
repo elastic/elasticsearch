@@ -27,24 +27,20 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.File;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.common.util.concurrent.EsExecutors.*;
+import java.util.concurrent.Executor;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class FsBlobStore extends AbstractComponent implements BlobStore {
 
-    private final File path;
+    private final Executor executor;
 
-    private final ExecutorService executorService;
+    private final File path;
 
     private final int bufferSizeInBytes;
 
-    public FsBlobStore(Settings settings, File path) {
+    public FsBlobStore(Settings settings, Executor executor, File path) {
         super(settings);
         this.path = path;
         if (!path.exists()) {
@@ -57,7 +53,7 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
             throw new BlobStoreException("Path is not a directory at [" + path + "]");
         }
         this.bufferSizeInBytes = (int) settings.getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
-        this.executorService = Executors.newCachedThreadPool(daemonThreadFactory(settings, "fs_blobstore"));
+        this.executor = executor;
     }
 
     @Override public String toString() {
@@ -72,8 +68,8 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
         return this.bufferSizeInBytes;
     }
 
-    public ExecutorService executorService() {
-        return executorService;
+    public Executor executor() {
+        return executor;
     }
 
     @Override public ImmutableBlobContainer immutableBlobContainer(BlobPath path) {
@@ -89,13 +85,7 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
     }
 
     @Override public void close() {
-        executorService.shutdown();
-        try {
-            executorService.awaitTermination(10, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            // ignore
-        }
-        executorService.shutdownNow();
+        // nothing to do here...
     }
 
     private synchronized File buildAndCreate(BlobPath path) {

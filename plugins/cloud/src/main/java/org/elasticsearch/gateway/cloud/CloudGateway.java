@@ -30,6 +30,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.gateway.blobstore.BlobStoreGateway;
 import org.elasticsearch.index.gateway.cloud.CloudIndexGatewayModule;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 
@@ -38,7 +39,7 @@ import java.io.IOException;
  */
 public class CloudGateway extends BlobStoreGateway {
 
-    @Inject public CloudGateway(Settings settings, ClusterName clusterName, CloudBlobStoreService blobStoreService) throws IOException {
+    @Inject public CloudGateway(Settings settings, ClusterName clusterName, ThreadPool threadPool, CloudBlobStoreService blobStoreService) throws IOException {
         super(settings);
 
         String location = componentSettings.get("location");
@@ -47,7 +48,7 @@ public class CloudGateway extends BlobStoreGateway {
             throw new ElasticSearchIllegalArgumentException("Cloud gateway requires 'container' setting");
         }
 
-        initialize(new CloudBlobStore(settings, blobStoreService.context(), container, location), clusterName, new ByteSizeValue(100, ByteSizeUnit.MB));
+        initialize(new CloudBlobStore(settings, blobStoreService.context(), threadPool.cached(), container, location), clusterName, new ByteSizeValue(100, ByteSizeUnit.MB));
     }
 
     @Override public String type() {

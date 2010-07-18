@@ -40,10 +40,7 @@ import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.throttler.RecoveryThrottler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.FutureTransportResponseHandler;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -103,7 +100,7 @@ public class RecoveryTarget extends AbstractComponent {
 
     public void startRecovery(final StartRecoveryRequest request, final RecoveryListener listener) {
         if (request.sourceNode() == null) {
-            listener.onIgnoreRecovery("No node to recovery from, retry on next cluster state update");
+            listener.onIgnoreRecovery(false, "No node to recovery from, retry on next cluster state update");
             return;
         }
         final InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
@@ -113,11 +110,11 @@ public class RecoveryTarget extends AbstractComponent {
             preRecoveryState = shard.recovering();
         } catch (IllegalIndexShardStateException e) {
             // that's fine, since we might be called concurrently, just ignore this, we are already recovering
-            listener.onIgnoreRecovery("Already in recovering process, " + e.getMessage());
+            listener.onIgnoreRecovery(false, "already in recovering process, " + e.getMessage());
             return;
         }
         final IndexShardState fPreRecoveryState = preRecoveryState;
-        threadPool.execute(new Runnable() {
+        threadPool.cached().execute(new Runnable() {
             @Override public void run() {
                 doRecovery(shard, fPreRecoveryState, request, listener);
             }
@@ -128,7 +125,7 @@ public class RecoveryTarget extends AbstractComponent {
         // we know we are on a thread, we can spin till we can engage in recovery
         if (!recoveryThrottler.tryRecovery(shard.shardId(), "peer recovery target")) {
             if (shard.state() == IndexShardState.CLOSED) {
-                listener.onIgnoreRecovery("shard closed, stop recovery");
+                listener.onIgnoreRecovery(false, "shard closed, stop recovery");
                 return;
             }
             shard.restoreRecoveryState(preRecoveryState);
@@ -148,7 +145,7 @@ public class RecoveryTarget extends AbstractComponent {
             }).txGet();
             if (recoveryStatus.retry) {
                 if (shard.state() == IndexShardState.CLOSED) {
-                    listener.onIgnoreRecovery("shard closed, stop recovery");
+                    listener.onIgnoreRecovery(false, "shard closed, stop recovery");
                     return;
                 }
                 logger.trace("[{}][{}] retrying recovery in [{}], source shard is busy", request.shardId().index().name(), request.shardId().id(), recoveryThrottler.throttleInterval());
@@ -178,7 +175,7 @@ public class RecoveryTarget extends AbstractComponent {
         } catch (Exception e) {
             removeAndCleanOnGoingRecovery(request.shardId());
             if (shard.state() == IndexShardState.CLOSED) {
-                listener.onIgnoreRecovery("shard closed, stop recovery");
+                listener.onIgnoreRecovery(false, "shard closed, stop recovery");
                 return;
             }
             logger.trace("[{}][{}] recovery from [{}] failed", e, request.shardId().index().name(), request.shardId().id(), request.sourceNode());
@@ -187,11 +184,33 @@ public class RecoveryTarget extends AbstractComponent {
                 // unwrap an exception that was thrown as part of the recovery
                 cause = cause.getCause();
             }
+            // do it twice, in case we have double transport exception
+            cause = ExceptionsHelper.unwrapCause(cause);
+            if (cause instanceof RecoveryEngineException) {
+                // unwrap an exception that was thrown as part of the recovery
+                cause = cause.getCause();
+            }
+
             if (cause instanceof IndexShardNotStartedException || cause instanceof IndexMissingException || cause instanceof IndexShardMissingException) {
-                shard.restoreRecoveryState(preRecoveryState);
+                try {
+                    shard.restoreRecoveryState(preRecoveryState);
+                } catch (IndexShardNotRecoveringException e1) {
+                    // ignore this, we might be closing...
+                }
                 listener.onRetryRecovery(recoveryThrottler.throttleInterval());
                 return;
             }
+
+            if (cause instanceof ConnectTransportException) {
+                listener.onIgnoreRecovery(true, "source node disconnected");
+                return;
+            }
+
+            if (cause instanceof IndexShardClosedException) {
+                listener.onIgnoreRecovery(true, "source node disconnected");
+                return;
+            }
+
             listener.onRecoveryFailure(new RecoveryFailedException(request, e), true);
         } finally {
             recoveryThrottler.recoveryDone(shard.shardId(), "peer recovery target");
@@ -203,7 +222,7 @@ public class RecoveryTarget extends AbstractComponent {
 
         void onRetryRecovery(TimeValue retryAfter);
 
-        void onIgnoreRecovery(String reason);
+        void onIgnoreRecovery(boolean cleanShard, String reason);
 
         void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure);
     }

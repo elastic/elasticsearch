@@ -30,10 +30,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
-import static org.elasticsearch.common.util.concurrent.EsExecutors.*;
+import java.util.concurrent.Executor;
 
 /**
  * @author kimchy (shay.banon)
@@ -44,11 +41,11 @@ public class HdfsBlobStore implements BlobStore {
 
     private final Path path;
 
+    private final Executor executor;
+
     private final int bufferSizeInBytes;
 
-    private final ExecutorService executorService;
-
-    public HdfsBlobStore(Settings settings, FileSystem fileSystem, Path path) throws IOException {
+    public HdfsBlobStore(Settings settings, FileSystem fileSystem, Executor executor, Path path) throws IOException {
         this.fileSystem = fileSystem;
         this.path = path;
 
@@ -57,7 +54,7 @@ public class HdfsBlobStore implements BlobStore {
         }
 
         this.bufferSizeInBytes = (int) settings.getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
-        executorService = Executors.newCachedThreadPool(daemonThreadFactory(settings, "hdfs_blobstore"));
+        this.executor = executor;
     }
 
     @Override public String toString() {
@@ -76,8 +73,8 @@ public class HdfsBlobStore implements BlobStore {
         return path;
     }
 
-    public ExecutorService executorService() {
-        return executorService;
+    public Executor executor() {
+        return executor;
     }
 
     @Override public ImmutableBlobContainer immutableBlobContainer(BlobPath path) {

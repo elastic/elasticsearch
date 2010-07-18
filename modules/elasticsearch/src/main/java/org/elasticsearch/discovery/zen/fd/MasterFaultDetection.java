@@ -214,7 +214,7 @@ public class MasterFaultDetection extends AbstractComponent {
 
     private void notifyMasterFailure(final DiscoveryNode masterNode, final String reason) {
         if (notifiedMasterFailure.compareAndSet(false, true)) {
-            threadPool.execute(new Runnable() {
+            threadPool.cached().execute(new Runnable() {
                 @Override public void run() {
                     for (Listener listener : listeners) {
                         listener.onMasterFailure(masterNode, reason);

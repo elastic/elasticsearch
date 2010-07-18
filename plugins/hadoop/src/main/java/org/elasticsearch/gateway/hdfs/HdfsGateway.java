@@ -30,6 +30,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.blobstore.BlobStoreGateway;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.net.URI;
@@ -44,7 +45,7 @@ public class HdfsGateway extends BlobStoreGateway {
 
     private final FileSystem fileSystem;
 
-    @Inject public HdfsGateway(Settings settings, ClusterName clusterName) throws IOException {
+    @Inject public HdfsGateway(Settings settings, ClusterName clusterName, ThreadPool threadPool) throws IOException {
         super(settings);
 
         this.closeFileSystem = componentSettings.getAsBoolean("close_fs", true);
@@ -68,7 +69,7 @@ public class HdfsGateway extends BlobStoreGateway {
 
         fileSystem = FileSystem.get(URI.create(uri), conf);
 
-        initialize(new HdfsBlobStore(settings, fileSystem, hPath), clusterName, null);
+        initialize(new HdfsBlobStore(settings, fileSystem, threadPool.cached(), hPath), clusterName, null);
     }
 
     @Override public String type() {

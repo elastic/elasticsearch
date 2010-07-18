@@ -55,7 +55,7 @@ public class HdfsAppendableBlobContainer extends AbstractHdfsBlobContainer imple
         }
 
         @Override public void append(final AppendBlobListener listener) {
-            blobStore.executorService().execute(new Runnable() {
+            blobStore.executor().execute(new Runnable() {
                 @Override public void run() {
                     try {
                         listener.withStream(out);

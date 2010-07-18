@@ -142,7 +142,7 @@ public class RecoverySource extends AbstractComponent {
                         final CountDownLatch latch = new CountDownLatch(response.phase1FileNames.size());
                         final AtomicReference<Exception> lastException = new AtomicReference<Exception>();
                         for (final String name : response.phase1FileNames) {
-                            threadPool.execute(new Runnable() {
+                            threadPool.cached().execute(new Runnable() {
                                 @Override public void run() {
                                     IndexInput indexInput = null;
                                     try {
@@ -286,8 +286,25 @@ public class RecoverySource extends AbstractComponent {
         }
 
         @Override public void messageReceived(final StartRecoveryRequest request, final TransportChannel channel) throws Exception {
-            RecoveryResponse response = recover(request);
-            channel.sendResponse(response);
+            // we don't spawn, but we execute the expensive recovery process on a cached thread pool
+            threadPool.cached().execute(new Runnable() {
+                @Override public void run() {
+                    try {
+                        RecoveryResponse response = recover(request);
+                        channel.sendResponse(response);
+                    } catch (Exception e) {
+                        try {
+                            channel.sendResponse(e);
+                        } catch (IOException e1) {
+                            // ignore
+                        }
+                    }
+                }
+            });
+        }
+
+        @Override public boolean spawn() {
+            return false;
         }
     }
 }

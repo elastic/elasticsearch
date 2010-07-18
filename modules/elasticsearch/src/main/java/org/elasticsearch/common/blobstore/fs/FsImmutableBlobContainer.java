@@ -39,7 +39,7 @@ public class FsImmutableBlobContainer extends AbstractFsBlobContainer implements
     }
 
     @Override public void writeBlob(final String blobName, final InputStream is, final long sizeInBytes, final WriterListener listener) {
-        blobStore.executorService().execute(new Runnable() {
+        blobStore.executor().execute(new Runnable() {
             @Override public void run() {
                 File file = new File(path, blobName);
                 RandomAccessFile raf;

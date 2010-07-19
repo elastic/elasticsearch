@@ -20,6 +20,7 @@
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.PrimaryNotStartedActionException;
@@ -293,7 +294,13 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                             }
 
                             @Override public void handleException(RemoteTransportException exp) {
-                                listener.onFailure(exp);
+                                // if we got disconnected from the node, retry it...
+                                if (exp.unwrapCause() instanceof ConnectTransportException) {
+                                    primaryOperationStarted.set(false);
+                                    retryPrimary(fromClusterEvent, shard.shardId());
+                                } else {
+                                    listener.onFailure(exp);
+                                }
                             }
 
                             @Override public boolean spawn() {
@@ -357,10 +364,12 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             try {
                 Response response = shardOperationOnPrimary(new ShardOperationRequest(primaryShardId, request));
                 performReplicas(response, alreadyThreaded);
-            } catch (IndexShardNotStartedException e) {
-                // still in recovery, retry (we know that its not UNASSIGNED OR INITIALIZING since we are checking it in the calling method)
-                retryPrimary(fromDiscoveryListener, shard.shardId());
             } catch (Exception e) {
+                if (e instanceof IndexShardMissingException || e instanceof IndexShardNotStartedException
+                        || e instanceof IndexMissingException) {
+                    retryPrimary(fromDiscoveryListener, shard.shardId());
+                    return;
+                }
                 if (logger.isDebugEnabled()) {
                     logger.debug(shard.shortSummary() + ": Failed to execute [" + request + "]", e);
                 }
@@ -545,13 +554,17 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
          * </ul>
          */
         private boolean ignoreReplicaException(Throwable e) {
-            if (e instanceof IllegalIndexShardStateException) {
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof IllegalIndexShardStateException) {
                 return true;
             }
-            if (e instanceof IndexMissingException) {
+            if (cause instanceof IndexMissingException) {
                 return true;
             }
-            if (e instanceof IndexShardMissingException) {
+            if (cause instanceof IndexShardMissingException) {
+                return true;
+            }
+            if (cause instanceof ConnectTransportException) {
                 return true;
             }
             return false;

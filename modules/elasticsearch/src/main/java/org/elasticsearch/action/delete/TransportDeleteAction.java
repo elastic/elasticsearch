@@ -100,7 +100,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
         return new DeleteResponse(request.index(), request.type(), request.id());
     }
 
-    @Override protected void shardOperationOnBackup(ShardOperationRequest shardRequest) {
+    @Override protected void shardOperationOnReplica(ShardOperationRequest shardRequest) {
         DeleteRequest request = shardRequest.request;
         indexShard(shardRequest).delete(request.type(), request.id());
     }

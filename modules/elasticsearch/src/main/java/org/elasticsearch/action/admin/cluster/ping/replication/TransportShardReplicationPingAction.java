@@ -57,7 +57,7 @@ public class TransportShardReplicationPingAction extends TransportShardReplicati
         return new ShardReplicationPingResponse();
     }
 
-    @Override protected void shardOperationOnBackup(ShardOperationRequest shardRequest) {
+    @Override protected void shardOperationOnReplica(ShardOperationRequest shardRequest) {
     }
 
     @Override protected ShardsIterator shards(ClusterState clusterState, ShardReplicationPingRequest request) {

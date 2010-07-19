@@ -61,7 +61,7 @@ public class TransportShardGatewaySnapshotAction extends TransportShardReplicati
         return new ShardGatewaySnapshotResponse();
     }
 
-    @Override protected void shardOperationOnBackup(ShardOperationRequest shardRequest) {
+    @Override protected void shardOperationOnReplica(ShardOperationRequest shardRequest) {
         // silently ignore, we disable it with #ignoreBackups anyhow
     }
 
@@ -72,7 +72,7 @@ public class TransportShardGatewaySnapshotAction extends TransportShardReplicati
     /**
      * Snapshot should only happen on primary shards.
      */
-    @Override protected boolean ignoreBackups() {
+    @Override protected boolean ignoreReplicas() {
         return true;
     }
 }

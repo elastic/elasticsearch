@@ -137,7 +137,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         return new IndexResponse(request.index(), request.type(), request.id());
     }
 
-    @Override protected void shardOperationOnBackup(ShardOperationRequest shardRequest) {
+    @Override protected void shardOperationOnReplica(ShardOperationRequest shardRequest) {
         IndexRequest request = shardRequest.request;
         if (request.opType() == IndexRequest.OpType.INDEX) {
             indexShard(shardRequest).index(request.type(), request.id(), request.source());

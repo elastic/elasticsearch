@@ -39,6 +39,7 @@ public class NetworkExceptionHelper {
             return true;
         }
         if (e.getMessage() != null) {
+            // UGLY!, this exception messages seems to represent closed connection 
             if (e.getMessage().contains("Connection reset by peer")) {
                 return true;
             }
@@ -46,6 +47,9 @@ public class NetworkExceptionHelper {
                 return true;
             }
             if (e.getMessage().contains("forcibly closed")) {
+                return true;
+            }
+            if (e.getMessage().contains("Broken pipe")) {
                 return true;
             }
         }

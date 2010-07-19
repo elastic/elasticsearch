@@ -43,9 +43,9 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
     }
 
     @Test public void recoverWhileUnderLoadAllocateBackupsTest() throws Exception {
-        startNode("server1");
+        startNode("node1");
 
-        client("server1").admin().indices().prepareCreate("test").execute().actionGet();
+        client("node1").admin().indices().prepareCreate("test").execute().actionGet();
 
         final AtomicLong idGenerator = new AtomicLong();
         final AtomicBoolean stop = new AtomicBoolean(false);
@@ -56,7 +56,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
                 @Override public void run() {
                     while (!stop.get()) {
                         long id = idGenerator.incrementAndGet();
-                        client("server1").prepareIndex("test", "type1", Long.toString(id))
+                        client("node1").prepareIndex("test", "type1", Long.toString(id))
                                 .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + id).map()).execute().actionGet();
                     }
                     stopLatch.countDown();
@@ -65,46 +65,46 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
             writers[i].start();
         }
 
-        while (client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 20000) {
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 20000) {
             Thread.sleep(100);
-            client("server1").admin().indices().prepareRefresh().execute().actionGet();
+            client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
 
         // now flush, just to make sure we have some data in the index, not just translog
-        client("server1").admin().indices().prepareFlush().execute().actionGet();
+        client("node1").admin().indices().prepareFlush().execute().actionGet();
 
 
-        while (client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 40000) {
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 40000) {
             Thread.sleep(100);
-            client("server1").admin().indices().prepareRefresh().execute().actionGet();
+            client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
 
         // now start another node, while we index
         startNode("server2");
 
         // make sure the cluster state is green, and all has been recovered
-        assertThat(client("server1").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(client("node1").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.GREEN));
 
 
         // wait till we index 10,0000
-        while (client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 100000) {
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 100000) {
             Thread.sleep(100);
-            client("server1").admin().indices().prepareRefresh().execute().actionGet();
+            client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
 
         stop.set(true);
         stopLatch.await();
 
-        client("server1").admin().indices().prepareRefresh().execute().actionGet();
+        client("node1").admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
-            assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(idGenerator.get()));
+            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(idGenerator.get()));
         }
     }
 
     @Test public void recoverWhileUnderLoadAllocateBackupsRelocatePrimariesTest() throws Exception {
-        startNode("server1");
+        startNode("node1");
 
-        client("server1").admin().indices().prepareCreate("test").execute().actionGet();
+        client("node1").admin().indices().prepareCreate("test").execute().actionGet();
 
         final AtomicLong idGenerator = new AtomicLong();
         final AtomicBoolean stop = new AtomicBoolean(false);
@@ -115,7 +115,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
                 @Override public void run() {
                     while (!stop.get()) {
                         long id = idGenerator.incrementAndGet();
-                        client("server1").prepareIndex("test", "type1", Long.toString(id))
+                        client("node1").prepareIndex("test", "type1", Long.toString(id))
                                 .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + id).map()).execute().actionGet();
                     }
                     stopLatch.countDown();
@@ -124,39 +124,109 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
             writers[i].start();
         }
 
-        while (client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 20000) {
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 20000) {
             Thread.sleep(100);
-            client("server1").admin().indices().prepareRefresh().execute().actionGet();
+            client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
 
         // now flush, just to make sure we have some data in the index, not just translog
-        client("server1").admin().indices().prepareFlush().execute().actionGet();
+        client("node1").admin().indices().prepareFlush().execute().actionGet();
 
 
-        while (client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 40000) {
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 40000) {
             Thread.sleep(100);
-            client("server1").admin().indices().prepareRefresh().execute().actionGet();
+            client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
 
         // now start another node, while we index
-        startNode("server2");
-        startNode("server3");
-        startNode("server4");
+        startNode("node2");
+        startNode("node3");
+        startNode("node4");
 
-        assertThat(client("server1").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(client("node1").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.GREEN));
 
 
-        while (client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 150000) {
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 150000) {
             Thread.sleep(100);
-            client("server1").admin().indices().prepareRefresh().execute().actionGet();
+            client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
 
         stop.set(true);
         stopLatch.await();
 
-        client("server1").admin().indices().prepareRefresh().execute().actionGet();
+        client("node1").admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
-            assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(idGenerator.get()));
+            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(idGenerator.get()));
+        }
+    }
+
+    @Test public void recoverWhileUnderLoadWithNodeShutdown() throws Exception {
+        startNode("node1");
+        startNode("node2");
+
+        client("node1").admin().indices().prepareCreate("test").execute().actionGet();
+
+        final AtomicLong idGenerator = new AtomicLong();
+        final AtomicBoolean stop = new AtomicBoolean(false);
+        Thread[] writers = new Thread[5];
+        final CountDownLatch stopLatch = new CountDownLatch(writers.length);
+        for (int i = 0; i < writers.length; i++) {
+            writers[i] = new Thread() {
+                @Override public void run() {
+                    try {
+                        while (!stop.get()) {
+                            long id = idGenerator.incrementAndGet();
+                            client("node2").prepareIndex("test", "type1", Long.toString(id))
+                                    .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + id).map()).execute().actionGet();
+                        }
+                    } finally {
+                        stopLatch.countDown();
+                    }
+                }
+            };
+            writers[i].start();
+        }
+
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 20000) {
+            Thread.sleep(100);
+            client("node1").admin().indices().prepareRefresh().execute().actionGet();
+        }
+
+        // now flush, just to make sure we have some data in the index, not just translog
+        client("node1").admin().indices().prepareFlush().execute().actionGet();
+
+
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 40000) {
+            Thread.sleep(100);
+            client("node1").admin().indices().prepareRefresh().execute().actionGet();
+        }
+
+        // now start nore nodes, while we index
+        startNode("node3");
+        startNode("node4");
+
+        assertThat(client("node1").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.GREEN));
+
+
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 80000) {
+            Thread.sleep(100);
+            client("node1").admin().indices().prepareRefresh().execute().actionGet();
+        }
+
+        // now, shutdown nodes
+        closeNode("node1");
+        assertThat(client("node2").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.GREEN));
+        closeNode("node3");
+        assertThat(client("node2").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.GREEN));
+        closeNode("node4");
+        assertThat(client("node2").admin().cluster().prepareHealth().setTimeout("1m").setWaitForYellowStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.YELLOW));
+
+        stop.set(true);
+        stopLatch.await();
+
+        client("node2").admin().indices().prepareRefresh().execute().actionGet();
+        for (int i = 0; i < 10; i++) {
+            assertThat(client("node2").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(idGenerator.get()));
         }
     }
 }

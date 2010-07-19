@@ -22,7 +22,7 @@ package org.elasticsearch.http;
 import org.elasticsearch.rest.RestResponse;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public interface HttpResponse extends RestResponse {
 

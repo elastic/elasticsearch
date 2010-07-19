@@ -27,10 +27,13 @@ import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.StringRestResponse;
 import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+
+import static org.elasticsearch.rest.RestResponse.Status.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -103,7 +106,16 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
     void internalDispatchRequest(final HttpRequest request, final HttpChannel channel) {
         final HttpServerHandler httpHandler = getHandler(request);
         if (httpHandler == null) {
-            restController.dispatchRequest(request, channel);
+            // if nothing was dispatched by the rest request, send either error or default handling per method
+            if (!restController.dispatchRequest(request, channel)) {
+                if (request.method() == RestRequest.Method.OPTIONS) {
+                    // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gest automatically added)
+                    StringRestResponse response = new StringRestResponse(OK);
+                    channel.sendResponse(response);
+                } else {
+                    channel.sendResponse(new StringRestResponse(BAD_REQUEST, "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]"));
+                }
+            }
         } else {
             if (httpHandler.spawn()) {
                 threadPool.execute(new Runnable() {

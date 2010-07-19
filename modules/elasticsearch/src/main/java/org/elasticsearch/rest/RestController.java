@@ -28,8 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 
-import static org.elasticsearch.rest.RestResponse.Status.*;
-
 /**
  * @author kimchy (shay.banon)
  */
@@ -80,11 +78,10 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         }
     }
 
-    public void dispatchRequest(final RestRequest request, final RestChannel channel) {
+    public boolean dispatchRequest(final RestRequest request, final RestChannel channel) {
         final RestHandler handler = getHandler(request);
         if (handler == null) {
-            channel.sendResponse(new StringRestResponse(BAD_REQUEST, "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]"));
-            return;
+            return false;
         }
         try {
             handler.handleRequest(request, channel);
@@ -95,6 +92,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
                 logger.error("Failed to send failure response for uri [" + request.uri() + "]", e1);
             }
         }
+        return true;
     }
 
     private RestHandler getHandler(RestRequest request) {

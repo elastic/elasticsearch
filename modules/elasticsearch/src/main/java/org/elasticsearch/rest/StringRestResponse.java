@@ -23,7 +23,7 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.thread.ThreadLocals;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class StringRestResponse extends Utf8RestResponse {
 

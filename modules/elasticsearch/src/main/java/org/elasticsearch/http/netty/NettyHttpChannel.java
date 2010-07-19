@@ -34,7 +34,7 @@ import java.io.IOException;
 import java.util.Set;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class NettyHttpChannel implements HttpChannel {
     private final Channel channel;
@@ -64,6 +64,14 @@ public class NettyHttpChannel implements HttpChannel {
         } else {
             resp = new DefaultHttpResponse(HttpVersion.HTTP_1_1, status);
         }
+        // add support for cross origin
+        resp.addHeader("Access-Control-Allow-Origin", "*");
+        if (request.getMethod() == HttpMethod.OPTIONS) {
+            // also add more access control parameters
+            resp.addHeader("Access-Control-Max-Age", 1728000);
+            resp.addHeader("Access-Control-Allow-Methods", "PUT, DELETE");
+        }
+
         // Convert the response content to a ChannelBuffer.
         ChannelBuffer buf;
         try {

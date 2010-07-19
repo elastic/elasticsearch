@@ -66,7 +66,7 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
         return new ShardDeleteByQueryResponse();
     }
 
-    @Override protected void shardOperationOnBackup(ShardOperationRequest shardRequest) {
+    @Override protected void shardOperationOnReplica(ShardOperationRequest shardRequest) {
         ShardDeleteByQueryRequest request = shardRequest.request;
         indexShard(shardRequest).deleteByQuery(request.querySource(), request.queryParserName(), request.types());
     }

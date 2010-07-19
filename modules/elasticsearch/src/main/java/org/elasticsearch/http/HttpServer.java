@@ -109,7 +109,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
             // if nothing was dispatched by the rest request, send either error or default handling per method
             if (!restController.dispatchRequest(request, channel)) {
                 if (request.method() == RestRequest.Method.OPTIONS) {
-                    // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gest automatically added)
+                    // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
                     StringRestResponse response = new StringRestResponse(OK);
                     channel.sendResponse(response);
                 } else {

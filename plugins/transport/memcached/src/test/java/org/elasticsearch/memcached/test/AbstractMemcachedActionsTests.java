@@ -20,6 +20,7 @@
 package org.elasticsearch.memcached.test;
 
 import net.spy.memcached.MemcachedClient;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.node.Node;
 import org.hamcrest.Matchers;
 import org.testng.annotations.AfterMethod;
@@ -61,6 +62,9 @@ public abstract class AbstractMemcachedActionsTests {
     @Test public void testSimpleOperations() throws Exception {
         Future<Boolean> setResult = memcachedClient.set("/test/person/1", 0, jsonBuilder().startObject().field("test", "value").endObject().copiedBytes());
         assertThat(setResult.get(10, TimeUnit.SECONDS), equalTo(true));
+
+        ClusterHealthResponse health = node.client().admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+        assertThat(health.timedOut(), equalTo(false));
 
         String getResult = (String) memcachedClient.get("/_refresh");
         System.out.println("REFRESH " + getResult);

@@ -73,10 +73,12 @@ public class FullRollingRestartTests extends AbstractNodesTests {
 
         // now start shutting nodes down
         closeNode("node1");
-        closeNode("node2");
-
         // make sure the cluster state is green, and all has been recovered
         assertThat(client("node5").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.GREEN));
+        closeNode("node2");
+        // make sure the cluster state is green, and all has been recovered
+        assertThat(client("node5").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.GREEN));
+
 
         client("node5").admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
@@ -84,6 +86,8 @@ public class FullRollingRestartTests extends AbstractNodesTests {
         }
 
         closeNode("node3");
+        // make sure the cluster state is green, and all has been recovered
+        assertThat(client("node5").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.GREEN));
         closeNode("node4");
 
         // make sure the cluster state is green, and all has been recovered

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.strategy;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
+import org.elasticsearch.transport.ConnectTransportException;
 
 import java.util.Iterator;
 import java.util.Set;
@@ -97,6 +99,10 @@ public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent 
                 if (nodesStoreFilesMetaData.failures().length > 0) {
                     StringBuilder sb = new StringBuilder(shard + ": failures when trying to list stores on nodes:");
                     for (int i = 0; i < nodesStoreFilesMetaData.failures().length; i++) {
+                        Throwable cause = ExceptionsHelper.unwrapCause(nodesStoreFilesMetaData.failures()[i]);
+                        if (cause instanceof ConnectTransportException) {
+                            continue;
+                        }
                         sb.append("\n    -> ").append(nodesStoreFilesMetaData.failures()[i].getDetailedMessage());
                     }
                     logger.warn(sb.toString());

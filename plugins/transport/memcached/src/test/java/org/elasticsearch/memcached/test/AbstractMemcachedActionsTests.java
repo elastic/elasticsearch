@@ -21,6 +21,7 @@ package org.elasticsearch.memcached.test;
 
 import net.spy.memcached.MemcachedClient;
 import org.elasticsearch.node.Node;
+import org.hamcrest.Matchers;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -31,6 +32,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.node.NodeBuilder.*;
+import static org.hamcrest.MatcherAssert.*;
+import static org.hamcrest.Matchers.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -56,20 +59,29 @@ public abstract class AbstractMemcachedActionsTests {
     }
 
     @Test public void testSimpleOperations() throws Exception {
-        Future setResult = memcachedClient.set("/test/person/1", 0, jsonBuilder().startObject().field("test", "value").endObject().copiedBytes());
-        setResult.get(10, TimeUnit.SECONDS);
+        Future<Boolean> setResult = memcachedClient.set("/test/person/1", 0, jsonBuilder().startObject().field("test", "value").endObject().copiedBytes());
+        assertThat(setResult.get(10, TimeUnit.SECONDS), equalTo(true));
 
         String getResult = (String) memcachedClient.get("/_refresh");
         System.out.println("REFRESH " + getResult);
+        assertThat(getResult, Matchers.containsString("\"total\":10"));
+        assertThat(getResult, Matchers.containsString("\"successful\":5"));
+        assertThat(getResult, Matchers.containsString("\"failed\":0"));
 
         getResult = (String) memcachedClient.get("/test/person/1");
         System.out.println("GET " + getResult);
+        assertThat(getResult, Matchers.containsString("\"_index\":\"test\""));
+        assertThat(getResult, Matchers.containsString("\"_type\":\"person\""));
+        assertThat(getResult, Matchers.containsString("\"_id\":\"1\""));
 
-        Future deleteResult = memcachedClient.delete("/test/person/1");
-        deleteResult.get(10, TimeUnit.SECONDS);
+        Future<Boolean> deleteResult = memcachedClient.delete("/test/person/1");
+        assertThat(deleteResult.get(10, TimeUnit.SECONDS), equalTo(true));
 
         getResult = (String) memcachedClient.get("/_refresh");
         System.out.println("REFRESH " + getResult);
+        assertThat(getResult, Matchers.containsString("\"total\":10"));
+        assertThat(getResult, Matchers.containsString("\"successful\":5"));
+        assertThat(getResult, Matchers.containsString("\"failed\":0"));
 
         getResult = (String) memcachedClient.get("/test/person/1");
         System.out.println("GET " + getResult);

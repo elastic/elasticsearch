@@ -223,6 +223,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
 
         stop.set(true);
         stopLatch.await();
+        assertThat(client("node2").admin().cluster().prepareHealth().setTimeout("1m").setWaitForYellowStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.YELLOW));
 
         client("node2").admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {

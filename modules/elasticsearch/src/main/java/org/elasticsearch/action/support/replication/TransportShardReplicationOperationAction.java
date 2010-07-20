@@ -246,11 +246,11 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
          */
         public boolean start(final boolean fromClusterEvent) throws ElasticSearchException {
             ClusterState clusterState = clusterService.state();
+            nodes = clusterState.nodes();
             if (!indicesService.hasIndex(request.index()) || !clusterState.routingTable().hasIndex(request.index())) {
                 retryPrimary(fromClusterEvent, null);
                 return false;
             }
-            nodes = clusterState.nodes();
             try {
                 shards = shards(clusterState, request);
             } catch (Exception e) {

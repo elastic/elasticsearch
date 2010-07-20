@@ -118,6 +118,10 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     }
 
     public void add(TimeValue timeout, final TimeoutClusterStateListener listener) {
+        if (lifecycle.stoppedOrClosed()) {
+            listener.onClose();
+            return;
+        }
         NotifyTimeout notifyTimeout = new NotifyTimeout(listener, timeout);
         Timeout timerTimeout = timerService.newTimeout(notifyTimeout, timeout, TimerService.ExecutionType.THREADED);
         onGoingTimeouts.add(new Tuple<Timeout, NotifyTimeout>(timerTimeout, notifyTimeout));

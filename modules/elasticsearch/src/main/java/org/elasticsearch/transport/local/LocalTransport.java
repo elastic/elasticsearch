@@ -90,11 +90,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         for (final LocalTransport targetTransport : transports.values()) {
             for (final Map.Entry<DiscoveryNode, LocalTransport> entry : targetTransport.connectedNodes.entrySet()) {
                 if (entry.getValue() == this) {
-                    targetTransport.threadPool().cached().execute(new Runnable() {
-                        @Override public void run() {
-                            targetTransport.disconnectFromNode(entry.getKey());
-                        }
-                    });
+                    targetTransport.disconnectFromNode(entry.getKey());
                 }
             }
         }

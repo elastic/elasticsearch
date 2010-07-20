@@ -20,7 +20,6 @@
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -48,6 +47,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.NodeCloseException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -296,7 +296,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
                             @Override public void handleException(RemoteTransportException exp) {
                                 // if we got disconnected from the node, retry it...
-                                if (exp.unwrapCause() instanceof ConnectTransportException) {
+                                if (exp.unwrapCause() instanceof ConnectTransportException || exp.unwrapCause() instanceof NodeCloseException) {
                                     primaryOperationStarted.set(false);
                                     retryPrimary(fromClusterEvent, shard.shardId());
                                 } else {
@@ -342,7 +342,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
                     @Override public void onClose() {
                         clusterService.remove(this);
-                        listener.onFailure(new ElasticSearchIllegalStateException("node is shutting down"));
+                        listener.onFailure(new NodeCloseException(nodes.localNode()));
                     }
 
                     @Override public void clusterChanged(ClusterChangedEvent event) {

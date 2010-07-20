@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.TimeoutClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.node.NodeCloseException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -78,7 +79,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
 
     private void innerExecute(final Request request, final ActionListener<Response> listener, final boolean retrying) {
         final ClusterState clusterState = clusterService.state();
-        DiscoveryNodes nodes = clusterState.nodes();
+        final DiscoveryNodes nodes = clusterState.nodes();
         if (nodes.localNodeMaster()) {
             threadPool.execute(new Runnable() {
                 @Override public void run() {
@@ -123,7 +124,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
 
                                 @Override public void onClose() {
                                     clusterService.remove(this);
-                                    listener.onFailure(new ElasticSearchIllegalStateException("node is shutting down"));
+                                    listener.onFailure(new NodeCloseException(nodes.localNode()));
                                 }
 
                                 @Override public void onTimeout(TimeValue timeout) {

@@ -295,7 +295,7 @@ public class RecoverySource extends AbstractComponent {
                     } catch (Exception e) {
                         try {
                             channel.sendResponse(e);
-                        } catch (IOException e1) {
+                        } catch (Exception e1) {
                             // ignore
                         }
                     }

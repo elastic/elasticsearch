@@ -87,7 +87,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
 
     private final SimilarityService similarityService;
 
-    private volatile IndexWriter indexWriter;
+    // no need for volatile, its always used under a lock
+    private IndexWriter indexWriter;
 
     private volatile AcquirableResource<ReaderSearcherHolder> nrtResource;
 
@@ -121,14 +122,19 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
 
     @Override public void indexingBuffer(ByteSizeValue indexingBufferSize) {
         // LUCENE MONITOR - If this restriction is removed from Lucene, remove it from here
-        if (indexingBufferSize.mbFrac() > 2048.0) {
-            this.indexingBufferSize = new ByteSizeValue(2048, ByteSizeUnit.MB);
-        } else {
-            this.indexingBufferSize = indexingBufferSize;
-        }
-        IndexWriter indexWriter = this.indexWriter;
-        if (indexWriter != null) {
-            indexWriter.setRAMBufferSizeMB(this.indexingBufferSize.mbFrac());
+        rwl.readLock().lock();
+        try {
+            if (indexingBufferSize.mbFrac() > 2048.0) {
+                this.indexingBufferSize = new ByteSizeValue(2048, ByteSizeUnit.MB);
+            } else {
+                this.indexingBufferSize = indexingBufferSize;
+            }
+            IndexWriter indexWriter = this.indexWriter;
+            if (indexWriter != null) {
+                indexWriter.setRAMBufferSizeMB(this.indexingBufferSize.mbFrac());
+            }
+        } finally {
+            rwl.readLock().unlock();
         }
     }
 

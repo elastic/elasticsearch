@@ -63,7 +63,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private final List<ClusterStateListener> clusterStateListeners = new CopyOnWriteArrayList<ClusterStateListener>();
 
-    private final Queue<Tuple<Timeout, TimeoutClusterStateListener>> onGoingTimeouts = new LinkedTransferQueue<Tuple<Timeout, TimeoutClusterStateListener>>();
+    private final Queue<Tuple<Timeout, NotifyTimeout>> onGoingTimeouts = new LinkedTransferQueue<Tuple<Timeout, NotifyTimeout>>();
 
     private volatile ClusterState clusterState = newClusterStateBuilder().build();
 
@@ -82,9 +82,9 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     }
 
     @Override protected void doStop() throws ElasticSearchException {
-        for (Tuple<Timeout, TimeoutClusterStateListener> onGoingTimeout : onGoingTimeouts) {
+        for (Tuple<Timeout, NotifyTimeout> onGoingTimeout : onGoingTimeouts) {
             onGoingTimeout.v1().cancel();
-            onGoingTimeout.v2().onClose();
+            onGoingTimeout.v2().listener.onClose();
         }
         updateTasksExecutor.shutdown();
         try {
@@ -107,11 +107,17 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     public void remove(ClusterStateListener listener) {
         clusterStateListeners.remove(listener);
+        for (Tuple<Timeout, NotifyTimeout> onGoingTimeout : onGoingTimeouts) {
+            if (onGoingTimeout.v2().listener == listener) {
+                onGoingTimeout.v1().cancel();
+            }
+        }
     }
 
     public void add(TimeValue timeout, final TimeoutClusterStateListener listener) {
-        Timeout timerTimeout = timerService.newTimeout(new NotifyTimeout(listener, timeout), timeout, TimerService.ExecutionType.THREADED);
-        onGoingTimeouts.add(new Tuple<Timeout, TimeoutClusterStateListener>(timerTimeout, listener));
+        NotifyTimeout notifyTimeout = new NotifyTimeout(listener, timeout);
+        Timeout timerTimeout = timerService.newTimeout(notifyTimeout, timeout, TimerService.ExecutionType.THREADED);
+        onGoingTimeouts.add(new Tuple<Timeout, NotifyTimeout>(timerTimeout, notifyTimeout));
         clusterStateListeners.add(listener);
         // call the post added notification on the same event thread
         updateTasksExecutor.execute(new Runnable() {

@@ -36,6 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -107,9 +108,11 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     public void remove(ClusterStateListener listener) {
         clusterStateListeners.remove(listener);
-        for (Tuple<Timeout, NotifyTimeout> onGoingTimeout : onGoingTimeouts) {
-            if (onGoingTimeout.v2().listener == listener) {
-                onGoingTimeout.v1().cancel();
+        for (Iterator<Tuple<Timeout, NotifyTimeout>> it = onGoingTimeouts.iterator(); it.hasNext();) {
+            Tuple<Timeout, NotifyTimeout> tuple = it.next();
+            if (tuple.v2().listener.equals(listener)) {
+                tuple.v1().cancel();
+                it.remove();
             }
         }
     }

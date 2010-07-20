@@ -39,6 +39,8 @@ import static org.elasticsearch.common.collect.Lists.*;
  */
 public class Loggers {
 
+    public static final String SPACE = " ";
+
     private static boolean consoleLoggingEnabled = true;
 
     public static void disableConsoleLogging() {
@@ -58,7 +60,7 @@ public class Loggers {
     }
 
     public static ESLogger getLogger(Class clazz, Settings settings, Index index, String... prefixes) {
-        return getLogger(clazz, settings, Lists.asList(index.name(), prefixes).toArray(new String[0]));
+        return getLogger(clazz, settings, Lists.asList(SPACE, index.name(), prefixes).toArray(new String[0]));
     }
 
     public static ESLogger getLogger(Class clazz, Settings settings, String... prefixes) {
@@ -113,7 +115,11 @@ public class Loggers {
             StringBuilder sb = new StringBuilder();
             for (String prefixX : prefixes) {
                 if (prefixX != null) {
-                    sb.append("[").append(prefixX).append("]");
+                    if (prefixX.equals(SPACE)) {
+                        sb.append(" ");
+                    } else {
+                        sb.append("[").append(prefixX).append("]");
+                    }
                 }
             }
             if (sb.length() > 0) {

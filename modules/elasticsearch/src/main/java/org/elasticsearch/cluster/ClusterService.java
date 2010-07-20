@@ -35,7 +35,5 @@ public interface ClusterService extends LifecycleComponent<ClusterService> {
 
     void add(TimeValue timeout, TimeoutClusterStateListener listener);
 
-    void remove(TimeoutClusterStateListener listener);
-
     void submitStateUpdateTask(final String source, final ClusterStateUpdateTask updateTask);
 }

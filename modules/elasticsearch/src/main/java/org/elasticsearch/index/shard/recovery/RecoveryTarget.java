@@ -20,6 +20,7 @@
 package org.elasticsearch.index.shard.recovery;
 
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -337,6 +338,9 @@ public class RecoveryTarget extends AbstractComponent {
                 onGoingRecovery.openIndexOutputs.put(request.name(), indexOutput);
             } else {
                 indexOutput = onGoingRecovery.openIndexOutputs.get(request.name());
+            }
+            if (indexOutput == null) {
+                throw new ElasticSearchIllegalStateException("No ongoing output file to write to, request: " + request);
             }
             synchronized (indexOutput) {
                 try {

@@ -33,7 +33,7 @@ import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class SimpleDataNodesTests extends AbstractNodesTests {
 

@@ -23,23 +23,27 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.timer.Timeout;
+import org.elasticsearch.common.timer.TimerTask;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.jsr166y.LinkedTransferQueue;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.concurrent.Executors.*;
 import static org.elasticsearch.cluster.ClusterState.*;
-import static org.elasticsearch.common.unit.TimeValue.*;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.*;
 
 /**
@@ -47,9 +51,9 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.*;
  */
 public class InternalClusterService extends AbstractLifecycleComponent<ClusterService> implements ClusterService {
 
-    private final TimeValue timeoutInterval;
-
     private final ThreadPool threadPool;
+
+    private final TimerService timerService;
 
     private final DiscoveryService discoveryService;
 
@@ -59,45 +63,28 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private final List<ClusterStateListener> clusterStateListeners = new CopyOnWriteArrayList<ClusterStateListener>();
 
-    private final List<TimeoutHolder> clusterStateTimeoutListeners = new CopyOnWriteArrayList<TimeoutHolder>();
-
-    private volatile ScheduledFuture scheduledFuture;
+    private final Queue<Tuple<Timeout, TimeoutClusterStateListener>> onGoingTimeouts = new LinkedTransferQueue<Tuple<Timeout, TimeoutClusterStateListener>>();
 
     private volatile ClusterState clusterState = newClusterStateBuilder().build();
 
-    @Inject public InternalClusterService(Settings settings, DiscoveryService discoveryService, TransportService transportService, ThreadPool threadPool) {
+    @Inject public InternalClusterService(Settings settings, DiscoveryService discoveryService, TransportService transportService, ThreadPool threadPool,
+                                          TimerService timerService) {
         super(settings);
         this.transportService = transportService;
         this.discoveryService = discoveryService;
         this.threadPool = threadPool;
-
-        this.timeoutInterval = componentSettings.getAsTime("timeout_interval", timeValueMillis(500));
+        this.timerService = timerService;
     }
 
     @Override protected void doStart() throws ElasticSearchException {
         this.clusterState = newClusterStateBuilder().build();
         this.updateTasksExecutor = newSingleThreadExecutor(daemonThreadFactory(settings, "clusterService#updateTask"));
-        scheduledFuture = threadPool.scheduleWithFixedDelay(new Runnable() {
-            @Override public void run() {
-                long timestamp = System.currentTimeMillis();
-                for (final TimeoutHolder holder : clusterStateTimeoutListeners) {
-                    if ((timestamp - holder.timestamp) > holder.timeout.millis()) {
-                        clusterStateTimeoutListeners.remove(holder);
-                        InternalClusterService.this.threadPool.execute(new Runnable() {
-                            @Override public void run() {
-                                holder.listener.onTimeout(holder.timeout);
-                            }
-                        });
-                    }
-                }
-            }
-        }, timeoutInterval);
     }
 
     @Override protected void doStop() throws ElasticSearchException {
-        scheduledFuture.cancel(false);
-        for (TimeoutHolder holder : clusterStateTimeoutListeners) {
-            holder.listener.onTimeout(holder.timeout);
+        for (Tuple<Timeout, TimeoutClusterStateListener> onGoingTimeout : onGoingTimeouts) {
+            onGoingTimeout.v1().cancel();
+            onGoingTimeout.v2().onClose();
         }
         updateTasksExecutor.shutdown();
         try {
@@ -122,12 +109,16 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         clusterStateListeners.remove(listener);
     }
 
-    public void add(TimeValue timeout, TimeoutClusterStateListener listener) {
-        clusterStateTimeoutListeners.add(new TimeoutHolder(listener, System.currentTimeMillis(), timeout));
-    }
-
-    public void remove(TimeoutClusterStateListener listener) {
-        clusterStateTimeoutListeners.remove(new TimeoutHolder(listener, -1, null));
+    public void add(TimeValue timeout, final TimeoutClusterStateListener listener) {
+        Timeout timerTimeout = timerService.newTimeout(new NotifyTimeout(listener, timeout), timeout, TimerService.ExecutionType.THREADED);
+        onGoingTimeouts.add(new Tuple<Timeout, TimeoutClusterStateListener>(timerTimeout, listener));
+        clusterStateListeners.add(listener);
+        // call the post added notification on the same event thread
+        updateTasksExecutor.execute(new Runnable() {
+            @Override public void run() {
+                listener.postAdded();
+            }
+        });
     }
 
     public void submitStateUpdateTask(final String source, final ClusterStateUpdateTask updateTask) {
@@ -194,9 +185,6 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                         }
                     }
 
-                    for (TimeoutHolder timeoutHolder : clusterStateTimeoutListeners) {
-                        timeoutHolder.listener.clusterChanged(clusterChangedEvent);
-                    }
                     for (ClusterStateListener listener : clusterStateListeners) {
                         listener.clusterChanged(clusterChangedEvent);
                     }
@@ -226,23 +214,21 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         });
     }
 
-    private static class TimeoutHolder {
+    private class NotifyTimeout implements TimerTask {
         final TimeoutClusterStateListener listener;
-        final long timestamp;
         final TimeValue timeout;
 
-        private TimeoutHolder(TimeoutClusterStateListener listener, long timestamp, TimeValue timeout) {
+        private NotifyTimeout(TimeoutClusterStateListener listener, TimeValue timeout) {
             this.listener = listener;
-            this.timestamp = timestamp;
             this.timeout = timeout;
         }
 
-        @Override public int hashCode() {
-            return listener.hashCode();
-        }
-
-        @Override public boolean equals(Object obj) {
-            return ((TimeoutHolder) obj).listener == listener;
+        @Override public void run(Timeout timeout) throws Exception {
+            if (timeout.isCancelled()) {
+                return;
+            }
+            listener.onTimeout(this.timeout);
+            // note, we rely on the listener to remove itself in case of timeout if needed
         }
     }
 }

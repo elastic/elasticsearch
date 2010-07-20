@@ -20,6 +20,7 @@
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -332,6 +333,18 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 // make it threaded operation so we fork on the discovery listener thread
                 request.operationThreaded(true);
                 clusterService.add(request.timeout(), new TimeoutClusterStateListener() {
+                    @Override public void postAdded() {
+                        if (start(true)) {
+                            // if we managed to start and perform the operation on the primary, we can remove this listener
+                            clusterService.remove(this);
+                        }
+                    }
+
+                    @Override public void onClose() {
+                        clusterService.remove(this);
+                        listener.onFailure(new ElasticSearchIllegalStateException("node is shutting down"));
+                    }
+
                     @Override public void clusterChanged(ClusterChangedEvent event) {
                         if (start(true)) {
                             // if we managed to start and perform the operation on the primary, we can remove this listener
@@ -345,6 +358,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                             clusterService.remove(this);
                             return;
                         }
+                        clusterService.remove(this);
                         final PrimaryNotStartedActionException failure = new PrimaryNotStartedActionException(shardId, "Timeout waiting for [" + timeValue + "]");
                         if (request.listenerThreaded()) {
                             threadPool.execute(new Runnable() {

@@ -22,6 +22,7 @@ package org.elasticsearch.action.support.master;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
@@ -31,6 +32,8 @@ import java.io.IOException;
  * @author kimchy (shay.banon)
  */
 public abstract class MasterNodeOperationRequest implements ActionRequest {
+
+    private TimeValue masterNodeTimeout = TimeValue.timeValueSeconds(30);
 
     @Override public boolean listenerThreaded() {
         // always threaded
@@ -42,9 +45,23 @@ public abstract class MasterNodeOperationRequest implements ActionRequest {
         return this;
     }
 
+    /**
+     * A timeout value in case the master has not been discovered yet or disconnected.
+     */
+    public MasterNodeOperationRequest masterNodeTimeout(TimeValue timeout) {
+        this.masterNodeTimeout = timeout;
+        return this;
+    }
+
+    public TimeValue masterNodeTimeout() {
+        return this.masterNodeTimeout;
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
+        masterNodeTimeout = TimeValue.readTimeValue(in);
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
+        masterNodeTimeout.writeTo(out);
     }
 }

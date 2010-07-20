@@ -95,6 +95,14 @@ public class PutMappingRequestBuilder extends BaseIndicesRequestBuilder<PutMappi
     }
 
     /**
+     * Sets the master node timeout in case the master has not yet been discovered.
+     */
+    public PutMappingRequestBuilder setMasterNodeTimeout(TimeValue timeout) {
+        request.masterNodeTimeout(timeout);
+        return this;
+    }
+
+    /**
      * If there is already a mapping definition registered against the type, then it will be merged. If there are
      * elements that can't be merged are detected, the request will be rejected unless the
      * {@link #setIgnoreConflicts(boolean)} is set. In such a case, the duplicate mappings will be rejected.

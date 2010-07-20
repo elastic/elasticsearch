@@ -95,6 +95,7 @@ public class ClusterStateRequest extends MasterNodeOperationRequest {
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         filterRoutingTable = in.readBoolean();
         filterNodes = in.readBoolean();
         filterMetaData = in.readBoolean();
@@ -109,6 +110,7 @@ public class ClusterStateRequest extends MasterNodeOperationRequest {
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeBoolean(filterRoutingTable);
         out.writeBoolean(filterNodes);
         out.writeBoolean(filterMetaData);

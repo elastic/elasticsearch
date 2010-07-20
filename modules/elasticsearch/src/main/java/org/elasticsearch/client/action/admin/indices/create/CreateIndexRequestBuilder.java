@@ -130,6 +130,14 @@ public class CreateIndexRequestBuilder extends BaseIndicesRequestBuilder<CreateI
         return this;
     }
 
+    /**
+     * Sets the master node timeout in case the master has not yet been discovered.
+     */
+    public CreateIndexRequestBuilder setMasterNodeTimeout(TimeValue timeout) {
+        request.masterNodeTimeout(timeout);
+        return this;
+    }
+
     @Override protected void doExecute(ActionListener<CreateIndexResponse> listener) {
         client.create(request, listener);
     }

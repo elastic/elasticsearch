@@ -23,8 +23,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchOperationThreading;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.action.support.BaseRequestBuilder;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.Scroll;
 
@@ -35,7 +35,7 @@ import org.elasticsearch.search.Scroll;
  */
 public class SearchScrollRequestBuilder extends BaseRequestBuilder<SearchScrollRequest, SearchResponse> {
 
-    public SearchScrollRequestBuilder(InternalClient client, String scrollId) {
+    public SearchScrollRequestBuilder(Client client, String scrollId) {
         super(client, new SearchScrollRequest(scrollId));
     }
 

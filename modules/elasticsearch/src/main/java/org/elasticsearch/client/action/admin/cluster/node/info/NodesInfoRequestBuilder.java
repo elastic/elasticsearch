@@ -22,15 +22,15 @@ package org.elasticsearch.client.action.admin.cluster.node.info;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.action.admin.cluster.support.BaseClusterRequestBuilder;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class NodesInfoRequestBuilder extends BaseClusterRequestBuilder<NodesInfoRequest, NodesInfoResponse> {
 
-    public NodesInfoRequestBuilder(InternalClusterAdminClient clusterClient) {
+    public NodesInfoRequestBuilder(ClusterAdminClient clusterClient) {
         super(clusterClient, new NodesInfoRequest());
     }
 

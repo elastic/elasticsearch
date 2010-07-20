@@ -22,8 +22,8 @@ package org.elasticsearch.client.action.admin.indices.create;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
@@ -35,7 +35,7 @@ import java.util.Map;
  */
 public class CreateIndexRequestBuilder extends BaseIndicesRequestBuilder<CreateIndexRequest, CreateIndexResponse> {
 
-    public CreateIndexRequestBuilder(InternalIndicesAdminClient indicesClient, String index) {
+    public CreateIndexRequestBuilder(IndicesAdminClient indicesClient, String index) {
         super(indicesClient, new CreateIndexRequest(index));
     }
 

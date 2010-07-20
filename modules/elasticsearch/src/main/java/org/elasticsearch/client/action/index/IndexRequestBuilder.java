@@ -23,8 +23,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.replication.ReplicationType;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.action.support.BaseRequestBuilder;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
@@ -39,7 +39,7 @@ import java.util.Map;
  */
 public class IndexRequestBuilder extends BaseRequestBuilder<IndexRequest, IndexResponse> {
 
-    public IndexRequestBuilder(InternalClient client, @Nullable String index) {
+    public IndexRequestBuilder(Client client, @Nullable String index) {
         super(client, new IndexRequest(index));
     }
 

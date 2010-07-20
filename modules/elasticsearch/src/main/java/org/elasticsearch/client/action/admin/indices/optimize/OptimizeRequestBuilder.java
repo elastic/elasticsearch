@@ -23,8 +23,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
+import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  * A request to optimize one or more indices. In order to optimize on all the indices, pass an empty array or
@@ -40,7 +40,7 @@ import org.elasticsearch.client.internal.InternalIndicesAdminClient;
  */
 public class OptimizeRequestBuilder extends BaseIndicesRequestBuilder<OptimizeRequest, OptimizeResponse> {
 
-    public OptimizeRequestBuilder(InternalIndicesAdminClient indicesClient) {
+    public OptimizeRequestBuilder(IndicesAdminClient indicesClient) {
         super(indicesClient, new OptimizeRequest());
     }
 

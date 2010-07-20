@@ -23,8 +23,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingRequest;
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingResponse;
 import org.elasticsearch.action.support.replication.ReplicationType;
+import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.action.admin.cluster.support.BaseClusterRequestBuilder;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
@@ -32,7 +32,7 @@ import org.elasticsearch.common.unit.TimeValue;
  */
 public class ReplicationPingRequestBuilder extends BaseClusterRequestBuilder<ReplicationPingRequest, ReplicationPingResponse> {
 
-    public ReplicationPingRequestBuilder(InternalClusterAdminClient clusterClient) {
+    public ReplicationPingRequestBuilder(ClusterAdminClient clusterClient) {
         super(clusterClient, new ReplicationPingRequest());
     }
 

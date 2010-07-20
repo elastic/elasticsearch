@@ -25,8 +25,8 @@ import org.elasticsearch.action.search.SearchOperationThreading;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.action.support.BaseRequestBuilder;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
 import org.elasticsearch.search.Scroll;
@@ -47,7 +47,7 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
 
     private HighlightBuilder highlightBuilder;
 
-    public SearchRequestBuilder(InternalClient client) {
+    public SearchRequestBuilder(Client client) {
         super(client, new SearchRequest());
     }
 
@@ -222,11 +222,26 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
         return this;
     }
 
+    /**
+     * Adds a script based field to load and return. The field does not have to be stored,
+     * but its recommended to use non analyzed or numeric fields.
+     *
+     * @param name   The name that will represent this value in the return hit
+     * @param script The script to use
+     */
     public SearchRequestBuilder addScriptField(String name, String script) {
         sourceBuilder().scriptField(name, script);
         return this;
     }
 
+    /**
+     * Adds a script based field to load and return. The field does not have to be stored,
+     * but its recommended to use non analyzed or numeric fields.
+     *
+     * @param name   The name that will represent this value in the return hit
+     * @param script The script to use
+     * @param params Parameters that the script can use.
+     */
     public SearchRequestBuilder addScriptField(String name, String script, Map<String, Object> params) {
         sourceBuilder().scriptField(name, script, params);
         return this;

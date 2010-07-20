@@ -22,15 +22,15 @@ package org.elasticsearch.client.action.admin.cluster.ping.single;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.ping.single.SinglePingRequest;
 import org.elasticsearch.action.admin.cluster.ping.single.SinglePingResponse;
+import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.action.admin.cluster.support.BaseClusterRequestBuilder;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class SinglePingRequestBuilder extends BaseClusterRequestBuilder<SinglePingRequest, SinglePingResponse> {
 
-    public SinglePingRequestBuilder(InternalClusterAdminClient clusterClient) {
+    public SinglePingRequestBuilder(ClusterAdminClient clusterClient) {
         super(clusterClient, new SinglePingRequest());
     }
 

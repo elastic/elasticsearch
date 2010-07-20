@@ -23,8 +23,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
+import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  * A refresh request making all operations performed since the last refresh available for search. The (near) real-time
@@ -35,7 +35,7 @@ import org.elasticsearch.client.internal.InternalIndicesAdminClient;
  */
 public class RefreshRequestBuilder extends BaseIndicesRequestBuilder<RefreshRequest, RefreshResponse> {
 
-    public RefreshRequestBuilder(InternalIndicesAdminClient indicesClient) {
+    public RefreshRequestBuilder(IndicesAdminClient indicesClient) {
         super(indicesClient, new RefreshRequest());
     }
 

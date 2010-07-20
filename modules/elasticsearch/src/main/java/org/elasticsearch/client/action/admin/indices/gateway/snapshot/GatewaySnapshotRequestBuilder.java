@@ -22,8 +22,8 @@ package org.elasticsearch.client.action.admin.indices.gateway.snapshot;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequest;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotResponse;
+import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
@@ -31,7 +31,7 @@ import org.elasticsearch.common.unit.TimeValue;
  */
 public class GatewaySnapshotRequestBuilder extends BaseIndicesRequestBuilder<GatewaySnapshotRequest, GatewaySnapshotResponse> {
 
-    public GatewaySnapshotRequestBuilder(InternalIndicesAdminClient indicesClient) {
+    public GatewaySnapshotRequestBuilder(IndicesAdminClient indicesClient) {
         super(indicesClient, new GatewaySnapshotRequest());
     }
 

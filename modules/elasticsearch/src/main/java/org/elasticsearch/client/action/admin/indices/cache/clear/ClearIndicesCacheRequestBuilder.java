@@ -23,15 +23,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
+import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class ClearIndicesCacheRequestBuilder extends BaseIndicesRequestBuilder<ClearIndicesCacheRequest, ClearIndicesCacheResponse> {
 
-    public ClearIndicesCacheRequestBuilder(InternalIndicesAdminClient indicesClient) {
+    public ClearIndicesCacheRequestBuilder(IndicesAdminClient indicesClient) {
         super(indicesClient, new ClearIndicesCacheRequest());
     }
 

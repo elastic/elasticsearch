@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.action.RequestBuilder;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
@@ -36,8 +37,8 @@ public abstract class BaseIndicesRequestBuilder<Request extends ActionRequest, R
 
     protected final Request request;
 
-    protected BaseIndicesRequestBuilder(InternalIndicesAdminClient client, Request request) {
-        this.client = client;
+    protected BaseIndicesRequestBuilder(IndicesAdminClient client, Request request) {
+        this.client = (InternalIndicesAdminClient) client;
         this.request = request;
     }
 

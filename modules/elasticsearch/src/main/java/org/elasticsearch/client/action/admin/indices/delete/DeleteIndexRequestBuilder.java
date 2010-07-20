@@ -22,8 +22,8 @@ package org.elasticsearch.client.action.admin.indices.delete;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
@@ -31,7 +31,7 @@ import org.elasticsearch.common.unit.TimeValue;
  */
 public class DeleteIndexRequestBuilder extends BaseIndicesRequestBuilder<DeleteIndexRequest, DeleteIndexResponse> {
 
-    public DeleteIndexRequestBuilder(InternalIndicesAdminClient indicesClient, String index) {
+    public DeleteIndexRequestBuilder(IndicesAdminClient indicesClient, String index) {
         super(indicesClient, new DeleteIndexRequest(index));
     }
 

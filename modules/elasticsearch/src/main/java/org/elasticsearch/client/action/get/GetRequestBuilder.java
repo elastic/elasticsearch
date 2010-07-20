@@ -22,8 +22,8 @@ package org.elasticsearch.client.action.get;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.action.support.BaseRequestBuilder;
-import org.elasticsearch.client.internal.InternalClient;
 
 import javax.annotation.Nullable;
 
@@ -34,7 +34,7 @@ import javax.annotation.Nullable;
  */
 public class GetRequestBuilder extends BaseRequestBuilder<GetRequest, GetResponse> {
 
-    public GetRequestBuilder(InternalClient client, @Nullable String index) {
+    public GetRequestBuilder(Client client, @Nullable String index) {
         super(client, new GetRequest(index));
     }
 

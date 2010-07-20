@@ -23,8 +23,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.action.support.BaseRequestBuilder;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.index.query.QueryBuilder;
 
 /**
@@ -34,7 +34,7 @@ import org.elasticsearch.index.query.QueryBuilder;
  */
 public class CountRequestBuilder extends BaseRequestBuilder<CountRequest, CountResponse> {
 
-    public CountRequestBuilder(InternalClient client) {
+    public CountRequestBuilder(Client client) {
         super(client, new CountRequest());
     }
 

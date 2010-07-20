@@ -22,8 +22,8 @@ package org.elasticsearch.client.action.admin.indices.mapping.put;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
+import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 
@@ -34,7 +34,7 @@ import java.util.Map;
  */
 public class PutMappingRequestBuilder extends BaseIndicesRequestBuilder<PutMappingRequest, PutMappingResponse> {
 
-    public PutMappingRequestBuilder(InternalIndicesAdminClient indicesClient) {
+    public PutMappingRequestBuilder(IndicesAdminClient indicesClient) {
         super(indicesClient, new PutMappingRequest());
     }
 

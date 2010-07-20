@@ -23,8 +23,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.support.replication.ReplicationType;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.action.support.BaseRequestBuilder;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -36,7 +36,7 @@ import java.util.Map;
  */
 public class DeleteByQueryRequestBuilder extends BaseRequestBuilder<DeleteByQueryRequest, DeleteByQueryResponse> {
 
-    public DeleteByQueryRequestBuilder(InternalClient client) {
+    public DeleteByQueryRequestBuilder(Client client) {
         super(client, new DeleteByQueryRequest());
     }
 

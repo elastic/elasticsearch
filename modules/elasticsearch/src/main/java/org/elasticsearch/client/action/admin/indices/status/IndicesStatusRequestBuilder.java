@@ -22,15 +22,15 @@ package org.elasticsearch.client.action.admin.indices.status;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
+import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class IndicesStatusRequestBuilder extends BaseIndicesRequestBuilder<IndicesStatusRequest, IndicesStatusResponse> {
 
-    public IndicesStatusRequestBuilder(InternalIndicesAdminClient indicesClient) {
+    public IndicesStatusRequestBuilder(IndicesAdminClient indicesClient) {
         super(indicesClient, new IndicesStatusRequest());
     }
 

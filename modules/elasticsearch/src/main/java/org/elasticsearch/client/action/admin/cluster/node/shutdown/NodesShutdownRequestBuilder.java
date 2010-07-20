@@ -22,8 +22,8 @@ package org.elasticsearch.client.action.admin.cluster.node.shutdown;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownResponse;
+import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.action.admin.cluster.support.BaseClusterRequestBuilder;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
@@ -31,7 +31,7 @@ import org.elasticsearch.common.unit.TimeValue;
  */
 public class NodesShutdownRequestBuilder extends BaseClusterRequestBuilder<NodesShutdownRequest, NodesShutdownResponse> {
 
-    public NodesShutdownRequestBuilder(InternalClusterAdminClient clusterClient) {
+    public NodesShutdownRequestBuilder(ClusterAdminClient clusterClient) {
         super(clusterClient, new NodesShutdownRequest());
     }
 

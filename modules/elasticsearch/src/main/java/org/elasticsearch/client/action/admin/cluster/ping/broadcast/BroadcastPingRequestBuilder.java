@@ -23,15 +23,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingRequest;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
+import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.action.admin.cluster.support.BaseClusterRequestBuilder;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class BroadcastPingRequestBuilder extends BaseClusterRequestBuilder<BroadcastPingRequest, BroadcastPingResponse> {
 
-    public BroadcastPingRequestBuilder(InternalClusterAdminClient clusterClient) {
+    public BroadcastPingRequestBuilder(ClusterAdminClient clusterClient) {
         super(clusterClient, new BroadcastPingRequest());
     }
 

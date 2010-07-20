@@ -22,15 +22,15 @@ package org.elasticsearch.client.action.admin.indices.flush;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class FlushRequestBuilder extends BaseIndicesRequestBuilder<FlushRequest, FlushResponse> {
 
-    public FlushRequestBuilder(InternalIndicesAdminClient indicesClient) {
+    public FlushRequestBuilder(IndicesAdminClient indicesClient) {
         super(indicesClient, new FlushRequest());
     }
 

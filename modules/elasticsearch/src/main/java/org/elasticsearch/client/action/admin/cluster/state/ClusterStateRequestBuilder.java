@@ -22,15 +22,15 @@ package org.elasticsearch.client.action.admin.cluster.state;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.action.admin.cluster.support.BaseClusterRequestBuilder;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class ClusterStateRequestBuilder extends BaseClusterRequestBuilder<ClusterStateRequest, ClusterStateResponse> {
 
-    public ClusterStateRequestBuilder(InternalClusterAdminClient clusterClient) {
+    public ClusterStateRequestBuilder(ClusterAdminClient clusterClient) {
         super(clusterClient, new ClusterStateRequest());
     }
 

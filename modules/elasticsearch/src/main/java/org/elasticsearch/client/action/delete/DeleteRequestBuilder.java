@@ -23,8 +23,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.replication.ReplicationType;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.action.support.BaseRequestBuilder;
-import org.elasticsearch.client.internal.InternalClient;
 
 import javax.annotation.Nullable;
 
@@ -35,7 +35,7 @@ import javax.annotation.Nullable;
  */
 public class DeleteRequestBuilder extends BaseRequestBuilder<DeleteRequest, DeleteResponse> {
 
-    public DeleteRequestBuilder(InternalClient client, @Nullable String index) {
+    public DeleteRequestBuilder(Client client, @Nullable String index) {
         super(client, new DeleteRequest(index));
     }
 

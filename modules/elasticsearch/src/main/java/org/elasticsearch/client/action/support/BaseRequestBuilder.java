@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.action.RequestBuilder;
 import org.elasticsearch.client.internal.InternalClient;
 
@@ -36,8 +37,8 @@ public abstract class BaseRequestBuilder<Request extends ActionRequest, Response
 
     protected final Request request;
 
-    protected BaseRequestBuilder(InternalClient client, Request request) {
-        this.client = client;
+    protected BaseRequestBuilder(Client client, Request request) {
+        this.client = (InternalClient) client;
         this.request = request;
     }
 

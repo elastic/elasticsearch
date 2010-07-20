@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.action.RequestBuilder;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
@@ -36,8 +37,8 @@ public abstract class BaseClusterRequestBuilder<Request extends ActionRequest, R
 
     protected final Request request;
 
-    protected BaseClusterRequestBuilder(InternalClusterAdminClient client, Request request) {
-        this.client = client;
+    protected BaseClusterRequestBuilder(ClusterAdminClient client, Request request) {
+        this.client = (InternalClusterAdminClient) client;
         this.request = request;
     }
 

@@ -22,15 +22,15 @@ package org.elasticsearch.client.action.admin.indices.alias;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class IndicesAliasesRequestBuilder extends BaseIndicesRequestBuilder<IndicesAliasesRequest, IndicesAliasesResponse> {
 
-    public IndicesAliasesRequestBuilder(InternalIndicesAdminClient indicesClient) {
+    public IndicesAliasesRequestBuilder(IndicesAdminClient indicesClient) {
         super(indicesClient, new IndicesAliasesRequest());
     }
 

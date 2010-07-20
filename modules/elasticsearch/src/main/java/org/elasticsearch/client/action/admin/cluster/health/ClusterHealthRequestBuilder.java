@@ -23,8 +23,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.action.admin.cluster.support.BaseClusterRequestBuilder;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
@@ -32,7 +32,7 @@ import org.elasticsearch.common.unit.TimeValue;
  */
 public class ClusterHealthRequestBuilder extends BaseClusterRequestBuilder<ClusterHealthRequest, ClusterHealthResponse> {
 
-    public ClusterHealthRequestBuilder(InternalClusterAdminClient clusterClient) {
+    public ClusterHealthRequestBuilder(ClusterAdminClient clusterClient) {
         super(clusterClient, new ClusterHealthRequest());
     }
 

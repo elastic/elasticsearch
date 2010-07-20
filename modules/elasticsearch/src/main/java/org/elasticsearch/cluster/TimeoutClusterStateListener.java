@@ -22,9 +22,15 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
- * @author kimchy (Shay Banon)
+ * An exception to cluster state listener that allows for timeouts and for post added notifications.
+ *
+ * @author kimchy (shay.banon)
  */
 public interface TimeoutClusterStateListener extends ClusterStateListener {
+
+    void postAdded();
+
+    void onClose();
 
     void onTimeout(TimeValue timeout);
 }

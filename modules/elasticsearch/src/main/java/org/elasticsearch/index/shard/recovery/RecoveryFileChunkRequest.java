@@ -98,4 +98,10 @@ class RecoveryFileChunkRequest implements Streamable {
         out.writeVInt(contentLength);
         out.writeBytes(content, 0, contentLength);
     }
+
+    @Override public String toString() {
+        return shardId + ": name='" + name + '\'' +
+                ", position=" + position +
+                ", length=" + length;
+    }
 }

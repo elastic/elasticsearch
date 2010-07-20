@@ -107,7 +107,7 @@ public class TimerService extends AbstractComponent {
         }
 
         @Override public void run(final Timeout timeout) throws Exception {
-            threadPool.execute(new Runnable() {
+            threadPool.cached().execute(new Runnable() {
                 @Override public void run() {
                     try {
                         task.run(timeout);

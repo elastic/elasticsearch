@@ -87,10 +87,14 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     @Override protected void doStop() throws ElasticSearchException {
         transports.remove(localAddress);
         // now, go over all the transports connected to me, and raise disconnected event
-        for (LocalTransport targetTransport : transports.values()) {
-            for (Map.Entry<DiscoveryNode, LocalTransport> entry : targetTransport.connectedNodes.entrySet()) {
+        for (final LocalTransport targetTransport : transports.values()) {
+            for (final Map.Entry<DiscoveryNode, LocalTransport> entry : targetTransport.connectedNodes.entrySet()) {
                 if (entry.getValue() == this) {
-                    targetTransport.disconnectFromNode(entry.getKey());
+                    targetTransport.threadPool().cached().execute(new Runnable() {
+                        @Override public void run() {
+                            targetTransport.disconnectFromNode(entry.getKey());
+                        }
+                    });
                 }
             }
         }

@@ -230,6 +230,7 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         cause = in.readUTF();
         index = in.readUTF();
         settings = readSettingsFromStream(in);
@@ -241,6 +242,7 @@ public class CreateIndexRequest extends MasterNodeOperationRequest {
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeUTF(cause);
         out.writeUTF(index);
         writeSettingsToStream(settings, out);

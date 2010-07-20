@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
+import org.elasticsearch.common.unit.TimeValue;
 
 /**
  * @author kimchy (shay.banon)
@@ -53,6 +54,14 @@ public class IndicesAliasesRequestBuilder extends BaseIndicesRequestBuilder<Indi
      */
     public IndicesAliasesRequestBuilder removeAlias(String index, String alias) {
         request.removeAlias(index, alias);
+        return this;
+    }
+
+    /**
+     * Sets the master node timeout in case the master has not yet been discovered.
+     */
+    public IndicesAliasesRequestBuilder setMasterNodeTimeout(TimeValue timeout) {
+        request.masterNodeTimeout(timeout);
         return this;
     }
 

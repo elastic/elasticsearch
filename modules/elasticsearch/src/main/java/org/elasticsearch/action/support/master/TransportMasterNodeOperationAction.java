@@ -20,7 +20,6 @@
 package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.BaseAction;
@@ -31,6 +30,7 @@ import org.elasticsearch.cluster.TimeoutClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.NodeCloseException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -94,7 +94,38 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
             });
         } else {
             if (nodes.masterNode() == null) {
-                throw new ElasticSearchIllegalStateException("No master node discovered or set");
+                if (retrying) {
+                    listener.onFailure(new MasterNotDiscoveredException());
+                } else {
+                    clusterService.add(request.masterNodeTimeout(), new TimeoutClusterStateListener() {
+                        @Override public void postAdded() {
+                            ClusterState clusterStateV2 = clusterService.state();
+                            if (clusterStateV2.nodes().masterNodeId() != null) {
+                                // now we have a master, try and execute it...
+                                clusterService.remove(this);
+                                innerExecute(request, listener, true);
+                            }
+                        }
+
+                        @Override public void onClose() {
+                            clusterService.remove(this);
+                            listener.onFailure(new NodeCloseException(nodes.localNode()));
+                        }
+
+                        @Override public void onTimeout(TimeValue timeout) {
+                            clusterService.remove(this);
+                            listener.onFailure(new MasterNotDiscoveredException());
+                        }
+
+                        @Override public void clusterChanged(ClusterChangedEvent event) {
+                            if (event.nodesDelta().masterNodeChanged()) {
+                                clusterService.remove(this);
+                                innerExecute(request, listener, true);
+                            }
+                        }
+                    });
+                }
+                return;
             }
             processBeforeDelegationToMaster(request, clusterState);
             transportService.sendRequest(nodes.masterNode(), transportAction(), request, new BaseTransportResponseHandler<Response>() {
@@ -112,7 +143,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                     } else {
                         if (exp.unwrapCause() instanceof ConnectTransportException) {
                             // we want to retry here a bit to see if a new master is elected
-                            clusterService.add(TimeValue.timeValueSeconds(30), new TimeoutClusterStateListener() {
+                            clusterService.add(request.masterNodeTimeout(), new TimeoutClusterStateListener() {
                                 @Override public void postAdded() {
                                     ClusterState clusterStateV2 = clusterService.state();
                                     if (!clusterState.nodes().masterNodeId().equals(clusterStateV2.nodes().masterNodeId())) {

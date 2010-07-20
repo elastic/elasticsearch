@@ -59,6 +59,15 @@ public class NodesShutdownRequestBuilder extends BaseClusterRequestBuilder<Nodes
         return this;
     }
 
+    /**
+     * Sets the master node timeout in case the master has not yet been discovered.
+     */
+    public NodesShutdownRequestBuilder setMasterNodeTimeout(TimeValue timeout) {
+        request.masterNodeTimeout(timeout);
+        return this;
+    }
+
+
     @Override protected void doExecute(ActionListener<NodesShutdownResponse> listener) {
         client.nodesShutdown(request, listener);
     }

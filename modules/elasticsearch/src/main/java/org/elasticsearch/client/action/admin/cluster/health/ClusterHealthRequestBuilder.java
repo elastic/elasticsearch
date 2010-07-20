@@ -41,6 +41,14 @@ public class ClusterHealthRequestBuilder extends BaseClusterRequestBuilder<Clust
         return this;
     }
 
+    /**
+     * Sets the master node timeout in case the master has not yet been discovered.
+     */
+    public ClusterHealthRequestBuilder setMasterNodeTimeout(TimeValue timeout) {
+        request.masterNodeTimeout(timeout);
+        return this;
+    }
+
     public ClusterHealthRequestBuilder setTimeout(TimeValue timeout) {
         request.timeout(timeout);
         return this;

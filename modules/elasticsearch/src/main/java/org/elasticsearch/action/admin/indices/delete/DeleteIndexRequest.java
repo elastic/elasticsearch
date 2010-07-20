@@ -92,11 +92,13 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest {
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         index = in.readUTF();
         timeout = readTimeValue(in);
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeUTF(index);
         timeout.writeTo(out);
     }

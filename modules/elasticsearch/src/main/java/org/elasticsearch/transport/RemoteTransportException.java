@@ -23,7 +23,7 @@ import org.elasticsearch.ElasticSearchWrapperException;
 import org.elasticsearch.common.transport.TransportAddress;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class RemoteTransportException extends TransportException implements ElasticSearchWrapperException {
 

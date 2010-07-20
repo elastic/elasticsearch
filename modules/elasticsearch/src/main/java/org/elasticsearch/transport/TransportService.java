@@ -195,9 +195,10 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             }
             // callback that an exception happened, but on a different thread since we don't
             // want handlers to worry about stack overflows
+            final SendRequestTransportException sendRequestException = new SendRequestTransportException(node, action, e);
             threadPool.execute(new Runnable() {
                 @Override public void run() {
-                    handler.handleException(new SendRequestTransportException(node, action, e));
+                    handler.handleException(sendRequestException);
                 }
             });
         }

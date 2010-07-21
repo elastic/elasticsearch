@@ -69,7 +69,7 @@ public class PublishClusterStateAction extends AbstractComponent {
             }
             transportService.sendRequest(node, PublishClusterStateRequestHandler.ACTION, new PublishClusterStateRequest(clusterState), new VoidTransportResponseHandler(false) {
                 @Override public void handleException(RemoteTransportException exp) {
-                    logger.warn("failed to send cluster state to [{}], should be detected as failed soon...", exp, node);
+                    logger.debug("failed to send cluster state to [{}], should be detected as failed soon...", exp, node);
                 }
             });
         }

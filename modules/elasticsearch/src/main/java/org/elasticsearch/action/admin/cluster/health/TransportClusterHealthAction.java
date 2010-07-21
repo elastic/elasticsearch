@@ -65,7 +65,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
     }
 
     @Override protected ClusterHealthResponse masterOperation(ClusterHealthRequest request, ClusterState state) throws ElasticSearchException {
-        int waitFor = 3;
+        int waitFor = 4;
         if (request.waitForStatus() == null) {
             waitFor--;
         }
@@ -73,6 +73,9 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
             waitFor--;
         }
         if (request.waitForActiveShards() == -1) {
+            waitFor--;
+        }
+        if (request.waitForNodes().isEmpty()) {
             waitFor--;
         }
         if (waitFor == 0) {
@@ -91,6 +94,34 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
             }
             if (request.waitForActiveShards() != -1 && response.activeShards() >= request.waitForActiveShards()) {
                 waitForCounter++;
+            }
+            if (!request.waitForNodes().isEmpty()) {
+                if (request.waitForNodes().startsWith(">=")) {
+                    int expected = Integer.parseInt(request.waitForNodes().substring(2));
+                    if (response.numberOfNodes() >= expected) {
+                        waitForCounter++;
+                    }
+                } else if (request.waitForNodes().startsWith("M=")) {
+                    int expected = Integer.parseInt(request.waitForNodes().substring(2));
+                    if (response.numberOfNodes() <= expected) {
+                        waitForCounter++;
+                    }
+                } else if (request.waitForNodes().startsWith(">")) {
+                    int expected = Integer.parseInt(request.waitForNodes().substring(1));
+                    if (response.numberOfNodes() > expected) {
+                        waitForCounter++;
+                    }
+                } else if (request.waitForNodes().startsWith("<")) {
+                    int expected = Integer.parseInt(request.waitForNodes().substring(1));
+                    if (response.numberOfNodes() < expected) {
+                        waitForCounter++;
+                    }
+                } else {
+                    int expected = Integer.parseInt(request.waitForNodes());
+                    if (response.numberOfNodes() == expected) {
+                        waitForCounter++;
+                    }
+                }
             }
             if (waitForCounter == waitFor) {
                 return response;
@@ -113,7 +144,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
         ClusterState clusterState = clusterService.state();
         RoutingTableValidation validation = clusterState.routingTable().validate(clusterState.metaData());
         ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), validation.failures());
-
+        response.numberOfNodes = clusterState.nodes().size();
         request.indices(clusterState.metaData().concreteIndices(request.indices()));
 
         for (String index : request.indices()) {

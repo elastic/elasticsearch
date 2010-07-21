@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test.integration.recovery;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -104,7 +103,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
 
         logger.info("--> waiting for GREEN health status ...");
         // make sure the cluster state is green, and all has been recovered
-        assertThat(client("node1").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(client("node1").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet().timedOut(), equalTo(false));
 
         logger.info("--> waiting for 100000 docs to be indexed ...");
         while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 100000) {
@@ -185,7 +184,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
         startNode("node4");
 
         logger.info("--> waiting for GREEN health status ...");
-        assertThat(client("node1").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(client("node1").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().setWaitForNodes("4").execute().actionGet().timedOut(), equalTo(false));
 
 
         logger.info("--> waiting for 150000 docs to be indexed ...");
@@ -271,7 +270,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
         startNode("node4");
 
         logger.info("--> waiting for GREEN health status ...");
-        assertThat(client("node1").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(client("node1").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().setWaitForNodes("4").execute().actionGet().timedOut(), equalTo(false));
 
 
         logger.info("--> waiting for 100000 docs to be indexed ...");
@@ -285,24 +284,24 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
         logger.info("--> shutting down [node1] ...");
         closeNode("node1");
         logger.info("--> waiting for GREEN health status ...");
-        assertThat(client("node2").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(client("node2").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().setWaitForNodes("3").execute().actionGet().timedOut(), equalTo(false));
 
         logger.info("--> shutting down [node3] ...");
         closeNode("node3");
         logger.info("--> waiting for GREEN health status ...");
-        assertThat(client("node2").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(client("node2").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet().timedOut(), equalTo(false));
 
         logger.info("--> shutting down [node4] ...");
         closeNode("node4");
         logger.info("--> waiting for YELLOW health status ...");
-        assertThat(client("node2").admin().cluster().prepareHealth().setTimeout("1m").setWaitForYellowStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.YELLOW));
+        assertThat(client("node2").admin().cluster().prepareHealth().setTimeout("1m").setWaitForYellowStatus().setWaitForNodes("1").execute().actionGet().timedOut(), equalTo(false));
 
         logger.info("--> marking and waiting for indexing threads to stop ...");
         stop.set(true);
         stopLatch.await();
         logger.info("--> indexing threads stopped");
 
-        assertThat(client("node2").admin().cluster().prepareHealth().setTimeout("1m").setWaitForYellowStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.YELLOW));
+        assertThat(client("node2").admin().cluster().prepareHealth().setTimeout("1m").setWaitForYellowStatus().setWaitForNodes("1").execute().actionGet().timedOut(), equalTo(false));
 
         logger.info("--> refreshing the index");
         client("node2").admin().indices().prepareRefresh().execute().actionGet();

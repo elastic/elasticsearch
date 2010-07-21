@@ -89,12 +89,10 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         logger.info("Starting server2");
         // start another server
         startNode("server2", settings);
-        Thread.sleep(200);
-
         ClusterService clusterService2 = ((InternalNode) node("server2")).injector().getInstance(ClusterService.class);
 
         logger.info("Running Cluster Health");
-        clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForGreenStatus()).actionGet();
+        clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForGreenStatus().waitForNodes("2")).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
@@ -113,12 +111,11 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         logger.info("Starting server3");
         // start another server
         startNode("server3", settings);
-        Thread.sleep(200);
 
         ClusterService clusterService3 = ((InternalNode) node("server3")).injector().getInstance(ClusterService.class);
 
         logger.info("Running Cluster Health");
-        clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForGreenStatus().waitForRelocatingShards(0)).actionGet();
+        clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForGreenStatus().waitForNodes("3").waitForRelocatingShards(0)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
@@ -146,11 +143,9 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         logger.info("Closing server1");
         // kill the first server
         closeNode("server1");
-        // wait a bit so it will be discovered as removed
-        Thread.sleep(200);
         // verify health
         logger.info("Running Cluster Health");
-        clusterHealth = client("server2").admin().cluster().health(clusterHealth().waitForGreenStatus().waitForRelocatingShards(0)).actionGet();
+        clusterHealth = client("server2").admin().cluster().health(clusterHealth().waitForGreenStatus().waitForRelocatingShards(0).waitForNodes("2")).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
@@ -219,11 +214,9 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         // start another server
         logger.info("Starting server2");
         startNode("server2", settings);
-        // wait a bit
-        Thread.sleep(200);
 
         logger.info("Running Cluster Health");
-        clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForGreenStatus().waitForRelocatingShards(0)).actionGet();
+        clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForGreenStatus().waitForRelocatingShards(0).waitForNodes("2")).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
@@ -247,13 +240,11 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         // start another server
         logger.info("Starting server3");
         startNode("server3");
-        // wait a bit so assignment will start
-        Thread.sleep(200);
 
         ClusterService clusterService3 = ((InternalNode) node("server3")).injector().getInstance(ClusterService.class);
 
         logger.info("Running Cluster Health");
-        clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForGreenStatus().waitForRelocatingShards(0)).actionGet();
+        clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForGreenStatus().waitForRelocatingShards(0).waitForNodes("3")).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
@@ -281,11 +272,9 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         logger.info("Closing server1");
         // kill the first server
         closeNode("server1");
-        // wait a bit so it will be discovered as removed
-        Thread.sleep(200);
 
         logger.info("Running Cluster Health");
-        clusterHealth = client("server3").admin().cluster().health(clusterHealth().waitForGreenStatus().waitForRelocatingShards(0)).actionGet();
+        clusterHealth = client("server3").admin().cluster().health(clusterHealth().waitForGreenStatus().waitForNodes("2").waitForRelocatingShards(0)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));

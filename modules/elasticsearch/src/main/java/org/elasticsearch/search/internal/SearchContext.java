@@ -144,9 +144,7 @@ public class SearchContext implements Releasable {
             // ignore this as well
         }
         engineSearcher.release();
-        if (!keepAliveTimeout.isCancelled()) {
-            keepAliveTimeout.cancel();
-        }
+        keepAliveTimeout.cancel();
         return true;
     }
 

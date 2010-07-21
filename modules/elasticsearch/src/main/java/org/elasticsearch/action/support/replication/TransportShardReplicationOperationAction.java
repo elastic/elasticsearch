@@ -42,7 +42,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
-import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndexMissingException;
@@ -295,8 +294,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                             }
 
                             @Override public void handleException(RemoteTransportException exp) {
-                                // if we got disconnected from the node, retry it...
-                                if (exp.unwrapCause() instanceof ConnectTransportException || exp.unwrapCause() instanceof NodeCloseException) {
+                                // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
+                                if (exp.unwrapCause() instanceof ConnectTransportException || exp.unwrapCause() instanceof NodeCloseException ||
+                                        exp.unwrapCause() instanceof IllegalIndexShardStateException) {
                                     primaryOperationStarted.set(false);
                                     retryPrimary(fromClusterEvent, shard.shardId());
                                 } else {
@@ -379,8 +379,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 Response response = shardOperationOnPrimary(new ShardOperationRequest(primaryShardId, request));
                 performReplicas(response, alreadyThreaded);
             } catch (Exception e) {
-                if (e instanceof IndexShardMissingException || e instanceof IndexShardNotStartedException
-                        || e instanceof IndexMissingException) {
+                // shard has not been allocated yet, retry it here
+                if (e instanceof IndexShardMissingException || e instanceof IllegalIndexShardStateException || e instanceof IndexMissingException) {
                     retryPrimary(fromDiscoveryListener, shard.shardId());
                     return;
                 }
@@ -559,13 +559,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         }
 
         /**
-         * Should an exception be ignored when the operation is performed on the replica. The exception
-         * is ignored if it is:
-         *
-         * <ul>
-         * <li><tt>IllegalIndexShardStateException</tt>: The shard has not yet moved to started mode (it is still recovering).
-         * <li><tt>IndexMissingException</tt>/<tt>IndexShardMissingException</tt>: The shard has not yet started to initialize on the target node.
-         * </ul>
+         * Should an exception be ignored when the operation is performed on the replica.
          */
         private boolean ignoreReplicaException(Throwable e) {
             Throwable cause = ExceptionsHelper.unwrapCause(e);

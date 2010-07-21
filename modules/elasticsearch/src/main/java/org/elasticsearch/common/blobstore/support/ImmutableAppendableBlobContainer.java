@@ -53,8 +53,9 @@ public class ImmutableAppendableBlobContainer extends AbstractBlobContainer impl
                 String partBlobName = blobName + ".a" + (part++);
                 try {
                     listener.withStream(out);
-                } catch (IOException e) {
+                } catch (Exception e) {
                     listener.onFailure(e);
+                    return;
                 }
                 FastByteArrayInputStream is = new FastByteArrayInputStream(out.unsafeByteArray(), 0, out.size());
                 container.writeBlob(partBlobName, is, out.size(), new ImmutableBlobContainer.WriterListener() {

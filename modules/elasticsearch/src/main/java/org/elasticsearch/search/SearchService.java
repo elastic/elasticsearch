@@ -286,38 +286,43 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     private SearchContext createContext(InternalSearchRequest request) throws ElasticSearchException {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(request.shardId());
-        Engine.Searcher engineSearcher = indexShard.searcher();
 
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.state().nodes().localNodeId(), request.index(), request.shardId());
 
+        Engine.Searcher engineSearcher = indexShard.searcher();
         SearchContext context = new SearchContext(idGenerator.incrementAndGet(), shardTarget, request.numberOfShards(), request.timeout(), request.types(), engineSearcher, indexService, scriptService);
 
-        context.scroll(request.scroll());
+        try {
+            context.scroll(request.scroll());
 
-        parseSource(context, request.source(), request.sourceOffset(), request.sourceLength());
-        parseSource(context, request.extraSource(), request.extraSourceOffset(), request.extraSourceLength());
+            parseSource(context, request.source(), request.sourceOffset(), request.sourceLength());
+            parseSource(context, request.extraSource(), request.extraSourceOffset(), request.extraSourceLength());
 
-        // if the from and size are still not set, default them
-        if (context.from() == -1) {
-            context.from(0);
+            // if the from and size are still not set, default them
+            if (context.from() == -1) {
+                context.from(0);
+            }
+            if (context.size() == -1) {
+                context.size(10);
+            }
+
+            // pre process
+            dfsPhase.preProcess(context);
+            queryPhase.preProcess(context);
+            fetchPhase.preProcess(context);
+
+            // compute the context keep alive
+            TimeValue keepAlive = defaultKeepAlive;
+            if (request.scroll() != null && request.scroll().keepAlive() != null) {
+                keepAlive = request.scroll().keepAlive();
+            }
+            context.keepAlive(keepAlive);
+            context.accessed(timerService.estimatedTimeInMillis());
+            context.keepAliveTimeout(timerService.newTimeout(new KeepAliveTimerTask(context), keepAlive, TimerService.ExecutionType.DEFAULT));
+        } catch (RuntimeException e) {
+            context.release();
+            throw e;
         }
-        if (context.size() == -1) {
-            context.size(10);
-        }
-
-        // pre process
-        dfsPhase.preProcess(context);
-        queryPhase.preProcess(context);
-        fetchPhase.preProcess(context);
-
-        // compute the context keep alive
-        TimeValue keepAlive = defaultKeepAlive;
-        if (request.scroll() != null && request.scroll().keepAlive() != null) {
-            keepAlive = request.scroll().keepAlive();
-        }
-        context.keepAlive(keepAlive);
-        context.accessed(timerService.estimatedTimeInMillis());
-        context.keepAliveTimeout(timerService.newTimeout(new KeepAliveTimerTask(context), keepAlive, TimerService.ExecutionType.DEFAULT));
 
         return context;
     }

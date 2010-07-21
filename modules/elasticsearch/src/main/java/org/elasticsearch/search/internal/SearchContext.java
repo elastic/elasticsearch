@@ -21,7 +21,6 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.timer.Timeout;
@@ -45,7 +44,6 @@ import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.query.QuerySearchResult;
 
-import java.io.IOException;
 import java.util.List;
 
 /**
@@ -136,15 +134,16 @@ public class SearchContext implements Releasable {
     }
 
     @Override public boolean release() throws ElasticSearchException {
+        // we should close this searcher, since its a new one we create each time, and we use the IndexReader
         try {
             searcher.close();
-        } catch (IOException e) {
-            // ignore this exception
-        } catch (AlreadyClosedException e) {
-            // ignore this as well
+        } catch (Exception e) {
+            // ignore any exception here
         }
         engineSearcher.release();
-        keepAliveTimeout.cancel();
+        if (keepAliveTimeout != null) {
+            keepAliveTimeout.cancel();
+        }
         return true;
     }
 

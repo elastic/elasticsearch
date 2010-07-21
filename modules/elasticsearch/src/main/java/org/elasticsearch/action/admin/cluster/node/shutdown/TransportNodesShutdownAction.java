@@ -196,7 +196,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
                         // ignore
                     }
 
-                    logger.info("[partial_cluster_shutdown]: done shutting down [{}]", nodesIds);
+                    logger.info("[partial_cluster_shutdown]: done shutting down [{}]", ((Object) nodesIds));
                 }
             });
             t.start();

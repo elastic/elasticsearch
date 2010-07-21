@@ -151,7 +151,7 @@ public class XContentAttachmentMapper implements XContentMapper {
      */
     public static class TypeParser implements XContentTypeParser {
 
-        @Override public XContentMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        @SuppressWarnings({"unchecked"}) @Override public XContentMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             XContentAttachmentMapper.Builder builder = new XContentAttachmentMapper.Builder(name);
 
             for (Map.Entry<String, Object> entry : node.entrySet()) {

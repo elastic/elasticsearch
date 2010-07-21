@@ -17,28 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.action.support.replication;
+package org.elasticsearch.index.engine;
 
-import org.elasticsearch.ElasticSearchWrapperException;
-import org.elasticsearch.index.shard.IndexShardException;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 
 /**
- * An exception indicating that a failure occurred performing an operation on the shard.
+ * An engine is already closed.
+ *
+ * <p>Note, the relationship between shard and engine indicates that engine closed is shard closed, and
+ * we might get something slipping through the the shard and into the engine while the shard is closing.
  *
  * @author kimchy (shay.banon)
  */
-public class ReplicationShardOperationFailedException extends IndexShardException implements ElasticSearchWrapperException {
+public class EngineClosedException extends IndexShardClosedException {
 
-    public ReplicationShardOperationFailedException(ShardId shardId, String msg) {
-        super(shardId, msg, null);
-    }
-
-    public ReplicationShardOperationFailedException(ShardId shardId, Throwable cause) {
-        super(shardId, "", cause);
-    }
-
-    public ReplicationShardOperationFailedException(ShardId shardId, String msg, Throwable cause) {
-        super(shardId, msg, cause);
+    public EngineClosedException(ShardId shardId) {
+        super(shardId);
     }
 }

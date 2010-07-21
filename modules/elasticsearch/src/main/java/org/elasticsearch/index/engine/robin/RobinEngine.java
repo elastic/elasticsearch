@@ -182,7 +182,11 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
     @Override public void create(Create create) throws EngineException {
         rwl.readLock().lock();
         try {
-            indexWriter.addDocument(create.doc(), create.analyzer());
+            IndexWriter writer = this.indexWriter;
+            if (writer == null) {
+                throw new EngineClosedException(shardId);
+            }
+            writer.addDocument(create.doc(), create.analyzer());
             translog.add(new Translog.Create(create));
             dirty = true;
         } catch (IOException e) {
@@ -195,7 +199,11 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
     @Override public void index(Index index) throws EngineException {
         rwl.readLock().lock();
         try {
-            indexWriter.updateDocument(index.uid(), index.doc(), index.analyzer());
+            IndexWriter writer = this.indexWriter;
+            if (writer == null) {
+                throw new EngineClosedException(shardId);
+            }
+            writer.updateDocument(index.uid(), index.doc(), index.analyzer());
             translog.add(new Translog.Index(index));
             dirty = true;
         } catch (IOException e) {
@@ -208,7 +216,11 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
     @Override public void delete(Delete delete) throws EngineException {
         rwl.readLock().lock();
         try {
-            indexWriter.deleteDocuments(delete.uid());
+            IndexWriter writer = this.indexWriter;
+            if (writer == null) {
+                throw new EngineClosedException(shardId);
+            }
+            writer.deleteDocuments(delete.uid());
             translog.add(new Translog.Delete(delete));
             dirty = true;
         } catch (IOException e) {
@@ -221,7 +233,11 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
     @Override public void delete(DeleteByQuery delete) throws EngineException {
         rwl.readLock().lock();
         try {
-            indexWriter.deleteDocuments(delete.query());
+            IndexWriter writer = this.indexWriter;
+            if (writer == null) {
+                throw new EngineClosedException(shardId);
+            }
+            writer.deleteDocuments(delete.query());
             translog.add(new Translog.DeleteByQuery(delete));
             dirty = true;
         } catch (IOException e) {

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.UUID;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
@@ -350,6 +351,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 }
 
                 ClusterBlocks clusterBlocks = currentState.blocks();
+                MetaData metaData = currentState.metaData();
+                RoutingTable routingTable = currentState.routingTable();
                 List<DiscoveryNode> nodes = newArrayList(currentState.nodes().nodes().values());
                 nodes.remove(masterNode); // remove the master node from the list, it has failed
                 final DiscoveryNode electedMaster = electMaster.electMaster(nodes); // elect master
@@ -375,6 +378,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         logger.warn("master_left and no other node elected to become master, current nodes: {}", nodes);
                         builder.masterNodeId(null);
                         clusterBlocks = ClusterBlocks.builder().blocks(clusterBlocks).addGlobalBlock(NO_MASTER_BLOCK).build();
+                        // if this is a data node, clean the metadata and routing, since we want to recreate the indices and shards
+                        if (currentState.nodes().localNode().dataNode()) {
+                            metaData = MetaData.newMetaDataBuilder().build();
+                            routingTable = RoutingTable.newRoutingTableBuilder().build();
+                        }
                         masterFD.stop("no master elected since master left (reason = " + reason + ")");
                         // try and join the cluster again...
                         threadPool.cached().execute(new Runnable() {
@@ -384,7 +392,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         });
                     }
                     latestDiscoNodes = builder.build();
-                    return newClusterStateBuilder().state(currentState).blocks(clusterBlocks).nodes(latestDiscoNodes).build();
+                    return newClusterStateBuilder().state(currentState)
+                            .blocks(clusterBlocks)
+                            .nodes(latestDiscoNodes)
+                            .metaData(metaData)
+                            .routingTable(routingTable)
+                            .build();
                 }
             }
 

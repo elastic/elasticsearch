@@ -86,9 +86,8 @@ public class SimpleRecoveryTests extends AbstractNodesTests {
 
         // now start another one so we move some primaries
         startNode("server3");
-        Thread.sleep(1000);
         logger.info("Running Cluster Health");
-        clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForGreenStatus()).actionGet();
+        clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForGreenStatus().waitForNodes("3")).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));

@@ -84,6 +84,14 @@ public class ClusterHealthRequestBuilder extends BaseClusterRequestBuilder<Clust
         return this;
     }
 
+    /**
+     * Waits for N number of nodes. Use "12" for exact mapping, ">12" and "<12" for range.
+     */
+    public ClusterHealthRequestBuilder setWaitForNodes(String waitForNodes) {
+        request.waitForNodes(waitForNodes);
+        return this;
+    }
+
     @Override protected void doExecute(ActionListener<ClusterHealthResponse> listener) {
         client.health(request, listener);
     }

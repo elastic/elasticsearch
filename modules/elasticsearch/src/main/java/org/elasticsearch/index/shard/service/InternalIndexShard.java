@@ -36,10 +36,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.cache.IndexCache;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineException;
-import org.elasticsearch.index.engine.RefreshFailedEngineException;
-import org.elasticsearch.index.engine.ScheduledRefreshableEngine;
+import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperNotFoundException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -517,6 +514,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         @Override public void run() {
             try {
                 engine.refresh(new Engine.Refresh(false));
+            } catch (EngineClosedException e) {
+                // we are being closed, ignore
             } catch (RefreshFailedEngineException e) {
                 if (e.getCause() instanceof InterruptedException) {
                     // ignore, we are being shutdown

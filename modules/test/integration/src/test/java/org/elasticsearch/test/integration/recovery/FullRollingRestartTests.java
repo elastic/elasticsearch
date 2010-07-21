@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test.integration.recovery;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
@@ -57,14 +56,14 @@ public class FullRollingRestartTests extends AbstractNodesTests {
         startNode("node3");
 
         // make sure the cluster state is green, and all has been recovered
-        assertThat(client("node1").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(client("node1").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().setWaitForNodes("3").execute().actionGet().timedOut(), equalTo(false));
 
         // now start adding nodes
         startNode("node4");
         startNode("node5");
 
         // make sure the cluster state is green, and all has been recovered
-        assertThat(client("node1").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(client("node1").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().setWaitForNodes("5").execute().actionGet().timedOut(), equalTo(false));
 
         client("node1").admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
@@ -74,10 +73,10 @@ public class FullRollingRestartTests extends AbstractNodesTests {
         // now start shutting nodes down
         closeNode("node1");
         // make sure the cluster state is green, and all has been recovered
-        assertThat(client("node5").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(client("node5").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().setWaitForNodes("4").execute().actionGet().timedOut(), equalTo(false));
         closeNode("node2");
         // make sure the cluster state is green, and all has been recovered
-        assertThat(client("node5").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(client("node5").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().setWaitForNodes("3").execute().actionGet().timedOut(), equalTo(false));
 
 
         client("node5").admin().indices().prepareRefresh().execute().actionGet();
@@ -87,11 +86,11 @@ public class FullRollingRestartTests extends AbstractNodesTests {
 
         closeNode("node3");
         // make sure the cluster state is green, and all has been recovered
-        assertThat(client("node5").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(client("node5").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet().timedOut(), equalTo(false));
         closeNode("node4");
 
         // make sure the cluster state is green, and all has been recovered
-        assertThat(client("node5").admin().cluster().prepareHealth().setTimeout("1m").setWaitForYellowStatus().execute().actionGet().status(), equalTo(ClusterHealthStatus.YELLOW));
+        assertThat(client("node5").admin().cluster().prepareHealth().setTimeout("1m").setWaitForYellowStatus().setWaitForNodes("1").execute().actionGet().timedOut(), equalTo(false));
 
         client("node5").admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {

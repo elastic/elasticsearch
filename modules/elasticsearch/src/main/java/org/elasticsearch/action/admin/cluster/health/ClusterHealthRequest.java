@@ -46,6 +46,8 @@ public class ClusterHealthRequest extends MasterNodeOperationRequest {
 
     private int waitForActiveShards = -1;
 
+    private String waitForNodes = "";
+
     ClusterHealthRequest() {
     }
 
@@ -110,6 +112,18 @@ public class ClusterHealthRequest extends MasterNodeOperationRequest {
         return this;
     }
 
+    public String waitForNodes() {
+        return waitForNodes;
+    }
+
+    /**
+     * Waits for N number of nodes. Use "12" for exact mapping, ">12" and "<12" for range.
+     */
+    public ClusterHealthRequest waitForNodes(String waitForNodes) {
+        this.waitForNodes = waitForNodes;
+        return this;
+    }
+
     @Override public ActionRequestValidationException validate() {
         return null;
     }
@@ -131,6 +145,7 @@ public class ClusterHealthRequest extends MasterNodeOperationRequest {
         }
         waitForRelocatingShards = in.readInt();
         waitForActiveShards = in.readInt();
+        waitForNodes = in.readUTF();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -152,5 +167,6 @@ public class ClusterHealthRequest extends MasterNodeOperationRequest {
         }
         out.writeInt(waitForRelocatingShards);
         out.writeInt(waitForActiveShards);
+        out.writeUTF(waitForNodes);
     }
 }

@@ -276,6 +276,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
         rwl.readLock().lock();
+        if (indexWriter == null) {
+            throw new EngineClosedException(shardId);
+        }
         try {
             // this engine always acts as if waitForOperations=true
             if (refreshMutex.compareAndSet(false, true)) {

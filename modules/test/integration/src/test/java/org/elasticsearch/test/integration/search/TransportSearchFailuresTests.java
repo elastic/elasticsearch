@@ -75,7 +75,7 @@ public class TransportSearchFailuresTests extends AbstractNodesTests {
         }
 
         startNode("server2");
-        Thread.sleep(500);
+        assertThat(client("server1").admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet().timedOut(), equalTo(false));
 
         logger.info("Running Cluster Health");
         ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealth("test")

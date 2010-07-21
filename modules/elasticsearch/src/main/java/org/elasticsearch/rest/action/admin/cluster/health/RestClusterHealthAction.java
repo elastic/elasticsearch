@@ -57,6 +57,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
             }
             clusterHealthRequest.waitForRelocatingShards(request.paramAsInt("wait_for_relocating_shards", clusterHealthRequest.waitForRelocatingShards()));
             clusterHealthRequest.waitForActiveShards(request.paramAsInt("wait_for_active_shards", clusterHealthRequest.waitForActiveShards()));
+            clusterHealthRequest.waitForNodes(request.param("wait_for_nodes", clusterHealthRequest.waitForNodes()));
             String sLevel = request.param("level");
             if (sLevel != null) {
                 if ("cluster".equals("sLevel")) {
@@ -85,6 +86,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
 
                     builder.field("status", response.status().name().toLowerCase());
                     builder.field("timed_out", response.timedOut());
+                    builder.field("number_of_nodes", response.numberOfNodes());
                     builder.field("active_primary_shards", response.activePrimaryShards());
                     builder.field("active_shards", response.activeShards());
                     builder.field("relocating_shards", response.relocatingShards());

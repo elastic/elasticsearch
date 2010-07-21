@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.blobstore.fs;
 
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobStores;
@@ -53,10 +54,16 @@ public class FsImmutableBlobContainer extends AbstractFsBlobContainer implements
                 }
                 try {
                     try {
+                        long bytesWritten = 0;
                         byte[] buffer = new byte[blobStore.bufferSizeInBytes()];
                         int bytesRead;
                         while ((bytesRead = is.read(buffer)) != -1) {
                             raf.write(buffer, 0, bytesRead);
+                            bytesWritten += bytesRead;
+                        }
+                        if (bytesWritten != sizeInBytes) {
+                            listener.onFailure(new ElasticSearchIllegalStateException("[" + blobName + "]: wrote [" + bytesWritten + "], expected to write [" + sizeInBytes + "]"));
+                            return;
                         }
                     } finally {
                         try {

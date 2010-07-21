@@ -51,10 +51,10 @@ public class HighlighterParseElement implements SearchParseElement {
     private static final String[] DEFAULT_POST_TAGS = new String[]{"</em>"};
 
     private static final String[] STYLED_PRE_TAG = {
-            "<em class=\"hlt1\">", "<em class=\"hlt2\">", "<em class=\"hlt2\">",
-            "<em class=\"hlt3\">", "<em class=\"hlt4\">", "<em class=\"hlt5\">",
-            "<em class=\"hlt6\">", "<em class=\"hlt7\">", "<em class=\"hlt8\">",
-            "<em class=\"hlt9\">"
+            "<em class=\"hlt1\">", "<em class=\"hlt2\">", "<em class=\"hlt3\">",
+            "<em class=\"hlt4\">", "<em class=\"hlt5\">", "<em class=\"hlt6\">",
+            "<em class=\"hlt7\">", "<em class=\"hlt8\">", "<em class=\"hlt9\">",
+            "<em class=\"hlt10\">"
     };
     public static final String[] STYLED_POST_TAGS = {"</em>"};
 

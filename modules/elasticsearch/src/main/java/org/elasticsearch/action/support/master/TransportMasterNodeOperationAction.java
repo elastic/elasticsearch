@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
-import org.elasticsearch.node.NodeCloseException;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -109,7 +109,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
 
                         @Override public void onClose() {
                             clusterService.remove(this);
-                            listener.onFailure(new NodeCloseException(nodes.localNode()));
+                            listener.onFailure(new NodeClosedException(nodes.localNode()));
                         }
 
                         @Override public void onTimeout(TimeValue timeout) {
@@ -155,7 +155,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
 
                                 @Override public void onClose() {
                                     clusterService.remove(this);
-                                    listener.onFailure(new NodeCloseException(nodes.localNode()));
+                                    listener.onFailure(new NodeClosedException(nodes.localNode()));
                                 }
 
                                 @Override public void onTimeout(TimeValue timeout) {

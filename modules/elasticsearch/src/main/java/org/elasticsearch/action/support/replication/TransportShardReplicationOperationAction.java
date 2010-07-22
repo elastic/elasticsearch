@@ -46,7 +46,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.NodeCloseException;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -295,7 +295,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
                             @Override public void handleException(RemoteTransportException exp) {
                                 // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
-                                if (exp.unwrapCause() instanceof ConnectTransportException || exp.unwrapCause() instanceof NodeCloseException ||
+                                if (exp.unwrapCause() instanceof ConnectTransportException || exp.unwrapCause() instanceof NodeClosedException ||
                                         exp.unwrapCause() instanceof IllegalIndexShardStateException) {
                                     primaryOperationStarted.set(false);
                                     // we already marked it as started when we executed it (removed the listener) so pass false
@@ -344,7 +344,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
                     @Override public void onClose() {
                         clusterService.remove(this);
-                        listener.onFailure(new NodeCloseException(nodes.localNode()));
+                        listener.onFailure(new NodeClosedException(nodes.localNode()));
                     }
 
                     @Override public void clusterChanged(ClusterChangedEvent event) {

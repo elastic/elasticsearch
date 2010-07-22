@@ -23,13 +23,15 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
 /**
+ * An exception indicating that node is closed.
+ *
  * @author kimchy (shay.banon)
  */
-public class NodeCloseException extends ElasticSearchException {
+public class NodeClosedException extends ElasticSearchException {
 
     private final DiscoveryNode node;
 
-    public NodeCloseException(DiscoveryNode node) {
+    public NodeClosedException(DiscoveryNode node) {
         super("node closed " + node);
         this.node = node;
     }

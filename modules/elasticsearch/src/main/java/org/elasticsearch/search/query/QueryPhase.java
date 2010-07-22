@@ -25,7 +25,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchPhase;
@@ -78,6 +80,9 @@ public class QueryPhase implements SearchPhase {
                 if (searchContext.types().length == 1) {
                     String type = searchContext.types()[0];
                     DocumentMapper docMapper = searchContext.mapperService().documentMapper(type);
+                    if (docMapper == null) {
+                        throw new TypeMissingException(new Index(searchContext.shardTarget().index()), type);
+                    }
                     Filter typeFilter = new TermFilter(docMapper.typeMapper().term(docMapper.type()));
                     typeFilter = searchContext.filterCache().cache(typeFilter);
                     query = new FilteredQuery(query, typeFilter);
@@ -85,6 +90,9 @@ public class QueryPhase implements SearchPhase {
                     BooleanFilter booleanFilter = new BooleanFilter();
                     for (String type : searchContext.types()) {
                         DocumentMapper docMapper = searchContext.mapperService().documentMapper(type);
+                        if (docMapper == null) {
+                            throw new TypeMissingException(new Index(searchContext.shardTarget().index()), type);
+                        }
                         Filter typeFilter = new TermFilter(docMapper.typeMapper().term(docMapper.type()));
                         typeFilter = searchContext.filterCache().cache(typeFilter);
                         booleanFilter.add(new FilterClause(typeFilter, BooleanClause.Occur.SHOULD));

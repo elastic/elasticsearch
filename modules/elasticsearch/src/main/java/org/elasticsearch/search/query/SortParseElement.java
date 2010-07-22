@@ -41,6 +41,9 @@ public class SortParseElement implements SearchParseElement {
     private static final SortField SORT_DOC = new SortField(null, SortField.DOC);
     private static final SortField SORT_DOC_REVERSE = new SortField(null, SortField.DOC, true);
 
+    public static final String SCORE_FIELD_NAME = "_score";
+    public static final String DOC_FIELD_NAME = "_doc";
+
     public SortParseElement() {
     }
 
@@ -74,9 +77,9 @@ public class SortParseElement implements SearchParseElement {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     String direction = parser.text();
                     if (direction.equals("asc")) {
-                        reverse = "score".equals(fieldName);
+                        reverse = SCORE_FIELD_NAME.equals(fieldName);
                     } else if (direction.equals("desc")) {
-                        reverse = !"score".equals(fieldName);
+                        reverse = !SCORE_FIELD_NAME.equals(fieldName);
                     }
                 } else {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -95,13 +98,13 @@ public class SortParseElement implements SearchParseElement {
     }
 
     private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse) {
-        if ("score".equals(fieldName)) {
+        if (SCORE_FIELD_NAME.equals(fieldName)) {
             if (reverse) {
                 sortFields.add(SORT_SCORE_REVERSE);
             } else {
                 sortFields.add(SORT_SCORE);
             }
-        } else if ("doc".equals(fieldName)) {
+        } else if (DOC_FIELD_NAME.equals(fieldName)) {
             if (reverse) {
                 sortFields.add(SORT_DOC_REVERSE);
             } else {

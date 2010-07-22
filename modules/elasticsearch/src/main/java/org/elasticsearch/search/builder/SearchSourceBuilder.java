@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
 import org.elasticsearch.search.facets.AbstractFacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
+import org.elasticsearch.search.query.SortParseElement;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -147,7 +148,7 @@ public class SearchSourceBuilder implements ToXContent {
      */
     public SearchSourceBuilder sort(String name, Order order) {
         boolean reverse = false;
-        if (name.equals("score")) {
+        if (name.equals(SortParseElement.SCORE_FIELD_NAME)) {
             if (order == Order.ASC) {
                 reverse = true;
             }

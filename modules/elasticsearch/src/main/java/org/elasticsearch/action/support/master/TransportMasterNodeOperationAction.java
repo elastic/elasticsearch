@@ -138,41 +138,37 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                 }
 
                 @Override public void handleException(final RemoteTransportException exp) {
-                    if (retrying) {
-                        listener.onFailure(exp);
+                    if (exp.unwrapCause() instanceof ConnectTransportException) {
+                        // we want to retry here a bit to see if a new master is elected
+                        clusterService.add(request.masterNodeTimeout(), new TimeoutClusterStateListener() {
+                            @Override public void postAdded() {
+                                ClusterState clusterStateV2 = clusterService.state();
+                                if (!clusterState.nodes().masterNodeId().equals(clusterStateV2.nodes().masterNodeId())) {
+                                    // master changes while adding the listener, try here
+                                    clusterService.remove(this);
+                                    innerExecute(request, listener, false);
+                                }
+                            }
+
+                            @Override public void onClose() {
+                                clusterService.remove(this);
+                                listener.onFailure(new NodeClosedException(nodes.localNode()));
+                            }
+
+                            @Override public void onTimeout(TimeValue timeout) {
+                                clusterService.remove(this);
+                                listener.onFailure(exp);
+                            }
+
+                            @Override public void clusterChanged(ClusterChangedEvent event) {
+                                if (event.nodesDelta().masterNodeChanged()) {
+                                    clusterService.remove(this);
+                                    innerExecute(request, listener, false);
+                                }
+                            }
+                        });
                     } else {
-                        if (exp.unwrapCause() instanceof ConnectTransportException) {
-                            // we want to retry here a bit to see if a new master is elected
-                            clusterService.add(request.masterNodeTimeout(), new TimeoutClusterStateListener() {
-                                @Override public void postAdded() {
-                                    ClusterState clusterStateV2 = clusterService.state();
-                                    if (!clusterState.nodes().masterNodeId().equals(clusterStateV2.nodes().masterNodeId())) {
-                                        // master changes while adding the listener, try here 
-                                        clusterService.remove(this);
-                                        innerExecute(request, listener, true);
-                                    }
-                                }
-
-                                @Override public void onClose() {
-                                    clusterService.remove(this);
-                                    listener.onFailure(new NodeClosedException(nodes.localNode()));
-                                }
-
-                                @Override public void onTimeout(TimeValue timeout) {
-                                    clusterService.remove(this);
-                                    listener.onFailure(exp);
-                                }
-
-                                @Override public void clusterChanged(ClusterChangedEvent event) {
-                                    if (event.nodesDelta().masterNodeChanged()) {
-                                        clusterService.remove(this);
-                                        innerExecute(request, listener, true);
-                                    }
-                                }
-                            });
-                        } else {
-                            listener.onFailure(exp);
-                        }
+                        listener.onFailure(exp);
                     }
                 }
             });

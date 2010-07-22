@@ -111,6 +111,7 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         logger.info("Starting server3");
         // start another server
         startNode("server3", settings);
+        Thread.sleep(200);
 
         ClusterService clusterService3 = ((InternalNode) node("server3")).injector().getInstance(ClusterService.class);
 
@@ -214,6 +215,7 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         // start another server
         logger.info("Starting server2");
         startNode("server2", settings);
+        Thread.sleep(200);
 
         logger.info("Running Cluster Health");
         clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForGreenStatus().waitForRelocatingShards(0).waitForNodes("2")).actionGet();
@@ -240,6 +242,7 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         // start another server
         logger.info("Starting server3");
         startNode("server3");
+        Thread.sleep(200);
 
         ClusterService clusterService3 = ((InternalNode) node("server3")).injector().getInstance(ClusterService.class);
 

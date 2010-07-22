@@ -64,10 +64,6 @@ public class RestHttpDocumentActions extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
     }
 
-    protected String getConcreteIndexName() {
-        return "test";
-    }
-
     @AfterMethod public void closeNodes() {
         client1.close();
         client2.close();

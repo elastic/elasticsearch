@@ -106,11 +106,23 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
             } else {
                 // we are not the master, tell the master to send it
                 LocalDiscovery master = clusterGroup.members().peek();
+
+                // update as fast as we can the local node state with the new metadata (so we create indices for example)
+                final ClusterState masterState = master.clusterService.state();
+                clusterService.submitStateUpdateTask("local-disco(detected_master)", new ClusterStateUpdateTask() {
+                    @Override public ClusterState execute(ClusterState currentState) {
+                        // make sure we have the local node id set, we might need it as a result of the new metadata
+                        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.newNodesBuilder().putAll(currentState.nodes()).put(localNode).localNodeId(localNode.id());
+                        return ClusterState.builder().state(currentState).metaData(masterState.metaData()).nodes(nodesBuilder).build();
+                    }
+                });
+
+                // tell the master to send the fact that we are here
                 master.clusterService.submitStateUpdateTask("local-disco-receive(from node[" + localNode + "])", new ProcessedClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
                         if (currentState.nodes().nodeExists(localNode.id())) {
                             // no change, the node already exists in the cluster
-                            logger.warn("Received an address [{}] for an existing node [{}]", localNode.address(), localNode);
+                            logger.warn("received an address [{}] for an existing node [{}]", localNode.address(), localNode);
                             return currentState;
                         }
                         return newClusterStateBuilder().state(currentState).nodes(currentState.nodes().newNode(localNode)).build();

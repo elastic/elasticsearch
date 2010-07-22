@@ -298,7 +298,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                                 if (exp.unwrapCause() instanceof ConnectTransportException || exp.unwrapCause() instanceof NodeCloseException ||
                                         exp.unwrapCause() instanceof IllegalIndexShardStateException) {
                                     primaryOperationStarted.set(false);
-                                    retryPrimary(fromClusterEvent, shard.shardId());
+                                    // we already marked it as started when we executed it (removed the listener) so pass false
+                                    // to re-add to the cluster listener
+                                    retryPrimary(false, shard.shardId());
                                 } else {
                                     listener.onFailure(exp);
                                 }

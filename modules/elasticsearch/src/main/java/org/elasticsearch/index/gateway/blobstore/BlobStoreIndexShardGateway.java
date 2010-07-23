@@ -31,7 +31,6 @@ import org.elasticsearch.common.blobstore.*;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Sets;
-import org.elasticsearch.common.io.FastByteArrayInputStream;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
@@ -60,6 +59,7 @@ import org.elasticsearch.indices.recovery.throttler.RecoveryThrottler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import javax.annotation.Nullable;
+import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.ref.SoftReference;
@@ -675,7 +675,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                         if (counter.decrementAndGet() == 0) {
                             // now, write the expected md5
                             byte[] md5 = Digest.md5HexToByteArray(fileMetaData.md5());
-                            indexContainer.writeBlob(fileMetaData.name() + ".md5", new FastByteArrayInputStream(md5), md5.length, new ImmutableBlobContainer.WriterListener() {
+                            indexContainer.writeBlob(fileMetaData.name() + ".md5", new ByteArrayInputStream(md5), md5.length, new ImmutableBlobContainer.WriterListener() {
                                 @Override public void onCompleted() {
                                     latch.countDown();
                                 }

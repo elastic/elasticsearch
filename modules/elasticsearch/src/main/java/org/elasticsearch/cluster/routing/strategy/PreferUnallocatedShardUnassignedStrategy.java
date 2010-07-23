@@ -95,7 +95,7 @@ public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent 
 
             TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData = transportNodesListShardStoreMetaData.list(shard.shardId(), false, nodesIds.toArray(new String[nodesIds.size()])).actionGet();
 
-            if (logger.isWarnEnabled()) {
+            if (logger.isDebugEnabled()) {
                 if (nodesStoreFilesMetaData.failures().length > 0) {
                     StringBuilder sb = new StringBuilder(shard + ": failures when trying to list stores on nodes:");
                     for (int i = 0; i < nodesStoreFilesMetaData.failures().length; i++) {
@@ -105,7 +105,7 @@ public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent 
                         }
                         sb.append("\n    -> ").append(nodesStoreFilesMetaData.failures()[i].getDetailedMessage());
                     }
-                    logger.warn(sb.toString());
+                    logger.debug(sb.toString());
                 }
             }
 

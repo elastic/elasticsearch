@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
+import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -159,9 +160,11 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         }
         executor.execute(new Runnable() {
             @Override public void run() {
-                logger.debug("writing to gateway");
+                logger.debug("writing to gateway {} ...", gateway);
+                StopWatch stopWatch = new StopWatch().start();
                 try {
                     gateway.write(event.state().metaData());
+                    logger.debug("wrote to gateway {}, took {}", gateway, stopWatch.stop().totalTime());
                     // TODO, we need to remember that we failed, maybe add a retry scheduler?
                 } catch (Exception e) {
                     logger.error("failed to write to gateway", e);
@@ -176,7 +179,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
      * when waiting, and indicates that everything was created within teh wait timeout.
      */
     private Boolean readFromGateway(@Nullable TimeValue waitTimeout) {
-        logger.debug("reading state from gateway...");
+        logger.debug("reading state from gateway {} ...", gateway);
         MetaData metaData;
         try {
             metaData = gateway.read();

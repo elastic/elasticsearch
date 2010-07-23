@@ -189,7 +189,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
     /**
      * Snapshots the given shard into the gateway.
      */
-    public synchronized void snapshot(String reason) throws IndexShardGatewaySnapshotFailedException {
+    public synchronized void snapshot(final String reason) throws IndexShardGatewaySnapshotFailedException {
         if (!indexShard.routingEntry().primary()) {
             return;
 //            throw new IndexShardGatewaySnapshotNotAllowedException(shardId, "Snapshot not allowed on non primary shard");
@@ -207,6 +207,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                 @Override public IndexShardGateway.SnapshotStatus snapshot(SnapshotIndexCommit snapshotIndexCommit, Translog.Snapshot translogSnapshot) throws EngineException {
                     if (lastIndexVersion != snapshotIndexCommit.getVersion() || lastTranslogId != translogSnapshot.translogId() || lastTranslogLength < translogSnapshot.length()) {
 
+                        logger.debug("snapshot ({}) to {} ...", reason, shardGateway);
                         IndexShardGateway.SnapshotStatus snapshotStatus =
                                 shardGateway.snapshot(new IndexShardGateway.Snapshot(snapshotIndexCommit, translogSnapshot, lastIndexVersion, lastTranslogId, lastTranslogPosition, lastTranslogLength));
 

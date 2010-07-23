@@ -24,9 +24,9 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Sets;
-import org.elasticsearch.common.io.FastByteArrayInputStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Set;
 
@@ -57,7 +57,8 @@ public class ImmutableAppendableBlobContainer extends AbstractBlobContainer impl
                     listener.onFailure(e);
                     return;
                 }
-                FastByteArrayInputStream is = new FastByteArrayInputStream(out.unsafeByteArray(), 0, out.size());
+                // use teh sync one
+                ByteArrayInputStream is = new ByteArrayInputStream(out.unsafeByteArray(), 0, out.size());
                 container.writeBlob(partBlobName, is, out.size(), new ImmutableBlobContainer.WriterListener() {
                     @Override public void onCompleted() {
                         listener.onCompleted();

@@ -81,6 +81,8 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
         if (event.state().nodes().localNodeMaster()) {
             // we are master, schedule the routing table updater
             if (scheduledRoutingTableFuture == null) {
+                // a new master (us), make sure we reroute shards
+                routingTableDirty = true;
                 scheduledRoutingTableFuture = threadPool.scheduleWithFixedDelay(new RoutingTableUpdater(), schedule);
             }
             if (event.nodesRemoved() || event.routingTableChanged()) {

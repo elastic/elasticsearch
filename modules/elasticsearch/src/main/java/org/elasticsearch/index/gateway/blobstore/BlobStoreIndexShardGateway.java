@@ -324,7 +324,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         if (snapshot.newTranslogCreated()) {
             try {
                 translogContainer.deleteBlob("translog-" + snapshot.lastTranslogId());
-            } catch (IOException e) {
+            } catch (Exception e) {
                 // ignore
             }
         }

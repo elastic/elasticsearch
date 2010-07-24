@@ -50,13 +50,18 @@ public class ImmutableAppendableBlobContainer extends AbstractBlobContainer impl
 
             @Override public void append(final AppendBlobListener listener) {
                 BytesStreamOutput out = new BytesStreamOutput();
-                String partBlobName = blobName + ".a" + (part++);
                 try {
                     listener.withStream(out);
                 } catch (Exception e) {
                     listener.onFailure(e);
                     return;
                 }
+                if (out.size() == 0) {
+                    // nothing to write, bail
+                    listener.onCompleted();
+                    return;
+                }
+                String partBlobName = blobName + ".a" + (part++);
                 // use teh sync one
                 ByteArrayInputStream is = new ByteArrayInputStream(out.unsafeByteArray(), 0, out.size());
                 container.writeBlob(partBlobName, is, out.size(), new ImmutableBlobContainer.WriterListener() {
@@ -120,7 +125,7 @@ public class ImmutableAppendableBlobContainer extends AbstractBlobContainer impl
         ImmutableMap<String, BlobMetaData> blobs = buildVirtualBlobs(container.listBlobs());
         for (String blobName : blobs.keySet()) {
             if (filter.accept(blobName)) {
-                container.deleteBlob(blobName);
+                deleteBlob(blobName);
             }
         }
     }

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="JAVA_MODULE" version="4">
+  <component name="NewModuleRootManager" inherit-compiler-output="false">
+    <output url="file://$MODULE_DIR$/../../plugins/cloud/aws/build/classes/main" />
+    <output-test url="file://$MODULE_DIR$/../../plugins/cloud/aws/build/classes/test" />
+    <exclude-output />
+    <content url="file://$MODULE_DIR$/../../plugins/cloud/aws">
+      <sourceFolder url="file://$MODULE_DIR$/../../plugins/cloud/aws/src/main/java" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/../../plugins/cloud/aws/build" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="module" module-name="elasticsearch" />
+    <orderEntry type="module-library">
+      <library name="aws-java-sdk">
+        <CLASSES>
+          <root url="jar://$GRADLE_REPOSITORY$/com.amazonaws/aws-java-sdk/jars/aws-java-sdk-1.0.007.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/commons-httpclient/commons-httpclient/jars/commons-httpclient-3.0.1.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/commons-codec/commons-codec/jars/commons-codec-1.3.jar!/" />
+          <root url="jar://$GRADLE_REPOSITORY$/commons-logging/commons-logging/jars/commons-logging-1.1.1.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES>
+          <root url="jar://$MODULE_DIR$/../../../../../opt/aws-java-sdk/1.0.007/lib/aws-java-sdk-1.0.007-sources.jar!/" />
+        </SOURCES>
+      </library>
+    </orderEntry>
+    <orderEntry type="module" module-name="test-testng" scope="TEST" />
+    <orderEntry type="library" scope="TEST" name="hamcrest" level="project" />
+    <orderEntry type="library" scope="TEST" name="testng" level="project" />
+  </component>
+</module>
+

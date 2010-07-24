@@ -18,7 +18,7 @@
     <orderEntry type="module" module-name="plugin-transport-memcached" />
     <orderEntry type="module" module-name="plugin-analysis-icu" />
     <orderEntry type="module" module-name="plugins-hadoop" />
-    <orderEntry type="module" module-name="plugins-cloud" />
+    <orderEntry type="module" module-name="plugin-cloud-aws" />
     <orderEntry type="module" module-name="test-integration" />
   </component>
 </module>

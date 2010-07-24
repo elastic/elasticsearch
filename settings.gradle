@@ -8,7 +8,7 @@ include 'test-integration'
 
 include 'benchmark-micro'
 
-include 'plugins-cloud'
+include 'plugins-cloud-aws'
 include 'plugins-hadoop'
 include 'plugins-analysis-icu'
 include 'plugins-mapper-attachments'

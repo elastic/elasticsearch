@@ -17,23 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen;
+package org.elasticsearch.cloud.aws;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.zen.ping.ZenPingService;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class ZenDiscoveryModule extends AbstractModule {
+public class AwsModule extends AbstractModule {
 
     @Override protected void configure() {
-        bind(ZenPingService.class).asEagerSingleton();
-        bindDiscovery();
-    }
-
-    protected void bindDiscovery() {
-        bind(Discovery.class).to(ZenDiscovery.class).asEagerSingleton();
+        bind(AwsS3Service.class).asEagerSingleton();
+        bind(AwsEc2Service.class).asEagerSingleton();
     }
 }

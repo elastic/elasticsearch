@@ -140,7 +140,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                 throttlingWaitTime.stop();
 
                 try {
-                    logger.debug("starting recovery from {}", shardGateway);
+                    logger.debug("starting recovery from {} ...", shardGateway);
                     StopWatch stopWatch = new StopWatch().start();
                     IndexShardGateway.RecoveryStatus recoveryStatus = shardGateway.recover();
 

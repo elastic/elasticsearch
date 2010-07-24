@@ -180,9 +180,11 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
      */
     private Boolean readFromGateway(@Nullable TimeValue waitTimeout) {
         logger.debug("reading state from gateway {} ...", gateway);
+        StopWatch stopWatch = new StopWatch().start();
         MetaData metaData;
         try {
             metaData = gateway.read();
+            logger.debug("read state from gateway {}, took {}", gateway, stopWatch.stop().totalTime());
         } catch (Exception e) {
             logger.error("failed to read from gateway", e);
             markMetaDataAsReadFromGateway("failure");

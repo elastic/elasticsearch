@@ -44,6 +44,10 @@ public class NoneGateway extends AbstractLifecycleComponent<Gateway> implements 
         return TYPE;
     }
 
+    @Override public String toString() {
+        return "_none_";
+    }
+
     @Override protected void doStart() throws ElasticSearchException {
     }
 

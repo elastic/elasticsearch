@@ -323,10 +323,21 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         // delete the old translog
         if (snapshot.newTranslogCreated()) {
             try {
-                translogContainer.deleteBlob("translog-" + snapshot.lastTranslogId());
+                translogContainer.deleteBlobsByFilter(new BlobContainer.BlobNameFilter() {
+                    @Override public boolean accept(String blobName) {
+                        // delete all the ones that are not this translog
+                        return !blobName.equals("translog-" + translogSnapshot.translogId());
+                    }
+                });
             } catch (Exception e) {
                 // ignore
             }
+            // NOT doing this one, the above allows us to clean the translog properly
+//            try {
+//                translogContainer.deleteBlob("translog-" + snapshot.lastTranslogId());
+//            } catch (Exception e) {
+//                // ignore
+//            }
         }
 
         // delete old index files

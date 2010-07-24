@@ -17,37 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.gateway.none;
+package org.elasticsearch.index.gateway.s3;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.gateway.IndexGateway;
-import org.elasticsearch.index.gateway.IndexShardGateway;
+import org.elasticsearch.index.gateway.blobstore.BlobStoreIndexShardGateway;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.recovery.throttler.RecoveryThrottler;
+import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class NoneIndexGateway extends AbstractIndexComponent implements IndexGateway {
+public class S3IndexShardGateway extends BlobStoreIndexShardGateway {
 
-    @Inject public NoneIndexGateway(Index index, @IndexSettings Settings indexSettings) {
-        super(index, indexSettings);
+    @Inject public S3IndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool, IndexGateway indexGateway,
+                                       IndexShard indexShard, Store store, RecoveryThrottler recoveryThrottler) {
+        super(shardId, indexSettings, threadPool, indexGateway, indexShard, store, recoveryThrottler);
     }
 
     @Override public String type() {
-        return "none";
-    }
-
-    @Override public Class<? extends IndexShardGateway> shardGatewayClass() {
-        return NoneIndexShardGateway.class;
-    }
-
-    @Override public String toString() {
-        return "_none_";
-    }
-
-    @Override public void close(boolean delete) {
+        return "s3";
     }
 }
+

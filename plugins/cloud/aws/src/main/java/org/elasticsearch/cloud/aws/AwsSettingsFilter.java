@@ -17,23 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen;
+package org.elasticsearch.cloud.aws;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.zen.ping.ZenPingService;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.SettingsFilter;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class ZenDiscoveryModule extends AbstractModule {
+public class AwsSettingsFilter implements SettingsFilter.Filter {
 
-    @Override protected void configure() {
-        bind(ZenPingService.class).asEagerSingleton();
-        bindDiscovery();
-    }
-
-    protected void bindDiscovery() {
-        bind(Discovery.class).to(ZenDiscovery.class).asEagerSingleton();
+    @Override public void filter(ImmutableSettings.Builder settings) {
+        settings.remove("cloud.key");
+        settings.remove("cloud.account");
+        settings.remove("cloud.aws.access_key");
+        settings.remove("cloud.aws.secret_key");
     }
 }

@@ -44,6 +44,10 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
         this.indexShard = (InternalIndexShard) indexShard;
     }
 
+    @Override public String toString() {
+        return "_none_";
+    }
+
     @Override public RecoveryStatus recover() throws IndexShardGatewayRecoveryException {
         // in the none case, we simply start the shard
         // clean the store, there should be nothing there...

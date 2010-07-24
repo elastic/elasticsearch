@@ -17,23 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen;
+package org.elasticsearch.index.gateway.s3;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.zen.ping.ZenPingService;
+import org.elasticsearch.index.gateway.IndexGateway;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class ZenDiscoveryModule extends AbstractModule {
+public class S3IndexGatewayModule extends AbstractModule {
 
     @Override protected void configure() {
-        bind(ZenPingService.class).asEagerSingleton();
-        bindDiscovery();
-    }
-
-    protected void bindDiscovery() {
-        bind(Discovery.class).to(ZenDiscovery.class).asEagerSingleton();
+        bind(IndexGateway.class).to(S3IndexGateway.class).asEagerSingleton();
     }
 }

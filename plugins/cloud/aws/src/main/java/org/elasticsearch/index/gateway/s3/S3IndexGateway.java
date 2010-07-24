@@ -17,23 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen;
+package org.elasticsearch.index.gateway.s3;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.zen.ping.ZenPingService;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.gateway.Gateway;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.gateway.IndexShardGateway;
+import org.elasticsearch.index.gateway.blobstore.BlobStoreIndexGateway;
+import org.elasticsearch.index.settings.IndexSettings;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class ZenDiscoveryModule extends AbstractModule {
+public class S3IndexGateway extends BlobStoreIndexGateway {
 
-    @Override protected void configure() {
-        bind(ZenPingService.class).asEagerSingleton();
-        bindDiscovery();
+    @Inject public S3IndexGateway(Index index, @IndexSettings Settings indexSettings, Gateway gateway) {
+        super(index, indexSettings, gateway);
     }
 
-    protected void bindDiscovery() {
-        bind(Discovery.class).to(ZenDiscovery.class).asEagerSingleton();
+    @Override public String type() {
+        return "s3";
+    }
+
+    @Override public Class<? extends IndexShardGateway> shardGatewayClass() {
+        return S3IndexShardGateway.class;
     }
 }
+

@@ -28,7 +28,7 @@ import org.elasticsearch.discovery.zen.ZenDiscoveryModule;
 import static org.elasticsearch.common.inject.ModulesFactory.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class DiscoveryModule extends AbstractModule {
 

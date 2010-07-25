@@ -85,6 +85,8 @@ public class AwsEc2Service extends AbstractLifecycleComponent<AwsEc2Service> {
     }
 
     @Override protected void doClose() throws ElasticSearchException {
-        client.shutdown();
+        if (client != null) {
+            client.shutdown();
+        }
     }
 }

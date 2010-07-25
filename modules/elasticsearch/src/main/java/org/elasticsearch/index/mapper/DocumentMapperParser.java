@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import javax.annotation.Nullable;
+
 /**
  * @author kimchy (shay.banon)
  */
@@ -28,7 +30,7 @@ public interface DocumentMapperParser {
      * Parses the source mapping definition into a document mapper with the specified
      * type (overriding the one defined in the source mapping).
      */
-    DocumentMapper parse(String type, String mappingSource) throws MapperParsingException;
+    DocumentMapper parse(@Nullable String type, String mappingSource) throws MapperParsingException;
 
     /**
      * Parses the source mapping definition into a document mapper.

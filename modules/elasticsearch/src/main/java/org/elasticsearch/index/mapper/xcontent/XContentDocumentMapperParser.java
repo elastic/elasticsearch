@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Map;
 
@@ -79,7 +80,7 @@ public class XContentDocumentMapperParser implements DocumentMapperParser {
         return parse(null, source);
     }
 
-    @Override public DocumentMapper parse(String type, String source) throws MapperParsingException {
+    @Override public DocumentMapper parse(@Nullable String type, String source) throws MapperParsingException {
         Map<String, Object> root;
         XContentParser xContentParser = null;
         try {
@@ -105,6 +106,12 @@ public class XContentDocumentMapperParser implements DocumentMapperParser {
                 Object tmpNode = root.get(type);
                 if (!(tmpNode instanceof Map)) {
                     throw new MapperParsingException("Expected root node name [" + rootName + "] to be of object type, but its not");
+                }
+                rootObj = (Map<String, Object>) tmpNode;
+            } else if (rootName.equals("_default_")) {
+                Object tmpNode = root.get("_default_");
+                if (!(tmpNode instanceof Map)) {
+                    throw new MapperParsingException("_default_ mappings must have an inner object representing the actual mappings for the type");
                 }
                 rootObj = (Map<String, Object>) tmpNode;
             } else {

@@ -121,6 +121,12 @@ class GClient {
         SearchRequestBuilder.metaClass.extraSource = {Closure c ->
             delegate.setExtraSource(new GXContentBuilder().buildAsBytes(c, contentType))
         }
+        SearchRequestBuilder.metaClass.setQuery = {Closure c ->
+            delegate.setQuery(new GXContentBuilder().buildAsBytes(c, contentType))
+        }
+        SearchRequestBuilder.metaClass.query = {Closure c ->
+            delegate.setQuery(new GXContentBuilder().buildAsBytes(c, contentType))
+        }
 
         MoreLikeThisRequest.metaClass.setSearchSource = {Closure c ->
             delegate.searchSource(new GXContentBuilder().buildAsBytes(c, contentType))

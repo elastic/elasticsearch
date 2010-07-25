@@ -101,7 +101,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
                     if (response.numberOfNodes() >= expected) {
                         waitForCounter++;
                     }
-                } else if (request.waitForNodes().startsWith("M=")) {
+                } else if (request.waitForNodes().startsWith("<=")) {
                     int expected = Integer.parseInt(request.waitForNodes().substring(2));
                     if (response.numberOfNodes() <= expected) {
                         waitForCounter++;

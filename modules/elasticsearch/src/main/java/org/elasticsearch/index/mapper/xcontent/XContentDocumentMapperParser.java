@@ -22,12 +22,15 @@ package org.elasticsearch.index.mapper.xcontent;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.collect.Maps;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentMerger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -76,54 +79,41 @@ public class XContentDocumentMapperParser implements DocumentMapperParser {
         }
     }
 
-    @Override public DocumentMapper parse(String source) throws MapperParsingException {
+    @Override public XContentDocumentMapper parse(String source) throws MapperParsingException {
         return parse(null, source);
     }
 
-    @Override public DocumentMapper parse(@Nullable String type, String source) throws MapperParsingException {
-        Map<String, Object> root;
-        XContentParser xContentParser = null;
-        try {
-            xContentParser = XContentFactory.xContent(source).createParser(source);
-            root = xContentParser.map();
-        } catch (IOException e) {
-            throw new MapperParsingException("Failed to parse mapping definition", e);
-        } finally {
-            if (xContentParser != null) {
-                xContentParser.close();
-            }
+    @Override public XContentDocumentMapper parse(@Nullable String type, String source) throws MapperParsingException {
+        return parse(type, source, null);
+    }
+
+    @Override public XContentDocumentMapper parse(@Nullable String type, String source, String defaultSource) throws MapperParsingException {
+        Map<String, Object> mapping = null;
+        if (source != null) {
+            Tuple<String, Map<String, Object>> t = extractMapping(type, source);
+            type = t.v1();
+            mapping = t.v2();
         }
-        String rootName = root.keySet().iterator().next();
-        Map<String, Object> rootObj;
+        if (mapping == null) {
+            mapping = Maps.newHashMap();
+        }
+
         if (type == null) {
-            // we have no type, we assume the first node is the type
-            rootObj = (Map<String, Object>) root.get(rootName);
-            type = rootName;
-        } else {
-            // we have a type, check if the top level one is the type as well
-            // if it is, then the root is that node, if not then the root is the master node
-            if (type.equals(rootName)) {
-                Object tmpNode = root.get(type);
-                if (!(tmpNode instanceof Map)) {
-                    throw new MapperParsingException("Expected root node name [" + rootName + "] to be of object type, but its not");
-                }
-                rootObj = (Map<String, Object>) tmpNode;
-            } else if (rootName.equals("_default_")) {
-                Object tmpNode = root.get("_default_");
-                if (!(tmpNode instanceof Map)) {
-                    throw new MapperParsingException("_default_ mappings must have an inner object representing the actual mappings for the type");
-                }
-                rootObj = (Map<String, Object>) tmpNode;
-            } else {
-                rootObj = root;
+            throw new MapperParsingException("Failed to derive type");
+        }
+
+        if (defaultSource != null) {
+            Tuple<String, Map<String, Object>> t = extractMapping(MapperService.DEFAULT_MAPPING, defaultSource);
+            if (t.v2() != null) {
+                XContentMerger.mergeDefaults(mapping, t.v2());
             }
         }
 
-        XContentTypeParser.ParserContext parserContext = new XContentTypeParser.ParserContext(rootObj, analysisService, typeParsers);
+        XContentTypeParser.ParserContext parserContext = new XContentTypeParser.ParserContext(mapping, analysisService, typeParsers);
 
-        XContentDocumentMapper.Builder docBuilder = doc((XContentObjectMapper.Builder) rootObjectTypeParser.parse(type, rootObj, parserContext));
+        XContentDocumentMapper.Builder docBuilder = doc((XContentObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext));
 
-        for (Map.Entry<String, Object> entry : rootObj.entrySet()) {
+        for (Map.Entry<String, Object> entry : mapping.entrySet()) {
             String fieldName = Strings.toUnderscoreCase(entry.getKey());
             Object fieldNode = entry.getValue();
 
@@ -157,12 +147,10 @@ public class XContentDocumentMapperParser implements DocumentMapperParser {
         }
 
         ImmutableMap<String, Object> attributes = ImmutableMap.of();
-        if (rootObj.containsKey("_attributes")) {
-            attributes = ImmutableMap.copyOf((Map<String, Object>) rootObj.get("_attributes"));
+        if (mapping.containsKey("_attributes")) {
+            attributes = ImmutableMap.copyOf((Map<String, Object>) mapping.get("_attributes"));
         }
         docBuilder.attributes(attributes);
-
-        docBuilder.mappingSource(source);
 
         XContentDocumentMapper documentMapper = docBuilder.build();
         // update the source with the generated one
@@ -226,5 +214,32 @@ public class XContentDocumentMapperParser implements DocumentMapperParser {
             }
         }
         return builder;
+    }
+
+    private Tuple<String, Map<String, Object>> extractMapping(String type, String source) throws MapperParsingException {
+        Map<String, Object> root;
+        XContentParser xContentParser = null;
+        try {
+            xContentParser = XContentFactory.xContent(source).createParser(source);
+            root = xContentParser.map();
+        } catch (IOException e) {
+            throw new MapperParsingException("Failed to parse mapping definition", e);
+        } finally {
+            if (xContentParser != null) {
+                xContentParser.close();
+            }
+        }
+
+        // we always assume the first and single key is the mapping type root
+        if (root.keySet().size() != 1) {
+            throw new MapperParsingException("Mapping must have the `type` as the root object");
+        }
+
+        String rootName = root.keySet().iterator().next();
+        if (type == null) {
+            type = rootName;
+        }
+
+        return new Tuple<String, Map<String, Object>>(type, (Map<String, Object>) root.get(rootName));
     }
 }

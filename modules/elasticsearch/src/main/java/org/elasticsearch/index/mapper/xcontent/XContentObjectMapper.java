@@ -314,8 +314,16 @@ public class XContentObjectMapper implements XContentMapper, XContentIncludeInAl
         context.path().pathType(pathType);
 
         String currentFieldName = parser.currentName();
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+        XContentParser.Token token = parser.currentToken();
+        // if we are at the end of the previous object, advance
+        if (token == XContentParser.Token.END_OBJECT) {
+            token = parser.nextToken();
+        }
+        if (token == XContentParser.Token.START_OBJECT) {
+            // if we are just starting an OBJECT, advance, this is the object we are parsing, we need the name first
+            token = parser.nextToken();
+        }
+        while (token != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.START_OBJECT) {
                 serializeObject(context, currentFieldName);
             } else if (token == XContentParser.Token.START_ARRAY) {
@@ -324,9 +332,10 @@ public class XContentObjectMapper implements XContentMapper, XContentIncludeInAl
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 serializeNullValue(context, currentFieldName);
-            } else {
+            } else if (token.isValue()) {
                 serializeValue(context, currentFieldName, token);
             }
+            token = parser.nextToken();
         }
         // restore the enable path flag
         context.path().pathType(origPathType);

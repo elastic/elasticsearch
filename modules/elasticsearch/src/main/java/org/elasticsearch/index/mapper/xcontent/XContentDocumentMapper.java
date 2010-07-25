@@ -308,19 +308,19 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
             }
             token = parser.nextToken();
             if (token != XContentParser.Token.FIELD_NAME) {
-                throw new MapperException("Malformed content, after first object, the type name must exists");
+                throw new MapperException("Malformed content, after first object, either the type field or the actual properties should exist");
             }
-            if (!parser.currentName().equals(type)) {
-                if (type == null) {
-                    throw new MapperException("Content _type [" + parser.currentName() + "] does not match the type of the mapper [" + type + "]");
-                }
-                // continue
-            } else {
-                // now move to the actual content, which is the start object
+            if (parser.currentName().equals(type)) {
+                // first field is the same as the type, this might be because the type is provided, and the object exists within it
+                // or because there is a valid field that by chance is named as the type
+
+                // Note, in this case, we only handle plain value types, an object type will be analyzed as if it was the type itself
+                // and other same level fields will be ignored
                 token = parser.nextToken();
-                if (token != XContentParser.Token.START_OBJECT) {
-                    throw new MapperException("Malformed content, a field with the same name as the type much be an object with the properties/fields within it");
-                }
+                // commented out, allow for same type with START_OBJECT, we do our best to handle it except for the above corner case
+//                if (token != XContentParser.Token.START_OBJECT) {
+//                    throw new MapperException("Malformed content, a field with the same name as the type must be an object with the properties/fields within it");
+//                }
             }
 
             if (sourceFieldMapper.enabled()) {

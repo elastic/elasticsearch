@@ -51,16 +51,14 @@ import static org.elasticsearch.common.collect.MapBuilder.*;
 @ThreadSafe
 public class MapperService extends AbstractIndexComponent implements Iterable<DocumentMapper> {
 
+    public static final String DEFAULT_MAPPING = "_default_";
+
     /**
      * Will create types automatically if they do not exists in the repo yet
      */
     private final boolean dynamic;
 
-    private final String dynamicMappingLocation;
-
-    private final URL dynamicMappingUrl;
-
-    private final String dynamicMappingSource;
+    private volatile String defaultMappingSource;
 
     private volatile ImmutableMap<String, DocumentMapper> mappers = ImmutableMap.of();
 
@@ -74,7 +72,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     private volatile FieldMappers uidFieldMappers = new FieldMappers();
     private volatile FieldMappers sourceFieldMappers = new FieldMappers();
 
-    // for now, just use the json one. Can work on it more to support custom ones
+    // for now, just use the xcontent one. Can work on it more to support custom ones
     private final DocumentMapperParser documentParser;
 
     private final InternalFieldMapperListener fieldMapperListener = new InternalFieldMapperListener();
@@ -87,44 +85,35 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         this.searchAnalyzer = new SmartIndexNameSearchAnalyzer(analysisService.defaultSearchAnalyzer());
 
         this.dynamic = componentSettings.getAsBoolean("dynamic", true);
-        String dynamicMappingLocation = componentSettings.get("dynamic_mapping_location");
-        URL dynamicMappingUrl;
-        if (dynamicMappingLocation == null) {
+        String defaultMappingLocation = componentSettings.get("default_mapping_location");
+        URL defaultMappingUrl;
+        if (defaultMappingLocation == null) {
             try {
-                dynamicMappingUrl = environment.resolveConfig("dynamic-mapping.json");
+                defaultMappingUrl = environment.resolveConfig("default-mapping.json");
             } catch (FailedToResolveConfigException e) {
                 // not there, default to the built in one
-                dynamicMappingUrl = indexSettings.getClassLoader().getResource("org/elasticsearch/index/mapper/xcontent/dynamic-mapping.json");
+                defaultMappingUrl = indexSettings.getClassLoader().getResource("org/elasticsearch/index/mapper/xcontent/default-mapping.json");
             }
         } else {
             try {
-                dynamicMappingUrl = environment.resolveConfig(dynamicMappingLocation);
+                defaultMappingUrl = environment.resolveConfig(defaultMappingLocation);
             } catch (FailedToResolveConfigException e) {
                 // not there, default to the built in one
                 try {
-                    dynamicMappingUrl = new File(dynamicMappingLocation).toURI().toURL();
+                    defaultMappingUrl = new File(defaultMappingLocation).toURI().toURL();
                 } catch (MalformedURLException e1) {
-                    throw new FailedToResolveConfigException("Failed to resolve dynamic mapping location [" + dynamicMappingLocation + "]");
+                    throw new FailedToResolveConfigException("Failed to resolve dynamic mapping location [" + defaultMappingLocation + "]");
                 }
             }
         }
-        this.dynamicMappingUrl = dynamicMappingUrl;
-        if (dynamicMappingLocation == null) {
-            this.dynamicMappingLocation = dynamicMappingUrl.toExternalForm();
-        } else {
-            this.dynamicMappingLocation = dynamicMappingLocation;
+
+        try {
+            defaultMappingSource = Streams.copyToString(new InputStreamReader(defaultMappingUrl.openStream(), "UTF-8"));
+        } catch (IOException e) {
+            throw new MapperException("Failed to load default mapping source from [" + defaultMappingLocation + "]", e);
         }
 
-        if (dynamic) {
-            try {
-                dynamicMappingSource = Streams.copyToString(new InputStreamReader(dynamicMappingUrl.openStream(), "UTF-8"));
-            } catch (IOException e) {
-                throw new MapperException("Failed to load default mapping source from [" + dynamicMappingLocation + "]", e);
-            }
-        } else {
-            dynamicMappingSource = null;
-        }
-        logger.debug("using dynamic[{}] with location[{}] and source[{}]", dynamic, dynamicMappingLocation, dynamicMappingSource);
+        logger.debug("using dynamic[{}], default mapping: location[{}] and source[{}]", dynamic, defaultMappingLocation, defaultMappingSource);
     }
 
     @Override public UnmodifiableIterator<DocumentMapper> iterator() {
@@ -145,7 +134,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             if (mapper != null) {
                 return mapper;
             }
-            add(type, dynamicMappingSource);
+            add(type, null);
             return mappers.get(type);
         }
     }
@@ -155,18 +144,30 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     }
 
     public void add(String type, String mappingSource) {
-        add(documentParser.parse(type, mappingSource));
+        if (DEFAULT_MAPPING.equals(type)) {
+            // verify we can parse it
+            documentParser.parse(type, mappingSource);
+            defaultMappingSource = mappingSource;
+        } else {
+            add(parse(type, mappingSource));
+        }
     }
 
-    public void add(String mappingSource) throws MapperParsingException {
-        add(documentParser.parse(mappingSource));
+    private void add(DocumentMapper mapper) {
+        synchronized (mutex) {
+            if (mapper.type().charAt(0) == '_') {
+                throw new InvalidTypeNameException("Document mapping type name can't start with '_'");
+            }
+            mappers = newMapBuilder(mappers).put(mapper.type(), mapper).immutableMap();
+            mapper.addFieldMapperListener(fieldMapperListener, true);
+        }
     }
 
     /**
      * Just parses and returns the mapper without adding it.
      */
     public DocumentMapper parse(String mappingType, String mappingSource) throws MapperParsingException {
-        return documentParser.parse(mappingType, mappingSource);
+        return documentParser.parse(mappingType, mappingSource, defaultMappingSource);
     }
 
     public boolean hasMapping(String mappingType) {
@@ -294,16 +295,6 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             return new SmartNameFieldMappers(fieldMappers, null);
         }
         return null;
-    }
-
-    public void add(DocumentMapper mapper) {
-        synchronized (mutex) {
-            if (mapper.type().charAt(0) == '_') {
-                throw new InvalidTypeNameException("Document mapping type name can't start with '_'");
-            }
-            mappers = newMapBuilder(mappers).put(mapper.type(), mapper).immutableMap();
-            mapper.addFieldMapperListener(fieldMapperListener, true);
-        }
     }
 
     public Analyzer searchAnalyzer() {

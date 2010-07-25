@@ -286,6 +286,8 @@ public class AnalysisModule extends AbstractModule {
         }
 
         @Override public void processAnalyzers(AnalyzersBindings analyzersBindings) {
+            analyzersBindings.processAnalyzer("pattern", PatternAnalyzerProvider.class);
+
             analyzersBindings.processAnalyzer("arabic", ArabicAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("brazilian", BrazilianAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("chinese", ChineseAnalyzerProvider.class);

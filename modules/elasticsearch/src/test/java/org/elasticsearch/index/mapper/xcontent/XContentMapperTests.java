@@ -17,29 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.index.mapper.xcontent;
 
-import javax.annotation.Nullable;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.mapper.MapperService;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface DocumentMapperParser {
+public class XContentMapperTests {
 
-    /**
-     * Parses the source mapping definition into a document mapper.
-     */
-    DocumentMapper parse(String mappingSource) throws MapperParsingException;
+    public static XContentDocumentMapperParser newParser() {
+        return new XContentDocumentMapperParser(new AnalysisService(new Index("test")));
+    }
 
-    /**
-     * Parses the source mapping definition into a document mapper with the specified
-     * type (overriding the one defined in the source mapping).
-     */
-    DocumentMapper parse(@Nullable String type, String mappingSource) throws MapperParsingException;
-
-    /**
-     * Parses the source mapping definition into a document mapper with the specified
-     * type (overriding the one defined in the source mapping).
-     */
-    DocumentMapper parse(@Nullable String type, String mappingSource, String defaultMappingSource) throws MapperParsingException;
+    public static MapperService newMapperService() {
+        return new MapperService(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS, new Environment(), new AnalysisService(new Index("test")));
+    }
 }

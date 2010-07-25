@@ -21,10 +21,8 @@ package org.elasticsearch.index.mapper.xcontent.multifield;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
-import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapperParser;
+import org.elasticsearch.index.mapper.xcontent.XContentMapperTests;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.io.Streams.*;
@@ -40,7 +38,7 @@ public class XContentMultiFieldTests {
 
     @Test public void testMultiField() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/multifield/test-mapping.json");
-        XContentDocumentMapper docMapper = (XContentDocumentMapper) new XContentDocumentMapperParser(new AnalysisService(new Index("test"))).parse(mapping);
+        XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/multifield/test-data.json");
         Document doc = docMapper.parse(json).doc();
 
@@ -81,7 +79,7 @@ public class XContentMultiFieldTests {
         String builtMapping = builderDocMapper.buildSource();
 //        System.out.println(builtMapping);
         // reparse it
-        XContentDocumentMapper docMapper = (XContentDocumentMapper) new XContentDocumentMapperParser(new AnalysisService(new Index("test"))).parse(builtMapping);
+        XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(builtMapping);
 
 
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/multifield/test-data.json");

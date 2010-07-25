@@ -23,10 +23,8 @@ import org.apache.lucene.document.Document;
 import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.lucene.all.AllTokenStream;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
-import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapperParser;
+import org.elasticsearch.index.mapper.xcontent.XContentMapperTests;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.io.Streams.*;
@@ -41,7 +39,7 @@ public class SimpleAllMapperTests {
 
     @Test public void testSimpleAllMappers() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/all/mapping.json");
-        XContentDocumentMapper docMapper = (XContentDocumentMapper) new XContentDocumentMapperParser(new AnalysisService(new Index("test"))).parse(mapping);
+        XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/all/test1.json");
         Document doc = docMapper.parse(json).doc();
         AllField field = (AllField) doc.getFieldable("_all");
@@ -53,11 +51,11 @@ public class SimpleAllMapperTests {
 
     @Test public void testSimpleAllMappersWithReparse() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/all/mapping.json");
-        XContentDocumentMapper docMapper = (XContentDocumentMapper) new XContentDocumentMapperParser(new AnalysisService(new Index("test"))).parse(mapping);
+        XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(mapping);
         String builtMapping = docMapper.buildSource();
 //        System.out.println(builtMapping);
         // reparse it
-        XContentDocumentMapper builtDocMapper = (XContentDocumentMapper) new XContentDocumentMapperParser(new AnalysisService(new Index("test"))).parse(builtMapping);
+        XContentDocumentMapper builtDocMapper = XContentMapperTests.newParser().parse(builtMapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/all/test1.json");
         Document doc = builtDocMapper.parse(json).doc();
 
@@ -70,7 +68,7 @@ public class SimpleAllMapperTests {
 
     @Test public void testSimpleAllMappersWithStore() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/all/store-mapping.json");
-        XContentDocumentMapper docMapper = (XContentDocumentMapper) new XContentDocumentMapperParser(new AnalysisService(new Index("test"))).parse(mapping);
+        XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/all/test1.json");
         Document doc = docMapper.parse(json).doc();
         AllField field = (AllField) doc.getFieldable("_all");
@@ -85,11 +83,11 @@ public class SimpleAllMapperTests {
 
     @Test public void testSimpleAllMappersWithReparseWithStore() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/all/store-mapping.json");
-        XContentDocumentMapper docMapper = (XContentDocumentMapper) new XContentDocumentMapperParser(new AnalysisService(new Index("test"))).parse(mapping);
+        XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(mapping);
         String builtMapping = docMapper.buildSource();
         System.out.println(builtMapping);
         // reparse it
-        XContentDocumentMapper builtDocMapper = (XContentDocumentMapper) new XContentDocumentMapperParser(new AnalysisService(new Index("test"))).parse(builtMapping);
+        XContentDocumentMapper builtDocMapper = XContentMapperTests.newParser().parse(builtMapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/all/test1.json");
         Document doc = builtDocMapper.parse(json).doc();
 

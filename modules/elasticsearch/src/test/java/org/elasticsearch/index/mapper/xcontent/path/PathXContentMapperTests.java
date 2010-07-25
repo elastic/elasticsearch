@@ -19,10 +19,8 @@
 
 package org.elasticsearch.index.mapper.xcontent.path;
 
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
-import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapperParser;
+import org.elasticsearch.index.mapper.xcontent.XContentMapperTests;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -38,7 +36,7 @@ public class PathXContentMapperTests {
 
     @Test public void testPathMapping() throws IOException {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/path/test-mapping.json");
-        XContentDocumentMapper docMapper = (XContentDocumentMapper) new XContentDocumentMapperParser(new AnalysisService(new Index("test"))).parse(mapping);
+        XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(mapping);
 
         assertThat(docMapper.mappers().indexName("first1"), notNullValue());
         assertThat(docMapper.mappers().indexName("name1.first1"), nullValue());

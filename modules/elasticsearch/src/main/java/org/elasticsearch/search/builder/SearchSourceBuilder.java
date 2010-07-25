@@ -70,6 +70,8 @@ public class SearchSourceBuilder implements ToXContent {
 
     private XContentQueryBuilder queryBuilder;
 
+    private byte[] queryBinary;
+
     private int from = -1;
 
     private int size = -1;
@@ -104,6 +106,14 @@ public class SearchSourceBuilder implements ToXContent {
      */
     public SearchSourceBuilder query(XContentQueryBuilder query) {
         this.queryBuilder = query;
+        return this;
+    }
+
+    /**
+     * Constructs a new search source builder with a raw search query.
+     */
+    public SearchSourceBuilder query(byte[] queryBinary) {
+        this.queryBinary = queryBinary;
         return this;
     }
 
@@ -308,6 +318,15 @@ public class SearchSourceBuilder implements ToXContent {
         if (queryBuilder != null) {
             builder.field("query");
             queryBuilder.toXContent(builder, params);
+        }
+
+        if (queryBinary != null) {
+            if (XContentFactory.xContentType(queryBinary) == builder.contentType()) {
+                builder.rawField("query", queryBinary);
+            } else {
+                builder.field("query_binary");
+                builder.value(queryBinary);
+            }
         }
 
         if (explain != null) {

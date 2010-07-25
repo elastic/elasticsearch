@@ -170,6 +170,14 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
     }
 
     /**
+     * Constructs a new search source builder with a raw search query.
+     */
+    public SearchRequestBuilder setQuery(byte[] queryBinary) {
+        sourceBuilder().query(queryBinary);
+        return this;
+    }
+
+    /**
      * From index to start the search from. Defaults to <tt>0</tt>.
      */
     public SearchRequestBuilder setFrom(int from) {

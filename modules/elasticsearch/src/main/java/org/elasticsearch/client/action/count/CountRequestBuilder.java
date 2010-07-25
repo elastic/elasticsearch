@@ -90,6 +90,16 @@ public class CountRequestBuilder extends BaseRequestBuilder<CountRequest, CountR
     }
 
     /**
+     * The query source to execute.
+     *
+     * @see org.elasticsearch.index.query.xcontent.QueryBuilders
+     */
+    public CountRequestBuilder setQuery(byte[] querySource) {
+        request.query(querySource);
+        return this;
+    }
+
+    /**
      * Controls the operation threading model.
      */
     public CountRequestBuilder setOperationThreading(BroadcastOperationThreading operationThreading) {

@@ -55,6 +55,8 @@ public class QueryPhase implements SearchPhase {
                 .put("indices_boost", new IndicesBoostParseElement())
                 .put("indicesBoost", new IndicesBoostParseElement())
                 .put("query", new QueryParseElement())
+                .put("queryBinary", new QueryBinaryParseElement())
+                .put("query_binary", new QueryBinaryParseElement())
                 .put("sort", new SortParseElement())
                 .putAll(facetsPhase.parseElements());
         return parseElements.build();

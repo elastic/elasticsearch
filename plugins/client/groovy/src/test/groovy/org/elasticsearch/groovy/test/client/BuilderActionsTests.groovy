@@ -67,6 +67,20 @@ class BuilderActionsTests {
         assertThat indexR.response.type, equalTo("type1")
         assertThat indexR.response.id, equalTo("1")
 
+        node.client.admin.indices.refresh {}.actionGet()
+
+        def countR = node.client.prepareCount("test").setQuery({
+            term(test: "value")
+        }).gexecute();
+
+        assertThat countR.response.count, equalTo(1l)
+
+        def searchR = node.client.prepareSearch("test").setQuery({
+            term(test: "value")
+        }).gexecute();
+
+        assertThat searchR.response.hits.totalHits, equalTo(1l)
+
         def delete = node.client.prepareDelete("test", "type1", "1").gexecute()
         assertThat delete.response.index, equalTo("test")
         assertThat delete.response.type, equalTo("type1")

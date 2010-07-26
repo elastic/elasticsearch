@@ -100,15 +100,15 @@ public class InternalFacets implements Facets, Streamable, ToXContent, Iterable<
     /**
      * Returns the facet by name already casted to the specified type.
      */
-    public <T extends Facet> T facet(Class<T> facetType, String name) {
+    @Override public <T extends Facet> T facet(Class<T> facetType, String name) {
         return facetType.cast(facet(name));
     }
 
     /**
      * A facet of the specified name.
      */
-    public Facet facet(String name) {
-        return facetsAsMap().get(name);
+    @SuppressWarnings({"unchecked"}) @Override public <T extends Facet> T facet(String name) {
+        return (T) facetsAsMap().get(name);
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.facets.terms;
 
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
@@ -33,6 +34,8 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
     private String fieldName;
     private int size = 10;
     private String[] exclude;
+    private String regex;
+    private int regexFlags = 0;
 
     public TermsFacetBuilder(String name) {
         super(name);
@@ -63,6 +66,16 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
+    public TermsFacetBuilder regex(String regex) {
+        return regex(regex, 0);
+    }
+
+    public TermsFacetBuilder regex(String regex, int flags) {
+        this.regex = regex;
+        this.regexFlags = flags;
+        return this;
+    }
+
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         if (fieldName == null) {
             throw new SearchSourceBuilderException("field must be set on terms facet for facet [" + name + "]");
@@ -78,6 +91,12 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
                 builder.value(ex);
             }
             builder.endArray();
+        }
+        if (regex != null) {
+            builder.field("regex", regex);
+            if (regexFlags != 0) {
+                builder.field("regex_flags", Regex.flagsToString(regexFlags));
+            }
         }
         builder.endObject();
 

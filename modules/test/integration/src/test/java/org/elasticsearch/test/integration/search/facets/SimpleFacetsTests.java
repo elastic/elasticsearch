@@ -92,7 +92,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
         assertThat(searchResponse.hits().hits().length, equalTo(0));
 
-        TermsFacet facet = searchResponse.facets().facet(TermsFacet.class, "facet1");
+        TermsFacet facet = searchResponse.facets().facet("facet1");
         assertThat(facet.name(), equalTo("facet1"));
         assertThat(facet.entries().size(), equalTo(1));
         assertThat(facet.entries().get(0).term(), equalTo("111"));
@@ -108,7 +108,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
         assertThat(searchResponse.hits().hits().length, equalTo(0));
 
-        facet = searchResponse.facets().facet(TermsFacet.class, "facet1");
+        facet = searchResponse.facets().facet("facet1");
         assertThat(facet.name(), equalTo("facet1"));
         assertThat(facet.entries().size(), equalTo(1));
         assertThat(facet.entries().get(0).term(), equalTo("111"));
@@ -143,13 +143,13 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .addFacet(termsFacet("facet2").field("tag").size(10))
                 .execute().actionGet();
 
-        TermsFacet facet = searchResponse.facets().facet(TermsFacet.class, "facet1");
+        TermsFacet facet = searchResponse.facets().facet("facet1");
         assertThat(facet.name(), equalTo("facet1"));
         assertThat(facet.entries().size(), equalTo(1));
         assertThat(facet.entries().get(0).term(), equalTo("111"));
         assertThat(facet.entries().get(0).count(), equalTo(2));
 
-        facet = searchResponse.facets().facet(TermsFacet.class, "facet2");
+        facet = searchResponse.facets().facet("facet2");
         assertThat(facet.name(), equalTo("facet2"));
         assertThat(facet.entries().size(), equalTo(3));
         assertThat(facet.entries().get(0).term(), equalTo("yyy"));
@@ -160,7 +160,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .addFacet(termsFacet("facet1").field("stag").size(10).filter(termFilter("tag", "xxx")))
                 .execute().actionGet();
 
-        facet = searchResponse.facets().facet(TermsFacet.class, "facet1");
+        facet = searchResponse.facets().facet("facet1");
         assertThat(facet.name(), equalTo("facet1"));
         assertThat(facet.entries().size(), equalTo(1));
         assertThat(facet.entries().get(0).term(), equalTo("111"));
@@ -171,7 +171,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .addFacet(termsFacet("facet1").field("tag").size(10))
                 .execute().actionGet();
 
-        facet = searchResponse.facets().facet(TermsFacet.class, "facet1");
+        facet = searchResponse.facets().facet("facet1");
         assertThat(facet.name(), equalTo("facet1"));
         assertThat(facet.entries().size(), equalTo(3));
         assertThat(facet.entries().get(0).term(), equalTo("yyy"));
@@ -186,7 +186,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .addFacet(termsFacet("facet1").field("tag").size(2))
                 .execute().actionGet();
 
-        facet = searchResponse.facets().facet(TermsFacet.class, "facet1");
+        facet = searchResponse.facets().facet("facet1");
         assertThat(facet.name(), equalTo("facet1"));
         assertThat(facet.entries().size(), equalTo(2));
         assertThat(facet.entries().get(0).term(), equalTo("yyy"));
@@ -199,7 +199,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .addFacet(termsFacet("facet1").field("tag").size(10).exclude("yyy"))
                 .execute().actionGet();
 
-        facet = searchResponse.facets().facet(TermsFacet.class, "facet1");
+        facet = searchResponse.facets().facet("facet1");
         assertThat(facet.name(), equalTo("facet1"));
         assertThat(facet.entries().size(), equalTo(2));
         assertThat(facet.entries().get(0).term(), anyOf(equalTo("xxx"), equalTo("zzz")));
@@ -243,7 +243,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .addFacet(termsFacet("facet1").field("text").size(3))
                 .execute().actionGet();
 
-        TermsFacet facet = searchResponse.facets().facet(TermsFacet.class, "facet1");
+        TermsFacet facet = searchResponse.facets().facet("facet1");
         assertThat(facet.name(), equalTo("facet1"));
         assertThat(facet.entries().size(), equalTo(3));
         for (int i = 0; i < 3; i++) {
@@ -256,7 +256,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .addFacet(termsFacet("facet1").field("text").size(2))
                 .execute().actionGet();
 
-        facet = searchResponse.facets().facet(TermsFacet.class, "facet1");
+        facet = searchResponse.facets().facet("facet1");
         assertThat(facet.name(), equalTo("facet1"));
         assertThat(facet.entries().size(), equalTo(2));
         for (int i = 0; i < 2; i++) {
@@ -269,7 +269,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .addFacet(termsFacet("facet1").field("text").size(1))
                 .execute().actionGet();
 
-        facet = searchResponse.facets().facet(TermsFacet.class, "facet1");
+        facet = searchResponse.facets().facet("facet1");
         assertThat(facet.name(), equalTo("facet1"));
         assertThat(facet.entries().size(), equalTo(1));
         for (int i = 0; i < 1; i++) {
@@ -314,7 +314,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
         assertThat(searchResponse.failedShards(), equalTo(0));
 
-        StatisticalFacet facet = searchResponse.facets().facet(StatisticalFacet.class, "stats1");
+        StatisticalFacet facet = searchResponse.facets().facet("stats1");
         assertThat(facet.name(), equalTo(facet.name()));
         assertThat(facet.count(), equalTo(2l));
         assertThat(facet.total(), equalTo(3d));
@@ -323,7 +323,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.mean(), equalTo(1.5d));
         assertThat(facet.sumOfSquares(), equalTo(5d));
 
-        facet = searchResponse.facets().facet(StatisticalFacet.class, "stats2");
+        facet = searchResponse.facets().facet("stats2");
         assertThat(facet.name(), equalTo(facet.name()));
         assertThat(facet.count(), equalTo(4l));
         assertThat(facet.total(), equalTo(10d));
@@ -331,7 +331,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.max(), equalTo(4d));
         assertThat(facet.mean(), equalTo(2.5d));
 
-        facet = searchResponse.facets().facet(StatisticalFacet.class, "stats3");
+        facet = searchResponse.facets().facet("stats3");
         assertThat(facet.name(), equalTo(facet.name()));
         assertThat(facet.count(), equalTo(2l));
         assertThat(facet.total(), equalTo(6d));
@@ -387,7 +387,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
         assertThat(searchResponse.failedShards(), equalTo(0));
 
-        HistogramFacet facet = searchResponse.facets().facet(HistogramFacet.class, "stats1");
+        HistogramFacet facet = searchResponse.facets().facet("stats1");
         assertThat(facet.name(), equalTo("stats1"));
         assertThat(facet.entries().size(), equalTo(2));
         assertThat(facet.entries().get(0).key(), equalTo(1000l));
@@ -399,7 +399,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().get(1).total(), equalTo(1175d));
         assertThat(facet.entries().get(1).mean(), equalTo(1175d));
 
-        facet = searchResponse.facets().facet(HistogramFacet.class, "stats2");
+        facet = searchResponse.facets().facet("stats2");
         assertThat(facet.name(), equalTo("stats2"));
         assertThat(facet.entries().size(), equalTo(3));
         assertThat(facet.entries().get(0).key(), equalTo(10l));
@@ -415,7 +415,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().get(2).total(), equalTo(31d));
         assertThat(facet.entries().get(2).mean(), equalTo(31d));
 
-        facet = searchResponse.facets().facet(HistogramFacet.class, "stats3");
+        facet = searchResponse.facets().facet("stats3");
         assertThat(facet.name(), equalTo("stats3"));
         assertThat(facet.entries().size(), equalTo(2));
         assertThat(facet.entries().get(0).key(), equalTo(1000l));
@@ -427,7 +427,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().get(1).total(), equalTo(42d));
         assertThat(facet.entries().get(1).mean(), equalTo(21d));
 
-        facet = searchResponse.facets().facet(HistogramFacet.class, "stats4");
+        facet = searchResponse.facets().facet("stats4");
         assertThat(facet.name(), equalTo("stats4"));
         assertThat(facet.entries().size(), equalTo(2));
         assertThat(facet.entries().get(0).key(), equalTo(0l));

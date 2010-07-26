@@ -138,7 +138,7 @@ public class TermsFacetCollector extends AbstractFacetCollector {
         }
     }
 
-    public class AggregatorValueProc extends StaticAggregatorValueProc {
+    public static class AggregatorValueProc extends StaticAggregatorValueProc {
 
         private final ImmutableSet<String> excluded;
 

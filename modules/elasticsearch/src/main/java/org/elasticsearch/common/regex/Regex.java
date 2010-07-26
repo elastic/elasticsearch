@@ -30,30 +30,65 @@ import java.util.regex.Pattern;
 public class Regex {
 
     public static Pattern compile(String regex, String flags) {
+        int pFlags = flags == null ? 0 : flagsFromString(flags);
+        return Pattern.compile(regex, pFlags);
+    }
+
+    public static int flagsFromString(String flags) {
         int pFlags = 0;
-        if (flags == null) {
-            for (String s : Strings.delimitedListToStringArray(flags, "|")) {
-                if ("CASE_INSENSITIVE".equalsIgnoreCase(s)) {
-                    pFlags |= Pattern.CASE_INSENSITIVE;
-                } else if ("MULTILINE".equalsIgnoreCase(s)) {
-                    pFlags |= Pattern.MULTILINE;
-                } else if ("DOTALL".equalsIgnoreCase(s)) {
-                    pFlags |= Pattern.DOTALL;
-                } else if ("UNICODE_CASE".equalsIgnoreCase(s)) {
-                    pFlags |= Pattern.UNICODE_CASE;
-                } else if ("CANON_EQ".equalsIgnoreCase(s)) {
-                    pFlags |= Pattern.CANON_EQ;
-                } else if ("UNIX_LINES".equalsIgnoreCase(s)) {
-                    pFlags |= Pattern.UNIX_LINES;
-                } else if ("LITERAL".equalsIgnoreCase(s)) {
-                    pFlags |= Pattern.LITERAL;
-                } else if ("COMMENTS".equalsIgnoreCase(s)) {
-                    pFlags |= Pattern.COMMENTS;
-                } else {
-                    throw new ElasticSearchIllegalArgumentException("Unknown regex flag [" + s + "] to compile [" + regex + "]");
-                }
+        for (String s : Strings.delimitedListToStringArray(flags, "|")) {
+            if (s.isEmpty()) {
+                continue;
+            }
+            if ("CASE_INSENSITIVE".equalsIgnoreCase(s)) {
+                pFlags |= Pattern.CASE_INSENSITIVE;
+            } else if ("MULTILINE".equalsIgnoreCase(s)) {
+                pFlags |= Pattern.MULTILINE;
+            } else if ("DOTALL".equalsIgnoreCase(s)) {
+                pFlags |= Pattern.DOTALL;
+            } else if ("UNICODE_CASE".equalsIgnoreCase(s)) {
+                pFlags |= Pattern.UNICODE_CASE;
+            } else if ("CANON_EQ".equalsIgnoreCase(s)) {
+                pFlags |= Pattern.CANON_EQ;
+            } else if ("UNIX_LINES".equalsIgnoreCase(s)) {
+                pFlags |= Pattern.UNIX_LINES;
+            } else if ("LITERAL".equalsIgnoreCase(s)) {
+                pFlags |= Pattern.LITERAL;
+            } else if ("COMMENTS".equalsIgnoreCase(s)) {
+                pFlags |= Pattern.COMMENTS;
+            } else {
+                throw new ElasticSearchIllegalArgumentException("Unknown regex flag [" + s + "]");
             }
         }
-        return Pattern.compile(regex, pFlags);
+        return pFlags;
+    }
+
+    public static String flagsToString(int flags) {
+        StringBuilder sb = new StringBuilder();
+        if ((flags & Pattern.CASE_INSENSITIVE) != 0) {
+            sb.append("CASE_INSENSITIVE|");
+        }
+        if ((flags & Pattern.MULTILINE) != 0) {
+            sb.append("MULTILINE|");
+        }
+        if ((flags & Pattern.DOTALL) != 0) {
+            sb.append("DOTALL|");
+        }
+        if ((flags & Pattern.UNICODE_CASE) != 0) {
+            sb.append("UNICODE_CASE|");
+        }
+        if ((flags & Pattern.CANON_EQ) != 0) {
+            sb.append("CANON_EQ|");
+        }
+        if ((flags & Pattern.UNIX_LINES) != 0) {
+            sb.append("UNIX_LINES|");
+        }
+        if ((flags & Pattern.LITERAL) != 0) {
+            sb.append("LITERAL|");
+        }
+        if ((flags & Pattern.COMMENTS) != 0) {
+            sb.append("COMMENTS|");
+        }
+        return sb.toString();
     }
 }

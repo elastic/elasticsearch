@@ -52,5 +52,5 @@ public interface Facets extends Iterable<Facet> {
     /**
      * A facet of the specified name.
      */
-    Facet facet(String name);
+    <T extends Facet> T facet(String name);
 }

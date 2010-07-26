@@ -36,6 +36,8 @@ import org.elasticsearch.search.facets.support.AbstractFacetCollector;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * @author kimchy (shay.banon)
@@ -67,12 +69,15 @@ public class TermsFacetCollector extends AbstractFacetCollector {
 
     private final ImmutableSet<String> excluded;
 
-    public TermsFacetCollector(String facetName, String fieldName, int size, int numberOfShards, FieldDataCache fieldDataCache, MapperService mapperService, ImmutableSet<String> excluded) {
+    private final Pattern pattern;
+
+    public TermsFacetCollector(String facetName, String fieldName, int size, int numberOfShards, FieldDataCache fieldDataCache, MapperService mapperService, ImmutableSet<String> excluded, Pattern pattern) {
         super(facetName);
         this.fieldDataCache = fieldDataCache;
         this.size = size;
         this.numberOfShards = numberOfShards;
         this.excluded = excluded;
+        this.pattern = pattern;
 
         FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);
         this.fieldName = fieldName;
@@ -83,10 +88,10 @@ public class TermsFacetCollector extends AbstractFacetCollector {
             this.indexFieldName = fieldName;
             this.fieldDataType = FieldData.Type.STRING;
         }
-        if (excluded.isEmpty()) {
+        if (excluded.isEmpty() && pattern == null) {
             aggregator = new StaticAggregatorValueProc(popFacets());
         } else {
-            aggregator = new AggregatorValueProc(popFacets());
+            aggregator = new AggregatorValueProc(popFacets(), excluded, pattern);
         }
     }
 
@@ -135,12 +140,21 @@ public class TermsFacetCollector extends AbstractFacetCollector {
 
     public class AggregatorValueProc extends StaticAggregatorValueProc {
 
-        public AggregatorValueProc(TObjectIntHashMap<String> facets) {
+        private final ImmutableSet<String> excluded;
+
+        private final Matcher matcher;
+
+        public AggregatorValueProc(TObjectIntHashMap<String> facets, ImmutableSet<String> excluded, Pattern pattern) {
             super(facets);
+            this.excluded = excluded;
+            this.matcher = pattern != null ? pattern.matcher("") : null;
         }
 
         @Override public void onValue(int docId, String value) {
-            if (excluded.contains(value)) {
+            if (excluded != null && excluded.contains(value)) {
+                return;
+            }
+            if (matcher != null && !matcher.reset(value).matches()) {
                 return;
             }
             super.onValue(docId, value);

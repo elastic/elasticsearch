@@ -20,12 +20,14 @@
 package org.elasticsearch.search.facets.terms;
 
 import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.facets.collector.FacetCollector;
 import org.elasticsearch.search.facets.collector.FacetCollectorParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.regex.Pattern;
 
 /**
  * @author kimchy (shay.banon)
@@ -45,6 +47,8 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
         String fieldName = null;
         XContentParser.Token token;
         ImmutableSet<String> excluded = ImmutableSet.of();
+        String regex = null;
+        String regexFlags = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
@@ -61,9 +65,17 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
                     field = parser.text();
                 } else if ("size".equals(fieldName)) {
                     size = parser.intValue();
+                } else if ("regex".equals(fieldName)) {
+                    regex = parser.text();
+                } else if ("regex_flags".equals(fieldName) || "regexFlags".equals(fieldName)) {
+                    regexFlags = parser.text();
                 }
             }
         }
-        return new TermsFacetCollector(facetName, field, size, context.numberOfShards(), context.fieldDataCache(), context.mapperService(), excluded);
+        Pattern pattern = null;
+        if (regex != null) {
+            pattern = Regex.compile(regex, regexFlags);
+        }
+        return new TermsFacetCollector(facetName, field, size, context.numberOfShards(), context.fieldDataCache(), context.mapperService(), excluded, pattern);
     }
 }

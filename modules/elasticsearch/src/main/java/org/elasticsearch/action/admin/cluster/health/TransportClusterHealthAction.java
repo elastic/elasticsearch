@@ -101,8 +101,18 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
                     if (response.numberOfNodes() >= expected) {
                         waitForCounter++;
                     }
+                } else if (request.waitForNodes().startsWith("ge(")) {
+                    int expected = Integer.parseInt(request.waitForNodes().substring(3, request.waitForNodes().length() - 1));
+                    if (response.numberOfNodes() >= expected) {
+                        waitForCounter++;
+                    }
                 } else if (request.waitForNodes().startsWith("<=")) {
                     int expected = Integer.parseInt(request.waitForNodes().substring(2));
+                    if (response.numberOfNodes() <= expected) {
+                        waitForCounter++;
+                    }
+                } else if (request.waitForNodes().startsWith("le(")) {
+                    int expected = Integer.parseInt(request.waitForNodes().substring(3, request.waitForNodes().length() - 1));
                     if (response.numberOfNodes() <= expected) {
                         waitForCounter++;
                     }
@@ -111,8 +121,18 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
                     if (response.numberOfNodes() > expected) {
                         waitForCounter++;
                     }
+                } else if (request.waitForNodes().startsWith("gt(")) {
+                    int expected = Integer.parseInt(request.waitForNodes().substring(3, request.waitForNodes().length() - 1));
+                    if (response.numberOfNodes() > expected) {
+                        waitForCounter++;
+                    }
                 } else if (request.waitForNodes().startsWith("<")) {
                     int expected = Integer.parseInt(request.waitForNodes().substring(1));
+                    if (response.numberOfNodes() < expected) {
+                        waitForCounter++;
+                    }
+                } else if (request.waitForNodes().startsWith("lt(")) {
+                    int expected = Integer.parseInt(request.waitForNodes().substring(3, request.waitForNodes().length() - 1));
                     if (response.numberOfNodes() < expected) {
                         waitForCounter++;
                     }

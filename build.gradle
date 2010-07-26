@@ -11,7 +11,7 @@ SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
 sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
 buildTimeStr = sdf.format(buildTime)
 
-versionNumber = '0.9.0'
+versionNumber = '0.9.1-SNAPSHOT'
 
 explodedDistDir = new File(distsDir, 'exploded')
 explodedDistLibDir = new File(explodedDistDir, 'lib')

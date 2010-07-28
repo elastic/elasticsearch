@@ -1,0 +1,98 @@
+/*
+ * Licensed to Elastic Search and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Elastic Search licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.index.query.xcontent;
+
+import org.elasticsearch.common.lucene.geo.GeoDistance;
+import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
+
+import java.io.IOException;
+
+/**
+ * @author kimchy (shay.banon)
+ */
+public class GeoDistanceFilterBuilder extends BaseFilterBuilder {
+
+    private final String name;
+
+    private String distance;
+
+    private double lat;
+
+    private double lon;
+
+    private String geohash;
+
+    private GeoDistance geoDistance;
+
+    public GeoDistanceFilterBuilder(String name) {
+        this.name = name;
+    }
+
+    public GeoDistanceFilterBuilder point(double lat, double lon) {
+        this.lat = lat;
+        this.lon = lon;
+        return this;
+    }
+
+    public GeoDistanceFilterBuilder lat(double lat) {
+        this.lat = lat;
+        return this;
+    }
+
+    public GeoDistanceFilterBuilder lon(double lon) {
+        this.lon = lon;
+        return this;
+    }
+
+    public GeoDistanceFilterBuilder distance(String distance) {
+        this.distance = distance;
+        return this;
+    }
+
+    public GeoDistanceFilterBuilder distance(double distance, DistanceUnit unit) {
+        this.distance = unit.toString(distance);
+        return this;
+    }
+
+    public GeoDistanceFilterBuilder geohash(String geohash) {
+        this.geohash = geohash;
+        return this;
+    }
+
+    public GeoDistanceFilterBuilder geoDistance(GeoDistance geoDistance) {
+        this.geoDistance = geoDistance;
+        return this;
+    }
+
+    @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(GeoDistanceFilterParser.NAME);
+        if (geohash != null) {
+            builder.field(name, geohash);
+        } else {
+            builder.startArray(name).value(lat).value(lon).endArray();
+        }
+        builder.field("distance", distance);
+        if (geoDistance != null) {
+            builder.field("distance_type", geoDistance.name().toLowerCase());
+        }
+        builder.endObject();
+    }
+}

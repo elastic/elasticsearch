@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.*;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.lucene.geo.GeoDistanceFilter;
 import org.elasticsearch.common.lucene.search.*;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -954,6 +955,62 @@ public class SimpleIndexQueryParserTests {
         assertThat(mltQuery.getLikeText(), equalTo("something"));
         assertThat(mltQuery.getMinTermFrequency(), equalTo(1));
         assertThat(mltQuery.getMaxQueryTerms(), equalTo(12));
+    }
+
+    @Test public void testGeoDistanceFilter1() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_distance1.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) filteredQuery.getFilter();
+        assertThat(filter.latFieldName(), equalTo("location.lat"));
+        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.lat(), closeTo(40, 0.00001));
+        assertThat(filter.lon(), closeTo(-70, 0.00001));
+        assertThat(filter.distance(), closeTo(12, 0.00001));
+    }
+
+    @Test public void testGeoDistanceFilter2() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_distance2.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) filteredQuery.getFilter();
+        assertThat(filter.latFieldName(), equalTo("location.lat"));
+        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.lat(), closeTo(40, 0.00001));
+        assertThat(filter.lon(), closeTo(-70, 0.00001));
+        assertThat(filter.distance(), closeTo(12, 0.00001));
+    }
+
+    @Test public void testGeoDistanceFilter3() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_distance3.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) filteredQuery.getFilter();
+        assertThat(filter.latFieldName(), equalTo("location.lat"));
+        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.lat(), closeTo(40, 0.00001));
+        assertThat(filter.lon(), closeTo(-70, 0.00001));
+        assertThat(filter.distance(), closeTo(12, 0.00001));
+    }
+
+    @Test public void testGeoDistanceFilter4() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_distance4.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) filteredQuery.getFilter();
+        assertThat(filter.latFieldName(), equalTo("location.lat"));
+        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.lat(), closeTo(40, 0.00001));
+        assertThat(filter.lon(), closeTo(-70, 0.00001));
+        assertThat(filter.distance(), closeTo(12, 0.00001));
     }
 
     private XContentIndexQueryParser newQueryParser() throws IOException {

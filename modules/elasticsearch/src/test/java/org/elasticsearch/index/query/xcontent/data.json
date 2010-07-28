@@ -38,6 +38,10 @@
                 }
             ]
         ],
-        nullValue : null
+        nullValue : null,
+        "location" : {
+            "lat" : 1.1,
+            "lon" : 1.2
+        }
     }
 }

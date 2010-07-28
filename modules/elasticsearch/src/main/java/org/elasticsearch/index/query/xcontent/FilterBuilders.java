@@ -179,6 +179,10 @@ public abstract class FilterBuilders {
         return new ScriptFilterBuilder(script);
     }
 
+    public static GeoDistanceFilterBuilder geoDistance(String name) {
+        return new GeoDistanceFilterBuilder(name);
+    }
+
     public static BoolFilterBuilder boolFilter() {
         return new BoolFilterBuilder();
     }

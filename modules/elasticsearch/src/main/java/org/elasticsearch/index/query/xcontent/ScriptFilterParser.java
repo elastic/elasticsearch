@@ -21,11 +21,10 @@ package org.elasticsearch.index.query.xcontent;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.docset.DocSet;
+import org.elasticsearch.common.lucene.docset.GetDocSet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -138,8 +137,7 @@ public class ScriptFilterParser extends AbstractIndexComponent implements XConte
         @Override public DocIdSet getDocIdSet(final IndexReader reader) throws IOException {
             final ScriptFieldsFunction function = new ScriptFieldsFunction(script, scriptService, mapperService, fieldDataCache);
             function.setNextReader(reader);
-            final int maxDoc = reader.maxDoc();
-            return new DocSet() {
+            return new GetDocSet(reader.maxDoc()) {
                 @Override public boolean isCacheable() {
                     return false; // though it is, we want to cache it into in memory rep so it will be faster
                 }
@@ -156,40 +154,6 @@ public class ScriptFilterParser extends AbstractIndexComponent implements XConte
                         return ((Number) val).longValue() != 0;
                     }
                     throw new IOException("Can't handle type [" + val + "] in script filter");
-                }
-
-                @Override public DocIdSetIterator iterator() throws IOException {
-                    return new DocIdSetIterator() {
-                        private int doc = -1;
-
-                        @Override public int docID() {
-                            return doc;
-                        }
-
-                        @Override public int nextDoc() throws IOException {
-                            do {
-                                doc++;
-                                if (doc >= maxDoc) {
-                                    return doc = NO_MORE_DOCS;
-                                }
-                            } while (!get(doc));
-                            return doc;
-                        }
-
-                        @Override public int advance(int target) throws IOException {
-                            if (target >= maxDoc) {
-                                return doc = NO_MORE_DOCS;
-                            }
-                            doc = target;
-                            while (!get(doc)) {
-                                doc++;
-                                if (doc >= maxDoc) {
-                                    return doc = NO_MORE_DOCS;
-                                }
-                            }
-                            return doc;
-                        }
-                    };
                 }
             };
         }

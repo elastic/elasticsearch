@@ -44,6 +44,7 @@
       <w>formatters</w>
       <w>frac</w>
       <w>freqs</w>
+      <w>geohash</w>
       <w>guice</w>
       <w>hadoop</w>
       <w>hdfs</w>

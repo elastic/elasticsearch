@@ -67,6 +67,7 @@ public class XContentDocumentMapperParser implements DocumentMapperParser {
                 .put(XContentStringFieldMapper.CONTENT_TYPE, new XContentStringFieldMapper.TypeParser())
                 .put(XContentObjectMapper.CONTENT_TYPE, new XContentObjectMapper.TypeParser())
                 .put(XContentMultiFieldMapper.CONTENT_TYPE, new XContentMultiFieldMapper.TypeParser())
+                .put(XContentGeoPointFieldMapper.CONTENT_TYPE, new XContentGeoPointFieldMapper.TypeParser())
                 .immutableMap();
     }
 

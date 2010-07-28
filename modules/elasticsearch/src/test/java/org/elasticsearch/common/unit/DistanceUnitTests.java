@@ -17,31 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.common.lucene.docset;
+package org.elasticsearch.common.unit;
 
-import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.DocIdSetIterator;
+import org.testng.annotations.Test;
 
-import java.io.IOException;
+import static org.hamcrest.MatcherAssert.*;
+import static org.hamcrest.Matchers.*;
 
 /**
  * @author kimchy (shay.banon)
  */
-public abstract class DocSet extends DocIdSet {
+public class DistanceUnitTests {
 
-    public static DocSet EMPTY_DOC_SET = new DocSet() {
-        @Override public boolean get(int doc) throws IOException {
-            return false;
-        }
-
-        @Override public DocIdSetIterator iterator() throws IOException {
-            return DocIdSet.EMPTY_DOCIDSET.iterator();
-        }
-
-        @Override public boolean isCacheable() {
-            return true;
-        }
-    };
-
-    public abstract boolean get(int doc) throws IOException;
+    @Test void testSimpleDistanceUnit() {
+        assertThat(DistanceUnit.MILES.toKilometers(10), closeTo(16.09344, 0.001));
+        assertThat(DistanceUnit.MILES.toMiles(10), closeTo(10, 0.001));
+        assertThat(DistanceUnit.KILOMETERS.toMiles(10), closeTo(6.21371192, 0.000));
+        assertThat(DistanceUnit.KILOMETERS.toKilometers(10), closeTo(10, 0.000));
+    }
 }

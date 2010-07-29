@@ -205,28 +205,31 @@ public class MetaDataMappingService extends AbstractComponent {
                         }
                     }
 
-
-                    final AtomicInteger counter = new AtomicInteger(expectedReplies);
-                    final Set<String> indicesSet = newHashSet(request.indices);
-                    final NodeMappingCreatedAction.Listener nodeMappingListener = new NodeMappingCreatedAction.Listener() {
-                        @Override public void onNodeMappingCreated(NodeMappingCreatedAction.NodeMappingCreatedResponse response) {
-                            if (indicesSet.contains(response.index()) && response.type().equals(request.mappingType)) {
-                                if (counter.decrementAndGet() == 0) {
-                                    listener.onResponse(new Response(true));
-                                    nodeMappingCreatedAction.remove(this);
+                    if (expectedReplies == 0) {
+                        listener.onResponse(new Response(true));
+                    } else {
+                        final AtomicInteger counter = new AtomicInteger(expectedReplies);
+                        final Set<String> indicesSet = newHashSet(request.indices);
+                        final NodeMappingCreatedAction.Listener nodeMappingListener = new NodeMappingCreatedAction.Listener() {
+                            @Override public void onNodeMappingCreated(NodeMappingCreatedAction.NodeMappingCreatedResponse response) {
+                                if (indicesSet.contains(response.index()) && response.type().equals(request.mappingType)) {
+                                    if (counter.decrementAndGet() == 0) {
+                                        listener.onResponse(new Response(true));
+                                        nodeMappingCreatedAction.remove(this);
+                                    }
                                 }
                             }
-                        }
-                    };
-                    nodeMappingCreatedAction.add(nodeMappingListener);
+                        };
+                        nodeMappingCreatedAction.add(nodeMappingListener);
 
-                    Timeout timeoutTask = timerService.newTimeout(new TimerTask() {
-                        @Override public void run(Timeout timeout) throws Exception {
-                            listener.onResponse(new Response(false));
-                            nodeMappingCreatedAction.remove(nodeMappingListener);
-                        }
-                    }, request.timeout, TimerService.ExecutionType.THREADED);
-                    listener.timeout = timeoutTask;
+                        Timeout timeoutTask = timerService.newTimeout(new TimerTask() {
+                            @Override public void run(Timeout timeout) throws Exception {
+                                listener.onResponse(new Response(false));
+                                nodeMappingCreatedAction.remove(nodeMappingListener);
+                            }
+                        }, request.timeout, TimerService.ExecutionType.THREADED);
+                        listener.timeout = timeoutTask;
+                    }
 
 
                     return newClusterStateBuilder().state(currentState).metaData(builder).build();

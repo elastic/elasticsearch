@@ -100,15 +100,24 @@ public class ScriptFieldsFunction implements FieldsFunction, Map {
         return fieldData.docFieldData(docId);
     }
 
+    public boolean containsKey(Object key) {
+        // assume its a string...
+        String fieldName = key.toString();
+        FieldData fieldData = localCacheFieldData.get(fieldName);
+        if (fieldData == null) {
+            FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);
+            if (mapper == null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public int size() {
         throw new UnsupportedOperationException();
     }
 
     public boolean isEmpty() {
-        throw new UnsupportedOperationException();
-    }
-
-    public boolean containsKey(Object key) {
         throw new UnsupportedOperationException();
     }
 

@@ -762,7 +762,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                         cachedMd5.put(name, md5);
                     }
                     builder.put(name, new PlainBlobMetaData(name, sizeInBytes, md5));
-                } catch (IOException e) {
+                } catch (Exception e) {
                     // don't add it!
                 }
             }

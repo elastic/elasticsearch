@@ -127,11 +127,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     File mappingsDir = new File(environment.configFile(), "mappings");
                     if (mappingsDir.exists() && mappingsDir.isDirectory()) {
                         File defaultMappingsDir = new File(mappingsDir, "_default");
-                        if (mappingsDir.exists() && mappingsDir.isDirectory()) {
+                        if (defaultMappingsDir.exists() && defaultMappingsDir.isDirectory()) {
                             addMappings(mappings, defaultMappingsDir);
                         }
                         File indexMappingsDir = new File(mappingsDir, request.index);
-                        if (mappingsDir.exists() && mappingsDir.isDirectory()) {
+                        if (indexMappingsDir.exists() && indexMappingsDir.isDirectory()) {
                             addMappings(mappings, indexMappingsDir);
                         }
                     }

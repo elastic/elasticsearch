@@ -62,15 +62,15 @@ public class ScriptFieldSearchTests extends AbstractNodesTests {
     public void testCustomScriptBoost() throws Exception {
         client.admin().indices().prepareCreate("test").execute().actionGet();
         client.prepareIndex("test", "type1", "1")
-                .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).endObject())
+                .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).field("date", "1970-01-01T00:00:00").endObject())
                 .execute().actionGet();
         client.admin().indices().prepareFlush().execute().actionGet();
         client.prepareIndex("test", "type1", "2")
-                .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 2.0f).endObject())
+                .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 2.0f).field("date", "1970-01-01T00:00:25").endObject())
                 .execute().actionGet();
         client.admin().indices().prepareFlush().execute().actionGet();
         client.prepareIndex("test", "type1", "3")
-                .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 3.0f).endObject())
+                .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 3.0f).field("date", "1970-01-01T00:02:00").endObject())
                 .execute().actionGet();
         client.admin().indices().refresh(refreshRequest()).actionGet();
 
@@ -79,16 +79,20 @@ public class ScriptFieldSearchTests extends AbstractNodesTests {
                 .setQuery(matchAllQuery())
                 .addSort("num1", Order.ASC)
                 .addScriptField("sNum1", "doc['num1'].value")
+                .addScriptField("date1", "doc['date'].date.millis")
                 .execute().actionGet();
 
         assertThat(response.hits().totalHits(), equalTo(3l));
         assertThat(response.hits().getAt(0).isSourceEmpty(), equalTo(true));
         assertThat(response.hits().getAt(0).id(), equalTo("1"));
         assertThat((Double) response.hits().getAt(0).fields().get("sNum1").values().get(0), equalTo(1.0));
+        assertThat((Long) response.hits().getAt(0).fields().get("date1").values().get(0), equalTo(0l));
         assertThat(response.hits().getAt(1).id(), equalTo("2"));
         assertThat((Double) response.hits().getAt(1).fields().get("sNum1").values().get(0), equalTo(2.0));
+        assertThat((Long) response.hits().getAt(1).fields().get("date1").values().get(0), equalTo(25000l));
         assertThat(response.hits().getAt(2).id(), equalTo("3"));
         assertThat((Double) response.hits().getAt(2).fields().get("sNum1").values().get(0), equalTo(3.0));
+        assertThat((Long) response.hits().getAt(2).fields().get("date1").values().get(0), equalTo(120000l));
 
         logger.info("running doc['num1'].value * factor");
         Map<String, Object> params = MapBuilder.<String, Object>newMapBuilder().put("factor", 2.0).map();

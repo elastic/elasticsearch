@@ -96,6 +96,10 @@ public class GeoDistanceFilter extends Filter {
             }
 
             @Override public boolean get(int doc) throws IOException {
+                if (!latFieldData.hasValue(doc) || !lonFieldData.hasValue(doc)) {
+                    return false;
+                }
+
                 if (latFieldData.multiValued()) {
                     double[] lats = latFieldData.doubleValues(doc);
                     double[] lons = latFieldData.doubleValues(doc);

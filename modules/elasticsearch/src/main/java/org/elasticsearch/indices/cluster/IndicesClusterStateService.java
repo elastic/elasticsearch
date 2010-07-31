@@ -218,7 +218,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                         }
                     }
                 } catch (Exception e) {
-                    logger.warn("[{}] failed to add mapping [{}], source [{}]", index, mappingType, mappingSource);
+                    logger.warn("[{}] failed to add mapping [{}], source [{}]", e, index, mappingType, mappingSource);
                 }
             }
         }

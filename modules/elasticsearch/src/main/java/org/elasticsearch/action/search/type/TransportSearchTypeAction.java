@@ -217,6 +217,13 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
                 try {
                     moveToSecondPhase();
                 } catch (Exception e) {
+                    if (logger.isDebugEnabled()) {
+                        if (shard != null) {
+                            logger.debug(shard.shortSummary() + ": Failed to execute [" + request + "] while moving to second phase", e);
+                        } else {
+                            logger.debug(shardIt.shardId() + ": Failed to execute [" + request + "] while moving to second phase", e);
+                        }
+                    }
                     invokeListener(new ReduceSearchPhaseException(firstPhaseName(), "", e, buildShardFailures()));
                 }
             }

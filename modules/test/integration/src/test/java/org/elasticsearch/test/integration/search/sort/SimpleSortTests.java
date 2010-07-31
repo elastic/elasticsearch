@@ -206,5 +206,23 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("3"));
         assertThat((String) searchResponse.hits().getAt(1).field("id").value(), equalTo("1"));
         assertThat((String) searchResponse.hits().getAt(2).field("id").value(), equalTo("2"));
+
+        // a query with docs just with null values
+        searchResponse = client.prepareSearch()
+                .setQuery(termQuery("id", "2"))
+                .addScriptField("id", "doc['id'].value")
+                .addSort("svalue", SearchSourceBuilder.Order.DESC)
+                .execute().actionGet();
+
+        if (searchResponse.failedShards() > 0) {
+            logger.warn("Failed shards:");
+            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
+                logger.warn("-> {}", shardSearchFailure);
+            }
+        }
+        assertThat(searchResponse.failedShards(), equalTo(0));
+
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
+        assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("2"));
     }
 }

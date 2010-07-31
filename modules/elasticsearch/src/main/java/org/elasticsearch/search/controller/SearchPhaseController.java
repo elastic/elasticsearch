@@ -80,14 +80,16 @@ public class SearchPhaseController {
         }
         PriorityQueue queue;
         if (queryResultProvider.queryResult().topDocs() instanceof TopFieldDocs) {
-            // sorting, first if the type is a String, chance CUSTOM to STRING so we handle nulls properly
+            // sorting, first if the type is a String, chance CUSTOM to STRING so we handle nulls properly (since our CUSTOM String sorting might return null)
             TopFieldDocs fieldDocs = (TopFieldDocs) queryResultProvider.queryResult().topDocs();
             for (int i = 0; i < fieldDocs.fields.length; i++) {
+                boolean allValuesAreNull = true;
                 boolean resolvedField = false;
                 for (QuerySearchResultProvider resultProvider : results) {
                     for (ScoreDoc doc : resultProvider.queryResult().topDocs().scoreDocs) {
                         FieldDoc fDoc = (FieldDoc) doc;
                         if (fDoc.fields[i] != null) {
+                            allValuesAreNull = false;
                             if (fDoc.fields[i] instanceof String) {
                                 fieldDocs.fields[i] = new SortField(fieldDocs.fields[i].getField(), SortField.STRING, fieldDocs.fields[i].getReverse());
                             }
@@ -98,6 +100,10 @@ public class SearchPhaseController {
                     if (resolvedField) {
                         break;
                     }
+                }
+                if (!resolvedField && allValuesAreNull) {
+                    // we did not manage to resolve a field, and all the fields are null (which can only happen for STRING), make it a STRING
+                    fieldDocs.fields[i] = new SortField(fieldDocs.fields[i].getField(), SortField.STRING, fieldDocs.fields[i].getReverse());
                 }
             }
             queue = new ShardFieldDocSortedHitQueue(fieldDocs.fields, queueSize);

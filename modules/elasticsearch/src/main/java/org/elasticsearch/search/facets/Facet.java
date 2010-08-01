@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.search.facets.geodistance.GeoDistanceFacet;
 import org.elasticsearch.search.facets.histogram.HistogramFacet;
 import org.elasticsearch.search.facets.query.QueryFacet;
+import org.elasticsearch.search.facets.range.RangeFacet;
 import org.elasticsearch.search.facets.statistical.StatisticalFacet;
 import org.elasticsearch.search.facets.terms.TermsFacet;
 
@@ -56,7 +57,11 @@ public interface Facet {
         /**
          * Geo Distance facet type, matching {@link GeoDistanceFacet}.
          */
-        GEO_DISTANCE(4, GeoDistanceFacet.class);
+        GEO_DISTANCE(4, GeoDistanceFacet.class),
+        /**
+         * Geo Distance facet type, matching {@link RangeFacet}.
+         */
+        RANGE(5, RangeFacet.class);
 
         private int id;
 
@@ -96,6 +101,8 @@ public interface Facet {
                 return HISTOGRAM;
             } else if (id == 4) {
                 return GEO_DISTANCE;
+            } else if (id == 5) {
+                return RANGE;
             } else {
                 throw new ElasticSearchIllegalArgumentException("No match for id [" + id + "]");
             }

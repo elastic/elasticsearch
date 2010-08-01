@@ -29,7 +29,7 @@ import java.io.IOException;
  */
 public interface FacetCollectorParser {
 
-    String name();
+    String[] names();
 
     FacetCollector parser(String facetName, XContentParser parser, SearchContext context) throws IOException;
 }

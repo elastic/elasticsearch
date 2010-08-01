@@ -20,13 +20,19 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
 public enum DistanceUnit {
     MILES(3959, 24902) {
-        @Override public double toMiles(double distance) {
+        @Override public String toString() {
+            return "miles";
+        }@Override public double toMiles(double distance) {
             return distance;
         }@Override public double toKilometers(double distance) {
             return distance / MILES_KILOMETRES_RATIO;
@@ -35,7 +41,9 @@ public enum DistanceUnit {
             return distance + "mi";
         }},
     KILOMETERS(6371, 40076) {
-        @Override public double toMiles(double distance) {
+        @Override public String toString() {
+            return "km";
+        }@Override public double toMiles(double distance) {
             return distance * MILES_KILOMETRES_RATIO;
         }@Override public double toKilometers(double distance) {
             return distance;
@@ -73,6 +81,18 @@ public enum DistanceUnit {
         }
     }
 
+    public static DistanceUnit parseUnit(String distance, DistanceUnit defaultUnit) {
+        if (distance.endsWith("mi")) {
+            return MILES;
+        } else if (distance.endsWith("miles")) {
+            return MILES;
+        } else if (distance.endsWith("km")) {
+            return KILOMETERS;
+        } else {
+            return defaultUnit;
+        }
+    }
+
     protected final double earthCircumference;
     protected final double earthRadius;
 
@@ -96,5 +116,24 @@ public enum DistanceUnit {
             return MILES;
         }
         throw new ElasticSearchIllegalArgumentException("No distance unit match [" + unit + "]");
+    }
+
+    public static void writeDistanceUnit(StreamOutput out, DistanceUnit unit) throws IOException {
+        if (unit == MILES) {
+            out.writeByte((byte) 0);
+        } else if (unit == KILOMETERS) {
+            out.writeByte((byte) 1);
+        }
+    }
+
+    public static DistanceUnit readDistanceUnit(StreamInput in) throws IOException {
+        byte b = in.readByte();
+        if (b == 0) {
+            return MILES;
+        } else if (b == 1) {
+            return KILOMETERS;
+        } else {
+            throw new ElasticSearchIllegalArgumentException("No type for distance unit matching [" + b + "]");
+        }
     }
 }

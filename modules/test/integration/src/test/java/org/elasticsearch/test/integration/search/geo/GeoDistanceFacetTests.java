@@ -1,0 +1,222 @@
+/*
+ * Licensed to Elastic Search and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Elastic Search licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.test.integration.search.geo;
+
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.search.facets.geodistance.GeoDistanceFacet;
+import org.elasticsearch.test.integration.AbstractNodesTests;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
+import org.testng.annotations.Test;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.*;
+import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
+import static org.elasticsearch.search.facets.FacetBuilders.*;
+import static org.hamcrest.MatcherAssert.*;
+import static org.hamcrest.Matchers.*;
+
+/**
+ * @author kimchy (shay.banon)
+ */
+public class GeoDistanceFacetTests extends AbstractNodesTests {
+
+    private Client client;
+
+    @BeforeClass public void createNodes() throws Exception {
+        startNode("server1");
+        startNode("server2");
+        client = getClient();
+    }
+
+    @AfterClass public void closeNodes() {
+        client.close();
+        closeAllNodes();
+    }
+
+    protected Client getClient() {
+        return client("server1");
+    }
+
+    @Test public void simpleGeoFacetTests() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        // to NY: 0
+        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("name", "New York")
+                .field("num", 1)
+                .startObject("location").field("lat", 40.7143528).field("lon", -74.0059731).endObject()
+                .endObject()).execute().actionGet();
+
+        // to NY: 5.286 km
+        client.prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+                .field("name", "Times Square")
+                .field("num", 2)
+                .startObject("location").field("lat", 40.759011).field("lon", -73.9844722).endObject()
+                .endObject()).execute().actionGet();
+
+        // to NY: 0.4621 km
+        client.prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
+                .field("name", "Tribeca")
+                .field("num", 3)
+                .startObject("location").field("lat", 40.718266).field("lon", -74.007819).endObject()
+                .endObject()).execute().actionGet();
+
+        // to NY: 1.055 km
+        client.prepareIndex("test", "type1", "4").setSource(jsonBuilder().startObject()
+                .field("name", "Wall Street")
+                .field("num", 4)
+                .startObject("location").field("lat", 40.7051157).field("lon", -74.0088305).endObject()
+                .endObject()).execute().actionGet();
+
+        // to NY: 1.258 km
+        client.prepareIndex("test", "type1", "5").setSource(jsonBuilder().startObject()
+                .field("name", "Soho")
+                .field("num", 5)
+                .startObject("location").field("lat", 40.7247222).field("lon", -74).endObject()
+                .endObject()).execute().actionGet();
+
+        // to NY: 2.029 km
+        client.prepareIndex("test", "type1", "6").setSource(jsonBuilder().startObject()
+                .field("name", "Greenwich Village")
+                .field("num", 6)
+                .startObject("location").field("lat", 40.731033).field("lon", -73.9962255).endObject()
+                .endObject()).execute().actionGet();
+
+        // to NY: 8.572 km
+        client.prepareIndex("test", "type1", "7").setSource(jsonBuilder().startObject()
+                .field("name", "Brooklyn")
+                .field("num", 7)
+                .startObject("location").field("lat", 40.65).field("lon", -73.95).endObject()
+                .endObject()).execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch() // from NY
+                .setQuery(matchAllQuery())
+                .addFacet(geoDistanceFacet("geo1").field("location").point(40.7143528, -74.0059731).unit(DistanceUnit.KILOMETERS)
+                        .addUnboundedFrom(2)
+                        .addRange(0, 1)
+                        .addRange(0.5, 2.5)
+                        .addUnboundedTo(1)
+                )
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().totalHits(), equalTo(7l));
+        GeoDistanceFacet facet = searchResponse.facets().facet("geo1");
+        assertThat(facet.fieldName(), equalTo("location"));
+        assertThat(facet.unit(), equalTo(DistanceUnit.KILOMETERS));
+        assertThat(facet.entries().size(), equalTo(4));
+
+        assertThat(facet.entries().get(0).to(), closeTo(2, 0.000001));
+        assertThat(facet.entries().get(0).count(), equalTo(4l));
+        assertThat(facet.entries().get(0).total(), not(closeTo(0, 0.00001)));
+
+        assertThat(facet.entries().get(1).from(), closeTo(0, 0.000001));
+        assertThat(facet.entries().get(1).to(), closeTo(1, 0.000001));
+        assertThat(facet.entries().get(1).count(), equalTo(2l));
+        assertThat(facet.entries().get(1).total(), not(closeTo(0, 0.00001)));
+
+        assertThat(facet.entries().get(2).from(), closeTo(0.5, 0.000001));
+        assertThat(facet.entries().get(2).to(), closeTo(2.5, 0.000001));
+        assertThat(facet.entries().get(2).count(), equalTo(3l));
+        assertThat(facet.entries().get(2).total(), not(closeTo(0, 0.00001)));
+
+        assertThat(facet.entries().get(3).from(), closeTo(1, 0.000001));
+        assertThat(facet.entries().get(3).count(), equalTo(5l));
+        assertThat(facet.entries().get(3).total(), not(closeTo(0, 0.00001)));
+
+
+        searchResponse = client.prepareSearch() // from NY
+                .setQuery(matchAllQuery())
+                .addFacet(geoDistanceFacet("geo1").field("location").point(40.7143528, -74.0059731).unit(DistanceUnit.KILOMETERS).valueField("num")
+                        .addUnboundedFrom(2)
+                        .addRange(0, 1)
+                        .addRange(0.5, 2.5)
+                        .addUnboundedTo(1)
+                )
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().totalHits(), equalTo(7l));
+        facet = searchResponse.facets().facet("geo1");
+        assertThat(facet.fieldName(), equalTo("location"));
+        assertThat(facet.unit(), equalTo(DistanceUnit.KILOMETERS));
+        assertThat(facet.entries().size(), equalTo(4));
+
+        assertThat(facet.entries().get(0).to(), closeTo(2, 0.000001));
+        assertThat(facet.entries().get(0).count(), equalTo(4l));
+        assertThat(facet.entries().get(0).total(), closeTo(13, 0.00001));
+
+        assertThat(facet.entries().get(1).from(), closeTo(0, 0.000001));
+        assertThat(facet.entries().get(1).to(), closeTo(1, 0.000001));
+        assertThat(facet.entries().get(1).count(), equalTo(2l));
+        assertThat(facet.entries().get(1).total(), closeTo(4, 0.00001));
+
+        assertThat(facet.entries().get(2).from(), closeTo(0.5, 0.000001));
+        assertThat(facet.entries().get(2).to(), closeTo(2.5, 0.000001));
+        assertThat(facet.entries().get(2).count(), equalTo(3l));
+        assertThat(facet.entries().get(2).total(), closeTo(15, 0.00001));
+
+        assertThat(facet.entries().get(3).from(), closeTo(1, 0.000001));
+        assertThat(facet.entries().get(3).count(), equalTo(5l));
+        assertThat(facet.entries().get(3).total(), closeTo(24, 0.00001));
+
+        searchResponse = client.prepareSearch() // from NY
+                .setQuery(matchAllQuery())
+                .addFacet(geoDistanceFacet("geo1").field("location").point(40.7143528, -74.0059731).unit(DistanceUnit.KILOMETERS).valueScript("doc['num'].value")
+                        .addUnboundedFrom(2)
+                        .addRange(0, 1)
+                        .addRange(0.5, 2.5)
+                        .addUnboundedTo(1)
+                )
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().totalHits(), equalTo(7l));
+        facet = searchResponse.facets().facet("geo1");
+        assertThat(facet.fieldName(), equalTo("location"));
+        assertThat(facet.unit(), equalTo(DistanceUnit.KILOMETERS));
+        assertThat(facet.entries().size(), equalTo(4));
+
+        assertThat(facet.entries().get(0).to(), closeTo(2, 0.000001));
+        assertThat(facet.entries().get(0).count(), equalTo(4l));
+        assertThat(facet.entries().get(0).total(), closeTo(13, 0.00001));
+
+        assertThat(facet.entries().get(1).from(), closeTo(0, 0.000001));
+        assertThat(facet.entries().get(1).to(), closeTo(1, 0.000001));
+        assertThat(facet.entries().get(1).count(), equalTo(2l));
+        assertThat(facet.entries().get(1).total(), closeTo(4, 0.00001));
+
+        assertThat(facet.entries().get(2).from(), closeTo(0.5, 0.000001));
+        assertThat(facet.entries().get(2).to(), closeTo(2.5, 0.000001));
+        assertThat(facet.entries().get(2).count(), equalTo(3l));
+        assertThat(facet.entries().get(2).total(), closeTo(15, 0.00001));
+
+        assertThat(facet.entries().get(3).from(), closeTo(1, 0.000001));
+        assertThat(facet.entries().get(3).count(), equalTo(5l));
+        assertThat(facet.entries().get(3).total(), closeTo(24, 0.00001));
+    }
+}

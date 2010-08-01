@@ -43,8 +43,8 @@ public class StatisticalFacetCollectorParser implements FacetCollectorParser {
 
     public static final String NAME = "statistical";
 
-    @Override public String name() {
-        return NAME;
+    @Override public String[] names() {
+        return new String[]{NAME};
     }
 
     @Override public FacetCollector parser(String facetName, XContentParser parser, SearchContext context) throws IOException {

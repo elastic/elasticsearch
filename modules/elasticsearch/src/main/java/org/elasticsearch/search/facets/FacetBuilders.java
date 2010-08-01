@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facets;
 
 import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
+import org.elasticsearch.search.facets.geodistance.GeoDistanceFacetBuilder;
 import org.elasticsearch.search.facets.histogram.HistogramFacetBuilder;
 import org.elasticsearch.search.facets.histogram.HistogramScriptFacetBuilder;
 import org.elasticsearch.search.facets.query.QueryFacetBuilder;
@@ -58,5 +59,9 @@ public class FacetBuilders {
 
     public static HistogramScriptFacetBuilder histogramScriptFacet(String facetName) {
         return new HistogramScriptFacetBuilder(facetName);
+    }
+
+    public static GeoDistanceFacetBuilder geoDistanceFacet(String facetName) {
+        return new GeoDistanceFacetBuilder(facetName);
     }
 }

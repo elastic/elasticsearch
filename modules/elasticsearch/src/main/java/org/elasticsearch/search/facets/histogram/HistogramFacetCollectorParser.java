@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.facets.histogram;
 
-import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.facets.FacetPhaseExecutionException;
@@ -28,7 +27,6 @@ import org.elasticsearch.search.facets.collector.FacetCollectorParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -36,16 +34,10 @@ import java.util.Map;
  */
 public class HistogramFacetCollectorParser implements FacetCollectorParser {
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<Map<String, Object>>> cachedParams = new ThreadLocal<ThreadLocals.CleanableValue<Map<String, Object>>>() {
-        @Override protected ThreadLocals.CleanableValue<Map<String, Object>> initialValue() {
-            return new ThreadLocals.CleanableValue<Map<String, Object>>(new HashMap<String, Object>());
-        }
-    };
-
     public static final String NAME = "histogram";
 
-    @Override public String name() {
-        return NAME;
+    @Override public String[] names() {
+        return new String[]{NAME};
     }
 
     @Override public FacetCollector parser(String facetName, XContentParser parser, SearchContext context) throws IOException {
@@ -53,7 +45,7 @@ public class HistogramFacetCollectorParser implements FacetCollectorParser {
         String valueField = null;
         String keyScript = null;
         String valueScript = null;
-        Map<String, Object> params = cachedParams.get().get();
+        Map<String, Object> params = null;
         long interval = 0;
         HistogramFacet.ComparatorType comparatorType = HistogramFacet.ComparatorType.KEY;
         XContentParser.Token token;

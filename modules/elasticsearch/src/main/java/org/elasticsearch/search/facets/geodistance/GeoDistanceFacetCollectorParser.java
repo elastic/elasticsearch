@@ -155,6 +155,10 @@ public class GeoDistanceFacetCollectorParser implements FacetCollectorParser {
             throw new FacetPhaseExecutionException(facetName, "lat/lon not set for geo_distance facet");
         }
 
+        if (entries.isEmpty()) {
+            throw new FacetPhaseExecutionException(facetName, "no ranges defined for geo_distance facet");
+        }
+
         if (valueFieldName != null) {
             return new ValueGeoDistanceFacetCollector(facetName, fieldName, lat, lon, unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]),
                     context.fieldDataCache(), context.mapperService(), valueFieldName);

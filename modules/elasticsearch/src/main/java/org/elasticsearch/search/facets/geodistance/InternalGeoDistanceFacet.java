@@ -161,7 +161,7 @@ public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field("_type", "histogram");
+        builder.field("_type", "geo_distance");
         builder.field("_field", fieldName);
         builder.field("_value_field", valueFieldName);
         builder.field("_unit", unit);

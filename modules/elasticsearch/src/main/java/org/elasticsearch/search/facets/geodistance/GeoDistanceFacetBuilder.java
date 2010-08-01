@@ -194,6 +194,7 @@ public class GeoDistanceFacetBuilder extends AbstractFacetBuilder {
         }
 
         builder.startObject(name);
+
         builder.startObject(GeoDistanceFacetCollectorParser.NAME);
 
         if (geohash != null) {
@@ -235,6 +236,16 @@ public class GeoDistanceFacetBuilder extends AbstractFacetBuilder {
         }
 
         builder.endObject();
+
+        if (filter != null) {
+            builder.field("filter");
+            filter.toXContent(builder, params);
+        }
+
+        if (global != null) {
+            builder.field("global", global);
+        }
+
         builder.endObject();
     }
 

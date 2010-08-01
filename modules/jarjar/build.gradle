@@ -15,7 +15,7 @@ dependencies {
     runtime 'joda-time:joda-time:1.6'
     runtime 'org.mvel:mvel2:2.0.17'
 
-    runtime 'org.codehaus.jackson:jackson-core-asl:1.5.2'
+    runtime 'org.codehaus.jackson:jackson-core-asl:1.5.5'
     runtime 'org.yaml:snakeyaml:1.6'
 
     runtime('org.jboss.netty:netty:3.2.1.Final') { transitive = false }

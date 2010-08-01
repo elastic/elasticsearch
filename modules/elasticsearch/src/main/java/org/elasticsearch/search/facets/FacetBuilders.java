@@ -24,6 +24,8 @@ import org.elasticsearch.search.facets.geodistance.GeoDistanceFacetBuilder;
 import org.elasticsearch.search.facets.histogram.HistogramFacetBuilder;
 import org.elasticsearch.search.facets.histogram.HistogramScriptFacetBuilder;
 import org.elasticsearch.search.facets.query.QueryFacetBuilder;
+import org.elasticsearch.search.facets.range.RangeFacetBuilder;
+import org.elasticsearch.search.facets.range.RangeScriptFacetBuilder;
 import org.elasticsearch.search.facets.statistical.StatisticalFacetBuilder;
 import org.elasticsearch.search.facets.statistical.StatisticalScriptFacetBuilder;
 import org.elasticsearch.search.facets.terms.TermsFacetBuilder;
@@ -59,6 +61,14 @@ public class FacetBuilders {
 
     public static HistogramScriptFacetBuilder histogramScriptFacet(String facetName) {
         return new HistogramScriptFacetBuilder(facetName);
+    }
+
+    public static RangeFacetBuilder rangeFacet(String facetName) {
+        return new RangeFacetBuilder(facetName);
+    }
+
+    public static RangeScriptFacetBuilder rangeScriptFacet(String facetName) {
+        return new RangeScriptFacetBuilder(facetName);
     }
 
     public static GeoDistanceFacetBuilder geoDistanceFacet(String facetName) {

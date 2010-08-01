@@ -32,6 +32,7 @@ import org.elasticsearch.search.facets.collector.FacetCollectorParser;
 import org.elasticsearch.search.facets.geodistance.GeoDistanceFacetCollectorParser;
 import org.elasticsearch.search.facets.histogram.HistogramFacetCollectorParser;
 import org.elasticsearch.search.facets.query.QueryFacetCollectorParser;
+import org.elasticsearch.search.facets.range.RangeFacetCollectorParser;
 import org.elasticsearch.search.facets.statistical.StatisticalFacetCollectorParser;
 import org.elasticsearch.search.facets.terms.TermsFacetCollectorParser;
 import org.elasticsearch.search.internal.SearchContext;
@@ -70,7 +71,7 @@ public class FacetsParseElement implements SearchParseElement {
         addFacetParser(builder, new StatisticalFacetCollectorParser());
         addFacetParser(builder, new HistogramFacetCollectorParser());
         addFacetParser(builder, new GeoDistanceFacetCollectorParser());
-        addFacetParser(builder, new GeoDistanceFacetCollectorParser());
+        addFacetParser(builder, new RangeFacetCollectorParser());
         this.facetCollectorParsers = builder.immutableMap();
     }
 

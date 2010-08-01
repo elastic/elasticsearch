@@ -201,7 +201,7 @@ public class GeoDistanceFacetBuilder extends AbstractFacetBuilder {
             throw new SearchSourceBuilderException("field must be set on geo_distance facet for facet [" + name + "]");
         }
         if (entries.isEmpty()) {
-            throw new SearchSourceBuilderException("at least one range must be defined for geo_distance face [" + name + "]");
+            throw new SearchSourceBuilderException("at least one range must be defined for geo_distance facet [" + name + "]");
         }
 
         builder.startObject(name);

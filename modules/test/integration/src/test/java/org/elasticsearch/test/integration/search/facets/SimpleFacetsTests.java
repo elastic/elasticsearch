@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.search.facets.histogram.HistogramFacet;
+import org.elasticsearch.search.facets.range.RangeFacet;
 import org.elasticsearch.search.facets.statistical.StatisticalFacet;
 import org.elasticsearch.search.facets.terms.TermsFacet;
 import org.elasticsearch.test.integration.AbstractNodesTests;
@@ -438,5 +439,126 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().get(1).count(), equalTo(1l));
         assertThat(facet.entries().get(1).total(), equalTo(1175d));
         assertThat(facet.entries().get(1).mean(), equalTo(1175d));
+    }
+
+    @Test public void testRangeFacets() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("num", 1055)
+                .field("value", 1)
+                .startArray("multi_num").value(13.0f).value(23.f).endArray()
+                .startArray("multi_value").value(10).value(11).endArray()
+                .endObject()).execute().actionGet();
+        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("num", 1065)
+                .field("value", 2)
+                .startArray("multi_num").value(15.0f).value(31.0f).endArray()
+                .startArray("multi_value").value(20).value(21).endArray()
+                .endObject()).execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("num", 1175)
+                .field("value", 3)
+                .startArray("multi_num").value(17.0f).value(25.0f).endArray()
+                .startArray("multi_value").value(30).value(31).endArray()
+                .endObject()).execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addFacet(rangeFacet("range1").field("num").addUnboundedFrom(1056).addRange(1000, 1170).addUnboundedTo(1170))
+                .addFacet(rangeFacet("range2").keyField("num").valueField("value").addUnboundedFrom(1056).addRange(1000, 1170).addUnboundedTo(1170))
+                .addFacet(rangeFacet("range3").keyField("num").valueField("multi_value").addUnboundedFrom(1056).addRange(1000, 1170).addUnboundedTo(1170))
+                .addFacet(rangeFacet("range4").keyField("multi_num").valueField("value").addUnboundedFrom(16).addRange(10, 26).addUnboundedTo(20))
+                .addFacet(rangeScriptFacet("range5").keyScript("doc['num'].value").valueScript("doc['value'].value").addUnboundedFrom(1056).addRange(1000, 1170).addUnboundedTo(1170))
+                .execute().actionGet();
+
+        if (searchResponse.failedShards() > 0) {
+            logger.warn("Failed shards:");
+            for (ShardSearchFailure shardSearchFailure : searchResponse.shardFailures()) {
+                logger.warn("-> {}", shardSearchFailure);
+            }
+        }
+        assertThat(searchResponse.failedShards(), equalTo(0));
+
+        RangeFacet facet = searchResponse.facets().facet("range1");
+        assertThat(facet.name(), equalTo("range1"));
+        assertThat(facet.entries().size(), equalTo(3));
+        assertThat(facet.entries().get(0).to(), closeTo(1056, 0.000001));
+        assertThat(facet.entries().get(0).count(), equalTo(1l));
+        assertThat(facet.entries().get(0).total(), closeTo(1055, 0.000001));
+        assertThat(facet.entries().get(1).from(), closeTo(1000, 0.000001));
+        assertThat(facet.entries().get(1).to(), closeTo(1170, 0.000001));
+        assertThat(facet.entries().get(1).count(), equalTo(2l));
+        assertThat(facet.entries().get(1).total(), closeTo(1055 + 1065, 0.000001));
+        assertThat(facet.entries().get(2).from(), closeTo(1170, 0.000001));
+        assertThat(facet.entries().get(2).count(), equalTo(1l));
+        assertThat(facet.entries().get(2).total(), closeTo(1175, 0.000001));
+
+        facet = searchResponse.facets().facet("range2");
+        assertThat(facet.name(), equalTo("range2"));
+        assertThat(facet.entries().size(), equalTo(3));
+        assertThat(facet.entries().get(0).to(), closeTo(1056, 0.000001));
+        assertThat(facet.entries().get(0).count(), equalTo(1l));
+        assertThat(facet.entries().get(0).total(), closeTo(1, 0.000001));
+        assertThat(facet.entries().get(1).from(), closeTo(1000, 0.000001));
+        assertThat(facet.entries().get(1).to(), closeTo(1170, 0.000001));
+        assertThat(facet.entries().get(1).count(), equalTo(2l));
+        assertThat(facet.entries().get(1).total(), closeTo(3, 0.000001));
+        assertThat(facet.entries().get(2).from(), closeTo(1170, 0.000001));
+        assertThat(facet.entries().get(2).count(), equalTo(1l));
+        assertThat(facet.entries().get(2).total(), closeTo(3, 0.000001));
+
+        facet = searchResponse.facets().facet("range3");
+        assertThat(facet.name(), equalTo("range3"));
+        assertThat(facet.entries().size(), equalTo(3));
+        assertThat(facet.entries().get(0).to(), closeTo(1056, 0.000001));
+        assertThat(facet.entries().get(0).count(), equalTo(1l));
+        assertThat(facet.entries().get(0).total(), closeTo(10 + 11, 0.000001));
+        assertThat(facet.entries().get(1).from(), closeTo(1000, 0.000001));
+        assertThat(facet.entries().get(1).to(), closeTo(1170, 0.000001));
+        assertThat(facet.entries().get(1).count(), equalTo(2l));
+        assertThat(facet.entries().get(1).total(), closeTo(62, 0.000001));
+        assertThat(facet.entries().get(2).from(), closeTo(1170, 0.000001));
+        assertThat(facet.entries().get(2).count(), equalTo(1l));
+        assertThat(facet.entries().get(2).total(), closeTo(61, 0.000001));
+
+        facet = searchResponse.facets().facet("range4");
+        assertThat(facet.name(), equalTo("range4"));
+        assertThat(facet.entries().size(), equalTo(3));
+        assertThat(facet.entries().get(0).to(), closeTo(16, 0.000001));
+        assertThat(facet.entries().get(0).count(), equalTo(2l));
+        assertThat(facet.entries().get(0).total(), closeTo(3, 0.000001));
+        assertThat(facet.entries().get(1).from(), closeTo(10, 0.000001));
+        assertThat(facet.entries().get(1).to(), closeTo(26, 0.000001));
+        assertThat(facet.entries().get(1).count(), equalTo(5l));
+        assertThat(facet.entries().get(1).total(), closeTo(1 * 2 + 2 + 3 * 2, 0.000001));
+        assertThat(facet.entries().get(2).from(), closeTo(20, 0.000001));
+        assertThat(facet.entries().get(2).count(), equalTo(3l));
+        assertThat(facet.entries().get(2).total(), closeTo(1 + 2 + 3, 0.000001));
+
+        facet = searchResponse.facets().facet("range5");
+        assertThat(facet.name(), equalTo("range5"));
+        assertThat(facet.entries().size(), equalTo(3));
+        assertThat(facet.entries().get(0).to(), closeTo(1056, 0.000001));
+        assertThat(facet.entries().get(0).count(), equalTo(1l));
+        assertThat(facet.entries().get(0).total(), closeTo(1, 0.000001));
+        assertThat(facet.entries().get(1).from(), closeTo(1000, 0.000001));
+        assertThat(facet.entries().get(1).to(), closeTo(1170, 0.000001));
+        assertThat(facet.entries().get(1).count(), equalTo(2l));
+        assertThat(facet.entries().get(1).total(), closeTo(3, 0.000001));
+        assertThat(facet.entries().get(2).from(), closeTo(1170, 0.000001));
+        assertThat(facet.entries().get(2).count(), equalTo(1l));
+        assertThat(facet.entries().get(2).total(), closeTo(3, 0.000001));
     }
 }

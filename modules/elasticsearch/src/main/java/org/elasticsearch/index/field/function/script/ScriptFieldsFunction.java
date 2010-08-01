@@ -47,6 +47,12 @@ public class ScriptFieldsFunction implements FieldsFunction, Map {
         }
     };
 
+    private static ThreadLocal<ThreadLocals.CleanableValue<Map<String, Object>>> cachedVars = new ThreadLocal<ThreadLocals.CleanableValue<Map<String, Object>>>() {
+        @Override protected ThreadLocals.CleanableValue<Map<String, Object>> initialValue() {
+            return new ThreadLocals.CleanableValue<java.util.Map<java.lang.String, java.lang.Object>>(new HashMap<String, Object>());
+        }
+    };
+
     final Object script;
 
     final MapperService mapperService;
@@ -73,8 +79,12 @@ public class ScriptFieldsFunction implements FieldsFunction, Map {
         localCacheFieldData.clear();
     }
 
-    @Override public Object execute(int docId, Map vars) {
+    @Override public Object execute(int docId, Map<String, Object> vars) {
         this.docId = docId;
+        if (vars == null) {
+            vars = cachedVars.get().get();
+            vars.clear();
+        }
         vars.put("doc", this);
         return scriptService.execute(script, vars);
     }

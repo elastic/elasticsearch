@@ -29,6 +29,7 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.facets.collector.FacetCollector;
 import org.elasticsearch.search.facets.collector.FacetCollectorParser;
+import org.elasticsearch.search.facets.geodistance.GeoDistanceFacetCollectorParser;
 import org.elasticsearch.search.facets.histogram.HistogramFacetCollectorParser;
 import org.elasticsearch.search.facets.query.QueryFacetCollectorParser;
 import org.elasticsearch.search.facets.statistical.StatisticalFacetCollectorParser;
@@ -64,11 +65,19 @@ public class FacetsParseElement implements SearchParseElement {
 
     public FacetsParseElement() {
         MapBuilder<String, FacetCollectorParser> builder = newMapBuilder();
-        builder.put(TermsFacetCollectorParser.NAME, new TermsFacetCollectorParser());
-        builder.put(QueryFacetCollectorParser.NAME, new QueryFacetCollectorParser());
-        builder.put(StatisticalFacetCollectorParser.NAME, new StatisticalFacetCollectorParser());
-        builder.put(HistogramFacetCollectorParser.NAME, new HistogramFacetCollectorParser());
+        addFacetParser(builder, new TermsFacetCollectorParser());
+        addFacetParser(builder, new QueryFacetCollectorParser());
+        addFacetParser(builder, new StatisticalFacetCollectorParser());
+        addFacetParser(builder, new HistogramFacetCollectorParser());
+        addFacetParser(builder, new GeoDistanceFacetCollectorParser());
+        addFacetParser(builder, new GeoDistanceFacetCollectorParser());
         this.facetCollectorParsers = builder.immutableMap();
+    }
+
+    private void addFacetParser(MapBuilder<String, FacetCollectorParser> builder, FacetCollectorParser facetCollectorParser) {
+        for (String s : facetCollectorParser.names()) {
+            builder.put(s, facetCollectorParser);
+        }
     }
 
     @Override public void parse(XContentParser parser, SearchContext context) throws Exception {

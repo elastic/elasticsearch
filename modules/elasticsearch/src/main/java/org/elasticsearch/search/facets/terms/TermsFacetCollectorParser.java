@@ -36,8 +36,8 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
 
     public static final String NAME = "terms";
 
-    @Override public String name() {
-        return NAME;
+    @Override public String[] names() {
+        return new String[]{NAME};
     }
 
     @Override public FacetCollector parser(String facetName, XContentParser parser, SearchContext context) throws IOException {

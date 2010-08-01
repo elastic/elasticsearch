@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facets;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.search.facets.geodistance.GeoDistanceFacet;
 import org.elasticsearch.search.facets.histogram.HistogramFacet;
 import org.elasticsearch.search.facets.query.QueryFacet;
 import org.elasticsearch.search.facets.statistical.StatisticalFacet;
@@ -51,7 +52,11 @@ public interface Facet {
         /**
          * Histogram facet type, matching {@link HistogramFacet}.
          */
-        HISTOGRAM(3, HistogramFacet.class);
+        HISTOGRAM(3, HistogramFacet.class),
+        /**
+         * Geo Distance facet type, matching {@link GeoDistanceFacet}.
+         */
+        GEO_DISTANCE(4, GeoDistanceFacet.class);
 
         private int id;
 
@@ -89,6 +94,8 @@ public interface Facet {
                 return STATISTICAL;
             } else if (id == 3) {
                 return HISTOGRAM;
+            } else if (id == 4) {
+                return GEO_DISTANCE;
             } else {
                 throw new ElasticSearchIllegalArgumentException("No match for id [" + id + "]");
             }

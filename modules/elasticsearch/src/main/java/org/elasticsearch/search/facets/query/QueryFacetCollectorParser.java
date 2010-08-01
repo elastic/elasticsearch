@@ -33,8 +33,8 @@ public class QueryFacetCollectorParser implements FacetCollectorParser {
 
     public static final String NAME = "query";
 
-    @Override public String name() {
-        return "query";
+    @Override public String[] names() {
+        return new String[]{"query"};
     }
 
     @Override public FacetCollector parser(String facetName, XContentParser parser, SearchContext context) {

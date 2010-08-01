@@ -42,12 +42,12 @@ public interface GeoDistanceFacet extends Facet, Iterable<GeoDistanceFacet.Entry
     DistanceUnit getUnit();
 
     /**
-     * An ordered list of histogram facet entries.
+     * An ordered list of geo distance facet entries.
      */
     List<Entry> entries();
 
     /**
-     * An ordered list of histogram facet entries.
+     * An ordered list of geo distance facet entries.
      */
     List<Entry> getEntries();
 

@@ -24,6 +24,7 @@ import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.lucene.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
+import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import org.elasticsearch.search.facets.AbstractFacetBuilder;
 
@@ -182,6 +183,16 @@ public class GeoDistanceFacetBuilder extends AbstractFacetBuilder {
      */
     public GeoDistanceFacetBuilder unit(DistanceUnit unit) {
         this.unit = unit;
+        return this;
+    }
+
+    public GeoDistanceFacetBuilder global(boolean global) {
+        this.global = global;
+        return this;
+    }
+
+    public GeoDistanceFacetBuilder filter(XContentFilterBuilder filter) {
+        this.filter = filter;
         return this;
     }
 

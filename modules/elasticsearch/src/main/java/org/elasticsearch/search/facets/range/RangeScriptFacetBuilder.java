@@ -99,8 +99,8 @@ public class RangeScriptFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
-    public RangeScriptFacetBuilder filter(XContentFilterBuilder filter) {
-        this.filter = filter;
+    public RangeScriptFacetBuilder facetFilter(XContentFilterBuilder filter) {
+        this.facetFilter = filter;
         return this;
     }
 
@@ -141,14 +141,7 @@ public class RangeScriptFacetBuilder extends AbstractFacetBuilder {
         }
         builder.endObject();
 
-        if (filter != null) {
-            builder.field("filter");
-            filter.toXContent(builder, params);
-        }
-
-        if (global != null) {
-            builder.field("global", global);
-        }
+        addFilterFacetAndGlobal(builder, params);
 
         builder.endObject();
     }

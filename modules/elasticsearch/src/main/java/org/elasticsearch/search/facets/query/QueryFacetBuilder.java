@@ -43,8 +43,8 @@ public class QueryFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
-    public QueryFacetBuilder filter(XContentFilterBuilder filter) {
-        this.filter = filter;
+    public QueryFacetBuilder facetFilter(XContentFilterBuilder filter) {
+        this.facetFilter = filter;
         return this;
     }
 
@@ -61,14 +61,8 @@ public class QueryFacetBuilder extends AbstractFacetBuilder {
         builder.field(QueryFacetCollectorParser.NAME);
         query.toXContent(builder, params);
 
-        if (filter != null) {
-            builder.field("filter");
-            filter.toXContent(builder, params);
-        }
+        addFilterFacetAndGlobal(builder, params);
 
-        if (global != null) {
-            builder.field("global", global);
-        }
         builder.endObject();
     }
 }

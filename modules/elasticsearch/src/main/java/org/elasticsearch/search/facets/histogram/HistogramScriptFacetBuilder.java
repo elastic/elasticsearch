@@ -75,8 +75,8 @@ public class HistogramScriptFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
-    public HistogramScriptFacetBuilder filter(XContentFilterBuilder filter) {
-        this.filter = filter;
+    public HistogramScriptFacetBuilder facetFilter(XContentFilterBuilder filter) {
+        this.facetFilter = filter;
         return this;
     }
 
@@ -104,14 +104,7 @@ public class HistogramScriptFacetBuilder extends AbstractFacetBuilder {
         }
         builder.endObject();
 
-        if (filter != null) {
-            builder.field("filter");
-            filter.toXContent(builder, params);
-        }
-
-        if (global != null) {
-            builder.field("global", global);
-        }
+        addFilterFacetAndGlobal(builder, params);
 
         builder.endObject();
     }

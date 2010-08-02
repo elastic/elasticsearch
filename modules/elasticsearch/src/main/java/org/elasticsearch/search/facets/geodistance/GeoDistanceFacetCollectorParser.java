@@ -53,7 +53,7 @@ public class GeoDistanceFacetCollectorParser implements FacetCollectorParser {
         return new String[]{NAME, "geoDistance"};
     }
 
-    @Override public FacetCollector parser(String facetName, XContentParser parser, SearchContext context) throws IOException {
+    @Override public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
         String fieldName = null;
         String valueFieldName = null;
         String valueScript = null;

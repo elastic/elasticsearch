@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facets.statistical;
+package org.elasticsearch.search.facets.filter;
 
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
@@ -29,40 +29,45 @@ import java.io.IOException;
 /**
  * @author kimchy (shay.banon)
  */
-public class StatisticalFacetBuilder extends AbstractFacetBuilder {
-    private String fieldName;
+public class FilterFacetBuilder extends AbstractFacetBuilder {
 
-    public StatisticalFacetBuilder(String name) {
+    private XContentFilterBuilder filter;
+
+    public FilterFacetBuilder(String name) {
         super(name);
     }
 
-    public StatisticalFacetBuilder field(String field) {
-        this.fieldName = field;
-        return this;
-    }
-
-    public StatisticalFacetBuilder global(boolean global) {
+    public FilterFacetBuilder global(boolean global) {
         this.global = global;
         return this;
     }
 
-    public StatisticalFacetBuilder facetFilter(XContentFilterBuilder filter) {
+    public FilterFacetBuilder facetFilter(XContentFilterBuilder filter) {
         this.facetFilter = filter;
         return this;
     }
 
+    public FilterFacetBuilder filter(XContentFilterBuilder filter) {
+        this.filter = filter;
+        return this;
+    }
+
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (fieldName == null) {
-            throw new SearchSourceBuilderException("field must be set on statistical facet for facet [" + name + "]");
+        if (filter == null) {
+            throw new SearchSourceBuilderException("filter must be set on filter facet for facet [" + name + "]");
         }
         builder.startObject(name);
+        builder.field(FilterFacetCollectorParser.NAME);
+        filter.toXContent(builder, params);
 
-        builder.startObject(StatisticalFacetCollectorParser.NAME);
-        builder.field("field", fieldName);
-        builder.endObject();
+        if (facetFilter != null) {
+            builder.field("filter");
+            facetFilter.toXContent(builder, params);
+        }
 
-        addFilterFacetAndGlobal(builder, params);
-
+        if (global != null) {
+            builder.field("global", global);
+        }
         builder.endObject();
     }
 }

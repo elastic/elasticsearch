@@ -46,8 +46,8 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
-    public TermsFacetBuilder filter(XContentFilterBuilder filter) {
-        this.filter = filter;
+    public TermsFacetBuilder facetFilter(XContentFilterBuilder filter) {
+        this.facetFilter = filter;
         return this;
     }
 
@@ -100,13 +100,7 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
         }
         builder.endObject();
 
-        if (filter != null) {
-            builder.field("filter");
-            filter.toXContent(builder, params);
-        }
-        if (global != null) {
-            builder.field("global", global);
-        }
+        addFilterFacetAndGlobal(builder, params);
 
         builder.endObject();
     }

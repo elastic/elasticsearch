@@ -32,7 +32,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class NoneFieldDataCache extends AbstractIndexComponent implements FieldDataCache {
 

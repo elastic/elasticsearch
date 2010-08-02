@@ -49,12 +49,12 @@ public interface RangeFacet extends Facet, Iterable<RangeFacet.Entry> {
     String getValueFieldName();
 
     /**
-     * An ordered list of geo distance facet entries.
+     * An ordered list of range facet entries.
      */
     List<Entry> entries();
 
     /**
-     * An ordered list of geo distance facet entries.
+     * An ordered list of range facet entries.
      */
     List<Entry> getEntries();
 

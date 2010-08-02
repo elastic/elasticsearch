@@ -176,7 +176,7 @@ public class InternalHistogramFacet implements HistogramFacet, InternalFacet {
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field("_type", "histogram");
+        builder.field("_type", HistogramFacetCollectorParser.NAME);
         builder.field("_key_field", keyFieldName);
         builder.field("_value_field", valueFieldName);
         builder.field("_comparator", comparatorType.description());

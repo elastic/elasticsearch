@@ -132,7 +132,7 @@ public class InternalTermsFacet implements InternalFacet, TermsFacet {
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field("_type", "terms");
+        builder.field("_type", TermsFacetCollectorParser.NAME);
         builder.field("_field", fieldName);
         builder.startArray("terms");
         for (Entry entry : entries) {

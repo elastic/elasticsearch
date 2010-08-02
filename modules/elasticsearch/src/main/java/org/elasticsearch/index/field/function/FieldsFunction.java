@@ -33,7 +33,6 @@ public interface FieldsFunction {
     /**
      * @param docId
      * @param vars  The vars providing additional parameters, should be reused and has values added to it in execute
-     * @return
      */
     Object execute(int docId, Map<String, Object> vars);
 }

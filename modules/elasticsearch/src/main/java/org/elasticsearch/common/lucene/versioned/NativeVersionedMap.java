@@ -26,7 +26,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * An implementation of {@link VersionedMap} based on trove {@link org.elasticsearch.util.gnu.trove.TIntIntHashMap}.
+ * An implementation of {@link VersionedMap} based on trove {@link org.elasticsearch.common.trove.TIntIntHashMap}.
  *
  * @author kimchy (Shay Banon)
  */

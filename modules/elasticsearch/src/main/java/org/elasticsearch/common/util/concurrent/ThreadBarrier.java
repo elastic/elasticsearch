@@ -113,7 +113,7 @@ import java.util.concurrent.TimeoutException;
  *    }
  * </pre>
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class ThreadBarrier extends CyclicBarrier {
     /**
@@ -122,23 +122,14 @@ public class ThreadBarrier extends CyclicBarrier {
      */
     private Throwable cause;
 
-    /**
-     * {@inheritDoc}
-     */
     public ThreadBarrier(int parties) {
         super(parties);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public ThreadBarrier(int parties, Runnable barrierAction) {
         super(parties, barrierAction);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public int await() throws InterruptedException, BrokenBarrierException {
         try {
@@ -150,9 +141,6 @@ public class ThreadBarrier extends CyclicBarrier {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override public int await(long timeout, TimeUnit unit) throws InterruptedException, BrokenBarrierException, TimeoutException {
         try {
             breakIfBroken();
@@ -258,18 +246,18 @@ public class ThreadBarrier extends CyclicBarrier {
      *      <p/>
      *      <B>Usage example:</B><br>
      *      <pre><code>
-     *                                                                         BarrierTimer timer = new BarrierTimer();
-     *                                                                         ThreadBarrier barrier = new ThreadBarrier( nTHREADS + 1, timer );
-     *                                                                         ..
-     *                                                                         barrier.await(); // starts timer when all threads trip on await
-     *                                                                         barrier.await(); // stops  timer when all threads trip on await
-     *                                                                         ..
-     *                                                                         long time = timer.getTimeInNanos();
-     *                                                                         long tpi = time / ((long)nREPEATS * nTHREADS); //throughput per thread iteration
-     *                                                                         long secs = timer.getTimeInSeconds();	//total runtime in seconds
-     *                                                                         ..
-     *                                                                         timer.reset();  // reuse timer
-     *                                                                       </code></pre>
+     *                                                                                   BarrierTimer timer = new BarrierTimer();
+     *                                                                                   ThreadBarrier barrier = new ThreadBarrier( nTHREADS + 1, timer );
+     *                                                                                   ..
+     *                                                                                   barrier.await(); // starts timer when all threads trip on await
+     *                                                                                   barrier.await(); // stops  timer when all threads trip on await
+     *                                                                                   ..
+     *                                                                                   long time = timer.getTimeInNanos();
+     *                                                                                   long tpi = time / ((long)nREPEATS * nTHREADS); //throughput per thread iteration
+     *                                                                                   long secs = timer.getTimeInSeconds();	//total runtime in seconds
+     *                                                                                   ..
+     *                                                                                   timer.reset();  // reuse timer
+     *                                                                                 </code></pre>
      */
     public static class BarrierTimer implements Runnable {
         volatile boolean started;

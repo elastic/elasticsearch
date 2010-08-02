@@ -19,6 +19,6 @@
 
 /**
  * Settings loader (parser) allowing to parse different "source" formats into
- * a {@link Settings}.
+ * a {@link org.elasticsearch.common.settings.Settings}.
  */
 package org.elasticsearch.common.settings.loader;

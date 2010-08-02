@@ -175,7 +175,7 @@ public class IndexRequestBuilder extends BaseRequestBuilder<IndexRequest, IndexR
     }
 
     /**
-     * Set to <tt>true</tt> to force this index to use {@link IndexRequest.OpType#CREATE}.
+     * Set to <tt>true</tt> to force this index to use {@link org.elasticsearch.action.index.IndexRequest.OpType#CREATE}.
      */
     public IndexRequestBuilder setCreate(boolean create) {
         request.create(create);

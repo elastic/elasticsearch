@@ -129,7 +129,7 @@ public class GeoDistanceFacetCollectorParser implements FacetCollectorParser {
                     unit = DistanceUnit.fromString(parser.text());
                 } else if (currentName.equals("distance_type") || currentName.equals("distanceType")) {
                     geoDistance = GeoDistance.fromString(parser.text());
-                } else if ("value_field".equals(currentName) || "valueName".equals(currentName)) {
+                } else if ("value_field".equals(currentName) || "valueField".equals(currentName)) {
                     valueFieldName = parser.text();
                 } else if ("value_script".equals(currentName) || "valueScript".equals(currentName)) {
                     valueScript = parser.text();

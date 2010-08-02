@@ -175,7 +175,7 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field("_type", "statistical");
+        builder.field("_type", StatisticalFacetCollectorParser.NAME);
         builder.field("_field", fieldName);
         builder.field("count", count());
         builder.field("total", total());

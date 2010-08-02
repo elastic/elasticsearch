@@ -73,8 +73,8 @@ public class GeoDistanceFacetCollectorParser implements FacetCollectorParser {
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("ranges".equals(currentName) || "entries".equals(currentName)) {
                     // "ranges" : [
-                    //     { "from" : "0', to : "12.5" }
-                    //     { "from" : "12.5" }
+                    //     { "from" : 0, "to" : 12.5 }
+                    //     { "from" : 12.5 }
                     // ]
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         double from = Double.NEGATIVE_INFINITY;

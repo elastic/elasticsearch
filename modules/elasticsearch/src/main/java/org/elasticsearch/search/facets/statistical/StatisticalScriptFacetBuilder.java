@@ -44,8 +44,8 @@ public class StatisticalScriptFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
-    public StatisticalScriptFacetBuilder filter(XContentFilterBuilder filter) {
-        this.filter = filter;
+    public StatisticalScriptFacetBuilder facetFilter(XContentFilterBuilder filter) {
+        this.facetFilter = filter;
         return this;
     }
 
@@ -76,14 +76,7 @@ public class StatisticalScriptFacetBuilder extends AbstractFacetBuilder {
         }
         builder.endObject();
 
-        if (filter != null) {
-            builder.field("filter");
-            filter.toXContent(builder, params);
-        }
-
-        if (global != null) {
-            builder.field("global", global);
-        }
+        addFilterFacetAndGlobal(builder, params);
 
         builder.endObject();
     }

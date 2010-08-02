@@ -20,7 +20,10 @@
 package org.elasticsearch.search.facets;
 
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
+
+import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
@@ -31,19 +34,30 @@ public abstract class AbstractFacetBuilder implements ToXContent {
 
     protected Boolean global;
 
-    protected XContentFilterBuilder filter;
+    protected XContentFilterBuilder facetFilter;
 
     protected AbstractFacetBuilder(String name) {
         this.name = name;
     }
 
-    public AbstractFacetBuilder filter(XContentFilterBuilder filter) {
-        this.filter = filter;
+    public AbstractFacetBuilder facetFilter(XContentFilterBuilder filter) {
+        this.facetFilter = filter;
         return this;
     }
 
     public AbstractFacetBuilder global(boolean global) {
         this.global = global;
         return this;
+    }
+
+    protected void addFilterFacetAndGlobal(XContentBuilder builder, Params params) throws IOException {
+        if (facetFilter != null) {
+            builder.field("facet_filter");
+            facetFilter.toXContent(builder, params);
+        }
+
+        if (global != null) {
+            builder.field("global", global);
+        }
     }
 }

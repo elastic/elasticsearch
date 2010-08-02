@@ -17,19 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facets.collector;
+package org.elasticsearch.search.facets.filter;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.internal.SearchContext;
-
-import java.io.IOException;
+import org.elasticsearch.search.facets.Facet;
 
 /**
+ * A query facets returns the count (number of hits) for a facet based on a query.
+ *
  * @author kimchy (shay.banon)
  */
-public interface FacetCollectorParser {
+public interface FilterFacet extends Facet {
 
-    String[] names();
+    /**
+     * The count of the facet.
+     */
+    long count();
 
-    FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException;
+    /**
+     * The count of the facet.
+     */
+    long getCount();
 }

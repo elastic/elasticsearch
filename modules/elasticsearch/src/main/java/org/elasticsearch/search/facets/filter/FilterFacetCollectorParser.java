@@ -17,29 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facets.query;
+package org.elasticsearch.search.facets.filter;
 
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.search.facets.collector.FacetCollector;
 import org.elasticsearch.search.facets.collector.FacetCollectorParser;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.io.IOException;
+
 /**
  * @author kimchy (shay.banon)
  */
-public class QueryFacetCollectorParser implements FacetCollectorParser {
+public class FilterFacetCollectorParser implements FacetCollectorParser {
 
-    public static final String NAME = "query";
+    public static final String NAME = "filter";
 
     @Override public String[] names() {
-        return new String[]{"query"};
+        return new String[]{"filter"};
     }
 
-    @Override public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) {
+    @Override public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
         XContentIndexQueryParser indexQueryParser = (XContentIndexQueryParser) context.queryParser();
-        Query facetQuery = indexQueryParser.parse(parser);
-        return new QueryFacetCollector(facetName, facetQuery, context.filterCache());
+        Filter facetFilter = indexQueryParser.parseInnerFilter(parser);
+        return new FilterFacetCollector(facetName, facetFilter, context.filterCache());
     }
 }

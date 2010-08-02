@@ -42,7 +42,7 @@ public class RangeFacetCollectorParser implements FacetCollectorParser {
         return new String[]{NAME};
     }
 
-    @Override public FacetCollector parser(String facetName, XContentParser parser, SearchContext context) throws IOException {
+    @Override public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
         String keyField = null;
         String valueField = null;
         String keyScript = null;

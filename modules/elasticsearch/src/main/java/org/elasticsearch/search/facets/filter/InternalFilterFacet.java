@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.facets.query;
+package org.elasticsearch.search.facets.filter;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,23 +30,23 @@ import java.io.IOException;
 /**
  * @author kimchy (shay.banon)
  */
-public class InternalQueryFacet implements QueryFacet, InternalFacet {
+public class InternalFilterFacet implements FilterFacet, InternalFacet {
 
     private String name;
 
     private long count;
 
-    private InternalQueryFacet() {
+    private InternalFilterFacet() {
 
     }
 
-    public InternalQueryFacet(String name, long count) {
+    public InternalFilterFacet(String name, long count) {
         this.name = name;
         this.count = count;
     }
 
     @Override public Type type() {
-        return Type.QUERY;
+        return Type.FILTER;
     }
 
     @Override public Type getType() {
@@ -82,21 +82,21 @@ public class InternalQueryFacet implements QueryFacet, InternalFacet {
         int count = 0;
         for (Facet facet : facets) {
             if (facet.name().equals(name)) {
-                count += ((QueryFacet) facet).count();
+                count += ((FilterFacet) facet).count();
             }
         }
-        return new InternalQueryFacet(name, count);
+        return new InternalFilterFacet(name, count);
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field("_type", QueryFacetCollectorParser.NAME);
+        builder.field("_type", FilterFacetCollectorParser.NAME);
         builder.field("count", count);
         builder.endObject();
     }
 
-    public static QueryFacet readCountFacet(StreamInput in) throws IOException {
-        InternalQueryFacet result = new InternalQueryFacet();
+    public static FilterFacet readFilterFacet(StreamInput in) throws IOException {
+        InternalFilterFacet result = new InternalFilterFacet();
         result.readFrom(in);
         return result;
     }

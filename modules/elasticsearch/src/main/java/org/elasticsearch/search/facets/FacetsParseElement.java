@@ -29,6 +29,7 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.facets.collector.FacetCollector;
 import org.elasticsearch.search.facets.collector.FacetCollectorParser;
+import org.elasticsearch.search.facets.filter.FilterFacetCollectorParser;
 import org.elasticsearch.search.facets.geodistance.GeoDistanceFacetCollectorParser;
 import org.elasticsearch.search.facets.histogram.HistogramFacetCollectorParser;
 import org.elasticsearch.search.facets.query.QueryFacetCollectorParser;
@@ -72,6 +73,7 @@ public class FacetsParseElement implements SearchParseElement {
         addFacetParser(builder, new HistogramFacetCollectorParser());
         addFacetParser(builder, new GeoDistanceFacetCollectorParser());
         addFacetParser(builder, new RangeFacetCollectorParser());
+        addFacetParser(builder, new FilterFacetCollectorParser());
         this.facetCollectorParsers = builder.immutableMap();
     }
 
@@ -100,7 +102,7 @@ public class FacetsParseElement implements SearchParseElement {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         facetFieldName = parser.currentName();
                     } else if (token == XContentParser.Token.START_OBJECT) {
-                        if ("filter".equals(facetFieldName)) {
+                        if ("facet_filter".equals(facetFieldName) || "facetFilter".equals(facetFieldName)) {
                             XContentIndexQueryParser indexQueryParser = (XContentIndexQueryParser) context.queryParser();
                             filter = indexQueryParser.parseInnerFilter(parser);
                         } else {
@@ -108,7 +110,7 @@ public class FacetsParseElement implements SearchParseElement {
                             if (facetCollectorParser == null) {
                                 throw new SearchParseException(context, "No facet type for [" + facetFieldName + "]");
                             }
-                            facet = facetCollectorParser.parser(topLevelFieldName, parser, context);
+                            facet = facetCollectorParser.parse(topLevelFieldName, parser, context);
                         }
                     } else if (token.isValue()) {
                         if ("global".equals(facetFieldName)) {

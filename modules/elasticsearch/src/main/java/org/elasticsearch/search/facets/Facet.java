@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facets;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.search.facets.filter.FilterFacet;
 import org.elasticsearch.search.facets.geodistance.GeoDistanceFacet;
 import org.elasticsearch.search.facets.histogram.HistogramFacet;
 import org.elasticsearch.search.facets.query.QueryFacet;
@@ -61,7 +62,11 @@ public interface Facet {
         /**
          * Geo Distance facet type, matching {@link RangeFacet}.
          */
-        RANGE(5, RangeFacet.class);
+        RANGE(5, RangeFacet.class),
+        /**
+         * Filter facet type, matching {@link FilterFacet}.
+         */
+        FILTER(6, FilterFacet.class);
 
         private int id;
 

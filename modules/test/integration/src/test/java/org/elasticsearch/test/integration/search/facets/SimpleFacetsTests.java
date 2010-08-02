@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.search.facets.filter.FilterFacet;
 import org.elasticsearch.search.facets.histogram.HistogramFacet;
 import org.elasticsearch.search.facets.range.RangeFacet;
 import org.elasticsearch.search.facets.statistical.StatisticalFacet;
@@ -116,6 +117,40 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().get(0).count(), equalTo(2));
     }
 
+    @Test public void testFilterFacets() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("stag", "111")
+                .startArray("tag").value("xxx").value("yyy").endArray()
+                .endObject()).execute().actionGet();
+        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .field("stag", "111")
+                .startArray("tag").value("zzz").value("yyy").endArray()
+                .endObject()).execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addFacet(filterFacet("facet1").filter(termFilter("stag", "111")))
+                .addFacet(filterFacet("facet2").filter(termFilter("tag", "xxx")))
+                .addFacet(filterFacet("facet3").filter(termFilter("tag", "yyy")))
+                .execute().actionGet();
+
+        FilterFacet facet = searchResponse.facets().facet("facet1");
+        assertThat(facet.name(), equalTo("facet1"));
+        assertThat(facet.count(), equalTo(2l));
+    }
+
     @Test public void testTermsFacets() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
@@ -158,7 +193,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .addFacet(termsFacet("facet1").field("stag").size(10).filter(termFilter("tag", "xxx")))
+                .addFacet(termsFacet("facet1").field("stag").size(10).facetFilter(termFilter("tag", "xxx")))
                 .execute().actionGet();
 
         facet = searchResponse.facets().facet("facet1");

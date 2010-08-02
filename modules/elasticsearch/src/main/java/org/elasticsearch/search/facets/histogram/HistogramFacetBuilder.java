@@ -108,8 +108,8 @@ public class HistogramFacetBuilder extends AbstractFacetBuilder {
     /**
      * An additional filter used to further filter down the set of documents the facet will run on.
      */
-    public HistogramFacetBuilder filter(XContentFilterBuilder filter) {
-        this.filter = filter;
+    public HistogramFacetBuilder facetFilter(XContentFilterBuilder filter) {
+        this.facetFilter = filter;
         return this;
     }
 
@@ -135,14 +135,7 @@ public class HistogramFacetBuilder extends AbstractFacetBuilder {
         }
         builder.endObject();
 
-        if (filter != null) {
-            builder.field("filter");
-            filter.toXContent(builder, params);
-        }
-
-        if (global != null) {
-            builder.field("global", global);
-        }
+        addFilterFacetAndGlobal(builder, params);
 
         builder.endObject();
     }

@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.Facets;
+import org.elasticsearch.search.facets.filter.InternalFilterFacet;
 import org.elasticsearch.search.facets.geodistance.InternalGeoDistanceFacet;
 import org.elasticsearch.search.facets.histogram.InternalHistogramFacet;
 import org.elasticsearch.search.facets.query.InternalQueryFacet;
@@ -148,6 +149,8 @@ public class InternalFacets implements Facets, Streamable, ToXContent, Iterable<
                     facets.add(InternalGeoDistanceFacet.readGeoDistanceFacet(in));
                 } else if (id == Facet.Type.RANGE.id()) {
                     facets.add(InternalRangeDistanceFacet.readRangeFacet(in));
+                } else if (id == Facet.Type.FILTER.id()) {
+                    facets.add(InternalFilterFacet.readFilterFacet(in));
                 } else {
                     throw new IOException("Can't handle facet type with id [" + id + "]");
                 }

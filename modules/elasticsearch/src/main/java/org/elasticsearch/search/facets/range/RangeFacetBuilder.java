@@ -136,8 +136,8 @@ public class RangeFacetBuilder extends AbstractFacetBuilder {
     /**
      * An additional filter used to further filter down the set of documents the facet will run on.
      */
-    public RangeFacetBuilder filter(XContentFilterBuilder filter) {
-        this.filter = filter;
+    public RangeFacetBuilder facetFilter(XContentFilterBuilder filter) {
+        this.facetFilter = filter;
         return this;
     }
 
@@ -179,14 +179,7 @@ public class RangeFacetBuilder extends AbstractFacetBuilder {
 
         builder.endObject();
 
-        if (filter != null) {
-            builder.field("filter");
-            filter.toXContent(builder, params);
-        }
-
-        if (global != null) {
-            builder.field("global", global);
-        }
+        addFilterFacetAndGlobal(builder, params);
 
         builder.endObject();
     }

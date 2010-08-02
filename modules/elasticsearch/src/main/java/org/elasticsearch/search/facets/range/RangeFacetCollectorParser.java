@@ -56,32 +56,30 @@ public class RangeFacetCollectorParser implements FacetCollectorParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if ("ranges".equals(fieldName) || "entries".equals(fieldName)) {
-                    // "ranges" : [
-                    //     { "from" : "0', to : "12.5" }
-                    //     { "from" : "12.5" }
-                    // ]
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        RangeFacet.Entry entry = new RangeFacet.Entry();
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            if (token == XContentParser.Token.FIELD_NAME) {
-                                fieldName = parser.currentName();
-                            } else if (token == XContentParser.Token.VALUE_STRING) {
-                                if ("from".equals(fieldName)) {
-                                    entry.fromAsString = parser.text();
-                                } else if ("to".equals(fieldName)) {
-                                    entry.toAsString = parser.text();
-                                }
-                            } else if (token.isValue()) {
-                                if ("from".equals(fieldName)) {
-                                    entry.from = parser.doubleValue();
-                                } else if ("to".equals(fieldName)) {
-                                    entry.to = parser.doubleValue();
-                                }
+                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    RangeFacet.Entry entry = new RangeFacet.Entry();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            fieldName = parser.currentName();
+                        } else if (token == XContentParser.Token.VALUE_STRING) {
+                            if ("from".equals(fieldName)) {
+                                entry.fromAsString = parser.text();
+                            } else if ("to".equals(fieldName)) {
+                                entry.toAsString = parser.text();
+                            }
+                        } else if (token.isValue()) {
+                            if ("from".equals(fieldName)) {
+                                entry.from = parser.doubleValue();
+                            } else if ("to".equals(fieldName)) {
+                                entry.to = parser.doubleValue();
                             }
                         }
-                        entries.add(entry);
                     }
+                    entries.add(entry);
+                }
+                if (!"ranges".equals(fieldName)) {
+                    // this is the actual field name, so also update the keyField
+                    keyField = fieldName;
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("params".equals(fieldName)) {

@@ -30,7 +30,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class SoftFieldDataCache extends AbstractConcurrentMapFieldDataCache {
 

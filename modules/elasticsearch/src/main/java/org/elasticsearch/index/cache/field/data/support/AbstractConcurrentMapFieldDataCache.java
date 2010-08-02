@@ -33,7 +33,7 @@ import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexComponent implements FieldDataCache {
 
@@ -76,23 +76,16 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
                     fieldDataCache = ConcurrentCollections.newConcurrentMap();
                     cache.put(reader.getFieldCacheKey(), fieldDataCache);
                 }
-                T fieldData = (T) fieldDataCache.get(fieldName);
-                if (fieldData == null) {
-                    fieldData = FieldData.load(type, reader, fieldName);
-                    fieldDataCache.put(fieldName, fieldData);
-                }
-                return fieldData;
             }
         }
         T fieldData = (T) fieldDataCache.get(fieldName);
         if (fieldData == null) {
-            synchronized (creationMutex) {
+            synchronized (fieldDataCache) {
                 fieldData = (T) fieldDataCache.get(fieldName);
                 if (fieldData == null) {
                     fieldData = FieldData.load(type, reader, fieldName);
                     fieldDataCache.put(fieldName, fieldData);
                 }
-                return fieldData;
             }
         }
         return fieldData;

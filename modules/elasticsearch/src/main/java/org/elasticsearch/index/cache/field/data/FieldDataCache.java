@@ -26,7 +26,7 @@ import org.elasticsearch.index.field.data.FieldData;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public interface FieldDataCache extends CloseableComponent {
 

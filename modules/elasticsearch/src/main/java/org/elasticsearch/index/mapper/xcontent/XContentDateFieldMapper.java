@@ -130,6 +130,10 @@ public class XContentDateFieldMapper extends XContentNumberFieldMapper<Long> {
         return Numbers.bytesToLong(value);
     }
 
+    @Override public Long valueFromString(String value) {
+        return dateTimeFormatter.parser().parseMillis(value);
+    }
+
     /**
      * Dates should return as a string, delegates to {@link #valueAsString(org.apache.lucene.document.Fieldable)}.
      */
@@ -147,14 +151,6 @@ public class XContentDateFieldMapper extends XContentNumberFieldMapper<Long> {
 
     @Override public String indexedValue(String value) {
         return NumericUtils.longToPrefixCoded(dateTimeFormatter.parser().parseMillis(value));
-    }
-
-    @Override public Object valueFromTerm(String term) {
-        final int shift = term.charAt(0) - NumericUtils.SHIFT_START_LONG;
-        if (shift > 0 && shift <= 63) {
-            return null;
-        }
-        return NumericUtils.prefixCodedToLong(term);
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {

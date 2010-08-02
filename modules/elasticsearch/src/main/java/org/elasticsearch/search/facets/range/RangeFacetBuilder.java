@@ -89,6 +89,11 @@ public class RangeFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
+    public RangeFacetBuilder addRange(String from, String to) {
+        entries.add(new Entry(from, to));
+        return this;
+    }
+
     /**
      * Adds a range entry with explicit from and unbounded to.
      *
@@ -99,6 +104,11 @@ public class RangeFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
+    public RangeFacetBuilder addUnboundedTo(String from) {
+        entries.add(new Entry(from, null));
+        return this;
+    }
+
     /**
      * Adds a range entry with explicit to and unbounded from.
      *
@@ -106,6 +116,11 @@ public class RangeFacetBuilder extends AbstractFacetBuilder {
      */
     public RangeFacetBuilder addUnboundedFrom(double to) {
         entries.add(new Entry(Double.NEGATIVE_INFINITY, to));
+        return this;
+    }
+
+    public RangeFacetBuilder addUnboundedFrom(String to) {
+        entries.add(new Entry(null, to));
         return this;
     }
 
@@ -148,10 +163,14 @@ public class RangeFacetBuilder extends AbstractFacetBuilder {
         builder.startArray("ranges");
         for (Entry entry : entries) {
             builder.startObject();
-            if (!Double.isInfinite(entry.from)) {
+            if (entry.fromAsString != null) {
+                builder.field("from", entry.fromAsString);
+            } else if (!Double.isInfinite(entry.from)) {
                 builder.field("from", entry.from);
             }
-            if (!Double.isInfinite(entry.to)) {
+            if (entry.toAsString != null) {
+                builder.field("to", entry.toAsString);
+            } else if (!Double.isInfinite(entry.to)) {
                 builder.field("to", entry.to);
             }
             builder.endObject();
@@ -172,11 +191,19 @@ public class RangeFacetBuilder extends AbstractFacetBuilder {
         builder.endObject();
     }
 
-    private static class Entry {
-        final double from;
-        final double to;
+    static class Entry {
+        double from = Double.NEGATIVE_INFINITY;
+        double to = Double.POSITIVE_INFINITY;
 
-        private Entry(double from, double to) {
+        String fromAsString;
+        String toAsString;
+
+        Entry(String fromAsString, String toAsString) {
+            this.fromAsString = fromAsString;
+            this.toAsString = toAsString;
+        }
+
+        Entry(double from, double to) {
             this.from = from;
             this.to = to;
         }

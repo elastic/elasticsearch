@@ -117,16 +117,12 @@ public class XContentFloatFieldMapper extends XContentNumberFieldMapper<Float> {
         return Numbers.bytesToFloat(value);
     }
 
-    @Override public String indexedValue(String value) {
-        return NumericUtils.floatToPrefixCoded(Float.parseFloat(value));
+    @Override public Float valueFromString(String value) {
+        return Float.parseFloat(value);
     }
 
-    @Override public Object valueFromTerm(String term) {
-        final int shift = term.charAt(0) - NumericUtils.SHIFT_START_INT;
-        if (shift > 0 && shift <= 31) {
-            return null;
-        }
-        return NumericUtils.prefixCodedToFloat(term);
+    @Override public String indexedValue(String value) {
+        return NumericUtils.floatToPrefixCoded(Float.parseFloat(value));
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {

@@ -120,6 +120,10 @@ public class XContentBooleanFieldMapper extends XContentFieldMapper<Boolean> {
         return field.stringValue().charAt(0) == 'T' ? Boolean.TRUE : Boolean.FALSE;
     }
 
+    @Override public Boolean valueFromString(String value) {
+        return value.charAt(0) == 'T' ? Boolean.TRUE : Boolean.FALSE;
+    }
+
     @Override public String valueAsString(Fieldable field) {
         return field.stringValue().charAt(0) == 'T' ? "true" : "false";
     }

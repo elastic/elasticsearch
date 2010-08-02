@@ -117,16 +117,12 @@ public class XContentLongFieldMapper extends XContentNumberFieldMapper<Long> {
         return Numbers.bytesToLong(value);
     }
 
-    @Override public String indexedValue(String value) {
-        return NumericUtils.longToPrefixCoded(Long.parseLong(value));
+    @Override public Long valueFromString(String value) {
+        return Long.valueOf(value);
     }
 
-    @Override public Object valueFromTerm(String term) {
-        final int shift = term.charAt(0) - NumericUtils.SHIFT_START_LONG;
-        if (shift > 0 && shift <= 63) {
-            return null;
-        }
-        return NumericUtils.prefixCodedToLong(term);
+    @Override public String indexedValue(String value) {
+        return NumericUtils.longToPrefixCoded(Long.parseLong(value));
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {

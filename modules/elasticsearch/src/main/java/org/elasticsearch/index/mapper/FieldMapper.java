@@ -123,16 +123,12 @@ public interface FieldMapper<T> {
      */
     T value(Fieldable field);
 
+    T valueFromString(String value);
+
     /**
      * Returns the actual value of the field as string.
      */
     String valueAsString(Fieldable field);
-
-    /**
-     * Parses the string back into the type of the field (should be comparable!) in a similar
-     * manner {@link #valueForSearch(org.apache.lucene.document.Fieldable)} does with fields.
-     */
-    Object valueFromTerm(String term);
 
     /**
      * Returns the indexed value.

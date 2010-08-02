@@ -453,6 +453,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 1055)
                 .field("value", 1)
+                .field("date", "1970-01-01T00:00:00")
                 .startArray("multi_num").value(13.0f).value(23.f).endArray()
                 .startArray("multi_value").value(10).value(11).endArray()
                 .endObject()).execute().actionGet();
@@ -461,6 +462,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 1065)
                 .field("value", 2)
+                .field("date", "1970-01-01T00:00:25")
                 .startArray("multi_num").value(15.0f).value(31.0f).endArray()
                 .startArray("multi_value").value(20).value(21).endArray()
                 .endObject()).execute().actionGet();
@@ -469,6 +471,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 1175)
                 .field("value", 3)
+                .field("date", "1970-01-01T00:00:52")
                 .startArray("multi_num").value(17.0f).value(25.0f).endArray()
                 .startArray("multi_value").value(30).value(31).endArray()
                 .endObject()).execute().actionGet();
@@ -481,6 +484,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .addFacet(rangeFacet("range3").keyField("num").valueField("multi_value").addUnboundedFrom(1056).addRange(1000, 1170).addUnboundedTo(1170))
                 .addFacet(rangeFacet("range4").keyField("multi_num").valueField("value").addUnboundedFrom(16).addRange(10, 26).addUnboundedTo(20))
                 .addFacet(rangeScriptFacet("range5").keyScript("doc['num'].value").valueScript("doc['value'].value").addUnboundedFrom(1056).addRange(1000, 1170).addUnboundedTo(1170))
+                .addFacet(rangeFacet("range6").field("date").addUnboundedFrom("1970-01-01T00:00:26").addRange("1970-01-01T00:00:15", "1970-01-01T00:00:53").addUnboundedTo("1970-01-01T00:00:26"))
                 .execute().actionGet();
 
         if (searchResponse.failedShards() > 0) {
@@ -560,5 +564,16 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().get(2).from(), closeTo(1170, 0.000001));
         assertThat(facet.entries().get(2).count(), equalTo(1l));
         assertThat(facet.entries().get(2).total(), closeTo(3, 0.000001));
+
+        facet = searchResponse.facets().facet("range6");
+        assertThat(facet.name(), equalTo("range6"));
+        assertThat(facet.entries().size(), equalTo(3));
+        assertThat(facet.entries().get(0).count(), equalTo(2l));
+        assertThat(facet.entries().get(0).toAsString(), equalTo("1970-01-01T00:00:26"));
+        assertThat(facet.entries().get(1).count(), equalTo(2l));
+        assertThat(facet.entries().get(1).fromAsString(), equalTo("1970-01-01T00:00:15"));
+        assertThat(facet.entries().get(1).toAsString(), equalTo("1970-01-01T00:00:53"));
+        assertThat(facet.entries().get(2).count(), equalTo(1l));
+        assertThat(facet.entries().get(2).fromAsString(), equalTo("1970-01-01T00:00:26"));
     }
 }

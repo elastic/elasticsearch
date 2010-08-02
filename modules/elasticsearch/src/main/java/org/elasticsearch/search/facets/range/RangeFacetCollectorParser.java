@@ -56,6 +56,10 @@ public class RangeFacetCollectorParser implements FacetCollectorParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
+                if (!"ranges".equals(fieldName)) {
+                    // this is the actual field name, so also update the keyField
+                    keyField = fieldName;
+                }
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     RangeFacet.Entry entry = new RangeFacet.Entry();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -76,10 +80,6 @@ public class RangeFacetCollectorParser implements FacetCollectorParser {
                         }
                     }
                     entries.add(entry);
-                }
-                if (!"ranges".equals(fieldName)) {
-                    // this is the actual field name, so also update the keyField
-                    keyField = fieldName;
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("params".equals(fieldName)) {

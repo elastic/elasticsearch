@@ -304,13 +304,6 @@ public abstract class XContentFieldMapper<T> implements FieldMapper<T>, XContent
         return valueAsString(field);
     }
 
-    /**
-     * Simply returns the same string.
-     */
-    @Override public Object valueFromTerm(String term) {
-        return term;
-    }
-
     @Override public String indexedValue(String value) {
         return value;
     }

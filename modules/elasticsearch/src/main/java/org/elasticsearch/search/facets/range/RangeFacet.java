@@ -64,18 +64,15 @@ public interface RangeFacet extends Facet, Iterable<RangeFacet.Entry> {
 
         double to = Double.POSITIVE_INFINITY;
 
+        String fromAsString;
+
+        String toAsString;
+
         long count;
 
         double total;
 
         Entry() {
-        }
-
-        public Entry(double from, double to, long count, double total) {
-            this.from = from;
-            this.to = to;
-            this.count = count;
-            this.total = total;
         }
 
         public double from() {
@@ -86,12 +83,34 @@ public interface RangeFacet extends Facet, Iterable<RangeFacet.Entry> {
             return from();
         }
 
+        public String fromAsString() {
+            if (fromAsString != null) {
+                return fromAsString;
+            }
+            return Double.toString(from);
+        }
+
+        public String getFromAsString() {
+            return fromAsString();
+        }
+
         public double to() {
             return this.to;
         }
 
         public double getTo() {
             return to();
+        }
+
+        public String toAsString() {
+            if (toAsString != null) {
+                return toAsString;
+            }
+            return Double.toString(to);
+        }
+
+        public String getToAsString() {
+            return toAsString();
         }
 
         public long count() {

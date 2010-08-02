@@ -117,16 +117,12 @@ public class XContentShortFieldMapper extends XContentNumberFieldMapper<Short> {
         return Numbers.bytesToShort(value);
     }
 
-    @Override public String indexedValue(String value) {
-        return NumericUtils.intToPrefixCoded(Short.parseShort(value));
+    @Override public Short valueFromString(String value) {
+        return Short.valueOf(value);
     }
 
-    @Override public Object valueFromTerm(String term) {
-        final int shift = term.charAt(0) - NumericUtils.SHIFT_START_INT;
-        if (shift > 0 && shift <= 31) {
-            return null;
-        }
-        return NumericUtils.prefixCodedToInt(term);
+    @Override public String indexedValue(String value) {
+        return NumericUtils.intToPrefixCoded(Short.parseShort(value));
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {

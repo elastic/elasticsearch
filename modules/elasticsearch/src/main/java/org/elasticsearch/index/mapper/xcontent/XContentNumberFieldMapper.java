@@ -155,8 +155,6 @@ public abstract class XContentNumberFieldMapper<T extends Number> extends XConte
         return num == null ? null : num.toString();
     }
 
-    @Override public abstract Object valueFromTerm(String term);
-
     @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         super.merge(mergeWith, mergeContext);
         if (!this.getClass().equals(mergeWith.getClass())) {

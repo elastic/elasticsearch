@@ -117,16 +117,12 @@ public class XContentIntegerFieldMapper extends XContentNumberFieldMapper<Intege
         return Numbers.bytesToInt(value);
     }
 
-    @Override public String indexedValue(String value) {
-        return NumericUtils.intToPrefixCoded(Integer.parseInt(value));
+    @Override public Integer valueFromString(String value) {
+        return Integer.parseInt(value);
     }
 
-    @Override public Object valueFromTerm(String term) {
-        final int shift = term.charAt(0) - NumericUtils.SHIFT_START_INT;
-        if (shift > 0 && shift <= 31) {
-            return null;
-        }
-        return NumericUtils.prefixCodedToInt(term);
+    @Override public String indexedValue(String value) {
+        return NumericUtils.intToPrefixCoded(Integer.parseInt(value));
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {

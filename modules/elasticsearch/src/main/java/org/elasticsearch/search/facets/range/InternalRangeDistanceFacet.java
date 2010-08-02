@@ -128,7 +128,18 @@ public class InternalRangeDistanceFacet implements RangeFacet, InternalFacet {
         valueFieldName = in.readUTF();
         entries = new Entry[in.readVInt()];
         for (int i = 0; i < entries.length; i++) {
-            entries[i] = new Entry(in.readDouble(), in.readDouble(), in.readVLong(), in.readDouble());
+            Entry entry = new Entry();
+            entry.from = in.readDouble();
+            entry.to = in.readDouble();
+            if (in.readBoolean()) {
+                entry.fromAsString = in.readUTF();
+            }
+            if (in.readBoolean()) {
+                entry.toAsString = in.readUTF();
+            }
+            entry.count = in.readVLong();
+            entry.total = in.readDouble();
+            entries[i] = entry;
         }
     }
 
@@ -140,6 +151,18 @@ public class InternalRangeDistanceFacet implements RangeFacet, InternalFacet {
         for (Entry entry : entries) {
             out.writeDouble(entry.from);
             out.writeDouble(entry.to);
+            if (entry.fromAsString == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeUTF(entry.fromAsString);
+            }
+            if (entry.toAsString == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeUTF(entry.toAsString);
+            }
             out.writeVLong(entry.count);
             out.writeDouble(entry.total);
         }
@@ -156,8 +179,14 @@ public class InternalRangeDistanceFacet implements RangeFacet, InternalFacet {
             if (!Double.isInfinite(entry.from)) {
                 builder.field("from", entry.from);
             }
+            if (entry.fromAsString != null) {
+                builder.field("from_str", entry.fromAsString);
+            }
             if (!Double.isInfinite(entry.to)) {
                 builder.field("to", entry.to);
+            }
+            if (entry.toAsString != null) {
+                builder.field("to_str", entry.fromAsString);
             }
             builder.field("count", entry.count());
             builder.field("total", entry.total());

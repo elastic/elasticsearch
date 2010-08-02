@@ -118,16 +118,12 @@ public class XContentDoubleFieldMapper extends XContentNumberFieldMapper<Double>
         return Numbers.bytesToDouble(value);
     }
 
-    @Override public String indexedValue(String value) {
-        return NumericUtils.doubleToPrefixCoded(Double.parseDouble(value));
+    @Override public Double valueFromString(String value) {
+        return Double.valueOf(value);
     }
 
-    @Override public Object valueFromTerm(String term) {
-        final int shift = term.charAt(0) - NumericUtils.SHIFT_START_LONG;
-        if (shift > 0 && shift <= 63) {
-            return null;
-        }
-        return NumericUtils.prefixCodedToDouble(term);
+    @Override public String indexedValue(String value) {
+        return NumericUtils.doubleToPrefixCoded(Double.parseDouble(value));
     }
 
     @Override public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper) {

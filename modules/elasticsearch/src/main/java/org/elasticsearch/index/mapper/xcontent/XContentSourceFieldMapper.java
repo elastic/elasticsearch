@@ -100,6 +100,10 @@ public class XContentSourceFieldMapper extends XContentFieldMapper<byte[]> imple
         return field.getBinaryValue();
     }
 
+    @Override public byte[] valueFromString(String value) {
+        return null;
+    }
+
     @Override public String valueAsString(Fieldable field) {
         throw new UnsupportedOperationException();
     }

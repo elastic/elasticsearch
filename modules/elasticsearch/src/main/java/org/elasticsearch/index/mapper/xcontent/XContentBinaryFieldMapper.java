@@ -70,6 +70,10 @@ public class XContentBinaryFieldMapper extends XContentFieldMapper<byte[]> {
         return field.getBinaryValue();
     }
 
+    @Override public byte[] valueFromString(String value) {
+        return null;
+    }
+
     @Override public String valueAsString(Fieldable field) {
         return null;
     }

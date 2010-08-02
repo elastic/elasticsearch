@@ -84,6 +84,10 @@ public class XContentUidFieldMapper extends XContentFieldMapper<Uid> implements 
         return Uid.createUid(field.stringValue());
     }
 
+    @Override public Uid valueFromString(String value) {
+        return Uid.createUid(value);
+    }
+
     @Override public String valueAsString(Fieldable field) {
         return field.stringValue();
     }

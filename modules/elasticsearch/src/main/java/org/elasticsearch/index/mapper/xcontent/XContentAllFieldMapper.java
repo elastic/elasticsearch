@@ -138,6 +138,10 @@ public class XContentAllFieldMapper extends XContentFieldMapper<Void> implements
         return null;
     }
 
+    @Override public Void valueFromString(String value) {
+        return null;
+    }
+
     @Override public String valueAsString(Fieldable field) {
         return null;
     }

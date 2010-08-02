@@ -86,6 +86,10 @@ public class XContentIdFieldMapper extends XContentFieldMapper<String> implement
         return field.stringValue();
     }
 
+    @Override public String valueFromString(String value) {
+        return value;
+    }
+
     @Override public String valueAsString(Fieldable field) {
         return value(field);
     }

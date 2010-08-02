@@ -21,6 +21,7 @@ package org.elasticsearch.search.facets.range;
 
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.facets.FacetPhaseExecutionException;
 import org.elasticsearch.search.facets.collector.FacetCollector;
 import org.elasticsearch.search.facets.collector.FacetCollectorParser;
@@ -61,20 +62,25 @@ public class RangeFacetCollectorParser implements FacetCollectorParser {
                     //     { "from" : "12.5" }
                     // ]
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        double from = Double.NEGATIVE_INFINITY;
-                        double to = Double.POSITIVE_INFINITY;
+                        RangeFacet.Entry entry = new RangeFacet.Entry();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 fieldName = parser.currentName();
+                            } else if (token == XContentParser.Token.VALUE_STRING) {
+                                if ("from".equals(fieldName)) {
+                                    entry.fromAsString = parser.text();
+                                } else if ("to".equals(fieldName)) {
+                                    entry.toAsString = parser.text();
+                                }
                             } else if (token.isValue()) {
                                 if ("from".equals(fieldName)) {
-                                    from = parser.doubleValue();
+                                    entry.from = parser.doubleValue();
                                 } else if ("to".equals(fieldName)) {
-                                    to = parser.doubleValue();
+                                    entry.to = parser.doubleValue();
                                 }
                             }
                         }
-                        entries.add(new RangeFacet.Entry(from, to, 0, 0));
+                        entries.add(entry);
                     }
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
@@ -101,6 +107,22 @@ public class RangeFacetCollectorParser implements FacetCollectorParser {
         }
 
         RangeFacet.Entry[] rangeEntries = entries.toArray(new RangeFacet.Entry[entries.size()]);
+
+        // fix the range entries if needed
+        if (keyField != null) {
+            FieldMapper mapper = context.mapperService().smartNameFieldMapper(keyField);
+            if (mapper == null) {
+                throw new FacetPhaseExecutionException(facetName, "No mapping found for key_field [" + keyField + "]");
+            }
+            for (RangeFacet.Entry entry : rangeEntries) {
+                if (entry.fromAsString != null) {
+                    entry.from = ((Number) mapper.valueFromString(entry.fromAsString)).doubleValue();
+                }
+                if (entry.toAsString != null) {
+                    entry.to = ((Number) mapper.valueFromString(entry.toAsString)).doubleValue();
+                }
+            }
+        }
 
         if (keyScript != null && valueScript != null) {
             return new ScriptRangeFacetCollector(facetName, keyScript, valueScript, params, rangeEntries, context.scriptService(), context.fieldDataCache(), context.mapperService());

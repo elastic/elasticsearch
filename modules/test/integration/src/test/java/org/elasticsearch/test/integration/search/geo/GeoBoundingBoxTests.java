@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class GeoDistanceTests extends AbstractNodesTests {
+public class GeoBoundingBoxTests extends AbstractNodesTests {
 
     private Client client;
 
@@ -55,7 +55,7 @@ public class GeoDistanceTests extends AbstractNodesTests {
         return client("server1");
     }
 
-    @Test public void simpleDistanceTests() throws Exception {
+    @Test public void simpleBoundingBoxTest() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -108,30 +108,14 @@ public class GeoDistanceTests extends AbstractNodesTests {
         client.admin().indices().prepareRefresh().execute().actionGet();
 
         SearchResponse searchResponse = client.prepareSearch() // from NY
-                .setQuery(filtered(matchAllQuery(), geoDistanceFilter("location").distance("3km").point(40.7143528, -74.0059731)))
+                .setQuery(filtered(matchAllQuery(), geoBoundingBoxFilter("location").topLeft(40.73, -74.1).bottomRight(40.717, -73.99)))
                 .execute().actionGet();
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(5l));
-        assertThat(searchResponse.hits().hits().length, equalTo(5));
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.hits().hits().length, equalTo(2));
         for (SearchHit hit : searchResponse.hits()) {
-            assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5"), equalTo("6")));
-        }
-
-        searchResponse = client.prepareSearch() // from NY
-                .setQuery(filtered(matchAllQuery(), geoDistanceFilter("location").distance("2km").point(40.7143528, -74.0059731)))
-                .execute().actionGet();
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(4l));
-        assertThat(searchResponse.hits().hits().length, equalTo(4));
-        for (SearchHit hit : searchResponse.hits()) {
-            assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
-        }
-
-        searchResponse = client.prepareSearch() // from NY
-                .setQuery(filtered(matchAllQuery(), geoDistanceFilter("location").distance("1.242mi").point(40.7143528, -74.0059731)))
-                .execute().actionGet();
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(4l));
-        assertThat(searchResponse.hits().hits().length, equalTo(4));
-        for (SearchHit hit : searchResponse.hits()) {
-            assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
+            System.err.println("-->" + hit.id());
+            assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("5")));
         }
     }
 }
+

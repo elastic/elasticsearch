@@ -1,0 +1,14 @@
+{
+    "filtered" : {
+        "query" : {
+            "match_all" : {}
+        },
+        "filter" : {
+            "geo_bounding_box" : {
+                "field" : "person.location",
+                "top_left" : [40, -70],
+                "bottom_right" : [30, -80]
+            }
+        }
+    }
+}

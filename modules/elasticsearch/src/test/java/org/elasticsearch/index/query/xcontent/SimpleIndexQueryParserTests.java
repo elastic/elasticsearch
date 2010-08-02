@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.*;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.lucene.geo.GeoBoundingBoxFilter;
 import org.elasticsearch.common.lucene.geo.GeoDistanceFilter;
 import org.elasticsearch.common.lucene.search.*;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
@@ -1011,6 +1012,66 @@ public class SimpleIndexQueryParserTests {
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
         assertThat(filter.distance(), closeTo(12, 0.00001));
+    }
+
+    @Test public void testGeoBoundingBoxFilter1() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_boundingbox1.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+        GeoBoundingBoxFilter filter = (GeoBoundingBoxFilter) filteredQuery.getFilter();
+        assertThat(filter.latFieldName(), equalTo("location.lat"));
+        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.topLeft().lat, closeTo(40, 0.00001));
+        assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));
+        assertThat(filter.bottomRight().lat, closeTo(30, 0.00001));
+        assertThat(filter.bottomRight().lon, closeTo(-80, 0.00001));
+    }
+
+    @Test public void testGeoBoundingBoxFilter2() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_boundingbox2.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+        GeoBoundingBoxFilter filter = (GeoBoundingBoxFilter) filteredQuery.getFilter();
+        assertThat(filter.latFieldName(), equalTo("location.lat"));
+        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.topLeft().lat, closeTo(40, 0.00001));
+        assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));
+        assertThat(filter.bottomRight().lat, closeTo(30, 0.00001));
+        assertThat(filter.bottomRight().lon, closeTo(-80, 0.00001));
+    }
+
+    @Test public void testGeoBoundingBoxFilter3() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_boundingbox3.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+        GeoBoundingBoxFilter filter = (GeoBoundingBoxFilter) filteredQuery.getFilter();
+        assertThat(filter.latFieldName(), equalTo("location.lat"));
+        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.topLeft().lat, closeTo(40, 0.00001));
+        assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));
+        assertThat(filter.bottomRight().lat, closeTo(30, 0.00001));
+        assertThat(filter.bottomRight().lon, closeTo(-80, 0.00001));
+    }
+
+    @Test public void testGeoBoundingBoxFilter4() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_boundingbox4.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+        GeoBoundingBoxFilter filter = (GeoBoundingBoxFilter) filteredQuery.getFilter();
+        assertThat(filter.latFieldName(), equalTo("location.lat"));
+        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.topLeft().lat, closeTo(40, 0.00001));
+        assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));
+        assertThat(filter.bottomRight().lat, closeTo(30, 0.00001));
+        assertThat(filter.bottomRight().lon, closeTo(-80, 0.00001));
     }
 
     private XContentIndexQueryParser newQueryParser() throws IOException {

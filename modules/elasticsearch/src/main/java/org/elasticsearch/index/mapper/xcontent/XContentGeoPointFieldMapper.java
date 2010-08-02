@@ -72,7 +72,7 @@ public class XContentGeoPointFieldMapper implements XContentMapper {
 
         private boolean enableGeohash = false;
 
-        private String resolution = "32";
+        private String resolution = "64";
 
         private Integer precisionStep;
 

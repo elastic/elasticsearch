@@ -33,6 +33,7 @@ import org.elasticsearch.search.facets.AbstractFacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.query.SortParseElement;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -81,6 +82,8 @@ public class SearchSourceBuilder implements ToXContent {
     private Boolean explain;
 
     private List<SortTuple> sortFields;
+
+    private List<ScriptSortTuple> sortScripts;
 
     private List<String> fieldNames;
 
@@ -177,6 +180,22 @@ public class SearchSourceBuilder implements ToXContent {
      */
     public SearchSourceBuilder sort(String name) {
         return sort(name, false);
+    }
+
+    /**
+     * Adds a sort script.
+     *
+     * @param script The script to execute.
+     * @param type   The type of the result (can either be "string" or "number").
+     * @param order  The order.
+     * @param params Optional parameters to the script.
+     */
+    public SearchSourceBuilder sortScript(String script, String type, Order order, @Nullable Map<String, Object> params) {
+        if (sortScripts == null) {
+            sortScripts = Lists.newArrayList();
+        }
+        sortScripts.add(new ScriptSortTuple(script, type, params, order == Order.DESC));
+        return this;
     }
 
     /**
@@ -359,16 +378,33 @@ public class SearchSourceBuilder implements ToXContent {
             builder.endObject();
         }
 
-        if (sortFields != null) {
+        if (sortFields != null || sortScripts != null) {
             builder.field("sort");
             builder.startObject();
-            for (SortTuple sortTuple : sortFields) {
-                builder.field(sortTuple.fieldName());
-                builder.startObject();
-                if (sortTuple.reverse()) {
-                    builder.field("reverse", true);
+            if (sortFields != null) {
+                for (SortTuple sortTuple : sortFields) {
+                    builder.field(sortTuple.fieldName());
+                    builder.startObject();
+                    if (sortTuple.reverse()) {
+                        builder.field("reverse", true);
+                    }
+                    builder.endObject();
                 }
-                builder.endObject();
+            }
+            if (sortScripts != null) {
+                for (ScriptSortTuple scriptSort : sortScripts) {
+                    builder.startObject("_script");
+                    builder.field("script", scriptSort.script());
+                    builder.field("type", scriptSort.type());
+                    if (scriptSort.params() != null) {
+                        builder.field("params");
+                        builder.map(scriptSort.params());
+                    }
+                    if (scriptSort.reverse()) {
+                        builder.field("reverse", true);
+                    }
+                    builder.endObject();
+                }
             }
             builder.endObject();
         }
@@ -433,6 +469,36 @@ public class SearchSourceBuilder implements ToXContent {
 
         public String fieldName() {
             return fieldName;
+        }
+
+        public boolean reverse() {
+            return reverse;
+        }
+    }
+
+    private static class ScriptSortTuple {
+        private final String script;
+        private final String type;
+        private final Map<String, Object> params;
+        private final boolean reverse;
+
+        private ScriptSortTuple(String script, String type, Map<String, Object> params, boolean reverse) {
+            this.script = script;
+            this.type = type;
+            this.params = params;
+            this.reverse = reverse;
+        }
+
+        public String script() {
+            return script;
+        }
+
+        public String type() {
+            return type;
+        }
+
+        public Map<String, Object> params() {
+            return params;
         }
 
         public boolean reverse() {

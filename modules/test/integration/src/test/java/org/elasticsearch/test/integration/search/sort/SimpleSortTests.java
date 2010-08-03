@@ -93,6 +93,16 @@ public class SimpleSortTests extends AbstractNodesTests {
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("id", "doc['id'].value")
+                .addSortScript("doc['svalue'].value", "string", SearchSourceBuilder.Order.ASC)
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
+        assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("1"));
+        assertThat((String) searchResponse.hits().getAt(1).field("id").value(), equalTo("2"));
+
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addScriptField("id", "doc['id'].value")
                 .addSort("svalue", SearchSourceBuilder.Order.DESC)
                 .execute().actionGet();
 
@@ -100,6 +110,15 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("2"));
         assertThat((String) searchResponse.hits().getAt(1).field("id").value(), equalTo("1"));
 
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addScriptField("id", "doc['id'].value")
+                .addSortScript("doc['svalue'].value", "string", SearchSourceBuilder.Order.DESC)
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
+        assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("2"));
+        assertThat((String) searchResponse.hits().getAt(1).field("id").value(), equalTo("1"));
 
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
@@ -114,7 +133,27 @@ public class SimpleSortTests extends AbstractNodesTests {
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("id", "doc['id'].value")
+                .addSortScript("doc['ivalue'].value", "number", SearchSourceBuilder.Order.ASC)
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
+        assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("1"));
+        assertThat((String) searchResponse.hits().getAt(1).field("id").value(), equalTo("2"));
+
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addScriptField("id", "doc['id'].value")
                 .addSort("ivalue", SearchSourceBuilder.Order.DESC)
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
+        assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("2"));
+        assertThat((String) searchResponse.hits().getAt(1).field("id").value(), equalTo("1"));
+
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addScriptField("id", "doc['id'].value")
+                .addSortScript("doc['ivalue'].value", "number", SearchSourceBuilder.Order.DESC)
                 .execute().actionGet();
 
         assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));

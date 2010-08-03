@@ -19,10 +19,15 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.lucene.search.FieldComparatorSource;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.field.function.FieldsFunction;
+import org.elasticsearch.index.field.function.script.ScriptFieldsFunction;
+import org.elasticsearch.index.field.function.sort.DoubleFieldsFunctionDataComparator;
+import org.elasticsearch.index.field.function.sort.StringFieldsFunctionDataComparator;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
@@ -30,6 +35,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
@@ -41,6 +47,7 @@ public class SortParseElement implements SearchParseElement {
     private static final SortField SORT_DOC = new SortField(null, SortField.DOC);
     private static final SortField SORT_DOC_REVERSE = new SortField(null, SortField.DOC, true);
 
+    public static final String SCRIPT_FIELD_NAME = "_script";
     public static final String SCORE_FIELD_NAME = "_score";
     public static final String DOC_FIELD_NAME = "_doc";
 
@@ -73,6 +80,9 @@ public class SortParseElement implements SearchParseElement {
                 String fieldName = parser.currentName();
                 boolean reverse = false;
                 String innerJsonName = null;
+                String script = null;
+                String type = null;
+                Map<String, Object> params = null;
                 token = parser.nextToken();
                 if (token == XContentParser.Token.VALUE_STRING) {
                     String direction = parser.text();
@@ -88,11 +98,42 @@ public class SortParseElement implements SearchParseElement {
                         } else if (token.isValue()) {
                             if ("reverse".equals(innerJsonName)) {
                                 reverse = parser.booleanValue();
+                            } else if ("order".equals(innerJsonName)) {
+                                if ("asc".equals(parser.text())) {
+                                    reverse = SCORE_FIELD_NAME.equals(fieldName);
+                                } else if ("desc".equals(parser.text())) {
+                                    reverse = !SCORE_FIELD_NAME.equals(fieldName);
+                                }
+                            } else if ("script".equals(innerJsonName)) {
+                                script = parser.text();
+                            } else if ("type".equals(innerJsonName)) {
+                                type = parser.text();
+                            } else if ("params".equals(innerJsonName)) {
+                                params = parser.map();
                             }
                         }
                     }
                 }
-                addSortField(context, sortFields, fieldName, reverse);
+                if (SCRIPT_FIELD_NAME.equals(fieldName)) {
+                    if (script == null) {
+                        throw new SearchParseException(context, "_script sorting requires setting the script to sort by");
+                    }
+                    if (type == null) {
+                        throw new SearchParseException(context, "_script sorting requires setting the type of the script");
+                    }
+                    FieldsFunction fieldsFunction = new ScriptFieldsFunction(script, context.scriptService(), context.mapperService(), context.fieldDataCache());
+                    FieldComparatorSource fieldComparatorSource;
+                    if ("string".equals(type)) {
+                        fieldComparatorSource = StringFieldsFunctionDataComparator.comparatorSource(fieldsFunction, params);
+                    } else if ("number".equals(type)) {
+                        fieldComparatorSource = DoubleFieldsFunctionDataComparator.comparatorSource(fieldsFunction, params);
+                    } else {
+                        throw new SearchParseException(context, "custom script sort type [" + type + "] not supported");
+                    }
+                    sortFields.add(new SortField(fieldName, fieldComparatorSource, reverse));
+                } else {
+                    addSortField(context, sortFields, fieldName, reverse);
+                }
             }
         }
     }

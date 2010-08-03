@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.transport.TransportRequestOptions.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -193,7 +194,7 @@ public abstract class AbstractSimpleTransportTests {
         });
 
         TransportFuture<StringMessage> res = serviceB.submitRequest(serviceANode, "sayHelloTimeoutNoResponse",
-                new StringMessage("moshe"), TimeValue.timeValueMillis(100), new BaseTransportResponseHandler<StringMessage>() {
+                new StringMessage("moshe"), options().withTimeout(100), new BaseTransportResponseHandler<StringMessage>() {
                     @Override public StringMessage newInstance() {
                         return new StringMessage();
                     }
@@ -243,7 +244,7 @@ public abstract class AbstractSimpleTransportTests {
         });
 
         TransportFuture<StringMessage> res = serviceB.submitRequest(serviceANode, "sayHelloTimeoutDelayedResponse",
-                new StringMessage("300ms"), TimeValue.timeValueMillis(100), new BaseTransportResponseHandler<StringMessage>() {
+                new StringMessage("300ms"), options().withTimeout(100), new BaseTransportResponseHandler<StringMessage>() {
                     @Override public StringMessage newInstance() {
                         return new StringMessage();
                     }
@@ -271,7 +272,7 @@ public abstract class AbstractSimpleTransportTests {
             final int counter = i;
             // now, try and send another request, this times, with a short timeout
             res = serviceB.submitRequest(serviceANode, "sayHelloTimeoutDelayedResponse",
-                    new StringMessage(counter + "ms"), TimeValue.timeValueMillis(100), new BaseTransportResponseHandler<StringMessage>() {
+                    new StringMessage(counter + "ms"), options().withTimeout(100), new BaseTransportResponseHandler<StringMessage>() {
                         @Override public StringMessage newInstance() {
                             return new StringMessage();
                         }

@@ -29,12 +29,12 @@ import org.elasticsearch.common.timer.Timeout;
 import org.elasticsearch.common.timer.TimerTask;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.timer.TimerService;
 
+import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -160,9 +160,9 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     public <T extends Streamable> TransportFuture<T> submitRequest(DiscoveryNode node, String action, Streamable message,
-                                                                   TimeValue timeout, TransportResponseHandler<T> handler) throws TransportException {
+                                                                   @Nullable TransportRequestOptions options, TransportResponseHandler<T> handler) throws TransportException {
         PlainTransportFuture<T> futureHandler = new PlainTransportFuture<T>(handler);
-        sendRequest(node, action, message, timeout, futureHandler);
+        sendRequest(node, action, message, options, futureHandler);
         return futureHandler;
     }
 
@@ -172,15 +172,15 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     public <T extends Streamable> void sendRequest(final DiscoveryNode node, final String action, final Streamable message,
-                                                   final TimeValue timeout, final TransportResponseHandler<T> handler) throws TransportException {
+                                                   @Nullable final TransportRequestOptions options, final TransportResponseHandler<T> handler) throws TransportException {
         final long requestId = newRequestId();
         Timeout timeoutX = null;
         try {
-            if (timeout != null) {
-                timeoutX = timerService.newTimeout(new TimeoutTimerTask(requestId), timeout, TimerService.ExecutionType.THREADED);
+            if (options != null && options.timeout() != null) {
+                timeoutX = timerService.newTimeout(new TimeoutTimerTask(requestId), options.timeout(), TimerService.ExecutionType.THREADED);
             }
             clientHandlers.put(requestId, new RequestHolder<T>(handler, node, action, timeoutX));
-            transport.sendRequest(node, requestId, action, message);
+            transport.sendRequest(node, requestId, action, message, options);
         } catch (final Exception e) {
             // usually happen either because we failed to connect to the node
             // or because we failed serializing the message

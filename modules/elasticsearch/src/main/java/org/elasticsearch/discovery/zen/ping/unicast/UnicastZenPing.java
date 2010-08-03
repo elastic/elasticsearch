@@ -196,7 +196,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
             }
 
             final boolean disconnect = disconnectX;
-            transportService.sendRequest(nodeToSend, UnicastPingRequestHandler.ACTION, pingRequest, TimeValue.timeValueMillis((long) (timeout.millis() * 1.25)), new BaseTransportResponseHandler<UnicastPingResponse>() {
+            transportService.sendRequest(nodeToSend, UnicastPingRequestHandler.ACTION, pingRequest, TransportRequestOptions.options().withTimeout((long) (timeout.millis() * 1.25)), new BaseTransportResponseHandler<UnicastPingResponse>() {
 
                 @Override public UnicastPingResponse newInstance() {
                     return new UnicastPingResponse();

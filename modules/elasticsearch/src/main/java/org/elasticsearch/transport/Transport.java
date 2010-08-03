@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 
 /**
@@ -93,5 +94,8 @@ public interface Transport extends LifecycleComponent<Transport> {
      */
     void disconnectFromNode(DiscoveryNode node);
 
-    <T extends Streamable> void sendRequest(DiscoveryNode node, long requestId, String action, Streamable message) throws IOException, TransportException;
+    /**
+     * Sends the request to the node.
+     */
+    <T extends Streamable> void sendRequest(DiscoveryNode node, long requestId, String action, Streamable message, @Nullable TransportRequestOptions options) throws IOException, TransportException;
 }

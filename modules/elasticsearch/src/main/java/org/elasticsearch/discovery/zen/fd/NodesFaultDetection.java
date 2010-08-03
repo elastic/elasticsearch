@@ -38,6 +38,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.*;
 import static org.elasticsearch.common.unit.TimeValue.*;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
+import static org.elasticsearch.transport.TransportRequestOptions.*;
 
 /**
  * A fault detection of multiple nodes.
@@ -193,7 +194,7 @@ public class NodesFaultDetection extends AbstractComponent {
             if (!running) {
                 return;
             }
-            transportService.sendRequest(node, PingRequestHandler.ACTION, new PingRequest(node.id()), pingRetryTimeout,
+            transportService.sendRequest(node, PingRequestHandler.ACTION, new PingRequest(node.id()), options().withTimeout(pingRetryTimeout),
                     new BaseTransportResponseHandler<PingResponse>() {
                         @Override public PingResponse newInstance() {
                             return new PingResponse();
@@ -227,7 +228,7 @@ public class NodesFaultDetection extends AbstractComponent {
                                     }
                                 } else {
                                     // resend the request, not reschedule, rely on send timeout
-                                    transportService.sendRequest(node, PingRequestHandler.ACTION, new PingRequest(node.id()), pingRetryTimeout, this);
+                                    transportService.sendRequest(node, PingRequestHandler.ACTION, new PingRequest(node.id()), options().withTimeout(pingRetryTimeout), this);
                                 }
                             }
                         }

@@ -240,7 +240,11 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             if (timeout.isCancelled()) {
                 return;
             }
-            listener.onTimeout(this.timeout);
+            if (lifecycle.stoppedOrClosed()) {
+                listener.onClose();
+            } else {
+                listener.onTimeout(this.timeout);
+            }
             // note, we rely on the listener to remove itself in case of timeout if needed
         }
     }

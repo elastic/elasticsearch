@@ -175,16 +175,40 @@ public abstract class FilterBuilders {
         return new QueryFilterBuilder(queryBuilder);
     }
 
+    /**
+     * A builder for filter based on a script.
+     *
+     * @param script The script to filter by.
+     */
     public static ScriptFilterBuilder scriptFilter(String script) {
         return new ScriptFilterBuilder(script);
     }
 
+    /**
+     * A filter to filter based on a specific distance from a specific geo location / point.
+     *
+     * @param name The location field name.
+     */
     public static GeoDistanceFilterBuilder geoDistanceFilter(String name) {
         return new GeoDistanceFilterBuilder(name);
     }
 
+    /**
+     * A filter to filter based on a bounding box defined by top left and bottom right locations / points
+     *
+     * @param name The location field name.
+     */
     public static GeoBoundingBoxFilterBuilder geoBoundingBoxFilter(String name) {
         return new GeoBoundingBoxFilterBuilder(name);
+    }
+
+    /**
+     * A filter to filter based on a polygon defined by a set of locations  / points.
+     *
+     * @param name The location field name.
+     */
+    public static GeoPolygonFilterBuilder geoPolygonFilter(String name) {
+        return new GeoPolygonFilterBuilder(name);
     }
 
     public static BoolFilterBuilder boolFilter() {

@@ -88,6 +88,7 @@ public class XContentQueryParserRegistry {
         add(filterParsersMap, new ScriptFilterParser(index, indexSettings));
         add(filterParsersMap, new GeoDistanceFilterParser(index, indexSettings));
         add(filterParsersMap, new GeoBoundingBoxFilterParser(index, indexSettings));
+        add(filterParsersMap, new GeoPolygonFilterParser(index, indexSettings));
         add(filterParsersMap, new QueryFilterParser(index, indexSettings));
         add(filterParsersMap, new BoolFilterParser(index, indexSettings));
         add(filterParsersMap, new AndFilterParser(index, indexSettings));

@@ -5,14 +5,15 @@
         },
         "filter" : {
             "geo_bounding_box" : {
-                "field" : "person.location",
-                "top_left" : {
-                    "lat" : 40,
-                    "lon" : -70
-                },
-                "bottom_right" : {
-                    "lat" : 30,
-                    "lon" : -80
+                "person.location" : {
+                    "top_left" : {
+                        "lat" : 40,
+                        "lon" : -70
+                    },
+                    "bottom_right" : {
+                        "lat" : 30,
+                        "lon" : -80
+                    }
                 }
             }
         }

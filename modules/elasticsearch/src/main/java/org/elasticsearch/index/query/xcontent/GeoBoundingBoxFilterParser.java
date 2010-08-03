@@ -53,14 +53,20 @@ public class GeoBoundingBoxFilterParser extends AbstractIndexComponent implement
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
+        XContentParser.Token token = parser.nextToken();
+        assert token == XContentParser.Token.FIELD_NAME;
+        String latFieldName = parser.currentName() + XContentGeoPointFieldMapper.Names.LAT_SUFFIX;
+        String lonFieldName = parser.currentName() + XContentGeoPointFieldMapper.Names.LON_SUFFIX;
+
+        // now, we move after the field name, which starts the object
+        token = parser.nextToken();
+        assert token == XContentParser.Token.START_OBJECT;
+
+
         GeoBoundingBoxFilter.Point topLeft = new GeoBoundingBoxFilter.Point();
         GeoBoundingBoxFilter.Point bottomRight = new GeoBoundingBoxFilter.Point();
 
-        String latFieldName = null;
-        String lonFieldName = null;
-
         String currentFieldName = null;
-        XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();

@@ -71,7 +71,7 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(GeoBoundingBoxFilterParser.NAME);
 
-        builder.field("field", name);
+        builder.startObject(name);
         if (topLeftGeohash != null) {
             builder.field("top_left", topLeftGeohash);
         } else if (topLeft != null) {
@@ -87,6 +87,7 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
         } else {
             throw new QueryBuilderException("geo_bounding_box requires 'bottom_right' to be set");
         }
+        builder.endObject();
 
         builder.endObject();
     }

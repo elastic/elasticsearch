@@ -25,6 +25,7 @@ import org.apache.lucene.search.spans.*;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.lucene.geo.GeoBoundingBoxFilter;
 import org.elasticsearch.common.lucene.geo.GeoDistanceFilter;
+import org.elasticsearch.common.lucene.geo.GeoPolygonFilter;
 import org.elasticsearch.common.lucene.search.*;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -1072,6 +1073,78 @@ public class SimpleIndexQueryParserTests {
         assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));
         assertThat(filter.bottomRight().lat, closeTo(30, 0.00001));
         assertThat(filter.bottomRight().lon, closeTo(-80, 0.00001));
+    }
+
+    @Test public void testGeoPolygonFilter1() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_polygon1.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+        GeoPolygonFilter filter = (GeoPolygonFilter) filteredQuery.getFilter();
+        assertThat(filter.latFieldName(), equalTo("location.lat"));
+        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.points().length, equalTo(3));
+        assertThat(filter.points()[0].lat, closeTo(40, 0.00001));
+        assertThat(filter.points()[0].lon, closeTo(-70, 0.00001));
+        assertThat(filter.points()[1].lat, closeTo(30, 0.00001));
+        assertThat(filter.points()[1].lon, closeTo(-80, 0.00001));
+        assertThat(filter.points()[2].lat, closeTo(20, 0.00001));
+        assertThat(filter.points()[2].lon, closeTo(-90, 0.00001));
+    }
+
+    @Test public void testGeoPolygonFilter2() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_polygon2.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+        GeoPolygonFilter filter = (GeoPolygonFilter) filteredQuery.getFilter();
+        assertThat(filter.latFieldName(), equalTo("location.lat"));
+        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.points().length, equalTo(3));
+        assertThat(filter.points()[0].lat, closeTo(40, 0.00001));
+        assertThat(filter.points()[0].lon, closeTo(-70, 0.00001));
+        assertThat(filter.points()[1].lat, closeTo(30, 0.00001));
+        assertThat(filter.points()[1].lon, closeTo(-80, 0.00001));
+        assertThat(filter.points()[2].lat, closeTo(20, 0.00001));
+        assertThat(filter.points()[2].lon, closeTo(-90, 0.00001));
+    }
+
+    @Test public void testGeoPolygonFilter3() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_polygon3.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+        GeoPolygonFilter filter = (GeoPolygonFilter) filteredQuery.getFilter();
+        assertThat(filter.latFieldName(), equalTo("location.lat"));
+        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.points().length, equalTo(3));
+        assertThat(filter.points()[0].lat, closeTo(40, 0.00001));
+        assertThat(filter.points()[0].lon, closeTo(-70, 0.00001));
+        assertThat(filter.points()[1].lat, closeTo(30, 0.00001));
+        assertThat(filter.points()[1].lon, closeTo(-80, 0.00001));
+        assertThat(filter.points()[2].lat, closeTo(20, 0.00001));
+        assertThat(filter.points()[2].lon, closeTo(-90, 0.00001));
+    }
+
+    @Test public void testGeoPolygonFilter4() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/geo_polygon4.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+        GeoPolygonFilter filter = (GeoPolygonFilter) filteredQuery.getFilter();
+        assertThat(filter.latFieldName(), equalTo("location.lat"));
+        assertThat(filter.lonFieldName(), equalTo("location.lon"));
+        assertThat(filter.points().length, equalTo(3));
+        assertThat(filter.points()[0].lat, closeTo(40, 0.00001));
+        assertThat(filter.points()[0].lon, closeTo(-70, 0.00001));
+        assertThat(filter.points()[1].lat, closeTo(30, 0.00001));
+        assertThat(filter.points()[1].lon, closeTo(-80, 0.00001));
+        assertThat(filter.points()[2].lat, closeTo(20, 0.00001));
+        assertThat(filter.points()[2].lon, closeTo(-90, 0.00001));
     }
 
     private XContentIndexQueryParser newQueryParser() throws IOException {

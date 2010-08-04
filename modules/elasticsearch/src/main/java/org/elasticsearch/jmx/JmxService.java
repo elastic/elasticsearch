@@ -37,13 +37,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class JmxService {
 
     public static class SettingsConstants {
 
-        public static final String CREATE_CONNECTOR = "jmx.createConnector";
+        public static final String CREATE_CONNECTOR = "jmx.create_connector";
     }
 
     // we use {jmx.port} without prefix of $ since we don't want it to be resolved as a setting property
@@ -106,7 +106,7 @@ public class JmxService {
                 @Override public boolean onPortNumber(int portNumber) {
                     try {
                         LocateRegistry.createRegistry(portNumber);
-                        serviceUrl = settings.get("jmx.serviceUrl", JMXRMI_URI_PATTERN).replace("{jmx.port}", Integer.toString(portNumber));
+                        serviceUrl = settings.get("jmx.service_url", JMXRMI_URI_PATTERN).replace("{jmx.port}", Integer.toString(portNumber));
                         // Create the JMX service URL.
                         JMXServiceURL url = new JMXServiceURL(serviceUrl);
                         // Create the connector server now.
@@ -114,8 +114,8 @@ public class JmxService {
                         connectorServer.start();
 
                         // create the publish url
-                        String publishHost = networkService.resolvePublishHostAddress(settings.get("jmx.publishHost")).getHostAddress();
-                        publishUrl = settings.get("jmx.publishUrl", JMXRMI_PUBLISH_URI_PATTERN).replace("{jmx.port}", Integer.toString(portNumber)).replace("{jmx.host}", publishHost);
+                        String publishHost = networkService.resolvePublishHostAddress(settings.get("jmx.publish_host")).getHostAddress();
+                        publishUrl = settings.get("jmx.publish_url", JMXRMI_PUBLISH_URI_PATTERN).replace("{jmx.port}", Integer.toString(portNumber)).replace("{jmx.host}", publishHost);
                     } catch (Exception e) {
                         lastException.set(e);
                         return false;

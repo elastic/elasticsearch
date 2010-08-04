@@ -205,6 +205,11 @@ public class FetchPhase implements SearchPhase {
             return new UidFieldSelector();
         }
 
+        // asked for all stored fields, just return null so all of them will be loaded
+        if (context.fieldNames().get(0).equals("*")) {
+            return null;
+        }
+
         FieldMappersFieldSelector fieldSelector = new FieldMappersFieldSelector();
         for (String fieldName : context.fieldNames()) {
             FieldMappers x = context.mapperService().smartNameFieldMappers(fieldName);

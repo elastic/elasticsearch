@@ -25,7 +25,7 @@ import org.apache.lucene.document.FieldSelectorResult;
 import java.util.HashSet;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class FieldMappersFieldSelector implements FieldSelector {
 

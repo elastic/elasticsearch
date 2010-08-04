@@ -17,24 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.xcontent;
+package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.mapper.MapperService;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.index.Term;
+import org.elasticsearch.common.util.concurrent.ThreadSafe;
 
 /**
+ * A mapper that maps the index name of the resource into the document.
+ *
  * @author kimchy (shay.banon)
  */
-public class XContentMapperTests {
+@ThreadSafe
+public interface IndexFieldMapper extends FieldMapper<String>, InternalMapper {
 
-    public static XContentDocumentMapperParser newParser() {
-        return new XContentDocumentMapperParser(new Index("test"), new AnalysisService(new Index("test")));
-    }
+    public static final String NAME = "_index";
 
-    public static MapperService newMapperService() {
-        return new MapperService(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS, new Environment(), new AnalysisService(new Index("test")));
-    }
+    boolean enabled();
+
+    String value(Document document);
+
+    Term term(String value);
 }

@@ -51,6 +51,8 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
         private XContentTypeFieldMapper typeFieldMapper = new XContentTypeFieldMapper();
 
+        private XContentIndexFieldMapper indexFieldMapper = new XContentIndexFieldMapper();
+
         private XContentSourceFieldMapper sourceFieldMapper = new XContentSourceFieldMapper();
 
         private XContentBoostFieldMapper boostFieldMapper = new XContentBoostFieldMapper();
@@ -61,6 +63,8 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
         private NamedAnalyzer searchAnalyzer;
 
+        private final String index;
+
         private final XContentObjectMapper rootObjectMapper;
 
         private String mappingSource;
@@ -69,7 +73,8 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
         private XContentMapper.BuilderContext builderContext = new XContentMapper.BuilderContext(new ContentPath(1));
 
-        public Builder(XContentObjectMapper.Builder builder) {
+        public Builder(String index, XContentObjectMapper.Builder builder) {
+            this.index = index;
             this.rootObjectMapper = builder.build(builderContext);
         }
 
@@ -95,6 +100,11 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
         public Builder typeField(XContentTypeFieldMapper.Builder builder) {
             this.typeFieldMapper = builder.build(builderContext);
+            return this;
+        }
+
+        public Builder indexField(XContentIndexFieldMapper.Builder builder) {
+            this.indexFieldMapper = builder.build(builderContext);
             return this;
         }
 
@@ -133,7 +143,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
         public XContentDocumentMapper build() {
             Preconditions.checkNotNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
-            return new XContentDocumentMapper(rootObjectMapper, attributes, uidFieldMapper, idFieldMapper, typeFieldMapper,
+            return new XContentDocumentMapper(index, rootObjectMapper, attributes, uidFieldMapper, idFieldMapper, typeFieldMapper, indexFieldMapper,
                     sourceFieldMapper, allFieldMapper, indexAnalyzer, searchAnalyzer, boostFieldMapper, mappingSource);
         }
     }
@@ -141,9 +151,11 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
     private ThreadLocal<ThreadLocals.CleanableValue<ParseContext>> cache = new ThreadLocal<ThreadLocals.CleanableValue<ParseContext>>() {
         @Override protected ThreadLocals.CleanableValue<ParseContext> initialValue() {
-            return new ThreadLocals.CleanableValue<ParseContext>(new ParseContext(XContentDocumentMapper.this, new ContentPath(0)));
+            return new ThreadLocals.CleanableValue<ParseContext>(new ParseContext(index, XContentDocumentMapper.this, new ContentPath(0)));
         }
     };
+
+    private final String index;
 
     private final String type;
 
@@ -156,6 +168,8 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
     private final XContentIdFieldMapper idFieldMapper;
 
     private final XContentTypeFieldMapper typeFieldMapper;
+
+    private final XContentIndexFieldMapper indexFieldMapper;
 
     private final XContentSourceFieldMapper sourceFieldMapper;
 
@@ -175,16 +189,18 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
     private final Object mutex = new Object();
 
-    public XContentDocumentMapper(XContentObjectMapper rootObjectMapper,
+    public XContentDocumentMapper(String index, XContentObjectMapper rootObjectMapper,
                                   ImmutableMap<String, Object> attributes,
                                   XContentUidFieldMapper uidFieldMapper,
                                   XContentIdFieldMapper idFieldMapper,
                                   XContentTypeFieldMapper typeFieldMapper,
+                                  XContentIndexFieldMapper indexFieldMapper,
                                   XContentSourceFieldMapper sourceFieldMapper,
                                   XContentAllFieldMapper allFieldMapper,
                                   Analyzer indexAnalyzer, Analyzer searchAnalyzer,
                                   @Nullable XContentBoostFieldMapper boostFieldMapper,
                                   @Nullable String mappingSource) {
+        this.index = index;
         this.type = rootObjectMapper.name();
         this.attributes = attributes;
         this.mappingSource = mappingSource;
@@ -192,6 +208,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         this.uidFieldMapper = uidFieldMapper;
         this.idFieldMapper = idFieldMapper;
         this.typeFieldMapper = typeFieldMapper;
+        this.indexFieldMapper = indexFieldMapper;
         this.sourceFieldMapper = sourceFieldMapper;
         this.allFieldMapper = allFieldMapper;
         this.boostFieldMapper = boostFieldMapper;
@@ -250,6 +267,10 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
     @Override public IdFieldMapper idMapper() {
         return this.idFieldMapper;
+    }
+
+    @Override public IndexFieldMapper indexMapper() {
+        return this.indexFieldMapper;
     }
 
     @Override public TypeFieldMapper typeMapper() {
@@ -332,6 +353,8 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
                 uidFieldMapper.parse(context);
             }
             typeFieldMapper.parse(context);
+
+            indexFieldMapper.parse(context);
 
             rootObjectMapper.parse(context);
 

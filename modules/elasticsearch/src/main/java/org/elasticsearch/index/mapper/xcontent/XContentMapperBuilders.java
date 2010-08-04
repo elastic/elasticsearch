@@ -28,8 +28,8 @@ public final class XContentMapperBuilders {
 
     }
 
-    public static XContentDocumentMapper.Builder doc(XContentObjectMapper.Builder objectBuilder) {
-        return new XContentDocumentMapper.Builder(objectBuilder);
+    public static XContentDocumentMapper.Builder doc(String index, XContentObjectMapper.Builder objectBuilder) {
+        return new XContentDocumentMapper.Builder(index, objectBuilder);
     }
 
     public static XContentSourceFieldMapper.Builder source() {
@@ -46,6 +46,10 @@ public final class XContentMapperBuilders {
 
     public static XContentTypeFieldMapper.Builder type() {
         return new XContentTypeFieldMapper.Builder();
+    }
+
+    public static XContentIndexFieldMapper.Builder index() {
+        return new XContentIndexFieldMapper.Builder();
     }
 
     public static XContentBoostFieldMapper.Builder boost(String name) {

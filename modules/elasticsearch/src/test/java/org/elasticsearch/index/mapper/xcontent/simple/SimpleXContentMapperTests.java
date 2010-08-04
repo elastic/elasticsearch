@@ -21,11 +21,9 @@ package org.elasticsearch.index.mapper.xcontent.simple;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
-import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapperParser;
+import org.elasticsearch.index.mapper.xcontent.XContentMapperTests;
 import org.testng.annotations.Test;
 
 import static org.apache.lucene.document.Field.Store.*;
@@ -40,7 +38,7 @@ import static org.hamcrest.Matchers.*;
 public class SimpleXContentMapperTests {
 
     @Test public void testSimpleMapper() throws Exception {
-        XContentDocumentMapper docMapper = doc(
+        XContentDocumentMapper docMapper = doc("test",
                 object("person")
                         .add(object("name").add(stringField("first").store(YES).index(Field.Index.NO)))
         ).sourceField(source()).build();
@@ -60,11 +58,11 @@ public class SimpleXContentMapperTests {
 
     @Test public void testParseToJsonAndParse() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/simple/test-mapping.json");
-        XContentDocumentMapper docMapper = (XContentDocumentMapper) new XContentDocumentMapperParser(new AnalysisService(new Index("test"))).parse(mapping);
+        XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(mapping);
         String builtMapping = docMapper.buildSource();
 //        System.out.println(builtMapping);
         // reparse it
-        XContentDocumentMapper builtDocMapper = (XContentDocumentMapper) new XContentDocumentMapperParser(new AnalysisService(new Index("test"))).parse(builtMapping);
+        XContentDocumentMapper builtDocMapper = XContentMapperTests.newParser().parse(builtMapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/simple/test1.json");
         Document doc = builtDocMapper.parse(json).doc();
         assertThat(doc.get(docMapper.uidMapper().names().indexName()), equalTo(Uid.createUid("person", "1")));
@@ -77,7 +75,7 @@ public class SimpleXContentMapperTests {
 
     @Test public void testSimpleParser() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/simple/test-mapping.json");
-        XContentDocumentMapper docMapper = (XContentDocumentMapper) new XContentDocumentMapperParser(new AnalysisService(new Index("test"))).parse(mapping);
+        XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(mapping);
 
         assertThat((String) docMapper.attributes().get("param1"), equalTo("value1"));
 
@@ -93,7 +91,7 @@ public class SimpleXContentMapperTests {
 
     @Test public void testSimpleParserNoTypeNoId() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/simple/test-mapping.json");
-        XContentDocumentMapper docMapper = (XContentDocumentMapper) new XContentDocumentMapperParser(new AnalysisService(new Index("test"))).parse(mapping);
+        XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/simple/test1-notype-noid.json");
         Document doc = docMapper.parse("person", "1", json).doc();
         assertThat(doc.get(docMapper.uidMapper().names().indexName()), equalTo(Uid.createUid("person", "1")));

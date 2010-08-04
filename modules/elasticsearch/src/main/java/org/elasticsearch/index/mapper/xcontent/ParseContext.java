@@ -39,6 +39,8 @@ public class ParseContext {
 
     private Document document;
 
+    private String index;
+
     private String type;
 
     private byte[] source;
@@ -61,7 +63,8 @@ public class ParseContext {
 
     private AllEntries allEntries = new AllEntries();
 
-    public ParseContext(XContentDocumentMapper docMapper, ContentPath path) {
+    public ParseContext(String index, XContentDocumentMapper docMapper, ContentPath path) {
+        this.index = index;
         this.docMapper = docMapper;
         this.path = path;
     }
@@ -84,6 +87,10 @@ public class ParseContext {
 
     public void addedMapper() {
         this.mappersAdded = true;
+    }
+
+    public String index() {
+        return this.index;
     }
 
     public String type() {

@@ -24,13 +24,18 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentMerger;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.AbstractIndexComponent;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.settings.IndexSettings;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -43,7 +48,7 @@ import static org.elasticsearch.index.mapper.xcontent.XContentTypeParsers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class XContentDocumentMapperParser implements DocumentMapperParser {
+public class XContentDocumentMapperParser extends AbstractIndexComponent implements DocumentMapperParser {
 
     private final AnalysisService analysisService;
 
@@ -53,7 +58,12 @@ public class XContentDocumentMapperParser implements DocumentMapperParser {
 
     private volatile ImmutableMap<String, XContentTypeParser> typeParsers;
 
-    public XContentDocumentMapperParser(AnalysisService analysisService) {
+    public XContentDocumentMapperParser(Index index, AnalysisService analysisService) {
+        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, analysisService);
+    }
+
+    public XContentDocumentMapperParser(Index index, @IndexSettings Settings indexSettings, AnalysisService analysisService) {
+        super(index, indexSettings);
         this.analysisService = analysisService;
         typeParsers = new MapBuilder<String, XContentTypeParser>()
                 .put(XContentShortFieldMapper.CONTENT_TYPE, new XContentShortFieldMapper.TypeParser())
@@ -112,7 +122,7 @@ public class XContentDocumentMapperParser implements DocumentMapperParser {
 
         XContentTypeParser.ParserContext parserContext = new XContentTypeParser.ParserContext(mapping, analysisService, typeParsers);
 
-        XContentDocumentMapper.Builder docBuilder = doc((XContentObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext));
+        XContentDocumentMapper.Builder docBuilder = doc(index.name(), (XContentObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext));
 
         for (Map.Entry<String, Object> entry : mapping.entrySet()) {
             String fieldName = Strings.toUnderscoreCase(entry.getKey());
@@ -122,6 +132,8 @@ public class XContentDocumentMapperParser implements DocumentMapperParser {
                 docBuilder.sourceField(parseSourceField((Map<String, Object>) fieldNode, parserContext));
             } else if (XContentIdFieldMapper.CONTENT_TYPE.equals(fieldName) || "idField".equals(fieldName)) {
                 docBuilder.idField(parseIdField((Map<String, Object>) fieldNode, parserContext));
+            } else if (XContentIndexFieldMapper.CONTENT_TYPE.equals(fieldName) || "indexField".equals(fieldName)) {
+                docBuilder.indexField(parseIndexField((Map<String, Object>) fieldNode, parserContext));
             } else if (XContentTypeFieldMapper.CONTENT_TYPE.equals(fieldName) || "typeField".equals(fieldName)) {
                 docBuilder.typeField(parseTypeField((Map<String, Object>) fieldNode, parserContext));
             } else if (XContentUidFieldMapper.CONTENT_TYPE.equals(fieldName) || "uidField".equals(fieldName)) {
@@ -208,6 +220,20 @@ public class XContentDocumentMapperParser implements DocumentMapperParser {
         XContentSourceFieldMapper.Builder builder = source();
 
         for (Map.Entry<String, Object> entry : sourceNode.entrySet()) {
+            String fieldName = Strings.toUnderscoreCase(entry.getKey());
+            Object fieldNode = entry.getValue();
+            if (fieldName.equals("enabled")) {
+                builder.enabled(nodeBooleanValue(fieldNode));
+            }
+        }
+        return builder;
+    }
+
+    private XContentIndexFieldMapper.Builder parseIndexField(Map<String, Object> indexNode, XContentTypeParser.ParserContext parserContext) {
+        XContentIndexFieldMapper.Builder builder = XContentMapperBuilders.index();
+        parseField(builder, builder.name, indexNode, parserContext);
+
+        for (Map.Entry<String, Object> entry : indexNode.entrySet()) {
             String fieldName = Strings.toUnderscoreCase(entry.getKey());
             Object fieldNode = entry.getValue();
             if (fieldName.equals("enabled")) {

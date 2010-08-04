@@ -39,13 +39,13 @@ public class SimpleAttachmentMapperTests {
     private XContentDocumentMapperParser mapperParser;
 
     @BeforeTest public void setupMapperParser() {
-        mapperParser = new XContentDocumentMapperParser(new AnalysisService(new Index("test")));
+        mapperParser = new XContentDocumentMapperParser(new Index("test"), new AnalysisService(new Index("test")));
         mapperParser.putTypeParser(XContentAttachmentMapper.CONTENT_TYPE, new XContentAttachmentMapper.TypeParser());
     }
 
     @Test public void testSimpleMappings() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/test-mapping.json");
-        XContentDocumentMapper docMapper = (XContentDocumentMapper) mapperParser.parse(mapping);
+        XContentDocumentMapper docMapper = mapperParser.parse(mapping);
         byte[] json = jsonBuilder().startObject().field("_id", 1).field("file", copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/testXHTML.html")).endObject().copiedBytes();
 
         Document doc = docMapper.parse(json).doc();
@@ -55,7 +55,7 @@ public class SimpleAttachmentMapperTests {
 
         // re-parse it
         String builtMapping = docMapper.buildSource();
-        docMapper = (XContentDocumentMapper) mapperParser.parse(builtMapping);
+        docMapper = mapperParser.parse(builtMapping);
 
         json = jsonBuilder().startObject().field("_id", 1).field("file", copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/testXHTML.html")).endObject().copiedBytes();
 

@@ -81,7 +81,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
 
     @Inject public MapperService(Index index, @IndexSettings Settings indexSettings, Environment environment, AnalysisService analysisService) {
         super(index, indexSettings);
-        this.documentParser = new XContentDocumentMapperParser(analysisService);
+        this.documentParser = new XContentDocumentMapperParser(index, indexSettings, analysisService);
         this.searchAnalyzer = new SmartIndexNameSearchAnalyzer(analysisService.defaultSearchAnalyzer());
 
         this.dynamic = componentSettings.getAsBoolean("dynamic", true);

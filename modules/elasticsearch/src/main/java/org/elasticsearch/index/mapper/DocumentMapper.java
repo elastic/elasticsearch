@@ -56,6 +56,8 @@ public interface DocumentMapper {
 
     TypeFieldMapper typeMapper();
 
+    IndexFieldMapper indexMapper();
+
     SourceFieldMapper sourceMapper();
 
     BoostFieldMapper boostMapper();

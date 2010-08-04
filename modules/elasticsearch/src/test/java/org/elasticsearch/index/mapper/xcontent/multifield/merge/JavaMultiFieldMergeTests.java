@@ -21,10 +21,8 @@ package org.elasticsearch.index.mapper.xcontent.multifield.merge;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
-import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapperParser;
+import org.elasticsearch.index.mapper.xcontent.XContentMapperTests;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.io.Streams.*;
@@ -40,7 +38,7 @@ public class JavaMultiFieldMergeTests {
 
     @Test public void testMergeMultiField() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/multifield/merge/test-mapping1.json");
-        XContentDocumentMapper docMapper = (XContentDocumentMapper) new XContentDocumentMapperParser(new AnalysisService(new Index("test"))).parse(mapping);
+        XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(mapping);
 
         assertThat(docMapper.mappers().fullName("name").mapper().indexed(), equalTo(true));
         assertThat(docMapper.mappers().fullName("name.indexed"), nullValue());
@@ -54,7 +52,7 @@ public class JavaMultiFieldMergeTests {
 
 
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/multifield/merge/test-mapping2.json");
-        XContentDocumentMapper docMapper2 = (XContentDocumentMapper) new XContentDocumentMapperParser(new AnalysisService(new Index("test"))).parse(mapping);
+        XContentDocumentMapper docMapper2 = XContentMapperTests.newParser().parse(mapping);
 
         docMapper.merge(docMapper2, mergeFlags().simulate(true));
 

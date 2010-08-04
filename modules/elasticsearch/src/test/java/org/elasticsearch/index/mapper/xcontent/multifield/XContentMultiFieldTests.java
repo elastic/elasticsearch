@@ -69,7 +69,7 @@ public class XContentMultiFieldTests {
     }
 
     @Test public void testBuildThenParse() throws Exception {
-        XContentDocumentMapper builderDocMapper = doc(object("person").add(
+        XContentDocumentMapper builderDocMapper = doc("test", object("person").add(
                 multiField("name")
                         .add(stringField("name").store(Field.Store.YES))
                         .add(stringField("indexed").index(Field.Index.ANALYZED))

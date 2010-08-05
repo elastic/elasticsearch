@@ -165,13 +165,55 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
         }
 
         /**
-         * Initializes a new empry index
+         * Initializes a new empty index
          */
         public Builder initializeEmpty(IndexMetaData indexMetaData) {
             for (int shardId = 0; shardId < indexMetaData.numberOfShards(); shardId++) {
                 for (int i = 0; i <= indexMetaData.numberOfReplicas(); i++) {
                     addShard(shardId, null, i == 0, ShardRoutingState.UNASSIGNED);
                 }
+            }
+            return this;
+        }
+
+        public Builder addReplica() {
+            for (int shardId : shards.keySet()) {
+                addShard(shardId, null, false, ShardRoutingState.UNASSIGNED);
+            }
+            return this;
+        }
+
+        public Builder removeReplica() {
+            for (int shardId : shards.keySet()) {
+                IndexShardRoutingTable indexShard = shards.get(shardId);
+                if (indexShard.backupsShards().isEmpty()) {
+                    // nothing to do here!
+                    return this;
+                }
+                // re-add all the current ones
+                IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(indexShard.shardId());
+                for (ShardRouting shardRouting : indexShard) {
+                    builder.addShard(new ImmutableShardRouting(shardRouting));
+                }
+                // first check if there is one that is not assigned to a node, and remove it
+                boolean removed = false;
+                for (ShardRouting shardRouting : indexShard) {
+                    if (!shardRouting.primary() && !shardRouting.assignedToNode()) {
+                        builder.removeShard(shardRouting);
+                        removed = true;
+                        break;
+                    }
+                }
+                if (!removed) {
+                    for (ShardRouting shardRouting : indexShard) {
+                        if (!shardRouting.primary()) {
+                            builder.removeShard(shardRouting);
+                            removed = true;
+                            break;
+                        }
+                    }
+                }
+                shards.put(shardId, builder.build());
             }
             return this;
         }

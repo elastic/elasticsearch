@@ -254,6 +254,20 @@ public class MetaData implements Iterable<IndexMetaData> {
             return this;
         }
 
+        public Builder updateNumberOfReplicas(int numberOfReplicas, String... indices) {
+            if (indices == null || indices.length == 0) {
+                indices = this.indices.map().keySet().toArray(new String[this.indices.map().keySet().size()]);
+            }
+            for (String index : indices) {
+                IndexMetaData indexMetaData = this.indices.get(index);
+                if (indexMetaData == null) {
+                    throw new IndexMissingException(new Index(index));
+                }
+                put(IndexMetaData.newIndexMetaDataBuilder(indexMetaData).numberOfReplicas(numberOfReplicas).build());
+            }
+            return this;
+        }
+
         /**
          * Indicates that this cluster state has been recovered from the gateawy.
          */

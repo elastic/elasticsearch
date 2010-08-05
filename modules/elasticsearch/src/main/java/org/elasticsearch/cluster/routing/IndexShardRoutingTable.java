@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.common.collect.Lists.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
@@ -249,6 +249,11 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                 }
             }
             shards.add(shardEntry);
+            return this;
+        }
+
+        public Builder removeShard(ShardRouting shardEntry) {
+            shards.remove(shardEntry);
             return this;
         }
 

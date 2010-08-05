@@ -153,6 +153,48 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
 
         private final Map<String, IndexRoutingTable> indicesRouting = newHashMap();
 
+        public Builder routingTable(RoutingTable routingTable) {
+            for (IndexRoutingTable indexRoutingTable : routingTable) {
+                indicesRouting.put(indexRoutingTable.index(), indexRoutingTable);
+            }
+            return this;
+        }
+
+        public Builder updateNumberOfReplicas(int numberOfReplicas, String... indices) throws IndexMissingException {
+            if (indices == null || indices.length == 0) {
+                indices = indicesRouting.keySet().toArray(new String[indicesRouting.keySet().size()]);
+            }
+            for (String index : indices) {
+                IndexRoutingTable indexRoutingTable = indicesRouting.get(index);
+                if (indexRoutingTable == null) {
+                    throw new IndexMissingException(new Index(index));
+                }
+                int currentNumberOfReplicas = indexRoutingTable.shards().get(0).size() - 1; // remove the required primary
+                IndexRoutingTable.Builder builder = new IndexRoutingTable.Builder(index);
+                // re-add all the shards
+                for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                    builder.addIndexShard(indexShardRoutingTable);
+                }
+                if (currentNumberOfReplicas < numberOfReplicas) {
+                    // now, add "empty" ones
+                    for (int i = 0; i < (numberOfReplicas - currentNumberOfReplicas); i++) {
+                        builder.addReplica();
+                    }
+                } else if (currentNumberOfReplicas > numberOfReplicas) {
+                    int delta = currentNumberOfReplicas - numberOfReplicas;
+                    if (delta <= 0) {
+                        // ignore, can't remove below the current one...
+                    } else {
+                        for (int i = 0; i < delta; i++) {
+                            builder.removeReplica();
+                        }
+                    }
+                }
+                indicesRouting.put(index, builder.build());
+            }
+            return this;
+        }
+
         public Builder add(IndexRoutingTable indexRoutingTable) {
             indexRoutingTable.validate();
             indicesRouting.put(indexRoutingTable.index(), indexRoutingTable);

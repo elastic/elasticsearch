@@ -39,6 +39,8 @@ import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.client.action.admin.indices.alias.IndicesAliasesRequestBuilder;
@@ -50,6 +52,7 @@ import org.elasticsearch.client.action.admin.indices.gateway.snapshot.GatewaySna
 import org.elasticsearch.client.action.admin.indices.mapping.put.PutMappingRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.optimize.OptimizeRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.refresh.RefreshRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.settings.UpdateSettingsRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.status.IndicesStatusRequestBuilder;
 
 /**
@@ -65,7 +68,7 @@ public interface IndicesAdminClient {
      *
      * @param request The indices status request
      * @return The result future
-     * @see Requests#indicesStatus(String...)
+     * @see Requests#indicesStatusRequest(String...)
      */
     ActionFuture<IndicesStatusResponse> status(IndicesStatusRequest request);
 
@@ -74,7 +77,7 @@ public interface IndicesAdminClient {
      *
      * @param request  The indices status request
      * @param listener A listener to be notified with a result
-     * @see Requests#indicesStatus(String...)
+     * @see Requests#indicesStatusRequest(String...)
      */
     void status(IndicesStatusRequest request, ActionListener<IndicesStatusResponse> listener);
 
@@ -276,7 +279,7 @@ public interface IndicesAdminClient {
      *
      * @param request The clear indices cache request
      * @return The result future
-     * @see Requests#clearIndicesCache(String...)
+     * @see Requests#clearIndicesCacheRequest(String...)
      */
     ActionFuture<ClearIndicesCacheResponse> clearCache(ClearIndicesCacheRequest request);
 
@@ -285,7 +288,7 @@ public interface IndicesAdminClient {
      *
      * @param request  The clear indices cache request
      * @param listener A listener to be notified with a result
-     * @see Requests#clearIndicesCache(String...)
+     * @see Requests#clearIndicesCacheRequest(String...)
      */
     void clearCache(ClearIndicesCacheRequest request, ActionListener<ClearIndicesCacheResponse> listener);
 
@@ -293,4 +296,25 @@ public interface IndicesAdminClient {
      * Clear indices cache.
      */
     ClearIndicesCacheRequestBuilder prepareClearCache(String... indices);
+
+    /**
+     * Updates settings of one or more indices.
+     *
+     * @param request the update settings request
+     * @return The result future
+     */
+    ActionFuture<UpdateSettingsResponse> updateSettings(UpdateSettingsRequest request);
+
+    /**
+     * Updates settings of one or more indices.
+     *
+     * @param request  the update settings request
+     * @param listener A listener to be notified with the response
+     */
+    void updateSettings(UpdateSettingsRequest request, ActionListener<UpdateSettingsResponse> listener);
+
+    /**
+     * Update indices settings.
+     */
+    UpdateSettingsRequestBuilder prepareUpdateSettings(String... indices);
 }

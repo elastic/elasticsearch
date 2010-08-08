@@ -38,6 +38,8 @@ import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse
+import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequest
+import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse
 import org.elasticsearch.client.IndicesAdminClient
@@ -50,6 +52,7 @@ import org.elasticsearch.client.action.admin.indices.gateway.snapshot.GatewaySna
 import org.elasticsearch.client.action.admin.indices.mapping.put.PutMappingRequestBuilder
 import org.elasticsearch.client.action.admin.indices.optimize.OptimizeRequestBuilder
 import org.elasticsearch.client.action.admin.indices.refresh.RefreshRequestBuilder
+import org.elasticsearch.client.action.admin.indices.settings.UpdateSettingsRequestBuilder
 import org.elasticsearch.client.action.admin.indices.status.IndicesStatusRequestBuilder
 import org.elasticsearch.client.internal.InternalClient
 import org.elasticsearch.groovy.client.action.GActionFuture
@@ -94,6 +97,19 @@ class GIndicesAdminClient {
         }
         PutMappingRequestBuilder.metaClass.source = {Closure c ->
             delegate.setSource(new GXContentBuilder().buildAsString(c))
+        }
+
+        UpdateSettingsRequest.metaClass.setSettings = {Closure c ->
+            delegate.settings(new GXContentBuilder().buildAsString(c))
+        }
+        UpdateSettingsRequest.metaClass.settings = {Closure c ->
+            delegate.settings(new GXContentBuilder().buildAsString(c))
+        }
+        UpdateSettingsRequestBuilder.metaClass.setSettings = {Closure c ->
+            delegate.setSettings(new GXContentBuilder().buildAsString(c))
+        }
+        UpdateSettingsRequestBuilder.metaClass.settings = {Closure c ->
+            delegate.setSettings(new GXContentBuilder().buildAsString(c))
         }
     }
 
@@ -325,6 +341,10 @@ class GIndicesAdminClient {
         indicesAdminClient.aliases(request, listener)
     }
 
+    void aliases(ClearIndicesCacheRequest request, ActionListener<ClearIndicesCacheResponse> listener) {
+        indicesAdminClient.clearCache(request, listener)
+    }
+
     // CLEAR CACHE
 
     ClearIndicesCacheRequestBuilder prepareClearCache(String... indices) {
@@ -345,7 +365,23 @@ class GIndicesAdminClient {
         return future
     }
 
-    void aliases(ClearIndicesCacheRequest request, ActionListener<ClearIndicesCacheResponse> listener) {
-        indicesAdminClient.clearCache(request, listener)
+    // UPDATE SETTINGS
+
+    UpdateSettingsRequestBuilder prepareUpdateSettings(String... indices) {
+        indicesAdminClient.prepareUpdateSettings(indices)
+    }
+
+    GActionFuture<UpdateSettingsResponse> updateSettings(Closure c) {
+        UpdateSettingsRequest request = new UpdateSettingsRequest()
+        c.setDelegate request
+        c.resolveStrategy = gClient.resolveStrategy
+        c.call()
+        updateSettings(request)
+    }
+
+    GActionFuture<UpdateSettingsResponse> updateSettings(UpdateSettingsRequest request) {
+        GActionFuture<UpdateSettingsResponse> future = new GActionFuture<UpdateSettingsResponse>(internalClient.threadPool(), request);
+        indicesAdminClient.updateSettings(request, future)
+        return future
     }
 }

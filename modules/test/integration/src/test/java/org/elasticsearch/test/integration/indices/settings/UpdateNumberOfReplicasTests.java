@@ -1,0 +1,150 @@
+/*
+ * Licensed to Elastic Search and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Elastic Search licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.test.integration.indices.settings;
+
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.test.integration.AbstractNodesTests;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Test;
+
+import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
+import static org.elasticsearch.common.xcontent.XContentFactory.*;
+import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
+import static org.hamcrest.MatcherAssert.*;
+import static org.hamcrest.Matchers.*;
+
+/**
+ * @author kimchy (shay.banon)
+ */
+public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
+
+    protected Client client1;
+    protected Client client2;
+
+    @BeforeMethod public void startNodes() {
+        startNode("node1");
+        startNode("node2");
+        client1 = getClient1();
+        client2 = getClient2();
+
+        createIndex();
+    }
+
+    protected void createIndex() {
+        logger.info("Creating index test");
+        client1.admin().indices().create(createIndexRequest("test")).actionGet();
+    }
+
+    protected String getConcreteIndexName() {
+        return "test";
+    }
+
+    @AfterMethod public void closeNodes() {
+        client1.close();
+        client2.close();
+        closeAllNodes();
+    }
+
+    protected Client getClient1() {
+        return client("node1");
+    }
+
+    protected Client getClient2() {
+        return client("node2");
+    }
+
+    @Test public void simpleUpdateNumberOfReplicasTests() throws Exception {
+        logger.info("Running Cluster Health");
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(clusterHealth.indices().get("test").activePrimaryShards(), equalTo(5));
+        assertThat(clusterHealth.indices().get("test").numberOfReplicas(), equalTo(1));
+        assertThat(clusterHealth.indices().get("test").activeShards(), equalTo(10));
+
+        for (int i = 0; i < 10; i++) {
+            client1.prepareIndex("test", "type1", Integer.toString(i)).setSource(jsonBuilder().startObject()
+                    .field("value", "test" + i)
+                    .endObject()).execute().actionGet();
+        }
+
+        client1.admin().indices().prepareRefresh().execute().actionGet();
+
+        for (int i = 0; i < 10; i++) {
+            CountResponse countResponse = client1.prepareCount().setQuery(matchAllQuery()).execute().actionGet();
+            assertThat(countResponse.count(), equalTo(10l));
+        }
+
+        logger.info("Increasing the number of replicas from 1 to 2");
+        client1.admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("index.number_of_replicas", 2)).execute().actionGet();
+        Thread.sleep(200);
+
+        logger.info("Running Cluster Health");
+        clusterHealth = client1.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
+        assertThat(clusterHealth.indices().get("test").activePrimaryShards(), equalTo(5));
+        assertThat(clusterHealth.indices().get("test").numberOfReplicas(), equalTo(2));
+        assertThat(clusterHealth.indices().get("test").activeShards(), equalTo(10));
+
+        logger.info("starting another node to new replicas will be allocated to it");
+        startNode("node3");
+        Thread.sleep(100);
+
+        logger.info("Running Cluster Health");
+        clusterHealth = client1.admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("3").execute().actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(clusterHealth.indices().get("test").activePrimaryShards(), equalTo(5));
+        assertThat(clusterHealth.indices().get("test").numberOfReplicas(), equalTo(2));
+        assertThat(clusterHealth.indices().get("test").activeShards(), equalTo(15));
+
+        for (int i = 0; i < 10; i++) {
+            CountResponse countResponse = client1.prepareCount().setQuery(matchAllQuery()).execute().actionGet();
+            assertThat(countResponse.count(), equalTo(10l));
+        }
+
+        logger.info("Decreasing number of replicas from 2 to 0");
+        client1.admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("index.number_of_replicas", 0)).execute().actionGet();
+        Thread.sleep(200);
+
+        logger.info("Running Cluster Health");
+        clusterHealth = client1.admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("3").execute().actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(clusterHealth.indices().get("test").activePrimaryShards(), equalTo(5));
+        assertThat(clusterHealth.indices().get("test").numberOfReplicas(), equalTo(0));
+        assertThat(clusterHealth.indices().get("test").activeShards(), equalTo(5));
+
+        for (int i = 0; i < 10; i++) {
+            CountResponse countResponse = client1.prepareCount().setQuery(matchAllQuery()).execute().actionGet();
+            assertThat(countResponse.count(), equalTo(10l));
+        }
+    }
+}

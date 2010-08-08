@@ -40,6 +40,8 @@ import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.client.IndicesAdminClient;
@@ -54,6 +56,7 @@ import org.elasticsearch.client.transport.action.admin.indices.gateway.snapshot.
 import org.elasticsearch.client.transport.action.admin.indices.mapping.create.ClientTransportPutMappingAction;
 import org.elasticsearch.client.transport.action.admin.indices.optimize.ClientTransportOptimizeAction;
 import org.elasticsearch.client.transport.action.admin.indices.refresh.ClientTransportRefreshAction;
+import org.elasticsearch.client.transport.action.admin.indices.settings.ClientTransportUpdateSettingsAction;
 import org.elasticsearch.client.transport.action.admin.indices.status.ClientTransportIndicesStatusAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
@@ -89,12 +92,15 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
 
     private final ClientTransportClearIndicesCacheAction clearIndicesCacheAction;
 
+    private final ClientTransportUpdateSettingsAction updateSettingsAction;
+
     @Inject public InternalTransportIndicesAdminClient(Settings settings, TransportClientNodesService nodesService, ThreadPool threadPool,
                                                        ClientTransportIndicesStatusAction indicesStatusAction,
                                                        ClientTransportCreateIndexAction createIndexAction, ClientTransportDeleteIndexAction deleteIndexAction,
                                                        ClientTransportRefreshAction refreshAction, ClientTransportFlushAction flushAction, ClientTransportOptimizeAction optimizeAction,
                                                        ClientTransportPutMappingAction putMappingAction, ClientTransportGatewaySnapshotAction gatewaySnapshotAction,
-                                                       ClientTransportIndicesAliasesAction indicesAliasesAction, ClientTransportClearIndicesCacheAction clearIndicesCacheAction) {
+                                                       ClientTransportIndicesAliasesAction indicesAliasesAction, ClientTransportClearIndicesCacheAction clearIndicesCacheAction,
+                                                       ClientTransportUpdateSettingsAction updateSettingsAction) {
         this.nodesService = nodesService;
         this.threadPool = threadPool;
         this.indicesStatusAction = indicesStatusAction;
@@ -107,6 +113,7 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
         this.gatewaySnapshotAction = gatewaySnapshotAction;
         this.indicesAliasesAction = indicesAliasesAction;
         this.clearIndicesCacheAction = clearIndicesCacheAction;
+        this.updateSettingsAction = updateSettingsAction;
     }
 
     @Override public ThreadPool threadPool() {
@@ -278,6 +285,23 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
         nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
             @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
                 clearIndicesCacheAction.execute(node, request, listener);
+                return null;
+            }
+        });
+    }
+
+    @Override public ActionFuture<UpdateSettingsResponse> updateSettings(final UpdateSettingsRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<org.elasticsearch.action.ActionFuture<UpdateSettingsResponse>>() {
+            @Override public ActionFuture<UpdateSettingsResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+                return updateSettingsAction.execute(node, request);
+            }
+        });
+    }
+
+    @Override public void updateSettings(final UpdateSettingsRequest request, final ActionListener<UpdateSettingsResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
+            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+                updateSettingsAction.execute(node, request, listener);
                 return null;
             }
         });

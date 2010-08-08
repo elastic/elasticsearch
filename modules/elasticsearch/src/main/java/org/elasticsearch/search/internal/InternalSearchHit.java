@@ -291,7 +291,7 @@ public class InternalSearchHit implements SearchHit {
             builder.endObject();
         }
         if (sortValues != null && sortValues.length > 0) {
-            builder.startArray("sort_values");
+            builder.startArray("sort");
             for (Object sortValue : sortValues) {
                 builder.value(sortValue);
             }

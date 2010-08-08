@@ -72,7 +72,7 @@ public class HistogramFacetCollectorParser implements FacetCollectorParser {
                     keyScript = parser.text();
                 } else if ("value_script".equals(fieldName) || "valueScript".equals(fieldName)) {
                     valueScript = parser.text();
-                } else if ("comparator".equals(fieldName)) {
+                } else if ("order".equals(fieldName) || "comparator".equals(fieldName)) {
                     comparatorType = HistogramFacet.ComparatorType.fromString(parser.text());
                 }
             }

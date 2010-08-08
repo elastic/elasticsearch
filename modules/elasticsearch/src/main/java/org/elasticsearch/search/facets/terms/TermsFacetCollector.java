@@ -57,6 +57,8 @@ public class TermsFacetCollector extends AbstractFacetCollector {
 
     private final String indexFieldName;
 
+    private final InternalTermsFacet.ComparatorType comparatorType;
+
     private final int size;
 
     private final int numberOfShards;
@@ -71,10 +73,11 @@ public class TermsFacetCollector extends AbstractFacetCollector {
 
     private final Pattern pattern;
 
-    public TermsFacetCollector(String facetName, String fieldName, int size, int numberOfShards, FieldDataCache fieldDataCache, MapperService mapperService, ImmutableSet<String> excluded, Pattern pattern) {
+    public TermsFacetCollector(String facetName, String fieldName, int size, InternalTermsFacet.ComparatorType comparatorType, int numberOfShards, FieldDataCache fieldDataCache, MapperService mapperService, ImmutableSet<String> excluded, Pattern pattern) {
         super(facetName);
         this.fieldDataCache = fieldDataCache;
         this.size = size;
+        this.comparatorType = comparatorType;
         this.numberOfShards = numberOfShards;
         this.excluded = excluded;
         this.pattern = pattern;
@@ -107,7 +110,7 @@ public class TermsFacetCollector extends AbstractFacetCollector {
         TObjectIntHashMap<String> facets = aggregator.facets();
         if (facets.isEmpty()) {
             pushFacets(facets);
-            return new InternalTermsFacet(facetName, fieldName, InternalTermsFacet.ComparatorType.COUNT, size, ImmutableList.<InternalTermsFacet.Entry>of());
+            return new InternalTermsFacet(facetName, fieldName, comparatorType, size, ImmutableList.<InternalTermsFacet.Entry>of());
         } else {
             // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
             BoundedTreeSet<InternalTermsFacet.Entry> ordered = new BoundedTreeSet<InternalTermsFacet.Entry>(InternalTermsFacet.ComparatorType.COUNT.comparator(), size * numberOfShards);
@@ -116,7 +119,7 @@ public class TermsFacetCollector extends AbstractFacetCollector {
                 ordered.add(new InternalTermsFacet.Entry(it.key(), it.value()));
             }
             pushFacets(facets);
-            return new InternalTermsFacet(facetName, fieldName, InternalTermsFacet.ComparatorType.COUNT, size, ordered);
+            return new InternalTermsFacet(facetName, fieldName, comparatorType, size, ordered);
         }
     }
 

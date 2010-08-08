@@ -36,6 +36,7 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
     private String[] exclude;
     private String regex;
     private int regexFlags = 0;
+    private TermsFacet.ComparatorType comparatorType;
 
     public TermsFacetBuilder(String name) {
         super(name);
@@ -76,6 +77,11 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
+    public TermsFacetBuilder order(TermsFacet.ComparatorType comparatorType) {
+        this.comparatorType = comparatorType;
+        return this;
+    }
+
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         if (fieldName == null) {
             throw new SearchSourceBuilderException("field must be set on terms facet for facet [" + name + "]");
@@ -97,6 +103,9 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
             if (regexFlags != 0) {
                 builder.field("regex_flags", Regex.flagsToString(regexFlags));
             }
+        }
+        if (comparatorType != null) {
+            builder.field("order", comparatorType.name().toLowerCase());
         }
         builder.endObject();
 

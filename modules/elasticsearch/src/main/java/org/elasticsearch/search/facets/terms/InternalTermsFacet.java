@@ -86,6 +86,14 @@ public class InternalTermsFacet implements InternalFacet, TermsFacet {
         return type();
     }
 
+    @Override public ComparatorType comparatorType() {
+        return comparatorType;
+    }
+
+    @Override public ComparatorType getComparatorType() {
+        return comparatorType();
+    }
+
     @Override public List<Entry> entries() {
         if (!(entries instanceof List)) {
             entries = ImmutableList.copyOf(entries);

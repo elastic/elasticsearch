@@ -117,7 +117,7 @@ public class TermsFacetCollector extends AbstractFacetCollector {
         if (excluded.isEmpty() && pattern == null && scriptFunction == null) {
             aggregator = new StaticAggregatorValueProc(popFacets());
         } else {
-            aggregator = new AggregatorValueProc(popFacets(), excluded, pattern, scriptFunction, params);
+            aggregator = new AggregatorValueProc(popFacets(), excluded, pattern, this.scriptFunction, this.params);
         }
     }
 
@@ -196,6 +196,9 @@ public class TermsFacetCollector extends AbstractFacetCollector {
             if (scriptFunction != null) {
                 params.put("term", value);
                 Object scriptValue = scriptFunction.execute(docId, params);
+                if (scriptValue == null) {
+                    return;
+                }
                 if (scriptValue instanceof Boolean) {
                     if (!((Boolean) scriptValue)) {
                         return;

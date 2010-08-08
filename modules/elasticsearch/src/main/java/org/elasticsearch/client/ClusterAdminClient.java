@@ -62,7 +62,7 @@ public interface ClusterAdminClient {
      *
      * @param request The cluster state request
      * @return The result future
-     * @see Requests#clusterHealth(String...)
+     * @see Requests#clusterHealthRequest(String...)
      */
     ActionFuture<ClusterHealthResponse> health(ClusterHealthRequest request);
 
@@ -71,7 +71,7 @@ public interface ClusterAdminClient {
      *
      * @param request  The cluster state request
      * @param listener A listener to be notified with a result
-     * @see Requests#clusterHealth(String...)
+     * @see Requests#clusterHealthRequest(String...)
      */
     void health(ClusterHealthRequest request, ActionListener<ClusterHealthResponse> listener);
 
@@ -85,7 +85,7 @@ public interface ClusterAdminClient {
      *
      * @param request The cluster state request.
      * @return The result future
-     * @see Requests#clusterState()
+     * @see Requests#clusterStateRequest()
      */
     ActionFuture<ClusterStateResponse> state(ClusterStateRequest request);
 
@@ -94,7 +94,7 @@ public interface ClusterAdminClient {
      *
      * @param request  The cluster state request.
      * @param listener A listener to be notified with a result
-     * @see Requests#clusterState()
+     * @see Requests#clusterStateRequest()
      */
     void state(ClusterStateRequest request, ActionListener<ClusterStateResponse> listener);
 
@@ -108,7 +108,7 @@ public interface ClusterAdminClient {
      *
      * @param request The nodes info request
      * @return The result future
-     * @see org.elasticsearch.client.Requests#nodesInfo(String...)
+     * @see org.elasticsearch.client.Requests#nodesInfoRequest(String...)
      */
     ActionFuture<NodesInfoResponse> nodesInfo(NodesInfoRequest request);
 
@@ -117,7 +117,7 @@ public interface ClusterAdminClient {
      *
      * @param request  The nodes info request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#nodesInfo(String...)
+     * @see org.elasticsearch.client.Requests#nodesInfoRequest(String...)
      */
     void nodesInfo(NodesInfoRequest request, ActionListener<NodesInfoResponse> listener);
 
@@ -131,7 +131,7 @@ public interface ClusterAdminClient {
      *
      * @param request The nodes info request
      * @return The result future
-     * @see org.elasticsearch.client.Requests#nodesStats(String...)
+     * @see org.elasticsearch.client.Requests#nodesStatsRequest(String...)
      */
     ActionFuture<NodesStatsResponse> nodesStats(NodesStatsRequest request);
 
@@ -140,7 +140,7 @@ public interface ClusterAdminClient {
      *
      * @param request  The nodes info request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#nodesStats(String...)
+     * @see org.elasticsearch.client.Requests#nodesStatsRequest(String...)
      */
     void nodesStats(NodesStatsRequest request, ActionListener<NodesStatsResponse> listener);
 
@@ -154,7 +154,7 @@ public interface ClusterAdminClient {
      *
      * @param request The nodes shutdown request
      * @return The result future
-     * @see org.elasticsearch.client.Requests#nodesShutdown(String...)
+     * @see org.elasticsearch.client.Requests#nodesShutdownRequest(String...)
      */
     ActionFuture<NodesShutdownResponse> nodesShutdown(NodesShutdownRequest request);
 
@@ -163,7 +163,7 @@ public interface ClusterAdminClient {
      *
      * @param request  The nodes shutdown request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#nodesShutdown(String...)
+     * @see org.elasticsearch.client.Requests#nodesShutdownRequest(String...)
      */
     void nodesShutdown(NodesShutdownRequest request, ActionListener<NodesShutdownResponse> listener);
 
@@ -177,7 +177,7 @@ public interface ClusterAdminClient {
      *
      * @param request The nodes restart request
      * @return The result future
-     * @see org.elasticsearch.client.Requests#nodesRestart(String...)
+     * @see org.elasticsearch.client.Requests#nodesRestartRequest(String...)
      */
     ActionFuture<NodesRestartResponse> nodesRestart(NodesRestartRequest request);
 
@@ -186,7 +186,7 @@ public interface ClusterAdminClient {
      *
      * @param request  The nodes restart request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#nodesRestart(String...)
+     * @see org.elasticsearch.client.Requests#nodesRestartRequest(String...)
      */
     void nodesRestart(NodesRestartRequest request, ActionListener<NodesRestartResponse> listener);
 

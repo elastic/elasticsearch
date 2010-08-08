@@ -59,7 +59,7 @@ public class RestGetMappingAction extends BaseRestHandler {
         final String[] indices = splitIndices(request.param("index"));
         final Set<String> types = ImmutableSet.copyOf(splitTypes(request.param("type")));
 
-        ClusterStateRequest clusterStateRequest = Requests.clusterState()
+        ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
                 .filterRoutingTable(true)
                 .filterNodes(true)
                 .filteredIndices(indices);

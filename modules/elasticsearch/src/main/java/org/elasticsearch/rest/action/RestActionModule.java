@@ -39,6 +39,7 @@ import org.elasticsearch.rest.action.admin.indices.mapping.get.RestGetMappingAct
 import org.elasticsearch.rest.action.admin.indices.mapping.put.RestPutMappingAction;
 import org.elasticsearch.rest.action.admin.indices.optimize.RestOptimizeAction;
 import org.elasticsearch.rest.action.admin.indices.refresh.RestRefreshAction;
+import org.elasticsearch.rest.action.admin.indices.settings.RestUpdateSettingsAction;
 import org.elasticsearch.rest.action.admin.indices.status.RestIndicesStatusAction;
 import org.elasticsearch.rest.action.count.RestCountAction;
 import org.elasticsearch.rest.action.delete.RestDeleteAction;
@@ -73,6 +74,7 @@ public class RestActionModule extends AbstractModule {
         bind(RestIndicesAliasesAction.class).asEagerSingleton();
         bind(RestCreateIndexAction.class).asEagerSingleton();
         bind(RestDeleteIndexAction.class).asEagerSingleton();
+        bind(RestUpdateSettingsAction.class).asEagerSingleton();
 
         bind(RestPutMappingAction.class).asEagerSingleton();
         bind(RestGetMappingAction.class).asEagerSingleton();

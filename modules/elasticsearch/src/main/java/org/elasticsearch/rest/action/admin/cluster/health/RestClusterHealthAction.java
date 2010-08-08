@@ -47,7 +47,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
-        ClusterHealthRequest clusterHealthRequest = clusterHealth(RestActions.splitIndices(request.param("index")));
+        ClusterHealthRequest clusterHealthRequest = clusterHealthRequest(RestActions.splitIndices(request.param("index")));
         int level = 0;
         try {
             clusterHealthRequest.timeout(request.paramAsTime("timeout", clusterHealthRequest.timeout()));

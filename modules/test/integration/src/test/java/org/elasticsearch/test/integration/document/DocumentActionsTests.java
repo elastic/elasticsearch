@@ -97,7 +97,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
 
     @Test public void testIndexActions() throws Exception {
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealth().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
@@ -113,7 +113,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
         assertThat(refreshResponse.failedShards(), equalTo(0));
 
         logger.info("Clearing cache");
-        ClearIndicesCacheResponse clearIndicesCacheResponse = client1.admin().indices().clearCache(clearIndicesCache("test")).actionGet();
+        ClearIndicesCacheResponse clearIndicesCacheResponse = client1.admin().indices().clearCache(clearIndicesCacheRequest("test")).actionGet();
         assertThat(clearIndicesCacheResponse.successfulShards(), equalTo(10));
         assertThat(clearIndicesCacheResponse.failedShards(), equalTo(0));
 

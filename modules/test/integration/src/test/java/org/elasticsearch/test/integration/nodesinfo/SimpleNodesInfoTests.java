@@ -50,24 +50,24 @@ public class SimpleNodesInfoTests extends AbstractNodesTests {
         assertThat(response.nodesMap().get(server1NodeId), notNullValue());
         assertThat(response.nodesMap().get(server2NodeId), notNullValue());
 
-        response = client("server2").admin().cluster().nodesInfo(nodesInfo()).actionGet();
+        response = client("server2").admin().cluster().nodesInfo(nodesInfoRequest()).actionGet();
         assertThat(response.nodes().length, equalTo(2));
         assertThat(response.nodesMap().get(server1NodeId), notNullValue());
         assertThat(response.nodesMap().get(server2NodeId), notNullValue());
 
-        response = client("server1").admin().cluster().nodesInfo(nodesInfo(server1NodeId)).actionGet();
+        response = client("server1").admin().cluster().nodesInfo(nodesInfoRequest(server1NodeId)).actionGet();
         assertThat(response.nodes().length, equalTo(1));
         assertThat(response.nodesMap().get(server1NodeId), notNullValue());
 
-        response = client("server2").admin().cluster().nodesInfo(nodesInfo(server1NodeId)).actionGet();
+        response = client("server2").admin().cluster().nodesInfo(nodesInfoRequest(server1NodeId)).actionGet();
         assertThat(response.nodes().length, equalTo(1));
         assertThat(response.nodesMap().get(server1NodeId), notNullValue());
 
-        response = client("server1").admin().cluster().nodesInfo(nodesInfo(server2NodeId)).actionGet();
+        response = client("server1").admin().cluster().nodesInfo(nodesInfoRequest(server2NodeId)).actionGet();
         assertThat(response.nodes().length, equalTo(1));
         assertThat(response.nodesMap().get(server2NodeId), notNullValue());
 
-        response = client("server2").admin().cluster().nodesInfo(nodesInfo(server2NodeId)).actionGet();
+        response = client("server2").admin().cluster().nodesInfo(nodesInfoRequest(server2NodeId)).actionGet();
         assertThat(response.nodes().length, equalTo(1));
         assertThat(response.nodesMap().get(server2NodeId), notNullValue());
     }

@@ -28,6 +28,7 @@ import org.elasticsearch.client.action.admin.indices.gateway.snapshot.GatewaySna
 import org.elasticsearch.client.action.admin.indices.mapping.put.PutMappingRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.optimize.OptimizeRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.refresh.RefreshRequestBuilder;
+import org.elasticsearch.client.action.admin.indices.settings.UpdateSettingsRequestBuilder;
 import org.elasticsearch.client.action.admin.indices.status.IndicesStatusRequestBuilder;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
@@ -74,5 +75,9 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
 
     @Override public IndicesStatusRequestBuilder prepareStatus(String... indices) {
         return new IndicesStatusRequestBuilder(this).setIndices(indices);
+    }
+
+    @Override public UpdateSettingsRequestBuilder prepareUpdateSettings(String... indices) {
+        return new UpdateSettingsRequestBuilder(this).setIndices(indices);
     }
 }

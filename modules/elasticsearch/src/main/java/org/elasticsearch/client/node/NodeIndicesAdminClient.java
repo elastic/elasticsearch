@@ -48,6 +48,9 @@ import org.elasticsearch.action.admin.indices.optimize.TransportOptimizeAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
+import org.elasticsearch.action.admin.indices.settings.TransportUpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.admin.indices.status.TransportIndicesStatusAction;
@@ -84,11 +87,14 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
 
     private final TransportClearIndicesCacheAction clearIndicesCacheAction;
 
+    private final TransportUpdateSettingsAction updateSettingsAction;
+
     @Inject public NodeIndicesAdminClient(Settings settings, ThreadPool threadPool, TransportIndicesStatusAction indicesStatusAction,
                                           TransportCreateIndexAction createIndexAction, TransportDeleteIndexAction deleteIndexAction,
                                           TransportRefreshAction refreshAction, TransportFlushAction flushAction, TransportOptimizeAction optimizeAction,
                                           TransportPutMappingAction putMappingAction, TransportGatewaySnapshotAction gatewaySnapshotAction,
-                                          TransportIndicesAliasesAction indicesAliasesAction, TransportClearIndicesCacheAction clearIndicesCacheAction) {
+                                          TransportIndicesAliasesAction indicesAliasesAction, TransportClearIndicesCacheAction clearIndicesCacheAction,
+                                          TransportUpdateSettingsAction updateSettingsAction) {
         this.threadPool = threadPool;
         this.indicesStatusAction = indicesStatusAction;
         this.createIndexAction = createIndexAction;
@@ -100,6 +106,7 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
         this.gatewaySnapshotAction = gatewaySnapshotAction;
         this.indicesAliasesAction = indicesAliasesAction;
         this.clearIndicesCacheAction = clearIndicesCacheAction;
+        this.updateSettingsAction = updateSettingsAction;
     }
 
     @Override public ThreadPool threadPool() {
@@ -184,5 +191,13 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
 
     @Override public void clearCache(ClearIndicesCacheRequest request, ActionListener<ClearIndicesCacheResponse> listener) {
         clearIndicesCacheAction.execute(request, listener);
+    }
+
+    @Override public ActionFuture<UpdateSettingsResponse> updateSettings(UpdateSettingsRequest request) {
+        return updateSettingsAction.execute(request);
+    }
+
+    @Override public void updateSettings(UpdateSettingsRequest request, ActionListener<UpdateSettingsResponse> listener) {
+        updateSettingsAction.execute(request, listener);
     }
 }

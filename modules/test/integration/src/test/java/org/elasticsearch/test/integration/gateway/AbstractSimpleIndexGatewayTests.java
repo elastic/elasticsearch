@@ -69,7 +69,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         assertThat(putMappingResponse.acknowledged(), equalTo(true));
 
         // verify that mapping is there
-        ClusterStateResponse clusterState = client("server1").admin().cluster().state(clusterState()).actionGet();
+        ClusterStateResponse clusterState = client("server1").admin().cluster().state(clusterStateRequest()).actionGet();
         assertThat(clusterState.state().metaData().index("test").mapping("type1"), notNullValue());
 
         // create two and delete the first
@@ -93,13 +93,13 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         startNode("server1");
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForYellowStatus().waitForActiveShards(1)).actionGet();
+        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
 
         // verify that mapping is there
-        clusterState = client("server1").admin().cluster().state(clusterState()).actionGet();
+        clusterState = client("server1").admin().cluster().state(clusterStateRequest()).actionGet();
         assertThat(clusterState.state().metaData().index("test").mapping("type1"), notNullValue());
 
         logger.info("Getting #1, should not exists");
@@ -126,7 +126,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         startNode("server1");
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForYellowStatus().waitForActiveShards(1)).actionGet();
+        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
@@ -155,7 +155,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         startNode("server1");
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        clusterHealth = client("server1").admin().cluster().health(clusterHealth().waitForYellowStatus().waitForActiveShards(1)).actionGet();
+        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));

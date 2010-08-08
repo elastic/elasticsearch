@@ -183,7 +183,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
                     @Override public void run() {
                         try {
                             transportService.connectToNode(listedNode); // make sure we are connected to it
-                            transportService.sendRequest(listedNode, TransportActions.Admin.Cluster.Node.INFO, Requests.nodesInfo("_local"), new BaseTransportResponseHandler<NodesInfoResponse>() {
+                            transportService.sendRequest(listedNode, TransportActions.Admin.Cluster.Node.INFO, Requests.nodesInfoRequest("_local"), new BaseTransportResponseHandler<NodesInfoResponse>() {
 
                                 @Override public NodesInfoResponse newInstance() {
                                     return new NodesInfoResponse();

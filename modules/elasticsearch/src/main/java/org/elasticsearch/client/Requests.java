@@ -37,6 +37,7 @@ import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRe
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -166,7 +167,7 @@ public class Requests {
      * @return The indices status request
      * @see org.elasticsearch.client.IndicesAdminClient#status(org.elasticsearch.action.admin.indices.status.IndicesStatusRequest)
      */
-    public static IndicesStatusRequest indicesStatus(String... indices) {
+    public static IndicesStatusRequest indicesStatusRequest(String... indices) {
         return new IndicesStatusRequest(indices);
     }
 
@@ -262,8 +263,18 @@ public class Requests {
      * @param indices The indices the gateway snapshot will be performed on. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
      * @return The request
      */
-    public static ClearIndicesCacheRequest clearIndicesCache(String... indices) {
+    public static ClearIndicesCacheRequest clearIndicesCacheRequest(String... indices) {
         return new ClearIndicesCacheRequest(indices);
+    }
+
+    /**
+     * A request to update indices settings.
+     *
+     * @param indices The indices to update the settings for. Use <tt>null</tt> or <tt>_all</tt> to executed against all indices.
+     * @return The request
+     */
+    public static UpdateSettingsRequest updateSettingsRequest(String... indices) {
+        return new UpdateSettingsRequest(indices);
     }
 
     /**
@@ -272,7 +283,7 @@ public class Requests {
      * @return The cluster state request.
      * @see org.elasticsearch.client.ClusterAdminClient#state(org.elasticsearch.action.admin.cluster.state.ClusterStateRequest)
      */
-    public static ClusterStateRequest clusterState() {
+    public static ClusterStateRequest clusterStateRequest() {
         return new ClusterStateRequest();
     }
 
@@ -283,7 +294,7 @@ public class Requests {
      * @return The cluster health request
      * @see org.elasticsearch.client.ClusterAdminClient#health(org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest)
      */
-    public static ClusterHealthRequest clusterHealth(String... indices) {
+    public static ClusterHealthRequest clusterHealthRequest(String... indices) {
         return new ClusterHealthRequest(indices);
     }
 
@@ -293,7 +304,7 @@ public class Requests {
      * @return The nodes info request
      * @see org.elasticsearch.client.ClusterAdminClient#nodesInfo(org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest)
      */
-    public static NodesInfoRequest nodesInfo() {
+    public static NodesInfoRequest nodesInfoRequest() {
         return new NodesInfoRequest();
     }
 
@@ -304,7 +315,7 @@ public class Requests {
      * @return The nodes info request
      * @see org.elasticsearch.client.ClusterAdminClient#nodesStats(org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest)
      */
-    public static NodesInfoRequest nodesInfo(String... nodesIds) {
+    public static NodesInfoRequest nodesInfoRequest(String... nodesIds) {
         return new NodesInfoRequest(nodesIds);
     }
 
@@ -315,14 +326,14 @@ public class Requests {
      * @return The nodes info request
      * @see org.elasticsearch.client.ClusterAdminClient#nodesStats(org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest)
      */
-    public static NodesStatsRequest nodesStats(String... nodesIds) {
+    public static NodesStatsRequest nodesStatsRequest(String... nodesIds) {
         return new NodesStatsRequest(nodesIds);
     }
 
     /**
      * Shuts down all nodes in the cluster.
      */
-    public static NodesShutdownRequest nodesShutdown() {
+    public static NodesShutdownRequest nodesShutdownRequest() {
         return new NodesShutdownRequest();
     }
 
@@ -333,14 +344,14 @@ public class Requests {
      * @return The nodes info request
      * @see org.elasticsearch.client.ClusterAdminClient#nodesShutdown(org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest)
      */
-    public static NodesShutdownRequest nodesShutdown(String... nodesIds) {
+    public static NodesShutdownRequest nodesShutdownRequest(String... nodesIds) {
         return new NodesShutdownRequest(nodesIds);
     }
 
     /**
      * Restarts all nodes in the cluster.
      */
-    public static NodesRestartRequest nodesRestart() {
+    public static NodesRestartRequest nodesRestartRequest() {
         return new NodesRestartRequest();
     }
 
@@ -351,7 +362,7 @@ public class Requests {
      * @return The nodes info request
      * @see org.elasticsearch.client.ClusterAdminClient#nodesRestart(org.elasticsearch.action.admin.cluster.node.restart.NodesRestartRequest)
      */
-    public static NodesRestartRequest nodesRestart(String... nodesIds) {
+    public static NodesRestartRequest nodesRestartRequest(String... nodesIds) {
         return new NodesRestartRequest(nodesIds);
     }
 

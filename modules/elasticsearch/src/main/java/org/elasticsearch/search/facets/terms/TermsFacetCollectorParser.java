@@ -27,6 +27,7 @@ import org.elasticsearch.search.facets.collector.FacetCollectorParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
@@ -50,9 +51,15 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
         String regex = null;
         String regexFlags = null;
         TermsFacet.ComparatorType comparatorType = TermsFacet.ComparatorType.COUNT;
+        String script = null;
+        Map<String, Object> params = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if ("params".equals(fieldName)) {
+                    params = parser.map();
+                }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("exclude".equals(fieldName)) {
                     ImmutableSet.Builder<String> builder = ImmutableSet.builder();
@@ -72,6 +79,8 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
                     regexFlags = parser.text();
                 } else if ("order".equals(fieldName) || "comparator".equals(field)) {
                     comparatorType = TermsFacet.ComparatorType.fromString(parser.text());
+                } else if ("script".equals(fieldName)) {
+                    script = parser.text();
                 }
             }
         }
@@ -79,6 +88,7 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
         if (regex != null) {
             pattern = Regex.compile(regex, regexFlags);
         }
-        return new TermsFacetCollector(facetName, field, size, comparatorType, context.numberOfShards(), context.fieldDataCache(), context.mapperService(), excluded, pattern);
+        return new TermsFacetCollector(facetName, field, size, comparatorType, context.numberOfShards(), context.fieldDataCache(), context.mapperService(), context.scriptService(),
+                excluded, pattern, script, params);
     }
 }

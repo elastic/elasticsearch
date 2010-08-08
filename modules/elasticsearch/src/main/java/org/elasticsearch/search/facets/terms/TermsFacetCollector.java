@@ -23,19 +23,24 @@ import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.TObjectIntHashMap;
 import org.elasticsearch.common.trove.TObjectIntIterator;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
+import org.elasticsearch.index.field.function.FieldsFunction;
+import org.elasticsearch.index.field.function.script.ScriptFieldsFunction;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.support.AbstractFacetCollector;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -73,7 +78,12 @@ public class TermsFacetCollector extends AbstractFacetCollector {
 
     private final Pattern pattern;
 
-    public TermsFacetCollector(String facetName, String fieldName, int size, InternalTermsFacet.ComparatorType comparatorType, int numberOfShards, FieldDataCache fieldDataCache, MapperService mapperService, ImmutableSet<String> excluded, Pattern pattern) {
+    private final FieldsFunction scriptFunction;
+
+    private final Map<String, Object> params;
+
+    public TermsFacetCollector(String facetName, String fieldName, int size, InternalTermsFacet.ComparatorType comparatorType, int numberOfShards, FieldDataCache fieldDataCache, MapperService mapperService, ScriptService scriptService,
+                               ImmutableSet<String> excluded, Pattern pattern, String script, Map<String, Object> params) {
         super(facetName);
         this.fieldDataCache = fieldDataCache;
         this.size = size;
@@ -91,15 +101,31 @@ public class TermsFacetCollector extends AbstractFacetCollector {
             this.indexFieldName = fieldName;
             this.fieldDataType = FieldData.Type.STRING;
         }
-        if (excluded.isEmpty() && pattern == null) {
+
+        if (script != null) {
+            scriptFunction = new ScriptFieldsFunction(script, scriptService, mapperService, fieldDataCache);
+            if (params == null) {
+                this.params = Maps.newHashMapWithExpectedSize(1);
+            } else {
+                this.params = params;
+            }
+        } else {
+            this.params = null;
+            scriptFunction = null;
+        }
+
+        if (excluded.isEmpty() && pattern == null && scriptFunction == null) {
             aggregator = new StaticAggregatorValueProc(popFacets());
         } else {
-            aggregator = new AggregatorValueProc(popFacets(), excluded, pattern);
+            aggregator = new AggregatorValueProc(popFacets(), excluded, pattern, scriptFunction, params);
         }
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
         fieldData = fieldDataCache.cache(fieldDataType, reader, indexFieldName);
+        if (scriptFunction != null) {
+            scriptFunction.setNextReader(reader);
+        }
     }
 
     @Override protected void doCollect(int doc) throws IOException {
@@ -147,10 +173,17 @@ public class TermsFacetCollector extends AbstractFacetCollector {
 
         private final Matcher matcher;
 
-        public AggregatorValueProc(TObjectIntHashMap<String> facets, ImmutableSet<String> excluded, Pattern pattern) {
+        private final FieldsFunction scriptFunction;
+
+        private final Map<String, Object> params;
+
+        public AggregatorValueProc(TObjectIntHashMap<String> facets, ImmutableSet<String> excluded, Pattern pattern,
+                                   FieldsFunction scriptFunction, Map<String, Object> params) {
             super(facets);
             this.excluded = excluded;
             this.matcher = pattern != null ? pattern.matcher("") : null;
+            this.scriptFunction = scriptFunction;
+            this.params = params;
         }
 
         @Override public void onValue(int docId, String value) {
@@ -159,6 +192,17 @@ public class TermsFacetCollector extends AbstractFacetCollector {
             }
             if (matcher != null && !matcher.reset(value).matches()) {
                 return;
+            }
+            if (scriptFunction != null) {
+                params.put("term", value);
+                Object scriptValue = scriptFunction.execute(docId, params);
+                if (scriptValue instanceof Boolean) {
+                    if (!((Boolean) scriptValue)) {
+                        return;
+                    }
+                } else {
+                    value = scriptValue.toString();
+                }
             }
             super.onValue(docId, value);
         }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.facets.terms;
 
+import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
@@ -26,6 +27,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import org.elasticsearch.search.facets.AbstractFacetBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
@@ -37,6 +39,8 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
     private String regex;
     private int regexFlags = 0;
     private TermsFacet.ComparatorType comparatorType;
+    private String script;
+    private Map<String, Object> params;
 
     public TermsFacetBuilder(String name) {
         super(name);
@@ -82,6 +86,19 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
+    public TermsFacetBuilder script(String script) {
+        this.script = script;
+        return this;
+    }
+
+    public TermsFacetBuilder param(String name, Object value) {
+        if (params == null) {
+            params = Maps.newHashMap();
+        }
+        params.put(name, value);
+        return this;
+    }
+
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         if (fieldName == null) {
             throw new SearchSourceBuilderException("field must be set on terms facet for facet [" + name + "]");
@@ -107,6 +124,15 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
         if (comparatorType != null) {
             builder.field("order", comparatorType.name().toLowerCase());
         }
+
+        if (script != null) {
+            builder.field("script", script);
+            if (this.params != null) {
+                builder.field("params");
+                builder.map(this.params);
+            }
+        }
+
         builder.endObject();
 
         addFilterFacetAndGlobal(builder, params);

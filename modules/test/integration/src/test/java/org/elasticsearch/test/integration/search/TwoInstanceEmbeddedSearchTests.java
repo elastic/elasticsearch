@@ -47,6 +47,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -178,7 +179,7 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractNodesTests {
     @Test public void testDfsQueryThenFetchWithSort() throws Exception {
         SearchSourceBuilder sourceBuilder = searchSource()
                 .query(termQuery("multi", "test"))
-                .from(0).size(60).explain(true).sort("age", false);
+                .from(0).size(60).explain(true).sort("age", SortOrder.ASC);
 
         List<DfsSearchResult> dfsResults = newArrayList();
         for (ShardsIterator shardsIt : indicesService.searchShards(clusterService.state(), new String[]{"test"}, null)) {
@@ -320,7 +321,7 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractNodesTests {
     @Test public void testSimpleFacets() {
         SearchSourceBuilder sourceBuilder = searchSource()
                 .query(termQuery("multi", "test"))
-                .from(0).size(20).explain(true).sort("age", false)
+                .from(0).size(20).explain(true).sort("age", SortOrder.ASC)
                 .facet(FacetBuilders.queryFacet("all", termQuery("multi", "test")))
                 .facet(FacetBuilders.queryFacet("test1", termQuery("name", "test1")));
 

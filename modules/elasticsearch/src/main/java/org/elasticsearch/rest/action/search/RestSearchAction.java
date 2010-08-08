@@ -34,6 +34,7 @@ import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.regex.Pattern;
@@ -191,11 +192,9 @@ public class RestSearchAction extends BaseRestHandler {
                     String sortField = sort.substring(0, delimiter);
                     String reverse = sort.substring(delimiter + 1);
                     if ("asc".equals(reverse)) {
-                        searchSourceBuilder.sort(sortField, SearchSourceBuilder.Order.ASC);
+                        searchSourceBuilder.sort(sortField, SortOrder.ASC);
                     } else if ("desc".equals(reverse)) {
-                        searchSourceBuilder.sort(sortField, SearchSourceBuilder.Order.DESC);
-                    } else {
-                        searchSourceBuilder.sort(sortField, reverse.equals("reverse"));
+                        searchSourceBuilder.sort(sortField, SortOrder.DESC);
                     }
                 } else {
                     searchSourceBuilder.sort(sort);

@@ -23,12 +23,17 @@ import org.apache.lucene.search.FieldComparatorSource;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.lucene.geo.GeoDistance;
+import org.elasticsearch.common.lucene.geo.GeoDistanceDataComparator;
+import org.elasticsearch.common.lucene.geo.GeoHashUtils;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.field.function.FieldsFunction;
 import org.elasticsearch.index.field.function.script.ScriptFieldsFunction;
 import org.elasticsearch.index.field.function.sort.DoubleFieldsFunctionDataComparator;
 import org.elasticsearch.index.field.function.sort.StringFieldsFunctionDataComparator;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.xcontent.XContentGeoPointFieldMapper;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
@@ -50,6 +55,7 @@ public class SortParseElement implements SearchParseElement {
     public static final String SCRIPT_FIELD_NAME = "_script";
     public static final String SCORE_FIELD_NAME = "_score";
     public static final String DOC_FIELD_NAME = "_doc";
+    public static final String GEO_DISTANCE_FIELD_NAME = "_geo_distance";
 
     public SortParseElement() {
     }
@@ -60,6 +66,7 @@ public class SortParseElement implements SearchParseElement {
         if (token == XContentParser.Token.START_ARRAY) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 if (token == XContentParser.Token.START_OBJECT) {
+                    //TODO move to pluggable parsers, similar to facets. Builders already exists...
                     addCompoundSortField(parser, context, sortFields);
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     addSortField(context, sortFields, parser.text(), false);
@@ -80,9 +87,6 @@ public class SortParseElement implements SearchParseElement {
                 String fieldName = parser.currentName();
                 boolean reverse = false;
                 String innerJsonName = null;
-                String script = null;
-                String type = null;
-                Map<String, Object> params = null;
                 token = parser.nextToken();
                 if (token == XContentParser.Token.VALUE_STRING) {
                     String direction = parser.text();
@@ -91,6 +95,11 @@ public class SortParseElement implements SearchParseElement {
                     } else if (direction.equals("desc")) {
                         reverse = !SCORE_FIELD_NAME.equals(fieldName);
                     }
+                    addSortField(context, sortFields, fieldName, reverse);
+                } else if (GEO_DISTANCE_FIELD_NAME.equals(fieldName)) {
+                    addGeoDistanceSortField(parser, context, sortFields);
+                } else if (SCRIPT_FIELD_NAME.equals(fieldName)) {
+                    addScriptSortField(parser, context, sortFields);
                 } else {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
@@ -104,34 +113,9 @@ public class SortParseElement implements SearchParseElement {
                                 } else if ("desc".equals(parser.text())) {
                                     reverse = !SCORE_FIELD_NAME.equals(fieldName);
                                 }
-                            } else if ("script".equals(innerJsonName)) {
-                                script = parser.text();
-                            } else if ("type".equals(innerJsonName)) {
-                                type = parser.text();
-                            } else if ("params".equals(innerJsonName)) {
-                                params = parser.map();
                             }
                         }
                     }
-                }
-                if (SCRIPT_FIELD_NAME.equals(fieldName)) {
-                    if (script == null) {
-                        throw new SearchParseException(context, "_script sorting requires setting the script to sort by");
-                    }
-                    if (type == null) {
-                        throw new SearchParseException(context, "_script sorting requires setting the type of the script");
-                    }
-                    FieldsFunction fieldsFunction = new ScriptFieldsFunction(script, context.scriptService(), context.mapperService(), context.fieldDataCache());
-                    FieldComparatorSource fieldComparatorSource;
-                    if ("string".equals(type)) {
-                        fieldComparatorSource = StringFieldsFunctionDataComparator.comparatorSource(fieldsFunction, params);
-                    } else if ("number".equals(type)) {
-                        fieldComparatorSource = DoubleFieldsFunctionDataComparator.comparatorSource(fieldsFunction, params);
-                    } else {
-                        throw new SearchParseException(context, "custom script sort type [" + type + "] not supported");
-                    }
-                    sortFields.add(new SortField(fieldName, fieldComparatorSource, reverse));
-                } else {
                     addSortField(context, sortFields, fieldName, reverse);
                 }
             }
@@ -158,5 +142,138 @@ public class SortParseElement implements SearchParseElement {
             }
             sortFields.add(new SortField(fieldName, fieldMapper.fieldDataType().newFieldComparatorSource(context.fieldDataCache()), reverse));
         }
+    }
+
+    /**
+     * <pre>
+     * "_script" : {
+     *      "script" : "doc[...]",
+     *      "order" : "asc"
+     * }
+     * </pre>
+     */
+    private void addScriptSortField(XContentParser parser, SearchContext context, List<SortField> sortFields) throws IOException {
+        String script = null;
+        String type = null;
+        Map<String, Object> params = null;
+        boolean reverse = false;
+
+        XContentParser.Token token;
+        String currentName = parser.currentName();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentName = parser.currentName();
+            } else if (token.isValue()) {
+                if ("reverse".equals(currentName)) {
+                    reverse = parser.booleanValue();
+                } else if ("order".equals(currentName)) {
+                    reverse = "desc".equals(parser.text());
+                } else if ("script".equals(currentName)) {
+                    script = parser.text();
+                } else if ("type".equals(currentName)) {
+                    type = parser.text();
+                } else if ("params".equals(currentName)) {
+                    params = parser.map();
+                }
+            }
+        }
+
+        if (script == null) {
+            throw new SearchParseException(context, "_script sorting requires setting the script to sort by");
+        }
+        if (type == null) {
+            throw new SearchParseException(context, "_script sorting requires setting the type of the script");
+        }
+        FieldsFunction fieldsFunction = new ScriptFieldsFunction(script, context.scriptService(), context.mapperService(), context.fieldDataCache());
+        FieldComparatorSource fieldComparatorSource;
+        if ("string".equals(type)) {
+            fieldComparatorSource = StringFieldsFunctionDataComparator.comparatorSource(fieldsFunction, params);
+        } else if ("number".equals(type)) {
+            fieldComparatorSource = DoubleFieldsFunctionDataComparator.comparatorSource(fieldsFunction, params);
+        } else {
+            throw new SearchParseException(context, "custom script sort type [" + type + "] not supported");
+        }
+        sortFields.add(new SortField("_script", fieldComparatorSource, reverse));
+    }
+
+    /**
+     * <pre>
+     * "_geo_distance" : {
+     *      "pin.location" : {
+     *
+     *      },
+     *      "order" : "asc"
+     * }
+     * </pre>
+     */
+    private void addGeoDistanceSortField(XContentParser parser, SearchContext context, List<SortField> sortFields) throws IOException {
+        String fieldName = null;
+        double lat = Double.NaN;
+        double lon = Double.NaN;
+        DistanceUnit unit = DistanceUnit.KILOMETERS;
+        GeoDistance geoDistance = GeoDistance.ARC;
+        boolean reverse = false;
+
+
+        XContentParser.Token token;
+        String currentName = parser.currentName();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentName = parser.currentName();
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                token = parser.nextToken();
+                lat = parser.doubleValue();
+                token = parser.nextToken();
+                lon = parser.doubleValue();
+                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+
+                }
+                fieldName = currentName;
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                // the json in the format of -> field : { lat : 30, lon : 12 }
+                fieldName = currentName;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentName = parser.currentName();
+                    } else if (token.isValue()) {
+                        if (currentName.equals(XContentGeoPointFieldMapper.Names.LAT)) {
+                            lat = parser.doubleValue();
+                        } else if (currentName.equals(XContentGeoPointFieldMapper.Names.LON)) {
+                            lon = parser.doubleValue();
+                        } else if (currentName.equals(XContentGeoPointFieldMapper.Names.GEOHASH)) {
+                            double[] values = GeoHashUtils.decode(parser.text());
+                            lat = values[0];
+                            lon = values[1];
+                        }
+                    }
+                }
+            } else if (token.isValue()) {
+                if ("reverse".equals(currentName)) {
+                    reverse = parser.booleanValue();
+                } else if ("order".equals(currentName)) {
+                    reverse = "desc".equals(parser.text());
+                } else if (currentName.equals("unit")) {
+                    unit = DistanceUnit.fromString(parser.text());
+                } else if (currentName.equals("distance_type") || currentName.equals("distanceType")) {
+                    geoDistance = GeoDistance.fromString(parser.text());
+                } else {
+                    // assume the value is the actual value
+                    String value = parser.text();
+                    int comma = value.indexOf(',');
+                    if (comma != -1) {
+                        lat = Double.parseDouble(value.substring(0, comma).trim());
+                        lon = Double.parseDouble(value.substring(comma + 1).trim());
+                    } else {
+                        double[] values = GeoHashUtils.decode(value);
+                        lat = values[0];
+                        lon = values[1];
+                    }
+
+                    fieldName = currentName;
+                }
+            }
+        }
+
+        sortFields.add(new SortField(fieldName, GeoDistanceDataComparator.comparatorSource(fieldName, lat, lon, unit, geoDistance, context.fieldDataCache(), context.mapperService()), reverse));
     }
 }

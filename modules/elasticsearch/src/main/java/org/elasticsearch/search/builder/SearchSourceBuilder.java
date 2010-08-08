@@ -31,15 +31,14 @@ import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
 import org.elasticsearch.search.facets.AbstractFacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
-import org.elasticsearch.search.query.SortParseElement;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.common.collect.Lists.*;
 
 /**
  * A search source builder allowing to easily build search source. Simple construction
@@ -49,11 +48,6 @@ import static org.elasticsearch.common.collect.Lists.*;
  * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
 public class SearchSourceBuilder implements ToXContent {
-
-    public static enum Order {
-        ASC,
-        DESC
-    }
 
     /**
      * A static factory method to construct a new search source.
@@ -81,9 +75,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     private Boolean explain;
 
-    private List<SortTuple> sortFields;
-
-    private List<ScriptSortTuple> sortScripts;
+    private List<SortBuilder> sorts;
 
     private List<String> fieldNames;
 
@@ -159,18 +151,8 @@ public class SearchSourceBuilder implements ToXContent {
      * @param name  The name of the field
      * @param order The sort ordering
      */
-    public SearchSourceBuilder sort(String name, Order order) {
-        boolean reverse = false;
-        if (name.equals(SortParseElement.SCORE_FIELD_NAME)) {
-            if (order == Order.ASC) {
-                reverse = true;
-            }
-        } else {
-            if (order == Order.DESC) {
-                reverse = true;
-            }
-        }
-        return sort(name, reverse);
+    public SearchSourceBuilder sort(String name, SortOrder order) {
+        return sort(SortBuilders.fieldSort(name).order(order));
     }
 
     /**
@@ -179,36 +161,17 @@ public class SearchSourceBuilder implements ToXContent {
      * @param name The name of the field to sort by
      */
     public SearchSourceBuilder sort(String name) {
-        return sort(name, false);
+        return sort(SortBuilders.fieldSort(name));
     }
 
     /**
-     * Adds a sort script.
-     *
-     * @param script The script to execute.
-     * @param type   The type of the result (can either be "string" or "number").
-     * @param order  The order.
-     * @param params Optional parameters to the script.
+     * Adds a sort builder.
      */
-    public SearchSourceBuilder sortScript(String script, String type, Order order, @Nullable Map<String, Object> params) {
-        if (sortScripts == null) {
-            sortScripts = Lists.newArrayList();
+    public SearchSourceBuilder sort(SortBuilder sort) {
+        if (sorts == null) {
+            sorts = Lists.newArrayList();
         }
-        sortScripts.add(new ScriptSortTuple(script, type, params, order == Order.DESC));
-        return this;
-    }
-
-    /**
-     * Add a sort against the given field name and if it should be revered or not.
-     *
-     * @param name    The name of the field to sort by
-     * @param reverse Should the sort be reversed or not
-     */
-    public SearchSourceBuilder sort(String name, boolean reverse) {
-        if (sortFields == null) {
-            sortFields = newArrayListWithCapacity(2);
-        }
-        sortFields.add(new SortTuple(name, reverse));
+        sorts.add(sort);
         return this;
     }
 
@@ -378,35 +341,14 @@ public class SearchSourceBuilder implements ToXContent {
             builder.endObject();
         }
 
-        if (sortFields != null || sortScripts != null) {
-            builder.field("sort");
-            builder.startObject();
-            if (sortFields != null) {
-                for (SortTuple sortTuple : sortFields) {
-                    builder.field(sortTuple.fieldName());
-                    builder.startObject();
-                    if (sortTuple.reverse()) {
-                        builder.field("reverse", true);
-                    }
-                    builder.endObject();
-                }
+        if (sorts != null) {
+            builder.startArray("sort");
+            for (SortBuilder sort : sorts) {
+                builder.startObject();
+                sort.toXContent(builder, params);
+                builder.endObject();
             }
-            if (sortScripts != null) {
-                for (ScriptSortTuple scriptSort : sortScripts) {
-                    builder.startObject("_script");
-                    builder.field("script", scriptSort.script());
-                    builder.field("type", scriptSort.type());
-                    if (scriptSort.params() != null) {
-                        builder.field("params");
-                        builder.map(scriptSort.params());
-                    }
-                    if (scriptSort.reverse()) {
-                        builder.field("reverse", true);
-                    }
-                    builder.endObject();
-                }
-            }
-            builder.endObject();
+            builder.endArray();
         }
 
         if (indexBoost != null) {
@@ -455,54 +397,6 @@ public class SearchSourceBuilder implements ToXContent {
 
         public Map<String, Object> params() {
             return params;
-        }
-    }
-
-    private static class SortTuple {
-        private final String fieldName;
-        private final boolean reverse;
-
-        private SortTuple(String fieldName, boolean reverse) {
-            this.fieldName = fieldName;
-            this.reverse = reverse;
-        }
-
-        public String fieldName() {
-            return fieldName;
-        }
-
-        public boolean reverse() {
-            return reverse;
-        }
-    }
-
-    private static class ScriptSortTuple {
-        private final String script;
-        private final String type;
-        private final Map<String, Object> params;
-        private final boolean reverse;
-
-        private ScriptSortTuple(String script, String type, Map<String, Object> params, boolean reverse) {
-            this.script = script;
-            this.type = type;
-            this.params = params;
-            this.reverse = reverse;
-        }
-
-        public String script() {
-            return script;
-        }
-
-        public String type() {
-            return type;
-        }
-
-        public Map<String, Object> params() {
-            return params;
-        }
-
-        public boolean reverse() {
-            return reverse;
         }
     }
 }

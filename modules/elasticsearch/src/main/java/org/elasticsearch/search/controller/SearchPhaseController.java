@@ -171,6 +171,21 @@ public class SearchPhaseController {
     }
 
     public InternalSearchResponse merge(ShardDoc[] sortedDocs, Map<SearchShardTarget, ? extends QuerySearchResultProvider> queryResults, Map<SearchShardTarget, ? extends FetchSearchResultProvider> fetchResults) {
+
+        boolean sorted = false;
+        int sortScoreIndex = -1;
+        QuerySearchResult querySearchResult = Iterables.get(queryResults.values(), 0).queryResult();
+
+        if (querySearchResult.topDocs() instanceof TopFieldDocs) {
+            sorted = true;
+            TopFieldDocs fieldDocs = (TopFieldDocs) querySearchResult.queryResult().topDocs();
+            for (int i = 0; i < fieldDocs.fields.length; i++) {
+                if (fieldDocs.fields[i].getType() == SortField.SCORE) {
+                    sortScoreIndex = i;
+                }
+            }
+        }
+
         // merge facets
         InternalFacets facets = null;
         if (!queryResults.isEmpty()) {
@@ -223,6 +238,15 @@ public class SearchPhaseController {
                     InternalSearchHit searchHit = fetchResult.hits().internalHits()[index];
                     searchHit.score(shardDoc.score());
                     searchHit.shard(fetchResult.shardTarget());
+
+                    if (sorted) {
+                        FieldDoc fieldDoc = (FieldDoc) shardDoc;
+                        searchHit.sortValues(fieldDoc.fields);
+                        if (sortScoreIndex != -1) {
+                            searchHit.score(((Number) fieldDoc.fields[sortScoreIndex]).floatValue());
+                        }
+                    }
+
                     hits.add(searchHit);
                 }
             }

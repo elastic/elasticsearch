@@ -135,6 +135,16 @@ public interface SearchHit extends Streamable, ToXContent, Iterable<SearchHitFie
     Map<String, HighlightField> getHighlightFields();
 
     /**
+     * An array of the sort values used.
+     */
+    Object[] sortValues();
+
+    /**
+     * An array of the sort values used.
+     */
+    Object[] getSortValues();
+
+    /**
      * The shard of the search hit.
      */
     SearchShardTarget shard();

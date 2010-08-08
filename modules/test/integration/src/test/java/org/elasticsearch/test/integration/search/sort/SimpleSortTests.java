@@ -88,7 +88,9 @@ public class SimpleSortTests extends AbstractNodesTests {
 
         assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
         assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("1"));
+        assertThat(searchResponse.hits().getAt(0).sortValues()[0].toString(), equalTo("aaa"));
         assertThat((String) searchResponse.hits().getAt(1).field("id").value(), equalTo("2"));
+        assertThat(searchResponse.hits().getAt(1).sortValues()[0].toString(), equalTo("bbb"));
 
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
@@ -128,7 +130,9 @@ public class SimpleSortTests extends AbstractNodesTests {
 
         assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
         assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("1"));
+        assertThat(((Number) searchResponse.hits().getAt(0).sortValues()[0]).longValue(), equalTo(100l));
         assertThat((String) searchResponse.hits().getAt(1).field("id").value(), equalTo("2"));
+        assertThat(((Number) searchResponse.hits().getAt(1).sortValues()[0]).longValue(), equalTo(200l));
 
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
@@ -148,7 +152,9 @@ public class SimpleSortTests extends AbstractNodesTests {
 
         assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
         assertThat((String) searchResponse.hits().getAt(0).field("id").value(), equalTo("2"));
+        assertThat(((Number) searchResponse.hits().getAt(0).sortValues()[0]).longValue(), equalTo(200l));
         assertThat((String) searchResponse.hits().getAt(1).field("id").value(), equalTo("1"));
+        assertThat(((Number) searchResponse.hits().getAt(1).sortValues()[0]).longValue(), equalTo(100l));
 
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())

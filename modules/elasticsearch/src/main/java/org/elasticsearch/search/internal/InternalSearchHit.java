@@ -49,6 +49,8 @@ import static org.elasticsearch.search.internal.InternalSearchHitField.*;
  */
 public class InternalSearchHit implements SearchHit {
 
+    private static final Object[] EMPTY_SORT_VALUES = new Object[0];
+
     private transient int docId;
 
     private float score = Float.NEGATIVE_INFINITY;
@@ -62,6 +64,8 @@ public class InternalSearchHit implements SearchHit {
     private Map<String, SearchHitField> fields = ImmutableMap.of();
 
     private Map<String, HighlightField> highlightFields = ImmutableMap.of();
+
+    private Object[] sortValues = EMPTY_SORT_VALUES;
 
     private Explanation explanation;
 
@@ -195,6 +199,18 @@ public class InternalSearchHit implements SearchHit {
         this.highlightFields = highlightFields;
     }
 
+    public void sortValues(Object[] sortValues) {
+        this.sortValues = sortValues;
+    }
+
+    @Override public Object[] sortValues() {
+        return sortValues;
+    }
+
+    @Override public Object[] getSortValues() {
+        return sortValues();
+    }
+
     @Override public Explanation explanation() {
         return explanation;
     }
@@ -273,6 +289,13 @@ public class InternalSearchHit implements SearchHit {
                 }
             }
             builder.endObject();
+        }
+        if (sortValues != null && sortValues.length > 0) {
+            builder.startArray("sort_values");
+            for (Object sortValue : sortValues) {
+                builder.value(sortValue);
+            }
+            builder.endArray();
         }
         if (explanation() != null) {
             builder.field("_explanation");
@@ -391,6 +414,31 @@ public class InternalSearchHit implements SearchHit {
             highlightFields = builder.build();
         }
 
+        size = in.readVInt();
+        if (size > 0) {
+            sortValues = new Object[size];
+            for (int i = 0; i < sortValues.length; i++) {
+                byte type = in.readByte();
+                if (type == 0) {
+                    sortValues[i] = null;
+                } else if (type == 1) {
+                    sortValues[i] = in.readUTF();
+                } else if (type == 2) {
+                    sortValues[i] = in.readInt();
+                } else if (type == 3) {
+                    sortValues[i] = in.readLong();
+                } else if (type == 4) {
+                    sortValues[i] = in.readFloat();
+                } else if (type == 5) {
+                    sortValues[i] = in.readDouble();
+                } else if (type == 6) {
+                    sortValues[i] = in.readByte();
+                } else {
+                    throw new IOException("Can't match type [" + type + "]");
+                }
+            }
+        }
+
         if (shardLookupMap != null) {
             int lookupId = in.readVInt();
             if (lookupId > 0) {
@@ -439,6 +487,41 @@ public class InternalSearchHit implements SearchHit {
                 highlightField.writeTo(out);
             }
         }
+
+        if (sortValues.length == 0) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(sortValues.length);
+            for (Object sortValue : sortValues) {
+                if (sortValue == null) {
+                    out.writeByte((byte) 0);
+                } else {
+                    Class type = sortValue.getClass();
+                    if (type == String.class) {
+                        out.writeByte((byte) 1);
+                        out.writeUTF((String) sortValue);
+                    } else if (type == Integer.class) {
+                        out.writeByte((byte) 2);
+                        out.writeInt((Integer) sortValue);
+                    } else if (type == Long.class) {
+                        out.writeByte((byte) 3);
+                        out.writeLong((Long) sortValue);
+                    } else if (type == Float.class) {
+                        out.writeByte((byte) 4);
+                        out.writeFloat((Float) sortValue);
+                    } else if (type == Double.class) {
+                        out.writeByte((byte) 5);
+                        out.writeDouble((Double) sortValue);
+                    } else if (type == Byte.class) {
+                        out.writeByte((byte) 6);
+                        out.writeByte((Byte) sortValue);
+                    } else {
+                        throw new IOException("Can't handle sort field value of type [" + type + "]");
+                    }
+                }
+            }
+        }
+
         if (shardLookupMap == null) {
             if (shard == null) {
                 out.writeBoolean(false);

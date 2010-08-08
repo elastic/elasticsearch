@@ -49,6 +49,7 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
         ImmutableSet<String> excluded = ImmutableSet.of();
         String regex = null;
         String regexFlags = null;
+        TermsFacet.ComparatorType comparatorType = TermsFacet.ComparatorType.COUNT;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
@@ -69,6 +70,8 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
                     regex = parser.text();
                 } else if ("regex_flags".equals(fieldName) || "regexFlags".equals(fieldName)) {
                     regexFlags = parser.text();
+                } else if ("order".equals(fieldName) || "comparator".equals(field)) {
+                    comparatorType = TermsFacet.ComparatorType.fromString(parser.text());
                 }
             }
         }
@@ -76,6 +79,6 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
         if (regex != null) {
             pattern = Regex.compile(regex, regexFlags);
         }
-        return new TermsFacetCollector(facetName, field, size, context.numberOfShards(), context.fieldDataCache(), context.mapperService(), excluded, pattern);
+        return new TermsFacetCollector(facetName, field, size, comparatorType, context.numberOfShards(), context.fieldDataCache(), context.mapperService(), excluded, pattern);
     }
 }

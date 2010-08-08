@@ -26,11 +26,19 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
+ * Terms facet allows to return facets of the most popular terms within the search query.
+ *
  * @author kimchy (shay.banon)
  */
 public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
 
+    /**
+     * Controls how the terms facets are ordered.
+     */
     public static enum ComparatorType {
+        /**
+         * Order by the count of each term.
+         */
         COUNT((byte) 0, new Comparator<Entry>() {
 
             @Override public int compare(Entry o1, Entry o2) {
@@ -44,14 +52,17 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
                 return i;
             }
         }),
+        /**
+         * Order by the count of each term.
+         */
         TERM((byte) 1, new Comparator<Entry>() {
 
             @Override public int compare(Entry o1, Entry o2) {
-                int i = o2.term().compareTo(o1.term());
+                int i = o1.term().compareTo(o2.term());
                 if (i == 0) {
-                    i = o2.count() - o1.count();
+                    i = o1.count() - o2.count();
                     if (i == 0) {
-                        i = System.identityHashCode(o2) - System.identityHashCode(o1);
+                        i = System.identityHashCode(o1) - System.identityHashCode(o2);
                     }
                 }
                 return i;
@@ -81,7 +92,16 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
             } else if (id == 1) {
                 return TERM;
             }
-            throw new ElasticSearchIllegalArgumentException("No type argument match for multi count comparator [" + id + "]");
+            throw new ElasticSearchIllegalArgumentException("No type argument match for terms facet comparator [" + id + "]");
+        }
+
+        public static ComparatorType fromString(String type) {
+            if ("count".equals(type)) {
+                return COUNT;
+            } else if ("term".equals(type)) {
+                return TERM;
+            }
+            throw new ElasticSearchIllegalArgumentException("No type argument match for terms facet comparator [" + type + "]");
         }
     }
 
@@ -112,11 +132,33 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
         }
     }
 
+    /**
+     * The field name the terms were extracted from.
+     */
     String fieldName();
 
+    /**
+     * The field name the terms were extracted from.
+     */
     String getFieldName();
 
+    /**
+     * The ordering of the results.
+     */
+    ComparatorType comparatorType();
+
+    /**
+     * The ordering of the results.
+     */
+    ComparatorType getComparatorType();
+
+    /**
+     * The terms and counts.
+     */
     List<Entry> entries();
 
+    /**
+     * The terms and counts.
+     */
     List<Entry> getEntries();
 }

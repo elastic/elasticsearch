@@ -22,7 +22,7 @@ package org.elasticsearch.test.integration.search.sort;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -30,6 +30,7 @@ import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
+import static org.elasticsearch.search.sort.SortBuilders.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -83,7 +84,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         SearchResponse searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("id", "doc['id'].value")
-                .addSort("svalue", SearchSourceBuilder.Order.ASC)
+                .addSort("svalue", SortOrder.ASC)
                 .execute().actionGet();
 
         assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
@@ -95,7 +96,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("id", "doc['id'].value")
-                .addSortScript("doc['svalue'].value", "string", SearchSourceBuilder.Order.ASC)
+                .addSort(scriptSort("doc['svalue'].value", "string").order(SortOrder.ASC))
                 .execute().actionGet();
 
         assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
@@ -105,7 +106,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("id", "doc['id'].value")
-                .addSort("svalue", SearchSourceBuilder.Order.DESC)
+                .addSort("svalue", SortOrder.DESC)
                 .execute().actionGet();
 
         assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
@@ -115,7 +116,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("id", "doc['id'].value")
-                .addSortScript("doc['svalue'].value", "string", SearchSourceBuilder.Order.DESC)
+                .addSort(scriptSort("doc['svalue'].value", "string").order(SortOrder.DESC))
                 .execute().actionGet();
 
         assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
@@ -125,7 +126,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("id", "doc['id'].value")
-                .addSort("ivalue", SearchSourceBuilder.Order.ASC)
+                .addSort("ivalue", SortOrder.ASC)
                 .execute().actionGet();
 
         assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
@@ -137,7 +138,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("id", "doc['id'].value")
-                .addSortScript("doc['ivalue'].value", "number", SearchSourceBuilder.Order.ASC)
+                .addSort(scriptSort("doc['ivalue'].value", "number").order(SortOrder.ASC))
                 .execute().actionGet();
 
         assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
@@ -147,7 +148,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("id", "doc['id'].value")
-                .addSort("ivalue", SearchSourceBuilder.Order.DESC)
+                .addSort("ivalue", SortOrder.DESC)
                 .execute().actionGet();
 
         assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
@@ -159,7 +160,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("id", "doc['id'].value")
-                .addSortScript("doc['ivalue'].value", "number", SearchSourceBuilder.Order.DESC)
+                .addSort(scriptSort("doc['ivalue'].value", "string").order(SortOrder.DESC))
                 .execute().actionGet();
 
         assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
@@ -169,7 +170,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("id", "doc['id'].value")
-                .addSort("dvalue", SearchSourceBuilder.Order.ASC)
+                .addSort("dvalue", SortOrder.ASC)
                 .execute().actionGet();
 
         assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
@@ -179,7 +180,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("id", "doc['id'].value")
-                .addSort("dvalue", SearchSourceBuilder.Order.DESC)
+                .addSort("dvalue", SortOrder.DESC)
                 .execute().actionGet();
 
         assertThat(searchResponse.hits().getTotalHits(), equalTo(2l));
@@ -217,7 +218,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         SearchResponse searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("id", "doc['id'].value")
-                .addSort("svalue", SearchSourceBuilder.Order.ASC)
+                .addSort("svalue", SortOrder.ASC)
                 .execute().actionGet();
 
         if (searchResponse.failedShards() > 0) {
@@ -236,7 +237,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("id", "doc['id'].value")
-                .addSort("svalue", SearchSourceBuilder.Order.DESC)
+                .addSort("svalue", SortOrder.DESC)
                 .execute().actionGet();
 
         if (searchResponse.failedShards() > 0) {
@@ -256,7 +257,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         searchResponse = client.prepareSearch()
                 .setQuery(termQuery("id", "2"))
                 .addScriptField("id", "doc['id'].value")
-                .addSort("svalue", SearchSourceBuilder.Order.DESC)
+                .addSort("svalue", SortOrder.DESC)
                 .execute().actionGet();
 
         if (searchResponse.failedShards() > 0) {

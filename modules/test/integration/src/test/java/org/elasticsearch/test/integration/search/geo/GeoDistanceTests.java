@@ -22,6 +22,8 @@ package org.elasticsearch.test.integration.search.geo;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -133,5 +135,35 @@ public class GeoDistanceTests extends AbstractNodesTests {
         for (SearchHit hit : searchResponse.hits()) {
             assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
         }
+
+        // SORTING
+
+        searchResponse = client.prepareSearch().setQuery(matchAllQuery())
+                .addSort(SortBuilders.geoDistanceSort("location").point(40.7143528, -74.0059731).order(SortOrder.ASC))
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(7l));
+        assertThat(searchResponse.hits().hits().length, equalTo(7));
+        assertThat(searchResponse.hits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.hits().getAt(1).id(), equalTo("3"));
+        assertThat(searchResponse.hits().getAt(2).id(), equalTo("4"));
+        assertThat(searchResponse.hits().getAt(3).id(), equalTo("5"));
+        assertThat(searchResponse.hits().getAt(4).id(), equalTo("6"));
+        assertThat(searchResponse.hits().getAt(5).id(), equalTo("2"));
+        assertThat(searchResponse.hits().getAt(6).id(), equalTo("7"));
+
+        searchResponse = client.prepareSearch().setQuery(matchAllQuery())
+                .addSort(SortBuilders.geoDistanceSort("location").point(40.7143528, -74.0059731).order(SortOrder.DESC))
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(7l));
+        assertThat(searchResponse.hits().hits().length, equalTo(7));
+        assertThat(searchResponse.hits().getAt(6).id(), equalTo("1"));
+        assertThat(searchResponse.hits().getAt(5).id(), equalTo("3"));
+        assertThat(searchResponse.hits().getAt(4).id(), equalTo("4"));
+        assertThat(searchResponse.hits().getAt(3).id(), equalTo("5"));
+        assertThat(searchResponse.hits().getAt(2).id(), equalTo("6"));
+        assertThat(searchResponse.hits().getAt(1).id(), equalTo("2"));
+        assertThat(searchResponse.hits().getAt(0).id(), equalTo("7"));
     }
 }

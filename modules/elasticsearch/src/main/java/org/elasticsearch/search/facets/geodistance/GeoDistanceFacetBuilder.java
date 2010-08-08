@@ -140,7 +140,7 @@ public class GeoDistanceFacetBuilder extends AbstractFacetBuilder {
     }
 
     /**
-     * The geo distance type used to compute the distnace.
+     * The geo distance type used to compute the distance.
      */
     public GeoDistanceFacetBuilder geoDistance(GeoDistance geoDistance) {
         this.geoDistance = geoDistance;

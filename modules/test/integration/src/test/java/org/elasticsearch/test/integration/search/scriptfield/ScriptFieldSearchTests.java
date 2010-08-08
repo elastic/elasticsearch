@@ -22,6 +22,7 @@ package org.elasticsearch.test.integration.search.scriptfield;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -32,7 +33,6 @@ import java.util.Map;
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
-import static org.elasticsearch.search.builder.SearchSourceBuilder.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -77,7 +77,7 @@ public class ScriptFieldSearchTests extends AbstractNodesTests {
         logger.info("running doc['num1'].value");
         SearchResponse response = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .addSort("num1", Order.ASC)
+                .addSort("num1", SortOrder.ASC)
                 .addScriptField("sNum1", "doc['num1'].value")
                 .addScriptField("date1", "doc['date'].date.millis")
                 .execute().actionGet();
@@ -98,7 +98,7 @@ public class ScriptFieldSearchTests extends AbstractNodesTests {
         Map<String, Object> params = MapBuilder.<String, Object>newMapBuilder().put("factor", 2.0).map();
         response = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .addSort("num1", Order.ASC)
+                .addSort("num1", SortOrder.ASC)
                 .addScriptField("sNum1", "doc['num1'].value * factor", params)
                 .execute().actionGet();
 

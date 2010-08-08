@@ -33,8 +33,9 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.facets.AbstractFacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 
-import javax.annotation.Nullable;
 import java.util.Map;
 
 /**
@@ -262,32 +263,18 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
      * @param field The name of the field
      * @param order The sort ordering
      */
-    public SearchRequestBuilder addSort(String field, SearchSourceBuilder.Order order) {
+    public SearchRequestBuilder addSort(String field, SortOrder order) {
         sourceBuilder().sort(field, order);
         return this;
     }
 
     /**
-     * Adds a sort script.
+     * Adds a generic sort builder.
      *
-     * @param script The script to execute.
-     * @param type   The type of the result (can either be "string" or "number").
-     * @param order  The order.
+     * @see org.elasticsearch.search.sort.SortBuilders
      */
-    public SearchRequestBuilder addSortScript(String script, String type, SearchSourceBuilder.Order order) {
-        return addSortScript(script, type, order, null);
-    }
-
-    /**
-     * Adds a sort script.
-     *
-     * @param script The script to execute.
-     * @param type   The type of the result (can either be "string" or "number").
-     * @param order  The order.
-     * @param params Optional parameters to the script.
-     */
-    public SearchRequestBuilder addSortScript(String script, String type, SearchSourceBuilder.Order order, @Nullable Map<String, Object> params) {
-        sourceBuilder().sortScript(script, type, order, params);
+    public SearchRequestBuilder addSort(SortBuilder sort) {
+        sourceBuilder().sort(sort);
         return this;
     }
 

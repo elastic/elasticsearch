@@ -32,6 +32,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.facets.FacetBuilders;
 import org.elasticsearch.search.facets.query.QueryFacet;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -110,7 +111,7 @@ public class TransportTwoServersSearchTests extends AbstractNodesTests {
     @Test public void testDfsQueryThenFetchWithSort() throws Exception {
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("multi", "test"))
-                .from(0).size(60).explain(true).sort("age", false);
+                .from(0).size(60).explain(true).sort("age", SortOrder.ASC);
 
         SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(DFS_QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
@@ -162,7 +163,7 @@ public class TransportTwoServersSearchTests extends AbstractNodesTests {
     @Test public void testQueryThenFetchWithSort() throws Exception {
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("multi", "test"))
-                .from(0).size(60).explain(true).sort("age", false);
+                .from(0).size(60).explain(true).sort("age", SortOrder.ASC);
 
         SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));

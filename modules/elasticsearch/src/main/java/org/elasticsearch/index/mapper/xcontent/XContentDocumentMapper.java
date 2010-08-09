@@ -228,6 +228,9 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
         final List<FieldMapper> tempFieldMappers = newArrayList();
         // add the basic ones
+        if (indexFieldMapper.enabled()) {
+            tempFieldMappers.add(indexFieldMapper);
+        }
         tempFieldMappers.add(typeFieldMapper);
         tempFieldMappers.add(sourceFieldMapper);
         tempFieldMappers.add(uidFieldMapper);
@@ -391,6 +394,9 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         synchronized (mutex) {
             fieldMapperListeners.add(fieldMapperListener);
             if (includeExisting) {
+                if (indexFieldMapper.enabled()) {
+                    fieldMapperListener.fieldMapper(indexFieldMapper);
+                }
                 fieldMapperListener.fieldMapper(sourceFieldMapper);
                 fieldMapperListener.fieldMapper(typeFieldMapper);
                 fieldMapperListener.fieldMapper(idFieldMapper);
@@ -427,6 +433,6 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
     }
 
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
-        rootObjectMapper.toXContent(builder, params, allFieldMapper, sourceFieldMapper);
+        rootObjectMapper.toXContent(builder, params, indexFieldMapper, typeFieldMapper, idFieldMapper, allFieldMapper, sourceFieldMapper);
     }
 }

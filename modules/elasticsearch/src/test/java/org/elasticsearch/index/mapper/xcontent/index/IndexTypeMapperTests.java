@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.xcontent.index;
 import org.apache.lucene.document.Field;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
 import org.elasticsearch.index.mapper.xcontent.XContentMapperTests;
@@ -42,6 +43,7 @@ public class IndexTypeMapperTests {
         XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(mapping);
         assertThat(docMapper.indexMapper().enabled(), equalTo(true));
         assertThat(docMapper.indexMapper().store(), equalTo(Field.Store.YES));
+        assertThat(docMapper.mappers().indexName("_index").mapper(), instanceOf(IndexFieldMapper.class));
 
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()

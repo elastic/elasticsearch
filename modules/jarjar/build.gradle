@@ -19,7 +19,6 @@ dependencies {
     runtime 'org.yaml:snakeyaml:1.6'
 
     runtime('org.jboss.netty:netty:3.2.1.Final') { transitive = false }
-    runtime('com.ning:async-http-client:1.0.0') { transitive = false }
 }
 
 configurations {
@@ -37,7 +36,7 @@ jar << {
         jarjar(jarfile: jarjarArchivePath) {
             zipfileset(src: jar.archivePath)
             configurations.runtime.files.findAll {file ->
-                ['mvel', 'jackson', 'joda', 'snakeyaml', 'netty', 'async-http-client', 'guice', 'aopalliance', 'guava', 'trove', 'jsr166y'].any { file.name.contains(it) }
+                ['mvel', 'jackson', 'joda', 'snakeyaml', 'netty', 'guice', 'aopalliance', 'guava', 'trove', 'jsr166y'].any { file.name.contains(it) }
             }.each { jarjarFile ->
                 zipfileset(src: jarjarFile) {
                     exclude(name: "META-INF/**")
@@ -58,7 +57,6 @@ jar << {
             rule pattern: "org.joda.**", result: "org.elasticsearch.common.joda.@1"
 
             rule pattern: "org.jboss.netty.**", result: "org.elasticsearch.common.netty.@1"
-            rule pattern: "com.ning.http.**", result: "org.elasticsearch.common.http.@1"
         }
         delete(file: jar.archivePath)
         copy(file: jarjarArchivePath, tofile: jar.archivePath)
@@ -75,7 +73,6 @@ jar << {
         delete(dir: "build/tmp/extracted/org/joda")
         delete(dir: "build/tmp/extracted/org/yaml")
         delete(dir: "build/tmp/extracted/org/jboss")
-        delete(dir: "build/tmp/extracted/com/ning")
 
         delete(file: jar.archivePath)
         jar(destfile: jar.archivePath, basedir: "build/tmp/extracted")

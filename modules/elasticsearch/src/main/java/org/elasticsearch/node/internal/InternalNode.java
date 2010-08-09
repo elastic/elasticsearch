@@ -34,8 +34,6 @@ import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.http.client.HttpClientModule;
-import org.elasticsearch.common.http.client.HttpClientService;
 import org.elasticsearch.common.inject.Guice;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Injectors;
@@ -142,7 +140,6 @@ public final class InternalNode implements Node {
         modules.add(new MonitorModule(settings));
         modules.add(new GatewayModule(settings));
         modules.add(new NodeClientModule());
-        modules.add(new HttpClientModule());
 
         pluginsService.processModules(modules);
 
@@ -270,7 +267,6 @@ public final class InternalNode implements Node {
         stopWatch.stop().start("transport");
         injector.getInstance(TransportService.class).close();
         stopWatch.stop().start("http_client");
-        injector.getInstance(HttpClientService.class).close();
 
         for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
             stopWatch.stop().start("plugin(" + plugin.getName() + ")");

@@ -24,6 +24,8 @@ import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import java.io.IOException;
 
 /**
+ * A sort builder to sort based on a document field.
+ *
  * @author kimchy (shay.banon)
  */
 public class FieldSortBuilder extends SortBuilder {
@@ -32,10 +34,18 @@ public class FieldSortBuilder extends SortBuilder {
 
     private SortOrder order;
 
+    /**
+     * Constructs a new sort based on a document field.
+     *
+     * @param fieldName The field name.
+     */
     public FieldSortBuilder(String fieldName) {
         this.fieldName = fieldName;
     }
 
+    /**
+     * The order of sorting. Defaults to {@link SortOrder#ASC}.
+     */
     public FieldSortBuilder order(SortOrder order) {
         this.order = order;
         return this;

@@ -26,6 +26,8 @@ import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import java.io.IOException;
 
 /**
+ * A geo distance based sorting on a geo point like field.
+ *
  * @author kimchy (shay.banon)
  */
 public class GeoDistanceSortBuilder extends SortBuilder {
@@ -40,6 +42,11 @@ public class GeoDistanceSortBuilder extends SortBuilder {
     private DistanceUnit unit;
     private SortOrder order;
 
+    /**
+     * Constructs a new distance based sort on a geo point like field.
+     *
+     * @param fieldName The geo point like field name.
+     */
     public GeoDistanceSortBuilder(String fieldName) {
         this.fieldName = fieldName;
     }
@@ -80,6 +87,9 @@ public class GeoDistanceSortBuilder extends SortBuilder {
         return this;
     }
 
+    /**
+     * The order of sorting. Defaults to {@link SortOrder#ASC}.
+     */
     public GeoDistanceSortBuilder order(SortOrder order) {
         this.order = order;
         return this;

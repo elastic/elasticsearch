@@ -54,6 +54,8 @@ public class MemcachedRestRequest extends AbstractRestRequest {
 
     private int opaque;
 
+    private boolean quiet;
+
     public MemcachedRestRequest(Method method, String uri, byte[] uriBytes, int dataSize, boolean binary) {
         this.method = method;
         this.uri = uri;
@@ -96,6 +98,14 @@ public class MemcachedRestRequest extends AbstractRestRequest {
 
     public void setOpaque(int opaque) {
         this.opaque = opaque;
+    }
+
+    public boolean isQuiet() {
+        return quiet;
+    }
+
+    public void setQuiet(boolean quiet) {
+        this.quiet = quiet;
     }
 
     public int getDataSize() {

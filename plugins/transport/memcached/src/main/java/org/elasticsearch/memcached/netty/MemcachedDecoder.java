@@ -20,7 +20,9 @@
 package org.elasticsearch.memcached.netty;
 
 import org.elasticsearch.common.Unicode;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.netty.buffer.ChannelBuffer;
+import org.elasticsearch.common.netty.buffer.ChannelBuffers;
 import org.elasticsearch.common.netty.channel.Channel;
 import org.elasticsearch.common.netty.channel.ChannelHandlerContext;
 import org.elasticsearch.common.netty.channel.ExceptionEvent;
@@ -36,6 +38,8 @@ import java.util.regex.Pattern;
  */
 public class MemcachedDecoder extends FrameDecoder {
 
+    private final ESLogger logger;
+
     private final Pattern lineSplit = Pattern.compile(" +");
 
     public static final byte CR = 13;
@@ -46,8 +50,9 @@ public class MemcachedDecoder extends FrameDecoder {
 
     private volatile MemcachedRestRequest request;
 
-    public MemcachedDecoder() {
+    public MemcachedDecoder(ESLogger logger) {
         super(false);
+        this.logger = logger;
     }
 
     @Override protected Object decode(ChannelHandlerContext ctx, Channel channel, ChannelBuffer buffer) throws Exception {
@@ -78,30 +83,53 @@ public class MemcachedDecoder extends FrameDecoder {
 
                 buffer.skipBytes(extraLength); // get extras, can be empty
 
-                if (keyLength != 0) {
+                if (opcode == 0x00) { // GET
                     byte[] key = new byte[keyLength];
                     buffer.readBytes(key);
                     String uri = Unicode.fromBytes(key);
-                    if (opcode == 0x00) { // GET
-                        request = new MemcachedRestRequest(RestRequest.Method.GET, uri, key, -1, true);
-                        request.setOpaque(opaque);
-                        return request;
-                    } else if (opcode == 0x04) { // DELETE
-                        request = new MemcachedRestRequest(RestRequest.Method.DELETE, uri, key, -1, true);
-                        request.setOpaque(opaque);
-                        return request;
-                    } else if (opcode == 0x01) { // SET
-                        // the remainder of the message -- that is, totalLength - (keyLength + extraLength) should be the payload
-                        int size = totalBodyLength - keyLength - extraLength;
-                        request = new MemcachedRestRequest(RestRequest.Method.POST, uri, key, size, true);
-                        request.setOpaque(opaque);
-                        byte[] data = new byte[size];
-                        buffer.readBytes(data, 0, size);
-                        request.setData(data);
-                        return request;
-                    }
+                    request = new MemcachedRestRequest(RestRequest.Method.GET, uri, key, -1, true);
+                    request.setOpaque(opaque);
+                    return request;
+                } else if (opcode == 0x04) { // DELETE
+                    byte[] key = new byte[keyLength];
+                    buffer.readBytes(key);
+                    String uri = Unicode.fromBytes(key);
+                    request = new MemcachedRestRequest(RestRequest.Method.DELETE, uri, key, -1, true);
+                    request.setOpaque(opaque);
+                    return request;
+                } else if (opcode == 0x01/* || opcode == 0x11*/) { // SET
+                    byte[] key = new byte[keyLength];
+                    buffer.readBytes(key);
+                    String uri = Unicode.fromBytes(key);
+                    // the remainder of the message -- that is, totalLength - (keyLength + extraLength) should be the payload
+                    int size = totalBodyLength - keyLength - extraLength;
+                    request = new MemcachedRestRequest(RestRequest.Method.POST, uri, key, size, true);
+                    request.setOpaque(opaque);
+                    byte[] data = new byte[size];
+                    buffer.readBytes(data, 0, size);
+                    request.setData(data);
+                    request.setQuiet(opcode == 0x11);
+                    return request;
+                } else if (opcode == 0x0A || opcode == 0x10) { // NOOP or STATS
+                    // TODO once we support setQ we need to wait for them to flush
+                    ChannelBuffer writeBuffer = ChannelBuffers.dynamicBuffer(24);
+                    writeBuffer.writeByte(0x81);  // magic
+                    writeBuffer.writeByte(opcode); // opcode
+                    writeBuffer.writeShort(0); // key length
+                    writeBuffer.writeByte(0); // extra length = flags + expiry
+                    writeBuffer.writeByte(0); // data type unused
+                    writeBuffer.writeShort(0x0000); // OK
+                    writeBuffer.writeInt(0); // data length
+                    writeBuffer.writeInt(opaque); // opaque
+                    writeBuffer.writeLong(0); // cas
+                    channel.write(writeBuffer);
+                    return MemcachedDispatcher.IGNORE_REQUEST;
                 } else if (opcode == 0x07) { // QUIT
                     channel.disconnect();
+                } else {
+                    logger.error("Unsupported opcode [0x{}], ignoring and closing connection", Integer.toHexString(opcode));
+                    channel.disconnect();
+                    return null;
                 }
             } else {
                 buffer.resetReaderIndex(); // reset to get to the first byte
@@ -152,6 +180,10 @@ public class MemcachedDecoder extends FrameDecoder {
                     buffer.markReaderIndex();
                 } else if ("quit".equals(cmd)) {
                     channel.disconnect();
+                } else {
+                    logger.error("Unsupported command [{}], ignoring and closing connection", cmd);
+                    channel.disconnect();
+                    return null;
                 }
             }
         } else {

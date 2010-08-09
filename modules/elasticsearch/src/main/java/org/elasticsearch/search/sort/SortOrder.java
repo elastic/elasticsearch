@@ -20,9 +20,17 @@
 package org.elasticsearch.search.sort;
 
 /**
+ * A sorting order.
+ *
  * @author kimchy (shay.banon)
  */
 public enum SortOrder {
+    /**
+     * Ascending order.
+     */
     ASC,
+    /**
+     * Descending order.
+     */
     DESC
 }

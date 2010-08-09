@@ -24,12 +24,17 @@ import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import java.io.IOException;
 
 /**
+ * A sort builder allowing to sort by score.
+ *
  * @author kimchy (shay.banon)
  */
 public class ScoreSortBuilder extends SortBuilder {
 
     private SortOrder order;
 
+    /**
+     * The order of sort scoring. By default, its {@link SortOrder#DESC}.
+     */
     public ScoreSortBuilder order(SortOrder order) {
         this.order = order;
         return this;

@@ -8,9 +8,5 @@ This product makes use of the google-collections library from
 http://code.google.com/p/google-collections/.
 Copyright (C) 2008 Google Inc.
 
-Some alternate data structures provided by high-scale-lib from
-http://sourceforge.net/projects/high-scale-lib/.
-Written by Cliff Click and released as Public Domain.
-
 Yaml support uses SnakeYaml Copyright of Andrey Somov under the
 Apache 2 License.

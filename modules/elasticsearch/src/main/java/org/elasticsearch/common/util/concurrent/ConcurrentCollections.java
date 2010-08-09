@@ -20,9 +20,6 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.collect.MapBackedSet;
-import org.elasticsearch.common.util.concurrent.highscalelib.NonBlockingHashMap;
-import org.elasticsearch.common.util.concurrent.highscalelib.NonBlockingHashMapLong;
-import org.elasticsearch.common.util.concurrent.highscalelib.NonBlockingHashSet;
 
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -36,23 +33,23 @@ public abstract class ConcurrentCollections {
     private final static boolean useNonBlockingMap = Boolean.parseBoolean(System.getProperty("elasticsearch.useNonBlockingMap", "false"));
 
     public static <K, V> ConcurrentMap<K, V> newConcurrentMap() {
-        if (useNonBlockingMap) {
-            return new NonBlockingHashMap<K, V>();
-        }
+//        if (useNonBlockingMap) {
+//            return new NonBlockingHashMap<K, V>();
+//        }
         return new ConcurrentHashMap<K, V>();
     }
 
     public static <V> ConcurrentMapLong<V> newConcurrentMapLong() {
-        if (useNonBlockingMap) {
-            return new NonBlockingHashMapLong<V>();
-        }
+//        if (useNonBlockingMap) {
+//            return new NonBlockingHashMapLong<V>();
+//        }
         return new ConcurrentHashMapLong<V>();
     }
 
     public static <V> Set<V> newConcurrentSet() {
-        if (useNonBlockingMap) {
-            return new NonBlockingHashSet<V>();
-        }
+//        if (useNonBlockingMap) {
+//            return new NonBlockingHashSet<V>();
+//        }
         return new MapBackedSet<V>(new ConcurrentHashMap<V, Boolean>());
     }
 

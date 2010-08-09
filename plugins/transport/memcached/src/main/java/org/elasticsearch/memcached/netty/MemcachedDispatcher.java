@@ -33,6 +33,8 @@ import static org.elasticsearch.rest.RestResponse.Status.*;
  */
 public class MemcachedDispatcher extends SimpleChannelUpstreamHandler {
 
+    public static final Object IGNORE_REQUEST = new Object();
+
     private final RestController restController;
 
     public MemcachedDispatcher(RestController restController) {
@@ -40,6 +42,10 @@ public class MemcachedDispatcher extends SimpleChannelUpstreamHandler {
     }
 
     @Override public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {
+        if (e.getMessage() == IGNORE_REQUEST) {
+            super.messageReceived(ctx, e);
+            return;
+        }
         MemcachedRestRequest request = (MemcachedRestRequest) e.getMessage();
         MemcachedRestChannel channel = new MemcachedRestChannel(ctx.getChannel(), request);
 

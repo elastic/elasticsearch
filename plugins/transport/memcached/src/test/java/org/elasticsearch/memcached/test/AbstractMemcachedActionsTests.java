@@ -60,6 +60,17 @@ public abstract class AbstractMemcachedActionsTests {
     }
 
     @Test public void testSimpleOperations() throws Exception {
+        // TODO seems to use SetQ, which is not really supported yet
+//        List<Future<Boolean>> setResults = Lists.newArrayList();
+//
+//        for (int i = 0; i < 10; i++) {
+//            setResults.add(memcachedClient.set("/test/person/" + i, 0, jsonBuilder().startObject().field("test", "value").endObject().copiedBytes()));
+//        }
+//
+//        for (Future<Boolean> setResult : setResults) {
+//            assertThat(setResult.get(10, TimeUnit.SECONDS), equalTo(true));
+//        }
+
         Future<Boolean> setResult = memcachedClient.set("/test/person/1", 0, jsonBuilder().startObject().field("test", "value").endObject().copiedBytes());
         assertThat(setResult.get(10, TimeUnit.SECONDS), equalTo(true));
 

@@ -33,6 +33,7 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.facets.FacetsPhase;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.sort.SortParseElement;
 
 import java.util.Map;
 

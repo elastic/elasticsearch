@@ -20,13 +20,11 @@
 package org.elasticsearch.search.facets.range;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.function.FieldsFunction;
 import org.elasticsearch.index.field.function.script.ScriptFieldsFunction;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.support.AbstractFacetCollector;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -44,10 +42,10 @@ public class ScriptRangeFacetCollector extends AbstractFacetCollector {
 
     private final RangeFacet.Entry[] entries;
 
-    public ScriptRangeFacetCollector(String facetName, String keyScript, String valueScript, Map<String, Object> params, RangeFacet.Entry[] entries, ScriptService scriptService, FieldDataCache fieldDataCache, MapperService mapperService) {
+    public ScriptRangeFacetCollector(String facetName, String keyScript, String valueScript, Map<String, Object> params, RangeFacet.Entry[] entries, SearchContext context) {
         super(facetName);
-        this.keyFunction = new ScriptFieldsFunction(keyScript, scriptService, mapperService, fieldDataCache);
-        this.valueFunction = new ScriptFieldsFunction(valueScript, scriptService, mapperService, fieldDataCache);
+        this.keyFunction = new ScriptFieldsFunction(keyScript, context.scriptService(), context.mapperService(), context.fieldDataCache());
+        this.valueFunction = new ScriptFieldsFunction(valueScript, context.scriptService(), context.mapperService(), context.fieldDataCache());
         this.params = params;
         this.entries = entries;
     }

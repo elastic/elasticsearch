@@ -191,9 +191,24 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().get(0).term(), equalTo("yyy"));
         assertThat(facet.entries().get(0).count(), equalTo(2));
 
+        // Test Facet Filter
+
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
                 .addFacet(termsFacet("facet1").field("stag").size(10).facetFilter(termFilter("tag", "xxx")))
+                .execute().actionGet();
+
+        facet = searchResponse.facets().facet("facet1");
+        assertThat(facet.name(), equalTo("facet1"));
+        assertThat(facet.entries().size(), equalTo(1));
+        assertThat(facet.entries().get(0).term(), equalTo("111"));
+        assertThat(facet.entries().get(0).count(), equalTo(1));
+
+        // Test Facet Filter (with a type)
+
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addFacet(termsFacet("facet1").field("type1.stag").size(10).facetFilter(termFilter("tag", "xxx")))
                 .execute().actionGet();
 
         facet = searchResponse.facets().facet("facet1");

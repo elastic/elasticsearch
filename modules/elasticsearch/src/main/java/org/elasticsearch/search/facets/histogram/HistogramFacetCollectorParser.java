@@ -79,7 +79,7 @@ public class HistogramFacetCollectorParser implements FacetCollectorParser {
         }
 
         if (keyScript != null && valueScript != null) {
-            return new ScriptHistogramFacetCollector(facetName, keyScript, valueScript, params, interval, comparatorType, context.scriptService(), context.fieldDataCache(), context.mapperService());
+            return new ScriptHistogramFacetCollector(facetName, keyScript, valueScript, params, interval, comparatorType, context);
         }
 
         if (keyField == null) {
@@ -95,10 +95,10 @@ public class HistogramFacetCollectorParser implements FacetCollectorParser {
         }
 
         if (valueField == null || keyField.equals(valueField)) {
-            return new HistogramFacetCollector(facetName, keyField, interval, comparatorType, context.fieldDataCache(), context.mapperService());
+            return new HistogramFacetCollector(facetName, keyField, interval, comparatorType, context);
         } else {
             // we have a value field, and its different than the key
-            return new KeyValueHistogramFacetCollector(facetName, keyField, valueField, interval, comparatorType, context.fieldDataCache(), context.mapperService());
+            return new KeyValueHistogramFacetCollector(facetName, keyField, valueField, interval, comparatorType, context);
         }
     }
 }

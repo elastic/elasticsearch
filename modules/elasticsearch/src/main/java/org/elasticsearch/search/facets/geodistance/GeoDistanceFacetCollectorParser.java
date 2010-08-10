@@ -161,15 +161,15 @@ public class GeoDistanceFacetCollectorParser implements FacetCollectorParser {
 
         if (valueFieldName != null) {
             return new ValueGeoDistanceFacetCollector(facetName, fieldName, lat, lon, unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]),
-                    context.fieldDataCache(), context.mapperService(), valueFieldName);
+                    context, valueFieldName);
         }
 
         if (valueScript != null) {
             return new ScriptGeoDistanceFacetCollector(facetName, fieldName, lat, lon, unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]),
-                    context.fieldDataCache(), context.mapperService(), valueScript, params, context.scriptService());
+                    context, valueScript, params);
         }
 
         return new GeoDistanceFacetCollector(facetName, fieldName, lat, lon, unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]),
-                context.fieldDataCache(), context.mapperService());
+                context);
     }
 }

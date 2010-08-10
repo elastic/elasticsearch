@@ -22,8 +22,10 @@ package org.elasticsearch.search.facets.support;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.lucene.docset.DocSets;
+import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.search.facets.collector.FacetCollector;
 
 import java.io.IOException;
@@ -44,7 +46,11 @@ public abstract class AbstractFacetCollector extends FacetCollector {
     }
 
     @Override public void setFilter(Filter filter) {
-        this.filter = filter;
+        if (this.filter == null) {
+            this.filter = filter;
+        } else {
+            this.filter = new AndFilter(ImmutableList.of(filter, this.filter));
+        }
     }
 
     @Override public void setScorer(Scorer scorer) throws IOException {

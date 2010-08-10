@@ -24,6 +24,7 @@ import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.Maps;
+import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.TObjectIntHashMap;
 import org.elasticsearch.common.trove.TObjectIntIterator;
@@ -31,11 +32,10 @@ import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.function.FieldsFunction;
 import org.elasticsearch.index.field.function.script.ScriptFieldsFunction;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.support.AbstractFacetCollector;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -74,50 +74,46 @@ public class TermsFacetCollector extends AbstractFacetCollector {
 
     private final StaticAggregatorValueProc aggregator;
 
-    private final ImmutableSet<String> excluded;
-
-    private final Pattern pattern;
-
     private final FieldsFunction scriptFunction;
 
-    private final Map<String, Object> params;
-
-    public TermsFacetCollector(String facetName, String fieldName, int size, InternalTermsFacet.ComparatorType comparatorType, int numberOfShards, FieldDataCache fieldDataCache, MapperService mapperService, ScriptService scriptService,
+    public TermsFacetCollector(String facetName, String fieldName, int size, InternalTermsFacet.ComparatorType comparatorType, SearchContext context,
                                ImmutableSet<String> excluded, Pattern pattern, String script, Map<String, Object> params) {
         super(facetName);
-        this.fieldDataCache = fieldDataCache;
+        this.fieldDataCache = context.fieldDataCache();
         this.size = size;
         this.comparatorType = comparatorType;
-        this.numberOfShards = numberOfShards;
-        this.excluded = excluded;
-        this.pattern = pattern;
+        this.numberOfShards = context.numberOfShards();
 
-        FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);
         this.fieldName = fieldName;
-        if (mapper != null) {
-            this.indexFieldName = mapper.names().indexName();
-            this.fieldDataType = mapper.fieldDataType();
-        } else {
+
+        MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(fieldName);
+        if (smartMappers == null || !smartMappers.hasMapper()) {
             this.indexFieldName = fieldName;
             this.fieldDataType = FieldData.Type.STRING;
+        } else {
+            // add type filter if there is exact doc mapper associated with it
+            if (smartMappers.hasDocMapper()) {
+                setFilter(context.filterCache().cache(new TermFilter(smartMappers.docMapper().typeMapper().term(smartMappers.docMapper().type()))));
+            }
+
+            this.indexFieldName = smartMappers.mapper().names().indexName();
+            this.fieldDataType = smartMappers.mapper().fieldDataType();
         }
 
         if (script != null) {
-            scriptFunction = new ScriptFieldsFunction(script, scriptService, mapperService, fieldDataCache);
+            scriptFunction = new ScriptFieldsFunction(script, context.scriptService(), context.mapperService(), fieldDataCache);
             if (params == null) {
-                this.params = Maps.newHashMapWithExpectedSize(1);
-            } else {
-                this.params = params;
+                params = Maps.newHashMapWithExpectedSize(1);
             }
         } else {
-            this.params = null;
+            params = null;
             scriptFunction = null;
         }
 
         if (excluded.isEmpty() && pattern == null && scriptFunction == null) {
             aggregator = new StaticAggregatorValueProc(popFacets());
         } else {
-            aggregator = new AggregatorValueProc(popFacets(), excluded, pattern, this.scriptFunction, this.params);
+            aggregator = new AggregatorValueProc(popFacets(), excluded, pattern, this.scriptFunction, params);
         }
     }
 

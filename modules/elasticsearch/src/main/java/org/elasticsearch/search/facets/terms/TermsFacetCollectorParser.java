@@ -88,7 +88,6 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
         if (regex != null) {
             pattern = Regex.compile(regex, regexFlags);
         }
-        return new TermsFacetCollector(facetName, field, size, comparatorType, context.numberOfShards(), context.fieldDataCache(), context.mapperService(), context.scriptService(),
-                excluded, pattern, script, params);
+        return new TermsFacetCollector(facetName, field, size, comparatorType, context, excluded, pattern, script, params);
     }
 }

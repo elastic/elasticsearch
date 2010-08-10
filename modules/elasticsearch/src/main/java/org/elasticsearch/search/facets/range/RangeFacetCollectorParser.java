@@ -123,7 +123,7 @@ public class RangeFacetCollectorParser implements FacetCollectorParser {
         }
 
         if (keyScript != null && valueScript != null) {
-            return new ScriptRangeFacetCollector(facetName, keyScript, valueScript, params, rangeEntries, context.scriptService(), context.fieldDataCache(), context.mapperService());
+            return new ScriptRangeFacetCollector(facetName, keyScript, valueScript, params, rangeEntries, context);
         }
 
         if (keyField == null) {
@@ -131,10 +131,10 @@ public class RangeFacetCollectorParser implements FacetCollectorParser {
         }
 
         if (valueField == null || keyField.equals(valueField)) {
-            return new RangeFacetCollector(facetName, keyField, rangeEntries, context.fieldDataCache(), context.mapperService());
+            return new RangeFacetCollector(facetName, keyField, rangeEntries, context);
         } else {
             // we have a value field, and its different than the key
-            return new KeyValueRangeFacetCollector(facetName, keyField, valueField, rangeEntries, context.fieldDataCache(), context.mapperService());
+            return new KeyValueRangeFacetCollector(facetName, keyField, valueField, rangeEntries, context);
         }
     }
 }

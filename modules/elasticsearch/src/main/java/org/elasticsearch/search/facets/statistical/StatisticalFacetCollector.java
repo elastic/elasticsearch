@@ -20,14 +20,15 @@
 package org.elasticsearch.search.facets.statistical;
 
 import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.NumericFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.FacetPhaseExecutionException;
 import org.elasticsearch.search.facets.support.AbstractFacetCollector;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -48,17 +49,23 @@ public class StatisticalFacetCollector extends AbstractFacetCollector {
 
     private final StatsProc statsProc = new StatsProc();
 
-    public StatisticalFacetCollector(String facetName, String fieldName, FieldDataCache fieldDataCache, MapperService mapperService) {
+    public StatisticalFacetCollector(String facetName, String fieldName, SearchContext context) {
         super(facetName);
         this.fieldName = fieldName;
-        this.fieldDataCache = fieldDataCache;
+        this.fieldDataCache = context.fieldDataCache();
 
-        FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);
-        if (mapper == null) {
+        MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(fieldName);
+        if (smartMappers == null || !smartMappers.hasMapper()) {
             throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldName + "]");
         }
-        indexFieldName = mapper.names().indexName();
-        fieldDataType = mapper.fieldDataType();
+
+        // add type filter if there is exact doc mapper associated with it
+        if (smartMappers.hasDocMapper()) {
+            setFilter(context.filterCache().cache(new TermFilter(smartMappers.docMapper().typeMapper().term(smartMappers.docMapper().type()))));
+        }
+
+        indexFieldName = smartMappers.mapper().names().indexName();
+        fieldDataType = smartMappers.mapper().fieldDataType();
     }
 
     @Override protected void doCollect(int doc) throws IOException {

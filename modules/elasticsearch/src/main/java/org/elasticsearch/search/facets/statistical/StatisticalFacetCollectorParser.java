@@ -74,9 +74,9 @@ public class StatisticalFacetCollectorParser implements FacetCollectorParser {
             throw new FacetPhaseExecutionException(facetName, "statistical facet requires either [script] or [field] to be set");
         }
         if (field != null) {
-            return new StatisticalFacetCollector(facetName, field, context.fieldDataCache(), context.mapperService());
+            return new StatisticalFacetCollector(facetName, field, context);
         } else {
-            return new ScriptStatisticalFacetCollector(facetName, script, params, context.scriptService(), context.fieldDataCache(), context.mapperService());
+            return new ScriptStatisticalFacetCollector(facetName, script, params, context);
         }
     }
 }

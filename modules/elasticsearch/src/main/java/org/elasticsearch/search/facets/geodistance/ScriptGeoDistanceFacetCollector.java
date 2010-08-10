@@ -22,11 +22,9 @@ package org.elasticsearch.search.facets.geodistance;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.lucene.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.function.FieldsFunction;
 import org.elasticsearch.index.field.function.script.ScriptFieldsFunction;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -41,12 +39,12 @@ public class ScriptGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
     private final Map<String, Object> params;
 
     public ScriptGeoDistanceFacetCollector(String facetName, String fieldName, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance,
-                                           GeoDistanceFacet.Entry[] entries, FieldDataCache fieldDataCache, MapperService mapperService,
-                                           String script, Map<String, Object> params, ScriptService scriptService) {
-        super(facetName, fieldName, lat, lon, unit, geoDistance, entries, fieldDataCache, mapperService);
+                                           GeoDistanceFacet.Entry[] entries, SearchContext context,
+                                           String script, Map<String, Object> params) {
+        super(facetName, fieldName, lat, lon, unit, geoDistance, entries, context);
         this.params = params;
 
-        this.valueFunction = new ScriptFieldsFunction(script, scriptService, mapperService, fieldDataCache);
+        this.valueFunction = new ScriptFieldsFunction(script, context.scriptService(), context.mapperService(), context.fieldDataCache());
     }
 
     @Override protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {

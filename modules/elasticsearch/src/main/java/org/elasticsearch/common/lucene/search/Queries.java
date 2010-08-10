@@ -31,7 +31,10 @@ public class Queries {
 
     public final static MatchAllDocsQuery MATCH_ALL_QUERY = new MatchAllDocsQuery();
 
-    public final static QueryWrapperFilter MATCH_ALL_FILTER = new QueryWrapperFilter(MATCH_ALL_QUERY);
+    /**
+     * A match all docs filter. Note, requires no caching!.
+     */
+    public final static MatchAllDocsFilter MATCH_ALL_FILTER = new MatchAllDocsFilter();
 
     private final static Field disjuncts;
 

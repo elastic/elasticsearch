@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
@@ -60,6 +60,6 @@ public final class EngineSearcherTotalHitsMatcher extends TypeSafeMatcher<Engine
     }
 
     public static Matcher<Engine.Searcher> engineSearcherTotalHits(int totalHits) {
-        return new EngineSearcherTotalHitsMatcher(new MatchAllDocsQuery(), totalHits);
+        return new EngineSearcherTotalHitsMatcher(Queries.MATCH_ALL_QUERY, totalHits);
     }
 }

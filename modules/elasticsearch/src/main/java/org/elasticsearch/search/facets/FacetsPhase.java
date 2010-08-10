@@ -61,7 +61,7 @@ public class FacetsPhase implements SearchPhase {
 
         // run global facets ...
         if (context.searcher().globalCollectors() != null) {
-            Query query = new DeletionAwareConstantScoreQuery(context.filterCache().cache(Queries.MATCH_ALL_FILTER));
+            Query query = new DeletionAwareConstantScoreQuery(Queries.MATCH_ALL_FILTER); // no need to cache a MATCH ALL FILTER
             if (context.types().length > 0) {
                 if (context.types().length == 1) {
                     String type = context.types()[0];

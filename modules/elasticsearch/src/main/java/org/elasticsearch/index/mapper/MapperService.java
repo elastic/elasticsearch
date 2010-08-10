@@ -259,7 +259,11 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         if (mappers != null) {
             return mappers;
         }
-        return indexName(smartName);
+        mappers = indexName(smartName);
+        if (mappers != null) {
+            return mappers;
+        }
+        return name(smartName);
     }
 
     /**
@@ -269,7 +273,8 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
      *
      * <p>It also (without the optional type prefix) try and find the {@link FieldMappers} for the specific
      * name. It will first try to find it based on the full name (with the dots if its a compound name). If
-     * it is not found, will try and find it based on the indexName (which can be controlled in the mapping).
+     * it is not found, will try and find it based on the indexName (which can be controlled in the mapping),
+     * and last, will try it based no the name itself.
      *
      * <p>If nothing is found, returns null.
      */
@@ -291,6 +296,10 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             return new SmartNameFieldMappers(fieldMappers, null);
         }
         fieldMappers = indexName(smartName);
+        if (fieldMappers != null) {
+            return new SmartNameFieldMappers(fieldMappers, null);
+        }
+        fieldMappers = name(smartName);
         if (fieldMappers != null) {
             return new SmartNameFieldMappers(fieldMappers, null);
         }

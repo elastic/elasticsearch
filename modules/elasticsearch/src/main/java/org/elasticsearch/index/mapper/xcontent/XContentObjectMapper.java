@@ -363,14 +363,14 @@ public class XContentObjectMapper implements XContentMapper, XContentIncludeInAl
                     objectMapper = mappers.get(currentFieldName);
                     if (objectMapper != null) {
                         objectMapper.parse(context);
+                    } else {
+                        BuilderContext builderContext = new BuilderContext(context.path());
+                        objectMapper = XContentMapperBuilders.object(currentFieldName).enabled(true)
+                                .dynamic(dynamic).pathType(pathType).dateTimeFormatter(dateTimeFormatters).build(builderContext);
+                        putMapper(objectMapper);
+                        objectMapper.parse(context);
+                        context.addedMapper();
                     }
-
-                    BuilderContext builderContext = new BuilderContext(context.path());
-                    objectMapper = XContentMapperBuilders.object(currentFieldName).enabled(true)
-                            .dynamic(dynamic).pathType(pathType).dateTimeFormatter(dateTimeFormatters).build(builderContext);
-                    putMapper(objectMapper);
-                    objectMapper.parse(context);
-                    context.addedMapper();
                 }
             } else {
                 // not dynamic, read everything up to end object

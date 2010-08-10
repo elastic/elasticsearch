@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query.support;
 
 import org.apache.lucene.search.*;
-import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.xcontent.QueryParseContext;
@@ -45,11 +44,7 @@ public final class QueryParsers {
             return query;
         }
         DocumentMapper docMapper = smartFieldMappers.docMapper();
-
-        Filter typeFilter = new TermFilter(docMapper.typeMapper().term(docMapper.type()));
-        typeFilter = parseContext.cacheFilterIfPossible(typeFilter);
-
-        return new FilteredQuery(query, typeFilter);
+        return new FilteredQuery(query, parseContext.cacheFilterIfPossible(docMapper.typeFilter()));
     }
 
     public static Filter wrapSmartNameFilter(Filter filter, @Nullable MapperService.SmartNameFieldMappers smartFieldMappers,
@@ -63,10 +58,7 @@ public final class QueryParsers {
         DocumentMapper docMapper = smartFieldMappers.docMapper();
         BooleanFilter booleanFilter = new BooleanFilter();
 
-        Filter typeFilter = new TermFilter(docMapper.typeMapper().term(docMapper.type()));
-        typeFilter = parseContext.cacheFilterIfPossible(typeFilter);
-
-        booleanFilter.add(new FilterClause(typeFilter, BooleanClause.Occur.MUST));
+        booleanFilter.add(new FilterClause(parseContext.cacheFilterIfPossible(docMapper.typeFilter()), BooleanClause.Occur.MUST));
         booleanFilter.add(new FilterClause(filter, BooleanClause.Occur.MUST));
 
         // don't cache the boolean filter...

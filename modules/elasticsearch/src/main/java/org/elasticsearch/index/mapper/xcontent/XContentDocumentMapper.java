@@ -21,8 +21,10 @@ package org.elasticsearch.index.mapper.xcontent;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -187,6 +189,8 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
     private final List<FieldMapperListener> fieldMapperListeners = newArrayList();
 
+    private final Filter typeFilter;
+
     private final Object mutex = new Object();
 
     public XContentDocumentMapper(String index, XContentObjectMapper rootObjectMapper,
@@ -215,6 +219,8 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
         this.indexAnalyzer = indexAnalyzer;
         this.searchAnalyzer = searchAnalyzer;
+
+        this.typeFilter = new TermFilter(typeMapper().term(type));
 
         // if we are not enabling all, set it to false on the root object, (and on all the rest...)
         if (!allFieldMapper.enabled()) {
@@ -298,6 +304,10 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
     @Override public Analyzer searchAnalyzer() {
         return this.searchAnalyzer;
+    }
+
+    @Override public Filter typeFilter() {
+        return this.typeFilter;
     }
 
     @Override public DocumentFieldMappers mappers() {

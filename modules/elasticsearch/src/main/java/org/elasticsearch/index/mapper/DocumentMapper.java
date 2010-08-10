@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 
@@ -77,6 +78,11 @@ public interface DocumentMapper {
      * probably be used instead.
      */
     Analyzer searchAnalyzer();
+
+    /**
+     * A filter based on the type of the field.
+     */
+    Filter typeFilter();
 
     /**
      * Parses the source into a parsed document.

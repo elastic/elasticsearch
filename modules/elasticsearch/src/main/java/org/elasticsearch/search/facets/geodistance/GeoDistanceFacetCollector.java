@@ -21,7 +21,6 @@ package org.elasticsearch.search.facets.geodistance;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.lucene.geo.GeoDistance;
-import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
@@ -83,7 +82,7 @@ public class GeoDistanceFacetCollector extends AbstractFacetCollector {
 
         // add type filter if there is exact doc mapper associated with it
         if (smartMappers.hasDocMapper()) {
-            setFilter(context.filterCache().cache(new TermFilter(smartMappers.docMapper().typeMapper().term(smartMappers.docMapper().type()))));
+            setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
         }
 
         this.indexLatFieldName = smartMappers.mapper().names().indexName();

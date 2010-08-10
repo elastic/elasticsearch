@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -490,9 +489,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 if (docMapper == null) {
                     throw new TypeMissingException(shardId.index(), type);
                 }
-                Filter typeFilter = new TermFilter(docMapper.typeMapper().term(docMapper.type()));
-                typeFilter = indexCache.filter().cache(typeFilter);
-                query = new FilteredQuery(query, typeFilter);
+                query = new FilteredQuery(query, indexCache.filter().cache(docMapper.typeFilter()));
             } else {
                 BooleanFilter booleanFilter = new BooleanFilter();
                 for (String type : types) {
@@ -500,9 +497,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     if (docMapper == null) {
                         throw new TypeMissingException(shardId.index(), type);
                     }
-                    Filter typeFilter = new TermFilter(docMapper.typeMapper().term(docMapper.type()));
-                    typeFilter = indexCache.filter().cache(typeFilter);
-                    booleanFilter.add(new FilterClause(typeFilter, BooleanClause.Occur.SHOULD));
+                    booleanFilter.add(new FilterClause(indexCache.filter().cache(docMapper.typeFilter()), BooleanClause.Occur.SHOULD));
                 }
                 query = new FilteredQuery(query, booleanFilter);
             }

@@ -112,14 +112,19 @@ public class DocumentFieldMappers implements Iterable<FieldMapper> {
     }
 
     /**
-     * Tries to find first based on {@link #fullName(String)}, then by {@link #indexName(String)}.
+     * Tries to find first based on {@link #fullName(String)}, then by {@link #indexName(String)}, and last
+     * by {@link #name(String)}.
      */
     public FieldMappers smartName(String name) {
         FieldMappers fieldMappers = fullName(name);
         if (fieldMappers != null) {
             return fieldMappers;
         }
-        return indexName(name);
+        fieldMappers = indexName(name);
+        if (fieldMappers != null) {
+            return fieldMappers;
+        }
+        return name(name);
     }
 
     public FieldMapper smartNameFieldMapper(String name) {

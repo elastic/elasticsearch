@@ -20,7 +20,6 @@
 package org.elasticsearch.search.facets.histogram;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.trove.TLongDoubleHashMap;
 import org.elasticsearch.common.trove.TLongLongHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
@@ -78,7 +77,7 @@ public class KeyValueHistogramFacetCollector extends AbstractFacetCollector {
 
         // add type filter if there is exact doc mapper associated with it
         if (smartMappers.hasDocMapper()) {
-            setFilter(context.filterCache().cache(new TermFilter(smartMappers.docMapper().typeMapper().term(smartMappers.docMapper().type()))));
+            setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
         }
 
         keyIndexFieldName = smartMappers.mapper().names().indexName();

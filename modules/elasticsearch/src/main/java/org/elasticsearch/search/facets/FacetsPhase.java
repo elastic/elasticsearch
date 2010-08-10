@@ -25,7 +25,6 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
@@ -66,16 +65,12 @@ public class FacetsPhase implements SearchPhase {
                 if (context.types().length == 1) {
                     String type = context.types()[0];
                     DocumentMapper docMapper = context.mapperService().documentMapper(type);
-                    Filter typeFilter = new TermFilter(docMapper.typeMapper().term(docMapper.type()));
-                    typeFilter = context.filterCache().cache(typeFilter);
-                    query = new FilteredQuery(query, typeFilter);
+                    query = new FilteredQuery(query, context.filterCache().cache(docMapper.typeFilter()));
                 } else {
                     BooleanFilter booleanFilter = new BooleanFilter();
                     for (String type : context.types()) {
                         DocumentMapper docMapper = context.mapperService().documentMapper(type);
-                        Filter typeFilter = new TermFilter(docMapper.typeMapper().term(docMapper.type()));
-                        typeFilter = context.filterCache().cache(typeFilter);
-                        booleanFilter.add(new FilterClause(typeFilter, BooleanClause.Occur.SHOULD));
+                        booleanFilter.add(new FilterClause(context.filterCache().cache(docMapper.typeFilter()), BooleanClause.Occur.SHOULD));
                     }
                     query = new FilteredQuery(query, booleanFilter);
                 }

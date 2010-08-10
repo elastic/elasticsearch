@@ -24,7 +24,6 @@ import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.Maps;
-import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.TObjectIntHashMap;
 import org.elasticsearch.common.trove.TObjectIntIterator;
@@ -93,7 +92,7 @@ public class TermsFacetCollector extends AbstractFacetCollector {
         } else {
             // add type filter if there is exact doc mapper associated with it
             if (smartMappers.hasDocMapper()) {
-                setFilter(context.filterCache().cache(new TermFilter(smartMappers.docMapper().typeMapper().term(smartMappers.docMapper().type()))));
+                setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
             }
 
             this.indexFieldName = smartMappers.mapper().names().indexName();

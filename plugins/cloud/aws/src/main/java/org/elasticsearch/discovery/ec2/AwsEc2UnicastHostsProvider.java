@@ -33,6 +33,7 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -87,16 +88,10 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
         for (Reservation reservation : descInstances.getReservations()) {
             if (!groups.isEmpty()) {
                 // lets see if we can filter based on groups
-                boolean filter = false;
-                for (String group : reservation.getGroupNames()) {
-                    if (!groups.contains(group)) {
-                        logger.trace("filtering out reservation {} based on group {}, not part of {}", reservation.getReservationId(), group, groups);
-                        filter = true;
-                        break;
-                    }
-                }
-                if (filter) {
-                    // if we are filtering, continue to the next reservation
+                List<String> groupNames = reservation.getGroupNames();
+                if (Collections.disjoint(groups, groupNames)) {
+                    logger.trace("filtering out reservation {} based on groups {}, not part of {}", reservation.getReservationId(), groupNames, groups);
+                    // continue to the next reservation
                     continue;
                 }
             }

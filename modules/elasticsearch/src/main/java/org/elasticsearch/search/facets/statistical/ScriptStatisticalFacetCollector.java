@@ -20,13 +20,11 @@
 package org.elasticsearch.search.facets.statistical;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.function.FieldsFunction;
 import org.elasticsearch.index.field.function.script.ScriptFieldsFunction;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.support.AbstractFacetCollector;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -50,10 +48,10 @@ public class ScriptStatisticalFacetCollector extends AbstractFacetCollector {
 
     private long count;
 
-    public ScriptStatisticalFacetCollector(String facetName, String script, Map<String, Object> params, ScriptService scriptService, FieldDataCache fieldDataCache, MapperService mapperService) {
+    public ScriptStatisticalFacetCollector(String facetName, String script, Map<String, Object> params, SearchContext context) {
         super(facetName);
         this.params = params;
-        this.function = new ScriptFieldsFunction(script, scriptService, mapperService, fieldDataCache);
+        this.function = new ScriptFieldsFunction(script, context.scriptService(), context.mapperService(), context.fieldDataCache());
     }
 
     @Override protected void doCollect(int doc) throws IOException {

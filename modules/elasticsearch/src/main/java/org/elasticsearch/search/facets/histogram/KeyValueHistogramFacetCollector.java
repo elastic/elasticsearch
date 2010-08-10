@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facets.histogram;
 
 import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.trove.TLongDoubleHashMap;
 import org.elasticsearch.common.trove.TLongLongHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.FacetPhaseExecutionException;
 import org.elasticsearch.search.facets.support.AbstractFacetCollector;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -61,22 +63,28 @@ public class KeyValueHistogramFacetCollector extends AbstractFacetCollector {
     private final TLongLongHashMap counts = new TLongLongHashMap();
     private final TLongDoubleHashMap totals = new TLongDoubleHashMap();
 
-    public KeyValueHistogramFacetCollector(String facetName, String keyFieldName, String valueFieldName, long interval, HistogramFacet.ComparatorType comparatorType, FieldDataCache fieldDataCache, MapperService mapperService) {
+    public KeyValueHistogramFacetCollector(String facetName, String keyFieldName, String valueFieldName, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
         this.keyFieldName = keyFieldName;
         this.valueFieldName = valueFieldName;
         this.interval = interval;
         this.comparatorType = comparatorType;
-        this.fieldDataCache = fieldDataCache;
+        this.fieldDataCache = context.fieldDataCache();
 
-        FieldMapper mapper = mapperService.smartNameFieldMapper(keyFieldName);
-        if (mapper == null) {
-            throw new FacetPhaseExecutionException(facetName, "No mapping found for key_field [" + keyFieldName + "]");
+        MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(keyFieldName);
+        if (smartMappers == null || !smartMappers.hasMapper()) {
+            throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + keyFieldName + "]");
         }
-        keyIndexFieldName = mapper.names().indexName();
-        keyFieldDataType = mapper.fieldDataType();
 
-        mapper = mapperService.smartNameFieldMapper(valueFieldName);
+        // add type filter if there is exact doc mapper associated with it
+        if (smartMappers.hasDocMapper()) {
+            setFilter(context.filterCache().cache(new TermFilter(smartMappers.docMapper().typeMapper().term(smartMappers.docMapper().type()))));
+        }
+
+        keyIndexFieldName = smartMappers.mapper().names().indexName();
+        keyFieldDataType = smartMappers.mapper().fieldDataType();
+
+        FieldMapper mapper = context.mapperService().smartNameFieldMapper(valueFieldName);
         if (mapper == null) {
             throw new FacetPhaseExecutionException(facetName, "No mapping found for value_field [" + valueFieldName + "]");
         }

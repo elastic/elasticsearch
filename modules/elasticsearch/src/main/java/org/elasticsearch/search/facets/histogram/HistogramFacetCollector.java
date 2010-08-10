@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facets.histogram;
 
 import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.trove.TLongDoubleHashMap;
 import org.elasticsearch.common.trove.TLongLongHashMap;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.FacetPhaseExecutionException;
 import org.elasticsearch.search.facets.support.AbstractFacetCollector;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -57,17 +59,25 @@ public class HistogramFacetCollector extends AbstractFacetCollector {
 
     private final HistogramProc histoProc;
 
-    public HistogramFacetCollector(String facetName, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType, FieldDataCache fieldDataCache, MapperService mapperService) {
+    public HistogramFacetCollector(String facetName, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
         this.fieldName = fieldName;
         this.interval = interval;
         this.comparatorType = comparatorType;
-        this.fieldDataCache = fieldDataCache;
+        this.fieldDataCache = context.fieldDataCache();
 
-        FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);
-        if (mapper == null) {
+        MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(fieldName);
+        if (smartMappers == null || !smartMappers.hasMapper()) {
             throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldName + "]");
         }
+
+        // add type filter if there is exact doc mapper associated with it
+        if (smartMappers.hasDocMapper()) {
+            setFilter(context.filterCache().cache(new TermFilter(smartMappers.docMapper().typeMapper().term(smartMappers.docMapper().type()))));
+        }
+
+        FieldMapper mapper = smartMappers.mapper();
+
         indexFieldName = mapper.names().indexName();
         fieldDataType = mapper.fieldDataType();
 

@@ -21,6 +21,7 @@ package org.elasticsearch.search.facets.geodistance;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.lucene.geo.GeoDistance;
+import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
@@ -31,6 +32,7 @@ import org.elasticsearch.index.mapper.xcontent.XContentGeoPointFieldMapper;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.FacetPhaseExecutionException;
 import org.elasticsearch.search.facets.support.AbstractFacetCollector;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -64,7 +66,7 @@ public class GeoDistanceFacetCollector extends AbstractFacetCollector {
     protected final GeoDistanceFacet.Entry[] entries;
 
     public GeoDistanceFacetCollector(String facetName, String fieldName, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance,
-                                     GeoDistanceFacet.Entry[] entries, FieldDataCache fieldDataCache, MapperService mapperService) {
+                                     GeoDistanceFacet.Entry[] entries, SearchContext context) {
         super(facetName);
         this.fieldName = fieldName;
         this.lat = lat;
@@ -72,15 +74,21 @@ public class GeoDistanceFacetCollector extends AbstractFacetCollector {
         this.unit = unit;
         this.entries = entries;
         this.geoDistance = geoDistance;
-        this.fieldDataCache = fieldDataCache;
+        this.fieldDataCache = context.fieldDataCache();
 
-        FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName + XContentGeoPointFieldMapper.Names.LAT_SUFFIX);
-        if (mapper == null) {
+        MapperService.SmartNameFieldMappers smartMappers = context.mapperService().smartName(fieldName + XContentGeoPointFieldMapper.Names.LAT_SUFFIX);
+        if (smartMappers == null || !smartMappers.hasMapper()) {
             throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldName + "]");
         }
-        this.indexLatFieldName = mapper.names().indexName();
 
-        mapper = mapperService.smartNameFieldMapper(fieldName + XContentGeoPointFieldMapper.Names.LON_SUFFIX);
+        // add type filter if there is exact doc mapper associated with it
+        if (smartMappers.hasDocMapper()) {
+            setFilter(context.filterCache().cache(new TermFilter(smartMappers.docMapper().typeMapper().term(smartMappers.docMapper().type()))));
+        }
+
+        this.indexLatFieldName = smartMappers.mapper().names().indexName();
+
+        FieldMapper mapper = context.mapperService().smartNameFieldMapper(fieldName + XContentGeoPointFieldMapper.Names.LON_SUFFIX);
         if (mapper == null) {
             throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldName + "]");
         }

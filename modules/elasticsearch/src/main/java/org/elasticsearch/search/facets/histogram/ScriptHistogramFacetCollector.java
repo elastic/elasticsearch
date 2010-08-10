@@ -22,13 +22,11 @@ package org.elasticsearch.search.facets.histogram;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.trove.TLongDoubleHashMap;
 import org.elasticsearch.common.trove.TLongLongHashMap;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.function.FieldsFunction;
 import org.elasticsearch.index.field.function.script.ScriptFieldsFunction;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.support.AbstractFacetCollector;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -52,10 +50,10 @@ public class ScriptHistogramFacetCollector extends AbstractFacetCollector {
 
     private final TLongDoubleHashMap totals = new TLongDoubleHashMap();
 
-    public ScriptHistogramFacetCollector(String facetName, String keyScript, String valueScript, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, ScriptService scriptService, FieldDataCache fieldDataCache, MapperService mapperService) {
+    public ScriptHistogramFacetCollector(String facetName, String keyScript, String valueScript, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
-        this.keyFunction = new ScriptFieldsFunction(keyScript, scriptService, mapperService, fieldDataCache);
-        this.valueFunction = new ScriptFieldsFunction(valueScript, scriptService, mapperService, fieldDataCache);
+        this.keyFunction = new ScriptFieldsFunction(keyScript, context.scriptService(), context.mapperService(), context.fieldDataCache());
+        this.valueFunction = new ScriptFieldsFunction(valueScript, context.scriptService(), context.mapperService(), context.fieldDataCache());
         this.interval = interval > 0 ? interval : 0;
         this.params = params;
         this.comparatorType = comparatorType;

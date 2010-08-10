@@ -22,13 +22,12 @@ package org.elasticsearch.search.facets.geodistance;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.lucene.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
 import org.elasticsearch.index.field.data.NumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.FacetPhaseExecutionException;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -46,11 +45,11 @@ public class ValueGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
     private NumericFieldData valueFieldData;
 
     public ValueGeoDistanceFacetCollector(String facetName, String fieldName, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance,
-                                          GeoDistanceFacet.Entry[] entries, FieldDataCache fieldDataCache, MapperService mapperService, String valueFieldName) {
-        super(facetName, fieldName, lat, lon, unit, geoDistance, entries, fieldDataCache, mapperService);
+                                          GeoDistanceFacet.Entry[] entries, SearchContext context, String valueFieldName) {
+        super(facetName, fieldName, lat, lon, unit, geoDistance, entries, context);
         this.valueFieldName = valueFieldName;
 
-        FieldMapper mapper = mapperService.smartNameFieldMapper(valueFieldName);
+        FieldMapper mapper = context.mapperService().smartNameFieldMapper(valueFieldName);
         if (mapper == null) {
             throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + valueFieldName + "]");
         }

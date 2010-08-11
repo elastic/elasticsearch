@@ -25,7 +25,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.jvm.JvmMonitorService;
 import org.elasticsearch.monitor.jvm.JvmService;
-import org.elasticsearch.monitor.memory.MemoryMonitorService;
 import org.elasticsearch.monitor.network.NetworkService;
 import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.monitor.process.ProcessService;
@@ -34,8 +33,6 @@ import org.elasticsearch.monitor.process.ProcessService;
  * @author kimchy (shay.banon)
  */
 public class MonitorService extends AbstractLifecycleComponent<MonitorService> {
-
-    private final MemoryMonitorService memoryMonitorService;
 
     private final JvmMonitorService jvmMonitorService;
 
@@ -47,10 +44,9 @@ public class MonitorService extends AbstractLifecycleComponent<MonitorService> {
 
     private final NetworkService networkService;
 
-    @Inject public MonitorService(Settings settings, MemoryMonitorService memoryMonitorService, JvmMonitorService jvmMonitorService,
+    @Inject public MonitorService(Settings settings, JvmMonitorService jvmMonitorService,
                                   OsService osService, ProcessService processService, JvmService jvmService, NetworkService networkService) {
         super(settings);
-        this.memoryMonitorService = memoryMonitorService;
         this.jvmMonitorService = jvmMonitorService;
         this.osService = osService;
         this.processService = processService;
@@ -75,17 +71,14 @@ public class MonitorService extends AbstractLifecycleComponent<MonitorService> {
     }
 
     @Override protected void doStart() throws ElasticSearchException {
-        memoryMonitorService.start();
         jvmMonitorService.start();
     }
 
     @Override protected void doStop() throws ElasticSearchException {
-        memoryMonitorService.stop();
         jvmMonitorService.stop();
     }
 
     @Override protected void doClose() throws ElasticSearchException {
-        memoryMonitorService.close();
         jvmMonitorService.close();
     }
 }

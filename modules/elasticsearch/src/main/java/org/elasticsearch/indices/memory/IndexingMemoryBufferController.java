@@ -88,7 +88,7 @@ public class IndexingMemoryBufferController extends AbstractComponent {
             logger.debug("recalculating shard indexing buffer (reason={}), total is [{}] with [{}] shards, each shard set to [{}]", reason, indexingBuffer, shardsCount, shardIndexingBufferSize);
             for (IndexService indexService : indicesService) {
                 for (IndexShard indexShard : indexService) {
-                    ((InternalIndexShard) indexShard).engine().indexingBuffer(shardIndexingBufferSize);
+                    ((InternalIndexShard) indexShard).engine().updateIndexingBufferSize(shardIndexingBufferSize);
                 }
             }
         }

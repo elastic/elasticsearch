@@ -43,5 +43,6 @@ public class TranslogModule extends AbstractModule {
         bind(Translog.class)
                 .to(settings.getAsClass(TranslogSettings.TYPE, FsTranslog.class))
                 .in(Scopes.SINGLETON);
+        bind(TranslogService.class).asEagerSingleton();
     }
 }

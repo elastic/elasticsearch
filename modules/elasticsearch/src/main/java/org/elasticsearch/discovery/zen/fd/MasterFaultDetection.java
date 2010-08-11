@@ -319,6 +319,12 @@ public class MasterFaultDetection extends AbstractComponent {
             // send a response, and note if we are connected to the master or not
             channel.sendResponse(new MasterPingResponseResponse(nodes.nodeExists(request.nodeId)));
         }
+
+
+        @Override public boolean spawn() {
+            // no need to spawn here, we just send a response
+            return false;
+        }
     }
 
 

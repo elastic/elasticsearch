@@ -266,6 +266,11 @@ public class NodesFaultDetection extends AbstractComponent {
             }
             channel.sendResponse(new PingResponse());
         }
+
+        @Override public boolean spawn() {
+            // no need to spawn here, we just send a response
+            return false;
+        }
     }
 
 

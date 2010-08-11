@@ -60,6 +60,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreModule;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogModule;
+import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.plugins.PluginsService;
@@ -310,6 +311,13 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
             } catch (Exception e) {
                 logger.debug("failed to clean plugin shard service [{}]", e, closeable);
             }
+        }
+
+        try {
+            // now we can close the translog service, we need to close it before the we close the shard
+            shardInjector.getInstance(TranslogService.class).close();
+        } catch (Exception e) {
+            // ignore
         }
 
         // close shard actions

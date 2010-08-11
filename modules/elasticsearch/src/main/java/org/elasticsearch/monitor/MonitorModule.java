@@ -32,9 +32,6 @@ import org.elasticsearch.monitor.dump.summary.SummaryDumpContributor;
 import org.elasticsearch.monitor.dump.thread.ThreadDumpContributor;
 import org.elasticsearch.monitor.jvm.JvmMonitorService;
 import org.elasticsearch.monitor.jvm.JvmService;
-import org.elasticsearch.monitor.memory.MemoryMonitor;
-import org.elasticsearch.monitor.memory.MemoryMonitorService;
-import org.elasticsearch.monitor.memory.alpha.AlphaMemoryMonitor;
 import org.elasticsearch.monitor.network.JmxNetworkProbe;
 import org.elasticsearch.monitor.network.NetworkProbe;
 import org.elasticsearch.monitor.network.NetworkService;
@@ -72,11 +69,6 @@ public class MonitorModule extends AbstractModule {
     }
 
     @Override protected void configure() {
-        bind(MemoryMonitor.class)
-                .to(settings.getAsClass(MonitorSettings.MEMORY_MANAGER_TYPE, AlphaMemoryMonitor.class, "org.elasticsearch.monitor.memory.", "MemoryMonitor"))
-                .asEagerSingleton();
-        bind(MemoryMonitorService.class).asEagerSingleton();
-
         boolean sigarLoaded = false;
         try {
             settings.getClassLoader().loadClass("org.hyperic.sigar.Sigar");

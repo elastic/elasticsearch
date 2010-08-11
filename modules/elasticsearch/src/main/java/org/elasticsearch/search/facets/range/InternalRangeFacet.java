@@ -33,7 +33,7 @@ import java.util.List;
 /**
  * @author kimchy (shay.banon)
  */
-public class InternalRangeDistanceFacet implements RangeFacet, InternalFacet {
+public class InternalRangeFacet implements RangeFacet, InternalFacet {
 
     private String name;
 
@@ -43,10 +43,10 @@ public class InternalRangeDistanceFacet implements RangeFacet, InternalFacet {
 
     private Entry[] entries;
 
-    InternalRangeDistanceFacet() {
+    InternalRangeFacet() {
     }
 
-    public InternalRangeDistanceFacet(String name, String keyFieldName, String valueFieldName, Entry[] entries) {
+    public InternalRangeFacet(String name, String keyFieldName, String valueFieldName, Entry[] entries) {
         this.name = name;
         this.keyFieldName = keyFieldName;
         this.valueFieldName = valueFieldName;
@@ -98,12 +98,12 @@ public class InternalRangeDistanceFacet implements RangeFacet, InternalFacet {
     }
 
     @Override public Facet aggregate(Iterable<Facet> facets) {
-        InternalRangeDistanceFacet agg = null;
+        InternalRangeFacet agg = null;
         for (Facet facet : facets) {
             if (!facet.name().equals(name)) {
                 continue;
             }
-            InternalRangeDistanceFacet geoDistanceFacet = (InternalRangeDistanceFacet) facet;
+            InternalRangeFacet geoDistanceFacet = (InternalRangeFacet) facet;
             if (agg == null) {
                 agg = geoDistanceFacet;
             } else {
@@ -116,8 +116,8 @@ public class InternalRangeDistanceFacet implements RangeFacet, InternalFacet {
         return agg;
     }
 
-    public static InternalRangeDistanceFacet readRangeFacet(StreamInput in) throws IOException {
-        InternalRangeDistanceFacet facet = new InternalRangeDistanceFacet();
+    public static InternalRangeFacet readRangeFacet(StreamInput in) throws IOException {
+        InternalRangeFacet facet = new InternalRangeFacet();
         facet.readFrom(in);
         return facet;
     }
@@ -186,7 +186,7 @@ public class InternalRangeDistanceFacet implements RangeFacet, InternalFacet {
                 builder.field("to", entry.to);
             }
             if (entry.toAsString != null) {
-                builder.field("to_str", entry.fromAsString);
+                builder.field("to_str", entry.toAsString);
             }
             builder.field("count", entry.count());
             builder.field("total", entry.total());

@@ -598,10 +598,13 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.name(), equalTo("range1"));
         assertThat(facet.entries().size(), equalTo(3));
         assertThat(facet.entries().get(0).to(), closeTo(1056, 0.000001));
+        assertThat(Double.parseDouble(facet.entries().get(0).toAsString()), closeTo(1056, 0.000001));
         assertThat(facet.entries().get(0).count(), equalTo(1l));
         assertThat(facet.entries().get(0).total(), closeTo(1055, 0.000001));
         assertThat(facet.entries().get(1).from(), closeTo(1000, 0.000001));
+        assertThat(Double.parseDouble(facet.entries().get(1).fromAsString()), closeTo(1000, 0.000001));
         assertThat(facet.entries().get(1).to(), closeTo(1170, 0.000001));
+        assertThat(Double.parseDouble(facet.entries().get(1).toAsString()), closeTo(1170, 0.000001));
         assertThat(facet.entries().get(1).count(), equalTo(2l));
         assertThat(facet.entries().get(1).total(), closeTo(1055 + 1065, 0.000001));
         assertThat(facet.entries().get(2).from(), closeTo(1170, 0.000001));

@@ -68,6 +68,6 @@ public class ScriptRangeFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        return new InternalRangeDistanceFacet(facetName, "_na", "_na", entries);
+        return new InternalRangeFacet(facetName, "_na", "_na", entries);
     }
 }

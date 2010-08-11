@@ -81,7 +81,7 @@ public class RangeFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        return new InternalRangeDistanceFacet(facetName, fieldName, fieldName, entries);
+        return new InternalRangeFacet(facetName, fieldName, fieldName, entries);
     }
 
     public static class RangeProc implements NumericFieldData.DoubleValueInDocProc {

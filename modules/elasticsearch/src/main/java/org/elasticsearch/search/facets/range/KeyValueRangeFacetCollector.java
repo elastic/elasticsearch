@@ -139,6 +139,6 @@ public class KeyValueRangeFacetCollector extends AbstractFacetCollector {
     }
 
     @Override public Facet facet() {
-        return new InternalRangeDistanceFacet(facetName, keyFieldName, valueFieldName, entries);
+        return new InternalRangeFacet(facetName, keyFieldName, valueFieldName, entries);
     }
 }

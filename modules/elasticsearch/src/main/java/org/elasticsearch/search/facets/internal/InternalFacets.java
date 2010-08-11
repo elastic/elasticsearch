@@ -33,7 +33,7 @@ import org.elasticsearch.search.facets.filter.InternalFilterFacet;
 import org.elasticsearch.search.facets.geodistance.InternalGeoDistanceFacet;
 import org.elasticsearch.search.facets.histogram.InternalHistogramFacet;
 import org.elasticsearch.search.facets.query.InternalQueryFacet;
-import org.elasticsearch.search.facets.range.InternalRangeDistanceFacet;
+import org.elasticsearch.search.facets.range.InternalRangeFacet;
 import org.elasticsearch.search.facets.statistical.InternalStatisticalFacet;
 import org.elasticsearch.search.facets.terms.InternalTermsFacet;
 
@@ -148,7 +148,7 @@ public class InternalFacets implements Facets, Streamable, ToXContent, Iterable<
                 } else if (id == Facet.Type.GEO_DISTANCE.id()) {
                     facets.add(InternalGeoDistanceFacet.readGeoDistanceFacet(in));
                 } else if (id == Facet.Type.RANGE.id()) {
-                    facets.add(InternalRangeDistanceFacet.readRangeFacet(in));
+                    facets.add(InternalRangeFacet.readRangeFacet(in));
                 } else if (id == Facet.Type.FILTER.id()) {
                     facets.add(InternalFilterFacet.readFilterFacet(in));
                 } else {

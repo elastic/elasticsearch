@@ -19,9 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.*;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -33,12 +31,15 @@ public class CustomAnalyzer extends Analyzer implements PositionIncrementGapAnal
 
     private final TokenizerFactory tokenizerFactory;
 
+    private final CharFilterFactory[] charFilters;
+
     private final TokenFilterFactory[] tokenFilters;
 
     private int positionIncrementGap = 0;
 
-    public CustomAnalyzer(TokenizerFactory tokenizerFactory, TokenFilterFactory[] tokenFilters) {
+    public CustomAnalyzer(TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters, TokenFilterFactory[] tokenFilters) {
         this.tokenizerFactory = tokenizerFactory;
+        this.charFilters = charFilters;
         this.tokenFilters = tokenFilters;
     }
 
@@ -54,6 +55,10 @@ public class CustomAnalyzer extends Analyzer implements PositionIncrementGapAnal
         return tokenFilters;
     }
 
+    public CharFilterFactory[] charFilters() {
+        return charFilters;
+    }
+
     @Override public int getPositionIncrementGap(String fieldName) {
         return this.positionIncrementGap;
     }
@@ -65,10 +70,10 @@ public class CustomAnalyzer extends Analyzer implements PositionIncrementGapAnal
     @Override public TokenStream reusableTokenStream(String fieldName, Reader reader) throws IOException {
         Holder holder = (Holder) getPreviousTokenStream();
         if (holder == null) {
-            holder = buildHolder(reader);
+            holder = buildHolder(charFilterIfNeeded(reader));
             setPreviousTokenStream(holder);
         } else {
-            holder.tokenizer.reset(reader);
+            holder.tokenizer.reset(charFilterIfNeeded(reader));
         }
         return holder.tokenStream;
     }
@@ -82,7 +87,18 @@ public class CustomAnalyzer extends Analyzer implements PositionIncrementGapAnal
         return new Holder(tokenizer, tokenStream);
     }
 
-    private static class Holder {
+    private Reader charFilterIfNeeded(Reader reader) {
+        if (charFilters != null && charFilters.length > 0) {
+            CharStream charStream = CharReader.get(reader);
+            for (CharFilterFactory charFilter : charFilters) {
+                charStream = charFilter.create(charStream);
+            }
+            reader = charStream;
+        }
+        return reader;
+    }
+
+    static class Holder {
         final Tokenizer tokenizer;
         final TokenStream tokenStream;
 

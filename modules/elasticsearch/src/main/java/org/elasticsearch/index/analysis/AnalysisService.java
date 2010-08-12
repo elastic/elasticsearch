@@ -42,15 +42,18 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
     private final ImmutableMap<String, TokenizerFactory> tokenizers;
 
+    private final ImmutableMap<String, CharFilterFactory> charFilters;
+
     private final ImmutableMap<String, TokenFilterFactory> tokenFilters;
 
     public AnalysisService(Index index) {
-        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, null, null, null);
+        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, null, null, null, null);
     }
 
     @Inject public AnalysisService(Index index, @IndexSettings Settings indexSettings,
                                    @Nullable Map<String, AnalyzerProviderFactory> analyzerFactoryFactories,
                                    @Nullable Map<String, TokenizerFactoryFactory> tokenizerFactoryFactories,
+                                   @Nullable Map<String, CharFilterFactoryFactory> charFilterFactoryFactories,
                                    @Nullable Map<String, TokenFilterFactoryFactory> tokenFilterFactoryFactories) {
         super(index, indexSettings);
 
@@ -105,6 +108,24 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         }
         this.tokenizers = ImmutableMap.copyOf(tokenizers);
 
+        Map<String, CharFilterFactory> charFilters = newHashMap();
+        if (charFilterFactoryFactories != null) {
+            Map<String, Settings> charFiltersSettings = indexSettings.getGroups("index.analysis.char_filter");
+            for (Map.Entry<String, CharFilterFactoryFactory> entry : charFilterFactoryFactories.entrySet()) {
+                String charFilterName = entry.getKey();
+                CharFilterFactoryFactory charFilterFactoryFactory = entry.getValue();
+
+                Settings charFilterSettings = charFiltersSettings.get(charFilterName);
+                if (charFilterSettings == null) {
+                    charFilterSettings = ImmutableSettings.Builder.EMPTY_SETTINGS;
+                }
+
+                CharFilterFactory tokenFilterFactory = charFilterFactoryFactory.create(charFilterName, charFilterSettings);
+                charFilters.put(charFilterName, tokenFilterFactory);
+            }
+        }
+        this.charFilters = ImmutableMap.copyOf(charFilters);
+
         Map<String, TokenFilterFactory> tokenFilters = newHashMap();
         if (tokenFilterFactoryFactories != null) {
             Map<String, Settings> tokenFiltersSettings = indexSettings.getGroups("index.analysis.filter");
@@ -150,6 +171,10 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
     public TokenizerFactory tokenizer(String name) {
         return tokenizers.get(name);
+    }
+
+    public CharFilterFactory charFilter(String name) {
+        return charFilters.get(name);
     }
 
     public TokenFilterFactory tokenFilter(String name) {

@@ -35,11 +35,13 @@ import static org.elasticsearch.common.collect.Lists.*;
  * A custom analyzer that is built out of a single {@link org.apache.lucene.analysis.Tokenizer} and a list
  * of {@link org.apache.lucene.analysis.TokenFilter}s.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<CustomAnalyzer> {
 
     private final TokenizerFactory tokenizerFactory;
+
+    private final CharFilterFactory[] charFilterFactories;
 
     private final TokenFilterFactory[] tokenFilterFactories;
 
@@ -47,6 +49,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
 
     @Inject public CustomAnalyzerProvider(Index index,
                                           Map<String, TokenizerFactoryFactory> tokenizerFactories,
+                                          Map<String, CharFilterFactoryFactory> charFilterFactories,
                                           Map<String, TokenFilterFactoryFactory> tokenFilterFactories,
                                           @IndexSettings Settings indexSettings,
                                           @Assisted String name, @Assisted Settings settings) {
@@ -65,6 +68,21 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
         }
         tokenizerFactory = tokenizerFactoryFactory.create(tokenizerName, tokenizerSettings);
 
+        List<CharFilterFactory> charFilters = newArrayList();
+        String[] charFilterNames = settings.getAsArray("char_filter");
+        for (String charFilterName : charFilterNames) {
+            CharFilterFactoryFactory charFilterFactoryFactory = charFilterFactories.get(charFilterName);
+            if (charFilterFactoryFactory == null) {
+                throw new IllegalArgumentException("Custom Analyzer [" + name + "] failed to find char filter under name [" + charFilterName + "]");
+            }
+            Settings charFilterSettings = indexSettings.getGroups("index.analysis.char_filter").get(charFilterName);
+            if (charFilterSettings == null) {
+                charFilterSettings = ImmutableSettings.Builder.EMPTY_SETTINGS;
+            }
+            charFilters.add(charFilterFactoryFactory.create(charFilterName, charFilterSettings));
+        }
+        this.charFilterFactories = charFilters.toArray(new CharFilterFactory[charFilters.size()]);
+
         List<TokenFilterFactory> tokenFilters = newArrayList();
         String[] tokenFilterNames = settings.getAsArray("filter");
         for (String tokenFilterName : tokenFilterNames) {
@@ -80,7 +98,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
         }
         this.tokenFilterFactories = tokenFilters.toArray(new TokenFilterFactory[tokenFilters.size()]);
 
-        this.customAnalyzer = new CustomAnalyzer(this.tokenizerFactory, this.tokenFilterFactories);
+        this.customAnalyzer = new CustomAnalyzer(this.tokenizerFactory, this.charFilterFactories, this.tokenFilterFactories);
     }
 
     @Override public CustomAnalyzer get() {

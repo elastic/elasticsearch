@@ -22,6 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.inject.Guice;
 import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.lucene.analysis.HTMLStripCharFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
@@ -66,5 +67,15 @@ public class AnalysisModuleTests {
         StopTokenFilterFactory stop1 = (StopTokenFilterFactory) custom1.tokenFilters()[0];
         assertThat(stop1.stopWords().size(), equalTo(1));
         assertThat(stop1.stopWords(), hasItem("test-stop"));
+
+        analyzer = analysisService.analyzer("custom2").analyzer();
+        assertThat(analyzer, instanceOf(CustomAnalyzer.class));
+        CustomAnalyzer custom2 = (CustomAnalyzer) analyzer;
+
+        HtmlStripCharFilterFactory html = (HtmlStripCharFilterFactory) custom2.charFilters()[0];
+        assertThat(html.readAheadLimit(), equalTo(HTMLStripCharFilter.DEFAULT_READ_AHEAD));
+
+        html = (HtmlStripCharFilterFactory) custom2.charFilters()[1];
+        assertThat(html.readAheadLimit(), equalTo(1024));
     }
 }

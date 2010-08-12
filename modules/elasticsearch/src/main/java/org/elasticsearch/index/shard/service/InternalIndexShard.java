@@ -148,17 +148,6 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
     }
 
-    public InternalIndexShard restoreRecoveryState(IndexShardState stateToRestore) {
-        synchronized (mutex) {
-            if (this.state != IndexShardState.RECOVERING) {
-                throw new IndexShardNotRecoveringException(shardId, state);
-            }
-            logger.debug("state: [{}]->[{}], restored after recovery", state, stateToRestore);
-            this.state = stateToRestore;
-        }
-        return this;
-    }
-
     public InternalIndexShard relocated() throws IndexShardNotStartedException {
         synchronized (mutex) {
             if (state != IndexShardState.STARTED) {

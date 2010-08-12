@@ -37,7 +37,7 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
      */
     public static enum ComparatorType {
         /**
-         * Order by the count of each term.
+         * Order by the (higher) count of each term.
          */
         COUNT((byte) 0, new Comparator<Entry>() {
 
@@ -53,9 +53,18 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
             }
         }),
         /**
-         * Order by the count of each term.
+         * Order by the (lower) count of each term.
          */
-        TERM((byte) 1, new Comparator<Entry>() {
+        REVERSE_COUNT((byte) 1, new Comparator<Entry>() {
+
+            @Override public int compare(Entry o1, Entry o2) {
+                return -COUNT.comparator().compare(o1, o2);
+            }
+        }),
+        /**
+         * Order by the terms.
+         */
+        TERM((byte) 2, new Comparator<Entry>() {
 
             @Override public int compare(Entry o1, Entry o2) {
                 int i = o1.term().compareTo(o2.term());
@@ -66,6 +75,15 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
                     }
                 }
                 return i;
+            }
+        }),
+        /**
+         * Order by the terms.
+         */
+        REVERSE_TERM((byte) 3, new Comparator<Entry>() {
+
+            @Override public int compare(Entry o1, Entry o2) {
+                return -TERM.comparator().compare(o1, o2);
             }
         });
 
@@ -87,10 +105,14 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
         }
 
         public static ComparatorType fromId(byte id) {
-            if (id == 0) {
+            if (id == COUNT.id()) {
                 return COUNT;
-            } else if (id == 1) {
+            } else if (id == REVERSE_COUNT.id()) {
+                return REVERSE_COUNT;
+            } else if (id == TERM.id()) {
                 return TERM;
+            } else if (id == REVERSE_TERM.id()) {
+                return REVERSE_TERM;
             }
             throw new ElasticSearchIllegalArgumentException("No type argument match for terms facet comparator [" + id + "]");
         }
@@ -100,6 +122,10 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
                 return COUNT;
             } else if ("term".equals(type)) {
                 return TERM;
+            } else if ("reverse_count".equals(type) || "reverseCount".equals(type)) {
+                return REVERSE_COUNT;
+            } else if ("reverse_term".equals(type) || "reverseTerm".equals(type)) {
+                return REVERSE_TERM;
             }
             throw new ElasticSearchIllegalArgumentException("No type argument match for terms facet comparator [" + type + "]");
         }

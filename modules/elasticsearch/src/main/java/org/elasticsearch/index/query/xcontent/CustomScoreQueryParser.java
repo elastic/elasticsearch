@@ -120,6 +120,7 @@ public class CustomScoreQueryParser extends AbstractIndexComponent implements XC
 
         @Override public float score(int docId, float subQueryScore) {
             vars.put("score", subQueryScore);
+            vars.put("_score", subQueryScore);
             return ((Number) scriptFieldsFunction.execute(docId, vars)).floatValue();
         }
 

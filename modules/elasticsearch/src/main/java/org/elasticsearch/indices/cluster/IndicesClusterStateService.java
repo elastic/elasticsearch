@@ -324,7 +324,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     try {
                         // we are recovering a backup from a primary, so no need to mark it as relocated
                         final StartRecoveryRequest request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(), false, indexShard.store().listWithMd5());
-                        recoveryTarget.startRecovery(request, new PeerRecoveryListener(request, shardRouting, indexService));
+                        recoveryTarget.startRecovery(request, false, new PeerRecoveryListener(request, shardRouting, indexService));
                     } catch (Exception e) {
                         handleRecoveryFailure(indexService, shardRouting, true, e);
                         break;
@@ -354,7 +354,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 try {
                     // we are recovering a backup from a primary, so no need to mark it as relocated
                     final StartRecoveryRequest request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(), false, indexShard.store().listWithMd5());
-                    recoveryTarget.startRecovery(request, new PeerRecoveryListener(request, shardRouting, indexService));
+                    recoveryTarget.startRecovery(request, false, new PeerRecoveryListener(request, shardRouting, indexService));
                 } catch (Exception e) {
                     handleRecoveryFailure(indexService, shardRouting, true, e);
                 }
@@ -383,7 +383,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         @Override public void onRetryRecovery(TimeValue retryAfter) {
             threadPool.schedule(new Runnable() {
                 @Override public void run() {
-                    recoveryTarget.startRecovery(request, PeerRecoveryListener.this);
+                    recoveryTarget.startRecovery(request, true, PeerRecoveryListener.this);
                 }
             }, retryAfter);
         }

@@ -32,6 +32,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
@@ -104,7 +105,16 @@ public class RecoveryTarget extends AbstractComponent {
             listener.onIgnoreRecovery(false, "No node to recovery from, retry on next cluster state update");
             return;
         }
-        final InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
+        IndexService indexService = indicesService.indexService(request.shardId().index().name());
+        if (indexService == null) {
+            listener.onIgnoreRecovery(false, "index missing, stop recovery");
+            return;
+        }
+        final InternalIndexShard shard = (InternalIndexShard) indexService.shard(request.shardId().id());
+        if (shard == null) {
+            listener.onIgnoreRecovery(false, "shard missing, stop recovery");
+            return;
+        }
         if (!fromRetry) {
             try {
                 shard.recovering();

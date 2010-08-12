@@ -37,6 +37,34 @@ public class AnalysisModule extends AbstractModule {
 
     public static class AnalysisBinderProcessor {
 
+        public void processCharFilters(CharFiltersBindings charFiltersBindings) {
+
+        }
+
+        public static class CharFiltersBindings {
+            private final MapBinder<String, CharFilterFactoryFactory> binder;
+            private final Map<String, Settings> groupSettings;
+
+            public CharFiltersBindings(MapBinder<String, CharFilterFactoryFactory> binder, Map<String, Settings> groupSettings) {
+                this.binder = binder;
+                this.groupSettings = groupSettings;
+            }
+
+            public MapBinder<String, CharFilterFactoryFactory> binder() {
+                return binder;
+            }
+
+            public Map<String, Settings> groupSettings() {
+                return groupSettings;
+            }
+
+            public void processCharFilter(String name, Class<? extends CharFilterFactory> charFilterFactory) {
+                if (!groupSettings.containsKey(name)) {
+                    binder.addBinding(name).toProvider(FactoryProvider.newFactory(CharFilterFactoryFactory.class, charFilterFactory)).in(Scopes.SINGLETON);
+                }
+            }
+        }
+
         public void processTokenFilters(TokenFiltersBindings tokenFiltersBindings) {
 
         }
@@ -159,6 +187,27 @@ public class AnalysisModule extends AbstractModule {
     }
 
     @Override protected void configure() {
+        MapBinder<String, CharFilterFactoryFactory> charFilterBinder
+                = MapBinder.newMapBinder(binder(), String.class, CharFilterFactoryFactory.class);
+
+        Map<String, Settings> charFiltersSettings = settings.getGroups("index.analysis.char_filter");
+        for (Map.Entry<String, Settings> entry : charFiltersSettings.entrySet()) {
+            String charFilterName = entry.getKey();
+            Settings charFilterSettings = entry.getValue();
+
+            Class<? extends CharFilterFactory> type = charFilterSettings.getAsClass("type", null, "org.elasticsearch.index.analysis.", "CharFilterFactory");
+            if (type == null) {
+                throw new IllegalArgumentException("Char Filter [" + charFilterName + "] must have a type associated with it");
+            }
+            charFilterBinder.addBinding(charFilterName).toProvider(FactoryProvider.newFactory(CharFilterFactoryFactory.class, type)).in(Scopes.SINGLETON);
+        }
+
+        AnalysisBinderProcessor.CharFiltersBindings charFiltersBindings = new AnalysisBinderProcessor.CharFiltersBindings(charFilterBinder, charFiltersSettings);
+        for (AnalysisBinderProcessor processor : processors) {
+            processor.processCharFilters(charFiltersBindings);
+        }
+
+
         MapBinder<String, TokenFilterFactoryFactory> tokenFilterBinder
                 = MapBinder.newMapBinder(binder(), String.class, TokenFilterFactoryFactory.class);
 
@@ -229,6 +278,11 @@ public class AnalysisModule extends AbstractModule {
     }
 
     private static class DefaultProcessor extends AnalysisBinderProcessor {
+
+        @Override public void processCharFilters(CharFiltersBindings charFiltersBindings) {
+            charFiltersBindings.processCharFilter("html_strip", HtmlStripCharFilterFactory.class);
+            charFiltersBindings.processCharFilter("htmlStrip", HtmlStripCharFilterFactory.class);
+        }
 
         @Override public void processTokenFilters(TokenFiltersBindings tokenFiltersBindings) {
             tokenFiltersBindings.processTokenFilter("stop", StopTokenFilterFactory.class);

@@ -3,6 +3,11 @@ index :
     tokenizer :
       standard :
         type : standard
+    char_filter :
+      my_html :
+        type : html_strip
+        escaped_tags : [xxx, yyy]
+        read_ahead : 1024
     filter :
       stop :
         type : stop
@@ -17,3 +22,6 @@ index :
       custom1 :
         tokenizer : standard
         filter : [stop, stop2]
+      custom2 :
+        tokenizer : standard
+        char_filter : [html_strip, my_html]

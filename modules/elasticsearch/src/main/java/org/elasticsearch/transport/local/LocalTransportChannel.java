@@ -23,16 +23,13 @@ import org.elasticsearch.common.io.ThrowableObjectOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.HandlesStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.transport.NotSerializableTransportException;
-import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.*;
 
 import java.io.IOException;
 import java.io.NotSerializableException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class LocalTransportChannel implements TransportChannel {
 
@@ -57,6 +54,10 @@ public class LocalTransportChannel implements TransportChannel {
     }
 
     @Override public void sendResponse(Streamable message) throws IOException {
+        sendResponse(message, TransportResponseOptions.EMPTY);
+    }
+
+    @Override public void sendResponse(Streamable message, TransportResponseOptions options) throws IOException {
         HandlesStreamOutput stream = BytesStreamOutput.Cached.cachedHandles();
         stream.writeLong(requestId);
         byte status = 0;

@@ -29,6 +29,7 @@ import org.elasticsearch.common.netty.channel.Channel;
 import org.elasticsearch.transport.NotSerializableTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponseOptions;
 
 import java.io.IOException;
 import java.io.NotSerializableException;
@@ -62,6 +63,10 @@ public class NettyTransportChannel implements TransportChannel {
     }
 
     @Override public void sendResponse(Streamable message) throws IOException {
+        sendResponse(message, TransportResponseOptions.EMPTY);
+    }
+
+    @Override public void sendResponse(Streamable message, TransportResponseOptions options) throws IOException {
         HandlesStreamOutput stream = BytesStreamOutput.Cached.cachedHandles();
         stream.writeBytes(LENGTH_PLACEHOLDER); // fake size
         stream.writeLong(requestId);
@@ -69,6 +74,7 @@ public class NettyTransportChannel implements TransportChannel {
         status = setResponse(status);
         stream.writeByte(status); // 0 for request, 1 for response.
         message.writeTo(stream);
+        stream.flush();
         byte[] data = ((BytesStreamOutput) stream.wrappedOut()).copiedByteArray();
         ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(data);
         buffer.setInt(0, buffer.writerIndex() - 4); // update real size.

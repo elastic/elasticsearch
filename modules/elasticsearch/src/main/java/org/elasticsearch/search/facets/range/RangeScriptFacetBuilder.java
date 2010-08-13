@@ -136,8 +136,7 @@ public class RangeScriptFacetBuilder extends AbstractFacetBuilder {
         builder.endArray();
 
         if (this.params != null) {
-            builder.field("params");
-            builder.map(this.params);
+            builder.field("params", this.params);
         }
         builder.endObject();
 

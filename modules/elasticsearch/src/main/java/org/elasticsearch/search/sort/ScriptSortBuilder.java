@@ -64,8 +64,7 @@ public class ScriptSortBuilder extends SortBuilder {
             builder.field("reverse", true);
         }
         if (this.params != null) {
-            builder.field("params");
-            builder.map(this.params);
+            builder.field("params", this.params);
         }
         builder.endObject();
     }

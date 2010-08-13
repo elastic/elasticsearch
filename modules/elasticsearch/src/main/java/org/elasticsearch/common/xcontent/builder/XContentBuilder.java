@@ -82,11 +82,6 @@ public abstract class XContentBuilder<T extends XContentBuilder> {
         return builder;
     }
 
-    public T map(Map<String, Object> map) throws IOException {
-        XContentMapConverter.writeMap(generator, map);
-        return builder;
-    }
-
     public T startObject(String name) throws IOException {
         field(name);
         startObject();
@@ -208,6 +203,12 @@ public abstract class XContentBuilder<T extends XContentBuilder> {
         return builder;
     }
 
+    public T field(String name, Map<String, Object> value) throws IOException {
+        field(name);
+        value(value);
+        return builder;
+    }
+
     public T field(String name, Object value) throws IOException {
         if (value == null) {
             nullField(name);
@@ -232,6 +233,8 @@ public abstract class XContentBuilder<T extends XContentBuilder> {
             field(name, (byte[]) value);
         } else if (value instanceof ReadableInstant) {
             field(name, (ReadableInstant) value);
+        } else if (value instanceof Map) {
+            field(name, (Map<String, Object>) value);
         } else {
             field(name, value.toString());
         }
@@ -358,6 +361,16 @@ public abstract class XContentBuilder<T extends XContentBuilder> {
         return builder;
     }
 
+    public T map(Map<String, Object> map) throws IOException {
+        XContentMapConverter.writeMap(generator, map);
+        return builder;
+    }
+
+    public T value(Map<String, Object> map) throws IOException {
+        XContentMapConverter.writeMap(generator, map);
+        return builder;
+    }
+
     public T value(Object value) throws IOException {
         Class type = value.getClass();
         if (type == String.class) {
@@ -378,6 +391,8 @@ public abstract class XContentBuilder<T extends XContentBuilder> {
             value((Date) value);
         } else if (value instanceof ReadableInstant) {
             value((ReadableInstant) value);
+        } else if (value instanceof Map) {
+            value((Map<String, Object>) value);
         } else {
             throw new IOException("Type not allowed [" + type + "]");
         }

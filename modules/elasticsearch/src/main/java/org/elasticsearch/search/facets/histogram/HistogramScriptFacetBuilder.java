@@ -96,8 +96,7 @@ public class HistogramScriptFacetBuilder extends AbstractFacetBuilder {
             builder.field("interval", interval);
         }
         if (this.params != null) {
-            builder.field("params");
-            builder.map(this.params);
+            builder.field("params", this.params);
         }
         if (comparatorType != null) {
             builder.field("comparator", comparatorType.description());

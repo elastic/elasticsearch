@@ -95,8 +95,7 @@ public class CustomScoreQueryBuilder extends BaseQueryBuilder {
         queryBuilder.toXContent(builder, params);
         builder.field("script", script);
         if (this.params != null) {
-            builder.field("params");
-            builder.map(this.params);
+            builder.field("params", this.params);
         }
         if (boost != -1) {
             builder.field("boost", boost);

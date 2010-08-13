@@ -221,8 +221,7 @@ public class GeoDistanceFacetBuilder extends AbstractFacetBuilder {
         if (valueScript != null) {
             builder.field("value_script", valueScript);
             if (this.params != null) {
-                builder.field("params");
-                builder.map(this.params);
+                builder.field("params", this.params);
             }
         }
 

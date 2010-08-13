@@ -78,7 +78,7 @@ public class HighlightPhase implements SearchPhase {
                 if (mapper != null) {
                     indexName = mapper.names().indexName();
                 }
-                String[] fragments = null;
+                String[] fragments;
                 try {
                     fragments = highlighter.getBestFragments(fieldQuery, context.searcher().getIndexReader(), docId, indexName, parsedHighlightField.fragmentCharSize(), parsedHighlightField.numberOfFragments());
                 } catch (IOException e) {

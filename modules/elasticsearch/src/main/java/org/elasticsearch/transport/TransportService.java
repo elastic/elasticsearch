@@ -34,7 +34,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.timer.TimerService;
 
-import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -156,11 +155,11 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     public <T extends Streamable> TransportFuture<T> submitRequest(DiscoveryNode node, String action, Streamable message,
                                                                    TransportResponseHandler<T> handler) throws TransportException {
-        return submitRequest(node, action, message, null, handler);
+        return submitRequest(node, action, message, TransportRequestOptions.EMPTY, handler);
     }
 
     public <T extends Streamable> TransportFuture<T> submitRequest(DiscoveryNode node, String action, Streamable message,
-                                                                   @Nullable TransportRequestOptions options, TransportResponseHandler<T> handler) throws TransportException {
+                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) throws TransportException {
         PlainTransportFuture<T> futureHandler = new PlainTransportFuture<T>(handler);
         sendRequest(node, action, message, options, futureHandler);
         return futureHandler;
@@ -168,15 +167,15 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     public <T extends Streamable> void sendRequest(final DiscoveryNode node, final String action, final Streamable message,
                                                    final TransportResponseHandler<T> handler) throws TransportException {
-        sendRequest(node, action, message, null, handler);
+        sendRequest(node, action, message, TransportRequestOptions.EMPTY, handler);
     }
 
     public <T extends Streamable> void sendRequest(final DiscoveryNode node, final String action, final Streamable message,
-                                                   @Nullable final TransportRequestOptions options, final TransportResponseHandler<T> handler) throws TransportException {
+                                                   final TransportRequestOptions options, final TransportResponseHandler<T> handler) throws TransportException {
         final long requestId = newRequestId();
         Timeout timeoutX = null;
         try {
-            if (options != null && options.timeout() != null) {
+            if (options.timeout() != null) {
                 timeoutX = timerService.newTimeout(new TimeoutTimerTask(requestId), options.timeout(), TimerService.ExecutionType.THREADED);
             }
             clientHandlers.put(requestId, new RequestHolder<T>(handler, node, action, timeoutX));

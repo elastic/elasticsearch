@@ -53,7 +53,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -383,7 +382,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
 
-    @Override public <T extends Streamable> void sendRequest(final DiscoveryNode node, final long requestId, final String action, final Streamable streamable, @Nullable TransportRequestOptions options) throws IOException, TransportException {
+    @Override public <T extends Streamable> void sendRequest(final DiscoveryNode node, final long requestId, final String action, final Streamable streamable, TransportRequestOptions options) throws IOException, TransportException {
 
         Channel targetChannel = nodeChannel(node);
 

@@ -19,31 +19,14 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.unit.TimeValue;
-
 /**
  * @author kimchy (shay.banon)
  */
-public class TransportRequestOptions {
+public class TransportResponseOptions {
 
-    public static TransportRequestOptions EMPTY = options();
+    public static final TransportResponseOptions EMPTY = options();
 
-    public static TransportRequestOptions options() {
-        return new TransportRequestOptions();
-    }
-
-    private TimeValue timeout;
-
-    public TransportRequestOptions withTimeout(long timeout) {
-        return withTimeout(TimeValue.timeValueMillis(timeout));
-    }
-
-    public TransportRequestOptions withTimeout(TimeValue timeout) {
-        this.timeout = timeout;
-        return this;
-    }
-
-    public TimeValue timeout() {
-        return this.timeout;
+    public static TransportResponseOptions options() {
+        return new TransportResponseOptions();
     }
 }

@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 
 /**
@@ -34,8 +33,8 @@ import java.io.IOException;
 public interface Transport extends LifecycleComponent<Transport> {
 
     class Helper {
-        public static final byte TRANSPORT_TYPE = 1;
-        public static final byte RESPONSE_TYPE = 1 << 1;
+        public static final byte TRANSPORT_TYPE = 1 << 0;
+        public static final byte ERROR = 1 << 1;
 
         public static boolean isRequest(byte value) {
             return (value & TRANSPORT_TYPE) == 0;
@@ -52,14 +51,13 @@ public interface Transport extends LifecycleComponent<Transport> {
         }
 
         public static boolean isError(byte value) {
-            return (value & RESPONSE_TYPE) != 0;
+            return (value & ERROR) != 0;
         }
 
         public static byte setError(byte value) {
-            value |= RESPONSE_TYPE;
+            value |= ERROR;
             return value;
         }
-
     }
 
     void transportServiceAdapter(TransportServiceAdapter service);
@@ -97,5 +95,5 @@ public interface Transport extends LifecycleComponent<Transport> {
     /**
      * Sends the request to the node.
      */
-    <T extends Streamable> void sendRequest(DiscoveryNode node, long requestId, String action, Streamable message, @Nullable TransportRequestOptions options) throws IOException, TransportException;
+    <T extends Streamable> void sendRequest(DiscoveryNode node, long requestId, String action, Streamable message, TransportRequestOptions options) throws IOException, TransportException;
 }

@@ -34,15 +34,21 @@ public class BytesStreamOutput extends StreamOutput {
      */
     public static class Cached {
 
-        private static final ThreadLocal<ThreadLocals.CleanableValue<BytesStreamOutput>> cache = new ThreadLocal<ThreadLocals.CleanableValue<BytesStreamOutput>>() {
-            @Override protected ThreadLocals.CleanableValue<BytesStreamOutput> initialValue() {
-                return new ThreadLocals.CleanableValue<BytesStreamOutput>(new BytesStreamOutput());
-            }
-        };
+        static class Entry {
+            final BytesStreamOutput bytes;
+            final HandlesStreamOutput handles;
 
-        private static final ThreadLocal<ThreadLocals.CleanableValue<HandlesStreamOutput>> cacheHandles = new ThreadLocal<ThreadLocals.CleanableValue<HandlesStreamOutput>>() {
-            @Override protected ThreadLocals.CleanableValue<HandlesStreamOutput> initialValue() {
-                return new ThreadLocals.CleanableValue<HandlesStreamOutput>(new HandlesStreamOutput(new BytesStreamOutput()));
+            Entry(BytesStreamOutput bytes, HandlesStreamOutput handles) {
+                this.bytes = bytes;
+                this.handles = handles;
+            }
+        }
+
+        private static final ThreadLocal<ThreadLocals.CleanableValue<Entry>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Entry>>() {
+            @Override protected ThreadLocals.CleanableValue<Entry> initialValue() {
+                BytesStreamOutput bytes = new BytesStreamOutput();
+                HandlesStreamOutput handles = new HandlesStreamOutput(bytes);
+                return new ThreadLocals.CleanableValue<Entry>(new Entry(bytes, handles));
             }
         };
 
@@ -50,13 +56,13 @@ public class BytesStreamOutput extends StreamOutput {
          * Returns the cached thread local byte stream, with its internal stream cleared.
          */
         public static BytesStreamOutput cached() {
-            BytesStreamOutput os = cache.get().get();
+            BytesStreamOutput os = cache.get().get().bytes;
             os.reset();
             return os;
         }
 
         public static HandlesStreamOutput cachedHandles() throws IOException {
-            HandlesStreamOutput os = cacheHandles.get().get();
+            HandlesStreamOutput os = cache.get().get().handles;
             os.reset();
             return os;
         }

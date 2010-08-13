@@ -8,12 +8,18 @@ if [ "x$ES_MAX_MEM" = "x" ]; then
 fi
 
 # Arguments to pass to the JVM
-JAVA_OPTS=" \
-        -Xms${ES_MIN_MEM} \
-        -Xmx${ES_MAX_MEM} \
-        -Djline.enabled=true \
-        -XX:+AggressiveOpts \
-        -XX:+UseParNewGC \
-        -XX:+UseConcMarkSweepGC \
-        -XX:+CMSParallelRemarkEnabled \
-        -XX:+HeapDumpOnOutOfMemoryError"
+JAVA_OPTS="$JAVA_OPTS -Xms${ES_MIN_MEM}"
+JAVA_OPTS="$JAVA_OPTS -Xmx${ES_MAX_MEM}"
+JAVA_OPTS="$JAVA_OPTS -Xss128k"
+
+JAVA_OPTS="$JAVA_OPTS -Djline.enabled=true"
+
+JAVA_OPTS="$JAVA_OPTS -XX:+AggressiveOpts"
+
+JAVA_OPTS="$JAVA_OPTS -XX:+UseParNewGC"
+JAVA_OPTS="$JAVA_OPTS -XX:+UseConcMarkSweepGC"
+JAVA_OPTS="$JAVA_OPTS -XX:+CMSParallelRemarkEnabled"
+JAVA_OPTS="$JAVA_OPTS -XX:SurvivorRatio=8"
+JAVA_OPTS="$JAVA_OPTS -XX:MaxTenuringThreshold=1"
+JAVA_OPTS="$JAVA_OPTS -XX:+HeapDumpOnOutOfMemoryError"
+JAVA_OPTS="$JAVA_OPTS -XX:HeapDumpPath=$ES_HOME/work/heap"

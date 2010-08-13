@@ -128,8 +128,7 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
         if (script != null) {
             builder.field("script", script);
             if (this.params != null) {
-                builder.field("params");
-                builder.map(this.params);
+                builder.field("params", this.params);
             }
         }
 

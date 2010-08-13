@@ -71,8 +71,7 @@ public class StatisticalScriptFacetBuilder extends AbstractFacetBuilder {
         builder.startObject(StatisticalFacetCollectorParser.NAME);
         builder.field("script", script);
         if (this.params != null) {
-            builder.field("params");
-            builder.map(this.params);
+            builder.field("params", this.params);
         }
         builder.endObject();
 

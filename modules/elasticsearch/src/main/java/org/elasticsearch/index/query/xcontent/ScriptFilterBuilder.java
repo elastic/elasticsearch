@@ -60,8 +60,7 @@ public class ScriptFilterBuilder extends BaseFilterBuilder {
         builder.startObject(ScriptFilterParser.NAME);
         builder.field("script", script);
         if (this.params != null) {
-            builder.field("params");
-            builder.map(this.params);
+            builder.field("params", this.params);
         }
         builder.endObject();
     }

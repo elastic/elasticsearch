@@ -594,7 +594,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         String firstFileToRecover = fileToRecover.name();
         if (!blobs.containsKey(fileToRecover.name())) {
             // chunking, append part0 to it
-            firstFileToRecover = fileToRecover.name() + "part0";
+            firstFileToRecover = fileToRecover.name() + ".part0";
         }
         if (!blobs.containsKey(firstFileToRecover)) {
             // no file, what to do, what to do?
@@ -612,10 +612,11 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
 
             @Override public synchronized void onCompleted() {
                 int part = partIndex.incrementAndGet();
-                String partName = fileToRecover + ".part" + part;
+                String partName = fileToRecover.name() + ".part" + part;
                 if (blobs.containsKey(partName)) {
                     // continue with the new part
                     indexContainer.readBlob(partName, this);
+                    return;
                 } else {
                     // we are done...
                     try {

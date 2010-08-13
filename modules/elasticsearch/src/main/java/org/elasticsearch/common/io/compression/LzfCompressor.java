@@ -64,7 +64,6 @@ public class LzfCompressor implements Compressor {
     }
 
     @Override public String decompressString(byte[] value) throws IOException {
-        CompressHolder ch = Cached.cached();
         byte[] result = decompress(value);
         return Unicode.fromBytes(result, 0, result.length);
     }

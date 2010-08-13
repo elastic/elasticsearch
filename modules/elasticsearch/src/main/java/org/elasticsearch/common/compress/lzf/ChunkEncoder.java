@@ -17,22 +17,33 @@
  * under the License.
  */
 
-package org.elasticsearch.common.io.compression.lzf;
+/* Licensed under the Apache License, Version 2.0 (the "License"); you may not use this
+ * file except in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under
+ * the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS
+ * OF ANY KIND, either express or implied. See the License for the specific language
+ * governing permissions and limitations under the License.
+ */
+
+package org.elasticsearch.common.compress.lzf;
 
 /**
  * Class that handles actual encoding of individual chunks.
  * Resulting chunks can be compressed or non-compressed; compression
  * is only used if it actually reduces chunk size (including overhead
  * of additional header bytes)
- * <p>
- * Code adapted from H2 project (http://www.h2database.com) Java LZF implementation
- * by Thomas (which itself was inspired by original C code by Marc A Lehmann)
+ *
+ * @author tatu@ning.com
  */
 public class ChunkEncoder {
-    // Beyond certain point we won't be able to compress:
+    // Beyond certain point we won't be able to compress; let's use 16 bytes as cut-off
     private static final int MIN_BLOCK_TO_COMPRESS = 16;
 
     private static final int MIN_HASH_SIZE = 256;
+
     // Not much point in bigger tables, with 8k window
     private static final int MAX_HASH_SIZE = 16384;
 

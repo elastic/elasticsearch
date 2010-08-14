@@ -21,6 +21,7 @@ package org.elasticsearch.common.io.streams;
 
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.*;
@@ -33,7 +34,7 @@ import static org.hamcrest.Matchers.*;
 public class BytesStreamsTests {
 
     @Test public void testSimpleStreams() throws Exception {
-        BytesStreamOutput out = BytesStreamOutput.Cached.cached();
+        BytesStreamOutput out = CachedStreamOutput.cachedBytes();
         out.writeBoolean(false);
         out.writeByte((byte) 1);
         out.writeShort((short) -1);

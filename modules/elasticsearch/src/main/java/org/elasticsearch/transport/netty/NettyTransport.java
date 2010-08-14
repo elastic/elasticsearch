@@ -27,6 +27,7 @@ import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.io.stream.HandlesStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
@@ -386,7 +387,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         Channel targetChannel = nodeChannel(node);
 
-        HandlesStreamOutput stream = BytesStreamOutput.Cached.cachedHandles();
+        HandlesStreamOutput stream = CachedStreamOutput.cachedHandles();
         stream.writeBytes(LENGTH_PLACEHOLDER); // fake size
 
         stream.writeLong(requestId);

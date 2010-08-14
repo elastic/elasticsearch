@@ -21,6 +21,7 @@ package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.common.io.ThrowableObjectOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.io.stream.HandlesStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.netty.buffer.ChannelBuffer;
@@ -67,7 +68,7 @@ public class NettyTransportChannel implements TransportChannel {
     }
 
     @Override public void sendResponse(Streamable message, TransportResponseOptions options) throws IOException {
-        HandlesStreamOutput stream = BytesStreamOutput.Cached.cachedHandles();
+        HandlesStreamOutput stream = CachedStreamOutput.cachedHandles();
         stream.writeBytes(LENGTH_PLACEHOLDER); // fake size
         stream.writeLong(requestId);
         byte status = 0;
@@ -84,14 +85,14 @@ public class NettyTransportChannel implements TransportChannel {
     @Override public void sendResponse(Throwable error) throws IOException {
         BytesStreamOutput stream;
         try {
-            stream = BytesStreamOutput.Cached.cached();
+            stream = CachedStreamOutput.cachedBytes();
             writeResponseExceptionHeader(stream);
             RemoteTransportException tx = new RemoteTransportException(transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()), action, error);
             ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(stream);
             too.writeObject(tx);
             too.close();
         } catch (NotSerializableException e) {
-            stream = BytesStreamOutput.Cached.cached();
+            stream = CachedStreamOutput.cachedBytes();
             writeResponseExceptionHeader(stream);
             RemoteTransportException tx = new RemoteTransportException(transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()), action, new NotSerializableTransportException(error));
             ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(stream);

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.common.thread.ThreadLocals;
-
 import java.io.IOException;
 import java.util.Arrays;
 
@@ -28,45 +26,6 @@ import java.util.Arrays;
  * @author kimchy (shay.banon)
  */
 public class BytesStreamOutput extends StreamOutput {
-
-    /**
-     * A thread local based cache of {@link BytesStreamOutput}.
-     */
-    public static class Cached {
-
-        static class Entry {
-            final BytesStreamOutput bytes;
-            final HandlesStreamOutput handles;
-
-            Entry(BytesStreamOutput bytes, HandlesStreamOutput handles) {
-                this.bytes = bytes;
-                this.handles = handles;
-            }
-        }
-
-        private static final ThreadLocal<ThreadLocals.CleanableValue<Entry>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Entry>>() {
-            @Override protected ThreadLocals.CleanableValue<Entry> initialValue() {
-                BytesStreamOutput bytes = new BytesStreamOutput();
-                HandlesStreamOutput handles = new HandlesStreamOutput(bytes);
-                return new ThreadLocals.CleanableValue<Entry>(new Entry(bytes, handles));
-            }
-        };
-
-        /**
-         * Returns the cached thread local byte stream, with its internal stream cleared.
-         */
-        public static BytesStreamOutput cached() {
-            BytesStreamOutput os = cache.get().get().bytes;
-            os.reset();
-            return os;
-        }
-
-        public static HandlesStreamOutput cachedHandles() throws IOException {
-            HandlesStreamOutput os = cache.get().get().handles;
-            os.reset();
-            return os;
-        }
-    }
 
     /**
      * The buffer where data is stored.

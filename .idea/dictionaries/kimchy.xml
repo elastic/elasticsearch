@@ -39,6 +39,7 @@
       <w>deserialize</w>
       <w>docid</w>
       <w>elasticsearch</w>
+      <w>encodable</w>
       <w>estab</w>
       <w>failover</w>
       <w>flushable</w>

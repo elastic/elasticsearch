@@ -35,7 +35,7 @@ public class HandlesStreamOutput extends StreamOutput {
     // a threshold above which strings will use identity check
     private final int identityThreshold;
 
-    private final StreamOutput out;
+    private StreamOutput out;
 
     private final TObjectIntHashMap<String> handles = new ExtTObjectIntHasMap<String>().defaultReturnValue(-1);
 
@@ -89,6 +89,11 @@ public class HandlesStreamOutput extends StreamOutput {
         handles.clear();
         identityHandles.clear();
         out.reset();
+    }
+
+    public void reset(StreamOutput out) throws IOException {
+        this.out = out;
+        reset();
     }
 
     @Override public void flush() throws IOException {

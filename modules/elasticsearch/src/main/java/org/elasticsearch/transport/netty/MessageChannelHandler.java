@@ -20,7 +20,7 @@
 package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.common.io.ThrowableObjectInputStream;
-import org.elasticsearch.common.io.stream.HandlesStreamInput;
+import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.logging.ESLogger;
@@ -28,10 +28,9 @@ import org.elasticsearch.common.netty.buffer.ChannelBuffer;
 import org.elasticsearch.common.netty.channel.*;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.support.TransportStreams;
 
 import java.io.IOException;
-
-import static org.elasticsearch.transport.Transport.Helper.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -68,24 +67,34 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         int markedReaderIndex = buffer.readerIndex();
         int expectedIndexReader = markedReaderIndex + size;
 
-        StreamInput streamIn = new ChannelBufferStreamInput(buffer);
-        streamIn = HandlesStreamInput.Cached.cached(streamIn);
+        StreamInput streamIn = new ChannelBufferStreamInput(buffer, size);
 
         long requestId = buffer.readLong();
         byte status = buffer.readByte();
-        boolean isRequest = isRequest(status);
+        boolean isRequest = TransportStreams.statusIsRequest(status);
+
+        if (TransportStreams.statusIsCompress(status)) {
+            streamIn = CachedStreamInput.cachedHandlesLzf(streamIn);
+        } else {
+            streamIn = CachedStreamInput.cachedHandles(streamIn);
+        }
 
         if (isRequest) {
             String action = handleRequest(event, streamIn, requestId);
-            if (buffer.readerIndex() < expectedIndexReader) {
-                logger.warn("Message not fully read (request) for [{}] and action [{}], resetting", requestId, action);
-                buffer.readerIndex(expectedIndexReader);
+            if (buffer.readerIndex() != expectedIndexReader) {
+                if (buffer.readerIndex() < expectedIndexReader) {
+                    logger.warn("Message not fully read (request) for [{}] and action [{}], resetting", requestId, action);
+                    buffer.readerIndex(expectedIndexReader);
+                } else {
+                    logger.warn("Message read past expected size (request) for [{}] and action [{}], resetting", requestId, action);
+                    buffer.readerIndex(expectedIndexReader);
+                }
             }
         } else {
             TransportResponseHandler handler = transportServiceAdapter.remove(requestId);
             // ignore if its null, the adapter logs it
             if (handler != null) {
-                if (isError(status)) {
+                if (TransportStreams.statusIsError(status)) {
                     handlerResponseError(streamIn, handler);
                 } else {
                     handleResponse(streamIn, handler);
@@ -94,9 +103,14 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 // if its null, skip those bytes
                 buffer.readerIndex(markedReaderIndex + size);
             }
-            if (buffer.readerIndex() < expectedIndexReader) {
-                logger.warn("Message not fully read (response) for [{}] and handler {}, resetting", requestId, handler);
-                buffer.readerIndex(expectedIndexReader);
+            if (buffer.readerIndex() != expectedIndexReader) {
+                if (buffer.readerIndex() < expectedIndexReader) {
+                    logger.warn("Message not fully read (response) for [{}] handler {}, error [{}], resetting", requestId, handler, TransportStreams.statusIsError(status));
+                    buffer.readerIndex(expectedIndexReader);
+                } else if (buffer.readerIndex() > expectedIndexReader) {
+                    logger.warn("Message read past expected size (response) for [{}] handler {}, error [{}], resetting", requestId, handler, TransportStreams.statusIsError(status));
+                    buffer.readerIndex(expectedIndexReader);
+                }
             }
         }
     }

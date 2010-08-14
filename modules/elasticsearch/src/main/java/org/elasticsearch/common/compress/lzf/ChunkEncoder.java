@@ -30,6 +30,9 @@
 
 package org.elasticsearch.common.compress.lzf;
 
+import java.io.IOException;
+import java.io.OutputStream;
+
 /**
  * Class that handles actual encoding of individual chunks.
  * Resulting chunks can be compressed or non-compressed; compression
@@ -75,6 +78,23 @@ public class ChunkEncoder {
         // length indicator for each 32 literals, so:
         int bufferLen = largestChunkLen + ((largestChunkLen + 31) >> 5);
         _encodeBuffer = new byte[bufferLen];
+    }
+
+    /**
+     * Method for compressing (or not) individual chunks
+     */
+    public int encodeChunk(OutputStream os, byte[] data, int offset, int len) throws IOException {
+        if (len >= MIN_BLOCK_TO_COMPRESS) {
+            /* If we have non-trivial block, and can compress it by at least
+             * 2 bytes (since header is 2 bytes longer), let's compress:
+             */
+            int compLen = tryCompress(data, offset, offset + len, _encodeBuffer, 0);
+            if (compLen < (len - 2)) { // nah; just return uncompressed
+                return LZFChunk.createCompressed(os, len, _encodeBuffer, 0, compLen);
+            }
+        }
+        // Otherwise leave uncompressed:
+        return LZFChunk.createNonCompressed(os, data, offset, len);
     }
 
     /**

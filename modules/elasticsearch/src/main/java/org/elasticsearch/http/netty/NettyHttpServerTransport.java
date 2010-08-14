@@ -107,7 +107,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         this.networkService = networkService;
         ByteSizeValue maxContentLength = componentSettings.getAsBytesSize("max_content_length", settings.getAsBytesSize("http.max_content_length", new ByteSizeValue(100, ByteSizeUnit.MB)));
         this.workerCount = componentSettings.getAsInt("worker_count", Runtime.getRuntime().availableProcessors());
-        this.blockingServer = componentSettings.getAsBoolean("http.blocking_server", componentSettings.getAsBoolean(TCP_BLOCKING_SERVER, componentSettings.getAsBoolean(TCP_BLOCKING, false)));
+        this.blockingServer = settings.getAsBoolean("http.blocking_server", settings.getAsBoolean(TCP_BLOCKING_SERVER, settings.getAsBoolean(TCP_BLOCKING, false)));
         this.port = componentSettings.get("port", settings.get("http.port", "9200-9300"));
         this.bindHost = componentSettings.get("bind_host");
         this.publishHost = componentSettings.get("publish_host");

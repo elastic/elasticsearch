@@ -31,10 +31,12 @@ public class CachedStreamOutput {
     static class Entry {
         final BytesStreamOutput bytes;
         final HandlesStreamOutput handles;
+        final LZFStreamOutput lzf;
 
-        Entry(BytesStreamOutput bytes, HandlesStreamOutput handles) {
+        Entry(BytesStreamOutput bytes, HandlesStreamOutput handles, LZFStreamOutput lzf) {
             this.bytes = bytes;
             this.handles = handles;
+            this.lzf = lzf;
         }
     }
 
@@ -42,7 +44,8 @@ public class CachedStreamOutput {
         @Override protected ThreadLocals.CleanableValue<Entry> initialValue() {
             BytesStreamOutput bytes = new BytesStreamOutput();
             HandlesStreamOutput handles = new HandlesStreamOutput(bytes);
-            return new ThreadLocals.CleanableValue<Entry>(new Entry(bytes, handles));
+            LZFStreamOutput lzf = new LZFStreamOutput(bytes);
+            return new ThreadLocals.CleanableValue<Entry>(new Entry(bytes, handles, lzf));
         }
     };
 
@@ -55,9 +58,23 @@ public class CachedStreamOutput {
         return os;
     }
 
-    public static HandlesStreamOutput cachedHandles() throws IOException {
-        HandlesStreamOutput os = cache.get().get().handles;
-        os.reset();
+    public static LZFStreamOutput cachedLZFBytes() throws IOException {
+        LZFStreamOutput lzf = cache.get().get().lzf;
+        lzf.reset();
+        return lzf;
+    }
+
+    public static HandlesStreamOutput cachedHandlesLzfBytes() throws IOException {
+        Entry entry = cache.get().get();
+        HandlesStreamOutput os = entry.handles;
+        os.reset(entry.lzf);
+        return os;
+    }
+
+    public static HandlesStreamOutput cachedHandlesBytes() throws IOException {
+        Entry entry = cache.get().get();
+        HandlesStreamOutput os = entry.handles;
+        os.reset(entry.bytes);
         return os;
     }
 }

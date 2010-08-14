@@ -24,7 +24,11 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.io.stream.HandlesStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.NotSerializableTransportException;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponseOptions;
+import org.elasticsearch.transport.support.TransportStreams;
 
 import java.io.IOException;
 import java.io.NotSerializableException;
@@ -59,10 +63,10 @@ public class LocalTransportChannel implements TransportChannel {
     }
 
     @Override public void sendResponse(Streamable message, TransportResponseOptions options) throws IOException {
-        HandlesStreamOutput stream = CachedStreamOutput.cachedHandles();
+        HandlesStreamOutput stream = CachedStreamOutput.cachedHandlesBytes();
         stream.writeLong(requestId);
         byte status = 0;
-        status = Transport.Helper.setResponse(status);
+        status = TransportStreams.statusSetResponse(status);
         stream.writeByte(status); // 0 for request, 1 for response.
         message.writeTo(stream);
         final byte[] data = ((BytesStreamOutput) stream.wrappedOut()).copiedByteArray();
@@ -101,8 +105,8 @@ public class LocalTransportChannel implements TransportChannel {
     private void writeResponseExceptionHeader(BytesStreamOutput stream) throws IOException {
         stream.writeLong(requestId);
         byte status = 0;
-        status = Transport.Helper.setResponse(status);
-        status = Transport.Helper.setError(status);
+        status = TransportStreams.statusSetResponse(status);
+        status = TransportStreams.statusSetError(status);
         stream.writeByte(status);
     }
 }

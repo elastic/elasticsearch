@@ -17,35 +17,44 @@
  * under the License.
  */
 
-package org.elasticsearch.common.compress.lzf;
+package org.elasticsearch.common.io.stream;
+
+import org.elasticsearch.common.compress.lzf.ChunkEncoder;
+import org.elasticsearch.common.compress.lzf.LZFChunk;
 
 import java.io.IOException;
-import java.io.OutputStream;
 
-public class LZFOutputStream extends OutputStream {
-    private static int OUTPUT_BUFFER_SIZE = LZFChunk.MAX_CHUNK_LEN;
-    private static int BYTE_MASK = 0xff;
+/**
+ * @author kimchy (shay.banon)
+ */
+public class LZFStreamOutput extends StreamOutput {
 
-    private final OutputStream outputStream;
+    private StreamOutput out;
 
-    private final byte[] outputBuffer = new byte[OUTPUT_BUFFER_SIZE];
-    private final ChunkEncoder encoder = new ChunkEncoder(OUTPUT_BUFFER_SIZE);
+    private final byte[] outputBuffer = new byte[LZFChunk.MAX_CHUNK_LEN];
+    private final ChunkEncoder encoder = new ChunkEncoder(LZFChunk.MAX_CHUNK_LEN);
+
     private int position = 0;
 
-    public LZFOutputStream(final OutputStream outputStream) {
-        this.outputStream = outputStream;
+    public LZFStreamOutput(StreamOutput out) {
+        this.out = out;
     }
 
-    @Override
-    public void write(final int singleByte) throws IOException {
+    @Override public void write(final int singleByte) throws IOException {
         if (position >= outputBuffer.length) {
             writeCompressedBlock();
         }
-        outputBuffer[position++] = (byte) (singleByte & BYTE_MASK);
+        outputBuffer[position++] = (byte) (singleByte & 0xff);
     }
 
-    @Override
-    public void write(final byte[] buffer, final int offset, final int length) throws IOException {
+    @Override public void writeByte(byte b) throws IOException {
+        if (position >= outputBuffer.length) {
+            writeCompressedBlock();
+        }
+        outputBuffer[position++] = b;
+    }
+
+    @Override public void writeBytes(byte[] b, int offset, int length) throws IOException {
         int inputCursor = offset;
         int remainingBytes = length;
         while (remainingBytes > 0) {
@@ -53,36 +62,48 @@ public class LZFOutputStream extends OutputStream {
                 writeCompressedBlock();
             }
             int chunkLength = (remainingBytes > (outputBuffer.length - position)) ? outputBuffer.length - position : remainingBytes;
-            System.arraycopy(buffer, inputCursor, outputBuffer, position, chunkLength);
+            System.arraycopy(b, inputCursor, outputBuffer, position, chunkLength);
             position += chunkLength;
             remainingBytes -= chunkLength;
             inputCursor += chunkLength;
         }
     }
 
-    @Override
-    public void flush() throws IOException {
+    @Override public void flush() throws IOException {
         try {
             writeCompressedBlock();
         } finally {
-            outputStream.flush();
+            out.flush();
         }
     }
 
-    @Override
-    public void close() throws IOException {
+    @Override public void close() throws IOException {
         try {
             flush();
         } finally {
-            outputStream.close();
+            out.close();
         }
+    }
+
+    @Override public void reset() throws IOException {
+        this.position = 0;
+        out.reset();
+    }
+
+    public void reset(StreamOutput out) throws IOException {
+        this.out = out;
+        reset();
+    }
+
+    public StreamOutput wrappedOut() {
+        return this.out;
     }
 
     /**
      * Compress and write the current block to the OutputStream
      */
     private void writeCompressedBlock() throws IOException {
-        encoder.encodeChunk(outputStream, outputBuffer, 0, position);
+        encoder.encodeChunk(out, outputBuffer, 0, position);
         position = 0;
     }
 }

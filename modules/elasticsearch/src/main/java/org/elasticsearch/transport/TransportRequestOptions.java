@@ -34,6 +34,8 @@ public class TransportRequestOptions {
 
     private TimeValue timeout;
 
+    private boolean compress;
+
     public TransportRequestOptions withTimeout(long timeout) {
         return withTimeout(TimeValue.timeValueMillis(timeout));
     }
@@ -43,7 +45,16 @@ public class TransportRequestOptions {
         return this;
     }
 
+    public TransportRequestOptions withCompress() {
+        this.compress = true;
+        return this;
+    }
+
     public TimeValue timeout() {
         return this.timeout;
+    }
+
+    public boolean compress() {
+        return this.compress;
     }
 }

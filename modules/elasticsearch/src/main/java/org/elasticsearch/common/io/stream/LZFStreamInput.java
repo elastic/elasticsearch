@@ -17,16 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.common.compress.lzf;
+package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.common.compress.lzf.LZFChunk;
+import org.elasticsearch.common.compress.lzf.LZFDecoder;
+
+import java.io.EOFException;
 import java.io.IOException;
-import java.io.InputStream;
 
-public class LZFInputStream extends InputStream {
+/**
+ * @author kimchy (shay.banon)
+ */
+public class LZFStreamInput extends StreamInput {
     public static int EOF_FLAG = -1;
-
-    /* stream to be decompressed */
-    private final InputStream inputStream;
 
     /* the current buffer of compressed bytes */
     private final byte[] compressedBytes = new byte[LZFChunk.MAX_CHUNK_LEN];
@@ -40,13 +43,18 @@ public class LZFInputStream extends InputStream {
     /* Length of the current uncompressed bytes buffer */
     private int bufferLength = 0;
 
-    public LZFInputStream(final InputStream inputStream) throws IOException {
-        super();
-        this.inputStream = inputStream;
+    private StreamInput in;
+
+    public LZFStreamInput() {
     }
 
-    @Override
-    public int read() throws IOException {
+    public LZFStreamInput(StreamInput in) throws IOException {
+        this.in = in;
+        // we need to read the first buffer here, since it might be a VOID message, and we need to at least read the LZF header
+        readyBuffer();
+    }
+
+    @Override public int read() throws IOException {
         int returnValue = EOF_FLAG;
         readyBuffer();
         if (bufferPosition < bufferLength) {
@@ -55,36 +63,57 @@ public class LZFInputStream extends InputStream {
         return returnValue;
     }
 
-    public int read(final byte[] buffer) throws IOException {
-        return (read(buffer, 0, buffer.length));
-
-    }
-
-    public int read(final byte[] buffer, final int offset, final int length) throws IOException {
-        // FIXED HERE: handle 0 length cases
-        if (length == 0) {
+    @Override public int read(byte[] b, int off, int len) throws IOException {
+        if (len == 0) {
             return 0;
         }
-        int outputPos = offset;
+        int outputPos = off;
         readyBuffer();
         if (bufferLength == -1) {
             return -1;
         }
 
-        // FIXED HERE: fixed to use length
-        while (outputPos < length && bufferPosition < bufferLength) {
-            int chunkLength = Math.min(bufferLength - bufferPosition, length - outputPos);
-            System.arraycopy(uncompressedBytes, bufferPosition, buffer, outputPos, chunkLength);
+        while (outputPos < len && bufferPosition < bufferLength) {
+            int chunkLength = Math.min(bufferLength - bufferPosition, len - outputPos);
+            System.arraycopy(uncompressedBytes, bufferPosition, b, outputPos, chunkLength);
             outputPos += chunkLength;
             bufferPosition += chunkLength;
             readyBuffer();
         }
-        // FIXED HERE: fixed to return actual length read
-        return outputPos - offset;
+        return outputPos - off;
     }
 
-    public void close() throws IOException {
-        inputStream.close();
+    @Override public byte readByte() throws IOException {
+        readyBuffer();
+        if (bufferPosition < bufferLength) {
+            return (uncompressedBytes[bufferPosition++]);
+        }
+        throw new EOFException();
+    }
+
+    @Override public void readBytes(byte[] b, int offset, int len) throws IOException {
+        int result = read(b, offset, len);
+        if (result < len) {
+            throw new EOFException();
+        }
+    }
+
+    @Override public void reset() throws IOException {
+        this.bufferPosition = 0;
+        this.bufferLength = 0;
+        in.reset();
+    }
+
+    public void reset(StreamInput in) throws IOException {
+        this.in = in;
+        this.bufferPosition = 0;
+        this.bufferLength = 0;
+        // we need to read the first buffer here, since it might be a VOID message, and we need to at least read the LZF header
+        readyBuffer();
+    }
+
+    @Override public void close() throws IOException {
+        in.close();
     }
 
     /**
@@ -94,7 +123,7 @@ public class LZFInputStream extends InputStream {
      */
     private void readyBuffer() throws IOException {
         if (bufferPosition >= bufferLength) {
-            bufferLength = LZFDecoder.decompressChunk(inputStream, compressedBytes, uncompressedBytes);
+            bufferLength = LZFDecoder.decompressChunk(in, compressedBytes, uncompressedBytes);
             bufferPosition = 0;
         }
     }

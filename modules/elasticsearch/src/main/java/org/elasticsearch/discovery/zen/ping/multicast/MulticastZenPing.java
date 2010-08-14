@@ -221,7 +221,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     private void sendPingRequest(int id) {
         synchronized (sendMutex) {
             try {
-                HandlesStreamOutput out = BytesStreamOutput.Cached.cachedHandles();
+                HandlesStreamOutput out = CachedStreamOutput.cachedHandles();
                 out.writeInt(id);
                 clusterName.writeTo(out);
                 nodesProvider.nodes().localNode().writeTo(out);

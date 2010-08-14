@@ -135,7 +135,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override public <T extends Streamable> void sendRequest(final DiscoveryNode node, final long requestId, final String action, final Streamable message, TransportRequestOptions options) throws IOException, TransportException {
-        HandlesStreamOutput stream = BytesStreamOutput.Cached.cachedHandles();
+        HandlesStreamOutput stream = CachedStreamOutput.cachedHandles();
 
         stream.writeLong(requestId);
         byte status = 0;

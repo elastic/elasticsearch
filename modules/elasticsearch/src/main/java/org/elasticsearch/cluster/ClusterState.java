@@ -25,10 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.settings.Settings;
 
 import javax.annotation.Nullable;
@@ -194,7 +191,7 @@ public class ClusterState {
         }
 
         public static byte[] toBytes(ClusterState state) throws IOException {
-            BytesStreamOutput os = BytesStreamOutput.Cached.cached();
+            BytesStreamOutput os = CachedStreamOutput.cachedBytes();
             writeTo(state, os);
             return os.copiedByteArray();
         }

@@ -30,6 +30,9 @@
 
 package org.elasticsearch.common.compress.lzf;
 
+import java.io.IOException;
+import java.io.OutputStream;
+
 /**
  * Helper class used to store LZF encoded segments (compressed and non-compressed)
  * that can be sequenced to produce LZF files/streams.
@@ -59,6 +62,18 @@ public class LZFChunk {
         _data = data;
     }
 
+    public static int createCompressed(OutputStream os, int origLen, byte[] encData, int encPtr, int encLen) throws IOException {
+        os.write(BYTE_Z);
+        os.write(BYTE_V);
+        os.write(BLOCK_TYPE_COMPRESSED);
+        os.write(encLen >> 8);
+        os.write(encLen);
+        os.write((origLen >> 8));
+        os.write(origLen);
+        os.write(encData, encPtr, encLen);
+        return encLen + 7;
+    }
+
     /**
      * Factory method for constructing compressed chunk
      */
@@ -73,6 +88,16 @@ public class LZFChunk {
         result[6] = (byte) origLen;
         System.arraycopy(encData, encPtr, result, 7, encLen);
         return new LZFChunk(result);
+    }
+
+    public static int createNonCompressed(OutputStream os, byte[] plainData, int ptr, int len) throws IOException {
+        os.write(BYTE_Z);
+        os.write(BYTE_V);
+        os.write(BLOCK_TYPE_NON_COMPRESSED);
+        os.write(len >> 8);
+        os.write(len);
+        os.write(plainData, ptr, len);
+        return len + 5;
     }
 
     /**

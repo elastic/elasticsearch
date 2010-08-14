@@ -116,6 +116,54 @@ public abstract class AbstractSimpleTransportTests {
         System.out.println("after ...");
     }
 
+
+    @Test public void testHelloWorldCompressed() {
+        serviceA.registerHandler("sayHello", new BaseTransportRequestHandler<StringMessage>() {
+            @Override public StringMessage newInstance() {
+                return new StringMessage();
+            }
+
+            @Override public void messageReceived(StringMessage request, TransportChannel channel) {
+                System.out.println("got message: " + request.message);
+                assertThat("moshe", equalTo(request.message));
+                try {
+                    channel.sendResponse(new StringMessage("hello " + request.message), TransportResponseOptions.options().withCompress());
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    assertThat(e.getMessage(), false, equalTo(true));
+                }
+            }
+        });
+
+        TransportFuture<StringMessage> res = serviceB.submitRequest(serviceANode, "sayHello",
+                new StringMessage("moshe"), TransportRequestOptions.options().withCompress(), new BaseTransportResponseHandler<StringMessage>() {
+                    @Override public StringMessage newInstance() {
+                        return new StringMessage();
+                    }
+
+                    @Override public void handleResponse(StringMessage response) {
+                        System.out.println("got response: " + response.message);
+                        assertThat("hello moshe", equalTo(response.message));
+                    }
+
+                    @Override public void handleException(RemoteTransportException exp) {
+                        exp.printStackTrace();
+                        assertThat("got exception instead of a response: " + exp.getMessage(), false, equalTo(true));
+                    }
+                });
+
+        try {
+            StringMessage message = res.get();
+            assertThat("hello moshe", equalTo(message.message));
+        } catch (Exception e) {
+            assertThat(e.getMessage(), false, equalTo(true));
+        }
+
+        serviceA.removeHandler("sayHello");
+
+        System.out.println("after ...");
+    }
+
     @Test public void testErrorMessage() {
         serviceA.registerHandler("sayHelloException", new BaseTransportRequestHandler<StringMessage>() {
             @Override public StringMessage newInstance() {

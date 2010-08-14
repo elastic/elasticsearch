@@ -26,9 +26,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.CachedStreamOutput;
-import org.elasticsearch.common.io.stream.HandlesStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
 import org.elasticsearch.common.netty.bootstrap.ClientBootstrap;
@@ -53,6 +50,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.support.TransportStreams;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -72,7 +70,6 @@ import static org.elasticsearch.common.transport.NetworkExceptionHelper.*;
 import static org.elasticsearch.common.unit.TimeValue.*;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.*;
-import static org.elasticsearch.transport.Transport.Helper.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -100,6 +97,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     final String bindHost;
 
     final String publishHost;
+
+    final boolean compress;
 
     final TimeValue connectTimeout;
 
@@ -145,11 +144,12 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         this.networkService = networkService;
 
         this.workerCount = componentSettings.getAsInt("worker_count", Runtime.getRuntime().availableProcessors());
-        this.blockingServer = componentSettings.getAsBoolean("transport.tcp.blocking_server", componentSettings.getAsBoolean(TCP_BLOCKING_SERVER, componentSettings.getAsBoolean(TCP_BLOCKING, false)));
-        this.blockingClient = componentSettings.getAsBoolean("transport.tcp.blocking_client", componentSettings.getAsBoolean(TCP_BLOCKING_CLIENT, componentSettings.getAsBoolean(TCP_BLOCKING, false)));
+        this.blockingServer = settings.getAsBoolean("transport.tcp.blocking_server", settings.getAsBoolean(TCP_BLOCKING_SERVER, settings.getAsBoolean(TCP_BLOCKING, false)));
+        this.blockingClient = settings.getAsBoolean("transport.tcp.blocking_client", settings.getAsBoolean(TCP_BLOCKING_CLIENT, settings.getAsBoolean(TCP_BLOCKING, false)));
         this.port = componentSettings.get("port", settings.get("transport.tcp.port", "9300-9400"));
         this.bindHost = componentSettings.get("bind_host");
         this.publishHost = componentSettings.get("publish_host");
+        this.compress = settings.getAsBoolean("transport.tcp.compress", false);
         this.connectTimeout = componentSettings.getAsTime("connect_timeout", settings.getAsTime("transport.tcp.connect_timeout", timeValueSeconds(1)));
         this.tcpNoDelay = componentSettings.getAsBoolean("tcp_no_delay", settings.getAsBoolean(TCP_NO_DELAY, true));
         this.tcpKeepAlive = componentSettings.getAsBoolean("tcp_keep_alive", settings.getAsBoolean(TCP_KEEP_ALIVE, null));
@@ -381,31 +381,16 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         return new InetSocketTransportAddress((InetSocketAddress) socketAddress);
     }
 
-    private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
-
-    @Override public <T extends Streamable> void sendRequest(final DiscoveryNode node, final long requestId, final String action, final Streamable streamable, TransportRequestOptions options) throws IOException, TransportException {
-
+    @Override public <T extends Streamable> void sendRequest(final DiscoveryNode node, final long requestId, final String action, final Streamable message, TransportRequestOptions options) throws IOException, TransportException {
         Channel targetChannel = nodeChannel(node);
 
-        HandlesStreamOutput stream = CachedStreamOutput.cachedHandles();
-        stream.writeBytes(LENGTH_PLACEHOLDER); // fake size
-
-        stream.writeLong(requestId);
-        byte status = 0;
-        status = setRequest(status);
-        stream.writeByte(status); // 0 for request, 1 for response.
-
-        stream.writeUTF(action);
-        streamable.writeTo(stream);
-
-        byte[] data = ((BytesStreamOutput) stream.wrappedOut()).copiedByteArray();
-        ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(data);
-
-        int size = buffer.writerIndex() - 4;
-        if (size == 0) {
-            throw new ElasticSearchIllegalStateException("Trying to send a stream with 0 size");
+        if (compress) {
+            options.withCompress();
         }
-        buffer.setInt(0, size); // update real size.
+
+        byte[] data = TransportStreams.buildRequest(requestId, action, message, options);
+
+        ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(data);
         ChannelFuture channelFuture = targetChannel.write(buffer);
         // We handle close connection exception in the #exceptionCaught method, which is the main reason we want to add this future
 //        channelFuture.addListener(new ChannelFutureListener() {

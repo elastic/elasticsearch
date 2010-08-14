@@ -22,7 +22,6 @@ package org.elasticsearch.transport.netty;
 import org.elasticsearch.common.io.ThrowableObjectOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
-import org.elasticsearch.common.io.stream.HandlesStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.netty.buffer.ChannelBuffer;
 import org.elasticsearch.common.netty.buffer.ChannelBuffers;
@@ -31,14 +30,13 @@ import org.elasticsearch.transport.NotSerializableTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponseOptions;
+import org.elasticsearch.transport.support.TransportStreams;
 
 import java.io.IOException;
 import java.io.NotSerializableException;
 
-import static org.elasticsearch.transport.Transport.Helper.*;
-
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class NettyTransportChannel implements TransportChannel {
 
@@ -68,17 +66,11 @@ public class NettyTransportChannel implements TransportChannel {
     }
 
     @Override public void sendResponse(Streamable message, TransportResponseOptions options) throws IOException {
-        HandlesStreamOutput stream = CachedStreamOutput.cachedHandles();
-        stream.writeBytes(LENGTH_PLACEHOLDER); // fake size
-        stream.writeLong(requestId);
-        byte status = 0;
-        status = setResponse(status);
-        stream.writeByte(status); // 0 for request, 1 for response.
-        message.writeTo(stream);
-        stream.flush();
-        byte[] data = ((BytesStreamOutput) stream.wrappedOut()).copiedByteArray();
+        if (transport.compress) {
+            options.withCompress();
+        }
+        byte[] data = TransportStreams.buildResponse(requestId, message, options);
         ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(data);
-        buffer.setInt(0, buffer.writerIndex() - 4); // update real size.
         channel.write(buffer);
     }
 
@@ -108,8 +100,8 @@ public class NettyTransportChannel implements TransportChannel {
         stream.writeBytes(LENGTH_PLACEHOLDER);
         stream.writeLong(requestId);
         byte status = 0;
-        status = setResponse(status);
-        status = setError(status);
+        status = TransportStreams.statusSetResponse(status);
+        status = TransportStreams.statusSetError(status);
         stream.writeByte(status);
     }
 }

@@ -32,34 +32,6 @@ import java.io.IOException;
  */
 public interface Transport extends LifecycleComponent<Transport> {
 
-    class Helper {
-        public static final byte TRANSPORT_TYPE = 1 << 0;
-        public static final byte ERROR = 1 << 1;
-
-        public static boolean isRequest(byte value) {
-            return (value & TRANSPORT_TYPE) == 0;
-        }
-
-        public static byte setRequest(byte value) {
-            value &= ~TRANSPORT_TYPE;
-            return value;
-        }
-
-        public static byte setResponse(byte value) {
-            value |= TRANSPORT_TYPE;
-            return value;
-        }
-
-        public static boolean isError(byte value) {
-            return (value & ERROR) != 0;
-        }
-
-        public static byte setError(byte value) {
-            value |= ERROR;
-            return value;
-        }
-    }
-
     void transportServiceAdapter(TransportServiceAdapter service);
 
     /**

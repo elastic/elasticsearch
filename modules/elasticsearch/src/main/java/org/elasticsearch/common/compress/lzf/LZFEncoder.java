@@ -31,6 +31,7 @@
 package org.elasticsearch.common.compress.lzf;
 
 import java.io.IOException;
+import java.io.OutputStream;
 
 /**
  * Encoder that handles splitting of input into chunks to encode,
@@ -47,6 +48,27 @@ public class LZFEncoder {
 
     public static byte[] encode(byte[] data) throws IOException {
         return encode(data, data.length);
+    }
+
+
+    public static void encode(OutputStream os, byte[] data, int length) throws IOException {
+        int left = length;
+        ChunkEncoder enc = new ChunkEncoder(left);
+        int chunkLen = Math.min(LZFChunk.MAX_CHUNK_LEN, left);
+        enc.encodeChunk(os, data, 0, chunkLen);
+        left -= chunkLen;
+        // shortcut: if it all fit in, no need to coalesce:
+        if (left < 1) {
+            return;
+        }
+        int inputOffset = chunkLen;
+
+        do {
+            chunkLen = Math.min(left, LZFChunk.MAX_CHUNK_LEN);
+            enc.encodeChunk(os, data, inputOffset, chunkLen);
+            inputOffset += chunkLen;
+            left -= chunkLen;
+        } while (left > 0);
     }
 
     /**

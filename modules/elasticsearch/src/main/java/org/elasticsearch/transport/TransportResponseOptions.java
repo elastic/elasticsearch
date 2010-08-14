@@ -29,4 +29,15 @@ public class TransportResponseOptions {
     public static TransportResponseOptions options() {
         return new TransportResponseOptions();
     }
+
+    private boolean compress;
+
+    public TransportResponseOptions withCompress() {
+        this.compress = true;
+        return this;
+    }
+
+    public boolean compress() {
+        return this.compress;
+    }
 }

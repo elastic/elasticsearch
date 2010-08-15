@@ -84,6 +84,10 @@ public class HandlesStreamInput extends StreamInput {
         in.readBytes(b, offset, len);
     }
 
+    public void cleanHandles() {
+        handles.clear();
+    }
+
     @Override public void reset() throws IOException {
         in.reset();
         handles.clear();

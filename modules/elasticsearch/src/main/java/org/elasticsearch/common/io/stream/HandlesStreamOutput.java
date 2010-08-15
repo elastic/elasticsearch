@@ -30,7 +30,7 @@ import java.util.Arrays;
  */
 public class HandlesStreamOutput extends StreamOutput {
 
-    private static final int DEFAULT_IDENTITY_THRESHOLD = 50;
+    private static final int DEFAULT_IDENTITY_THRESHOLD = 100;
 
     // a threshold above which strings will use identity check
     private final int identityThreshold;
@@ -83,6 +83,11 @@ public class HandlesStreamOutput extends StreamOutput {
 
     @Override public void writeBytes(byte[] b, int offset, int length) throws IOException {
         out.writeBytes(b, offset, length);
+    }
+
+    public void cleanHandles() {
+        handles.clear();
+        identityHandles.clear();
     }
 
     @Override public void reset() throws IOException {

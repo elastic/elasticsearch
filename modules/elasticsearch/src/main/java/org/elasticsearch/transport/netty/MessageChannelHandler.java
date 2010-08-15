@@ -21,6 +21,7 @@ package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.common.io.ThrowableObjectInputStream;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
+import org.elasticsearch.common.io.stream.HandlesStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.logging.ESLogger;
@@ -73,14 +74,15 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         byte status = buffer.readByte();
         boolean isRequest = TransportStreams.statusIsRequest(status);
 
+        HandlesStreamInput handlesStream;
         if (TransportStreams.statusIsCompress(status)) {
-            streamIn = CachedStreamInput.cachedHandlesLzf(streamIn);
+            handlesStream = CachedStreamInput.cachedHandlesLzf(streamIn);
         } else {
-            streamIn = CachedStreamInput.cachedHandles(streamIn);
+            handlesStream = CachedStreamInput.cachedHandles(streamIn);
         }
 
         if (isRequest) {
-            String action = handleRequest(event, streamIn, requestId);
+            String action = handleRequest(event, handlesStream, requestId);
             if (buffer.readerIndex() != expectedIndexReader) {
                 if (buffer.readerIndex() < expectedIndexReader) {
                     logger.warn("Message not fully read (request) for [{}] and action [{}], resetting", requestId, action);
@@ -95,9 +97,9 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             // ignore if its null, the adapter logs it
             if (handler != null) {
                 if (TransportStreams.statusIsError(status)) {
-                    handlerResponseError(streamIn, handler);
+                    handlerResponseError(handlesStream, handler);
                 } else {
-                    handleResponse(streamIn, handler);
+                    handleResponse(handlesStream, handler);
                 }
             } else {
                 // if its null, skip those bytes
@@ -113,6 +115,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 }
             }
         }
+        handlesStream.cleanHandles();
     }
 
     private void handleResponse(StreamInput buffer, final TransportResponseHandler handler) {

@@ -45,8 +45,8 @@ public class TransportRequestOptions {
         return this;
     }
 
-    public TransportRequestOptions withCompress() {
-        this.compress = true;
+    public TransportRequestOptions withCompress(boolean compress) {
+        this.compress = compress;
         return this;
     }
 

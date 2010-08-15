@@ -20,6 +20,7 @@
 package org.elasticsearch.common.io.stream;
 
 import java.io.IOException;
+import java.io.UTFDataFormatException;
 import java.util.Arrays;
 
 /**
@@ -107,5 +108,64 @@ public class BytesStreamOutput extends StreamOutput {
      */
     public int size() {
         return count;
+    }
+
+
+    /**
+     * Writes a string.
+     */
+    // Override here since we can work on the byte array directly!
+    public void writeUTF(String str) throws IOException {
+        int strlen = str.length();
+        int utflen = 0;
+        int c = 0;
+
+        /* use charAt instead of copying String to char array */
+        for (int i = 0; i < strlen; i++) {
+            c = str.charAt(i);
+            if ((c >= 0x0001) && (c <= 0x007F)) {
+                utflen++;
+            } else if (c > 0x07FF) {
+                utflen += 3;
+            } else {
+                utflen += 2;
+            }
+        }
+
+        if (utflen > 65535)
+            throw new UTFDataFormatException(
+                    "encoded string too long: " + utflen + " bytes");
+
+        int newcount = count + utflen + 2;
+        if (newcount > buf.length) {
+            buf = Arrays.copyOf(buf, Math.max(buf.length << 1, newcount));
+        }
+
+        byte[] bytearr = this.buf;
+
+        bytearr[count++] = (byte) ((utflen >>> 8) & 0xFF);
+        bytearr[count++] = (byte) ((utflen >>> 0) & 0xFF);
+
+        int i = 0;
+        for (i = 0; i < strlen; i++) {
+            c = str.charAt(i);
+            if (!((c >= 0x0001) && (c <= 0x007F))) break;
+            bytearr[count++] = (byte) c;
+        }
+
+        for (; i < strlen; i++) {
+            c = str.charAt(i);
+            if ((c >= 0x0001) && (c <= 0x007F)) {
+                bytearr[count++] = (byte) c;
+
+            } else if (c > 0x07FF) {
+                bytearr[count++] = (byte) (0xE0 | ((c >> 12) & 0x0F));
+                bytearr[count++] = (byte) (0x80 | ((c >> 6) & 0x3F));
+                bytearr[count++] = (byte) (0x80 | ((c >> 0) & 0x3F));
+            } else {
+                bytearr[count++] = (byte) (0xC0 | ((c >> 6) & 0x1F));
+                bytearr[count++] = (byte) (0x80 | ((c >> 0) & 0x3F));
+            }
+        }
     }
 }

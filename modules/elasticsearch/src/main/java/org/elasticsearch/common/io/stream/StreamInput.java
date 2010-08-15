@@ -19,17 +19,21 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.common.Bytes;
-import org.elasticsearch.common.Unicode;
-
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UTFDataFormatException;
 
 /**
  * @author kimchy (shay.banon)
  */
 public abstract class StreamInput extends InputStream {
+
+    /**
+     * working arrays initialized on demand by readUTF
+     */
+    private byte bytearr[] = new byte[80];
+    protected char chararr[] = new char[80];
 
     /**
      * Reads and returns a single byte.
@@ -98,19 +102,95 @@ public abstract class StreamInput extends InputStream {
         return i;
     }
 
-    /**
-     * Reads a string.
-     */
-    public String readUTF() throws IOException {
-        int length = readVInt();
-        byte[] bytes = Bytes.cachedBytes.get().get();
-        if (bytes == null || length > bytes.length) {
-            bytes = new byte[(int) (length * 1.25)];
-            Bytes.cachedBytes.get().set(bytes);
-        }
-        readBytes(bytes, 0, length);
-        return Unicode.fromBytes(bytes, 0, length);
+    protected final int readUnsignedShort() throws IOException {
+        int ch1 = read();
+        int ch2 = read();
+        if ((ch1 | ch2) < 0)
+            throw new EOFException();
+        return (ch1 << 8) + (ch2 << 0);
     }
+
+    // COPIED from DataInputStream
+
+    public String readUTF() throws IOException {
+        int utflen = readUnsignedShort();
+        if (utflen == 0) {
+            return "";
+        }
+        if (bytearr.length < utflen) {
+            bytearr = new byte[utflen * 2];
+            chararr = new char[utflen * 2];
+        }
+        char[] chararr = this.chararr;
+        byte[] bytearr = this.bytearr;
+
+        int c, char2, char3;
+        int count = 0;
+        int chararr_count = 0;
+
+        readBytes(bytearr, 0, utflen);
+
+        while (count < utflen) {
+            c = (int) bytearr[count] & 0xff;
+            if (c > 127) break;
+            count++;
+            chararr[chararr_count++] = (char) c;
+        }
+
+        while (count < utflen) {
+            c = (int) bytearr[count] & 0xff;
+            switch (c >> 4) {
+                case 0:
+                case 1:
+                case 2:
+                case 3:
+                case 4:
+                case 5:
+                case 6:
+                case 7:
+                    /* 0xxxxxxx*/
+                    count++;
+                    chararr[chararr_count++] = (char) c;
+                    break;
+                case 12:
+                case 13:
+                    /* 110x xxxx   10xx xxxx*/
+                    count += 2;
+                    if (count > utflen)
+                        throw new UTFDataFormatException(
+                                "malformed input: partial character at end");
+                    char2 = (int) bytearr[count - 1];
+                    if ((char2 & 0xC0) != 0x80)
+                        throw new UTFDataFormatException(
+                                "malformed input around byte " + count);
+                    chararr[chararr_count++] = (char) (((c & 0x1F) << 6) |
+                            (char2 & 0x3F));
+                    break;
+                case 14:
+                    /* 1110 xxxx  10xx xxxx  10xx xxxx */
+                    count += 3;
+                    if (count > utflen)
+                        throw new UTFDataFormatException(
+                                "malformed input: partial character at end");
+                    char2 = (int) bytearr[count - 2];
+                    char3 = (int) bytearr[count - 1];
+                    if (((char2 & 0xC0) != 0x80) || ((char3 & 0xC0) != 0x80))
+                        throw new UTFDataFormatException(
+                                "malformed input around byte " + (count - 1));
+                    chararr[chararr_count++] = (char) (((c & 0x0F) << 12) |
+                            ((char2 & 0x3F) << 6) |
+                            ((char3 & 0x3F) << 0));
+                    break;
+                default:
+                    /* 10xx xxxx,  1111 xxxx */
+                    throw new UTFDataFormatException(
+                            "malformed input around byte " + count);
+            }
+        }
+        // The number of chars produced may be less than utflen
+        return new String(chararr, 0, chararr_count);
+    }
+
 
     public final float readFloat() throws IOException {
         return Float.intBitsToFloat(readInt());

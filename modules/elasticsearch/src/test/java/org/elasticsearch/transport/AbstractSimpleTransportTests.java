@@ -136,7 +136,7 @@ public abstract class AbstractSimpleTransportTests {
         });
 
         TransportFuture<StringMessage> res = serviceB.submitRequest(serviceANode, "sayHello",
-                new StringMessage("moshe"), TransportRequestOptions.options().withCompress(), new BaseTransportResponseHandler<StringMessage>() {
+                new StringMessage("moshe"), TransportRequestOptions.options().withCompress(true), new BaseTransportResponseHandler<StringMessage>() {
                     @Override public StringMessage newInstance() {
                         return new StringMessage();
                     }

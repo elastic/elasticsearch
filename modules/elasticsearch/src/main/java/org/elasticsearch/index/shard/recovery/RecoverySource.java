@@ -74,6 +74,8 @@ public class RecoverySource extends AbstractComponent {
 
     private final ByteSizeValue fileChunkSize;
 
+    private final boolean compress;
+
     @Inject public RecoverySource(Settings settings, ThreadPool threadPool, TransportService transportService, IndicesService indicesService,
                                   RecoveryThrottler recoveryThrottler) {
         super(settings);
@@ -83,6 +85,7 @@ public class RecoverySource extends AbstractComponent {
         this.recoveryThrottler = recoveryThrottler;
 
         this.fileChunkSize = componentSettings.getAsBytesSize("file_chunk_size", new ByteSizeValue(100, ByteSizeUnit.KB));
+        this.compress = componentSettings.getAsBoolean("compress", true);
 
         transportService.registerHandler(Actions.START_RECOVERY, new StartRecoveryTransportRequestHandler());
     }
@@ -165,7 +168,7 @@ public class RecoverySource extends AbstractComponent {
                                             long position = indexInput.getFilePointer();
                                             indexInput.readBytes(buf, 0, toRead, false);
                                             transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILE_CHUNK, new RecoveryFileChunkRequest(request.shardId(), name, position, len, buf, toRead),
-                                                    TransportRequestOptions.options().withCompress(), VoidTransportResponseHandler.INSTANCE).txGet();
+                                                    TransportRequestOptions.options().withCompress(compress), VoidTransportResponseHandler.INSTANCE).txGet();
                                             readCount += toRead;
                                         }
                                         indexInput.close();

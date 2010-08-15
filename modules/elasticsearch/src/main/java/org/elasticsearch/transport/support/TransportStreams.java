@@ -108,12 +108,14 @@ public class TransportStreams {
             message.writeTo(stream);
             stream.flush();
             wrapped = ((BytesStreamOutput) ((LZFStreamOutput) stream.wrappedOut()).wrappedOut());
+            stream.cleanHandles();
         } else {
             HandlesStreamOutput stream = CachedStreamOutput.cachedHandlesBytes();
             stream.writeUTF(action);
             message.writeTo(stream);
             stream.flush();
             wrapped = ((BytesStreamOutput) stream.wrappedOut());
+            stream.cleanHandles();
         }
 
         byte[] data = new byte[HEADER_SIZE + wrapped.size()];

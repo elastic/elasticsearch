@@ -48,6 +48,10 @@ public class LZFDecoder {
     private LZFDecoder() {
     }
 
+    public static boolean isCompressed(final byte[] buffer) {
+        return buffer.length >= 2 && buffer[0] == LZFChunk.BYTE_Z && buffer[1] == LZFChunk.BYTE_V;
+    }
+
     public static byte[] decode(final byte[] sourceBuffer) throws IOException {
         byte[] result = new byte[calculateUncompressedSize(sourceBuffer)];
         decode(sourceBuffer, result);

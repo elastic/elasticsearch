@@ -20,6 +20,9 @@
 package org.elasticsearch.index.mapper.xcontent;
 
 import org.apache.lucene.document.*;
+import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.compress.lzf.LZFDecoder;
+import org.elasticsearch.common.compress.lzf.LZFEncoder;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -47,6 +50,8 @@ public class XContentSourceFieldMapper extends XContentFieldMapper<byte[]> imple
 
         private boolean enabled = Defaults.ENABLED;
 
+        private Boolean compress = null;
+
         public Builder() {
             super(Defaults.NAME);
         }
@@ -56,28 +61,40 @@ public class XContentSourceFieldMapper extends XContentFieldMapper<byte[]> imple
             return this;
         }
 
+        public Builder compress(boolean compress) {
+            this.compress = compress;
+            return this;
+        }
+
         @Override public XContentSourceFieldMapper build(BuilderContext context) {
-            return new XContentSourceFieldMapper(name, enabled);
+            return new XContentSourceFieldMapper(name, enabled, compress);
         }
     }
 
     private final boolean enabled;
 
+    private Boolean compress;
+
     private final SourceFieldSelector fieldSelector;
 
     protected XContentSourceFieldMapper() {
-        this(Defaults.NAME, Defaults.ENABLED);
+        this(Defaults.NAME, Defaults.ENABLED, null);
     }
 
-    protected XContentSourceFieldMapper(String name, boolean enabled) {
+    protected XContentSourceFieldMapper(String name, boolean enabled, Boolean compress) {
         super(new Names(name, name, name, name), Defaults.INDEX, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.BOOST,
                 Defaults.OMIT_NORMS, Defaults.OMIT_TERM_FREQ_AND_POSITIONS, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
         this.enabled = enabled;
+        this.compress = compress;
         this.fieldSelector = new SourceFieldSelector(names.indexName());
     }
 
     public boolean enabled() {
         return this.enabled;
+    }
+
+    @Override public boolean compressed() {
+        return compress != null && compress;
     }
 
     public FieldSelector fieldSelector() {
@@ -88,7 +105,11 @@ public class XContentSourceFieldMapper extends XContentFieldMapper<byte[]> imple
         if (!enabled) {
             return null;
         }
-        return new Field(names.indexName(), context.source(), store);
+        byte[] data = context.source();
+        if (compress != null && compress) {
+            data = LZFEncoder.encodeWithCache(data, data.length);
+        }
+        return new Field(names.indexName(), data, store);
     }
 
     @Override public byte[] value(Document document) {
@@ -96,8 +117,23 @@ public class XContentSourceFieldMapper extends XContentFieldMapper<byte[]> imple
         return field == null ? null : value(field);
     }
 
-    @Override public byte[] value(Fieldable field) {
+    @Override public byte[] nativeValue(Fieldable field) {
         return field.getBinaryValue();
+    }
+
+    @Override public byte[] value(Fieldable field) {
+        byte[] value = field.getBinaryValue();
+        if (value == null) {
+            return value;
+        }
+        if (LZFDecoder.isCompressed(value)) {
+            try {
+                return LZFDecoder.decode(value);
+            } catch (IOException e) {
+                throw new ElasticSearchParseException("failed to decompress source", e);
+            }
+        }
+        return value;
     }
 
     @Override public byte[] valueFromString(String value) {
@@ -136,10 +172,18 @@ public class XContentSourceFieldMapper extends XContentFieldMapper<byte[]> imple
         builder.startObject(contentType());
         builder.field("name", name());
         builder.field("enabled", enabled);
+        if (compress != null) {
+            builder.field("compress", compress);
+        }
         builder.endObject();
     }
 
     @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        // do nothing here, no merging, but also no exception
+        XContentSourceFieldMapper sourceMergeWith = (XContentSourceFieldMapper) mergeWith;
+        if (!mergeContext.mergeFlags().simulate()) {
+            if (sourceMergeWith.compress != null) {
+                this.compress = sourceMergeWith.compress;
+            }
+        }
     }
 }

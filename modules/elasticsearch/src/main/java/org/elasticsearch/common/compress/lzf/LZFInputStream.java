@@ -26,7 +26,7 @@ public class LZFInputStream extends InputStream {
     public static int EOF_FLAG = -1;
 
     /* stream to be decompressed */
-    private final InputStream inputStream;
+    private InputStream inputStream;
 
     /* the current buffer of compressed bytes */
     private final byte[] compressedBytes = new byte[LZFChunk.MAX_CHUNK_LEN];
@@ -85,6 +85,12 @@ public class LZFInputStream extends InputStream {
 
     public void close() throws IOException {
         inputStream.close();
+    }
+
+    public void reset(InputStream is) {
+        this.inputStream = is;
+        bufferLength = 0;
+        bufferPosition = 0;
     }
 
     /**

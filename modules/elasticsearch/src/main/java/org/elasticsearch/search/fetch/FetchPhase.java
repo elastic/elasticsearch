@@ -168,7 +168,7 @@ public class FetchPhase implements SearchPhase {
     private byte[] extractSource(Document doc, DocumentMapper documentMapper) {
         Fieldable sourceField = doc.getFieldable(SourceFieldMapper.NAME);
         if (sourceField != null) {
-            return documentMapper.sourceMapper().value(sourceField);
+            return documentMapper.sourceMapper().nativeValue(sourceField);
         }
         return null;
     }

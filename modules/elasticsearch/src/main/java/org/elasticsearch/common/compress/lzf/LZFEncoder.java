@@ -30,6 +30,8 @@
 
 package org.elasticsearch.common.compress.lzf;
 
+import org.elasticsearch.common.thread.ThreadLocals;
+
 import java.io.IOException;
 import java.io.OutputStream;
 
@@ -69,6 +71,45 @@ public class LZFEncoder {
             inputOffset += chunkLen;
             left -= chunkLen;
         } while (left > 0);
+    }
+
+    public static ThreadLocal<ThreadLocals.CleanableValue<ChunkEncoder>> cachedEncoder = new ThreadLocal<ThreadLocals.CleanableValue<ChunkEncoder>>() {
+        @Override protected ThreadLocals.CleanableValue<ChunkEncoder> initialValue() {
+            return new ThreadLocals.CleanableValue<ChunkEncoder>(new ChunkEncoder(LZFChunk.MAX_CHUNK_LEN));
+        }
+    };
+
+    public static byte[] encodeWithCache(byte[] data, int length) throws IOException {
+        int left = length;
+        ChunkEncoder enc = cachedEncoder.get().get();
+        int chunkLen = Math.min(LZFChunk.MAX_CHUNK_LEN, left);
+        LZFChunk first = enc.encodeChunk(data, 0, chunkLen);
+        left -= chunkLen;
+        // shortcut: if it all fit in, no need to coalesce:
+        if (left < 1) {
+            return first.getData();
+        }
+        // otherwise need to get other chunks:
+        int resultBytes = first.length();
+        int inputOffset = chunkLen;
+        LZFChunk last = first;
+
+        do {
+            chunkLen = Math.min(left, LZFChunk.MAX_CHUNK_LEN);
+            LZFChunk chunk = enc.encodeChunk(data, inputOffset, chunkLen);
+            inputOffset += chunkLen;
+            left -= chunkLen;
+            resultBytes += chunk.length();
+            last.setNext(chunk);
+            last = chunk;
+        } while (left > 0);
+        // and then coalesce returns into single contiguous byte array
+        byte[] result = new byte[resultBytes];
+        int ptr = 0;
+        for (; first != null; first = first.next()) {
+            ptr = first.copyTo(result, ptr);
+        }
+        return result;
     }
 
     /**

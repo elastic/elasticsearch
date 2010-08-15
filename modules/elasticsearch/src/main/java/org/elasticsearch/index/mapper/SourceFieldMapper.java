@@ -21,12 +21,13 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldSelector;
+import org.apache.lucene.document.Fieldable;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 
 /**
  * A mapper that maps the actual source of a generated document.
  *
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 @ThreadSafe
 public interface SourceFieldMapper extends FieldMapper<byte[]>, InternalMapper {
@@ -37,6 +38,16 @@ public interface SourceFieldMapper extends FieldMapper<byte[]>, InternalMapper {
      * Returns <tt>true</tt> if the source field mapper is enabled or not.
      */
     boolean enabled();
+
+    /**
+     * Is the source field compressed or not?
+     */
+    boolean compressed();
+
+    /**
+     * Returns the native source value, if its compressed, then the compressed value is returned.
+     */
+    byte[] nativeValue(Fieldable field);
 
     byte[] value(Document document);
 

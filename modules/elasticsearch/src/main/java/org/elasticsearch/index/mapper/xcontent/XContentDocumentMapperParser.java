@@ -224,6 +224,8 @@ public class XContentDocumentMapperParser extends AbstractIndexComponent impleme
             Object fieldNode = entry.getValue();
             if (fieldName.equals("enabled")) {
                 builder.enabled(nodeBooleanValue(fieldNode));
+            } else if (fieldName.equals("compress") && fieldNode != null) {
+                builder.compress(nodeBooleanValue(fieldNode));
             }
         }
         return builder;

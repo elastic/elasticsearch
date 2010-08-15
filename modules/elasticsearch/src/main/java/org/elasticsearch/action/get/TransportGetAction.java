@@ -157,7 +157,7 @@ public class TransportGetAction extends TransportSingleOperationAction<GetReques
         byte[] source = null;
         Fieldable sourceField = doc.getFieldable(documentMapper.sourceMapper().names().indexName());
         if (sourceField != null) {
-            source = documentMapper.sourceMapper().value(sourceField);
+            source = documentMapper.sourceMapper().nativeValue(sourceField);
             doc.removeField(documentMapper.sourceMapper().names().indexName());
         }
         return source;

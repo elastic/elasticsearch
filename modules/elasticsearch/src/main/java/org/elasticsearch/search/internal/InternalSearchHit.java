@@ -23,6 +23,7 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.compress.lzf.LZFDecoder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.trove.TIntObjectHashMap;
@@ -126,7 +127,17 @@ public class InternalSearchHit implements SearchHit {
     }
 
     @Override public byte[] source() {
-        return source;
+        if (source == null) {
+            return null;
+        }
+        if (LZFDecoder.isCompressed(source)) {
+            try {
+                this.source = LZFDecoder.decode(source);
+            } catch (IOException e) {
+                throw new ElasticSearchParseException("failed to decompress source", e);
+            }
+        }
+        return this.source;
     }
 
     @Override public boolean isSourceEmpty() {
@@ -141,7 +152,7 @@ public class InternalSearchHit implements SearchHit {
         if (source == null) {
             return null;
         }
-        return Unicode.fromBytes(source);
+        return Unicode.fromBytes(source());
     }
 
     @SuppressWarnings({"unchecked"})
@@ -152,6 +163,7 @@ public class InternalSearchHit implements SearchHit {
         if (sourceAsMap != null) {
             return sourceAsMap;
         }
+        byte[] source = source();
         XContentParser parser = null;
         try {
             parser = XContentFactory.xContent(source).createParser(source);

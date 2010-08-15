@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.compress.lzf.LZFDecoder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -135,6 +136,16 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
      * The source of the document if exists.
      */
     public byte[] source() {
+        if (source == null) {
+            return null;
+        }
+        if (LZFDecoder.isCompressed(source)) {
+            try {
+                this.source = LZFDecoder.decode(source);
+            } catch (IOException e) {
+                throw new ElasticSearchParseException("failed to decompress source", e);
+            }
+        }
         return this.source;
     }
 
@@ -152,7 +163,7 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
         if (source == null) {
             return null;
         }
-        return Unicode.fromBytes(source);
+        return Unicode.fromBytes(source());
     }
 
     /**
@@ -166,6 +177,7 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
         if (sourceAsMap != null) {
             return sourceAsMap;
         }
+        byte[] source = source();
         XContentParser parser = null;
         try {
             parser = XContentFactory.xContent(source).createParser(source);

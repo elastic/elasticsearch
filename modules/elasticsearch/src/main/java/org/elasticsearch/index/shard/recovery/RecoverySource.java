@@ -40,10 +40,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.throttler.RecoveryThrottler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.VoidTransportResponseHandler;
+import org.elasticsearch.transport.*;
 
 import java.io.IOException;
 import java.util.List;
@@ -167,7 +164,8 @@ public class RecoverySource extends AbstractComponent {
                                             int toRead = readCount + BUFFER_SIZE > len ? (int) (len - readCount) : BUFFER_SIZE;
                                             long position = indexInput.getFilePointer();
                                             indexInput.readBytes(buf, 0, toRead, false);
-                                            transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILE_CHUNK, new RecoveryFileChunkRequest(request.shardId(), name, position, len, buf, toRead), VoidTransportResponseHandler.INSTANCE).txGet();
+                                            transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILE_CHUNK, new RecoveryFileChunkRequest(request.shardId(), name, position, len, buf, toRead),
+                                                    TransportRequestOptions.options().withCompress(), VoidTransportResponseHandler.INSTANCE).txGet();
                                             readCount += toRead;
                                         }
                                         indexInput.close();

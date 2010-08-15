@@ -44,7 +44,7 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
         this.minMergeDocs = componentSettings.getAsInt("min_merge_docs", LogDocMergePolicy.DEFAULT_MIN_MERGE_DOCS);
         this.maxMergeDocs = componentSettings.getAsInt("max_merge_docs", LogDocMergePolicy.DEFAULT_MAX_MERGE_DOCS);
         this.mergeFactor = componentSettings.getAsInt("merge_factor", LogDocMergePolicy.DEFAULT_MERGE_FACTOR);
-        this.calibrateSizeByDeletes = componentSettings.getAsBoolean("calibrate_size_by_deletes", false);
+        this.calibrateSizeByDeletes = componentSettings.getAsBoolean("calibrate_size_by_deletes", true);
         this.useCompoundFile = componentSettings.getAsBoolean("use_compound_file", store == null || store.suggestUseCompoundFile());
         logger.debug("using [log_doc] merge policy with merge_factor[{}] min_merge_docs[{}], max_merge_docs[{}], use_compound_file[{}], calibrate_size_by_deletes[{}]",
                 mergeFactor, minMergeDocs, maxMergeDocs, useCompoundFile, calibrateSizeByDeletes);

@@ -102,18 +102,20 @@ public class RecoveryTarget extends AbstractComponent {
         });
     }
 
-    public void startRecovery(final StartRecoveryRequest request, boolean fromRetry, final RecoveryListener listener) {
+    public void startRecovery(final StartRecoveryRequest request, final boolean fromRetry, final RecoveryListener listener) {
         if (request.sourceNode() == null) {
             listener.onIgnoreRecovery(false, "No node to recovery from, retry on next cluster state update");
             return;
         }
         IndexService indexService = indicesService.indexService(request.shardId().index().name());
         if (indexService == null) {
+            removeAndCleanOnGoingRecovery(request.shardId());
             listener.onIgnoreRecovery(false, "index missing, stop recovery");
             return;
         }
         final InternalIndexShard shard = (InternalIndexShard) indexService.shard(request.shardId().id());
         if (shard == null) {
+            removeAndCleanOnGoingRecovery(request.shardId());
             listener.onIgnoreRecovery(false, "shard missing, stop recovery");
             return;
         }
@@ -127,30 +129,41 @@ public class RecoveryTarget extends AbstractComponent {
             }
         }
         if (shard.state() == IndexShardState.CLOSED) {
+            removeAndCleanOnGoingRecovery(request.shardId());
             listener.onIgnoreRecovery(false, "shard closed, stop recovery");
             return;
         }
         threadPool.cached().execute(new Runnable() {
             @Override public void run() {
-                doRecovery(shard, request, listener);
+                doRecovery(shard, request, fromRetry, listener);
             }
         });
     }
 
-    private void doRecovery(final InternalIndexShard shard, final StartRecoveryRequest request, final RecoveryListener listener) {
+    private void doRecovery(final InternalIndexShard shard, final StartRecoveryRequest request, final boolean fromRetry, final RecoveryListener listener) {
         if (shard.state() == IndexShardState.CLOSED) {
+            removeAndCleanOnGoingRecovery(request.shardId());
             listener.onIgnoreRecovery(false, "shard closed, stop recovery");
             return;
         }
 
+        OnGoingRecovery recovery;
+        if (fromRetry) {
+            recovery = onGoingRecoveries.get(request.shardId());
+        } else {
+            recovery = new OnGoingRecovery();
+            onGoingRecoveries.put(request.shardId(), recovery);
+        }
+
         if (!recoveryThrottler.tryRecovery(shard.shardId(), "peer recovery target")) {
+            recovery.stage = OnGoingRecovery.Stage.RETRY;
+            recovery.retryTimeInMillis = System.currentTimeMillis() - recovery.startTimeImMillis;
             listener.onRetryRecovery(recoveryThrottler.throttleInterval());
             return;
         }
 
         try {
             logger.trace("[{}][{}] starting recovery from {}", request.shardId().index().name(), request.shardId().id(), request.sourceNode());
-            onGoingRecoveries.put(request.shardId(), new OnGoingRecovery());
 
             StopWatch stopWatch = new StopWatch().start();
             RecoveryResponse recoveryStatus = transportService.submitRequest(request.sourceNode(), RecoverySource.Actions.START_RECOVERY, request, new FutureTransportResponseHandler<RecoveryResponse>() {
@@ -164,7 +177,8 @@ public class RecoveryTarget extends AbstractComponent {
                     return;
                 }
                 logger.trace("[{}][{}] retrying recovery in [{}], source shard is busy", request.shardId().index().name(), request.shardId().id(), recoveryThrottler.throttleInterval());
-                removeAndCleanOnGoingRecovery(request.shardId());
+                recovery.stage = OnGoingRecovery.Stage.RETRY;
+                recovery.retryTimeInMillis = System.currentTimeMillis() - recovery.startTimeImMillis;
                 listener.onRetryRecovery(recoveryThrottler.throttleInterval());
                 return;
             }
@@ -187,12 +201,11 @@ public class RecoveryTarget extends AbstractComponent {
             removeAndCleanOnGoingRecovery(request.shardId());
             listener.onRecoveryDone();
         } catch (Exception e) {
-            removeAndCleanOnGoingRecovery(request.shardId());
             if (shard.state() == IndexShardState.CLOSED) {
+                removeAndCleanOnGoingRecovery(request.shardId());
                 listener.onIgnoreRecovery(false, "shard closed, stop recovery");
                 return;
             }
-            logger.trace("[{}][{}] recovery from [{}] failed", e, request.shardId().index().name(), request.shardId().id(), request.sourceNode());
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof RecoveryEngineException) {
                 // unwrap an exception that was thrown as part of the recovery
@@ -206,9 +219,14 @@ public class RecoveryTarget extends AbstractComponent {
             }
 
             if (cause instanceof IndexShardNotStartedException || cause instanceof IndexMissingException || cause instanceof IndexShardMissingException) {
+                recovery.stage = OnGoingRecovery.Stage.RETRY;
+                recovery.retryTimeInMillis = System.currentTimeMillis() - recovery.startTimeImMillis;
                 listener.onRetryRecovery(recoveryThrottler.throttleInterval());
                 return;
             }
+
+            removeAndCleanOnGoingRecovery(request.shardId());
+            logger.trace("[{}][{}] recovery from [{}] failed", e, request.shardId().index().name(), request.shardId().id(), request.sourceNode());
 
             if (cause instanceof ConnectTransportException) {
                 listener.onIgnoreRecovery(true, "source node disconnected");

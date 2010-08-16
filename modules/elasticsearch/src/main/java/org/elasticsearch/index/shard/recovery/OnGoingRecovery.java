@@ -33,6 +33,7 @@ public class OnGoingRecovery {
 
     public static enum Stage {
         INIT,
+        RETRY,
         FILES,
         TRANSLOG,
         FINALIZE
@@ -40,6 +41,8 @@ public class OnGoingRecovery {
 
     ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
 
+    final long startTimeImMillis = System.currentTimeMillis();
+    volatile long retryTimeInMillis = 0;
     List<String> phase1FileNames;
     List<Long> phase1FileSizes;
     List<String> phase1ExistingFileNames;

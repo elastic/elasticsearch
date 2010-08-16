@@ -97,19 +97,11 @@ task zip(type: Zip, dependsOn: ['explodedDist']) {
         into zipRootFolder
         exclude 'bin/elasticsearch'
         exclude 'bin/plugin'
-        exclude 'bin/service/elasticsearch'
-        exclude 'bin/service/elasticsearch32'
-        exclude 'bin/service/elasticsearch64'
-        exclude 'bin/service/exec/**'
     }
     from(explodedDistDir) {
         into zipRootFolder
         include 'bin/elasticsearch'
         include 'bin/plugin'
-        include 'bin/service/elasticsearch'
-        include 'bin/service/elasticsearch32'
-        include 'bin/service/elasticsearch64'
-        include 'bin/service/exec/**'
         fileMode = 0755
     }
 }
@@ -119,6 +111,6 @@ task release(dependsOn: [zip]) << {
 }
 
 task wrapper(type: Wrapper) {
-    gradleVersion = '0.9-preview-3'
+    gradleVersion = '0.9-rc-1'
     jarPath = 'gradle'
 }

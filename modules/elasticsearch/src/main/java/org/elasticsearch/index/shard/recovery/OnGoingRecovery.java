@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @author kimchy (shay.banon)
@@ -48,4 +49,5 @@ public class OnGoingRecovery {
 
     volatile Stage stage = Stage.INIT;
     volatile long currentTranslogOperations = 0;
+    AtomicLong currentFilesSize = new AtomicLong();
 }

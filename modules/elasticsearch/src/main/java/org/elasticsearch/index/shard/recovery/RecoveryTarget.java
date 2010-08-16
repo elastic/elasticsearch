@@ -395,6 +395,7 @@ public class RecoveryTarget extends AbstractComponent {
             synchronized (indexOutput) {
                 try {
                     indexOutput.writeBytes(request.content(), request.contentLength());
+                    onGoingRecovery.currentFilesSize.addAndGet(request.contentLength());
                     if (indexOutput.getFilePointer() == request.length()) {
                         // we are done
                         indexOutput.close();

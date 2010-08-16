@@ -1,0 +1,113 @@
+/*
+ * Licensed to Elastic Search and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Elastic Search licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.index.shard.recovery;
+
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.index.shard.ShardId;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * @author kimchy (shay.banon)
+ */
+class RecoveryFilesInfoRequest implements Streamable {
+
+    ShardId shardId;
+
+    List<String> phase1FileNames;
+    List<Long> phase1FileSizes;
+    List<String> phase1ExistingFileNames;
+    List<Long> phase1ExistingFileSizes;
+    long phase1TotalSize;
+    long phase1ExistingTotalSize;
+
+    RecoveryFilesInfoRequest() {
+    }
+
+    RecoveryFilesInfoRequest(ShardId shardId, List<String> phase1FileNames, List<Long> phase1FileSizes, List<String> phase1ExistingFileNames, List<Long> phase1ExistingFileSizes, long phase1TotalSize, long phase1ExistingTotalSize) {
+        this.shardId = shardId;
+        this.phase1FileNames = phase1FileNames;
+        this.phase1FileSizes = phase1FileSizes;
+        this.phase1ExistingFileNames = phase1ExistingFileNames;
+        this.phase1ExistingFileSizes = phase1ExistingFileSizes;
+        this.phase1TotalSize = phase1TotalSize;
+        this.phase1ExistingTotalSize = phase1ExistingTotalSize;
+    }
+
+    @Override public void readFrom(StreamInput in) throws IOException {
+        shardId = ShardId.readShardId(in);
+        int size = in.readVInt();
+        phase1FileNames = new ArrayList<String>(size);
+        for (int i = 0; i < size; i++) {
+            phase1FileNames.add(in.readUTF());
+        }
+
+        size = in.readVInt();
+        phase1FileSizes = new ArrayList<Long>(size);
+        for (int i = 0; i < size; i++) {
+            phase1FileSizes.add(in.readVLong());
+        }
+
+        size = in.readVInt();
+        phase1ExistingFileNames = new ArrayList<String>(size);
+        for (int i = 0; i < size; i++) {
+            phase1ExistingFileNames.add(in.readUTF());
+        }
+
+        size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            phase1ExistingFileSizes.add(in.readVLong());
+        }
+
+        phase1TotalSize = in.readVLong();
+        phase1ExistingTotalSize = in.readVLong();
+    }
+
+    @Override public void writeTo(StreamOutput out) throws IOException {
+        shardId.writeTo(out);
+
+        out.writeVInt(phase1FileNames.size());
+        for (String phase1FileName : phase1FileNames) {
+            out.writeUTF(phase1FileName);
+        }
+
+        out.writeVInt(phase1FileSizes.size());
+        for (Long phase1FileSize : phase1FileSizes) {
+            out.writeVLong(phase1FileSize);
+        }
+
+        out.writeVInt(phase1ExistingFileNames.size());
+        for (String phase1ExistingFileName : phase1ExistingFileNames) {
+            out.writeUTF(phase1ExistingFileName);
+        }
+
+        out.writeVInt(phase1ExistingFileSizes.size());
+        for (Long phase1ExistingFileSize : phase1ExistingFileSizes) {
+            out.writeVLong(phase1ExistingFileSize);
+        }
+
+        out.writeVLong(phase1TotalSize);
+        out.writeVLong(phase1ExistingTotalSize);
+    }
+}

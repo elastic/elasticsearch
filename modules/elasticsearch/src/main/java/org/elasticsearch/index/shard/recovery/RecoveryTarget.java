@@ -62,6 +62,7 @@ import static org.elasticsearch.common.unit.TimeValue.*;
 public class RecoveryTarget extends AbstractComponent {
 
     public static class Actions {
+        public static final String FILES_INFO = "index/shard/recovery/filesInfo";
         public static final String FILE_CHUNK = "index/shard/recovery/fileChunk";
         public static final String CLEAN_FILES = "index/shard/recovery/cleanFiles";
         public static final String TRANSLOG_OPS = "index/shard/recovery/translogOps";
@@ -87,6 +88,7 @@ public class RecoveryTarget extends AbstractComponent {
         this.indicesService = indicesService;
         this.recoveryThrottler = recoveryThrottler;
 
+        transportService.registerHandler(Actions.FILES_INFO, new FilesInfoRequestHandler());
         transportService.registerHandler(Actions.FILE_CHUNK, new FileChunkTransportRequestHandler());
         transportService.registerHandler(Actions.CLEAN_FILES, new CleanFilesRequestHandler());
         transportService.registerHandler(Actions.PREPARE_TRANSLOG, new PrepareForTranslogOperationsRequestHandler());
@@ -252,10 +254,6 @@ public class RecoveryTarget extends AbstractComponent {
         }
     }
 
-    static class OnGoingRecovery {
-        ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
-    }
-
     class PrepareForTranslogOperationsRequestHandler extends BaseTransportRequestHandler<RecoveryPrepareForTranslogOperationsRequest> {
 
         @Override public RecoveryPrepareForTranslogOperationsRequest newInstance() {
@@ -264,6 +262,14 @@ public class RecoveryTarget extends AbstractComponent {
 
         @Override public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel) throws Exception {
             InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
+
+            OnGoingRecovery onGoingRecovery = onGoingRecoveries.get(shard.shardId());
+            if (onGoingRecovery == null) {
+                // shard is getting closed on us
+                throw new IndexShardClosedException(shard.shardId());
+            }
+            onGoingRecovery.stage = OnGoingRecovery.Stage.TRANSLOG;
+
             shard.performRecoveryPrepareForTranslog();
             channel.sendResponse(VoidStreamable.INSTANCE);
         }
@@ -277,6 +283,12 @@ public class RecoveryTarget extends AbstractComponent {
 
         @Override public void messageReceived(RecoveryFinalizeRecoveryRequest request, TransportChannel channel) throws Exception {
             InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
+            OnGoingRecovery onGoingRecovery = onGoingRecoveries.get(shard.shardId());
+            if (onGoingRecovery == null) {
+                // shard is getting closed on us
+                throw new IndexShardClosedException(shard.shardId());
+            }
+            onGoingRecovery.stage = OnGoingRecovery.Stage.FINALIZE;
             shard.performRecoveryFinalization(false);
             channel.sendResponse(VoidStreamable.INSTANCE);
         }
@@ -294,6 +306,38 @@ public class RecoveryTarget extends AbstractComponent {
             for (Translog.Operation operation : request.operations()) {
                 shard.performRecoveryOperation(operation);
             }
+
+            OnGoingRecovery onGoingRecovery = onGoingRecoveries.get(shard.shardId());
+            if (onGoingRecovery == null) {
+                // shard is getting closed on us
+                throw new IndexShardClosedException(shard.shardId());
+            }
+            onGoingRecovery.currentTranslogOperations += request.operations().size();
+
+            channel.sendResponse(VoidStreamable.INSTANCE);
+        }
+    }
+
+    class FilesInfoRequestHandler extends BaseTransportRequestHandler<RecoveryFilesInfoRequest> {
+
+        @Override public RecoveryFilesInfoRequest newInstance() {
+            return new RecoveryFilesInfoRequest();
+        }
+
+        @Override public void messageReceived(RecoveryFilesInfoRequest request, TransportChannel channel) throws Exception {
+            InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId.index().name()).shardSafe(request.shardId.id());
+            OnGoingRecovery onGoingRecovery = onGoingRecoveries.get(shard.shardId());
+            if (onGoingRecovery == null) {
+                // shard is getting closed on us
+                throw new IndexShardClosedException(shard.shardId());
+            }
+            onGoingRecovery.phase1FileNames = request.phase1FileNames;
+            onGoingRecovery.phase1FileSizes = request.phase1FileSizes;
+            onGoingRecovery.phase1ExistingFileNames = request.phase1ExistingFileNames;
+            onGoingRecovery.phase1ExistingFileSizes = request.phase1ExistingFileSizes;
+            onGoingRecovery.phase1TotalSize = request.phase1TotalSize;
+            onGoingRecovery.phase1ExistingTotalSize = request.phase1ExistingTotalSize;
+            onGoingRecovery.stage = OnGoingRecovery.Stage.FILES;
             channel.sendResponse(VoidStreamable.INSTANCE);
         }
     }

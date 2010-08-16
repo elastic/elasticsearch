@@ -53,6 +53,11 @@ configurations {
     }
 }
 
+//task run(dependsOn: [configurations.distLib], description: 'Runs') << {
+//    ant.java(classname: "org.elasticsearch.bootstrap.Bootstrap", fork: "true", classpath: configurations.distLib.asPath,
+//             jvmargs: "-Des-foreground=yes")
+//}
+
 dependencies {
     distLib project(':elasticsearch')
 }

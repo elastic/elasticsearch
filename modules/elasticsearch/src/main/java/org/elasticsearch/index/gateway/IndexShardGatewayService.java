@@ -142,7 +142,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                 try {
                     logger.debug("starting recovery from {} ...", shardGateway);
                     StopWatch stopWatch = new StopWatch().start();
-                    IndexShardGateway.RecoveryStatus recoveryStatus = shardGateway.recover();
+                    RecoveryStatus recoveryStatus = shardGateway.recover();
 
                     lastIndexVersion = recoveryStatus.index().version();
                     lastTranslogId = -1;
@@ -203,12 +203,12 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             return;
         }
         try {
-            IndexShardGateway.SnapshotStatus snapshotStatus = indexShard.snapshot(new Engine.SnapshotHandler<IndexShardGateway.SnapshotStatus>() {
-                @Override public IndexShardGateway.SnapshotStatus snapshot(SnapshotIndexCommit snapshotIndexCommit, Translog.Snapshot translogSnapshot) throws EngineException {
+            SnapshotStatus snapshotStatus = indexShard.snapshot(new Engine.SnapshotHandler<SnapshotStatus>() {
+                @Override public SnapshotStatus snapshot(SnapshotIndexCommit snapshotIndexCommit, Translog.Snapshot translogSnapshot) throws EngineException {
                     if (lastIndexVersion != snapshotIndexCommit.getVersion() || lastTranslogId != translogSnapshot.translogId() || lastTranslogLength < translogSnapshot.length()) {
 
                         logger.debug("snapshot ({}) to {} ...", reason, shardGateway);
-                        IndexShardGateway.SnapshotStatus snapshotStatus =
+                        SnapshotStatus snapshotStatus =
                                 shardGateway.snapshot(new IndexShardGateway.Snapshot(snapshotIndexCommit, translogSnapshot, lastIndexVersion, lastTranslogId, lastTranslogPosition, lastTranslogLength));
 
                         lastIndexVersion = snapshotIndexCommit.getVersion();
@@ -217,15 +217,15 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                         lastTranslogLength = translogSnapshot.length();
                         return snapshotStatus;
                     }
-                    return IndexShardGateway.SnapshotStatus.NA;
+                    return null;
                 }
             });
-            if (snapshotStatus != IndexShardGateway.SnapshotStatus.NA) {
+            if (snapshotStatus != null) {
                 if (logger.isDebugEnabled()) {
                     StringBuilder sb = new StringBuilder();
-                    sb.append("snapshot (").append(reason).append(") completed to ").append(shardGateway).append(", took [").append(snapshotStatus.totalTime()).append("]\n");
-                    sb.append("    index    : version [").append(lastIndexVersion).append("], number_of_files [").append(snapshotStatus.index().numberOfFiles()).append("] with total_size [").append(snapshotStatus.index().totalSize()).append("], took [").append(snapshotStatus.index().time()).append("]\n");
-                    sb.append("    translog : id      [").append(lastTranslogId).append("], number_of_operations [").append(snapshotStatus.translog().numberOfOperations()).append("], took [").append(snapshotStatus.translog().time()).append("]");
+                    sb.append("snapshot (").append(reason).append(") completed to ").append(shardGateway).append(", took [").append(snapshotStatus.took()).append("]\n");
+                    sb.append("    index    : version [").append(lastIndexVersion).append("], number_of_files [").append(snapshotStatus.index().numberOfFiles()).append("] with total_size [").append(snapshotStatus.index().totalSize()).append("], took [").append(snapshotStatus.index().took()).append("]\n");
+                    sb.append("    translog : id      [").append(lastTranslogId).append("], number_of_operations [").append(snapshotStatus.translog().currentTranslogOperations()).append("], took [").append(snapshotStatus.translog().took()).append("]");
                     logger.debug(sb.toString());
                 }
             }

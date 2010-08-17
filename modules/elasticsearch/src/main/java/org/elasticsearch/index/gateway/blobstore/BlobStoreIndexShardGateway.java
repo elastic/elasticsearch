@@ -39,13 +39,9 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.lucene.store.ThreadSafeInputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.index.gateway.IndexGateway;
-import org.elasticsearch.index.gateway.IndexShardGateway;
-import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
-import org.elasticsearch.index.gateway.IndexShardGatewaySnapshotFailedException;
+import org.elasticsearch.index.gateway.*;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -106,6 +102,10 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
 
     private volatile AppendableBlobContainer.AppendableBlob translogBlob;
 
+    private volatile SnapshotStatus lastSnapshotStatus;
+
+    private volatile SnapshotStatus currentSnapshotStatus;
+
     protected BlobStoreIndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool, IndexGateway indexGateway,
                                          IndexShard indexShard, Store store, RecoveryThrottler recoveryThrottler) {
         super(shardId, indexSettings);
@@ -149,8 +149,42 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         }
     }
 
+    @Override public SnapshotStatus lastSnapshotStatus() {
+        return this.lastSnapshotStatus;
+    }
+
+    @Override public SnapshotStatus currentSnapshotStatus() {
+        return this.currentSnapshotStatus;
+    }
+
     @Override public SnapshotStatus snapshot(final Snapshot snapshot) throws IndexShardGatewaySnapshotFailedException {
-        long totalTimeStart = System.currentTimeMillis();
+        currentSnapshotStatus = new SnapshotStatus();
+        currentSnapshotStatus.startTime(System.currentTimeMillis());
+
+        try {
+            doSnapshot(snapshot);
+            currentSnapshotStatus.took(System.currentTimeMillis() - currentSnapshotStatus.startTime());
+            currentSnapshotStatus.updateStage(SnapshotStatus.Stage.DONE);
+        } catch (Exception e) {
+            currentSnapshotStatus.took(System.currentTimeMillis() - currentSnapshotStatus.startTime());
+            currentSnapshotStatus.updateStage(SnapshotStatus.Stage.FAILURE);
+            currentSnapshotStatus.failed(e);
+            if (e instanceof IndexShardGatewaySnapshotFailedException) {
+                throw (IndexShardGatewaySnapshotFailedException) e;
+            } else {
+                throw new IndexShardGatewaySnapshotFailedException(shardId, e.getMessage(), e);
+            }
+        } finally {
+            this.lastSnapshotStatus = currentSnapshotStatus;
+            this.currentSnapshotStatus = null;
+        }
+        return this.lastSnapshotStatus;
+    }
+
+    private void doSnapshot(final Snapshot snapshot) throws IndexShardGatewaySnapshotFailedException {
+        currentSnapshotStatus.index().startTime(System.currentTimeMillis());
+        currentSnapshotStatus.updateStage(SnapshotStatus.Stage.INDEX);
+
         boolean indexDirty = false;
 
         final SnapshotIndexCommit snapshotIndexCommit = snapshot.indexCommit();
@@ -218,6 +252,8 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                 }
             }
 
+            currentSnapshotStatus.index().files(indexNumberOfFiles, indexTotalFilesSize);
+
             try {
                 latch.await();
             } catch (InterruptedException e) {
@@ -229,14 +265,12 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             indexTime = System.currentTimeMillis() - time;
         }
 
+        currentSnapshotStatus.index().took(System.currentTimeMillis() - currentSnapshotStatus.index().startTime());
 
-        // handle if snapshot has changed
-        final AtomicInteger translogNumberOfOperations = new AtomicInteger();
-        long translogTime = 0;
+        currentSnapshotStatus.updateStage(SnapshotStatus.Stage.TRANSLOG);
+        currentSnapshotStatus.translog().startTime(System.currentTimeMillis());
 
         if (snapshot.newTranslogCreated() || snapshot.sameTranslogNewOperations()) {
-            long time = System.currentTimeMillis();
-
             if (snapshot.newTranslogCreated() && translogBlob != null) {
                 translogBlob.close();
                 translogBlob = null;
@@ -262,7 +296,6 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                         bos = new FastByteArrayOutputStream();
                         cachedBos = new SoftReference<FastByteArrayOutputStream>(bos);
                     }
-                    int totalNumberOfOperations = 0;
                     OutputStreamStreamOutput bosOs = new OutputStreamStreamOutput(bos);
                     while (translogSnapshot.hasNext()) {
                         bos.reset();
@@ -270,9 +303,8 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                         bosOs.flush();
                         os.writeVInt(bos.size());
                         os.writeBytes(bos.unsafeByteArray(), bos.size());
-                        totalNumberOfOperations++;
+                        currentSnapshotStatus.translog().addTranslogOperations(1);
                     }
-                    translogNumberOfOperations.set(totalNumberOfOperations);
                 }
 
                 @Override public void onCompleted() {
@@ -295,8 +327,8 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                 throw new IndexShardGatewaySnapshotFailedException(shardId, "Failed to snapshot translog", failure.get());
             }
 
-            translogTime = System.currentTimeMillis() - time;
         }
+        currentSnapshotStatus.translog().took(System.currentTimeMillis() - currentSnapshotStatus.translog().startTime());
 
         // now write the segments file
         if (indexDirty) {
@@ -326,6 +358,8 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                 throw new IndexShardGatewaySnapshotFailedException(shardId(), "Failed to finalize index snapshot into [" + snapshotIndexCommit.getSegmentsFileName() + "]", e);
             }
         }
+
+        currentSnapshotStatus.updateStage(SnapshotStatus.Stage.FINALIZE);
 
         // delete the old translog
         if (snapshot.newTranslogCreated()) {
@@ -367,13 +401,11 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                 }
             }
         }
-
-        return new SnapshotStatus(new TimeValue(System.currentTimeMillis() - totalTimeStart),
-                new SnapshotStatus.Index(indexNumberOfFiles, new ByteSizeValue(indexTotalFilesSize), new TimeValue(indexTime)),
-                new SnapshotStatus.Translog(translogNumberOfOperations.get(), new TimeValue(translogTime)));
     }
 
     @Override public RecoveryStatus recover() throws IndexShardGatewayRecoveryException {
+        recoveryStatus.startTime(System.currentTimeMillis());
+
         recoveryStatus.index().startTime(System.currentTimeMillis());
         recoveryStatus.updateStage(RecoveryStatus.Stage.INDEX);
         recoverIndex();
@@ -384,6 +416,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         recoverTranslog();
         recoveryStatus.translog().took(System.currentTimeMillis() - recoveryStatus.index().startTime());
 
+        recoveryStatus.took(System.currentTimeMillis() - recoveryStatus.startTime());
         recoveryStatus.updateStage(RecoveryStatus.Stage.DONE);
         return recoveryStatus;
     }

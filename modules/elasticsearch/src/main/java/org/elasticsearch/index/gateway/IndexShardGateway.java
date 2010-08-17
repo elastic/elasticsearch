@@ -21,15 +21,9 @@ package org.elasticsearch.index.gateway;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.component.CloseableIndexComponent;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.translog.Translog;
-
-import java.util.concurrent.atomic.AtomicLong;
-
-import static org.elasticsearch.common.unit.TimeValue.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -38,7 +32,21 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
 
     String type();
 
+    /**
+     * The last / on going recovery status.
+     */
     RecoveryStatus recoveryStatus();
+
+    /**
+     * The last snapshot status performed. Can be <tt>null</tt>.
+     */
+    SnapshotStatus lastSnapshotStatus();
+
+    /**
+     * The current snapshot status being performed. Can be <tt>null</tt> indicating that no snapshot
+     * is being executed currently.
+     */
+    SnapshotStatus currentSnapshotStatus();
 
     /**
      * Recovers the state of the shard from the gateway.
@@ -123,216 +131,6 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
 
         public long lastTranslogLength() {
             return lastTranslogLength;
-        }
-    }
-
-    class SnapshotStatus {
-
-        public static SnapshotStatus NA = new SnapshotStatus(timeValueMillis(0), new Index(0, new ByteSizeValue(0), timeValueMillis(0)), new Translog(0, timeValueMillis(0)));
-
-        private TimeValue totalTime;
-
-        private Index index;
-
-        private Translog translog;
-
-        public SnapshotStatus(TimeValue totalTime, Index index, Translog translog) {
-            this.index = index;
-            this.translog = translog;
-            this.totalTime = totalTime;
-        }
-
-        public TimeValue totalTime() {
-            return this.totalTime;
-        }
-
-        public Index index() {
-            return index;
-        }
-
-        public Translog translog() {
-            return translog;
-        }
-
-        public static class Translog {
-            private int numberOfOperations;
-            private TimeValue time;
-
-            public Translog(int numberOfOperations, TimeValue time) {
-                this.numberOfOperations = numberOfOperations;
-                this.time = time;
-            }
-
-            public int numberOfOperations() {
-                return numberOfOperations;
-            }
-
-            public TimeValue time() {
-                return time;
-            }
-        }
-
-        public static class Index {
-            private int numberOfFiles;
-            private ByteSizeValue totalSize;
-            private TimeValue time;
-
-            public Index(int numberOfFiles, ByteSizeValue totalSize, TimeValue time) {
-                this.numberOfFiles = numberOfFiles;
-                this.totalSize = totalSize;
-                this.time = time;
-            }
-
-            public TimeValue time() {
-                return this.time;
-            }
-
-            public int numberOfFiles() {
-                return numberOfFiles;
-            }
-
-            public ByteSizeValue totalSize() {
-                return totalSize;
-            }
-        }
-    }
-
-    class RecoveryStatus {
-
-        public static enum Stage {
-            NONE,
-            INDEX,
-            TRANSLOG,
-            DONE
-        }
-
-        private Stage stage = Stage.NONE;
-
-        private Index index = new Index();
-
-        private Translog translog = new Translog();
-
-        public Stage stage() {
-            return this.stage;
-        }
-
-        public RecoveryStatus updateStage(Stage stage) {
-            this.stage = stage;
-            return this;
-        }
-
-        public Index index() {
-            return index;
-        }
-
-        public Translog translog() {
-            return translog;
-        }
-
-        public static class Translog {
-            volatile long currentTranslogOperations = 0;
-            private long startTime = -1;
-            private long took;
-
-            public long startTime() {
-                return this.startTime;
-            }
-
-            public void startTime(long startTime) {
-                this.startTime = startTime;
-            }
-
-            public TimeValue took() {
-                return new TimeValue(this.took);
-            }
-
-            public void took(long took) {
-                this.took = took;
-            }
-
-            public void addTranslogOperations(long count) {
-                this.currentTranslogOperations += count;
-            }
-
-            public long currentTranslogOperations() {
-                return this.currentTranslogOperations;
-            }
-        }
-
-        public static class Index {
-            private long startTime = -1;
-            private long took = -1;
-
-            private long version = -1;
-            private int numberOfFiles = 0;
-            private long totalSize = 0;
-            private int numberOfExistingFiles = 0;
-            private long existingTotalSize = 0;
-            private AtomicLong throttlingWaitTime = new AtomicLong();
-            private AtomicLong currentFilesSize = new AtomicLong();
-
-            public long startTime() {
-                return this.startTime;
-            }
-
-            public void startTime(long startTime) {
-                this.startTime = startTime;
-            }
-
-            public TimeValue took() {
-                return new TimeValue(this.took);
-            }
-
-            public void took(long took) {
-                this.took = took;
-            }
-
-            public long version() {
-                return this.version;
-            }
-
-            public void files(int numberOfFiles, long totalSize, int numberOfExistingFiles, long existingTotalSize) {
-                this.numberOfFiles = numberOfFiles;
-                this.totalSize = totalSize;
-                this.numberOfExistingFiles = numberOfExistingFiles;
-                this.existingTotalSize = existingTotalSize;
-            }
-
-            public int numberOfFiles() {
-                return numberOfFiles;
-            }
-
-            public ByteSizeValue totalSize() {
-                return new ByteSizeValue(totalSize);
-            }
-
-            public int numberOfExistingFiles() {
-                return numberOfExistingFiles;
-            }
-
-            public ByteSizeValue existingTotalSize() {
-                return new ByteSizeValue(existingTotalSize);
-            }
-
-            public void addThrottlingTime(long delta) {
-                throttlingWaitTime.addAndGet(delta);
-            }
-
-            public TimeValue throttlingWaitTime() {
-                return new TimeValue(throttlingWaitTime.get());
-            }
-
-            public void updateVersion(long version) {
-                this.version = version;
-            }
-
-            public long currentFilesSize() {
-                return this.currentFilesSize.get();
-            }
-
-            public void addCurrentFilesSize(long updatedSize) {
-                this.currentFilesSize.addAndGet(updatedSize);
-            }
         }
     }
 }

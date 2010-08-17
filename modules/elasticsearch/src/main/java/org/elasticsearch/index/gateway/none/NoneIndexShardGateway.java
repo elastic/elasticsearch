@@ -24,6 +24,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.none.NoneGateway;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
+import org.elasticsearch.index.gateway.RecoveryStatus;
+import org.elasticsearch.index.gateway.SnapshotStatus;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -55,6 +57,7 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
     }
 
     @Override public RecoveryStatus recover() throws IndexShardGatewayRecoveryException {
+        recoveryStatus.startTime(System.currentTimeMillis());
         recoveryStatus().index().startTime(System.currentTimeMillis());
         recoveryStatus.translog().startTime(System.currentTimeMillis());
         // in the none case, we simply start the shard
@@ -67,6 +70,7 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
         indexShard.start();
         recoveryStatus.index().took(System.currentTimeMillis() - recoveryStatus.index().startTime());
         recoveryStatus.translog().took(System.currentTimeMillis() - recoveryStatus.index().startTime());
+        recoveryStatus.took(System.currentTimeMillis() - recoveryStatus.startTime());
         return recoveryStatus.updateStage(RecoveryStatus.Stage.DONE);
     }
 
@@ -75,7 +79,15 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
     }
 
     @Override public SnapshotStatus snapshot(Snapshot snapshot) {
-        return SnapshotStatus.NA;
+        return null;
+    }
+
+    @Override public SnapshotStatus lastSnapshotStatus() {
+        return null;
+    }
+
+    @Override public SnapshotStatus currentSnapshotStatus() {
+        return null;
     }
 
     @Override public boolean requiresSnapshotScheduling() {

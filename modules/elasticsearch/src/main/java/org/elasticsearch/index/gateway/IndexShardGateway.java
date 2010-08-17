@@ -27,6 +27,8 @@ import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.translog.Translog;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 import static org.elasticsearch.common.unit.TimeValue.*;
 
 /**
@@ -35,6 +37,8 @@ import static org.elasticsearch.common.unit.TimeValue.*;
 public interface IndexShardGateway extends IndexShardComponent, CloseableIndexComponent {
 
     String type();
+
+    RecoveryStatus recoveryStatus();
 
     /**
      * Recovers the state of the shard from the gateway.
@@ -195,13 +199,26 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
 
     class RecoveryStatus {
 
-        private Index index;
+        public static enum Stage {
+            NONE,
+            INDEX,
+            TRANSLOG,
+            DONE
+        }
 
-        private Translog translog;
+        private Stage stage = Stage.NONE;
 
-        public RecoveryStatus(Index index, Translog translog) {
-            this.index = index;
-            this.translog = translog;
+        private Index index = new Index();
+
+        private Translog translog = new Translog();
+
+        public Stage stage() {
+            return this.stage;
+        }
+
+        public RecoveryStatus updateStage(Stage stage) {
+            this.stage = stage;
+            return this;
         }
 
         public Index index() {
@@ -213,45 +230,60 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
         }
 
         public static class Translog {
-            public static final Translog EMPTY = new Translog(0, TimeValue.timeValueMillis(0));
+            volatile long currentTranslogOperations = 0;
+            private long startTime = -1;
+            private long took;
 
-            private int numberOfOperations;
-            private TimeValue took;
-
-            public Translog(int numberOfOperations, TimeValue took) {
-                this.numberOfOperations = numberOfOperations;
-                this.took = took;
+            public long startTime() {
+                return this.startTime;
             }
 
-            public int numberOfOperations() {
-                return numberOfOperations;
+            public void startTime(long startTime) {
+                this.startTime = startTime;
             }
 
             public TimeValue took() {
-                return this.took;
+                return new TimeValue(this.took);
+            }
+
+            public void took(long took) {
+                this.took = took;
+            }
+
+            public void addTranslogOperations(long count) {
+                this.currentTranslogOperations += count;
+            }
+
+            public long currentTranslogOperations() {
+                return this.currentTranslogOperations;
             }
         }
 
         public static class Index {
-            public static final Index EMPTY = new Index(-1, 0, new ByteSizeValue(0), 0, new ByteSizeValue(0), timeValueMillis(0), timeValueMillis(0));
+            private long startTime = -1;
+            private long took = -1;
 
-            private long version;
-            private int numberOfFiles;
-            private ByteSizeValue totalSize;
-            private int numberOfExistingFiles;
-            private ByteSizeValue existingTotalSize;
-            private TimeValue throttlingWaitTime;
-            private TimeValue took;
+            private long version = -1;
+            private int numberOfFiles = 0;
+            private long totalSize = 0;
+            private int numberOfExistingFiles = 0;
+            private long existingTotalSize = 0;
+            private AtomicLong throttlingWaitTime = new AtomicLong();
+            private AtomicLong currentFilesSize = new AtomicLong();
 
-            public Index(long version, int numberOfFiles, ByteSizeValue totalSize,
-                         int numberOfExistingFiles, ByteSizeValue existingTotalSize,
-                         TimeValue throttlingWaitTime, TimeValue took) {
-                this.version = version;
-                this.numberOfFiles = numberOfFiles;
-                this.totalSize = totalSize;
-                this.numberOfExistingFiles = numberOfExistingFiles;
-                this.existingTotalSize = existingTotalSize;
-                this.throttlingWaitTime = throttlingWaitTime;
+            public long startTime() {
+                return this.startTime;
+            }
+
+            public void startTime(long startTime) {
+                this.startTime = startTime;
+            }
+
+            public TimeValue took() {
+                return new TimeValue(this.took);
+            }
+
+            public void took(long took) {
                 this.took = took;
             }
 
@@ -259,12 +291,19 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
                 return this.version;
             }
 
+            public void files(int numberOfFiles, long totalSize, int numberOfExistingFiles, long existingTotalSize) {
+                this.numberOfFiles = numberOfFiles;
+                this.totalSize = totalSize;
+                this.numberOfExistingFiles = numberOfExistingFiles;
+                this.existingTotalSize = existingTotalSize;
+            }
+
             public int numberOfFiles() {
                 return numberOfFiles;
             }
 
             public ByteSizeValue totalSize() {
-                return totalSize;
+                return new ByteSizeValue(totalSize);
             }
 
             public int numberOfExistingFiles() {
@@ -272,15 +311,27 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
             }
 
             public ByteSizeValue existingTotalSize() {
-                return existingTotalSize;
+                return new ByteSizeValue(existingTotalSize);
+            }
+
+            public void addThrottlingTime(long delta) {
+                throttlingWaitTime.addAndGet(delta);
             }
 
             public TimeValue throttlingWaitTime() {
-                return throttlingWaitTime;
+                return new TimeValue(throttlingWaitTime.get());
             }
 
-            public TimeValue took() {
-                return this.took;
+            public void updateVersion(long version) {
+                this.version = version;
+            }
+
+            public long currentFilesSize() {
+                return this.currentFilesSize.get();
+            }
+
+            public void addCurrentFilesSize(long updatedSize) {
+                this.currentFilesSize.addAndGet(updatedSize);
             }
         }
     }

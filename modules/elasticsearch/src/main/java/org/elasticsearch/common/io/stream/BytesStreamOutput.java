@@ -20,7 +20,6 @@
 package org.elasticsearch.common.io.stream;
 
 import java.io.IOException;
-import java.io.UTFDataFormatException;
 import java.util.Arrays;
 
 /**
@@ -132,19 +131,18 @@ public class BytesStreamOutput extends StreamOutput {
             }
         }
 
-        if (utflen > 65535)
-            throw new UTFDataFormatException(
-                    "encoded string too long: " + utflen + " bytes");
-
-        int newcount = count + utflen + 2;
+        int newcount = count + utflen + 4;
         if (newcount > buf.length) {
             buf = Arrays.copyOf(buf, Math.max(buf.length << 1, newcount));
         }
 
         byte[] bytearr = this.buf;
 
-        bytearr[count++] = (byte) ((utflen >>> 8) & 0xFF);
-        bytearr[count++] = (byte) ((utflen >>> 0) & 0xFF);
+        // same as writeInt
+        bytearr[count++] = (byte) (utflen >> 24);
+        bytearr[count++] = (byte) (utflen >> 16);
+        bytearr[count++] = (byte) (utflen >> 8);
+        bytearr[count++] = (byte) (utflen);
 
         int i = 0;
         for (i = 0; i < strlen; i++) {

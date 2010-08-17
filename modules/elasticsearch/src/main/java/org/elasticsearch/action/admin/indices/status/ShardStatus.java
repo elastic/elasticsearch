@@ -112,7 +112,7 @@ public class ShardStatus extends BroadcastShardOperationResponse {
 
         final long startTime;
 
-        final long took;
+        final long time;
 
         final long retryTime;
 
@@ -124,11 +124,11 @@ public class ShardStatus extends BroadcastShardOperationResponse {
 
         final long recoveredTranslogOperations;
 
-        public PeerRecoveryStatus(Stage stage, long startTime, long took, long retryTime, long indexSize, long reusedIndexSize,
+        public PeerRecoveryStatus(Stage stage, long startTime, long time, long retryTime, long indexSize, long reusedIndexSize,
                                   long recoveredIndexSize, long recoveredTranslogOperations) {
             this.stage = stage;
             this.startTime = startTime;
-            this.took = took;
+            this.time = time;
             this.retryTime = retryTime;
             this.indexSize = indexSize;
             this.reusedIndexSize = reusedIndexSize;
@@ -148,12 +148,12 @@ public class ShardStatus extends BroadcastShardOperationResponse {
             return this.startTime;
         }
 
-        public TimeValue took() {
-            return TimeValue.timeValueMillis(took);
+        public TimeValue time() {
+            return TimeValue.timeValueMillis(time);
         }
 
-        public TimeValue getTook() {
-            return took();
+        public TimeValue getTime() {
+            return time();
         }
 
         public TimeValue retryTime() {
@@ -321,7 +321,7 @@ public class ShardStatus extends BroadcastShardOperationResponse {
             out.writeBoolean(true);
             out.writeByte(peerRecoveryStatus.stage.value);
             out.writeVLong(peerRecoveryStatus.startTime);
-            out.writeVLong(peerRecoveryStatus.took);
+            out.writeVLong(peerRecoveryStatus.time);
             out.writeVLong(peerRecoveryStatus.retryTime);
             out.writeVLong(peerRecoveryStatus.indexSize);
             out.writeVLong(peerRecoveryStatus.reusedIndexSize);

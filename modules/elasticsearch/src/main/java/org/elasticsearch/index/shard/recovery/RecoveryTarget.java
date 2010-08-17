@@ -103,7 +103,15 @@ public class RecoveryTarget extends AbstractComponent {
     }
 
     public PeerRecoveryStatus peerRecoveryStatus(ShardId shardId) {
-        return onGoingRecoveries.get(shardId);
+        PeerRecoveryStatus peerRecoveryStatus = onGoingRecoveries.get(shardId);
+        if (peerRecoveryStatus == null) {
+            return null;
+        }
+        // update how long it takes if we are still recovering...
+        if (peerRecoveryStatus.startTime > 0 && peerRecoveryStatus.stage != PeerRecoveryStatus.Stage.DONE) {
+            peerRecoveryStatus.time = System.currentTimeMillis() - peerRecoveryStatus.startTime;
+        }
+        return peerRecoveryStatus;
     }
 
     public void startRecovery(final StartRecoveryRequest request, final boolean fromRetry, final RecoveryListener listener) {
@@ -313,7 +321,7 @@ public class RecoveryTarget extends AbstractComponent {
             }
             peerRecoveryStatus.stage = PeerRecoveryStatus.Stage.FINALIZE;
             shard.performRecoveryFinalization(false, peerRecoveryStatus);
-            peerRecoveryStatus.took = System.currentTimeMillis() - peerRecoveryStatus.startTime;
+            peerRecoveryStatus.time = System.currentTimeMillis() - peerRecoveryStatus.startTime;
             peerRecoveryStatus.stage = PeerRecoveryStatus.Stage.DONE;
             channel.sendResponse(VoidStreamable.INSTANCE);
         }

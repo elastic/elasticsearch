@@ -143,10 +143,8 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                                     builder.startObject("peer_recovery");
                                     builder.field("stage", peerRecoveryStatus.stage());
                                     builder.field("start_time_in_millis", peerRecoveryStatus.startTime());
-                                    if (peerRecoveryStatus.took().millis() > 0) {
-                                        builder.field("took", peerRecoveryStatus.took());
-                                        builder.field("took_in_millis", peerRecoveryStatus.took().millis());
-                                    }
+                                    builder.field("time", peerRecoveryStatus.time());
+                                    builder.field("took_in_millis", peerRecoveryStatus.time().millis());
                                     builder.field("retry_time", peerRecoveryStatus.retryTime());
                                     builder.field("retry_time_in_millis", peerRecoveryStatus.retryTime().millis());
 

@@ -43,7 +43,7 @@ public class PeerRecoveryStatus {
     ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
 
     final long startTime = System.currentTimeMillis();
-    long took;
+    long time;
     volatile long retryTime = 0;
     List<String> phase1FileNames;
     List<Long> phase1FileSizes;
@@ -60,8 +60,8 @@ public class PeerRecoveryStatus {
         return startTime;
     }
 
-    public long took() {
-        return this.took;
+    public long time() {
+        return this.time;
     }
 
     public long retryTime() {

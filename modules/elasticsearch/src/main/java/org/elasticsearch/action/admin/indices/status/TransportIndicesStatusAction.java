@@ -172,7 +172,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
                 default:
                     stage = ShardStatus.PeerRecoveryStatus.Stage.INIT;
             }
-            shardStatus.peerRecoveryStatus = new ShardStatus.PeerRecoveryStatus(stage, peerRecoveryStatus.startTime(), peerRecoveryStatus.took(),
+            shardStatus.peerRecoveryStatus = new ShardStatus.PeerRecoveryStatus(stage, peerRecoveryStatus.startTime(), peerRecoveryStatus.time(),
                     peerRecoveryStatus.retryTime(), peerRecoveryStatus.phase1TotalSize(), peerRecoveryStatus.phase1ExistingTotalSize(),
                     peerRecoveryStatus.currentFilesSize(), peerRecoveryStatus.currentTranslogOperations());
         }

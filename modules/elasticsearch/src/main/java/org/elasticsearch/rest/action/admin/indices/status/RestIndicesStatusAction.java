@@ -85,27 +85,21 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                         }
                         builder.endObject();
 
-                        if (indexStatus.storeSize() == null) {
-                            builder.nullField("store_size");
-                            builder.nullField("store_size_in_bytes");
-                        } else {
+                        if (indexStatus.storeSize() != null) {
                             builder.field("store_size", indexStatus.storeSize().toString());
                             builder.field("store_size_in_bytes", indexStatus.storeSize().bytes());
                         }
-                        if (indexStatus.estimatedFlushableMemorySize() == null) {
-                            builder.nullField("estimated_flushable_memory_size");
-                            builder.nullField("estimated_flushable_memory_size_in_bytes");
-                        } else {
-                            builder.field("estimated_flushable_memory_size", indexStatus.estimatedFlushableMemorySize().toString());
-                            builder.field("estimated_flushable_memory_size_in_bytes", indexStatus.estimatedFlushableMemorySize().bytes());
+                        if (indexStatus.translogOperations() != -1) {
+                            builder.field("translog_operations", indexStatus.translogOperations());
                         }
-                        builder.field("translog_operations", indexStatus.translogOperations());
 
-                        builder.startObject("docs");
-                        builder.field("num_docs", indexStatus.docs().numDocs());
-                        builder.field("max_doc", indexStatus.docs().maxDoc());
-                        builder.field("deleted_docs", indexStatus.docs().deletedDocs());
-                        builder.endObject();
+                        if (indexStatus.docs() != IndexStatus.Docs.UNKNOWN) {
+                            builder.startObject("docs");
+                            builder.field("num_docs", indexStatus.docs().numDocs());
+                            builder.field("max_doc", indexStatus.docs().maxDoc());
+                            builder.field("deleted_docs", indexStatus.docs().deletedDocs());
+                            builder.endObject();
+                        }
 
                         builder.startObject("shards");
                         for (IndexShardStatus indexShardStatus : indexStatus) {
@@ -123,28 +117,56 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                                         .endObject();
 
                                 builder.field("state", shardStatus.state());
-                                if (shardStatus.storeSize() == null) {
-                                    builder.nullField("store_size");
-                                    builder.nullField("store_size_in_bytes");
-                                } else {
-                                    builder.field("store_size", shardStatus.storeSize().toString());
-                                    builder.field("store_size_in_bytes", shardStatus.storeSize().bytes());
+                                if (shardStatus.storeSize() != null) {
+                                    builder.startObject("index");
+                                    builder.field("size", shardStatus.storeSize().toString());
+                                    builder.field("size_in_bytes", shardStatus.storeSize().bytes());
+                                    builder.endObject();
                                 }
-                                if (shardStatus.estimatedFlushableMemorySize() == null) {
-                                    builder.nullField("estimated_flushable_memory_size");
-                                    builder.nullField("estimated_flushable_memory_size_in_bytes");
-                                } else {
-                                    builder.field("estimated_flushable_memory_size", shardStatus.estimatedFlushableMemorySize().toString());
-                                    builder.field("estimated_flushable_memory_size_in_bytes", shardStatus.estimatedFlushableMemorySize().bytes());
+                                if (shardStatus.translogId() != -1) {
+                                    builder.startObject("translog");
+                                    builder.field("id", shardStatus.translogId());
+                                    builder.field("operations", shardStatus.translogOperations());
+                                    builder.endObject();
                                 }
-                                builder.field("translog_id", shardStatus.translogId());
-                                builder.field("translog_operations", shardStatus.translogOperations());
 
-                                builder.startObject("docs");
-                                builder.field("num_docs", shardStatus.docs().numDocs());
-                                builder.field("max_doc", shardStatus.docs().maxDoc());
-                                builder.field("deleted_docs", shardStatus.docs().deletedDocs());
-                                builder.endObject();
+                                if (shardStatus.docs() != ShardStatus.Docs.UNKNOWN) {
+                                    builder.startObject("docs");
+                                    builder.field("num_docs", shardStatus.docs().numDocs());
+                                    builder.field("max_doc", shardStatus.docs().maxDoc());
+                                    builder.field("deleted_docs", shardStatus.docs().deletedDocs());
+                                    builder.endObject();
+                                }
+
+                                if (shardStatus.peerRecoveryStatus() != null) {
+                                    ShardStatus.PeerRecoveryStatus peerRecoveryStatus = shardStatus.peerRecoveryStatus();
+                                    builder.startObject("peer_recovery");
+                                    builder.field("stage", peerRecoveryStatus.stage());
+                                    builder.field("start_time_in_millis", peerRecoveryStatus.startTime());
+                                    if (peerRecoveryStatus.took().millis() > 0) {
+                                        builder.field("took", peerRecoveryStatus.took());
+                                        builder.field("took_in_millis", peerRecoveryStatus.took().millis());
+                                    }
+                                    builder.field("retry_time", peerRecoveryStatus.retryTime());
+                                    builder.field("retry_time_in_millis", peerRecoveryStatus.retryTime().millis());
+
+                                    builder.startObject("index");
+                                    builder.field("size", peerRecoveryStatus.indexSize());
+                                    builder.field("size_in_bytes", peerRecoveryStatus.indexSize().bytes());
+                                    builder.field("reused_size", peerRecoveryStatus.reusedIndexSize());
+                                    builder.field("reused_size_in_bytes", peerRecoveryStatus.reusedIndexSize().bytes());
+                                    builder.field("expected_recovered_size", peerRecoveryStatus.expectedRecoveredIndexSize());
+                                    builder.field("expected_recovered_size_in_bytes", peerRecoveryStatus.expectedRecoveredIndexSize().bytes());
+                                    builder.field("recovered_size", peerRecoveryStatus.recoveredIndexSize());
+                                    builder.field("recovered_size_in_bytes", peerRecoveryStatus.recoveredIndexSize().bytes());
+                                    builder.endObject();
+
+                                    builder.startObject("translog");
+                                    builder.field("recovered", peerRecoveryStatus.recoveredTranslogOperations());
+                                    builder.endObject();
+
+                                    builder.endObject();
+                                }
 
                                 builder.endObject();
                             }

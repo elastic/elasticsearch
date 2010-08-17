@@ -139,26 +139,6 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
         return storeSize();
     }
 
-    public ByteSizeValue estimatedFlushableMemorySize() {
-        long bytes = -1;
-        for (IndexShardStatus shard : this) {
-            if (shard.estimatedFlushableMemorySize() != null) {
-                if (bytes == -1) {
-                    bytes = 0;
-                }
-                bytes += shard.estimatedFlushableMemorySize().bytes();
-            }
-        }
-        if (bytes == -1) {
-            return null;
-        }
-        return new ByteSizeValue(bytes);
-    }
-
-    public ByteSizeValue getEstimatedFlushableMemorySize() {
-        return estimatedFlushableMemorySize();
-    }
-
     public long translogOperations() {
         long translogOperations = -1;
         for (IndexShardStatus shard : this) {
@@ -176,7 +156,12 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
         return translogOperations();
     }
 
+    private transient Docs docs;
+
     public Docs docs() {
+        if (docs != null) {
+            return docs;
+        }
         Docs docs = new Docs();
         for (IndexShardStatus shard : this) {
             if (shard.docs().numDocs() != -1) {
@@ -197,6 +182,11 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
                 }
                 docs.deletedDocs += shard.docs().deletedDocs();
             }
+        }
+        if (docs.numDocs == -1) {
+            this.docs = Docs.UNKNOWN;
+        } else {
+            this.docs = docs;
         }
         return docs;
     }

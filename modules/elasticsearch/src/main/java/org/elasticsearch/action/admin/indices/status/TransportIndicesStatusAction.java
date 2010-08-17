@@ -30,9 +30,13 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.recovery.PeerRecoveryStatus;
+import org.elasticsearch.index.shard.recovery.RecoveryTarget;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -49,8 +53,12 @@ import static org.elasticsearch.common.collect.Lists.*;
  */
 public class TransportIndicesStatusAction extends TransportBroadcastOperationAction<IndicesStatusRequest, IndicesStatusResponse, TransportIndicesStatusAction.IndexShardStatusRequest, ShardStatus> {
 
-    @Inject public TransportIndicesStatusAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
+    private final RecoveryTarget peerRecoveryTarget;
+
+    @Inject public TransportIndicesStatusAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
+                                                IndicesService indicesService, RecoveryTarget peerRecoveryTarget) {
         super(settings, threadPool, clusterService, transportService, indicesService);
+        this.peerRecoveryTarget = peerRecoveryTarget;
     }
 
     @Override protected String transportAction() {
@@ -67,6 +75,14 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
 
     @Override protected boolean ignoreNonActiveExceptions() {
         return true;
+    }
+
+    @Override protected ShardRouting nextShardOrNull(ShardsIterator shardIt) {
+        return shardIt.nextAssignedOrNull();
+    }
+
+    @Override protected boolean hasNextShard(ShardsIterator shardIt) {
+        return shardIt.hasNextAssigned();
     }
 
     @Override protected IndicesStatusResponse newResponse(IndicesStatusRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
@@ -113,18 +129,54 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
         } catch (IOException e) {
             // failure to get the store size...
         }
-        shardStatus.estimatedFlushableMemorySize = indexShard.estimateFlushableMemorySize();
-        shardStatus.translogId = indexShard.translog().currentId();
-        shardStatus.translogOperations = indexShard.translog().size();
-        Engine.Searcher searcher = indexShard.searcher();
-        try {
-            shardStatus.docs = new ShardStatus.Docs();
-            shardStatus.docs.numDocs = searcher.reader().numDocs();
-            shardStatus.docs.maxDoc = searcher.reader().maxDoc();
-            shardStatus.docs.deletedDocs = searcher.reader().numDeletedDocs();
-        } finally {
-            searcher.release();
+        if (indexShard.state() == IndexShardState.STARTED) {
+//            shardStatus.estimatedFlushableMemorySize = indexShard.estimateFlushableMemorySize();
+            shardStatus.translogId = indexShard.translog().currentId();
+            shardStatus.translogOperations = indexShard.translog().size();
+            Engine.Searcher searcher = indexShard.searcher();
+            try {
+                shardStatus.docs = new ShardStatus.Docs();
+                shardStatus.docs.numDocs = searcher.reader().numDocs();
+                shardStatus.docs.maxDoc = searcher.reader().maxDoc();
+                shardStatus.docs.deletedDocs = searcher.reader().numDeletedDocs();
+            } finally {
+                searcher.release();
+            }
         }
+        // check on going recovery (from peer or gateway)
+        PeerRecoveryStatus peerRecoveryStatus = indexShard.peerRecoveryStatus();
+        if (peerRecoveryStatus == null) {
+            peerRecoveryStatus = peerRecoveryTarget.peerRecoveryStatus(indexShard.shardId());
+        }
+        if (peerRecoveryStatus != null) {
+            ShardStatus.PeerRecoveryStatus.Stage stage;
+            switch (peerRecoveryStatus.stage()) {
+                case INIT:
+                    stage = ShardStatus.PeerRecoveryStatus.Stage.INIT;
+                    break;
+                case FILES:
+                    stage = ShardStatus.PeerRecoveryStatus.Stage.FILES;
+                    break;
+                case TRANSLOG:
+                    stage = ShardStatus.PeerRecoveryStatus.Stage.TRANSLOG;
+                    break;
+                case RETRY:
+                    stage = ShardStatus.PeerRecoveryStatus.Stage.RETRY;
+                    break;
+                case FINALIZE:
+                    stage = ShardStatus.PeerRecoveryStatus.Stage.FINALIZE;
+                    break;
+                case DONE:
+                    stage = ShardStatus.PeerRecoveryStatus.Stage.DONE;
+                    break;
+                default:
+                    stage = ShardStatus.PeerRecoveryStatus.Stage.INIT;
+            }
+            shardStatus.peerRecoveryStatus = new ShardStatus.PeerRecoveryStatus(stage, peerRecoveryStatus.startTime(), peerRecoveryStatus.took(),
+                    peerRecoveryStatus.retryTime(), peerRecoveryStatus.phase1TotalSize(), peerRecoveryStatus.phase1ExistingTotalSize(),
+                    peerRecoveryStatus.currentFilesSize(), peerRecoveryStatus.currentTranslogOperations());
+        }
+
         return shardStatus;
     }
 

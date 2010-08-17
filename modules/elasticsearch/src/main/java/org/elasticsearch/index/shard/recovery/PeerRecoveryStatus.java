@@ -29,20 +29,22 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * @author kimchy (shay.banon)
  */
-public class OnGoingRecovery {
+public class PeerRecoveryStatus {
 
     public static enum Stage {
         INIT,
         RETRY,
         FILES,
         TRANSLOG,
-        FINALIZE
+        FINALIZE,
+        DONE
     }
 
     ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
 
-    final long startTimeImMillis = System.currentTimeMillis();
-    volatile long retryTimeInMillis = 0;
+    final long startTime = System.currentTimeMillis();
+    long took;
+    volatile long retryTime = 0;
     List<String> phase1FileNames;
     List<Long> phase1FileSizes;
     List<String> phase1ExistingFileNames;
@@ -53,4 +55,36 @@ public class OnGoingRecovery {
     volatile Stage stage = Stage.INIT;
     volatile long currentTranslogOperations = 0;
     AtomicLong currentFilesSize = new AtomicLong();
+
+    public long startTime() {
+        return startTime;
+    }
+
+    public long took() {
+        return this.took;
+    }
+
+    public long retryTime() {
+        return retryTime;
+    }
+
+    public long phase1TotalSize() {
+        return phase1TotalSize;
+    }
+
+    public long phase1ExistingTotalSize() {
+        return phase1ExistingTotalSize;
+    }
+
+    public Stage stage() {
+        return stage;
+    }
+
+    public long currentTranslogOperations() {
+        return currentTranslogOperations;
+    }
+
+    public long currentFilesSize() {
+        return currentFilesSize.get();
+    }
 }

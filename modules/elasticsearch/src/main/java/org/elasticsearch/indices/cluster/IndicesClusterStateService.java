@@ -377,7 +377,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
 
         @Override public void onRecoveryDone() {
-            shardStateAction.shardStarted(shardRouting, "after recovery (backup) from node [" + request.sourceNode() + "]");
+            shardStateAction.shardStarted(shardRouting, "after recovery (replica) from node [" + request.sourceNode() + "]");
         }
 
         @Override public void onRetryRecovery(TimeValue retryAfter) {

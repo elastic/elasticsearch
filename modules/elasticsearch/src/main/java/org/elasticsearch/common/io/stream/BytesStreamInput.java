@@ -105,7 +105,7 @@ public class BytesStreamInput extends StreamInput {
     }
 
     public String readUTF() throws IOException {
-        int utflen = readUnsignedShort();
+        int utflen = readInt();
         if (utflen == 0) {
             return "";
         }

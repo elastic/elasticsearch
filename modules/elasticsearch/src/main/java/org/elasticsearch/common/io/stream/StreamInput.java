@@ -102,18 +102,10 @@ public abstract class StreamInput extends InputStream {
         return i;
     }
 
-    protected final int readUnsignedShort() throws IOException {
-        int ch1 = read();
-        int ch2 = read();
-        if ((ch1 | ch2) < 0)
-            throw new EOFException();
-        return (ch1 << 8) + (ch2 << 0);
-    }
-
     // COPIED from DataInputStream
 
     public String readUTF() throws IOException {
-        int utflen = readUnsignedShort();
+        int utflen = readInt();
         if (utflen == 0) {
             return "";
         }

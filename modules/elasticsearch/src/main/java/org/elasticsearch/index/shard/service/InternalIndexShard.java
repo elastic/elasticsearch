@@ -45,6 +45,7 @@ import org.elasticsearch.index.query.IndexQueryParserMissingException;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.shard.recovery.PeerRecoveryStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.TypeMissingException;
@@ -82,6 +83,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private ScheduledFuture refreshScheduledFuture;
 
     private volatile ShardRouting shardRouting;
+
+    private PeerRecoveryStatus peerRecoveryStatus;
 
     @Inject public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, Store store, Engine engine, Translog translog,
                                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache) {
@@ -397,6 +400,18 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             throw new IndexShardNotRecoveringException(shardId, state);
         }
         engine.start();
+    }
+
+    /**
+     * The peer recovery status if this shard recovered from a peer shard.
+     */
+    public PeerRecoveryStatus peerRecoveryStatus() {
+        return this.peerRecoveryStatus;
+    }
+
+    public void performRecoveryFinalization(boolean withFlush, PeerRecoveryStatus peerRecoveryStatus) throws ElasticSearchException {
+        performRecoveryFinalization(withFlush);
+        this.peerRecoveryStatus = peerRecoveryStatus;
     }
 
     public void performRecoveryFinalization(boolean withFlush) throws ElasticSearchException {

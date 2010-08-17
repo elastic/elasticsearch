@@ -51,9 +51,9 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
         String uri = request.getUri();
         int pathEndPos = uri.indexOf('?');
         if (pathEndPos < 0) {
-            this.path = uri;
+            this.path = RestUtils.decodeComponent(uri);
         } else {
-            this.path = uri.substring(0, pathEndPos);
+            this.path = RestUtils.decodeComponent(uri.substring(0, pathEndPos));
             RestUtils.decodeQueryString(uri, pathEndPos + 1, params);
         }
     }

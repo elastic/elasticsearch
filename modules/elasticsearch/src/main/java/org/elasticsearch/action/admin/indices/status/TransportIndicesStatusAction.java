@@ -34,8 +34,10 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.gateway.IndexShardGatewayService;
+import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.recovery.PeerRecoveryStatus;
+import org.elasticsearch.index.shard.recovery.RecoveryStatus;
 import org.elasticsearch.index.shard.recovery.RecoveryTarget;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -77,10 +79,23 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
         return true;
     }
 
+    /**
+     * Status goes across *all* shards.
+     */
+    @Override protected GroupShardsIterator shards(IndicesStatusRequest request, ClusterState clusterState) {
+        return clusterState.routingTable().allShardsGrouped(request.indices());
+    }
+
+    /**
+     * We want to go over all assigned nodes (to get recovery status) and not just active ones.
+     */
     @Override protected ShardRouting nextShardOrNull(ShardsIterator shardIt) {
         return shardIt.nextAssignedOrNull();
     }
 
+    /**
+     * We want to go over all assigned nodes (to get recovery status) and not just active ones.
+     */
     @Override protected boolean hasNextShard(ShardsIterator shardIt) {
         return shardIt.hasNextAssigned();
     }
@@ -121,7 +136,8 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
     }
 
     @Override protected ShardStatus shardOperation(IndexShardStatusRequest request) throws ElasticSearchException {
-        InternalIndexShard indexShard = (InternalIndexShard) indicesService.indexServiceSafe(request.index()).shard(request.shardId());
+        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.index());
+        InternalIndexShard indexShard = (InternalIndexShard) indexService.shard(request.shardId());
         ShardStatus shardStatus = new ShardStatus(indexShard.routingEntry());
         shardStatus.state = indexShard.state();
         try {
@@ -144,47 +160,67 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
             }
         }
         // check on going recovery (from peer or gateway)
-        PeerRecoveryStatus peerRecoveryStatus = indexShard.peerRecoveryStatus();
+        RecoveryStatus peerRecoveryStatus = indexShard.peerRecoveryStatus();
         if (peerRecoveryStatus == null) {
             peerRecoveryStatus = peerRecoveryTarget.peerRecoveryStatus(indexShard.shardId());
         }
         if (peerRecoveryStatus != null) {
-            ShardStatus.PeerRecoveryStatus.Stage stage;
+            PeerRecoveryStatus.Stage stage;
             switch (peerRecoveryStatus.stage()) {
                 case INIT:
-                    stage = ShardStatus.PeerRecoveryStatus.Stage.INIT;
+                    stage = PeerRecoveryStatus.Stage.INIT;
                     break;
-                case FILES:
-                    stage = ShardStatus.PeerRecoveryStatus.Stage.FILES;
+                case INDEX:
+                    stage = PeerRecoveryStatus.Stage.INDEX;
                     break;
                 case TRANSLOG:
-                    stage = ShardStatus.PeerRecoveryStatus.Stage.TRANSLOG;
+                    stage = PeerRecoveryStatus.Stage.TRANSLOG;
                     break;
                 case RETRY:
-                    stage = ShardStatus.PeerRecoveryStatus.Stage.RETRY;
+                    stage = PeerRecoveryStatus.Stage.RETRY;
                     break;
                 case FINALIZE:
-                    stage = ShardStatus.PeerRecoveryStatus.Stage.FINALIZE;
+                    stage = PeerRecoveryStatus.Stage.FINALIZE;
                     break;
                 case DONE:
-                    stage = ShardStatus.PeerRecoveryStatus.Stage.DONE;
+                    stage = PeerRecoveryStatus.Stage.DONE;
                     break;
                 default:
-                    stage = ShardStatus.PeerRecoveryStatus.Stage.INIT;
+                    stage = PeerRecoveryStatus.Stage.INIT;
             }
-            shardStatus.peerRecoveryStatus = new ShardStatus.PeerRecoveryStatus(stage, peerRecoveryStatus.startTime(), peerRecoveryStatus.time(),
+            shardStatus.peerRecoveryStatus = new PeerRecoveryStatus(stage, peerRecoveryStatus.startTime(), peerRecoveryStatus.time(),
                     peerRecoveryStatus.retryTime(), peerRecoveryStatus.phase1TotalSize(), peerRecoveryStatus.phase1ExistingTotalSize(),
                     peerRecoveryStatus.currentFilesSize(), peerRecoveryStatus.currentTranslogOperations());
         }
 
-        return shardStatus;
-    }
+        IndexShardGatewayService gatewayService = indexService.shardInjector(request.shardId()).getInstance(IndexShardGatewayService.class);
+        org.elasticsearch.index.gateway.RecoveryStatus gatewayRecoveryStatus = gatewayService.recoveryStatus();
+        if (gatewayRecoveryStatus != null) {
+            GatewayRecoveryStatus.Stage stage;
+            switch (gatewayRecoveryStatus.stage()) {
+                case INIT:
+                    stage = GatewayRecoveryStatus.Stage.INIT;
+                    break;
+                case INDEX:
+                    stage = GatewayRecoveryStatus.Stage.INDEX;
+                    break;
+                case TRANSLOG:
+                    stage = GatewayRecoveryStatus.Stage.TRANSLOG;
+                    break;
+                case RETRY:
+                    stage = GatewayRecoveryStatus.Stage.RETRY;
+                    break;
+                case DONE:
+                    stage = GatewayRecoveryStatus.Stage.DONE;
+                    break;
+                default:
+                    stage = GatewayRecoveryStatus.Stage.INIT;
+            }
+            shardStatus.gatewayRecoveryStatus = new GatewayRecoveryStatus(stage, gatewayRecoveryStatus.startTime(), gatewayRecoveryStatus.time(), gatewayRecoveryStatus.retryTime(),
+                    gatewayRecoveryStatus.index().retryTime(), gatewayRecoveryStatus.index().totalSize(), gatewayRecoveryStatus.index().existingTotalSize(), gatewayRecoveryStatus.index().currentFilesSize(), gatewayRecoveryStatus.translog().currentTranslogOperations());
+        }
 
-    /**
-     * Status goes across *all* shards.
-     */
-    @Override protected GroupShardsIterator shards(IndicesStatusRequest request, ClusterState clusterState) {
-        return clusterState.routingTable().allShardsGrouped(request.indices());
+        return shardStatus;
     }
 
     public static class IndexShardStatusRequest extends BroadcastShardOperationRequest {

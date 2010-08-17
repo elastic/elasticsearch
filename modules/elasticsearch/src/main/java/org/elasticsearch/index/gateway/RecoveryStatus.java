@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index.gateway;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -30,17 +27,20 @@ import java.util.concurrent.atomic.AtomicLong;
 public class RecoveryStatus {
 
     public static enum Stage {
-        NONE,
+        INIT,
+        RETRY,
         INDEX,
         TRANSLOG,
         DONE
     }
 
-    private Stage stage = Stage.NONE;
+    private Stage stage = Stage.INIT;
 
-    private long startTime;
+    private long startTime = System.currentTimeMillis();
 
-    private long took;
+    private long retryTime = 0;
+
+    private long time;
 
     private Index index = new Index();
 
@@ -63,12 +63,20 @@ public class RecoveryStatus {
         this.startTime = startTime;
     }
 
-    public TimeValue took() {
-        return new TimeValue(this.took);
+    public long retryTime() {
+        return this.retryTime;
     }
 
-    public void took(long took) {
-        this.took = took;
+    public void retryTime(long retryTime) {
+        this.retryTime = retryTime;
+    }
+
+    public long time() {
+        return this.time;
+    }
+
+    public void time(long time) {
+        this.time = time;
     }
 
     public Index index() {
@@ -80,9 +88,9 @@ public class RecoveryStatus {
     }
 
     public static class Translog {
-        volatile long currentTranslogOperations = 0;
-        private long startTime = -1;
-        private long took;
+        private long startTime = 0;
+        private long time;
+        private volatile long currentTranslogOperations = 0;
 
         public long startTime() {
             return this.startTime;
@@ -92,12 +100,12 @@ public class RecoveryStatus {
             this.startTime = startTime;
         }
 
-        public TimeValue took() {
-            return new TimeValue(this.took);
+        public long time() {
+            return this.time;
         }
 
-        public void took(long took) {
-            this.took = took;
+        public void time(long time) {
+            this.time = time;
         }
 
         public void addTranslogOperations(long count) {
@@ -110,15 +118,15 @@ public class RecoveryStatus {
     }
 
     public static class Index {
-        private long startTime = -1;
-        private long took = -1;
+        private long startTime = 0;
+        private long time = 0;
 
         private long version = -1;
         private int numberOfFiles = 0;
         private long totalSize = 0;
         private int numberOfExistingFiles = 0;
         private long existingTotalSize = 0;
-        private AtomicLong throttlingWaitTime = new AtomicLong();
+        private AtomicLong retryTime = new AtomicLong();
         private AtomicLong currentFilesSize = new AtomicLong();
 
         public long startTime() {
@@ -129,12 +137,12 @@ public class RecoveryStatus {
             this.startTime = startTime;
         }
 
-        public TimeValue took() {
-            return new TimeValue(this.took);
+        public long time() {
+            return this.time;
         }
 
-        public void took(long took) {
-            this.took = took;
+        public void time(long time) {
+            this.time = time;
         }
 
         public long version() {
@@ -152,24 +160,24 @@ public class RecoveryStatus {
             return numberOfFiles;
         }
 
-        public ByteSizeValue totalSize() {
-            return new ByteSizeValue(totalSize);
+        public long totalSize() {
+            return this.totalSize;
         }
 
         public int numberOfExistingFiles() {
             return numberOfExistingFiles;
         }
 
-        public ByteSizeValue existingTotalSize() {
-            return new ByteSizeValue(existingTotalSize);
+        public long existingTotalSize() {
+            return this.existingTotalSize;
         }
 
-        public void addThrottlingTime(long delta) {
-            throttlingWaitTime.addAndGet(delta);
+        public void addRetryTime(long delta) {
+            retryTime.addAndGet(delta);
         }
 
-        public TimeValue throttlingWaitTime() {
-            return new TimeValue(throttlingWaitTime.get());
+        public long retryTime() {
+            return this.retryTime.get();
         }
 
         public void updateVersion(long version) {

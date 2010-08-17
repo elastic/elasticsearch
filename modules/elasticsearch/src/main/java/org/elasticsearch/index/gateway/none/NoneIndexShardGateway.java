@@ -56,10 +56,8 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
         return recoveryStatus;
     }
 
-    @Override public RecoveryStatus recover() throws IndexShardGatewayRecoveryException {
-        recoveryStatus.startTime(System.currentTimeMillis());
+    @Override public void recover(RecoveryStatus recoveryStatus) throws IndexShardGatewayRecoveryException {
         recoveryStatus().index().startTime(System.currentTimeMillis());
-        recoveryStatus.translog().startTime(System.currentTimeMillis());
         // in the none case, we simply start the shard
         // clean the store, there should be nothing there...
         try {
@@ -68,10 +66,9 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
             logger.warn("failed to clean store before starting shard", e);
         }
         indexShard.start();
-        recoveryStatus.index().took(System.currentTimeMillis() - recoveryStatus.index().startTime());
-        recoveryStatus.translog().took(System.currentTimeMillis() - recoveryStatus.index().startTime());
-        recoveryStatus.took(System.currentTimeMillis() - recoveryStatus.startTime());
-        return recoveryStatus.updateStage(RecoveryStatus.Stage.DONE);
+        recoveryStatus.index().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
+        recoveryStatus.translog().startTime(System.currentTimeMillis());
+        recoveryStatus.translog().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
     }
 
     @Override public String type() {

@@ -139,14 +139,14 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                                 }
 
                                 if (shardStatus.peerRecoveryStatus() != null) {
-                                    ShardStatus.PeerRecoveryStatus peerRecoveryStatus = shardStatus.peerRecoveryStatus();
+                                    PeerRecoveryStatus peerRecoveryStatus = shardStatus.peerRecoveryStatus();
                                     builder.startObject("peer_recovery");
                                     builder.field("stage", peerRecoveryStatus.stage());
                                     builder.field("start_time_in_millis", peerRecoveryStatus.startTime());
                                     builder.field("time", peerRecoveryStatus.time());
                                     builder.field("took_in_millis", peerRecoveryStatus.time().millis());
-                                    builder.field("retry_time", peerRecoveryStatus.retryTime());
-                                    builder.field("retry_time_in_millis", peerRecoveryStatus.retryTime().millis());
+                                    builder.field("throttling_time", peerRecoveryStatus.throttlingTime());
+                                    builder.field("throttling_time_in_millis", peerRecoveryStatus.throttlingTime().millis());
 
                                     builder.startObject("index");
                                     builder.field("size", peerRecoveryStatus.indexSize());
@@ -161,6 +161,36 @@ public class RestIndicesStatusAction extends BaseRestHandler {
 
                                     builder.startObject("translog");
                                     builder.field("recovered", peerRecoveryStatus.recoveredTranslogOperations());
+                                    builder.endObject();
+
+                                    builder.endObject();
+                                }
+
+                                if (shardStatus.gatewayRecoveryStatus() != null) {
+                                    GatewayRecoveryStatus gatewayRecoveryStatus = shardStatus.gatewayRecoveryStatus();
+                                    builder.startObject("gateway_recovery");
+                                    builder.field("stage", gatewayRecoveryStatus.stage());
+                                    builder.field("start_time_in_millis", gatewayRecoveryStatus.startTime());
+                                    builder.field("time", gatewayRecoveryStatus.time());
+                                    builder.field("took_in_millis", gatewayRecoveryStatus.time().millis());
+                                    builder.field("throttling_time", gatewayRecoveryStatus.throttlingTime());
+                                    builder.field("throttling_time_in_millis", gatewayRecoveryStatus.throttlingTime().millis());
+
+                                    builder.startObject("index");
+                                    builder.field("size", gatewayRecoveryStatus.indexSize());
+                                    builder.field("size_in_bytes", gatewayRecoveryStatus.indexSize().bytes());
+                                    builder.field("reused_size", gatewayRecoveryStatus.reusedIndexSize());
+                                    builder.field("reused_size_in_bytes", gatewayRecoveryStatus.reusedIndexSize().bytes());
+                                    builder.field("expected_recovered_size", gatewayRecoveryStatus.expectedRecoveredIndexSize());
+                                    builder.field("expected_recovered_size_in_bytes", gatewayRecoveryStatus.expectedRecoveredIndexSize().bytes());
+                                    builder.field("recovered_size", gatewayRecoveryStatus.recoveredIndexSize());
+                                    builder.field("recovered_size_in_bytes", gatewayRecoveryStatus.recoveredIndexSize().bytes());
+                                    builder.field("throttling_time", gatewayRecoveryStatus.indexThrottlingTime());
+                                    builder.field("throttling_time_in_millis", gatewayRecoveryStatus.indexThrottlingTime().millis());
+                                    builder.endObject();
+
+                                    builder.startObject("translog");
+                                    builder.field("recovered", gatewayRecoveryStatus.recoveredTranslogOperations());
                                     builder.endObject();
 
                                     builder.endObject();

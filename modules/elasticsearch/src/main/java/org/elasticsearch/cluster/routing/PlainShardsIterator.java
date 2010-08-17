@@ -50,16 +50,6 @@ public class PlainShardsIterator implements ShardsIterator {
         return shards.size();
     }
 
-    @Override public int sizeActive() {
-        int sizeActive = 0;
-        for (ShardRouting shardRouting : shards) {
-            if (shardRouting.active()) {
-                sizeActive++;
-            }
-        }
-        return sizeActive;
-    }
-
     @Override public ShardId shardId() {
         return this.shardId;
     }
@@ -77,6 +67,16 @@ public class PlainShardsIterator implements ShardsIterator {
             throw new NoSuchElementException("No shard found");
         }
         return shards.get(counter++);
+    }
+
+    @Override public int sizeActive() {
+        int sizeActive = 0;
+        for (ShardRouting shardRouting : shards) {
+            if (shardRouting.active()) {
+                sizeActive++;
+            }
+        }
+        return sizeActive;
     }
 
     @Override public boolean hasNextActive() {
@@ -101,6 +101,44 @@ public class PlainShardsIterator implements ShardsIterator {
         while (counter < shards.size()) {
             ShardRouting shardRouting = shards.get(counter++);
             if (shardRouting.active()) {
+                return shardRouting;
+            }
+        }
+        return null;
+    }
+
+    @Override public int sizeAssigned() {
+        int sizeAssigned = 0;
+        for (ShardRouting shardRouting : shards) {
+            if (shardRouting.assignedToNode()) {
+                sizeAssigned++;
+            }
+        }
+        return sizeAssigned;
+    }
+
+    @Override public boolean hasNextAssigned() {
+        int counter = this.counter;
+        while (counter < shards.size()) {
+            if (shards.get(counter++).assignedToNode()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override public ShardRouting nextAssigned() throws NoSuchElementException {
+        ShardRouting shardRouting = nextAssignedOrNull();
+        if (shardRouting == null) {
+            throw new NoSuchElementException("No assigned shard found");
+        }
+        return shardRouting;
+    }
+
+    @Override public ShardRouting nextAssignedOrNull() {
+        while (counter < shards.size()) {
+            ShardRouting shardRouting = shards.get(counter++);
+            if (shardRouting.assignedToNode()) {
                 return shardRouting;
             }
         }

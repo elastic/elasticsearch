@@ -164,6 +164,24 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             return shardModulo(index++);
         }
 
+        @Override public void remove() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override public int size() {
+            return IndexShardRoutingTable.this.size();
+        }
+
+        @Override public int sizeActive() {
+            int shardsActive = 0;
+            for (ShardRouting shardRouting : IndexShardRoutingTable.this.shards()) {
+                if (shardRouting.active()) {
+                    shardsActive++;
+                }
+            }
+            return shardsActive;
+        }
+
         @Override public boolean hasNextActive() {
             int counter = this.counter;
             int index = this.index;
@@ -200,22 +218,50 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             return null;
         }
 
-        @Override public void remove() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override public int size() {
-            return IndexShardRoutingTable.this.size();
-        }
-
-        @Override public int sizeActive() {
-            int shardsActive = 0;
+        @Override public int sizeAssigned() {
+            int shardsAssigned = 0;
             for (ShardRouting shardRouting : IndexShardRoutingTable.this.shards()) {
-                if (shardRouting.active()) {
-                    shardsActive++;
+                if (shardRouting.assignedToNode()) {
+                    shardsAssigned++;
                 }
             }
-            return shardsActive;
+            return shardsAssigned;
+        }
+
+        @Override public boolean hasNextAssigned() {
+            int counter = this.counter;
+            int index = this.index;
+            while (counter++ < size()) {
+                ShardRouting shardRouting = shardModulo(index++);
+                if (shardRouting.assignedToNode()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override public ShardRouting nextAssigned() throws NoSuchElementException {
+            ShardRouting shardRouting = nextAssignedOrNull();
+            if (shardRouting == null) {
+                throw new NoSuchElementException("No assigned shard found");
+            }
+            return shardRouting;
+        }
+
+        @Override public ShardRouting nextAssignedOrNull() {
+            int counter = this.counter;
+            int index = this.index;
+            while (counter++ < size()) {
+                ShardRouting shardRouting = shardModulo(index++);
+                if (shardRouting.assignedToNode()) {
+                    this.counter = counter;
+                    this.index = index;
+                    return shardRouting;
+                }
+            }
+            this.counter = counter;
+            this.index = index;
+            return null;
         }
 
         @Override public ShardId shardId() {

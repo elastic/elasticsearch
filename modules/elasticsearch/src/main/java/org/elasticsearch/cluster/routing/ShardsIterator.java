@@ -25,24 +25,80 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 /**
- * @author kimchy (Shay Banon)
+ * Allows to iterate over a set of shard instances (routing) within a shard id group.
+ *
+ * @author kimchy (shay.banon)
  */
 public interface ShardsIterator extends Iterable<ShardRouting>, Iterator<ShardRouting> {
+
+    /**
+     * The shard id this group relates to.
+     */
+    ShardId shardId();
 
     /**
      * Resets the iterator.
      */
     ShardsIterator reset();
 
+    /**
+     * The number of shard routing instances.
+     */
     int size();
 
+    /**
+     * The number of active shard routing instances.
+     *
+     * @see ShardRouting#active()
+     */
     int sizeActive();
 
-    ShardId shardId();
-
+    /**
+     * Is there an active shard we can iterate to.
+     *
+     * @see ShardRouting#active()
+     */
     boolean hasNextActive();
 
+    /**
+     * Returns the next active shard, or throws {@link NoSuchElementException}.
+     *
+     * @see ShardRouting#active()
+     */
     ShardRouting nextActive() throws NoSuchElementException;
 
+    /**
+     * Returns the next active shard, or <tt>null</tt>.
+     *
+     * @see ShardRouting#active()
+     */
     ShardRouting nextActiveOrNull();
+
+    /**
+     * The number of assigned shard routing instances.
+     *
+     * @see ShardRouting#assignedToNode()
+     */
+    int sizeAssigned();
+
+    /**
+     * Is there an assigned shard we can iterate to.
+     *
+     * @see ShardRouting#assignedToNode()
+     */
+    boolean hasNextAssigned();
+
+    /**
+     * Returns the next assigned shard, or throws {@link NoSuchElementException}.
+     *
+     * @see ShardRouting#assignedToNode()
+     */
+    ShardRouting nextAssigned() throws NoSuchElementException;
+
+    /**
+     * Returns the next assigned shard, or <tt>null</tt>.
+     *
+     * @see ShardRouting#assignedToNode()
+     */
+    ShardRouting nextAssignedOrNull();
 }

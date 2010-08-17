@@ -39,6 +39,8 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
 
     private final InternalIndexShard indexShard;
 
+    private final RecoveryStatus recoveryStatus = new RecoveryStatus();
+
     @Inject public NoneIndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, IndexShard indexShard) {
         super(shardId, indexSettings);
         this.indexShard = (InternalIndexShard) indexShard;
@@ -48,7 +50,13 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
         return "_none_";
     }
 
+    @Override public RecoveryStatus recoveryStatus() {
+        return recoveryStatus;
+    }
+
     @Override public RecoveryStatus recover() throws IndexShardGatewayRecoveryException {
+        recoveryStatus().index().startTime(System.currentTimeMillis());
+        recoveryStatus.translog().startTime(System.currentTimeMillis());
         // in the none case, we simply start the shard
         // clean the store, there should be nothing there...
         try {
@@ -57,7 +65,9 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
             logger.warn("failed to clean store before starting shard", e);
         }
         indexShard.start();
-        return new RecoveryStatus(RecoveryStatus.Index.EMPTY, RecoveryStatus.Translog.EMPTY);
+        recoveryStatus.index().took(System.currentTimeMillis() - recoveryStatus.index().startTime());
+        recoveryStatus.translog().took(System.currentTimeMillis() - recoveryStatus.index().startTime());
+        return recoveryStatus.updateStage(RecoveryStatus.Stage.DONE);
     }
 
     @Override public String type() {

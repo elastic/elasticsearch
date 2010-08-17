@@ -29,12 +29,12 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * @author kimchy (shay.banon)
  */
-public class PeerRecoveryStatus {
+public class RecoveryStatus {
 
     public static enum Stage {
         INIT,
         RETRY,
-        FILES,
+        INDEX,
         TRANSLOG,
         FINALIZE,
         DONE

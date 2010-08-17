@@ -78,7 +78,7 @@ public class RecoveryTarget extends AbstractComponent {
 
     private final RecoveryThrottler recoveryThrottler;
 
-    private final ConcurrentMap<ShardId, PeerRecoveryStatus> onGoingRecoveries = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<ShardId, RecoveryStatus> onGoingRecoveries = ConcurrentCollections.newConcurrentMap();
 
     @Inject public RecoveryTarget(Settings settings, ThreadPool threadPool, TransportService transportService, IndicesService indicesService,
                                   IndicesLifecycle indicesLifecycle, RecoveryThrottler recoveryThrottler) {
@@ -102,13 +102,13 @@ public class RecoveryTarget extends AbstractComponent {
         });
     }
 
-    public PeerRecoveryStatus peerRecoveryStatus(ShardId shardId) {
-        PeerRecoveryStatus peerRecoveryStatus = onGoingRecoveries.get(shardId);
+    public RecoveryStatus peerRecoveryStatus(ShardId shardId) {
+        RecoveryStatus peerRecoveryStatus = onGoingRecoveries.get(shardId);
         if (peerRecoveryStatus == null) {
             return null;
         }
         // update how long it takes if we are still recovering...
-        if (peerRecoveryStatus.startTime > 0 && peerRecoveryStatus.stage != PeerRecoveryStatus.Stage.DONE) {
+        if (peerRecoveryStatus.startTime > 0 && peerRecoveryStatus.stage != RecoveryStatus.Stage.DONE) {
             peerRecoveryStatus.time = System.currentTimeMillis() - peerRecoveryStatus.startTime;
         }
         return peerRecoveryStatus;
@@ -159,16 +159,16 @@ public class RecoveryTarget extends AbstractComponent {
             return;
         }
 
-        PeerRecoveryStatus recovery;
+        RecoveryStatus recovery;
         if (fromRetry) {
             recovery = onGoingRecoveries.get(request.shardId());
         } else {
-            recovery = new PeerRecoveryStatus();
+            recovery = new RecoveryStatus();
             onGoingRecoveries.put(request.shardId(), recovery);
         }
 
         if (!recoveryThrottler.tryRecovery(shard.shardId(), "peer recovery target")) {
-            recovery.stage = PeerRecoveryStatus.Stage.RETRY;
+            recovery.stage = RecoveryStatus.Stage.RETRY;
             recovery.retryTime = System.currentTimeMillis() - recovery.startTime;
             listener.onRetryRecovery(recoveryThrottler.throttleInterval());
             return;
@@ -189,7 +189,7 @@ public class RecoveryTarget extends AbstractComponent {
                     return;
                 }
                 logger.trace("[{}][{}] retrying recovery in [{}], source shard is busy", request.shardId().index().name(), request.shardId().id(), recoveryThrottler.throttleInterval());
-                recovery.stage = PeerRecoveryStatus.Stage.RETRY;
+                recovery.stage = RecoveryStatus.Stage.RETRY;
                 recovery.retryTime = System.currentTimeMillis() - recovery.startTime;
                 listener.onRetryRecovery(recoveryThrottler.throttleInterval());
                 return;
@@ -231,7 +231,7 @@ public class RecoveryTarget extends AbstractComponent {
             }
 
             if (cause instanceof IndexShardNotStartedException || cause instanceof IndexMissingException || cause instanceof IndexShardMissingException) {
-                recovery.stage = PeerRecoveryStatus.Stage.RETRY;
+                recovery.stage = RecoveryStatus.Stage.RETRY;
                 recovery.retryTime = System.currentTimeMillis() - recovery.startTime;
                 listener.onRetryRecovery(recoveryThrottler.throttleInterval());
                 return;
@@ -269,7 +269,7 @@ public class RecoveryTarget extends AbstractComponent {
 
     private void removeAndCleanOnGoingRecovery(ShardId shardId) {
         // clean it from the on going recoveries since it is being closed
-        PeerRecoveryStatus peerRecoveryStatus = onGoingRecoveries.remove(shardId);
+        RecoveryStatus peerRecoveryStatus = onGoingRecoveries.remove(shardId);
         if (peerRecoveryStatus != null) {
             // clean open index outputs
             for (Map.Entry<String, IndexOutput> entry : peerRecoveryStatus.openIndexOutputs.entrySet()) {
@@ -294,12 +294,12 @@ public class RecoveryTarget extends AbstractComponent {
         @Override public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel) throws Exception {
             InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
 
-            PeerRecoveryStatus onGoingRecovery = onGoingRecoveries.get(shard.shardId());
+            RecoveryStatus onGoingRecovery = onGoingRecoveries.get(shard.shardId());
             if (onGoingRecovery == null) {
                 // shard is getting closed on us
                 throw new IndexShardClosedException(shard.shardId());
             }
-            onGoingRecovery.stage = PeerRecoveryStatus.Stage.TRANSLOG;
+            onGoingRecovery.stage = RecoveryStatus.Stage.TRANSLOG;
 
             shard.performRecoveryPrepareForTranslog();
             channel.sendResponse(VoidStreamable.INSTANCE);
@@ -314,15 +314,15 @@ public class RecoveryTarget extends AbstractComponent {
 
         @Override public void messageReceived(RecoveryFinalizeRecoveryRequest request, TransportChannel channel) throws Exception {
             InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
-            PeerRecoveryStatus peerRecoveryStatus = onGoingRecoveries.get(shard.shardId());
+            RecoveryStatus peerRecoveryStatus = onGoingRecoveries.get(shard.shardId());
             if (peerRecoveryStatus == null) {
                 // shard is getting closed on us
                 throw new IndexShardClosedException(shard.shardId());
             }
-            peerRecoveryStatus.stage = PeerRecoveryStatus.Stage.FINALIZE;
+            peerRecoveryStatus.stage = RecoveryStatus.Stage.FINALIZE;
             shard.performRecoveryFinalization(false, peerRecoveryStatus);
             peerRecoveryStatus.time = System.currentTimeMillis() - peerRecoveryStatus.startTime;
-            peerRecoveryStatus.stage = PeerRecoveryStatus.Stage.DONE;
+            peerRecoveryStatus.stage = RecoveryStatus.Stage.DONE;
             channel.sendResponse(VoidStreamable.INSTANCE);
         }
     }
@@ -340,7 +340,7 @@ public class RecoveryTarget extends AbstractComponent {
                 shard.performRecoveryOperation(operation);
             }
 
-            PeerRecoveryStatus onGoingRecovery = onGoingRecoveries.get(shard.shardId());
+            RecoveryStatus onGoingRecovery = onGoingRecoveries.get(shard.shardId());
             if (onGoingRecovery == null) {
                 // shard is getting closed on us
                 throw new IndexShardClosedException(shard.shardId());
@@ -359,7 +359,7 @@ public class RecoveryTarget extends AbstractComponent {
 
         @Override public void messageReceived(RecoveryFilesInfoRequest request, TransportChannel channel) throws Exception {
             InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId.index().name()).shardSafe(request.shardId.id());
-            PeerRecoveryStatus onGoingRecovery = onGoingRecoveries.get(shard.shardId());
+            RecoveryStatus onGoingRecovery = onGoingRecoveries.get(shard.shardId());
             if (onGoingRecovery == null) {
                 // shard is getting closed on us
                 throw new IndexShardClosedException(shard.shardId());
@@ -370,7 +370,7 @@ public class RecoveryTarget extends AbstractComponent {
             onGoingRecovery.phase1ExistingFileSizes = request.phase1ExistingFileSizes;
             onGoingRecovery.phase1TotalSize = request.phase1TotalSize;
             onGoingRecovery.phase1ExistingTotalSize = request.phase1ExistingTotalSize;
-            onGoingRecovery.stage = PeerRecoveryStatus.Stage.FILES;
+            onGoingRecovery.stage = RecoveryStatus.Stage.INDEX;
             channel.sendResponse(VoidStreamable.INSTANCE);
         }
     }
@@ -401,7 +401,7 @@ public class RecoveryTarget extends AbstractComponent {
 
         @Override public void messageReceived(final RecoveryFileChunkRequest request, TransportChannel channel) throws Exception {
             InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
-            PeerRecoveryStatus onGoingRecovery = onGoingRecoveries.get(shard.shardId());
+            RecoveryStatus onGoingRecovery = onGoingRecoveries.get(shard.shardId());
             if (onGoingRecovery == null) {
                 // shard is getting closed on us
                 throw new IndexShardClosedException(shard.shardId());

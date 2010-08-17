@@ -84,8 +84,6 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
 
     protected final RecoveryThrottler recoveryThrottler;
 
-    private final RecoveryStatus recoveryStatus;
-
     protected final ByteSizeValue chunkSize;
 
     protected final BlobStore blobStore;
@@ -101,6 +99,8 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
     private volatile SoftReference<FastByteArrayOutputStream> cachedBos = new SoftReference<FastByteArrayOutputStream>(new FastByteArrayOutputStream());
 
     private volatile AppendableBlobContainer.AppendableBlob translogBlob;
+
+    private volatile RecoveryStatus recoveryStatus;
 
     private volatile SnapshotStatus lastSnapshotStatus;
 
@@ -403,22 +403,18 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         }
     }
 
-    @Override public RecoveryStatus recover() throws IndexShardGatewayRecoveryException {
-        recoveryStatus.startTime(System.currentTimeMillis());
+    @Override public void recover(RecoveryStatus recoveryStatus) throws IndexShardGatewayRecoveryException {
+        this.recoveryStatus = recoveryStatus;
 
         recoveryStatus.index().startTime(System.currentTimeMillis());
         recoveryStatus.updateStage(RecoveryStatus.Stage.INDEX);
         recoverIndex();
-        recoveryStatus.index().took(System.currentTimeMillis() - recoveryStatus.index().startTime());
+        recoveryStatus.index().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
 
         recoveryStatus.translog().startTime(System.currentTimeMillis());
         recoveryStatus.updateStage(RecoveryStatus.Stage.TRANSLOG);
         recoverTranslog();
-        recoveryStatus.translog().took(System.currentTimeMillis() - recoveryStatus.index().startTime());
-
-        recoveryStatus.took(System.currentTimeMillis() - recoveryStatus.startTime());
-        recoveryStatus.updateStage(RecoveryStatus.Stage.DONE);
-        return recoveryStatus;
+        recoveryStatus.translog().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
     }
 
     private void recoverTranslog() throws IndexShardGatewayRecoveryException {
@@ -574,7 +570,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                 // lets reschedule to do it next time
                 threadPool.schedule(new Runnable() {
                     @Override public void run() {
-                        recoveryStatus.index().addThrottlingTime(recoveryThrottler.throttleInterval().millis());
+                        recoveryStatus.index().addRetryTime(recoveryThrottler.throttleInterval().millis());
                         if (recoveryThrottler.tryStream(shardId, fileToRecover.name())) {
                             // we managed to get a recovery going
                             recoverFile(fileToRecover, indicesBlobs, latch, failures);

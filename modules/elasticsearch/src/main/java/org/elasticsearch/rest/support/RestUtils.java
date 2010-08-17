@@ -52,14 +52,21 @@ public class RestUtils {
         params.put(decodeComponent(queryString.substring(fromIndex, idx)), decodeComponent(queryString.substring(idx + 1)));
     }
 
-    private static String decodeComponent(String s) {
+    public static String decodeComponent(String s) {
         if (s == null) {
             return "";
         }
-        try {
-            return URLDecoder.decode(s, "UTF8");
-        } catch (UnsupportedEncodingException e) {
-            throw new UnsupportedCharsetException("UTF8");
+        int numChars = s.length();
+        for (int i = 0; i < numChars; i++) {
+            // do an initial check if it requires decoding do it and return
+            if (s.charAt(i) == '+' || s.charAt(i) == '%') {
+                try {
+                    return URLDecoder.decode(s, "UTF8");
+                } catch (UnsupportedEncodingException e) {
+                    throw new UnsupportedCharsetException("UTF8");
+                }
+            }
         }
+        return s;
     }
 }

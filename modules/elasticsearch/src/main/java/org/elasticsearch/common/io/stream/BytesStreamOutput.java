@@ -66,6 +66,10 @@ public class BytesStreamOutput extends StreamOutput {
         count = newcount;
     }
 
+    public void seek(int seekTo) {
+        count = seekTo;
+    }
+
     public void reset() {
         count = 0;
     }

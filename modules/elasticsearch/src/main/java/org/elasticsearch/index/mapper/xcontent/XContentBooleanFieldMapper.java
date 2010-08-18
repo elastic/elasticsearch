@@ -116,6 +116,10 @@ public class XContentBooleanFieldMapper extends XContentFieldMapper<Boolean> {
         this.nullValue = nullValue;
     }
 
+    @Override public boolean useFieldQueryWithQueryString() {
+        return true;
+    }
+
     @Override public Boolean value(Fieldable field) {
         return field.stringValue().charAt(0) == 'T' ? Boolean.TRUE : Boolean.FALSE;
     }

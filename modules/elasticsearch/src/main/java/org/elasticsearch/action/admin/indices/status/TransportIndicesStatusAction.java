@@ -35,6 +35,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
+import org.elasticsearch.index.gateway.SnapshotStatus;
 import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.recovery.RecoveryStatus;
@@ -218,6 +219,33 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
             }
             shardStatus.gatewayRecoveryStatus = new GatewayRecoveryStatus(stage, gatewayRecoveryStatus.startTime(), gatewayRecoveryStatus.time(), gatewayRecoveryStatus.retryTime(),
                     gatewayRecoveryStatus.index().retryTime(), gatewayRecoveryStatus.index().totalSize(), gatewayRecoveryStatus.index().existingTotalSize(), gatewayRecoveryStatus.index().currentFilesSize(), gatewayRecoveryStatus.translog().currentTranslogOperations());
+        }
+
+        SnapshotStatus snapshotStatus = gatewayService.snapshotStatus();
+        if (snapshotStatus != null) {
+            GatewaySnapshotStatus.Stage stage;
+            switch (snapshotStatus.stage()) {
+                case DONE:
+                    stage = GatewaySnapshotStatus.Stage.DONE;
+                    break;
+                case FAILURE:
+                    stage = GatewaySnapshotStatus.Stage.FAILURE;
+                    break;
+                case TRANSLOG:
+                    stage = GatewaySnapshotStatus.Stage.TRANSLOG;
+                    break;
+                case FINALIZE:
+                    stage = GatewaySnapshotStatus.Stage.FINALIZE;
+                    break;
+                case INDEX:
+                    stage = GatewaySnapshotStatus.Stage.INDEX;
+                    break;
+                default:
+                    stage = GatewaySnapshotStatus.Stage.NONE;
+                    break;
+            }
+            shardStatus.gatewaySnapshotStatus = new GatewaySnapshotStatus(stage, snapshotStatus.startTime(), snapshotStatus.time(),
+                    snapshotStatus.index().totalSize(), snapshotStatus.translog().currentTranslogOperations());
         }
 
         return shardStatus;

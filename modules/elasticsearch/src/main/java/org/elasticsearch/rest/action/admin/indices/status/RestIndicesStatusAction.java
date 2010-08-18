@@ -144,7 +144,7 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                                     builder.field("stage", peerRecoveryStatus.stage());
                                     builder.field("start_time_in_millis", peerRecoveryStatus.startTime());
                                     builder.field("time", peerRecoveryStatus.time());
-                                    builder.field("took_in_millis", peerRecoveryStatus.time().millis());
+                                    builder.field("time_in_millis", peerRecoveryStatus.time().millis());
                                     builder.field("throttling_time", peerRecoveryStatus.throttlingTime());
                                     builder.field("throttling_time_in_millis", peerRecoveryStatus.throttlingTime().millis());
 
@@ -172,7 +172,7 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                                     builder.field("stage", gatewayRecoveryStatus.stage());
                                     builder.field("start_time_in_millis", gatewayRecoveryStatus.startTime());
                                     builder.field("time", gatewayRecoveryStatus.time());
-                                    builder.field("took_in_millis", gatewayRecoveryStatus.time().millis());
+                                    builder.field("time_in_millis", gatewayRecoveryStatus.time().millis());
                                     builder.field("throttling_time", gatewayRecoveryStatus.throttlingTime());
                                     builder.field("throttling_time_in_millis", gatewayRecoveryStatus.throttlingTime().millis());
 
@@ -191,6 +191,26 @@ public class RestIndicesStatusAction extends BaseRestHandler {
 
                                     builder.startObject("translog");
                                     builder.field("recovered", gatewayRecoveryStatus.recoveredTranslogOperations());
+                                    builder.endObject();
+
+                                    builder.endObject();
+                                }
+
+                                if (shardStatus.gatewaySnapshotStatus() != null) {
+                                    GatewaySnapshotStatus gatewaySnapshotStatus = shardStatus.gatewaySnapshotStatus();
+                                    builder.startObject("gateway_snapshot");
+                                    builder.field("stage", gatewaySnapshotStatus.stage());
+                                    builder.field("start_time_in_millis", gatewaySnapshotStatus.startTime());
+                                    builder.field("time", gatewaySnapshotStatus.time());
+                                    builder.field("time_in_millis", gatewaySnapshotStatus.time().millis());
+
+                                    builder.startObject("index");
+                                    builder.field("size", gatewaySnapshotStatus.indexSize());
+                                    builder.field("size_in_bytes", gatewaySnapshotStatus.indexSize().bytes());
+                                    builder.endObject();
+
+                                    builder.startObject("translog");
+                                    builder.field("operations", gatewaySnapshotStatus.translogOperations());
                                     builder.endObject();
 
                                     builder.endObject();

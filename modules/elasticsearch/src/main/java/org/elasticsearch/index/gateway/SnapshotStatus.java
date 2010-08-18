@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index.gateway;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-
 /**
  * @author kimchy (shay.banon)
  */
@@ -40,7 +37,7 @@ public class SnapshotStatus {
 
     private long startTime;
 
-    private long took;
+    private long time;
 
     private Index index = new Index();
 
@@ -65,12 +62,12 @@ public class SnapshotStatus {
         this.startTime = startTime;
     }
 
-    public TimeValue took() {
-        return new TimeValue(this.took);
+    public long time() {
+        return this.time;
     }
 
-    public void took(long took) {
-        this.took = took;
+    public void time(long time) {
+        this.time = time;
     }
 
     public void failed(Throwable failure) {
@@ -87,10 +84,10 @@ public class SnapshotStatus {
 
     public static class Index {
         private long startTime;
-        private long took;
+        private long time;
 
         private int numberOfFiles;
-        private long totalSize = -1;
+        private long totalSize;
 
         public long startTime() {
             return this.startTime;
@@ -100,12 +97,12 @@ public class SnapshotStatus {
             this.startTime = startTime;
         }
 
-        public TimeValue took() {
-            return new TimeValue(this.took);
+        public long time() {
+            return this.time;
         }
 
-        public void took(long took) {
-            this.took = took;
+        public void time(long time) {
+            this.time = time;
         }
 
         public void files(int numberOfFiles, long totalSize) {
@@ -117,16 +114,16 @@ public class SnapshotStatus {
             return numberOfFiles;
         }
 
-        public ByteSizeValue totalSize() {
-            return new ByteSizeValue(totalSize);
+        public long totalSize() {
+            return totalSize;
         }
     }
 
     public static class Translog {
         private volatile int currentTranslogOperations;
 
-        private long startTime = -1;
-        private long took;
+        private long startTime;
+        private long time;
 
         public long startTime() {
             return this.startTime;
@@ -136,12 +133,12 @@ public class SnapshotStatus {
             this.startTime = startTime;
         }
 
-        public TimeValue took() {
-            return new TimeValue(this.took);
+        public long time() {
+            return this.time;
         }
 
-        public void took(long took) {
-            this.took = took;
+        public void time(long time) {
+            this.time = time;
         }
 
         public void addTranslogOperations(long count) {

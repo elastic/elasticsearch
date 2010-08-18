@@ -84,6 +84,8 @@ public class ShardStatus extends BroadcastShardOperationResponse {
 
     GatewayRecoveryStatus gatewayRecoveryStatus;
 
+    GatewaySnapshotStatus gatewaySnapshotStatus;
+
     ShardStatus() {
     }
 
@@ -156,6 +158,14 @@ public class ShardStatus extends BroadcastShardOperationResponse {
         return gatewayRecoveryStatus();
     }
 
+    public GatewaySnapshotStatus gatewaySnapshotStatus() {
+        return gatewaySnapshotStatus;
+    }
+
+    public GatewaySnapshotStatus getGatewaySnapshotStatus() {
+        return gatewaySnapshotStatus();
+    }
+
     public static ShardStatus readIndexShardStatus(StreamInput in) throws IOException {
         ShardStatus shardStatus = new ShardStatus();
         shardStatus.readFrom(in);
@@ -210,6 +220,17 @@ public class ShardStatus extends BroadcastShardOperationResponse {
             out.writeVLong(gatewayRecoveryStatus.recoveredIndexSize);
             out.writeVLong(gatewayRecoveryStatus.recoveredTranslogOperations);
         }
+
+        if (gatewaySnapshotStatus == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeByte(gatewaySnapshotStatus.stage.value());
+            out.writeVLong(gatewaySnapshotStatus.startTime);
+            out.writeVLong(gatewaySnapshotStatus.time);
+            out.writeVLong(gatewaySnapshotStatus.indexSize);
+            out.writeVLong(gatewaySnapshotStatus.translogOperations);
+        }
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
@@ -235,6 +256,11 @@ public class ShardStatus extends BroadcastShardOperationResponse {
         if (in.readBoolean()) {
             gatewayRecoveryStatus = new GatewayRecoveryStatus(GatewayRecoveryStatus.Stage.fromValue(in.readByte()),
                     in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
+        }
+
+        if (in.readBoolean()) {
+            gatewaySnapshotStatus = new GatewaySnapshotStatus(GatewaySnapshotStatus.Stage.fromValue(in.readByte()),
+                    in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
         }
     }
 }

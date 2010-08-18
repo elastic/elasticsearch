@@ -151,7 +151,14 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
     }
 
     @Override public SnapshotStatus currentSnapshotStatus() {
-        return this.currentSnapshotStatus;
+        SnapshotStatus snapshotStatus = this.currentSnapshotStatus;
+        if (snapshotStatus == null) {
+            return snapshotStatus;
+        }
+        if (snapshotStatus.stage() != SnapshotStatus.Stage.DONE || snapshotStatus.stage() != SnapshotStatus.Stage.FAILURE) {
+            snapshotStatus.time(System.currentTimeMillis() - snapshotStatus.startTime());
+        }
+        return snapshotStatus;
     }
 
     @Override public SnapshotStatus snapshot(final Snapshot snapshot) throws IndexShardGatewaySnapshotFailedException {
@@ -160,10 +167,10 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
 
         try {
             doSnapshot(snapshot);
-            currentSnapshotStatus.took(System.currentTimeMillis() - currentSnapshotStatus.startTime());
+            currentSnapshotStatus.time(System.currentTimeMillis() - currentSnapshotStatus.startTime());
             currentSnapshotStatus.updateStage(SnapshotStatus.Stage.DONE);
         } catch (Exception e) {
-            currentSnapshotStatus.took(System.currentTimeMillis() - currentSnapshotStatus.startTime());
+            currentSnapshotStatus.time(System.currentTimeMillis() - currentSnapshotStatus.startTime());
             currentSnapshotStatus.updateStage(SnapshotStatus.Stage.FAILURE);
             currentSnapshotStatus.failed(e);
             if (e instanceof IndexShardGatewaySnapshotFailedException) {
@@ -192,7 +199,6 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
 
         int indexNumberOfFiles = 0;
         long indexTotalFilesSize = 0;
-        long indexTime = 0;
         if (snapshot.indexChanged()) {
             long time = System.currentTimeMillis();
             indexDirty = true;
@@ -249,7 +255,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                 }
             }
 
-            currentSnapshotStatus.index().files(indexNumberOfFiles, indexTotalFilesSize);
+            currentSnapshotStatus.index().files(indexNumberOfFiles + 1 /* for the segment */, indexTotalFilesSize);
 
             try {
                 latch.await();
@@ -259,10 +265,9 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             if (!failures.isEmpty()) {
                 throw new IndexShardGatewaySnapshotFailedException(shardId(), "Failed to perform snapshot (index files)", failures.get(failures.size() - 1));
             }
-            indexTime = System.currentTimeMillis() - time;
         }
 
-        currentSnapshotStatus.index().took(System.currentTimeMillis() - currentSnapshotStatus.index().startTime());
+        currentSnapshotStatus.index().time(System.currentTimeMillis() - currentSnapshotStatus.index().startTime());
 
         currentSnapshotStatus.updateStage(SnapshotStatus.Stage.TRANSLOG);
         currentSnapshotStatus.translog().startTime(System.currentTimeMillis());
@@ -326,12 +331,11 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             }
 
         }
-        currentSnapshotStatus.translog().took(System.currentTimeMillis() - currentSnapshotStatus.translog().startTime());
+        currentSnapshotStatus.translog().time(System.currentTimeMillis() - currentSnapshotStatus.translog().startTime());
 
         // now write the segments file
         if (indexDirty) {
             try {
-                indexNumberOfFiles++;
                 if (indicesBlobs.containsKey(snapshotIndexCommit.getSegmentsFileName())) {
                     cachedMd5.remove(snapshotIndexCommit.getSegmentsFileName());
                     indexContainer.deleteBlob(snapshotIndexCommit.getSegmentsFileName());
@@ -348,7 +352,6 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                 if (!failures.isEmpty()) {
                     throw new IndexShardGatewaySnapshotFailedException(shardId(), "Failed to perform snapshot (segment index file)", failures.get(failures.size() - 1));
                 }
-                indexTime += (System.currentTimeMillis() - time);
             } catch (Exception e) {
                 if (e instanceof IndexShardGatewaySnapshotFailedException) {
                     throw (IndexShardGatewaySnapshotFailedException) e;

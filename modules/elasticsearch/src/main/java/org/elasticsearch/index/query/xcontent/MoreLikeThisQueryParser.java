@@ -107,10 +107,6 @@ public class MoreLikeThisQueryParser extends AbstractIndexComponent implements X
             throw new QueryParsingException(index, "more_like_this requires 'fields' to be specified");
         }
 
-        // move to the next end object, to close the field name
-        token = parser.nextToken();
-        assert token == XContentParser.Token.END_OBJECT;
-
         mltQuery.setAnalyzer(parseContext.mapperService().searchAnalyzer());
         return mltQuery;
     }

@@ -115,10 +115,6 @@ public class FuzzyLikeThisQueryParser extends AbstractIndexComponent implements 
         query.setBoost(boost);
         query.setIgnoreTF(ignoreTF);
 
-        // move to the next end object, to close the field name
-        token = parser.nextToken();
-        assert token == XContentParser.Token.END_OBJECT;
-
         return query;
     }
 }

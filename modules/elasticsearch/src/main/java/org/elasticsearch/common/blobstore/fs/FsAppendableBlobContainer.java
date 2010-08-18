@@ -57,9 +57,9 @@ public class FsAppendableBlobContainer extends AbstractFsBlobContainer implement
                         raf = new RandomAccessFile(file, "rw");
                         raf.seek(raf.length());
                         listener.withStream(new DataOutputStreamOutput(raf));
-                        listener.onCompleted();
                         raf.close();
                         FileSystemUtils.syncFile(file);
+                        listener.onCompleted();
                     } catch (IOException e) {
                         listener.onFailure(e);
                     } finally {

@@ -26,14 +26,14 @@ import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Digest;
 import org.elasticsearch.common.Hex;
-import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.blobstore.*;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.lucene.store.ThreadSafeInputStreamIndexInput;
@@ -58,7 +58,6 @@ import javax.annotation.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.lang.ref.SoftReference;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
@@ -95,8 +94,6 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
     protected final AppendableBlobContainer translogContainer;
 
     protected final ConcurrentMap<String, String> cachedMd5 = ConcurrentCollections.newConcurrentMap();
-
-    private volatile SoftReference<FastByteArrayOutputStream> cachedBos = new SoftReference<FastByteArrayOutputStream>(new FastByteArrayOutputStream());
 
     private volatile AppendableBlobContainer.AppendableBlob translogBlob;
 
@@ -291,18 +288,19 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                     if (!snapshot.newTranslogCreated()) {
                         translogSnapshot.seekForward(snapshot.lastTranslogPosition());
                     }
-                    FastByteArrayOutputStream bos = cachedBos.get();
-                    if (bos == null) {
-                        bos = new FastByteArrayOutputStream();
-                        cachedBos = new SoftReference<FastByteArrayOutputStream>(bos);
-                    }
-                    OutputStreamStreamOutput bosOs = new OutputStreamStreamOutput(bos);
+                    BytesStreamOutput bout = CachedStreamOutput.cachedBytes();
                     while (translogSnapshot.hasNext()) {
-                        bos.reset();
-                        TranslogStreams.writeTranslogOperation(bosOs, translogSnapshot.next());
-                        bosOs.flush();
-                        os.writeVInt(bos.size());
-                        os.writeBytes(bos.unsafeByteArray(), bos.size());
+                        bout.reset();
+
+                        bout.writeInt(0);
+                        TranslogStreams.writeTranslogOperation(bout, translogSnapshot.next());
+                        bout.flush();
+
+                        int size = bout.size();
+                        bout.seek(0);
+                        bout.writeInt(size - 4);
+
+                        os.writeBytes(bout.unsafeByteArray(), size);
                         currentSnapshotStatus.translog().addTranslogOperations(1);
                     }
                 }
@@ -435,7 +433,6 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         }
 
 
-        StopWatch timer = new StopWatch().start();
         try {
             indexShard.performRecoveryPrepareForTranslog();
 
@@ -451,12 +448,19 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                         return;
                     }
                     bos.write(data, offset, size);
+                    // if we don't have enough to read the header size of the first translog, bail and wait for the next one
+                    if (bos.size() < 4) {
+                        return;
+                    }
                     BytesStreamInput si = new BytesStreamInput(bos.unsafeByteArray(), 0, bos.size());
                     int position;
                     while (true) {
                         try {
                             position = si.position();
-                            int opSize = si.readVInt();
+                            if (position + 4 > bos.size()) {
+                                break;
+                            }
+                            int opSize = si.readInt();
                             int curPos = si.position();
                             if ((si.position() + opSize) > bos.size()) {
                                 break;

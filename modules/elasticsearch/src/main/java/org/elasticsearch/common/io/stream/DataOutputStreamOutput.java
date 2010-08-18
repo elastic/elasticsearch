@@ -35,7 +35,7 @@ public class DataOutputStreamOutput extends StreamOutput {
     }
 
     @Override public void writeByte(byte b) throws IOException {
-        out.write(b);
+        out.writeByte(b);
     }
 
     @Override public void writeBytes(byte[] b, int offset, int length) throws IOException {

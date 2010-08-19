@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.strategy.ShardsRoutingStrategy;
@@ -91,6 +92,8 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                     RoutingTable newRoutingTable = shardsRoutingStrategy.reroute(
                             newClusterStateBuilder().state(currentState).routingTable(routingTableBuilder).metaData(newMetaData).build());
 
+                    ClusterBlocks blocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeIndexBlocks(request.index).build();
+
                     final AtomicInteger counter = new AtomicInteger(currentState.nodes().size());
 
                     final NodeIndexDeletedAction.Listener nodeIndexDeleteListener = new NodeIndexDeletedAction.Listener() {
@@ -114,7 +117,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                     listener.timeout = timeoutTask;
 
 
-                    return newClusterStateBuilder().state(currentState).routingTable(newRoutingTable).metaData(newMetaData).build();
+                    return newClusterStateBuilder().state(currentState).routingTable(newRoutingTable).metaData(newMetaData).blocks(blocks).build();
                 } catch (Exception e) {
                     listener.onFailure(e);
                     return currentState;

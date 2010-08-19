@@ -194,6 +194,14 @@ public class ClusterBlocks {
             return this;
         }
 
+        public Builder removeIndexBlocks(String index) {
+            if (!indices.containsKey(index)) {
+                return this;
+            }
+            indices.remove(index);
+            return this;
+        }
+
         public Builder removeIndexBlock(String index, ClusterBlock block) {
             if (!indices.containsKey(index)) {
                 return this;

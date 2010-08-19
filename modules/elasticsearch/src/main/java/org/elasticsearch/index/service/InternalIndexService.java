@@ -208,7 +208,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
                 threadPool.cached().execute(new Runnable() {
                     @Override public void run() {
                         try {
-                            deleteShard(shardId, delete, delete);
+                            deleteShard(shardId, delete, !delete, delete);
                         } catch (Exception e) {
                             logger.warn("failed to close shard, delete [{}]", e, delete);
                         } finally {
@@ -276,10 +276,10 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     }
 
     @Override public synchronized void cleanShard(int shardId) throws ElasticSearchException {
-        deleteShard(shardId, true, false);
+        deleteShard(shardId, true, false, false);
     }
 
-    private void deleteShard(int shardId, boolean delete, boolean deleteGateway) throws ElasticSearchException {
+    private void deleteShard(int shardId, boolean delete, boolean snapshotGateway, boolean deleteGateway) throws ElasticSearchException {
         Injector shardInjector;
         IndexShard indexShard;
         synchronized (this) {
@@ -335,8 +335,16 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         } catch (Exception e) {
             // ignore
         }
+
         try {
             // now, we can snapshot to the gateway, it will be only the translog
+            if (snapshotGateway) {
+                shardInjector.getInstance(IndexShardGatewayService.class).snapshotOnClose();
+            }
+        } catch (Exception e) {
+            // ignore
+        }
+        try {
             shardInjector.getInstance(IndexShardGatewayService.class).close(deleteGateway);
         } catch (Exception e) {
             // ignore

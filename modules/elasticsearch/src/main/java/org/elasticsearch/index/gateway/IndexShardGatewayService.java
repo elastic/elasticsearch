@@ -270,17 +270,20 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
         }
     }
 
-    public synchronized void close(boolean delete) {
-        if (snapshotScheduleFuture != null) {
-            snapshotScheduleFuture.cancel(true);
-            snapshotScheduleFuture = null;
-        }
-        if (!delete && snapshotOnClose) {
+    public void snapshotOnClose() {
+        if (snapshotOnClose) {
             try {
                 snapshot("shutdown");
             } catch (Exception e) {
                 logger.warn("failed to snapshot on close", e);
             }
+        }
+    }
+
+    public synchronized void close(boolean delete) {
+        if (snapshotScheduleFuture != null) {
+            snapshotScheduleFuture.cancel(true);
+            snapshotScheduleFuture = null;
         }
         // don't really delete the shard gateway if we are *not* primary,
         // the primary will close it

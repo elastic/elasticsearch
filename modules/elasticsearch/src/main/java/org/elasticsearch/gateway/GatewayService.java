@@ -36,6 +36,7 @@ import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import javax.annotation.Nullable;
+import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -252,15 +253,19 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                 // go over the meta data and create indices, we don't really need to copy over
                 // the meta data per index, since we create the index and it will be added automatically
                 for (final IndexMetaData indexMetaData : fMetaData) {
-                    createIndexService.createIndex(new MetaDataCreateIndexService.Request("gateway", indexMetaData.index()).settings(indexMetaData.settings()).mappings(indexMetaData.mappings()).timeout(timeValueSeconds(30)), new MetaDataCreateIndexService.Listener() {
-                        @Override public void onResponse(MetaDataCreateIndexService.Response response) {
-                            latch.countDown();
-                        }
+                    try {
+                        createIndexService.createIndex(new MetaDataCreateIndexService.Request("gateway", indexMetaData.index()).settings(indexMetaData.settings()).mappingsCompressed(indexMetaData.mappings()).timeout(timeValueSeconds(30)), new MetaDataCreateIndexService.Listener() {
+                            @Override public void onResponse(MetaDataCreateIndexService.Response response) {
+                                latch.countDown();
+                            }
 
-                        @Override public void onFailure(Throwable t) {
-                            logger.error("failed to create index [{}]", indexMetaData.index(), t);
-                        }
-                    });
+                            @Override public void onFailure(Throwable t) {
+                                logger.error("failed to create index [{}]", indexMetaData.index(), t);
+                            }
+                        });
+                    } catch (IOException e) {
+                        logger.error("failed to create index [{}]", indexMetaData.index(), e);
+                    }
                 }
                 clusterService.submitStateUpdateTask("gateway (remove block)", new ClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {

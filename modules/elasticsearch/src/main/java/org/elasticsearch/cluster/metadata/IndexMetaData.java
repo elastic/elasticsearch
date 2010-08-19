@@ -23,6 +23,7 @@ import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -55,11 +56,11 @@ public class IndexMetaData {
 
     private final Settings settings;
 
-    private final ImmutableMap<String, String> mappings;
+    private final ImmutableMap<String, CompressedString> mappings;
 
     private transient final int totalNumberOfShards;
 
-    private IndexMetaData(String index, Settings settings, ImmutableMap<String, String> mappings) {
+    private IndexMetaData(String index, Settings settings, ImmutableMap<String, CompressedString> mappings) {
         Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1) != -1, "must specify numberOfShards for index [" + index + "]");
         Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1) != -1, "must specify numberOfReplicas for index [" + index + "]");
         this.index = index;
@@ -118,15 +119,15 @@ public class IndexMetaData {
         return aliases();
     }
 
-    public ImmutableMap<String, String> mappings() {
+    public ImmutableMap<String, CompressedString> mappings() {
         return mappings;
     }
 
-    public ImmutableMap<String, String> getMappings() {
+    public ImmutableMap<String, CompressedString> getMappings() {
         return mappings();
     }
 
-    public String mapping(String mappingType) {
+    public CompressedString mapping(String mappingType) {
         return mappings.get(mappingType);
     }
 
@@ -144,7 +145,7 @@ public class IndexMetaData {
 
         private Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
 
-        private MapBuilder<String, String> mappings = MapBuilder.newMapBuilder();
+        private MapBuilder<String, CompressedString> mappings = MapBuilder.newMapBuilder();
 
         public Builder(String index) {
             this.index = index;
@@ -193,8 +194,13 @@ public class IndexMetaData {
             return this;
         }
 
-        public Builder putMapping(String mappingType, String mappingSource) {
+        public Builder putMapping(String mappingType, CompressedString mappingSource) {
             mappings.put(mappingType, mappingSource);
+            return this;
+        }
+
+        public Builder putMapping(String mappingType, String mappingSource) throws IOException {
+            mappings.put(mappingType, new CompressedString(mappingSource));
             return this;
         }
 
@@ -212,8 +218,9 @@ public class IndexMetaData {
             builder.endObject();
 
             builder.startArray("mappings");
-            for (Map.Entry<String, String> entry : indexMetaData.mappings().entrySet()) {
-                XContentParser parser = XContentFactory.xContent(entry.getValue()).createParser(entry.getValue());
+            for (Map.Entry<String, CompressedString> entry : indexMetaData.mappings().entrySet()) {
+                byte[] data = entry.getValue().uncompressed();
+                XContentParser parser = XContentFactory.xContent(data).createParser(data);
                 Map<String, Object> mapping = parser.map();
                 parser.close();
                 builder.map(mapping);
@@ -250,7 +257,7 @@ public class IndexMetaData {
                                 if (mappingSource == null) {
                                     // crap, no mapping source, warn?
                                 } else {
-                                    builder.putMapping(mapping.keySet().iterator().next(), mappingSource);
+                                    builder.putMapping(mapping.keySet().iterator().next(), new CompressedString(mappingSource));
                                 }
                             }
                         }
@@ -265,7 +272,7 @@ public class IndexMetaData {
             builder.settings(readSettingsFromStream(in, globalSettings));
             int mappingsSize = in.readVInt();
             for (int i = 0; i < mappingsSize; i++) {
-                builder.putMapping(in.readUTF(), in.readUTF());
+                builder.putMapping(in.readUTF(), CompressedString.readCompressedString(in));
             }
             return builder.build();
         }
@@ -274,9 +281,9 @@ public class IndexMetaData {
             out.writeUTF(indexMetaData.index());
             writeSettingsToStream(indexMetaData.settings(), out);
             out.writeVInt(indexMetaData.mappings().size());
-            for (Map.Entry<String, String> entry : indexMetaData.mappings().entrySet()) {
+            for (Map.Entry<String, CompressedString> entry : indexMetaData.mappings().entrySet()) {
                 out.writeUTF(entry.getKey());
-                out.writeUTF(entry.getValue());
+                entry.getValue().writeTo(out);
             }
         }
     }

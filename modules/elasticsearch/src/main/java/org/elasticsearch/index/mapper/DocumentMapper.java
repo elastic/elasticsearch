@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 
 import javax.annotation.Nullable;
@@ -39,7 +40,7 @@ public interface DocumentMapper {
      * When constructed by parsing a mapping definition, will return it. Otherwise,
      * returns <tt>null</tt>.
      */
-    String mappingSource();
+    CompressedString mappingSource();
 
     /**
      * Attributes of this type mappings.
@@ -49,7 +50,7 @@ public interface DocumentMapper {
     /**
      * Generates the source of the mapper based on the current mappings.
      */
-    String buildSource() throws FailedToGenerateSourceMapperException;
+    void refreshSource() throws FailedToGenerateSourceMapperException;
 
     UidFieldMapper uidMapper();
 

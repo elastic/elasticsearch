@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -136,8 +137,9 @@ public class RestClusterStateAction extends BaseRestHandler {
                             builder.endObject();
 
                             builder.startObject("mappings");
-                            for (Map.Entry<String, String> entry : indexMetaData.mappings().entrySet()) {
-                                XContentParser parser = XContentFactory.xContent(entry.getValue()).createParser(entry.getValue());
+                            for (Map.Entry<String, CompressedString> entry : indexMetaData.mappings().entrySet()) {
+                                byte[] mappingSource = entry.getValue().uncompressed();
+                                XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
                                 Map<String, Object> mapping = parser.map();
                                 if (mapping.size() == 1 && mapping.containsKey(entry.getKey())) {
                                     // the type name is the root value, reduce it

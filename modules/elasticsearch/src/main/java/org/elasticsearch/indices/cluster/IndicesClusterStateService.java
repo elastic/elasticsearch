@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -193,27 +194,27 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             String index = indexMetaData.index();
             IndexService indexService = indicesService.indexServiceSafe(index);
             MapperService mapperService = indexService.mapperService();
-            ImmutableMap<String, String> mappings = indexMetaData.mappings();
+            ImmutableMap<String, CompressedString> mappings = indexMetaData.mappings();
             // we don't support removing mappings for now ...
-            for (Map.Entry<String, String> entry : mappings.entrySet()) {
+            for (Map.Entry<String, CompressedString> entry : mappings.entrySet()) {
                 String mappingType = entry.getKey();
-                String mappingSource = entry.getValue();
+                CompressedString mappingSource = entry.getValue();
 
                 try {
                     if (!mapperService.hasMapping(mappingType)) {
                         if (logger.isDebugEnabled()) {
-                            logger.debug("[{}] adding mapping [{}], source [{}]", index, mappingType, mappingSource);
+                            logger.debug("[{}] adding mapping [{}], source [{}]", index, mappingType, mappingSource.string());
                         }
-                        mapperService.add(mappingType, mappingSource);
+                        mapperService.add(mappingType, mappingSource.string());
                         nodeMappingCreatedAction.nodeMappingCreated(new NodeMappingCreatedAction.NodeMappingCreatedResponse(index, mappingType, event.state().nodes().localNodeId()));
                     } else {
                         DocumentMapper existingMapper = mapperService.documentMapper(mappingType);
                         if (!mappingSource.equals(existingMapper.mappingSource())) {
                             // mapping changed, update it
                             if (logger.isDebugEnabled()) {
-                                logger.debug("[{}] updating mapping [{}], source [{}]", index, mappingType, mappingSource);
+                                logger.debug("[{}] updating mapping [{}], source [{}]", index, mappingType, mappingSource.string());
                             }
-                            mapperService.add(mappingType, mappingSource);
+                            mapperService.add(mappingType, mappingSource.string());
                             nodeMappingCreatedAction.nodeMappingCreated(new NodeMappingCreatedAction.NodeMappingCreatedResponse(index, mappingType, event.state().nodes().localNodeId()));
                         }
                     }

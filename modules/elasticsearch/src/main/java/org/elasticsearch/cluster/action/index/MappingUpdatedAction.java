@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.action.index;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
@@ -27,6 +28,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeOperationActio
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -65,7 +67,11 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
     }
 
     @Override protected MappingUpdatedResponse masterOperation(MappingUpdatedRequest request, ClusterState state) throws ElasticSearchException {
-        metaDataMappingService.updateMapping(request.index(), request.type(), request.mappingSource());
+        try {
+            metaDataMappingService.updateMapping(request.index(), request.type(), request.mappingSource());
+        } catch (IOException e) {
+            throw new ElasticSearchParseException("failed to parse mapping form compressed string", e);
+        }
         return new MappingUpdatedResponse();
     }
 
@@ -83,12 +89,12 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
 
         private String type;
 
-        private String mappingSource;
+        private CompressedString mappingSource;
 
         MappingUpdatedRequest() {
         }
 
-        public MappingUpdatedRequest(String index, String type, String mappingSource) {
+        public MappingUpdatedRequest(String index, String type, CompressedString mappingSource) {
             this.index = index;
             this.type = type;
             this.mappingSource = mappingSource;
@@ -102,7 +108,7 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
             return type;
         }
 
-        public String mappingSource() {
+        public CompressedString mappingSource() {
             return mappingSource;
         }
 
@@ -114,14 +120,14 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
             super.readFrom(in);
             index = in.readUTF();
             type = in.readUTF();
-            mappingSource = in.readUTF();
+            mappingSource = CompressedString.readCompressedString(in);
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeUTF(index);
             out.writeUTF(type);
-            out.writeUTF(mappingSource);
+            mappingSource.writeTo(out);
         }
     }
 }

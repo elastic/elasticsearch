@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.strategy.ShardsRoutingStrategy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -131,7 +132,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
 
                     // add to the mappings files that exists within the config/mappings location
-                    Map<String, String> mappings = Maps.newHashMap();
+                    Map<String, CompressedString> mappings = Maps.newHashMap();
                     File mappingsDir = new File(environment.configFile(), "mappings");
                     if (mappingsDir.exists() && mappingsDir.isDirectory()) {
                         File defaultMappingsDir = new File(mappingsDir, "_default");
@@ -145,7 +146,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
 
                     // put this last so index level mappings can override default mappings
-                    mappings.putAll(request.mappings);
+                    for (Map.Entry<String, String> entry : request.mappings.entrySet()) {
+                        mappings.put(entry.getKey(), new CompressedString(entry.getValue()));
+                    }
 
                     ImmutableSettings.Builder indexSettingsBuilder = settingsBuilder().put(request.settings);
                     if (request.settings.get(SETTING_NUMBER_OF_SHARDS) == null) {
@@ -161,9 +164,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // now add the mappings
                     IndexService indexService = indicesService.indexServiceSafe(request.index);
                     MapperService mapperService = indexService.mapperService();
-                    for (Map.Entry<String, String> entry : mappings.entrySet()) {
+                    for (Map.Entry<String, CompressedString> entry : mappings.entrySet()) {
                         try {
-                            mapperService.add(entry.getKey(), entry.getValue());
+                            mapperService.add(entry.getKey(), entry.getValue().string());
                         } catch (Exception e) {
                             indicesService.deleteIndex(request.index);
                             throw new MapperParsingException("mapping [" + entry.getKey() + "]", e);
@@ -176,7 +179,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
 
                     IndexMetaData.Builder indexMetaData = newIndexMetaDataBuilder(request.index).settings(actualIndexSettings);
-                    for (Map.Entry<String, String> entry : mappings.entrySet()) {
+                    for (Map.Entry<String, CompressedString> entry : mappings.entrySet()) {
                         indexMetaData.putMapping(entry.getKey(), entry.getValue());
                     }
 
@@ -223,7 +226,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         });
     }
 
-    private void addMappings(Map<String, String> mappings, File mappingsDir) {
+    private void addMappings(Map<String, CompressedString> mappings, File mappingsDir) {
         File[] mappingsFiles = mappingsDir.listFiles();
         for (File mappingFile : mappingsFiles) {
             String fileNameNoSuffix = mappingFile.getName().substring(0, mappingFile.getName().lastIndexOf('.'));
@@ -232,7 +235,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 continue;
             }
             try {
-                mappings.put(fileNameNoSuffix, Streams.copyToString(new FileReader(mappingFile)));
+                mappings.put(fileNameNoSuffix, new CompressedString(Streams.copyToString(new FileReader(mappingFile))));
             } catch (IOException e) {
                 logger.warn("failed to read mapping [" + fileNameNoSuffix + "] from location [" + mappingFile + "], ignoring...", e);
             }
@@ -321,6 +324,13 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         public Request mappings(Map<String, String> mappings) {
             this.mappings.putAll(mappings);
+            return this;
+        }
+
+        public Request mappingsCompressed(Map<String, CompressedString> mappings) throws IOException {
+            for (Map.Entry<String, CompressedString> entry : mappings.entrySet()) {
+                this.mappings.put(entry.getKey(), entry.getValue().string());
+            }
             return this;
         }
 

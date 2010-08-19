@@ -27,6 +27,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -74,12 +75,13 @@ public class RestGetMappingAction extends BaseRestHandler {
                     for (IndexMetaData indexMetaData : metaData) {
                         builder.startObject(indexMetaData.index());
 
-                        for (Map.Entry<String, String> entry : indexMetaData.mappings().entrySet()) {
+                        for (Map.Entry<String, CompressedString> entry : indexMetaData.mappings().entrySet()) {
                             if (!types.isEmpty() && !types.contains(entry.getKey())) {
                                 // filter this type out...
                                 continue;
                             }
-                            XContentParser parser = XContentFactory.xContent(entry.getValue()).createParser(entry.getValue());
+                            byte[] mappingSource = entry.getValue().uncompressed();
+                            XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
                             Map<String, Object> mapping = parser.map();
                             if (mapping.size() == 1 && mapping.containsKey(entry.getKey())) {
                                 // the type name is the root value, reduce it

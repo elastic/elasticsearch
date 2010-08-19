@@ -167,7 +167,7 @@ public class XContentDocumentMapperParser extends AbstractIndexComponent impleme
 
         XContentDocumentMapper documentMapper = docBuilder.build();
         // update the source with the generated one
-        documentMapper.mappingSource(documentMapper.buildSource());
+        documentMapper.refreshSource();
         return documentMapper;
     }
 

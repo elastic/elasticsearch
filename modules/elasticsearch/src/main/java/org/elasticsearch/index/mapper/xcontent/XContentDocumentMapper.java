@@ -24,6 +24,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -68,8 +69,6 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         private final String index;
 
         private final XContentObjectMapper rootObjectMapper;
-
-        private String mappingSource;
 
         private ImmutableMap<String, Object> attributes = ImmutableMap.of();
 
@@ -120,11 +119,6 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
             return this;
         }
 
-        public Builder mappingSource(String mappingSource) {
-            this.mappingSource = mappingSource;
-            return this;
-        }
-
         public Builder indexAnalyzer(NamedAnalyzer indexAnalyzer) {
             this.indexAnalyzer = indexAnalyzer;
             return this;
@@ -146,7 +140,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         public XContentDocumentMapper build() {
             Preconditions.checkNotNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
             return new XContentDocumentMapper(index, rootObjectMapper, attributes, uidFieldMapper, idFieldMapper, typeFieldMapper, indexFieldMapper,
-                    sourceFieldMapper, allFieldMapper, indexAnalyzer, searchAnalyzer, boostFieldMapper, mappingSource);
+                    sourceFieldMapper, allFieldMapper, indexAnalyzer, searchAnalyzer, boostFieldMapper);
         }
     }
 
@@ -163,7 +157,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
     private volatile ImmutableMap<String, Object> attributes;
 
-    private volatile String mappingSource;
+    private volatile CompressedString mappingSource;
 
     private final XContentUidFieldMapper uidFieldMapper;
 
@@ -202,12 +196,10 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
                                   XContentSourceFieldMapper sourceFieldMapper,
                                   XContentAllFieldMapper allFieldMapper,
                                   Analyzer indexAnalyzer, Analyzer searchAnalyzer,
-                                  @Nullable XContentBoostFieldMapper boostFieldMapper,
-                                  @Nullable String mappingSource) {
+                                  @Nullable XContentBoostFieldMapper boostFieldMapper) {
         this.index = index;
         this.type = rootObjectMapper.name();
         this.attributes = attributes;
-        this.mappingSource = mappingSource;
         this.rootObjectMapper = rootObjectMapper;
         this.uidFieldMapper = uidFieldMapper;
         this.idFieldMapper = idFieldMapper;
@@ -252,6 +244,8 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         });
 
         this.fieldMappers = new DocumentFieldMappers(this, tempFieldMappers);
+
+        refreshSource();
     }
 
     @Override public String type() {
@@ -262,12 +256,8 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
         return this.attributes;
     }
 
-    @Override public String mappingSource() {
+    @Override public CompressedString mappingSource() {
         return this.mappingSource;
-    }
-
-    void mappingSource(String mappingSource) {
-        this.mappingSource = mappingSource;
     }
 
     @Override public UidFieldMapper uidMapper() {
@@ -425,18 +415,18 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
             // let the merge with attributes to override the attributes
             attributes = mergeWith.attributes();
             // update the source of the merged one
-            mappingSource = buildSource();
+            refreshSource();
         }
         return new MergeResult(mergeContext.buildConflicts());
     }
 
-    @Override public String buildSource() throws FailedToGenerateSourceMapperException {
+    @Override public void refreshSource() throws FailedToGenerateSourceMapperException {
         try {
             XContentBuilder builder = XContentFactory.contentTextBuilder(XContentType.JSON);
             builder.startObject();
             toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            return builder.string();
+            this.mappingSource = new CompressedString(builder.string());
         } catch (Exception e) {
             throw new FailedToGenerateSourceMapperException(e.getMessage(), e);
         }

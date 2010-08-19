@@ -160,6 +160,9 @@ public class PeerRecoveryStatus {
 
     public int indexRecoveryProgress() {
         if (recoveredIndexSize == 0) {
+            if (indexSize == reusedIndexSize) {
+                return 100;
+            }
             return 0;
         }
         return (int) (((double) recoveredIndexSize) / expectedRecoveredIndexSize().bytes() * 100);

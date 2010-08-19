@@ -178,10 +178,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         mappings.put(mapper.type(), mapper.mappingSource());
                     }
 
-                    IndexMetaData.Builder indexMetaData = newIndexMetaDataBuilder(request.index).settings(actualIndexSettings);
+                    final IndexMetaData.Builder indexMetaDataBuilder = newIndexMetaDataBuilder(request.index).settings(actualIndexSettings);
                     for (Map.Entry<String, CompressedString> entry : mappings.entrySet()) {
-                        indexMetaData.putMapping(entry.getKey(), entry.getValue());
+                        indexMetaDataBuilder.putMapping(entry.getKey(), entry.getValue());
                     }
+                    final IndexMetaData indexMetaData = indexMetaDataBuilder.build();
 
                     MetaData newMetaData = newMetaDataBuilder()
                             .metaData(currentState.metaData())
@@ -193,14 +194,14 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     final AtomicInteger counter = new AtomicInteger(currentState.nodes().size() - 1); // -1 since we added it on the master already
                     if (counter.get() == 0) {
                         // no nodes to add to
-                        listener.onResponse(new Response(true));
+                        listener.onResponse(new Response(true, indexMetaData));
                     } else {
 
                         final NodeIndexCreatedAction.Listener nodeIndexCreateListener = new NodeIndexCreatedAction.Listener() {
                             @Override public void onNodeIndexCreated(String index, String nodeId) {
                                 if (index.equals(request.index)) {
                                     if (counter.decrementAndGet() == 0) {
-                                        listener.onResponse(new Response(true));
+                                        listener.onResponse(new Response(true, indexMetaData));
                                         nodeIndexCreatedAction.remove(this);
                                     }
                                 }
@@ -210,7 +211,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                         Timeout timeoutTask = timerService.newTimeout(new TimerTask() {
                             @Override public void run(Timeout timeout) throws Exception {
-                                listener.onResponse(new Response(false));
+                                listener.onResponse(new Response(false, indexMetaData));
                                 nodeIndexCreatedAction.remove(nodeIndexCreateListener);
                             }
                         }, request.timeout, TimerService.ExecutionType.THREADED);
@@ -262,6 +263,15 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 if (timeout != null) {
                     timeout.cancel();
                 }
+                // do prefetch here so we won't compute md5 and such on the cluster update state...
+                long prefetchTime = 0;
+                if (shardsRoutingStrategy.preferUnallocatedStrategy() != null) {
+                    long start = System.currentTimeMillis();
+                    shardsRoutingStrategy.preferUnallocatedStrategy().prefetch(response.indexMetaData(), clusterService.state().nodes());
+                    prefetchTime = System.currentTimeMillis() - start;
+                }
+                final long fPrefetchTime = prefetchTime;
+
                 // do the reroute after indices have been created on all the other nodes so we can query them for some info (like shard allocation)
                 clusterService.submitStateUpdateTask("reroute after index [" + request.index + "] creation", new ProcessedClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
@@ -277,6 +287,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
 
                     @Override public void clusterStateProcessed(ClusterState clusterState) {
+                        logger.info("[{}] created and added to cluster_state, prefetch_took [{}]", request.index, TimeValue.timeValueMillis(fPrefetchTime));
                         listener.onResponse(response);
                     }
                 });
@@ -342,13 +353,19 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     public static class Response {
         private final boolean acknowledged;
+        private final IndexMetaData indexMetaData;
 
-        public Response(boolean acknowledged) {
+        public Response(boolean acknowledged, IndexMetaData indexMetaData) {
             this.acknowledged = acknowledged;
+            this.indexMetaData = indexMetaData;
         }
 
         public boolean acknowledged() {
             return acknowledged;
+        }
+
+        public IndexMetaData indexMetaData() {
+            return indexMetaData;
         }
     }
 }

@@ -41,15 +41,19 @@ import static org.elasticsearch.common.collect.Sets.*;
  */
 public class ShardsRoutingStrategy extends AbstractComponent {
 
-    private final PreferUnallocatedShardUnassignedStrategy preferUnallocatedShardUnassignedStrategy;
+    private final PreferUnallocatedStrategy preferUnallocatedStrategy;
 
     public ShardsRoutingStrategy() {
         this(ImmutableSettings.Builder.EMPTY_SETTINGS, null);
     }
 
-    @Inject public ShardsRoutingStrategy(Settings settings, @Nullable PreferUnallocatedShardUnassignedStrategy preferUnallocatedShardUnassignedStrategy) {
+    @Inject public ShardsRoutingStrategy(Settings settings, @Nullable PreferUnallocatedStrategy preferUnallocatedStrategy) {
         super(settings);
-        this.preferUnallocatedShardUnassignedStrategy = preferUnallocatedShardUnassignedStrategy;
+        this.preferUnallocatedStrategy = preferUnallocatedStrategy;
+    }
+
+    public PreferUnallocatedStrategy preferUnallocatedStrategy() {
+        return preferUnallocatedStrategy;
     }
 
     /**
@@ -110,8 +114,8 @@ public class ShardsRoutingStrategy extends AbstractComponent {
 
         // now allocate all the unassigned to available nodes
         if (routingNodes.hasUnassigned()) {
-            if (preferUnallocatedShardUnassignedStrategy != null) {
-                changed |= preferUnallocatedShardUnassignedStrategy.allocateUnassigned(routingNodes, nodes);
+            if (preferUnallocatedStrategy != null) {
+                changed |= preferUnallocatedStrategy.allocateUnassigned(routingNodes, nodes);
             }
             changed |= allocateUnassigned(routingNodes);
             // elect primaries again, in case this is needed with unassigned allocation

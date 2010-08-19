@@ -427,7 +427,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             indexShard.start();
             return;
         } catch (IOException e) {
-            throw new IndexShardGatewayRecoveryException(shardId, "Failed to recovery translog, can't read current index version", e);
+            throw new IndexShardGatewayRecoveryException(shardId, "Failed to recover translog, can't read current index version", e);
         }
         if (!translogContainer.blobExists("translog-" + translogId)) {
             // no recovery file found, start the shard and bail
@@ -513,7 +513,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
 
             indexShard.performRecoveryFinalization(true);
         } catch (Throwable e) {
-            throw new IndexShardGatewayRecoveryException(shardId, "Failed to recovery translog", e);
+            throw new IndexShardGatewayRecoveryException(shardId, "Failed to recover translog", e);
         }
     }
 

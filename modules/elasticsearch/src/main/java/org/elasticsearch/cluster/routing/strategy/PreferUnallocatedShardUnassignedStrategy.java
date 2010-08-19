@@ -20,6 +20,8 @@
 package org.elasticsearch.cluster.routing.strategy;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
@@ -27,49 +29,67 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.gateway.blobstore.BlobStoreIndexGateway;
 import org.elasticsearch.index.service.InternalIndexService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 
 import java.util.Iterator;
-import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent {
+public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent implements PreferUnallocatedStrategy {
+
+    private final ThreadPool threadPool;
 
     private final IndicesService indicesService;
 
     private final TransportNodesListShardStoreMetaData transportNodesListShardStoreMetaData;
 
-    @Inject public PreferUnallocatedShardUnassignedStrategy(Settings settings, IndicesService indicesService,
+    @Inject public PreferUnallocatedShardUnassignedStrategy(Settings settings, ThreadPool threadPool, IndicesService indicesService,
                                                             TransportNodesListShardStoreMetaData transportNodesListShardStoreMetaData) {
         super(settings);
+        this.threadPool = threadPool;
         this.indicesService = indicesService;
         this.transportNodesListShardStoreMetaData = transportNodesListShardStoreMetaData;
+    }
+
+    @Override public void prefetch(IndexMetaData index, DiscoveryNodes nodes) {
+        final CountDownLatch latch = new CountDownLatch(index.numberOfShards());
+        for (int shardId = 0; shardId < index.numberOfShards(); shardId++) {
+            transportNodesListShardStoreMetaData.list(new ShardId(index.index(), shardId), false, nodes.dataNodes().keySet(), new ActionListener<TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData>() {
+                @Override public void onResponse(TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData) {
+                    latch.countDown();
+                }
+
+                @Override public void onFailure(Throwable e) {
+                    latch.countDown();
+                }
+            });
+        }
+
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            // ignore
+        }
     }
 
     public boolean allocateUnassigned(RoutingNodes routingNodes, DiscoveryNodes nodes) {
         boolean changed = false;
 
-        Set<String> nodesIds = Sets.newHashSet();
-        for (DiscoveryNode node : nodes) {
-            if (node.dataNode()) {
-                nodesIds.add(node.id());
-            }
-        }
-
-        if (nodesIds.isEmpty()) {
+        if (nodes.dataNodes().isEmpty()) {
             return changed;
         }
 
@@ -93,7 +113,7 @@ public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent 
                 }
             }
 
-            TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData = transportNodesListShardStoreMetaData.list(shard.shardId(), false, nodesIds.toArray(new String[nodesIds.size()])).actionGet();
+            TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData = transportNodesListShardStoreMetaData.list(shard.shardId(), false, nodes.dataNodes().keySet()).actionGet();
 
             if (logger.isDebugEnabled()) {
                 if (nodesStoreFilesMetaData.failures().length > 0) {

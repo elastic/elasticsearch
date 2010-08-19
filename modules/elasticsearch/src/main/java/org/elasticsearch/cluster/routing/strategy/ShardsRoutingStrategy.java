@@ -189,7 +189,7 @@ public class ShardsRoutingStrategy extends AbstractComponent {
                             assert !shardEntry2.primary();
 
                             changed = true;
-                            shardEntry.moveToBackup();
+                            shardEntry.moveFromPrimary();
                             shardEntry2.moveToPrimary();
                             elected = true;
                             break;

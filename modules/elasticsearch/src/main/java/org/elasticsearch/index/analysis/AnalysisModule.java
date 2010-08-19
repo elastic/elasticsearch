@@ -309,6 +309,8 @@ public class AnalysisModule extends AbstractModule {
 
         @Override public void processAnalyzers(AnalyzersBindings analyzersBindings) {
             analyzersBindings.processAnalyzer("standard", StandardAnalyzerProvider.class);
+            analyzersBindings.processAnalyzer("standard_html_strip", StandardHtmlStripAnalyzerProvider.class);
+            analyzersBindings.processAnalyzer("standardHtmlStrip", StandardHtmlStripAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("simple", SimpleAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("stop", StopAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("whitespace", WhitespaceAnalyzerProvider.class);

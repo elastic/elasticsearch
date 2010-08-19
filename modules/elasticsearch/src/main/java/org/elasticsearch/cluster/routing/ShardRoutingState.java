@@ -22,10 +22,28 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 
 /**
- * @author kimchy (Shay Banon)
+ * The state of the shard as defined by the cluster.
+ *
+ * @author kimchy (shay.banon)
  */
 public enum ShardRoutingState {
-    UNASSIGNED((byte) 1), INITIALIZING((byte) 2), STARTED((byte) 3), RELOCATING((byte) 4);
+    /**
+     * The shard is not assigned to any node.
+     */
+    UNASSIGNED((byte) 1),
+    /**
+     * The shard is initializing (probably recovering from either a peer shard
+     * or gateway).
+     */
+    INITIALIZING((byte) 2),
+    /**
+     * The shard is started.
+     */
+    STARTED((byte) 3),
+    /**
+     * The shard is in the process being relocated.
+     */
+    RELOCATING((byte) 4);
 
     private byte value;
 

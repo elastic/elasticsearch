@@ -152,7 +152,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
             shardStatus.translogOperations = indexShard.translog().size();
             Engine.Searcher searcher = indexShard.searcher();
             try {
-                shardStatus.docs = new ShardStatus.Docs();
+                shardStatus.docs = new DocsStatus();
                 shardStatus.docs.numDocs = searcher.reader().numDocs();
                 shardStatus.docs.maxDoc = searcher.reader().maxDoc();
                 shardStatus.docs.deletedDocs = searcher.reader().numDeletedDocs();

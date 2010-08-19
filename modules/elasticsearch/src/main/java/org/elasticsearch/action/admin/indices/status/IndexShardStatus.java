@@ -30,38 +30,6 @@ import java.util.Iterator;
  */
 public class IndexShardStatus implements Iterable<ShardStatus> {
 
-    public static class Docs {
-        public static final Docs UNKNOWN = new Docs();
-
-        int numDocs = -1;
-        int maxDoc = -1;
-        int deletedDocs = -1;
-
-        public int numDocs() {
-            return numDocs;
-        }
-
-        public int getNumDocs() {
-            return numDocs;
-        }
-
-        public int maxDoc() {
-            return maxDoc;
-        }
-
-        public int getMaxDoc() {
-            return maxDoc();
-        }
-
-        public int deletedDocs() {
-            return deletedDocs;
-        }
-
-        public int getDeletedDocs() {
-            return deletedDocs();
-        }
-    }
-
     private final ShardId shardId;
 
     private final ShardStatus[] shards;
@@ -128,46 +96,33 @@ public class IndexShardStatus implements Iterable<ShardStatus> {
         return translogOperations();
     }
 
-    private transient Docs docs;
+    private transient DocsStatus docs;
 
-    public Docs docs() {
+    public DocsStatus docs() {
         if (docs != null) {
             return docs;
         }
-        Docs docs = new Docs();
+        DocsStatus docs = null;
         for (ShardStatus shard : shards()) {
             if (!shard.shardRouting().primary()) {
                 // only sum docs for the primaries
                 continue;
             }
-            if (shard.docs().numDocs() != -1) {
-                if (docs.numDocs == -1) {
-                    docs.numDocs = 0;
-                }
-                docs.numDocs += shard.docs().numDocs();
+            if (shard.docs() == null) {
+                continue;
             }
-            if (shard.docs().maxDoc() != -1) {
-                if (docs.maxDoc == -1) {
-                    docs.maxDoc = 0;
-                }
-                docs.maxDoc += shard.docs().maxDoc();
+            if (docs == null) {
+                docs = new DocsStatus();
             }
-            if (shard.docs().deletedDocs() != -1) {
-                if (docs.deletedDocs == -1) {
-                    docs.deletedDocs = 0;
-                }
-                docs.deletedDocs += shard.docs().deletedDocs();
-            }
+            docs.numDocs += shard.docs().numDocs();
+            docs.maxDoc += shard.docs().maxDoc();
+            docs.deletedDocs += shard.docs().deletedDocs();
         }
-        if (docs.numDocs == -1) {
-            this.docs = Docs.UNKNOWN;
-        } else {
-            this.docs = docs;
-        }
+        this.docs = docs;
         return this.docs;
     }
 
-    public Docs getDocs() {
+    public DocsStatus getDocs() {
         return docs();
     }
 

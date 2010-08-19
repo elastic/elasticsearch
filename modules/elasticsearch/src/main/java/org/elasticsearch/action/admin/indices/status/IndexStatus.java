@@ -34,38 +34,6 @@ import static org.elasticsearch.common.collect.Lists.*;
  */
 public class IndexStatus implements Iterable<IndexShardStatus> {
 
-    public static class Docs {
-        public static final Docs UNKNOWN = new Docs();
-
-        long numDocs = -1;
-        long maxDoc = -1;
-        long deletedDocs = -1;
-
-        public long numDocs() {
-            return numDocs;
-        }
-
-        public long getNumDocs() {
-            return numDocs();
-        }
-
-        public long maxDoc() {
-            return maxDoc;
-        }
-
-        public long getMaxDoc() {
-            return maxDoc();
-        }
-
-        public long deletedDocs() {
-            return deletedDocs;
-        }
-
-        public long getDeletedDocs() {
-            return deletedDocs();
-        }
-    }
-
     private final String index;
 
     private final Map<Integer, IndexShardStatus> indexShards;
@@ -156,42 +124,26 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
         return translogOperations();
     }
 
-    private transient Docs docs;
+    private transient DocsStatus docs;
 
-    public Docs docs() {
+    public DocsStatus docs() {
         if (docs != null) {
             return docs;
         }
-        Docs docs = new Docs();
+        DocsStatus docs = null;
         for (IndexShardStatus shard : this) {
-            if (shard.docs().numDocs() != -1) {
-                if (docs.numDocs == -1) {
-                    docs.numDocs = 0;
-                }
-                docs.numDocs += shard.docs().numDocs();
+            if (shard.docs() == null) {
+                continue;
             }
-            if (shard.docs().maxDoc() != -1) {
-                if (docs.maxDoc == -1) {
-                    docs.maxDoc = 0;
-                }
-                docs.maxDoc += shard.docs().maxDoc();
-            }
-            if (shard.docs().deletedDocs() != -1) {
-                if (docs.deletedDocs == -1) {
-                    docs.deletedDocs = 0;
-                }
-                docs.deletedDocs += shard.docs().deletedDocs();
-            }
+            docs.numDocs += shard.docs().numDocs();
+            docs.maxDoc += shard.docs().maxDoc();
+            docs.deletedDocs += shard.docs().deletedDocs();
         }
-        if (docs.numDocs == -1) {
-            this.docs = Docs.UNKNOWN;
-        } else {
-            this.docs = docs;
-        }
+        this.docs = docs;
         return docs;
     }
 
-    public Docs getDocs() {
+    public DocsStatus getDocs() {
         return docs();
     }
 

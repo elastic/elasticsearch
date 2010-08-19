@@ -410,23 +410,14 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             // initialize the counter
             int replicaCounter = 0;
 
-            if (replicationType == ReplicationType.ASYNC) {
-                // async replication, notify the listener
-                if (alreadyThreaded || !request.listenerThreaded()) {
-                    listener.onResponse(response);
-                } else {
-                    threadPool.execute(new Runnable() {
-                        @Override public void run() {
-                            listener.onResponse(response);
-                        }
-                    });
-                }
-                // now, trick the counter so it won't decrease to 0
-                replicaCounter = -100;
-            }
-
             for (final ShardRouting shard : shards.reset()) {
+                // if its unassigned, nothing to do here...
+                if (shard.unassigned()) {
+                    continue;
+                }
+
                 // if the shard is primary and relocating, add one to the counter since we perform it on the replica as well
+                // (and we already did it on the primary)
                 if (shard.primary()) {
                     if (shard.relocating()) {
                         replicaCounter++;
@@ -442,8 +433,43 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 }
             }
 
+            if (replicaCounter == 0) {
+                if (alreadyThreaded || !request.listenerThreaded()) {
+                    listener.onResponse(response);
+                } else {
+                    threadPool.execute(new Runnable() {
+                        @Override public void run() {
+                            listener.onResponse(response);
+                        }
+                    });
+                }
+                return;
+            }
+
+            if (replicationType == ReplicationType.ASYNC) {
+                // async replication, notify the listener
+                if (alreadyThreaded || !request.listenerThreaded()) {
+                    listener.onResponse(response);
+                } else {
+                    threadPool.execute(new Runnable() {
+                        @Override public void run() {
+                            listener.onResponse(response);
+                        }
+                    });
+                }
+                // now, trick the counter so it won't decrease to 0 and notify the listeners
+                replicaCounter = -100;
+            }
+
             AtomicInteger counter = new AtomicInteger(replicaCounter);
             for (final ShardRouting shard : shards.reset()) {
+                // if its unassigned, nothing to do here...
+                if (shard.unassigned()) {
+                    continue;
+                }
+
+                // if the shard is primary and relocating, add one to the counter since we perform it on the replica as well
+                // (and we already did it on the primary)
                 boolean doOnlyOnRelocating = false;
                 if (shard.primary()) {
                     if (shard.relocating()) {
@@ -455,34 +481,33 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 // we index on a replica that is initializing as well since we might not have got the event
                 // yet that it was started. We will get an exception IllegalShardState exception if its not started
                 // and that's fine, we will ignore it
-
-                // if we don't have that node, it means that it might have failed and will be created again, in
-                // this case, we don't have to do the operation, and just let it failover
-                if (shard.unassigned() || !nodes.nodeExists(shard.currentNodeId())) {
-                    if (counter.decrementAndGet() == 0) {
-                        if (alreadyThreaded || !request.listenerThreaded()) {
-                            listener.onResponse(response);
-                        } else {
-                            threadPool.execute(new Runnable() {
-                                @Override public void run() {
-                                    listener.onResponse(response);
-                                }
-                            });
-                        }
-                        break;
-                    }
-                    continue;
-                }
                 if (!doOnlyOnRelocating) {
-                    performOnReplica(response, counter, shard, shard.currentNodeId());
+                    performOnReplica(response, alreadyThreaded, counter, shard, shard.currentNodeId());
                 }
                 if (shard.relocating()) {
-                    performOnReplica(response, counter, shard, shard.relocatingNodeId());
+                    performOnReplica(response, alreadyThreaded, counter, shard, shard.relocatingNodeId());
                 }
             }
         }
 
-        private void performOnReplica(final Response response, final AtomicInteger counter, final ShardRouting shard, String nodeId) {
+        private void performOnReplica(final Response response, boolean alreadyThreaded, final AtomicInteger counter, final ShardRouting shard, String nodeId) {
+            // if we don't have that node, it means that it might have failed and will be created again, in
+            // this case, we don't have to do the operation, and just let it failover
+            if (!nodes.nodeExists(nodeId)) {
+                if (counter.decrementAndGet() == 0) {
+                    if (alreadyThreaded || !request.listenerThreaded()) {
+                        listener.onResponse(response);
+                    } else {
+                        threadPool.execute(new Runnable() {
+                            @Override public void run() {
+                                listener.onResponse(response);
+                            }
+                        });
+                    }
+                }
+                return;
+            }
+
             final ShardOperationRequest shardRequest = new ShardOperationRequest(shards.shardId().id(), request);
             if (!nodeId.equals(nodes.localNodeId())) {
                 DiscoveryNode node = nodes.get(nodeId);

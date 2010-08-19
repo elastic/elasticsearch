@@ -98,6 +98,14 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
                     return null;
                 }
                 if (md.md5() == null) {
+                    byte[] md5Bytes = Digest.md5HexToByteArray(md5);
+
+                    if (shouldWriteMd5(name)) {
+                        IndexOutput output = directory().createOutput(name + ".md5");
+                        output.writeBytes(md5Bytes, md5Bytes.length);
+                        output.close();
+                    }
+
                     md = new StoreFileMetaData(md.name(), md.sizeInBytes(), md.sizeInBytes(), md5);
                     filesMetadata = MapBuilder.newMapBuilder(filesMetadata).put(name, md).immutableMap();
                 }
@@ -155,6 +163,10 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
         return null;
     }
 
+    private boolean shouldWriteMd5(String name) {
+        return !name.startsWith("segments");
+    }
+
     /**
      * The idea of the store directory is to cache file level meta data, as well as md5 of it
      */
@@ -168,7 +180,18 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
                 MapBuilder<String, StoreFileMetaData> builder = MapBuilder.newMapBuilder();
                 for (String file : delegate.listAll()) {
                     try {
-                        builder.put(file, new StoreFileMetaData(file, delegate.fileLength(file), delegate.fileModified(file), preComputedMd5(file)));
+                        String md5 = preComputedMd5(file);
+
+                        if (md5 != null) {
+                            if (shouldWriteMd5(file)) {
+                                byte[] md5Bytes = Digest.md5HexToByteArray(md5);
+                                IndexOutput output = delegate.createOutput(file + ".md5");
+                                output.writeBytes(md5Bytes, md5Bytes.length);
+                                output.close();
+                            }
+                        }
+
+                        builder.put(file, new StoreFileMetaData(file, delegate.fileLength(file), delegate.fileModified(file), md5));
                     } catch (FileNotFoundException e) {
                         // ignore
                     }
@@ -211,6 +234,11 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
 
         @Override public void deleteFile(String name) throws IOException {
             delegate.deleteFile(name);
+            try {
+                delegate.deleteFile(name + ".md5");
+            } catch (Exception e) {
+                // ignore
+            }
             synchronized (mutex) {
                 filesMetadata = MapBuilder.newMapBuilder(filesMetadata).remove(name).immutableMap();
                 files = filesMetadata.keySet().toArray(new String[filesMetadata.size()]);

@@ -25,6 +25,7 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -130,16 +131,36 @@ public abstract class FsIndexStore extends AbstractIndexStore {
         }
         Map<String, StoreFileMetaData> files = Maps.newHashMap();
         for (File file : shardIndexLocation.listFiles()) {
+            // ignore md5 files
+            if (file.getName().endsWith(".md5")) {
+                continue;
+            }
             // calculate md5
-            FileInputStream is = new FileInputStream(file);
             String md5 = shardIdCachedMd5s.get(file.getName());
             if (md5 == null) {
-                try {
-                    md5 = Digest.md5Hex(is);
-                } finally {
-                    is.close();
+                // first, see if there is an md5 file associated with it
+                File md5File = new File(shardIndexLocation, file.getName() + ".md5");
+                if (md5File.exists()) {
+                    try {
+                        byte[] md5Bytes = Streams.copyToByteArray(md5File);
+                        md5 = Digest.md5HexFromByteArray(md5Bytes);
+                    } catch (Exception e) {
+                        // ignore, compute...
+                    }
                 }
-                shardIdCachedMd5s.put(file.getName(), md5);
+                // not created as a file, compute it
+                if (md5 == null) {
+                    FileInputStream is = new FileInputStream(file);
+                    try {
+                        md5 = Digest.md5Hex(is);
+                    } finally {
+                        is.close();
+                    }
+                }
+
+                if (md5 != null) {
+                    shardIdCachedMd5s.put(file.getName(), md5);
+                }
             }
             files.put(file.getName(), new StoreFileMetaData(file.getName(), file.length(), file.lastModified(), md5));
         }

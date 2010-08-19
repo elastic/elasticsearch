@@ -36,5 +36,11 @@ public class CompressedStringTests {
         CompressedString cstr = new CompressedString(str);
         assertThat(cstr.string(), equalTo(str));
         assertThat(new CompressedString(str), equalTo(cstr));
+
+        String str2 = "this is a simple string 2";
+        CompressedString cstr2 = new CompressedString(str2);
+        assertThat(cstr2.string(), not(equalTo(str)));
+        assertThat(new CompressedString(str2), not(equalTo(cstr)));
+        assertThat(new CompressedString(str2), equalTo(cstr2));
     }
 }

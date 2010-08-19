@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.*;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.strategy.PreferUnallocatedShardUnassignedStrategy;
+import org.elasticsearch.cluster.routing.strategy.PreferUnallocatedStrategy;
 import org.elasticsearch.cluster.routing.strategy.ShardsRoutingStrategy;
 import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -45,7 +46,7 @@ public class ClusterModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(PreferUnallocatedShardUnassignedStrategy.class).asEagerSingleton();
+        bind(PreferUnallocatedStrategy.class).to(PreferUnallocatedShardUnassignedStrategy.class).asEagerSingleton();
         bind(ShardsRoutingStrategy.class).asEagerSingleton();
 
         bind(ClusterService.class).to(InternalClusterService.class).asEagerSingleton();

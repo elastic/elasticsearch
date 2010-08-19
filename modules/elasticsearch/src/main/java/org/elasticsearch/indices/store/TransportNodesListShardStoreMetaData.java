@@ -21,6 +21,7 @@ package org.elasticsearch.indices.store;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.*;
 import org.elasticsearch.cluster.ClusterName;
@@ -40,6 +41,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
@@ -55,8 +57,12 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         this.indicesService = indicesService;
     }
 
-    public ActionFuture<NodesStoreFilesMetaData> list(ShardId shardId, boolean onlyUnallocated, String[] nodesIds) {
+    public ActionFuture<NodesStoreFilesMetaData> list(ShardId shardId, boolean onlyUnallocated, Set<String> nodesIds) {
         return execute(new Request(shardId, onlyUnallocated, nodesIds));
+    }
+
+    public void list(ShardId shardId, boolean onlyUnallocated, Set<String> nodesIds, ActionListener<NodesStoreFilesMetaData> listener) {
+        execute(new Request(shardId, onlyUnallocated, nodesIds), listener);
     }
 
     @Override protected String transportAction() {
@@ -121,6 +127,12 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         private boolean unallocated;
 
         public Request() {
+        }
+
+        public Request(ShardId shardId, boolean unallocated, Set<String> nodesIds) {
+            super(nodesIds.toArray(new String[nodesIds.size()]));
+            this.shardId = shardId;
+            this.unallocated = unallocated;
         }
 
         public Request(ShardId shardId, boolean unallocated, String... nodesIds) {

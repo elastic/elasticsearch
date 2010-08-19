@@ -84,9 +84,9 @@ public class TenShardsOneReplicaRoutingTests {
             assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(2));
             assertThat(routingTable.index("test").shard(i).primaryShard().state(), equalTo(INITIALIZING));
             assertThat(routingTable.index("test").shard(i).primaryShard().currentNodeId(), equalTo("node1"));
-            assertThat(routingTable.index("test").shard(i).backupsShards().size(), equalTo(1));
-            assertThat(routingTable.index("test").shard(i).backupsShards().get(0).state(), equalTo(UNASSIGNED));
-            assertThat(routingTable.index("test").shard(i).backupsShards().get(0).currentNodeId(), nullValue());
+            assertThat(routingTable.index("test").shard(i).replicaShards().size(), equalTo(1));
+            assertThat(routingTable.index("test").shard(i).replicaShards().get(0).state(), equalTo(UNASSIGNED));
+            assertThat(routingTable.index("test").shard(i).replicaShards().get(0).currentNodeId(), nullValue());
         }
 
         logger.info("Add another node and perform rerouting, nothing will happen since primary not started");
@@ -110,10 +110,10 @@ public class TenShardsOneReplicaRoutingTests {
             assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(2));
             assertThat(routingTable.index("test").shard(i).primaryShard().state(), equalTo(STARTED));
             assertThat(routingTable.index("test").shard(i).primaryShard().currentNodeId(), equalTo("node1"));
-            assertThat(routingTable.index("test").shard(i).backupsShards().size(), equalTo(1));
+            assertThat(routingTable.index("test").shard(i).replicaShards().size(), equalTo(1));
             // backup shards are initializing as well, we make sure that they recover from primary *started* shards in the IndicesClusterStateService
-            assertThat(routingTable.index("test").shard(i).backupsShards().get(0).state(), equalTo(INITIALIZING));
-            assertThat(routingTable.index("test").shard(i).backupsShards().get(0).currentNodeId(), equalTo("node2"));
+            assertThat(routingTable.index("test").shard(i).replicaShards().get(0).state(), equalTo(INITIALIZING));
+            assertThat(routingTable.index("test").shard(i).replicaShards().get(0).currentNodeId(), equalTo("node2"));
         }
 
         logger.info("Reroute, nothing should change");
@@ -135,9 +135,9 @@ public class TenShardsOneReplicaRoutingTests {
             assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(2));
             assertThat(routingTable.index("test").shard(i).primaryShard().state(), equalTo(STARTED));
             assertThat(routingTable.index("test").shard(i).primaryShard().currentNodeId(), equalTo("node1"));
-            assertThat(routingTable.index("test").shard(i).backupsShards().size(), equalTo(1));
-            assertThat(routingTable.index("test").shard(i).backupsShards().get(0).state(), equalTo(STARTED));
-            assertThat(routingTable.index("test").shard(i).backupsShards().get(0).currentNodeId(), equalTo("node2"));
+            assertThat(routingTable.index("test").shard(i).replicaShards().size(), equalTo(1));
+            assertThat(routingTable.index("test").shard(i).replicaShards().get(0).state(), equalTo(STARTED));
+            assertThat(routingTable.index("test").shard(i).replicaShards().get(0).currentNodeId(), equalTo("node2"));
         }
         assertThat(routingNodes.node("node1").numberOfShardsWithState(STARTED), equalTo(10));
         assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED), equalTo(10));

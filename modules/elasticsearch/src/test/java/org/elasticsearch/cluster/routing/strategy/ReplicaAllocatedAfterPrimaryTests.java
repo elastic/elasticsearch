@@ -82,9 +82,9 @@ public class ReplicaAllocatedAfterPrimaryTests {
         assertThat(routingTable.index("test").shard(0).shards().size(), equalTo(2));
         assertThat(routingTable.index("test").shard(0).primaryShard().state(), equalTo(INITIALIZING));
         assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo("node1"));
-        assertThat(routingTable.index("test").shard(0).backupsShards().size(), equalTo(1));
-        assertThat(routingTable.index("test").shard(0).backupsShards().get(0).state(), equalTo(UNASSIGNED));
-        assertThat(routingTable.index("test").shard(0).backupsShards().get(0).currentNodeId(), nullValue());
+        assertThat(routingTable.index("test").shard(0).replicaShards().size(), equalTo(1));
+        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).state(), equalTo(UNASSIGNED));
+        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), nullValue());
 
         logger.info("Start all the primary shards");
         RoutingNodes routingNodes = routingTable.routingNodes(clusterState.metaData());
@@ -98,9 +98,9 @@ public class ReplicaAllocatedAfterPrimaryTests {
         assertThat(routingTable.index("test").shard(0).shards().size(), equalTo(2));
         assertThat(routingTable.index("test").shard(0).primaryShard().state(), equalTo(STARTED));
         assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo("node1"));
-        assertThat(routingTable.index("test").shard(0).backupsShards().size(), equalTo(1));
-        assertThat(routingTable.index("test").shard(0).backupsShards().get(0).state(), equalTo(INITIALIZING));
-        assertThat(routingTable.index("test").shard(0).backupsShards().get(0).currentNodeId(), equalTo("node2"));
+        assertThat(routingTable.index("test").shard(0).replicaShards().size(), equalTo(1));
+        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).state(), equalTo(INITIALIZING));
+        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), equalTo("node2"));
 
     }
 

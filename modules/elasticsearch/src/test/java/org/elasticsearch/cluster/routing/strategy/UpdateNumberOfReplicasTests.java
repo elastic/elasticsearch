@@ -76,9 +76,9 @@ public class UpdateNumberOfReplicasTests {
         assertThat(routingTable.index("test").shard(0).shards().size(), equalTo(2));
         assertThat(routingTable.index("test").shard(0).primaryShard().state(), equalTo(STARTED));
         assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo("node1"));
-        assertThat(routingTable.index("test").shard(0).backupsShards().size(), equalTo(1));
-        assertThat(routingTable.index("test").shard(0).backupsShards().get(0).state(), equalTo(STARTED));
-        assertThat(routingTable.index("test").shard(0).backupsShards().get(0).currentNodeId(), equalTo("node2"));
+        assertThat(routingTable.index("test").shard(0).replicaShards().size(), equalTo(1));
+        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).state(), equalTo(STARTED));
+        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), equalTo("node2"));
 
         logger.info("add another replica");
         routingNodes = routingTable.routingNodes(clusterState.metaData());
@@ -94,10 +94,10 @@ public class UpdateNumberOfReplicasTests {
         assertThat(routingTable.index("test").shard(0).size(), equalTo(3));
         assertThat(routingTable.index("test").shard(0).primaryShard().state(), equalTo(STARTED));
         assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo("node1"));
-        assertThat(routingTable.index("test").shard(0).backupsShards().size(), equalTo(2));
-        assertThat(routingTable.index("test").shard(0).backupsShards().get(0).state(), equalTo(STARTED));
-        assertThat(routingTable.index("test").shard(0).backupsShards().get(0).currentNodeId(), equalTo("node2"));
-        assertThat(routingTable.index("test").shard(0).backupsShards().get(1).state(), equalTo(UNASSIGNED));
+        assertThat(routingTable.index("test").shard(0).replicaShards().size(), equalTo(2));
+        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).state(), equalTo(STARTED));
+        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), equalTo("node2"));
+        assertThat(routingTable.index("test").shard(0).replicaShards().get(1).state(), equalTo(UNASSIGNED));
 
         logger.info("Add another node and start the added replica");
         clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes()).put(newNode("node3"))).build();
@@ -110,11 +110,11 @@ public class UpdateNumberOfReplicasTests {
         assertThat(routingTable.index("test").shard(0).size(), equalTo(3));
         assertThat(routingTable.index("test").shard(0).primaryShard().state(), equalTo(STARTED));
         assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo("node1"));
-        assertThat(routingTable.index("test").shard(0).backupsShards().size(), equalTo(2));
-        assertThat(routingTable.index("test").shard(0).backupsShards().get(0).state(), equalTo(STARTED));
-        assertThat(routingTable.index("test").shard(0).backupsShards().get(0).currentNodeId(), equalTo("node2"));
-        assertThat(routingTable.index("test").shard(0).backupsShards().get(1).state(), equalTo(INITIALIZING));
-        assertThat(routingTable.index("test").shard(0).backupsShards().get(1).currentNodeId(), equalTo("node3"));
+        assertThat(routingTable.index("test").shard(0).replicaShards().size(), equalTo(2));
+        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).state(), equalTo(STARTED));
+        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), equalTo("node2"));
+        assertThat(routingTable.index("test").shard(0).replicaShards().get(1).state(), equalTo(INITIALIZING));
+        assertThat(routingTable.index("test").shard(0).replicaShards().get(1).currentNodeId(), equalTo("node3"));
 
         routingNodes = routingTable.routingNodes(clusterState.metaData());
         prevRoutingTable = routingTable;
@@ -126,11 +126,11 @@ public class UpdateNumberOfReplicasTests {
         assertThat(routingTable.index("test").shard(0).size(), equalTo(3));
         assertThat(routingTable.index("test").shard(0).primaryShard().state(), equalTo(STARTED));
         assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo("node1"));
-        assertThat(routingTable.index("test").shard(0).backupsShards().size(), equalTo(2));
-        assertThat(routingTable.index("test").shard(0).backupsShards().get(0).state(), equalTo(STARTED));
-        assertThat(routingTable.index("test").shard(0).backupsShards().get(0).currentNodeId(), equalTo("node2"));
-        assertThat(routingTable.index("test").shard(0).backupsShards().get(1).state(), equalTo(STARTED));
-        assertThat(routingTable.index("test").shard(0).backupsShards().get(1).currentNodeId(), equalTo("node3"));
+        assertThat(routingTable.index("test").shard(0).replicaShards().size(), equalTo(2));
+        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).state(), equalTo(STARTED));
+        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), equalTo("node2"));
+        assertThat(routingTable.index("test").shard(0).replicaShards().get(1).state(), equalTo(STARTED));
+        assertThat(routingTable.index("test").shard(0).replicaShards().get(1).currentNodeId(), equalTo("node3"));
 
         logger.info("now remove a replica");
         routingNodes = routingTable.routingNodes(clusterState.metaData());
@@ -146,9 +146,9 @@ public class UpdateNumberOfReplicasTests {
         assertThat(routingTable.index("test").shard(0).size(), equalTo(2));
         assertThat(routingTable.index("test").shard(0).primaryShard().state(), equalTo(STARTED));
         assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo("node1"));
-        assertThat(routingTable.index("test").shard(0).backupsShards().size(), equalTo(1));
-        assertThat(routingTable.index("test").shard(0).backupsShards().get(0).state(), equalTo(STARTED));
-        assertThat(routingTable.index("test").shard(0).backupsShards().get(0).currentNodeId(), anyOf(equalTo("node2"), equalTo("node3")));
+        assertThat(routingTable.index("test").shard(0).replicaShards().size(), equalTo(1));
+        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).state(), equalTo(STARTED));
+        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), anyOf(equalTo("node2"), equalTo("node3")));
 
         logger.info("do a reroute, should remain the same");
         prevRoutingTable = routingTable;

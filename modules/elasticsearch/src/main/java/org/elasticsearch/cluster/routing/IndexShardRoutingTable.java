@@ -107,14 +107,14 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return null;
     }
 
-    public List<ShardRouting> backupsShards() {
-        List<ShardRouting> backupShards = Lists.newArrayListWithCapacity(2);
+    public List<ShardRouting> replicaShards() {
+        List<ShardRouting> replicaShards = Lists.newArrayListWithCapacity(2);
         for (ShardRouting shardRouting : this) {
             if (!shardRouting.primary()) {
-                backupShards.add(shardRouting);
+                replicaShards.add(shardRouting);
             }
         }
-        return backupShards;
+        return replicaShards;
     }
 
     int nextCounter() {

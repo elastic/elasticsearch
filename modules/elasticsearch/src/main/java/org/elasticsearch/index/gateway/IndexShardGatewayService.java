@@ -150,6 +150,10 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
 
                 // we know we are on a thread, we can spin till we can engage in recovery
                 while (!recoveryThrottler.tryRecovery(shardId, "gateway")) {
+                    if (indexShard.ignoreRecoveryAttempt()) {
+                        listener.onIgnoreRecovery("ignoring recovery while waiting on retry");
+                        return;
+                    }
                     recoveryStatus.updateStage(RecoveryStatus.Stage.RETRY);
                     try {
                         Thread.sleep(recoveryThrottler.throttleInterval().millis());
@@ -157,9 +161,10 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                     } catch (InterruptedException e) {
                         if (indexShard.ignoreRecoveryAttempt()) {
                             listener.onIgnoreRecovery("Interrupted while waiting for recovery, but we should ignore ...");
-                            return;
+                        } else {
+                            listener.onRecoveryFailed(new IndexShardGatewayRecoveryException(shardId, "Interrupted while waiting to recovery", e));
                         }
-                        listener.onRecoveryFailed(new IndexShardGatewayRecoveryException(shardId, "Interrupted while waiting to recovery", e));
+                        return;
                     }
                 }
 

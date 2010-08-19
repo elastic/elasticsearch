@@ -540,6 +540,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                 if (storeMd != null && storeMd.md5().equals(virtualMd.md5())) {
                     numberOfExistingFiles++;
                     existingTotalSize += virtualMd.sizeInBytes();
+                    totalSize += virtualMd.sizeInBytes();
                     if (logger.isTraceEnabled()) {
                         logger.trace("not_recovering [{}], exists in local store and has same md5 [{}]", virtualMd.name(), virtualMd.md5());
                     }
@@ -564,7 +565,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         recoveryStatus.index().files(numberOfFiles, totalSize, numberOfExistingFiles, existingTotalSize);
 
         if (logger.isTraceEnabled()) {
-            logger.trace("recovering_files [{}] with total_size [{}], reusing_files [{}] with total_size [{}]", numberOfFiles, new ByteSizeValue(totalSize), numberOfExistingFiles, new ByteSizeValue(existingTotalSize));
+            logger.trace("recovering_files [{}] with total_size [{}], reusing_files [{}] with reused_size [{}]", numberOfFiles, new ByteSizeValue(totalSize), numberOfExistingFiles, new ByteSizeValue(existingTotalSize));
         }
 
         final CountDownLatch latch = new CountDownLatch(filesToRecover.size());

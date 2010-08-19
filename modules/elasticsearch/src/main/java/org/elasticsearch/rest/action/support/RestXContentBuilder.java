@@ -19,6 +19,11 @@
 
 package org.elasticsearch.rest.action.support;
 
+import org.elasticsearch.common.compress.lzf.LZFDecoder;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.CachedStreamInput;
+import org.elasticsearch.common.io.stream.LZFStreamInput;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
@@ -57,5 +62,27 @@ public class RestXContentBuilder {
             builder.fieldCaseConversion(XContentBuilder.FieldCaseConversion.NONE);
         }
         return builder;
+    }
+
+    public static void restDocumentSource(byte[] source, XContentBuilder builder, ToXContent.Params params) throws IOException {
+        if (LZFDecoder.isCompressed(source)) {
+            BytesStreamInput siBytes = new BytesStreamInput(source);
+            LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
+            XContentType contentType = XContentFactory.xContentType(siLzf);
+            siLzf.resetToBufferStart();
+            if (contentType == builder.contentType()) {
+                builder.rawField("_source", siLzf);
+            } else {
+                // TODO, should we just return it as binary and not auto convert it?
+                builder.field("_source", XContentFactory.xContent(builder.contentType()).createParser(siLzf).map());
+            }
+        } else {
+            if (XContentFactory.xContentType(source) == builder.contentType()) {
+                builder.rawField("_source", source);
+            } else {
+                // TODO, should we just return it as binary and not auto convert it?
+                builder.field("_source", XContentFactory.xContent(builder.contentType()).createParser(source).map());
+            }
+        }
     }
 }

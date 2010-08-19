@@ -24,12 +24,14 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.compress.lzf.LZFDecoder;
-import org.elasticsearch.common.io.stream.*;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -230,23 +232,7 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
             builder.field("_type", type);
             builder.field("_id", id);
             if (source != null) {
-                if (LZFDecoder.isCompressed(source)) {
-                    BytesStreamInput siBytes = new BytesStreamInput(source);
-                    LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
-                    XContentType contentType = XContentFactory.xContentType(siLzf);
-                    siLzf.resetToBufferStart();
-                    if (contentType == builder.contentType()) {
-                        builder.rawField("_source", siLzf);
-                    } else {
-                        builder.field("_source", XContentFactory.xContent(builder.contentType()).createParser(siLzf).map());
-                    }
-                } else {
-                    if (XContentFactory.xContentType(source) == builder.contentType()) {
-                        builder.rawField("_source", source);
-                    } else {
-                        builder.field("_source", XContentFactory.xContent(builder.contentType()).createParser(source).map());
-                    }
-                }
+                RestXContentBuilder.restDocumentSource(source, builder, params);
             }
 
             if (fields != null && !fields.isEmpty()) {

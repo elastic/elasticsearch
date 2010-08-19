@@ -135,6 +135,9 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
             if (shard.docs() == null) {
                 continue;
             }
+            if (docs == null) {
+                docs = new DocsStatus();
+            }
             docs.numDocs += shard.docs().numDocs();
             docs.maxDoc += shard.docs().maxDoc();
             docs.deletedDocs += shard.docs().deletedDocs();

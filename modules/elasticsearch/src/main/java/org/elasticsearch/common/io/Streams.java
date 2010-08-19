@@ -89,6 +89,11 @@ public abstract class Streams {
     // Copy methods for java.io.InputStream / java.io.OutputStream
     //---------------------------------------------------------------------
 
+
+    public static long copy(InputStream in, OutputStream out) throws IOException {
+        return copy(in, out, new byte[BUFFER_SIZE]);
+    }
+
     /**
      * Copy the contents of the given InputStream to the given OutputStream.
      * Closes both streams when done.
@@ -98,12 +103,11 @@ public abstract class Streams {
      * @return the number of bytes copied
      * @throws IOException in case of I/O errors
      */
-    public static long copy(InputStream in, OutputStream out) throws IOException {
+    public static long copy(InputStream in, OutputStream out, byte[] buffer) throws IOException {
         Preconditions.checkNotNull(in, "No InputStream specified");
         Preconditions.checkNotNull(out, "No OutputStream specified");
         try {
             long byteCount = 0;
-            byte[] buffer = new byte[BUFFER_SIZE];
             int bytesRead;
             while ((bytesRead = in.read(buffer)) != -1) {
                 out.write(buffer, 0, bytesRead);

@@ -46,6 +46,12 @@ public class CachedStreamInput {
         }
     };
 
+    public static LZFStreamInput cachedLzf(StreamInput in) throws IOException {
+        LZFStreamInput lzf = cache.get().get().lzf;
+        lzf.reset(in);
+        return lzf;
+    }
+
     public static HandlesStreamInput cachedHandles(StreamInput in) {
         HandlesStreamInput handles = cache.get().get().handles;
         handles.reset(in);

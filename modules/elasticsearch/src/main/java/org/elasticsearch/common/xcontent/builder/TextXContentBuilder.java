@@ -21,10 +21,13 @@ package org.elasticsearch.common.xcontent.builder;
 
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.Unicode;
+import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.io.FastCharArrayWriter;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContent;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 /**
  * @author kimchy (shay.banon)
@@ -44,9 +47,18 @@ public class TextXContentBuilder extends XContentBuilder<TextXContentBuilder> {
         this.builder = this;
     }
 
-    @Override public TextXContentBuilder raw(byte[] json) throws IOException {
+    @Override public TextXContentBuilder raw(byte[] content) throws IOException {
         flush();
-        Unicode.UTF16Result result = Unicode.unsafeFromBytesAsUtf16(json);
+        Unicode.UTF16Result result = Unicode.unsafeFromBytesAsUtf16(content);
+        writer.write(result.result, 0, result.length);
+        return this;
+    }
+
+    @Override public TextXContentBuilder raw(InputStream content) throws IOException {
+        FastByteArrayOutputStream os = new FastByteArrayOutputStream();
+        Streams.copy(content, os);
+        flush();
+        Unicode.UTF16Result result = Unicode.unsafeFromBytesAsUtf16(os.unsafeByteArray(), 0, os.size());
         writer.write(result.result, 0, result.length);
         return this;
     }

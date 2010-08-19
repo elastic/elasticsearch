@@ -24,11 +24,12 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.compress.lzf.LZFDecoder;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.*;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -45,7 +46,7 @@ import static org.elasticsearch.common.collect.Maps.*;
  * @see GetRequest
  * @see org.elasticsearch.client.Client#get(GetRequest)
  */
-public class GetResponse implements ActionResponse, Streamable, Iterable<GetField> {
+public class GetResponse implements ActionResponse, Streamable, Iterable<GetField>, ToXContent {
 
     private String index;
 
@@ -214,6 +215,63 @@ public class GetResponse implements ActionResponse, Streamable, Iterable<GetFiel
             return emptyIterator();
         }
         return fields.values().iterator();
+    }
+
+    @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (!exists()) {
+            builder.startObject();
+            builder.field("_index", index);
+            builder.field("_type", type);
+            builder.field("_id", id);
+            builder.endObject();
+        } else {
+            builder.startObject();
+            builder.field("_index", index);
+            builder.field("_type", type);
+            builder.field("_id", id);
+            if (source != null) {
+                if (LZFDecoder.isCompressed(source)) {
+                    BytesStreamInput siBytes = new BytesStreamInput(source);
+                    LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
+                    XContentType contentType = XContentFactory.xContentType(siLzf);
+                    siLzf.resetToBufferStart();
+                    if (contentType == builder.contentType()) {
+                        builder.rawField("_source", siLzf);
+                    } else {
+                        builder.field("_source", XContentFactory.xContent(builder.contentType()).createParser(siLzf).map());
+                    }
+                } else {
+                    if (XContentFactory.xContentType(source) == builder.contentType()) {
+                        builder.rawField("_source", source);
+                    } else {
+                        builder.field("_source", XContentFactory.xContent(builder.contentType()).createParser(source).map());
+                    }
+                }
+            }
+
+            if (fields != null && !fields.isEmpty()) {
+                builder.startObject("fields");
+                for (GetField field : fields.values()) {
+                    if (field.values().isEmpty()) {
+                        continue;
+                    }
+                    if (field.values().size() == 1) {
+                        builder.field(field.name(), field.values().get(0));
+                    } else {
+                        builder.field(field.name());
+                        builder.startArray();
+                        for (Object value : field.values()) {
+                            builder.value(value);
+                        }
+                        builder.endArray();
+                    }
+                }
+                builder.endObject();
+            }
+
+
+            builder.endObject();
+        }
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {

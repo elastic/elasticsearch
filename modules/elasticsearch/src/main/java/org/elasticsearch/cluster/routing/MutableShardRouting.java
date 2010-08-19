@@ -93,7 +93,7 @@ public class MutableShardRouting extends ImmutableShardRouting {
 
     public void moveFromPrimary() {
         if (!primary) {
-            throw new IllegalShardRoutingStateException(this, "Already primary, can't move to backup");
+            throw new IllegalShardRoutingStateException(this, "Already primary, can't move to replica");
         }
         primary = false;
     }

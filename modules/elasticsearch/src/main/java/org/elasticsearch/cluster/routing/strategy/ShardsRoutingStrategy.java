@@ -180,11 +180,11 @@ public class ShardsRoutingStrategy extends AbstractComponent {
         for (MutableShardRouting shardEntry : routingNodes.unassigned()) {
             if (shardEntry.primary() && !shardEntry.assignedToNode()) {
                 boolean elected = false;
-                // primary and not assigned, go over and find a backup that is assigned
+                // primary and not assigned, go over and find a replica that is assigned and active (since it might be relocating)
                 for (RoutingNode routingNode : routingNodes.nodesToShards().values()) {
 
                     for (MutableShardRouting shardEntry2 : routingNode.shards()) {
-                        if (shardEntry.shardId().equals(shardEntry2.shardId())) {
+                        if (shardEntry.shardId().equals(shardEntry2.shardId()) && shardEntry2.active()) {
                             assert shardEntry2.assignedToNode();
                             assert !shardEntry2.primary();
 

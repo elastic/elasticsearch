@@ -83,9 +83,9 @@ public class FailedShardsRoutingTests {
             assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(2));
             assertThat(routingTable.index("test").shard(i).primaryShard().state(), equalTo(STARTED));
             assertThat(routingTable.index("test").shard(i).primaryShard().currentNodeId(), anyOf(equalTo("node1"), equalTo("node2")));
-            assertThat(routingTable.index("test").shard(i).backupsShards().size(), equalTo(1));
-            assertThat(routingTable.index("test").shard(i).backupsShards().get(0).state(), equalTo(INITIALIZING));
-            assertThat(routingTable.index("test").shard(i).backupsShards().get(0).currentNodeId(), anyOf(equalTo("node2"), equalTo("node1")));
+            assertThat(routingTable.index("test").shard(i).replicaShards().size(), equalTo(1));
+            assertThat(routingTable.index("test").shard(i).replicaShards().get(0).state(), equalTo(INITIALIZING));
+            assertThat(routingTable.index("test").shard(i).replicaShards().get(0).currentNodeId(), anyOf(equalTo("node2"), equalTo("node1")));
         }
 
         logger.info("Start the shards (backups)");
@@ -101,9 +101,9 @@ public class FailedShardsRoutingTests {
             assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(2));
             assertThat(routingTable.index("test").shard(i).primaryShard().state(), equalTo(STARTED));
             assertThat(routingTable.index("test").shard(i).primaryShard().currentNodeId(), anyOf(equalTo("node1"), equalTo("node2")));
-            assertThat(routingTable.index("test").shard(i).backupsShards().size(), equalTo(1));
-            assertThat(routingTable.index("test").shard(i).backupsShards().get(0).state(), equalTo(STARTED));
-            assertThat(routingTable.index("test").shard(i).backupsShards().get(0).currentNodeId(), anyOf(equalTo("node2"), equalTo("node1")));
+            assertThat(routingTable.index("test").shard(i).replicaShards().size(), equalTo(1));
+            assertThat(routingTable.index("test").shard(i).replicaShards().get(0).state(), equalTo(STARTED));
+            assertThat(routingTable.index("test").shard(i).replicaShards().get(0).currentNodeId(), anyOf(equalTo("node2"), equalTo("node1")));
         }
 
         logger.info("Adding third node and reroute");
@@ -201,9 +201,9 @@ public class FailedShardsRoutingTests {
             assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(2));
             assertThat(routingTable.index("test").shard(i).primaryShard().state(), equalTo(INITIALIZING));
             assertThat(routingTable.index("test").shard(i).primaryShard().currentNodeId(), equalTo("node1"));
-            assertThat(routingTable.index("test").shard(i).backupsShards().size(), equalTo(1));
-            assertThat(routingTable.index("test").shard(i).backupsShards().get(0).state(), equalTo(UNASSIGNED));
-            assertThat(routingTable.index("test").shard(i).backupsShards().get(0).currentNodeId(), nullValue());
+            assertThat(routingTable.index("test").shard(i).replicaShards().size(), equalTo(1));
+            assertThat(routingTable.index("test").shard(i).replicaShards().get(0).state(), equalTo(UNASSIGNED));
+            assertThat(routingTable.index("test").shard(i).replicaShards().get(0).currentNodeId(), nullValue());
         }
 
         logger.info("Add another node and perform rerouting");
@@ -220,9 +220,9 @@ public class FailedShardsRoutingTests {
             assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(2));
             assertThat(routingTable.index("test").shard(i).primaryShard().state(), equalTo(INITIALIZING));
             assertThat(routingTable.index("test").shard(i).primaryShard().currentNodeId(), equalTo("node1"));
-            assertThat(routingTable.index("test").shard(i).backupsShards().size(), equalTo(1));
-            assertThat(routingTable.index("test").shard(i).backupsShards().get(0).state(), equalTo(UNASSIGNED));
-            assertThat(routingTable.index("test").shard(i).backupsShards().get(0).currentNodeId(), nullValue());
+            assertThat(routingTable.index("test").shard(i).replicaShards().size(), equalTo(1));
+            assertThat(routingTable.index("test").shard(i).replicaShards().get(0).state(), equalTo(UNASSIGNED));
+            assertThat(routingTable.index("test").shard(i).replicaShards().get(0).currentNodeId(), nullValue());
         }
 
         logger.info("Start the primary shards");
@@ -238,9 +238,9 @@ public class FailedShardsRoutingTests {
             assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(2));
             assertThat(routingTable.index("test").shard(i).primaryShard().state(), equalTo(STARTED));
             assertThat(routingTable.index("test").shard(i).primaryShard().currentNodeId(), anyOf(equalTo("node1"), equalTo("node2")));
-            assertThat(routingTable.index("test").shard(i).backupsShards().size(), equalTo(1));
-            assertThat(routingTable.index("test").shard(i).backupsShards().get(0).state(), equalTo(INITIALIZING));
-            assertThat(routingTable.index("test").shard(i).backupsShards().get(0).currentNodeId(), anyOf(equalTo("node2"), equalTo("node1")));
+            assertThat(routingTable.index("test").shard(i).replicaShards().size(), equalTo(1));
+            assertThat(routingTable.index("test").shard(i).replicaShards().get(0).state(), equalTo(INITIALIZING));
+            assertThat(routingTable.index("test").shard(i).replicaShards().get(0).currentNodeId(), anyOf(equalTo("node2"), equalTo("node1")));
         }
 
         logger.info("Reroute, nothing should change");
@@ -263,9 +263,9 @@ public class FailedShardsRoutingTests {
             assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(2));
             assertThat(routingTable.index("test").shard(i).primaryShard().state(), equalTo(STARTED));
             assertThat(routingTable.index("test").shard(i).primaryShard().currentNodeId(), equalTo("node1"));
-            assertThat(routingTable.index("test").shard(i).backupsShards().size(), equalTo(1));
-            assertThat(routingTable.index("test").shard(i).backupsShards().get(0).state(), equalTo(UNASSIGNED));
-            assertThat(routingTable.index("test").shard(i).backupsShards().get(0).currentNodeId(), nullValue());
+            assertThat(routingTable.index("test").shard(i).replicaShards().size(), equalTo(1));
+            assertThat(routingTable.index("test").shard(i).replicaShards().get(0).state(), equalTo(UNASSIGNED));
+            assertThat(routingTable.index("test").shard(i).replicaShards().get(0).currentNodeId(), nullValue());
         }
 
         // fail them again...
@@ -280,10 +280,10 @@ public class FailedShardsRoutingTests {
             assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(2));
             assertThat(routingTable.index("test").shard(i).primaryShard().state(), equalTo(STARTED));
             assertThat(routingTable.index("test").shard(i).primaryShard().currentNodeId(), equalTo("node1"));
-            assertThat(routingTable.index("test").shard(i).backupsShards().size(), equalTo(1));
+            assertThat(routingTable.index("test").shard(i).replicaShards().size(), equalTo(1));
             // backup shards are initializing as well, we make sure that they recover from primary *started* shards in the IndicesClusterStateService
-            assertThat(routingTable.index("test").shard(i).backupsShards().get(0).state(), equalTo(UNASSIGNED));
-            assertThat(routingTable.index("test").shard(i).backupsShards().get(0).currentNodeId(), nullValue());
+            assertThat(routingTable.index("test").shard(i).replicaShards().get(0).state(), equalTo(UNASSIGNED));
+            assertThat(routingTable.index("test").shard(i).replicaShards().get(0).currentNodeId(), nullValue());
         }
     }
 

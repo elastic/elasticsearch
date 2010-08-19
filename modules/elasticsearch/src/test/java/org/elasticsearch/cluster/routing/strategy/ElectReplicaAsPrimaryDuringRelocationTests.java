@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing.strategy;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.logging.ESLogger;
@@ -41,17 +42,17 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class PrimaryElectionRoutingTests {
+public class ElectReplicaAsPrimaryDuringRelocationTests {
 
-    private final ESLogger logger = Loggers.getLogger(PrimaryElectionRoutingTests.class);
+    private final ESLogger logger = Loggers.getLogger(ElectReplicaAsPrimaryDuringRelocationTests.class);
 
-    @Test public void testBackupElectionToPrimaryWhenPrimaryCanBeAllocatedToAnotherNode() {
+    @Test public void testElectReplicaAsPrimaryDuringRelocation() {
         ShardsRoutingStrategy strategy = new ShardsRoutingStrategy();
 
         logger.info("Building initial routing table");
 
         MetaData metaData = newMetaDataBuilder()
-                .put(newIndexMetaDataBuilder("test").numberOfShards(1).numberOfReplicas(1))
+                .put(newIndexMetaDataBuilder("test").numberOfShards(2).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = routingTable()
@@ -66,33 +67,49 @@ public class PrimaryElectionRoutingTests {
         routingTable = strategy.reroute(clusterState);
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
-        logger.info("Start the primary shard (on node1)");
+        logger.info("Start the primary shards");
         RoutingNodes routingNodes = routingTable.routingNodes(clusterState.metaData());
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.node("node1").shardsWithState(INITIALIZING));
+        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
-        logger.info("Start the backup shard (on node2)");
+        logger.info("Start the replica shards");
         routingNodes = routingTable.routingNodes(clusterState.metaData());
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.node("node2").shardsWithState(INITIALIZING));
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
-
-        logger.info("Adding third node and reroute and kill first node");
-        clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes()).put(newNode("node3")).remove("node1")).build();
-        prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState);
+        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
         routingNodes = routingTable.routingNodes(metaData);
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
-        assertThat(routingTable.index("test").shards().size(), equalTo(1));
-        assertThat(routingNodes.node("node1"), nullValue());
-        assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED), equalTo(1));
-        assertThat(routingNodes.node("node3").numberOfShardsWithState(INITIALIZING), equalTo(1));
-        // verify where the primary is
-        assertThat(routingTable.index("test").shard(0).primaryShard().currentNodeId(), equalTo("node2"));
-        assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), equalTo("node3"));
+        assertThat(routingTable.index("test").shards().size(), equalTo(2));
+        assertThat(routingNodes.node("node1").numberOfShardsWithState(STARTED), equalTo(2));
+        assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED), equalTo(2));
+
+        logger.info("Start another node and perform rerouting");
+        clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes()).put(newNode("node3"))).build();
+        prevRoutingTable = routingTable;
+        routingTable = strategy.reroute(clusterState);
+        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+
+        logger.info("find the replica shard that gets relocated");
+        IndexShardRoutingTable indexShardRoutingTable = null;
+        if (routingTable.index("test").shard(0).replicaShards().get(0).relocating()) {
+            indexShardRoutingTable = routingTable.index("test").shard(0);
+        } else if (routingTable.index("test").shard(1).replicaShards().get(0).relocating()) {
+            indexShardRoutingTable = routingTable.index("test").shard(1);
+        }
+
+        assertThat("failed to find relocating replica", indexShardRoutingTable, notNullValue());
+
+        logger.info("kill the node [{}] of the primary shard for the relocating replica", indexShardRoutingTable.primaryShard().currentNodeId());
+        clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes()).remove(indexShardRoutingTable.primaryShard().currentNodeId())).build();
+        prevRoutingTable = routingTable;
+        routingTable = strategy.reroute(clusterState);
+        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
+
+        logger.info("make sure all the primary shards are active");
+        assertThat(routingTable.index("test").shard(0).primaryShard().active(), equalTo(true));
+        assertThat(routingTable.index("test").shard(1).primaryShard().active(), equalTo(true));
     }
 
     private DiscoveryNode newNode(String nodeId) {

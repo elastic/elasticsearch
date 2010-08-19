@@ -186,7 +186,7 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
         public Builder removeReplica() {
             for (int shardId : shards.keySet()) {
                 IndexShardRoutingTable indexShard = shards.get(shardId);
-                if (indexShard.backupsShards().isEmpty()) {
+                if (indexShard.replicaShards().isEmpty()) {
                     // nothing to do here!
                     return this;
                 }

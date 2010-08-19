@@ -158,6 +158,17 @@ public class PeerRecoveryStatus {
         return recoveredIndexSize();
     }
 
+    public int indexRecoveryProgress() {
+        if (recoveredIndexSize == 0) {
+            return 0;
+        }
+        return (int) (((double) recoveredIndexSize) / expectedRecoveredIndexSize().bytes() * 100);
+    }
+
+    public int getIndexRecoveryProgress() {
+        return indexRecoveryProgress();
+    }
+
     public long recoveredTranslogOperations() {
         return recoveredTranslogOperations;
     }

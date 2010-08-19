@@ -149,6 +149,7 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                                     builder.field("throttling_time_in_millis", peerRecoveryStatus.throttlingTime().millis());
 
                                     builder.startObject("index");
+                                    builder.field("progress", peerRecoveryStatus.indexRecoveryProgress());
                                     builder.field("size", peerRecoveryStatus.indexSize());
                                     builder.field("size_in_bytes", peerRecoveryStatus.indexSize().bytes());
                                     builder.field("reused_size", peerRecoveryStatus.reusedIndexSize());
@@ -177,6 +178,7 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                                     builder.field("throttling_time_in_millis", gatewayRecoveryStatus.throttlingTime().millis());
 
                                     builder.startObject("index");
+                                    builder.field("progress", gatewayRecoveryStatus.indexRecoveryProgress());
                                     builder.field("size", gatewayRecoveryStatus.indexSize());
                                     builder.field("size_in_bytes", gatewayRecoveryStatus.indexSize().bytes());
                                     builder.field("reused_size", gatewayRecoveryStatus.reusedIndexSize());

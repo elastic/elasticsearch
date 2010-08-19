@@ -138,7 +138,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
 
     @Override protected ShardStatus shardOperation(IndexShardStatusRequest request) throws ElasticSearchException {
         InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.index());
-        InternalIndexShard indexShard = (InternalIndexShard) indexService.shard(request.shardId());
+        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId());
         ShardStatus shardStatus = new ShardStatus(indexShard.routingEntry());
         shardStatus.state = indexShard.state();
         try {

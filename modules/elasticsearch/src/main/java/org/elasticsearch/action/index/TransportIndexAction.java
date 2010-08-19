@@ -35,12 +35,15 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.UUID;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 /**
  * Performs the index operation.
@@ -149,14 +152,20 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     private void updateMappingOnMaster(final IndexRequest request) {
         try {
             MapperService mapperService = indicesService.indexServiceSafe(request.index()).mapperService();
-            final String updatedSource = mapperService.documentMapper(request.type()).buildSource();
-            mappingUpdatedAction.execute(new MappingUpdatedAction.MappingUpdatedRequest(request.index(), request.type(), updatedSource), new ActionListener<MappingUpdatedAction.MappingUpdatedResponse>() {
+            final DocumentMapper documentMapper = mapperService.documentMapper(request.type());
+            documentMapper.refreshSource();
+
+            mappingUpdatedAction.execute(new MappingUpdatedAction.MappingUpdatedRequest(request.index(), request.type(), documentMapper.mappingSource()), new ActionListener<MappingUpdatedAction.MappingUpdatedResponse>() {
                 @Override public void onResponse(MappingUpdatedAction.MappingUpdatedResponse mappingUpdatedResponse) {
                     // all is well
                 }
 
                 @Override public void onFailure(Throwable e) {
-                    logger.warn("Failed to update master on updated mapping for index [" + request.index() + "], type [" + request.type() + "] and source [" + updatedSource + "]", e);
+                    try {
+                        logger.warn("Failed to update master on updated mapping for index [" + request.index() + "], type [" + request.type() + "] and source [" + documentMapper.mappingSource().string() + "]", e);
+                    } catch (IOException e1) {
+                        // ignore
+                    }
                 }
             });
         } catch (Exception e) {

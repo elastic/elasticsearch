@@ -59,7 +59,7 @@ public class SimpleXContentMapperTests {
     @Test public void testParseToJsonAndParse() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/simple/test-mapping.json");
         XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(mapping);
-        String builtMapping = docMapper.buildSource();
+        String builtMapping = docMapper.mappingSource().string();
 //        System.out.println(builtMapping);
         // reparse it
         XContentDocumentMapper builtDocMapper = XContentMapperTests.newParser().parse(builtMapping);

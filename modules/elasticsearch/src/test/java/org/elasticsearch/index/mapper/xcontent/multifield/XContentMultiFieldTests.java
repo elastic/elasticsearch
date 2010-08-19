@@ -75,8 +75,9 @@ public class XContentMultiFieldTests {
                         .add(stringField("indexed").index(Field.Index.ANALYZED))
                         .add(stringField("not_indexed").index(Field.Index.NO).store(Field.Store.YES))
         )).build();
+        builderDocMapper.refreshSource();
 
-        String builtMapping = builderDocMapper.buildSource();
+        String builtMapping = builderDocMapper.mappingSource().string();
 //        System.out.println(builtMapping);
         // reparse it
         XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(builtMapping);

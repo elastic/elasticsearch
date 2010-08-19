@@ -54,7 +54,7 @@ public class SimpleAttachmentMapperTests {
         assertThat(doc.get(docMapper.mappers().smartName("file").mapper().names().indexName()), containsString("This document tests the ability of Apache Tika to extract content"));
 
         // re-parse it
-        String builtMapping = docMapper.buildSource();
+        String builtMapping = docMapper.mappingSource().string();
         docMapper = mapperParser.parse(builtMapping);
 
         json = jsonBuilder().startObject().field("_id", 1).field("file", copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/testXHTML.html")).endObject().copiedBytes();

@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.timer.Timeout;
@@ -40,6 +41,7 @@ import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.timer.TimerService;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -74,6 +76,10 @@ public class MetaDataMappingService extends AbstractComponent {
         this.nodeMappingCreatedAction = nodeMappingCreatedAction;
     }
 
+    public void updateMapping(final String index, final String type, final CompressedString mappingSource) throws IOException {
+        updateMapping(index, type, mappingSource.string());
+    }
+
     public void updateMapping(final String index, final String type, final String mappingSource) {
         clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "]", new ClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
@@ -89,16 +95,19 @@ public class MetaDataMappingService extends AbstractComponent {
                     existingMapper.merge(updatedMapper, mergeFlags().simulate(false));
                 }
                 // build the updated mapping source
-                final String updatedMappingSource = existingMapper.buildSource();
                 if (logger.isDebugEnabled()) {
-                    logger.debug("[{}] update_mapping [{}] (dynamic) with source [{}]", index, type, updatedMappingSource);
+                    try {
+                        logger.debug("[{}] update_mapping [{}] (dynamic) with source [{}]", index, type, existingMapper.mappingSource().string());
+                    } catch (IOException e) {
+                        // ignore
+                    }
                 } else if (logger.isInfoEnabled()) {
                     logger.info("[{}] update_mapping [{}] (dynamic)", index, type);
                 }
 
                 MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
                 IndexMetaData indexMetaData = currentState.metaData().index(index);
-                builder.put(newIndexMetaDataBuilder(indexMetaData).putMapping(type, updatedMappingSource));
+                builder.put(newIndexMetaDataBuilder(indexMetaData).putMapping(type, existingMapper.mappingSource()));
                 return newClusterStateBuilder().state(currentState).metaData(builder).build();
             }
         });
@@ -151,7 +160,7 @@ public class MetaDataMappingService extends AbstractComponent {
                         throw new InvalidTypeNameException("Document mapping type name can't start with '_'");
                     }
 
-                    final Map<String, Tuple<String, String>> mappings = newHashMap();
+                    final Map<String, Tuple<String, CompressedString>> mappings = newHashMap();
                     int expectedReplies = 0;
                     for (Map.Entry<String, DocumentMapper> entry : newMappers.entrySet()) {
                         String index = entry.getKey();
@@ -160,15 +169,17 @@ public class MetaDataMappingService extends AbstractComponent {
                         if (existingMappers.containsKey(entry.getKey())) {
                             // we have an existing mapping, do the merge here (on the master), it will automatically update the mapping source
                             DocumentMapper existingMapper = existingMappers.get(entry.getKey());
-                            String existingSource = existingMapper.mappingSource();
+                            CompressedString existingSource = existingMapper.mappingSource();
+
                             existingMapper.merge(newMapper, mergeFlags().simulate(false));
-                            String updatedSource = existingMapper.buildSource();
+
+                            CompressedString updatedSource = existingMapper.mappingSource();
                             if (existingSource.equals(updatedSource)) {
                                 // same source, no changes, ignore it
                             } else {
                                 expectedReplies += (currentState.nodes().size() - 1); // for this index, on update, don't include the master, since we update it already
                                 // use the merged mapping source
-                                mappings.put(index, new Tuple<String, String>(existingMapper.type(), updatedSource));
+                                mappings.put(index, new Tuple<String, CompressedString>(existingMapper.type(), updatedSource));
                                 if (logger.isDebugEnabled()) {
                                     logger.debug("[{}] update_mapping [{}] with source [{}]", index, existingMapper.type(), updatedSource);
                                 } else if (logger.isInfoEnabled()) {
@@ -177,8 +188,8 @@ public class MetaDataMappingService extends AbstractComponent {
                             }
                         } else {
                             expectedReplies += currentState.nodes().size();
-                            String newSource = newMapper.buildSource();
-                            mappings.put(index, new Tuple<String, String>(newMapper.type(), newSource));
+                            CompressedString newSource = newMapper.mappingSource();
+                            mappings.put(index, new Tuple<String, CompressedString>(newMapper.type(), newSource));
                             if (logger.isDebugEnabled()) {
                                 logger.debug("[{}] create_mapping [{}] with source [{}]", index, newMapper.type(), newSource);
                             } else if (logger.isInfoEnabled()) {
@@ -199,7 +210,7 @@ public class MetaDataMappingService extends AbstractComponent {
                         if (indexMetaData == null) {
                             throw new IndexMissingException(new Index(indexName));
                         }
-                        Tuple<String, String> mapping = mappings.get(indexName);
+                        Tuple<String, CompressedString> mapping = mappings.get(indexName);
                         if (mapping != null) {
                             builder.put(newIndexMetaDataBuilder(indexMetaData).putMapping(mapping.v1(), mapping.v2()));
                         }

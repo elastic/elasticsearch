@@ -52,7 +52,7 @@ public class SimpleAllMapperTests {
     @Test public void testSimpleAllMappersWithReparse() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/all/mapping.json");
         XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(mapping);
-        String builtMapping = docMapper.buildSource();
+        String builtMapping = docMapper.mappingSource().string();
 //        System.out.println(builtMapping);
         // reparse it
         XContentDocumentMapper builtDocMapper = XContentMapperTests.newParser().parse(builtMapping);
@@ -84,7 +84,7 @@ public class SimpleAllMapperTests {
     @Test public void testSimpleAllMappersWithReparseWithStore() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/all/store-mapping.json");
         XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(mapping);
-        String builtMapping = docMapper.buildSource();
+        String builtMapping = docMapper.mappingSource().string();
         System.out.println(builtMapping);
         // reparse it
         XContentDocumentMapper builtDocMapper = XContentMapperTests.newParser().parse(builtMapping);

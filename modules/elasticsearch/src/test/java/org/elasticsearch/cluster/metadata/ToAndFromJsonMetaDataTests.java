@@ -83,7 +83,7 @@ public class ToAndFromJsonMetaDataTests {
         assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
         assertThat(indexMetaData.settings().getAsMap().size(), equalTo(2));
         assertThat(indexMetaData.mappings().size(), equalTo(1));
-        assertThat(indexMetaData.mappings().get("mapping1"), equalTo(MAPPING_SOURCE1));
+        assertThat(indexMetaData.mappings().get("mapping1").string(), equalTo(MAPPING_SOURCE1));
 
         indexMetaData = parsedMetaData.index("test4");
         assertThat(indexMetaData.numberOfShards(), equalTo(1));
@@ -92,8 +92,8 @@ public class ToAndFromJsonMetaDataTests {
         assertThat(indexMetaData.settings().get("setting1"), equalTo("value1"));
         assertThat(indexMetaData.settings().get("setting2"), equalTo("value2"));
         assertThat(indexMetaData.mappings().size(), equalTo(2));
-        assertThat(indexMetaData.mappings().get("mapping1"), equalTo(MAPPING_SOURCE1));
-        assertThat(indexMetaData.mappings().get("mapping2"), equalTo(MAPPING_SOURCE2));
+        assertThat(indexMetaData.mappings().get("mapping1").string(), equalTo(MAPPING_SOURCE1));
+        assertThat(indexMetaData.mappings().get("mapping2").string(), equalTo(MAPPING_SOURCE2));
     }
 
     private static final String MAPPING_SOURCE1 = "{\"mapping1\":{\"text1\":{\"type\":\"string\"}}}";

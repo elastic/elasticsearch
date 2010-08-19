@@ -37,17 +37,30 @@ public class CompressedString implements Streamable {
 
     private byte[] bytes;
 
+    CompressedString() {
+    }
+
     public CompressedString(String str) throws IOException {
         UnicodeUtil.UTF8Result result = Unicode.unsafeFromStringAsUtf8(str);
         this.bytes = LZFEncoder.encodeWithCache(result.result, result.length);
     }
 
-    public byte[] bytes() {
+    public byte[] compressed() {
         return this.bytes;
+    }
+
+    public byte[] uncompressed() throws IOException {
+        return LZFDecoder.decode(bytes);
     }
 
     public String string() throws IOException {
         return Unicode.fromBytes(LZFDecoder.decode(bytes));
+    }
+
+    public static CompressedString readCompressedString(StreamInput in) throws IOException {
+        CompressedString compressedString = new CompressedString();
+        compressedString.readFrom(in);
+        return compressedString;
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {

@@ -41,9 +41,9 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class BackupAllocatedAfterPrimaryTests {
+public class ReplicaAllocatedAfterPrimaryTests {
 
-    private final ESLogger logger = Loggers.getLogger(BackupAllocatedAfterPrimaryTests.class);
+    private final ESLogger logger = Loggers.getLogger(ReplicaAllocatedAfterPrimaryTests.class);
 
     @Test public void testBackupIsAllocatedAfterPrimary() {
 

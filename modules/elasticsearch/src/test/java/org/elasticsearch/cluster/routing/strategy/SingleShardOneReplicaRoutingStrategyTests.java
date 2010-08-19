@@ -41,9 +41,9 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class SingleShardOneBackupRoutingStrategyTests {
+public class SingleShardOneReplicaRoutingStrategyTests {
 
-    private final ESLogger logger = Loggers.getLogger(SingleShardOneBackupRoutingStrategyTests.class);
+    private final ESLogger logger = Loggers.getLogger(SingleShardOneReplicaRoutingStrategyTests.class);
 
     @Test public void testSingleIndexFirstStartPrimaryThenBackups() {
         ShardsRoutingStrategy strategy = new ShardsRoutingStrategy();

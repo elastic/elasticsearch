@@ -37,10 +37,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.VoidStreamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.VoidTransportResponseHandler;
+import org.elasticsearch.transport.*;
 
 import java.io.IOException;
 
@@ -84,7 +81,11 @@ public class ShardStateAction extends AbstractComponent {
             });
         } else {
             transportService.sendRequest(clusterService.state().nodes().masterNode(),
-                    ShardFailedTransportHandler.ACTION, new ShardRoutingEntry(shardRouting, reason), VoidTransportResponseHandler.INSTANCE);
+                    ShardFailedTransportHandler.ACTION, new ShardRoutingEntry(shardRouting, reason), new VoidTransportResponseHandler() {
+                        @Override public void handleException(RemoteTransportException exp) {
+                            logger.warn("failed to send failed shard to [{}]", exp, clusterService.state().nodes().masterNode());
+                        }
+                    });
         }
     }
 
@@ -101,7 +102,11 @@ public class ShardStateAction extends AbstractComponent {
             });
         } else {
             transportService.sendRequest(clusterService.state().nodes().masterNode(),
-                    ShardStartedTransportHandler.ACTION, new ShardRoutingEntry(shardRouting, reason), VoidTransportResponseHandler.INSTANCE);
+                    ShardStartedTransportHandler.ACTION, new ShardRoutingEntry(shardRouting, reason), new VoidTransportResponseHandler() {
+                        @Override public void handleException(RemoteTransportException exp) {
+                            logger.warn("failed to send shard started to [{}]", exp, clusterService.state().nodes().masterNode());
+                        }
+                    });
         }
     }
 

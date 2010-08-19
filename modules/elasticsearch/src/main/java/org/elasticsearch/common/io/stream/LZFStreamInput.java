@@ -112,6 +112,13 @@ public class LZFStreamInput extends StreamInput {
         readyBuffer();
     }
 
+    /**
+     * Expert!, resets to buffer start, without the need to decompress it again.
+     */
+    public void resetToBufferStart() {
+        this.bufferPosition = 0;
+    }
+
     @Override public void close() throws IOException {
         in.close();
     }

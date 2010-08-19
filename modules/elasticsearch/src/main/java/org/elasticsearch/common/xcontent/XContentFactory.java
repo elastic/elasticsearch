@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.xson.XsonXContent;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 
 /**
@@ -149,6 +150,36 @@ public class XContentFactory {
      */
     public static XContentType xContentType(byte[] data) {
         return xContentType(data, 0, data.length);
+    }
+
+    /**
+     * Guesses the content type based on the provided input stream.
+     */
+    public static XContentType xContentType(InputStream si) throws IOException {
+        int first = si.read();
+        if (first == -1) {
+            return null;
+        }
+        int second = si.read();
+        if (second == -1) {
+            return null;
+        }
+        if (first == 0x00 && second == 0x00) {
+            return XContentType.XSON;
+        }
+        if (first == '{' || second == '{') {
+            return XContentType.JSON;
+        }
+        for (int i = 2; i < GUESS_HEADER_LENGTH; i++) {
+            int val = si.read();
+            if (val == -1) {
+                return null;
+            }
+            if (val == '{') {
+                return XContentType.JSON;
+            }
+        }
+        return null;
     }
 
     /**

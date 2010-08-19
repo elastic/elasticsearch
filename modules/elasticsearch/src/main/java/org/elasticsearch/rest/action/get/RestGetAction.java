@@ -20,13 +20,11 @@
 package org.elasticsearch.rest.action.get;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.get.GetField;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.rest.*;
 
@@ -72,52 +70,13 @@ public class RestGetAction extends BaseRestHandler {
 
         client.get(getRequest, new ActionListener<GetResponse>() {
             @Override public void onResponse(GetResponse response) {
+
                 try {
+                    XContentBuilder builder = restContentBuilder(request);
+                    response.toXContent(builder, request);
                     if (!response.exists()) {
-                        XContentBuilder builder = restContentBuilder(request);
-                        builder.startObject();
-                        builder.field("_index", response.index());
-                        builder.field("_type", response.type());
-                        builder.field("_id", response.id());
-                        builder.endObject();
                         channel.sendResponse(new XContentRestResponse(request, NOT_FOUND, builder));
                     } else {
-                        XContentBuilder builder = restContentBuilder(request);
-                        builder.startObject();
-                        builder.field("_index", response.index());
-                        builder.field("_type", response.type());
-                        builder.field("_id", response.id());
-                        if (response.source() != null) {
-                            if (builder.contentType() == XContentFactory.xContentType(response.source())) {
-                                builder.rawField("_source", response.source());
-                            } else {
-                                builder.field("_source");
-                                builder.value(response.source());
-                            }
-                        }
-
-                        if (response.fields() != null && !response.fields().isEmpty()) {
-                            builder.startObject("fields");
-                            for (GetField field : response.fields().values()) {
-                                if (field.values().isEmpty()) {
-                                    continue;
-                                }
-                                if (field.values().size() == 1) {
-                                    builder.field(field.name(), field.values().get(0));
-                                } else {
-                                    builder.field(field.name());
-                                    builder.startArray();
-                                    for (Object value : field.values()) {
-                                        builder.value(value);
-                                    }
-                                    builder.endArray();
-                                }
-                            }
-                            builder.endObject();
-                        }
-
-
-                        builder.endObject();
                         channel.sendResponse(new XContentRestResponse(request, OK, builder));
                     }
                 } catch (Exception e) {

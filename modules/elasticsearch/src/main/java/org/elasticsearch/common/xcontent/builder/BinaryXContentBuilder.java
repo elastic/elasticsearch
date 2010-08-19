@@ -21,9 +21,11 @@ package org.elasticsearch.common.xcontent.builder;
 
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContent;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 /**
  * @author kimchy (shay.banon)
@@ -33,6 +35,8 @@ public class BinaryXContentBuilder extends XContentBuilder<BinaryXContentBuilder
     private final FastByteArrayOutputStream bos;
 
     private final XContent xContent;
+
+    private byte[] bytes;
 
     public BinaryXContentBuilder(XContent xContent) throws IOException {
         this.bos = new FastByteArrayOutputStream();
@@ -44,6 +48,15 @@ public class BinaryXContentBuilder extends XContentBuilder<BinaryXContentBuilder
     @Override public BinaryXContentBuilder raw(byte[] json) throws IOException {
         flush();
         bos.write(json);
+        return this;
+    }
+
+    @Override public BinaryXContentBuilder raw(InputStream content) throws IOException {
+        flush();
+        if (bytes == null) {
+            bytes = new byte[Streams.BUFFER_SIZE];
+        }
+        Streams.copy(content, bos, bytes);
         return this;
     }
 

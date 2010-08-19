@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapConverter;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Date;
 import java.util.Map;
 
@@ -288,7 +289,14 @@ public abstract class XContentBuilder<T extends XContentBuilder> {
         return raw(content);
     }
 
+    public T rawField(String fieldName, InputStream content) throws IOException {
+        generator.writeRawFieldStart(fieldName);
+        return raw(content);
+    }
+
     public abstract T raw(byte[] content) throws IOException;
+
+    public abstract T raw(InputStream content) throws IOException;
 
     public T value(Boolean value) throws IOException {
         return value(value.booleanValue());

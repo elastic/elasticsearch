@@ -24,11 +24,11 @@ import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.compress.lzf.LZFDecoder;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.trove.TIntObjectHashMap;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
@@ -259,12 +259,23 @@ public class InternalSearchHit implements SearchHit {
         } else {
             builder.field("_score", score);
         }
-        if (source() != null) {
-            if (XContentFactory.xContentType(source()) == builder.contentType()) {
-                builder.rawField("_source", source());
+        if (source != null) {
+            if (LZFDecoder.isCompressed(source)) {
+                BytesStreamInput siBytes = new BytesStreamInput(source);
+                LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
+                XContentType contentType = XContentFactory.xContentType(siLzf);
+                siLzf.resetToBufferStart();
+                if (contentType == builder.contentType()) {
+                    builder.rawField("_source", siLzf);
+                } else {
+                    builder.field("_source", XContentFactory.xContent(builder.contentType()).createParser(siLzf).map());
+                }
             } else {
-                builder.field("_source");
-                builder.value(source());
+                if (XContentFactory.xContentType(source) == builder.contentType()) {
+                    builder.rawField("_source", source);
+                } else {
+                    builder.field("_source", XContentFactory.xContent(builder.contentType()).createParser(source).map());
+                }
             }
         }
         if (fields != null && !fields.isEmpty()) {

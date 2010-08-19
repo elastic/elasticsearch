@@ -76,6 +76,7 @@ class RecoveryFilesInfoRequest implements Streamable {
         }
 
         size = in.readVInt();
+        phase1ExistingFileSizes = new ArrayList<Long>(size);
         for (int i = 0; i < size; i++) {
             phase1ExistingFileSizes.add(in.readVLong());
         }

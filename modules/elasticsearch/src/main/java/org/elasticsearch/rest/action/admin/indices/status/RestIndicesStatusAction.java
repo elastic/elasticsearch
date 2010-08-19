@@ -93,7 +93,7 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                             builder.field("translog_operations", indexStatus.translogOperations());
                         }
 
-                        if (indexStatus.docs() != IndexStatus.Docs.UNKNOWN) {
+                        if (indexStatus.docs() != null) {
                             builder.startObject("docs");
                             builder.field("num_docs", indexStatus.docs().numDocs());
                             builder.field("max_doc", indexStatus.docs().maxDoc());
@@ -130,7 +130,7 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                                     builder.endObject();
                                 }
 
-                                if (shardStatus.docs() != ShardStatus.Docs.UNKNOWN) {
+                                if (shardStatus.docs() != null) {
                                     builder.startObject("docs");
                                     builder.field("num_docs", shardStatus.docs().numDocs());
                                     builder.field("max_doc", shardStatus.docs().maxDoc());

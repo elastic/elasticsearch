@@ -32,41 +32,11 @@ import static org.elasticsearch.cluster.routing.ImmutableShardRouting.*;
 import static org.elasticsearch.common.unit.ByteSizeValue.*;
 
 /**
+ * Shard instance (actual allocated shard) status.
+ *
  * @author kimchy (shay.banon)
  */
 public class ShardStatus extends BroadcastShardOperationResponse {
-
-    public static class Docs {
-        public static final Docs UNKNOWN = new Docs();
-
-        int numDocs = -1;
-        int maxDoc = -1;
-        int deletedDocs = -1;
-
-        public int numDocs() {
-            return numDocs;
-        }
-
-        public int getNumDocs() {
-            return numDocs();
-        }
-
-        public int maxDoc() {
-            return maxDoc;
-        }
-
-        public int getMaxDoc() {
-            return maxDoc();
-        }
-
-        public int deletedDocs() {
-            return deletedDocs;
-        }
-
-        public int getDeletedDocs() {
-            return deletedDocs();
-        }
-    }
 
     private ShardRouting shardRouting;
 
@@ -78,7 +48,7 @@ public class ShardStatus extends BroadcastShardOperationResponse {
 
     long translogOperations = -1;
 
-    Docs docs = Docs.UNKNOWN;
+    DocsStatus docs;
 
     PeerRecoveryStatus peerRecoveryStatus;
 
@@ -94,74 +64,132 @@ public class ShardStatus extends BroadcastShardOperationResponse {
         this.shardRouting = shardRouting;
     }
 
+    /**
+     * The shard routing information (cluster wide shard state).
+     */
     public ShardRouting shardRouting() {
         return this.shardRouting;
     }
 
+    /**
+     * The shard routing information (cluster wide shard state).
+     */
     public ShardRouting getShardRouting() {
         return shardRouting();
     }
 
+    /**
+     * The shard state (index/local state).
+     */
     public IndexShardState state() {
         return state;
     }
 
+    /**
+     * The shard state (index/local state).
+     */
     public IndexShardState getState() {
         return state();
     }
 
+    /**
+     * The current size of the shard index storage.
+     */
     public ByteSizeValue storeSize() {
         return storeSize;
     }
 
+    /**
+     * The current size of the shard index storage.
+     */
     public ByteSizeValue getStoreSize() {
         return storeSize();
     }
 
+    /**
+     * The transaction log id.
+     */
     public long translogId() {
         return translogId;
     }
 
+    /**
+     * The transaction log id.
+     */
     public long getTranslogId() {
         return translogId();
     }
 
+    /**
+     * The number of transaction operations in the transaction log.
+     */
     public long translogOperations() {
         return translogOperations;
     }
 
+    /**
+     * The number of transaction operations in the transaction log.
+     */
     public long getTranslogOperations() {
         return translogOperations();
     }
 
-    public Docs docs() {
+    /**
+     * Docs level information for the shard index, <tt>null</tt> if not applicable.
+     */
+    public DocsStatus docs() {
         return docs;
     }
 
-    public Docs getDocs() {
+    /**
+     * Docs level information for the shard index, <tt>null</tt> if not applicable.
+     */
+    public DocsStatus getDocs() {
         return docs();
     }
 
+    /**
+     * Peer recovery status (<tt>null</tt> if not applicable). Both real time if an on going recovery
+     * is in progress and summary once it is done.
+     */
     public PeerRecoveryStatus peerRecoveryStatus() {
         return peerRecoveryStatus;
     }
 
+    /**
+     * Peer recovery status (<tt>null</tt> if not applicable). Both real time if an on going recovery
+     * is in progress and summary once it done.
+     */
     public PeerRecoveryStatus getPeerRecoveryStatus() {
         return peerRecoveryStatus();
     }
 
+    /**
+     * Gateway recovery status (<tt>null</tt> if not applicable). Both real time if an on going recovery
+     * is in progress adn summary once it is done.
+     */
     public GatewayRecoveryStatus gatewayRecoveryStatus() {
         return gatewayRecoveryStatus;
     }
 
+    /**
+     * Gateway recovery status (<tt>null</tt> if not applicable). Both real time if an on going recovery
+     * is in progress adn summary once it is done.
+     */
     public GatewayRecoveryStatus getGatewayRecoveryStatus() {
         return gatewayRecoveryStatus();
     }
 
+    /**
+     * The current on going snapshot to the gateway or the last one if none is on going.
+     */
     public GatewaySnapshotStatus gatewaySnapshotStatus() {
         return gatewaySnapshotStatus;
     }
 
+    /**
+     * The current on going snapshot to the gateway or the last one if none is on going.
+     */
     public GatewaySnapshotStatus getGatewaySnapshotStatus() {
         return gatewaySnapshotStatus();
     }
@@ -184,7 +212,7 @@ public class ShardStatus extends BroadcastShardOperationResponse {
         }
         out.writeLong(translogId);
         out.writeLong(translogOperations);
-        if (docs == Docs.UNKNOWN) {
+        if (docs == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
@@ -243,7 +271,7 @@ public class ShardStatus extends BroadcastShardOperationResponse {
         translogId = in.readLong();
         translogOperations = in.readLong();
         if (in.readBoolean()) {
-            docs = new Docs();
+            docs = new DocsStatus();
             docs.numDocs = in.readInt();
             docs.maxDoc = in.readInt();
             docs.deletedDocs = in.readInt();

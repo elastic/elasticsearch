@@ -28,24 +28,61 @@ import java.io.IOException;
 import java.io.Serializable;
 
 /**
+ * Shard routing represents the state of a shard instance allocated in the cluster.
+ *
  * @author kimchy (shay.banon)
  */
 public interface ShardRouting extends Streamable, Serializable {
 
+    /**
+     * The shard id.
+     */
+    ShardId shardId();
+
+    /**
+     * The index name.
+     */
     String index();
 
+    /**
+     * The index name.
+     */
     String getIndex();
 
+    /**
+     * The shard id.
+     */
     int id();
 
+    /**
+     * The shard id.
+     */
     int getId();
 
+    /**
+     * The shard state.
+     */
+    ShardRoutingState state();
+
+    /**
+     * The shard is unassigned (not allocated to any node).
+     */
     boolean unassigned();
 
+    /**
+     * The shard is initializing (usually recovering either from peer shard
+     * or from gateway).
+     */
     boolean initializing();
 
+    /**
+     * The shard is in started mode.
+     */
     boolean started();
 
+    /**
+     * The shard is in relocating mode.
+     */
     boolean relocating();
 
     /**
@@ -53,18 +90,29 @@ public interface ShardRouting extends Streamable, Serializable {
      */
     boolean active();
 
+    /**
+     * The shard is assigned to a node.
+     */
     boolean assignedToNode();
 
+    /**
+     * The current node id the shard is allocated to.
+     */
     String currentNodeId();
 
+    /**
+     * The relocating node id the shard is either relocating to or relocating from.
+     */
     String relocatingNodeId();
 
+    /**
+     * Is this a primary shard.
+     */
     boolean primary();
 
-    ShardRoutingState state();
-
-    ShardId shardId();
-
+    /**
+     * A short description of the shard.
+     */
     String shortSummary();
 
     /**

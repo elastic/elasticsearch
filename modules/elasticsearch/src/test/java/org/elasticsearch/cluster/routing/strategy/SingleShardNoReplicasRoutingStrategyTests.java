@@ -49,9 +49,9 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class SingleShardNoBackupsRoutingStrategyTests {
+public class SingleShardNoReplicasRoutingStrategyTests {
 
-    private final ESLogger logger = Loggers.getLogger(SingleShardNoBackupsRoutingStrategyTests.class);
+    private final ESLogger logger = Loggers.getLogger(SingleShardNoReplicasRoutingStrategyTests.class);
 
     @Test public void testSingleIndexStartedShard() {
         ShardsRoutingStrategy strategy = new ShardsRoutingStrategy();

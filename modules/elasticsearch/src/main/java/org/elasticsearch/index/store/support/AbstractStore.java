@@ -179,6 +179,10 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
             synchronized (mutex) {
                 MapBuilder<String, StoreFileMetaData> builder = MapBuilder.newMapBuilder();
                 for (String file : delegate.listAll()) {
+                    if (file.endsWith(".md5")) {
+                        // md5 are files we create, ignore them
+                        continue;
+                    }
                     try {
                         String md5 = preComputedMd5(file);
 
@@ -233,6 +237,10 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
         }
 
         @Override public void deleteFile(String name) throws IOException {
+            if (name.endsWith(".md5")) {
+                // ignore, this should not really happen...
+                return;
+            }
             delegate.deleteFile(name);
             try {
                 delegate.deleteFile(name + ".md5");

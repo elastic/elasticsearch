@@ -385,7 +385,11 @@ public class RecoveryTarget extends AbstractComponent {
             InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
             for (String existingFile : shard.store().directory().listAll()) {
                 if (!request.snapshotFiles().contains(existingFile)) {
-                    shard.store().directory().deleteFile(existingFile);
+                    try {
+                        shard.store().directory().deleteFile(existingFile);
+                    } catch (IOException e) {
+                        // ignore, we don't really care, will get deleted later on
+                    }
                 }
             }
             channel.sendResponse(VoidStreamable.INSTANCE);

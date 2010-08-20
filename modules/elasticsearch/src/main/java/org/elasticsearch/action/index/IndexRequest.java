@@ -413,6 +413,12 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     }
 
     @Override public String toString() {
-        return "[" + index + "][" + type + "][" + id + "], source[" + Unicode.fromBytes(source, sourceOffset, sourceLength) + "]";
+        String sSource = "_na_";
+        try {
+            sSource = Unicode.fromBytes(source, sourceOffset, sourceLength);
+        } catch (Exception e) {
+            // ignore
+        }
+        return "index {[" + index + "][" + type + "][" + id + "], source[" + sSource + "]}";
     }
 }

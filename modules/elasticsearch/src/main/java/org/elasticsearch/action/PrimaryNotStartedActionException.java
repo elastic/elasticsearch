@@ -35,6 +35,6 @@ public class PrimaryNotStartedActionException extends ElasticSearchException {
         if (shardId == null) {
             return message;
         }
-        return "[" + shardId.index() + "][" + shardId.id() + "]" + message;
+        return "[" + shardId.index().name() + "][" + shardId.id() + "] " + message;
     }
 }

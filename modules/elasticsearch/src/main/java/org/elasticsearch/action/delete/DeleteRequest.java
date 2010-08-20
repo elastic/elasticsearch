@@ -167,6 +167,6 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
     }
 
     @Override public String toString() {
-        return "[" + index + "][" + type + "][" + id + "]";
+        return "delete {[" + index + "][" + type + "][" + id + "]}";
     }
 }

@@ -77,6 +77,6 @@ public class ShardReplicationPingRequest extends ShardReplicationOperationReques
     }
 
     @Override public String toString() {
-        return "[" + index + "][" + shardId + "]";
+        return "replication_ping {[" + index + "][" + shardId + "]}";
     }
 }

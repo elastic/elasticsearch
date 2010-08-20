@@ -60,6 +60,6 @@ class ShardGatewaySnapshotRequest extends ShardReplicationOperationRequest {
     }
 
     @Override public String toString() {
-        return "[" + index + "][" + shardId + "]";
+        return "gateway_snapshot {[" + index + "][" + shardId + "]}";
     }
 }

@@ -129,6 +129,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         return this;
     }
 
+    /**
+     * Marks the shard as recovering, fails with exception is recovering is not allowed to be set.
+     */
     public IndexShardState recovering() throws IndexShardStartedException,
             IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
         synchronized (mutex) {

@@ -107,5 +107,12 @@ public class PublishClusterStateAction extends AbstractComponent {
             listener.onNewClusterState(request.clusterState);
             channel.sendResponse(VoidStreamable.INSTANCE);
         }
+
+        /**
+         * No need to spawn, we add submit a new cluster state directly. This allows for faster application.
+         */
+        @Override public boolean spawn() {
+            return false;
+        }
     }
 }

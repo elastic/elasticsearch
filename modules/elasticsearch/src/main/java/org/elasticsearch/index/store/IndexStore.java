@@ -58,11 +58,6 @@ public interface IndexStore extends IndexComponent {
      */
     ByteSizeValue backingStoreFreeSpace();
 
-    /**
-     * Lists all unallocated stores.
-     */
-    StoreFilesMetaData[] listUnallocatedStores() throws IOException;
-
     void deleteUnallocated(ShardId shardId) throws IOException;
 
     /**

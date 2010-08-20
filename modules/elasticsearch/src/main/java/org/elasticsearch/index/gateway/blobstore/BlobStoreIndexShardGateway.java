@@ -597,7 +597,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         }
 
         if (!failures.isEmpty()) {
-            throw new IndexShardGatewayRecoveryException(shardId, "Failed to recovery index", failures.get(0));
+            throw new IndexShardGatewayRecoveryException(shardId, "Failed to recover index", failures.get(0));
         }
 
         // read the gateway data persisted

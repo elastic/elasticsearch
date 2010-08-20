@@ -48,10 +48,6 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
         // do nothing here...
     }
 
-    @Override public StoreFilesMetaData[] listUnallocatedStores() throws IOException {
-        return new StoreFilesMetaData[0];
-    }
-
     @Override public StoreFilesMetaData listStoreMetaData(ShardId shardId) throws IOException {
         InternalIndexShard indexShard = (InternalIndexShard) indexService.shard(shardId.id());
         if (indexShard == null) {

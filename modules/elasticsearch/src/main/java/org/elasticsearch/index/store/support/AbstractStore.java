@@ -98,12 +98,8 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
                     return null;
                 }
                 if (md.md5() == null) {
-                    byte[] md5Bytes = Digest.md5HexToByteArray(md5);
-
                     if (shouldWriteMd5(name)) {
-                        IndexOutput output = directory().createOutput(name + ".md5");
-                        output.writeBytes(md5Bytes, md5Bytes.length);
-                        output.close();
+                        writeMd5File(directory(), name, md5);
                     }
 
                     md = new StoreFileMetaData(md.name(), md.sizeInBytes(), md.sizeInBytes(), md5);
@@ -164,7 +160,14 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
     }
 
     private boolean shouldWriteMd5(String name) {
-        return !name.startsWith("segments");
+        return !name.startsWith("segments") && !name.endsWith(".md5");
+    }
+
+    private void writeMd5File(Directory directory, String file, String md5) throws IOException {
+        byte[] md5Bytes = Digest.md5HexToByteArray(md5);
+        IndexOutput output = directory.createOutput(file + ".md5");
+        output.writeBytes(md5Bytes, md5Bytes.length);
+        output.close();
     }
 
     /**
@@ -188,10 +191,7 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
 
                         if (md5 != null) {
                             if (shouldWriteMd5(file)) {
-                                byte[] md5Bytes = Digest.md5HexToByteArray(md5);
-                                IndexOutput output = delegate.createOutput(file + ".md5");
-                                output.writeBytes(md5Bytes, md5Bytes.length);
-                                output.close();
+                                writeMd5File(delegate, file, md5);
                             }
                         }
 
@@ -328,14 +328,16 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
 
         private final String name;
 
-        private final MessageDigest digest;
-
-        private boolean ignoreDigest = false;
+        private MessageDigest digest;
 
         private StoreIndexOutput(IndexOutput delegate, String name) {
             this.delegate = delegate;
             this.name = name;
-            this.digest = Digest.getMd5Digest();
+            if (shouldWriteMd5(name)) {
+                this.digest = Digest.getMd5Digest();
+            } else {
+                this.digest = Digest.NULL_DIGEST;
+            }
         }
 
         @Override public void close() throws IOException {
@@ -343,14 +345,14 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
             synchronized (mutex) {
                 StoreFileMetaData md = filesMetadata.get(name);
                 String md5 = md == null ? null : md.md5();
-                if (!ignoreDigest) {
-                    md5 = Hex.encodeHexString(digest.digest());
+                byte[] digestBytes = digest.digest();
+                if (digestBytes != null) {
+                    md5 = Hex.encodeHexString(digestBytes);
+                    if (shouldWriteMd5(name)) {
+                        writeMd5File(directory(), name, md5);
+                    }
                 }
-                if (md == null) {
-                    md = new StoreFileMetaData(name, directory().fileLength(name), directory().fileModified(name), md5);
-                } else {
-                    md = new StoreFileMetaData(name, directory().fileLength(name), directory().fileModified(name), md5);
-                }
+                md = new StoreFileMetaData(name, directory().fileLength(name), directory().fileModified(name), md5);
                 filesMetadata = MapBuilder.newMapBuilder(filesMetadata).put(name, md).immutableMap();
                 files = filesMetadata.keySet().toArray(new String[filesMetadata.size()]);
             }
@@ -366,9 +368,10 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
             digest.update(b, offset, length);
         }
 
-        @Override public void copyBytes(IndexInput input, long numBytes) throws IOException {
-            delegate.copyBytes(input, numBytes);
-        }
+        // don't override it, base class method simple reads from input and writes to this output
+//        @Override public void copyBytes(IndexInput input, long numBytes) throws IOException {
+//            delegate.copyBytes(input, numBytes);
+//        }
 
         @Override public void flush() throws IOException {
             delegate.flush();
@@ -381,7 +384,7 @@ public abstract class AbstractStore extends AbstractIndexShardComponent implemen
         @Override public void seek(long pos) throws IOException {
             delegate.seek(pos);
             // once we seek, digest is not applicable
-            ignoreDigest = true;
+            digest = Digest.NULL_DIGEST;
         }
 
         @Override public long length() throws IOException {

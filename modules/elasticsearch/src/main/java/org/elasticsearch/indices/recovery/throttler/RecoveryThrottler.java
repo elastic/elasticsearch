@@ -47,8 +47,14 @@ public class RecoveryThrottler extends AbstractComponent {
     @Inject public RecoveryThrottler(Settings settings) {
         super(settings);
 
-        concurrentRecoveries = componentSettings.getAsInt("concurrent_recoveries", Runtime.getRuntime().availableProcessors());
-        concurrentStreams = componentSettings.getAsInt("concurrent_streams", Runtime.getRuntime().availableProcessors());
+        int defaultConcurrent = Runtime.getRuntime().availableProcessors() + 1;
+        // tap it at 10 (is it a good number?)
+        if (defaultConcurrent > 10) {
+            defaultConcurrent = 10;
+        }
+
+        concurrentRecoveries = componentSettings.getAsInt("concurrent_recoveries", defaultConcurrent);
+        concurrentStreams = componentSettings.getAsInt("concurrent_streams", defaultConcurrent);
         throttleInterval = componentSettings.getAsTime("interval", TimeValue.timeValueMillis(100));
 
         logger.debug("concurrent_recoveries [{}], concurrent_streams [{}] interval [{}]", concurrentRecoveries, concurrentStreams, throttleInterval);

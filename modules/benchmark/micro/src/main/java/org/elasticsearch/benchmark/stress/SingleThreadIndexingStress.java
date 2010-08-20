@@ -65,7 +65,8 @@ public class SingleThreadIndexingStress {
         StopWatch stopWatch = new StopWatch().start();
         int COUNT = 200000;
         System.out.println("Indexing [" + COUNT + "] ...");
-        for (int i = 0; i < COUNT; i++) {
+        int i = 1;
+        for (; i <= COUNT; i++) {
             client1.index(
                     indexRequest("test")
                             .type("type1")
@@ -74,11 +75,10 @@ public class SingleThreadIndexingStress {
                             .opType(IndexRequest.OpType.INDEX)
             ).actionGet();
             if ((i % 10000) == 0) {
-                System.out.println("Indexed 10000, total " + (i + 10000) + " took " + stopWatch.stop().lastTaskTime());
+                System.out.println("Indexed " + i + " took " + stopWatch.stop().lastTaskTime());
                 stopWatch.start();
             }
         }
-        stopWatch.stop();
         System.out.println("Indexing took " + stopWatch.totalTime() + ", TPS " + (((double) COUNT) / stopWatch.totalTime().secondsFrac()));
 
         client.close();

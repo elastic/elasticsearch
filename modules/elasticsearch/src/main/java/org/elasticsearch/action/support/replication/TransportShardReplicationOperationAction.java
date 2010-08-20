@@ -316,7 +316,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
             // we should never get here, but here we go
             if (!foundPrimary) {
-                final PrimaryNotStartedActionException failure = new PrimaryNotStartedActionException(shards.shardId(), "Primary not found");
+                final PrimaryNotStartedActionException failure = new PrimaryNotStartedActionException(shards.shardId(), request.toString());
                 if (request.listenerThreaded()) {
                     threadPool.execute(new Runnable() {
                         @Override public void run() {
@@ -361,7 +361,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                             return;
                         }
                         clusterService.remove(this);
-                        final PrimaryNotStartedActionException failure = new PrimaryNotStartedActionException(shardId, "Timeout waiting for [" + timeValue + "]");
+                        final PrimaryNotStartedActionException failure = new PrimaryNotStartedActionException(shardId, "Timeout waiting for [" + timeValue + "], request: " + request.toString());
                         if (request.listenerThreaded()) {
                             threadPool.execute(new Runnable() {
                                 @Override public void run() {

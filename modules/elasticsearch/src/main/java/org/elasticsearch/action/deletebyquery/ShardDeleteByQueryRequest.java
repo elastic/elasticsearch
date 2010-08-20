@@ -120,6 +120,12 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest 
     }
 
     @Override public String toString() {
-        return "[" + index + "]" + Arrays.toString(types) + ", query [" + Unicode.fromBytes(querySource) + "]";
+        String sSource = "_na_";
+        try {
+            sSource = Unicode.fromBytes(querySource);
+        } catch (Exception e) {
+            // ignore
+        }
+        return "delete_by_query {[" + index + "]" + Arrays.toString(types) + ", query [" + sSource + "]}";
     }
 }

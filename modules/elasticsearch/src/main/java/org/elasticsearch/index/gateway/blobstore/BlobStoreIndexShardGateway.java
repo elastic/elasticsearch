@@ -645,6 +645,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         }
         if (!blobs.containsKey(firstFileToRecover)) {
             // no file, what to do, what to do?
+            recoveryThrottler.streamDone(shardId, fileToRecover.name());
             logger.warn("no file [{}] to recover, even though it has md5, ignoring it", fileToRecover.name());
             latch.countDown();
             return;

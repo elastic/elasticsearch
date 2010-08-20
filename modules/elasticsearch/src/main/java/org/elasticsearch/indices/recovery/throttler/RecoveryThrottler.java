@@ -51,6 +51,8 @@ public class RecoveryThrottler extends AbstractComponent {
         // tap it at 10 (is it a good number?)
         if (defaultConcurrent > 10) {
             defaultConcurrent = 10;
+        } else if (defaultConcurrent < 3) {
+            defaultConcurrent = 3;
         }
 
         concurrentRecoveries = componentSettings.getAsInt("concurrent_recoveries", defaultConcurrent);

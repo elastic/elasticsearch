@@ -160,7 +160,7 @@ public class PeerRecoveryStatus {
 
     public int indexRecoveryProgress() {
         if (recoveredIndexSize == 0) {
-            if (indexSize == reusedIndexSize) {
+            if (indexSize != 0 && indexSize == reusedIndexSize) {
                 return 100;
             }
             return 0;

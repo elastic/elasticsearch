@@ -43,7 +43,7 @@ public class Directories {
     /**
      * Deletes all the files from a directory.
      *
-     * @param directory The directoy to delete all the files from
+     * @param directory The directory to delete all the files from
      * @throws IOException if an exception occurs during the delete process
      */
     public static void deleteFiles(Directory directory) throws IOException {
@@ -52,6 +52,8 @@ public class Directories {
         for (String file : files) {
             try {
                 directory.deleteFile(file);
+            } catch (FileNotFoundException e) {
+                // ignore
             } catch (IOException e) {
                 lastException = e;
             }

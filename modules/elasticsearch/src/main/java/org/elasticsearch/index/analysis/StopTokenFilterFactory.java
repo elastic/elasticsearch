@@ -22,8 +22,6 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.StopAnalyzer;
 import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -37,7 +35,7 @@ import java.util.Set;
  */
 public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private final Set<String> stopWords;
+    private final Set<?> stopWords;
 
     private final boolean enablePositionIncrements;
 
@@ -45,12 +43,7 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Inject public StopTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name);
-        String[] stopWords = settings.getAsArray("stopwords", null);
-        if (stopWords != null) {
-            this.stopWords = ImmutableSet.copyOf(Iterators.forArray(stopWords));
-        } else {
-            this.stopWords = ImmutableSet.copyOf((Iterable<? extends String>) StopAnalyzer.ENGLISH_STOP_WORDS_SET);
-        }
+        this.stopWords = Analysis.parseStopWords(settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
         this.enablePositionIncrements = settings.getAsBoolean("enable_position_increments", true);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
     }
@@ -59,7 +52,7 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
         return new StopFilter(enablePositionIncrements, tokenStream, stopWords, ignoreCase);
     }
 
-    public Set<String> stopWords() {
+    public Set<?> stopWords() {
         return stopWords;
     }
 

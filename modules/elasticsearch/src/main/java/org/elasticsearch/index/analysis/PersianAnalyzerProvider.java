@@ -20,8 +20,6 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.fa.PersianAnalyzer;
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.lucene.Lucene;
@@ -36,20 +34,13 @@ import java.util.Set;
  */
 public class PersianAnalyzerProvider extends AbstractIndexAnalyzerProvider<PersianAnalyzer> {
 
-    private final Set<?> stopWords;
-
     private final PersianAnalyzer analyzer;
 
     @Inject public PersianAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name);
-        String[] stopWords = settings.getAsArray("stopwords", null);
-        if (stopWords != null) {
-            this.stopWords = ImmutableSet.copyOf(Iterators.forArray(stopWords));
-        } else {
-            this.stopWords = PersianAnalyzer.getDefaultStopSet();
-        }
+        Set<?> stopWords = Analysis.parseStopWords(settings, PersianAnalyzer.getDefaultStopSet());
 
-        analyzer = new PersianAnalyzer(Lucene.ANALYZER_VERSION, this.stopWords);
+        analyzer = new PersianAnalyzer(Lucene.ANALYZER_VERSION, stopWords);
     }
 
     @Override public PersianAnalyzer get() {

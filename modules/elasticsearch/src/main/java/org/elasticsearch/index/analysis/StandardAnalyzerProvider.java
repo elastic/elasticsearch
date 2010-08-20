@@ -21,8 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.StopAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.lucene.Lucene;
@@ -33,26 +31,17 @@ import org.elasticsearch.index.settings.IndexSettings;
 import java.util.Set;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class StandardAnalyzerProvider extends AbstractIndexAnalyzerProvider<StandardAnalyzer> {
-
-    private final Set<String> stopWords;
-
-    private final int maxTokenLength;
 
     private final StandardAnalyzer standardAnalyzer;
 
     @Inject public StandardAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name);
-        String[] stopWords = settings.getAsArray("stopwords", null);
-        if (stopWords != null) {
-            this.stopWords = ImmutableSet.copyOf(Iterators.forArray(stopWords));
-        } else {
-            this.stopWords = ImmutableSet.copyOf((Iterable<? extends String>) StopAnalyzer.ENGLISH_STOP_WORDS_SET);
-        }
-        maxTokenLength = settings.getAsInt("max_token_length", StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
-        standardAnalyzer = new StandardAnalyzer(Lucene.ANALYZER_VERSION, this.stopWords);
+        Set<?> stopWords = Analysis.parseStopWords(settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
+        int maxTokenLength = settings.getAsInt("max_token_length", StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
+        standardAnalyzer = new StandardAnalyzer(Lucene.ANALYZER_VERSION, stopWords);
         standardAnalyzer.setMaxTokenLength(maxTokenLength);
     }
 

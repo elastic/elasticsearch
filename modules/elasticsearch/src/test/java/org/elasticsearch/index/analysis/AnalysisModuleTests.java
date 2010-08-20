@@ -66,7 +66,7 @@ public class AnalysisModuleTests {
 
         StopTokenFilterFactory stop1 = (StopTokenFilterFactory) custom1.tokenFilters()[0];
         assertThat(stop1.stopWords().size(), equalTo(1));
-        assertThat(stop1.stopWords(), hasItem("test-stop"));
+        assertThat((Iterable<String>) stop1.stopWords(), hasItem("test-stop"));
 
         analyzer = analysisService.analyzer("custom2").analyzer();
         assertThat(analyzer, instanceOf(CustomAnalyzer.class));

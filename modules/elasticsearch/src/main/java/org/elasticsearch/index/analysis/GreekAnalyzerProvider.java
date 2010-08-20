@@ -20,8 +20,6 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.el.GreekAnalyzer;
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.lucene.Lucene;
@@ -36,20 +34,13 @@ import java.util.Set;
  */
 public class GreekAnalyzerProvider extends AbstractIndexAnalyzerProvider<GreekAnalyzer> {
 
-    private final Set<?> stopWords;
-
     private final GreekAnalyzer analyzer;
 
     @Inject public GreekAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name);
-        String[] stopWords = settings.getAsArray("stopwords", null);
-        if (stopWords != null) {
-            this.stopWords = ImmutableSet.copyOf(Iterators.forArray(stopWords));
-        } else {
-            this.stopWords = GreekAnalyzer.getDefaultStopSet();
-        }
+        Set<?> stopWords = Analysis.parseStopWords(settings, GreekAnalyzer.getDefaultStopSet());
 
-        analyzer = new GreekAnalyzer(Lucene.ANALYZER_VERSION, this.stopWords);
+        analyzer = new GreekAnalyzer(Lucene.ANALYZER_VERSION, stopWords);
     }
 
     @Override public GreekAnalyzer get() {

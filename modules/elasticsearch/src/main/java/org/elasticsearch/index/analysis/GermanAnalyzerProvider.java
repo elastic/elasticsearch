@@ -36,20 +36,13 @@ import java.util.Set;
  */
 public class GermanAnalyzerProvider extends AbstractIndexAnalyzerProvider<GermanAnalyzer> {
 
-    private final Set<?> stopWords;
-
     private final Set<?> stemExclusion;
 
     private final GermanAnalyzer analyzer;
 
     @Inject public GermanAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name);
-        String[] stopWords = settings.getAsArray("stopwords", null);
-        if (stopWords != null) {
-            this.stopWords = ImmutableSet.copyOf(Iterators.forArray(stopWords));
-        } else {
-            this.stopWords = GermanAnalyzer.getDefaultStopSet();
-        }
+        Set<?> stopWords = Analysis.parseStopWords(settings, GermanAnalyzer.getDefaultStopSet());
 
         String[] stemExclusion = settings.getAsArray("stem_exclusion");
         if (stemExclusion.length > 0) {
@@ -57,7 +50,7 @@ public class GermanAnalyzerProvider extends AbstractIndexAnalyzerProvider<German
         } else {
             this.stemExclusion = ImmutableSet.of();
         }
-        analyzer = new GermanAnalyzer(Lucene.ANALYZER_VERSION, this.stopWords, this.stemExclusion);
+        analyzer = new GermanAnalyzer(Lucene.ANALYZER_VERSION, stopWords, this.stemExclusion);
     }
 
     @Override public GermanAnalyzer get() {

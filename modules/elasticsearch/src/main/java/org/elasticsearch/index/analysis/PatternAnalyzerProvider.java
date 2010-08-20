@@ -22,8 +22,6 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.StopAnalyzer;
 import org.apache.lucene.analysis.miscellaneous.PatternAnalyzer;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.lucene.Lucene;
@@ -40,8 +38,6 @@ import java.util.regex.Pattern;
  */
 public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<PatternAnalyzer> {
 
-    private final Set<String> stopWords;
-
     private final PatternAnalyzer analyzer;
 
     @Inject public PatternAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
@@ -49,12 +45,7 @@ public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Patte
 
         boolean lowercase = settings.getAsBoolean("lowercase", true);
 
-        String[] stopWords = settings.getAsArray("stopwords", null);
-        if (stopWords != null) {
-            this.stopWords = ImmutableSet.copyOf(Iterators.forArray(stopWords));
-        } else {
-            this.stopWords = ImmutableSet.copyOf((Iterable<? extends String>) StopAnalyzer.ENGLISH_STOP_WORDS_SET);
-        }
+        Set<?> stopWords = Analysis.parseStopWords(settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
 
         String sPattern = settings.get("pattern", "\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/);
         if (sPattern == null) {
@@ -62,7 +53,7 @@ public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Patte
         }
         Pattern pattern = Regex.compile(sPattern, settings.get("flags"));
 
-        analyzer = new PatternAnalyzer(Lucene.ANALYZER_VERSION, pattern, lowercase, this.stopWords);
+        analyzer = new PatternAnalyzer(Lucene.ANALYZER_VERSION, pattern, lowercase, stopWords);
     }
 
     @Override public PatternAnalyzer get() {

@@ -8,7 +8,7 @@ h3. Breaking Changes
 
 h3. Features
 
-* Streamline single value with boost queries: Allow for both value and query name to specify the query value (#192).
+* Streamline single value with boost queries: Allow for both value and query name to specify the query value ("#192":http://github.com/elasticsearch/elasticsearch/issues/192).
 
 h3. Bug Fixes
 

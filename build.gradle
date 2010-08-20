@@ -18,11 +18,17 @@ explodedDistLibDir = new File(explodedDistDir, 'lib')
 explodedDistBinDir = new File(explodedDistDir, 'bin')
 explodedDistConfigDir = new File(explodedDistDir, 'config')
 
-//mavenRepoUrl = "file://localhost/" + projectDir.absolutePath + "/build/maven/repository"
-//mavenSnapshotRepoUrl = "file://localhost/" + projectDir.absolutePath + "/build/maven/snapshotRepository"
-mavenRepoUrl = "http://oss.sonatype.org/service/local/staging/deploy/maven2/"
-mavenSnapshotRepoUrl = "http://oss.sonatype.org/content/repositories/snapshots"
-mavenRepoUser = "kimchy"
+mavenRepoUrl = System.getenv("REPO_URL");
+if (mavenRepoUrl == null) {
+//    mavenRepoUrl = "file://localhost/" + projectDir.absolutePath + "/build/maven/repository"
+    mavenRepoUrl = "http://oss.sonatype.org/service/local/staging/deploy/maven2/"
+}
+mavenSnapshotRepoUrl = System.getenv("SNAPSHOT_REPO_URL");
+if (mavenSnapshotRepoUrl == null) {
+//    mavenSnapshotRepoUrl = "file://localhost/" + projectDir.absolutePath + "/build/maven/snapshotRepository"
+    mavenSnapshotRepoUrl = "http://oss.sonatype.org/content/repositories/snapshots"
+}
+mavenRepoUser = System.getenv("REPO_USER")
 mavenRepoPass = System.getenv("REPO_PASS")
 
 jarjarArchivePath = project(":jarjar").file("build/libs/jarjar-$versionNumber" + ".jar").absolutePath

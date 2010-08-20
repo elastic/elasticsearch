@@ -143,10 +143,10 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
 
         threadPool.cached().execute(new Runnable() {
             @Override public void run() {
+                indexShard.recovering();
 
                 recoveryStatus = new RecoveryStatus();
                 recoveryStatus.updateStage(RecoveryStatus.Stage.INIT);
-                indexShard.recovering();
 
                 // we know we are on a thread, we can spin till we can engage in recovery
                 while (!recoveryThrottler.tryRecovery(shardId, "gateway")) {

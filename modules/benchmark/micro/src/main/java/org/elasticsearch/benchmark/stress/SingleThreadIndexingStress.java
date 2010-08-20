@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.benchmark.monitor.memory;
+package org.elasticsearch.benchmark.stress;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
@@ -39,7 +39,7 @@ import static org.elasticsearch.node.NodeBuilder.*;
 /**
  * @author kimchy (Shay Banon)
  */
-public class SimpleMemoryMonitorBenchmark {
+public class SingleThreadIndexingStress {
 
     public static void main(String[] args) throws Exception {
         Random random = new Random();

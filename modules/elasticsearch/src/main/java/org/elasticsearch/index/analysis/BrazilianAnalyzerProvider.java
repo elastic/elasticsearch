@@ -36,28 +36,20 @@ import java.util.Set;
  */
 public class BrazilianAnalyzerProvider extends AbstractIndexAnalyzerProvider<BrazilianAnalyzer> {
 
-    private final Set<?> stopWords;
-
     private final Set<?> stemExclusion;
 
     private final BrazilianAnalyzer analyzer;
 
     @Inject public BrazilianAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name);
-        String[] stopWords = settings.getAsArray("stopwords", null);
-        if (stopWords != null) {
-            this.stopWords = ImmutableSet.copyOf(Iterators.forArray(stopWords));
-        } else {
-            this.stopWords = BrazilianAnalyzer.getDefaultStopSet();
-        }
-
+        Set<?> stopWords = Analysis.parseStopWords(settings, BrazilianAnalyzer.getDefaultStopSet());
         String[] stemExclusion = settings.getAsArray("stem_exclusion");
         if (stemExclusion.length > 0) {
             this.stemExclusion = ImmutableSet.copyOf(Iterators.forArray(stemExclusion));
         } else {
             this.stemExclusion = ImmutableSet.of();
         }
-        analyzer = new BrazilianAnalyzer(Lucene.ANALYZER_VERSION, this.stopWords, this.stemExclusion);
+        analyzer = new BrazilianAnalyzer(Lucene.ANALYZER_VERSION, stopWords, this.stemExclusion);
     }
 
     @Override public BrazilianAnalyzer get() {

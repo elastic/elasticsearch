@@ -36,20 +36,13 @@ import java.util.Set;
  */
 public class FrenchAnalyzerProvider extends AbstractIndexAnalyzerProvider<FrenchAnalyzer> {
 
-    private final Set<?> stopWords;
-
     private final Set<?> stemExclusion;
 
     private final FrenchAnalyzer analyzer;
 
     @Inject public FrenchAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name);
-        String[] stopWords = settings.getAsArray("stopwords", null);
-        if (stopWords != null) {
-            this.stopWords = ImmutableSet.copyOf(Iterators.forArray(stopWords));
-        } else {
-            this.stopWords = FrenchAnalyzer.getDefaultStopSet();
-        }
+        Set<?> stopWords = Analysis.parseStopWords(settings, FrenchAnalyzer.getDefaultStopSet());
 
         String[] stemExclusion = settings.getAsArray("stem_exclusion");
         if (stemExclusion.length > 0) {
@@ -57,7 +50,7 @@ public class FrenchAnalyzerProvider extends AbstractIndexAnalyzerProvider<French
         } else {
             this.stemExclusion = ImmutableSet.of();
         }
-        analyzer = new FrenchAnalyzer(Lucene.ANALYZER_VERSION, this.stopWords, this.stemExclusion);
+        analyzer = new FrenchAnalyzer(Lucene.ANALYZER_VERSION, stopWords, this.stemExclusion);
     }
 
     @Override public FrenchAnalyzer get() {

@@ -20,8 +20,6 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.cz.CzechAnalyzer;
-import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.lucene.Lucene;
@@ -36,20 +34,13 @@ import java.util.Set;
  */
 public class CzechAnalyzerProvider extends AbstractIndexAnalyzerProvider<CzechAnalyzer> {
 
-    private final Set<?> stopWords;
-
     private final CzechAnalyzer analyzer;
 
     @Inject public CzechAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name);
-        String[] stopWords = settings.getAsArray("stopwords", null);
-        if (stopWords != null) {
-            this.stopWords = ImmutableSet.copyOf(Iterators.forArray(stopWords));
-        } else {
-            this.stopWords = CzechAnalyzer.getDefaultStopSet();
-        }
+        Set<?> stopWords = Analysis.parseStopWords(settings, CzechAnalyzer.getDefaultStopSet());
 
-        analyzer = new CzechAnalyzer(Lucene.ANALYZER_VERSION, this.stopWords);
+        analyzer = new CzechAnalyzer(Lucene.ANALYZER_VERSION, stopWords);
     }
 
     @Override public CzechAnalyzer get() {

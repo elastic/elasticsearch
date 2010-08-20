@@ -36,20 +36,13 @@ import java.util.Set;
  */
 public class DutchAnalyzerProvider extends AbstractIndexAnalyzerProvider<DutchAnalyzer> {
 
-    private final Set<?> stopWords;
-
     private final Set<?> stemExclusion;
 
     private final DutchAnalyzer analyzer;
 
     @Inject public DutchAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name);
-        String[] stopWords = settings.getAsArray("stopwords", null);
-        if (stopWords != null) {
-            this.stopWords = ImmutableSet.copyOf(Iterators.forArray(stopWords));
-        } else {
-            this.stopWords = DutchAnalyzer.getDefaultStopSet();
-        }
+        Set<?> stopWords = Analysis.parseStopWords(settings, DutchAnalyzer.getDefaultStopSet());
 
         String[] stemExclusion = settings.getAsArray("stem_exclusion");
         if (stemExclusion.length > 0) {
@@ -57,7 +50,7 @@ public class DutchAnalyzerProvider extends AbstractIndexAnalyzerProvider<DutchAn
         } else {
             this.stemExclusion = ImmutableSet.of();
         }
-        analyzer = new DutchAnalyzer(Lucene.VERSION, this.stopWords, this.stemExclusion);
+        analyzer = new DutchAnalyzer(Lucene.VERSION, stopWords, this.stemExclusion);
     }
 
     @Override public DutchAnalyzer get() {

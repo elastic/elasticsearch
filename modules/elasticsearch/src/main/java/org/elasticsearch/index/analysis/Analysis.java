@@ -19,30 +19,32 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.StopAnalyzer;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
-import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.util.Set;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class StopAnalyzerProvider extends AbstractIndexAnalyzerProvider<StopAnalyzer> {
+public class Analysis {
 
-    private final StopAnalyzer stopAnalyzer;
-
-    @Inject public StopAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
-        Set<?> stopWords = Analysis.parseStopWords(settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
-        this.stopAnalyzer = new StopAnalyzer(Lucene.ANALYZER_VERSION, stopWords);
+    public static boolean isNoStopwords(Settings settings) {
+        String value = settings.get("stopwords");
+        return value != null && "_none_".equals(value);
     }
 
-    @Override public StopAnalyzer get() {
-        return this.stopAnalyzer;
+    public static Set<?> parseStopWords(Settings settings, Set<?> defaultStopWords) {
+        String value = settings.get("stopwords");
+        if (value != null && "_none_".equals(value)) {
+            return ImmutableSet.of();
+        }
+        String[] stopWords = settings.getAsArray("stopwords", null);
+        if (stopWords != null) {
+            return ImmutableSet.copyOf(Iterators.forArray(stopWords));
+        } else {
+            return defaultStopWords;
+        }
     }
 }

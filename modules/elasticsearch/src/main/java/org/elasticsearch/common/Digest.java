@@ -531,4 +531,26 @@ public class Digest {
     public static String shaHex(String data) {
         return Hex.encodeHexString(sha(data));
     }
+
+    public static final NullDigest NULL_DIGEST = new NullDigest("null");
+
+    private static final class NullDigest extends MessageDigest {
+
+        private NullDigest(String algorithm) {
+            super(algorithm);
+        }
+
+        @Override protected void engineUpdate(byte input) {
+        }
+
+        @Override protected void engineUpdate(byte[] input, int offset, int len) {
+        }
+
+        @Override protected byte[] engineDigest() {
+            return null;
+        }
+
+        @Override protected void engineReset() {
+        }
+    }
 }

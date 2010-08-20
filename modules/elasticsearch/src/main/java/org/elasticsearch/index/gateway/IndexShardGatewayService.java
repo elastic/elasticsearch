@@ -197,6 +197,11 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                     listener.onRecoveryDone();
                     scheduleSnapshotIfNeeded();
                 } catch (IndexShardGatewayRecoveryException e) {
+                    if (indexShard.state() == IndexShardState.CLOSED) {
+                        // got closed on us, just ignore this recovery
+                        listener.onIgnoreRecovery("shard closed");
+                        return;
+                    }
                     if ((e.getCause() instanceof IndexShardClosedException) || (e.getCause() instanceof IndexShardNotStartedException)) {
                         // got closed on us, just ignore this recovery
                         listener.onIgnoreRecovery("shard closed");

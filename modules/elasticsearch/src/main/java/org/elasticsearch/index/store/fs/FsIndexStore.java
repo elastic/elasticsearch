@@ -22,7 +22,6 @@ package org.elasticsearch.index.store.fs;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Digest;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
@@ -40,7 +39,6 @@ import org.elasticsearch.index.store.support.AbstractIndexStore;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
@@ -95,25 +93,8 @@ public abstract class FsIndexStore extends AbstractIndexStore {
         if (indexService.hasShard(shardId.id())) {
             throw new ElasticSearchIllegalStateException(shardId + " allocated, can't be deleted");
         }
+        cachedUnallocatedMd5s.remove(shardId);
         FileSystemUtils.deleteRecursively(shardLocation(shardId));
-    }
-
-    @Override public StoreFilesMetaData[] listUnallocatedStores() throws IOException {
-        if (location == null) {
-            return new StoreFilesMetaData[0];
-        }
-        File[] shardLocations = location.listFiles();
-        if (shardLocations == null || shardLocations.length == 0) {
-            return new StoreFilesMetaData[0];
-        }
-        List<StoreFilesMetaData> shards = Lists.newArrayList();
-        for (File shardLocation : shardLocations) {
-            int shardId = Integer.parseInt(shardLocation.getName());
-            if (!indexService.hasShard(shardId)) {
-                shards.add(listUnallocatedStoreMetaData(new ShardId(index, shardId)));
-            }
-        }
-        return shards.toArray(new StoreFilesMetaData[shards.size()]);
     }
 
     @Override protected StoreFilesMetaData listUnallocatedStoreMetaData(ShardId shardId) throws IOException {

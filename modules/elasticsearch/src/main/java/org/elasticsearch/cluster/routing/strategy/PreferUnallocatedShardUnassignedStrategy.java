@@ -107,7 +107,7 @@ public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent 
 
             if (!shard.primary()) {
                 // if its a backup, only allocate it if the primary is active
-                MutableShardRouting primary = routingNodes.findPrimaryForBackup(shard);
+                MutableShardRouting primary = routingNodes.findPrimaryForReplica(shard);
                 if (primary == null || !primary.active()) {
                     continue;
                 }
@@ -209,7 +209,7 @@ public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent 
                 // if its backup, see if there is a primary that *is* allocated, and try and assign a location that is closest to it
                 // note, since we replicate operations, this might not be the same (different flush intervals)
                 if (!shard.primary()) {
-                    MutableShardRouting primaryShard = routingNodes.findPrimaryForBackup(shard);
+                    MutableShardRouting primaryShard = routingNodes.findPrimaryForReplica(shard);
                     if (primaryShard != null && primaryShard.active()) {
                         TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData primaryNodeStoreFileMetaData = nodesStoreFilesMetaData.nodesMap().get(primaryShard.currentNodeId());
                         if (primaryNodeStoreFileMetaData != null && primaryNodeStoreFileMetaData.storeFilesMetaData() != null && primaryNodeStoreFileMetaData.storeFilesMetaData().allocated()) {

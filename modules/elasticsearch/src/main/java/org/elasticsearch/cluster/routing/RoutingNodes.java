@@ -126,7 +126,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return nodesToShards.get(nodeId);
     }
 
-    public MutableShardRouting findPrimaryForBackup(MutableShardRouting shard) {
+    public MutableShardRouting findPrimaryForReplica(MutableShardRouting shard) {
         assert !shard.primary();
         for (RoutingNode routingNode : nodesToShards.values()) {
             for (MutableShardRouting shardRouting : routingNode) {
@@ -136,6 +136,27 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             }
         }
         return null;
+    }
+
+    public List<MutableShardRouting> shardsRoutingFor(ShardRouting shardRouting) {
+        return shardsRoutingFor(shardRouting.index(), shardRouting.id());
+    }
+
+    public List<MutableShardRouting> shardsRoutingFor(String index, int shardId) {
+        List<MutableShardRouting> shards = newArrayList();
+        for (RoutingNode routingNode : this) {
+            for (MutableShardRouting shardRouting : routingNode) {
+                if (shardRouting.index().equals(index) && shardRouting.id() == shardId) {
+                    shards.add(shardRouting);
+                }
+            }
+        }
+        for (MutableShardRouting shardRouting : unassigned) {
+            if (shardRouting.index().equals(index) && shardRouting.id() == shardId) {
+                shards.add(shardRouting);
+            }
+        }
+        return shards;
     }
 
     public int numberOfShardsOfType(ShardRoutingState state) {

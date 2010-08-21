@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.collect.Lists.*;
 import static org.elasticsearch.common.collect.Maps.*;
 
 /**
@@ -88,6 +89,14 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
             indexRoutingTable.validate(validation, metaData);
         }
         return validation;
+    }
+
+    public List<ShardRouting> shardsWithState(ShardRoutingState... states) {
+        List<ShardRouting> shards = newArrayList();
+        for (IndexRoutingTable indexRoutingTable : this) {
+            shards.addAll(indexRoutingTable.shardsWithState(states));
+        }
+        return shards;
     }
 
     /**

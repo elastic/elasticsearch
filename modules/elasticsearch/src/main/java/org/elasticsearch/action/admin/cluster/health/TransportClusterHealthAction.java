@@ -187,6 +187,10 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
                         if (shardRouting.primary()) {
                             shardHealth.primaryActive = true;
                         }
+                    } else if (shardRouting.initializing()) {
+                        shardHealth.initializingShards++;
+                    } else if (shardRouting.unassigned()) {
+                        shardHealth.unassignedShards++;
                     }
                 }
                 if (shardHealth.primaryActive) {
@@ -207,6 +211,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
                 }
                 indexHealth.activeShards += shardHealth.activeShards;
                 indexHealth.relocatingShards += shardHealth.relocatingShards;
+                indexHealth.initializingShards += shardHealth.initializingShards;
+                indexHealth.unassignedShards += shardHealth.unassignedShards;
             }
             // update the index status
             indexHealth.status = ClusterHealthStatus.GREEN;
@@ -231,6 +237,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
             response.activePrimaryShards += indexHealth.activePrimaryShards;
             response.activeShards += indexHealth.activeShards;
             response.relocatingShards += indexHealth.relocatingShards;
+            response.initializingShards += indexHealth.initializingShards;
+            response.unassignedShards += indexHealth.unassignedShards;
         }
 
         response.status = ClusterHealthStatus.GREEN;

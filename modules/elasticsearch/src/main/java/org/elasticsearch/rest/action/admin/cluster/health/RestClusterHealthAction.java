@@ -90,6 +90,8 @@ public class RestClusterHealthAction extends BaseRestHandler {
                     builder.field("active_primary_shards", response.activePrimaryShards());
                     builder.field("active_shards", response.activeShards());
                     builder.field("relocating_shards", response.relocatingShards());
+                    builder.field("initializing_shards", response.initializingShards());
+                    builder.field("unassigned_shards", response.unassignedShards());
 
                     if (!response.validationFailures().isEmpty()) {
                         builder.startArray("validation_failures");
@@ -127,6 +129,8 @@ public class RestClusterHealthAction extends BaseRestHandler {
                             builder.field("active_primary_shards", indexHealth.activePrimaryShards());
                             builder.field("active_shards", indexHealth.activeShards());
                             builder.field("relocating_shards", indexHealth.relocatingShards());
+                            builder.field("initializing_shards", indexHealth.initializingShards());
+                            builder.field("unassigned_shards", indexHealth.unassignedShards());
 
                             if (!indexHealth.validationFailures().isEmpty()) {
                                 builder.startArray("validation_failures");
@@ -146,6 +150,8 @@ public class RestClusterHealthAction extends BaseRestHandler {
                                     builder.field("primary_active", shardHealth.primaryActive());
                                     builder.field("active_shards", shardHealth.activeShards());
                                     builder.field("relocating_shards", shardHealth.relocatingShards());
+                                    builder.field("initializing_shards", shardHealth.initializingShards());
+                                    builder.field("unassigned_shards", shardHealth.unassignedShards());
 
                                     builder.endObject();
                                 }

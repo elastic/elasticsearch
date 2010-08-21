@@ -38,6 +38,10 @@ public class ClusterShardHealth implements Streamable {
 
     int relocatingShards = 0;
 
+    int initializingShards = 0;
+
+    int unassignedShards = 0;
+
     boolean primaryActive = false;
 
     private ClusterShardHealth() {
@@ -88,6 +92,22 @@ public class ClusterShardHealth implements Streamable {
         return primaryActive();
     }
 
+    public int initializingShards() {
+        return initializingShards;
+    }
+
+    public int getInitializingShards() {
+        return initializingShards();
+    }
+
+    public int unassignedShards() {
+        return unassignedShards;
+    }
+
+    public int getUnassignedShards() {
+        return unassignedShards();
+    }
+
     static ClusterShardHealth readClusterShardHealth(StreamInput in) throws IOException {
         ClusterShardHealth ret = new ClusterShardHealth();
         ret.readFrom(in);
@@ -99,6 +119,8 @@ public class ClusterShardHealth implements Streamable {
         status = ClusterHealthStatus.fromValue(in.readByte());
         activeShards = in.readVInt();
         relocatingShards = in.readVInt();
+        initializingShards = in.readVInt();
+        unassignedShards = in.readVInt();
         primaryActive = in.readBoolean();
     }
 
@@ -107,6 +129,8 @@ public class ClusterShardHealth implements Streamable {
         out.writeByte(status.value());
         out.writeVInt(activeShards);
         out.writeVInt(relocatingShards);
+        out.writeVInt(initializingShards);
+        out.writeVInt(unassignedShards);
         out.writeBoolean(primaryActive);
     }
 }

@@ -52,12 +52,15 @@ public class NodeAllocations extends AbstractComponent implements NodeAllocation
     }
 
     @Override public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingNodes routingNodes) {
+        Decision ret = Decision.YES;
         for (NodeAllocation allocation : allocations) {
             Decision decision = allocation.canAllocate(shardRouting, node, routingNodes);
-            if (decision == Decision.DISALLOWED) {
-                return Decision.DISALLOWED;
+            if (decision == Decision.NO) {
+                return Decision.NO;
+            } else if (decision == Decision.THROTTLE) {
+                ret = Decision.THROTTLE;
             }
         }
-        return Decision.ALLOWED;
+        return ret;
     }
 }

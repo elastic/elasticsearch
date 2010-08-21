@@ -149,7 +149,7 @@ public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent 
                 }
 
                 // check if we can allocate on that node...
-                if (!(node.canAllocate(routingNodes.metaData(), routingNodes.routingTable()) && node.canAllocate(shard))) {
+                if (!(node.canAllocate(routingNodes) && node.canAllocate(shard))) {
                     continue;
                 }
                 // if it is already allocated, we can't assign to it...

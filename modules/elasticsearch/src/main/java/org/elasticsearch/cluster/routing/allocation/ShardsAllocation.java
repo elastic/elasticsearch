@@ -239,14 +239,6 @@ public class ShardsAllocation extends AbstractComponent {
 
         while (unassignedIterator.hasNext()) {
             MutableShardRouting shard = unassignedIterator.next();
-            // if its a replica, only allocate it if the primary is active
-            if (!shard.primary()) {
-                MutableShardRouting primary = routingNodes.findPrimaryForReplica(shard);
-                if (primary == null || !primary.active()) {
-                    continue;
-                }
-            }
-
             // do the allocation, finding the least "busy" node
             for (int i = 0; i < nodes.size(); i++) {
                 RoutingNode node = nodes.get(lastNode);
@@ -272,13 +264,6 @@ public class ShardsAllocation extends AbstractComponent {
         // allocate all the unassigned shards above the average per node.
         for (Iterator<MutableShardRouting> it = routingNodes.unassigned().iterator(); it.hasNext();) {
             MutableShardRouting shard = it.next();
-            // if its a backup, only allocate it if the primary is active
-            if (!shard.primary()) {
-                MutableShardRouting primary = routingNodes.findPrimaryForReplica(shard);
-                if (primary == null || !primary.active()) {
-                    continue;
-                }
-            }
             // go over the nodes and try and allocate the remaining ones
             for (RoutingNode routingNode : routingNodes.sortedNodesLeastToHigh()) {
                 if (nodeAllocations.canAllocate(shard, routingNode, routingNodes).allocate()) {

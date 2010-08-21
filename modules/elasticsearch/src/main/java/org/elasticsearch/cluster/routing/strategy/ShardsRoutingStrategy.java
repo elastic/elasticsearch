@@ -156,10 +156,10 @@ public class ShardsRoutingStrategy extends AbstractComponent {
                 }
 
                 boolean relocated = false;
-                List<MutableShardRouting> activeShards = highRoutingNode.shardsWithState(STARTED);
-                for (MutableShardRouting activeShard : activeShards) {
+                List<MutableShardRouting> startedShards = highRoutingNode.shardsWithState(STARTED);
+                for (MutableShardRouting startedShard : startedShards) {
                     // we only relocate shards that all other shards within the replication group are active
-                    List<MutableShardRouting> allShards = routingNodes.shardsRoutingFor(activeShard);
+                    List<MutableShardRouting> allShards = routingNodes.shardsRoutingFor(startedShard);
                     boolean ignoreShard = false;
                     for (MutableShardRouting allShard : allShards) {
                         if (!allShard.active()) {
@@ -171,13 +171,13 @@ public class ShardsRoutingStrategy extends AbstractComponent {
                         continue;
                     }
 
-                    if (lowRoutingNode.canAllocate(routingNodes.metaData(), routingNodes.routingTable()) && lowRoutingNode.canAllocate(activeShard)) {
+                    if (lowRoutingNode.canAllocate(routingNodes.metaData(), routingNodes.routingTable()) && lowRoutingNode.canAllocate(startedShard)) {
                         changed = true;
-                        lowRoutingNode.add(new MutableShardRouting(activeShard.index(), activeShard.id(),
-                                lowRoutingNode.nodeId(), activeShard.currentNodeId(),
-                                activeShard.primary(), INITIALIZING));
+                        lowRoutingNode.add(new MutableShardRouting(startedShard.index(), startedShard.id(),
+                                lowRoutingNode.nodeId(), startedShard.currentNodeId(),
+                                startedShard.primary(), INITIALIZING));
 
-                        activeShard.relocate(lowRoutingNode.nodeId());
+                        startedShard.relocate(lowRoutingNode.nodeId());
                         relocated = true;
                         relocationPerformed = true;
                         break;

@@ -31,8 +31,11 @@ import org.elasticsearch.common.util.concurrent.Immutable;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.common.collect.Lists.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -100,6 +103,14 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
 
     public IndexShardRoutingTable shard(int shardId) {
         return shards.get(shardId);
+    }
+
+    public List<ShardRouting> shardsWithState(ShardRoutingState... states) {
+        List<ShardRouting> shards = newArrayList();
+        for (IndexShardRoutingTable shardRoutingTable : this) {
+            shards.addAll(shardRoutingTable.shardsWithState(states));
+        }
+        return shards;
     }
 
     /**

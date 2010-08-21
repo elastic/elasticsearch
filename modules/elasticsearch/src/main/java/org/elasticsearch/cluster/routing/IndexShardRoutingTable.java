@@ -117,6 +117,18 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return replicaShards;
     }
 
+    public List<ShardRouting> shardsWithState(ShardRoutingState... states) {
+        List<ShardRouting> shards = newArrayList();
+        for (ShardRouting shardEntry : this) {
+            for (ShardRoutingState state : states) {
+                if (shardEntry.state() == state) {
+                    shards.add(shardEntry);
+                }
+            }
+        }
+        return shards;
+    }
+
     int nextCounter() {
         return counter.getAndIncrement();
     }

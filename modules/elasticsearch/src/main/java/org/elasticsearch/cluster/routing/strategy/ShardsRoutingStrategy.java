@@ -247,7 +247,7 @@ public class ShardsRoutingStrategy extends AbstractComponent {
 
                 if (node.canAllocate(routingNodes) && node.canAllocate(shard)) {
                     int numberOfShardsToAllocate = routingNodes.requiredAverageNumberOfShardsPerNode() - node.shards().size();
-                    if (numberOfShardsToAllocate == 0) {
+                    if (numberOfShardsToAllocate <= 0) {
                         continue;
                     }
 

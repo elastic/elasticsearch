@@ -43,6 +43,7 @@ public class NodeAllocations extends AbstractComponent implements NodeAllocation
         this(settings, ImmutableSet.<NodeAllocation>builder()
                 .add(new SameShardNodeAllocation(settings))
                 .add(new ReplicaAfterPrimaryActiveNodeAllocation(settings))
+                .add(new ThrottlingNodeAllocation(settings))
                 .build()
         );
     }

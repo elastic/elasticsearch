@@ -51,7 +51,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStreams;
-import org.elasticsearch.indices.recovery.throttler.RecoveryThrottler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import javax.annotation.Nullable;
@@ -81,8 +80,6 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
 
     protected final Store store;
 
-    protected final RecoveryThrottler recoveryThrottler;
-
     protected final ByteSizeValue chunkSize;
 
     protected final BlobStore blobStore;
@@ -104,13 +101,12 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
     private volatile SnapshotStatus currentSnapshotStatus;
 
     protected BlobStoreIndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool, IndexGateway indexGateway,
-                                         IndexShard indexShard, Store store, RecoveryThrottler recoveryThrottler) {
+                                         IndexShard indexShard, Store store) {
         super(shardId, indexSettings);
 
         this.threadPool = threadPool;
         this.indexShard = (InternalIndexShard) indexShard;
         this.store = store;
-        this.recoveryThrottler = recoveryThrottler;
 
         BlobStoreIndexGateway blobStoreIndexGateway = (BlobStoreIndexGateway) indexGateway;
 
@@ -571,23 +567,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         final CountDownLatch latch = new CountDownLatch(filesToRecover.size());
         final CopyOnWriteArrayList<Throwable> failures = new CopyOnWriteArrayList<Throwable>();
         for (final BlobMetaData fileToRecover : filesToRecover) {
-            if (recoveryThrottler.tryStream(shardId, fileToRecover.name())) {
-                // we managed to get a recovery going
-                recoverFile(fileToRecover, indicesBlobs, latch, failures);
-            } else {
-                // lets reschedule to do it next time
-                threadPool.schedule(new Runnable() {
-                    @Override public void run() {
-                        recoveryStatus.index().addRetryTime(recoveryThrottler.throttleInterval().millis());
-                        if (recoveryThrottler.tryStream(shardId, fileToRecover.name())) {
-                            // we managed to get a recovery going
-                            recoverFile(fileToRecover, indicesBlobs, latch, failures);
-                        } else {
-                            threadPool.schedule(this, recoveryThrottler.throttleInterval());
-                        }
-                    }
-                }, recoveryThrottler.throttleInterval());
-            }
+            recoverFile(fileToRecover, indicesBlobs, latch, failures);
         }
 
         try {
@@ -632,7 +612,6 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         try {
             indexOutput = store.directory().createOutput(fileToRecover.name());
         } catch (IOException e) {
-            recoveryThrottler.streamDone(shardId, fileToRecover.name());
             failures.add(e);
             latch.countDown();
             return;
@@ -645,7 +624,6 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         }
         if (!blobs.containsKey(firstFileToRecover)) {
             // no file, what to do, what to do?
-            recoveryThrottler.streamDone(shardId, fileToRecover.name());
             logger.warn("no file [{}] to recover, even though it has md5, ignoring it", fileToRecover.name());
             latch.countDown();
             return;
@@ -681,12 +659,10 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                     logger.warn("file [{}] has different md5, actual read content [{}], store [{}]", fileToRecover.name(), md5, fileToRecover.md5());
                 }
 
-                recoveryThrottler.streamDone(shardId, fileToRecover.name());
                 latch.countDown();
             }
 
             @Override public void onFailure(Throwable t) {
-                recoveryThrottler.streamDone(shardId, fileToRecover.name());
                 failures.add(t);
                 latch.countDown();
             }

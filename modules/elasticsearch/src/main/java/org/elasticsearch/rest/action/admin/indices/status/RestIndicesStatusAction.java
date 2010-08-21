@@ -145,8 +145,6 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                                     builder.field("start_time_in_millis", peerRecoveryStatus.startTime());
                                     builder.field("time", peerRecoveryStatus.time());
                                     builder.field("time_in_millis", peerRecoveryStatus.time().millis());
-                                    builder.field("throttling_time", peerRecoveryStatus.throttlingTime());
-                                    builder.field("throttling_time_in_millis", peerRecoveryStatus.throttlingTime().millis());
 
                                     builder.startObject("index");
                                     builder.field("progress", peerRecoveryStatus.indexRecoveryProgress());
@@ -174,8 +172,6 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                                     builder.field("start_time_in_millis", gatewayRecoveryStatus.startTime());
                                     builder.field("time", gatewayRecoveryStatus.time());
                                     builder.field("time_in_millis", gatewayRecoveryStatus.time().millis());
-                                    builder.field("throttling_time", gatewayRecoveryStatus.throttlingTime());
-                                    builder.field("throttling_time_in_millis", gatewayRecoveryStatus.throttlingTime().millis());
 
                                     builder.startObject("index");
                                     builder.field("progress", gatewayRecoveryStatus.indexRecoveryProgress());
@@ -187,8 +183,6 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                                     builder.field("expected_recovered_size_in_bytes", gatewayRecoveryStatus.expectedRecoveredIndexSize().bytes());
                                     builder.field("recovered_size", gatewayRecoveryStatus.recoveredIndexSize());
                                     builder.field("recovered_size_in_bytes", gatewayRecoveryStatus.recoveredIndexSize().bytes());
-                                    builder.field("throttling_time", gatewayRecoveryStatus.indexThrottlingTime());
-                                    builder.field("throttling_time_in_millis", gatewayRecoveryStatus.indexThrottlingTime().millis());
                                     builder.endObject();
 
                                     builder.startObject("translog");

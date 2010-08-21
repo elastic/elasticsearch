@@ -283,6 +283,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             // this engine always acts as if waitForOperations=true
             if (refreshMutex.compareAndSet(false, true)) {
                 IndexWriter currentWriter = indexWriter;
+                if (currentWriter == null) {
+                    throw new EngineClosedException(shardId);
+                }
                 try {
                     if (dirty) {
                         dirty = false;
@@ -298,7 +301,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
                 } catch (AlreadyClosedException e) {
                     // an index writer got replaced on us, ignore
                 } catch (Exception e) {
-                    if (currentWriter != indexWriter) {
+                    if (indexWriter == null) {
+                        throw new EngineClosedException(shardId);
+                    } else if (currentWriter != indexWriter) {
                         // an index writer got replaced on us, ignore
                     } else {
                         throw new RefreshFailedEngineException(shardId, e);
@@ -313,12 +318,18 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
     }
 
     @Override public void flush(Flush flush) throws EngineException {
+        if (indexWriter == null) {
+            throw new EngineClosedException(shardId);
+        }
         // check outside the lock as well so we can check without blocking on the write lock
         if (disableFlushCounter > 0) {
             throw new FlushNotAllowedEngineException(shardId, "Recovery is in progress, flush is not allowed");
         }
         rwl.writeLock().lock();
         try {
+            if (indexWriter == null) {
+                throw new EngineClosedException(shardId);
+            }
             if (disableFlushCounter > 0) {
                 throw new FlushNotAllowedEngineException(shardId, "Recovery is in progress, flush is not allowed");
             }
@@ -361,6 +372,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         if (optimizeMutex.compareAndSet(false, true)) {
             rwl.readLock().lock();
             try {
+                if (indexWriter == null) {
+                    throw new EngineClosedException(shardId);
+                }
                 int maxNumberOfSegments = optimize.maxNumSegments();
                 if (maxNumberOfSegments == -1) {
                     // not set, optimize down to half the configured number of segments

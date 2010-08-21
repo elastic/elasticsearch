@@ -27,7 +27,6 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.recovery.throttler.RecoveryThrottler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
@@ -36,8 +35,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 public class FsIndexShardGateway extends BlobStoreIndexShardGateway {
 
     @Inject public FsIndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool, IndexGateway fsIndexGateway,
-                                       IndexShard indexShard, Store store, RecoveryThrottler recoveryThrottler) {
-        super(shardId, indexSettings, threadPool, fsIndexGateway, indexShard, store, recoveryThrottler);
+                                       IndexShard indexShard, Store store) {
+        super(shardId, indexSettings, threadPool, fsIndexGateway, indexShard, store);
     }
 
     @Override public String type() {

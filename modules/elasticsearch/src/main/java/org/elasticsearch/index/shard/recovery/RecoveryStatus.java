@@ -33,7 +33,6 @@ public class RecoveryStatus {
 
     public static enum Stage {
         INIT,
-        THROTTLE,
         INDEX,
         TRANSLOG,
         FINALIZE,
@@ -44,7 +43,6 @@ public class RecoveryStatus {
 
     final long startTime = System.currentTimeMillis();
     long time;
-    volatile long retryTime = 0;
     List<String> phase1FileNames;
     List<Long> phase1FileSizes;
     List<String> phase1ExistingFileNames;
@@ -62,10 +60,6 @@ public class RecoveryStatus {
 
     public long time() {
         return this.time;
-    }
-
-    public long retryTime() {
-        return retryTime;
     }
 
     public long phase1TotalSize() {

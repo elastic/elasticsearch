@@ -227,7 +227,6 @@ public class ShardStatus extends BroadcastShardOperationResponse {
             out.writeByte(peerRecoveryStatus.stage.value());
             out.writeVLong(peerRecoveryStatus.startTime);
             out.writeVLong(peerRecoveryStatus.time);
-            out.writeVLong(peerRecoveryStatus.throttlingTime);
             out.writeVLong(peerRecoveryStatus.indexSize);
             out.writeVLong(peerRecoveryStatus.reusedIndexSize);
             out.writeVLong(peerRecoveryStatus.recoveredIndexSize);
@@ -241,8 +240,6 @@ public class ShardStatus extends BroadcastShardOperationResponse {
             out.writeByte(gatewayRecoveryStatus.stage.value());
             out.writeVLong(gatewayRecoveryStatus.startTime);
             out.writeVLong(gatewayRecoveryStatus.time);
-            out.writeVLong(gatewayRecoveryStatus.throttlingTime);
-            out.writeVLong(gatewayRecoveryStatus.indexThrottlingTime);
             out.writeVLong(gatewayRecoveryStatus.indexSize);
             out.writeVLong(gatewayRecoveryStatus.reusedIndexSize);
             out.writeVLong(gatewayRecoveryStatus.recoveredIndexSize);
@@ -278,12 +275,12 @@ public class ShardStatus extends BroadcastShardOperationResponse {
         }
         if (in.readBoolean()) {
             peerRecoveryStatus = new PeerRecoveryStatus(PeerRecoveryStatus.Stage.fromValue(in.readByte()),
-                    in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
+                    in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
         }
 
         if (in.readBoolean()) {
             gatewayRecoveryStatus = new GatewayRecoveryStatus(GatewayRecoveryStatus.Stage.fromValue(in.readByte()),
-                    in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
+                    in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
         }
 
         if (in.readBoolean()) {

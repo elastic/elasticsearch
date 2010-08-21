@@ -35,6 +35,7 @@ import static org.elasticsearch.cluster.metadata.MetaData.*;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.*;
 import static org.elasticsearch.cluster.routing.RoutingBuilders.*;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -46,8 +47,7 @@ public class ReplicaAllocatedAfterPrimaryTests {
     private final ESLogger logger = Loggers.getLogger(ReplicaAllocatedAfterPrimaryTests.class);
 
     @Test public void testBackupIsAllocatedAfterPrimary() {
-
-        ShardsAllocation strategy = new ShardsAllocation();
+        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
 
         logger.info("Building initial routing table");
 

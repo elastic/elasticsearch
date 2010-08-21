@@ -43,6 +43,7 @@ import static org.elasticsearch.cluster.routing.RoutingBuilders.*;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.common.collect.Lists.*;
 import static org.elasticsearch.common.collect.Sets.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -54,7 +55,7 @@ public class SingleShardNoReplicasRoutingTests {
     private final ESLogger logger = Loggers.getLogger(SingleShardNoReplicasRoutingTests.class);
 
     @Test public void testSingleIndexStartedShard() {
-        ShardsAllocation strategy = new ShardsAllocation();
+        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
 
         logger.info("Building initial routing table");
 
@@ -154,7 +155,7 @@ public class SingleShardNoReplicasRoutingTests {
     }
 
     @Test public void testSingleIndexShardFailed() {
-        ShardsAllocation strategy = new ShardsAllocation();
+        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
 
         logger.info("Building initial routing table");
 
@@ -203,7 +204,7 @@ public class SingleShardNoReplicasRoutingTests {
     }
 
     @Test public void testMultiIndexEvenDistribution() {
-        ShardsAllocation strategy = new ShardsAllocation();
+        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
 
         final int numberOfIndices = 50;
         logger.info("Building initial routing table with " + numberOfIndices + " indices");
@@ -311,7 +312,7 @@ public class SingleShardNoReplicasRoutingTests {
     }
 
     @Test public void testMultiIndexUnevenNodes() {
-        ShardsAllocation strategy = new ShardsAllocation();
+        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
 
         final int numberOfIndices = 10;
         logger.info("Building initial routing table with " + numberOfIndices + " indices");

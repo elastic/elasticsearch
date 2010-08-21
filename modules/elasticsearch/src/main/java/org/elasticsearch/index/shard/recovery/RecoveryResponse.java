@@ -32,7 +32,6 @@ import java.util.List;
  */
 class RecoveryResponse implements Streamable {
 
-    boolean retry = false;
     List<String> phase1FileNames = Lists.newArrayList();
     List<Long> phase1FileSizes = Lists.newArrayList();
     List<String> phase1ExistingFileNames = Lists.newArrayList();
@@ -52,7 +51,6 @@ class RecoveryResponse implements Streamable {
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
-        retry = in.readBoolean();
         int size = in.readVInt();
         phase1FileNames = Lists.newArrayListWithCapacity(size);
         for (int i = 0; i < size; i++) {
@@ -86,7 +84,6 @@ class RecoveryResponse implements Streamable {
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(retry);
         out.writeVInt(phase1FileNames.size());
         for (String name : phase1FileNames) {
             out.writeUTF(name);

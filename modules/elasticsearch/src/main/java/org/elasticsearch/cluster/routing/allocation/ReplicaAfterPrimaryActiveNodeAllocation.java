@@ -19,44 +19,32 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.Set;
-
 /**
- * Holds several {@link NodeAllocation}s and combines them into a single allocation decision.
+ * An allocation strategy that only allows for a replica to be allocated when the primary is active.
  *
  * @author kimchy (shay.banon)
  */
-public class NodeAllocations extends AbstractComponent implements NodeAllocation {
+public class ReplicaAfterPrimaryActiveNodeAllocation extends AbstractComponent implements NodeAllocation {
 
-    private final NodeAllocation[] allocations;
-
-    public NodeAllocations(Settings settings) {
-        this(settings, ImmutableSet.<NodeAllocation>builder()
-                .add(new SameShardNodeAllocation(settings))
-                .add(new ReplicaAfterPrimaryActiveNodeAllocation(settings))
-                .build()
-        );
-    }
-
-    @Inject public NodeAllocations(Settings settings, Set<NodeAllocation> allocations) {
+    @Inject public ReplicaAfterPrimaryActiveNodeAllocation(Settings settings) {
         super(settings);
-        this.allocations = allocations.toArray(new NodeAllocation[allocations.size()]);
     }
 
     @Override public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingNodes routingNodes) {
-        for (NodeAllocation allocation : allocations) {
-            Decision decision = allocation.canAllocate(shardRouting, node, routingNodes);
-            if (decision == Decision.DISALLOWED) {
-                return Decision.DISALLOWED;
-            }
+        if (shardRouting.primary()) {
+            return Decision.ALLOWED;
+        }
+        MutableShardRouting primary = routingNodes.findPrimaryForReplica(shardRouting);
+        if (primary == null || !primary.active()) {
+            return Decision.DISALLOWED;
         }
         return Decision.ALLOWED;
     }

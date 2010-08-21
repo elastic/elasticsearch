@@ -105,14 +105,6 @@ public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent 
                 continue;
             }
 
-            if (!shard.primary()) {
-                // if its a backup, only allocate it if the primary is active
-                MutableShardRouting primary = routingNodes.findPrimaryForReplica(shard);
-                if (primary == null || !primary.active()) {
-                    continue;
-                }
-            }
-
             TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData = transportNodesListShardStoreMetaData.list(shard.shardId(), false, nodes.dataNodes().keySet()).actionGet();
 
             if (logger.isDebugEnabled()) {
@@ -152,6 +144,7 @@ public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent 
                 if (!nodeAllocations.canAllocate(shard, node, routingNodes).allocate()) {
                     continue;
                 }
+
                 // if it is already allocated, we can't assign to it...
                 if (storeFilesMetaData.allocated()) {
                     continue;

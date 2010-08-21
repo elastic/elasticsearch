@@ -42,9 +42,9 @@ public class SameShardNodeAllocation extends AbstractComponent implements NodeAl
         for (MutableShardRouting current : node.shards()) {
             // we do not allow for two shards of the same shard id to exists on the same node
             if (current.shardId().equals(shardRouting.shardId())) {
-                return Decision.DISALLOWED;
+                return Decision.NO;
             }
         }
-        return Decision.ALLOWED;
+        return Decision.YES;
     }
 }

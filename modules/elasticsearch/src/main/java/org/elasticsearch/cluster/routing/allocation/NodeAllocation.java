@@ -31,11 +31,15 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 public interface NodeAllocation {
 
     enum Decision {
-        ALLOWED {
+        YES {
             @Override boolean allocate() {
                 return true;
             }},
-        DISALLOWED {
+        NO {
+            @Override boolean allocate() {
+                return false;
+            }},
+        THROTTLE {
             @Override boolean allocate() {
                 return false;
             }};

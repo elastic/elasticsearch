@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.nodes.*;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -87,6 +88,19 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
 
     @Override protected NodeStoreFilesMetaData newNodeResponse() {
         return new NodeStoreFilesMetaData();
+    }
+
+    /**
+     * We only need to ask data nodes for shard allocation information.
+     */
+    @Override protected String[] filterNodeIds(DiscoveryNodes nodes, String[] nodesIds) {
+        List<String> dataNodeIds = Lists.newArrayList();
+        for (String nodeId : nodesIds) {
+            if (nodes.get(nodeId).dataNode()) {
+                dataNodeIds.add(nodeId);
+            }
+        }
+        return dataNodeIds.toArray(new String[dataNodeIds.size()]);
     }
 
     @Override protected NodesStoreFilesMetaData newResponse(Request request, AtomicReferenceArray responses) {

@@ -40,12 +40,12 @@ public class ReplicaAfterPrimaryActiveNodeAllocation extends AbstractComponent i
 
     @Override public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingNodes routingNodes) {
         if (shardRouting.primary()) {
-            return Decision.ALLOWED;
+            return Decision.YES;
         }
         MutableShardRouting primary = routingNodes.findPrimaryForReplica(shardRouting);
         if (primary == null || !primary.active()) {
-            return Decision.DISALLOWED;
+            return Decision.NO;
         }
-        return Decision.ALLOWED;
+        return Decision.YES;
     }
 }

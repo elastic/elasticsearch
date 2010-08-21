@@ -33,6 +33,7 @@ public class ShardAllocationModule extends AbstractModule {
 
         Multibinder<NodeAllocation> decidersBinder = Multibinder.newSetBinder(binder(), NodeAllocation.class);
         decidersBinder.addBinding().to(SameShardNodeAllocation.class);
+        decidersBinder.addBinding().to(ReplicaAfterPrimaryActiveNodeAllocation.class);
 
         bind(NodeAllocations.class).asEagerSingleton();
     }

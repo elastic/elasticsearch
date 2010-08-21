@@ -168,7 +168,7 @@ public class RecoveryTarget extends AbstractComponent {
         }
 
         if (!recoveryThrottler.tryRecovery(shard.shardId(), "peer recovery target")) {
-            recovery.stage = RecoveryStatus.Stage.RETRY;
+            recovery.stage = RecoveryStatus.Stage.THROTTLE;
             recovery.retryTime = System.currentTimeMillis() - recovery.startTime;
             listener.onRetryRecovery(recoveryThrottler.throttleInterval());
             return;
@@ -189,7 +189,7 @@ public class RecoveryTarget extends AbstractComponent {
                     return;
                 }
                 logger.trace("[{}][{}] retrying recovery in [{}], source shard is busy", request.shardId().index().name(), request.shardId().id(), recoveryThrottler.throttleInterval());
-                recovery.stage = RecoveryStatus.Stage.RETRY;
+                recovery.stage = RecoveryStatus.Stage.THROTTLE;
                 recovery.retryTime = System.currentTimeMillis() - recovery.startTime;
                 listener.onRetryRecovery(recoveryThrottler.throttleInterval());
                 return;
@@ -231,7 +231,7 @@ public class RecoveryTarget extends AbstractComponent {
             }
 
             if (cause instanceof IndexShardNotStartedException || cause instanceof IndexMissingException || cause instanceof IndexShardMissingException) {
-                recovery.stage = RecoveryStatus.Stage.RETRY;
+                recovery.stage = RecoveryStatus.Stage.THROTTLE;
                 recovery.retryTime = System.currentTimeMillis() - recovery.startTime;
                 listener.onRetryRecovery(recoveryThrottler.throttleInterval());
                 return;

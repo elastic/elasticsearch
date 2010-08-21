@@ -152,7 +152,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                         listener.onIgnoreRecovery("ignoring recovery while waiting on retry, closed");
                         return;
                     }
-                    recoveryStatus.updateStage(RecoveryStatus.Stage.RETRY);
+                    recoveryStatus.updateStage(RecoveryStatus.Stage.THROTTLE);
                     try {
                         Thread.sleep(recoveryThrottler.throttleInterval().millis());
                         recoveryStatus.retryTime(System.currentTimeMillis() - recoveryStatus.startTime());

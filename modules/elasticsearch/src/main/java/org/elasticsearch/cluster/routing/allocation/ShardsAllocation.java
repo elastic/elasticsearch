@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.strategy;
+package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -39,16 +39,24 @@ import static org.elasticsearch.common.collect.Sets.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class ShardsRoutingStrategy extends AbstractComponent {
+public class ShardsAllocation extends AbstractComponent {
+
+    private final NodeAllocations nodeAllocations;
 
     private final PreferUnallocatedStrategy preferUnallocatedStrategy;
 
-    public ShardsRoutingStrategy() {
-        this(ImmutableSettings.Builder.EMPTY_SETTINGS, null);
+    public ShardsAllocation() {
+        this(ImmutableSettings.Builder.EMPTY_SETTINGS);
     }
 
-    @Inject public ShardsRoutingStrategy(Settings settings, @Nullable PreferUnallocatedStrategy preferUnallocatedStrategy) {
+    public ShardsAllocation(Settings settings) {
+        this(settings, new NodeAllocations(settings), null);
+    }
+
+    @Inject public ShardsAllocation(Settings settings, NodeAllocations nodeAllocations,
+                                    @Nullable PreferUnallocatedStrategy preferUnallocatedStrategy) {
         super(settings);
+        this.nodeAllocations = nodeAllocations;
         this.preferUnallocatedStrategy = preferUnallocatedStrategy;
     }
 
@@ -171,7 +179,7 @@ public class ShardsRoutingStrategy extends AbstractComponent {
                         continue;
                     }
 
-                    if (lowRoutingNode.canAllocate(routingNodes) && lowRoutingNode.canAllocate(startedShard)) {
+                    if (nodeAllocations.canAllocate(startedShard, lowRoutingNode, routingNodes).allocate()) {
                         changed = true;
                         lowRoutingNode.add(new MutableShardRouting(startedShard.index(), startedShard.id(),
                                 lowRoutingNode.nodeId(), startedShard.currentNodeId(),
@@ -228,6 +236,7 @@ public class ShardsRoutingStrategy extends AbstractComponent {
 
         Iterator<MutableShardRouting> unassignedIterator = routingNodes.unassigned().iterator();
         int lastNode = 0;
+
         while (unassignedIterator.hasNext()) {
             MutableShardRouting shard = unassignedIterator.next();
             // if its a replica, only allocate it if the primary is active
@@ -242,10 +251,11 @@ public class ShardsRoutingStrategy extends AbstractComponent {
             for (int i = 0; i < nodes.size(); i++) {
                 RoutingNode node = nodes.get(lastNode);
                 lastNode++;
-                if (lastNode == nodes.size())
+                if (lastNode == nodes.size()) {
                     lastNode = 0;
+                }
 
-                if (node.canAllocate(routingNodes) && node.canAllocate(shard)) {
+                if (nodeAllocations.canAllocate(shard, node, routingNodes).allocate()) {
                     int numberOfShardsToAllocate = routingNodes.requiredAverageNumberOfShardsPerNode() - node.shards().size();
                     if (numberOfShardsToAllocate <= 0) {
                         continue;
@@ -271,7 +281,7 @@ public class ShardsRoutingStrategy extends AbstractComponent {
             }
             // go over the nodes and try and allocate the remaining ones
             for (RoutingNode routingNode : routingNodes.sortedNodesLeastToHigh()) {
-                if (routingNode.canAllocate(routingNodes) && routingNode.canAllocate(shard)) {
+                if (nodeAllocations.canAllocate(shard, routingNode, routingNodes).allocate()) {
                     changed = true;
                     routingNode.add(shard);
                     it.remove();
@@ -462,10 +472,8 @@ public class ShardsRoutingStrategy extends AbstractComponent {
             boolean allocated = false;
             List<RoutingNode> sortedNodesLeastToHigh = routingNodes.sortedNodesLeastToHigh();
             for (RoutingNode target : sortedNodesLeastToHigh) {
-                if (target.canAllocate(failedShard) &&
-                        target.canAllocate(routingNodes) &&
-                        !target.nodeId().equals(failedShard.currentNodeId())) {
-
+                if (!target.nodeId().equals(failedShard.currentNodeId()) &&
+                        nodeAllocations.canAllocate(failedShard, target, routingNodes).allocate()) {
                     target.add(new MutableShardRouting(failedShard.index(), failedShard.id(),
                             target.nodeId(), failedShard.relocatingNodeId(),
                             failedShard.primary(), INITIALIZING));

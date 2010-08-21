@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.strategy.ShardsRoutingStrategy;
+import org.elasticsearch.cluster.routing.allocation.ShardsAllocation;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -52,16 +52,16 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
     private final ClusterService clusterService;
 
-    private final ShardsRoutingStrategy shardsRoutingStrategy;
+    private final ShardsAllocation shardsAllocation;
 
     private final NodeIndexDeletedAction nodeIndexDeletedAction;
 
-    @Inject public MetaDataDeleteIndexService(Settings settings, TimerService timerService, ClusterService clusterService, ShardsRoutingStrategy shardsRoutingStrategy,
+    @Inject public MetaDataDeleteIndexService(Settings settings, TimerService timerService, ClusterService clusterService, ShardsAllocation shardsAllocation,
                                               NodeIndexDeletedAction nodeIndexDeletedAction) {
         super(settings);
         this.timerService = timerService;
         this.clusterService = clusterService;
-        this.shardsRoutingStrategy = shardsRoutingStrategy;
+        this.shardsAllocation = shardsAllocation;
         this.nodeIndexDeletedAction = nodeIndexDeletedAction;
     }
 
@@ -89,7 +89,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                             .remove(request.index)
                             .build();
 
-                    RoutingTable newRoutingTable = shardsRoutingStrategy.reroute(
+                    RoutingTable newRoutingTable = shardsAllocation.reroute(
                             newClusterStateBuilder().state(currentState).routingTable(routingTableBuilder).metaData(newMetaData).build());
 
                     ClusterBlocks blocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeIndexBlocks(request.index).build();

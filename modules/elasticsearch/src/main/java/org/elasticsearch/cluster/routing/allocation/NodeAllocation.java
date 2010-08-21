@@ -17,18 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.strategy;
+package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.ShardRouting;
 
 /**
+ * A pluggable logic allowing to control if allocation of a shard is allowed on a specific node.
+ *
  * @author kimchy (shay.banon)
  */
-public interface PreferUnallocatedStrategy {
+public interface NodeAllocation {
 
-    void prefetch(IndexMetaData index, DiscoveryNodes nodes);
+    enum Decision {
+        ALLOWED {
+            @Override boolean allocate() {
+                return true;
+            }},
+        DISALLOWED {
+            @Override boolean allocate() {
+                return false;
+            }};
 
-    boolean allocateUnassigned(RoutingNodes routingNodes, DiscoveryNodes nodes);
+        abstract boolean allocate();
+    }
+
+    Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingNodes routingNodes);
 }

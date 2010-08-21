@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.strategy.ShardsRoutingStrategy;
+import org.elasticsearch.cluster.routing.allocation.ShardsAllocation;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -54,16 +54,16 @@ public class ShardStateAction extends AbstractComponent {
 
     private final ClusterService clusterService;
 
-    private final ShardsRoutingStrategy shardsRoutingStrategy;
+    private final ShardsAllocation shardsAllocation;
 
     private final ThreadPool threadPool;
 
     @Inject public ShardStateAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                    ShardsRoutingStrategy shardsRoutingStrategy, ThreadPool threadPool) {
+                                    ShardsAllocation shardsAllocation, ThreadPool threadPool) {
         super(settings);
         this.clusterService = clusterService;
         this.transportService = transportService;
-        this.shardsRoutingStrategy = shardsRoutingStrategy;
+        this.shardsAllocation = shardsAllocation;
         this.threadPool = threadPool;
 
         transportService.registerHandler(ShardStartedTransportHandler.ACTION, new ShardStartedTransportHandler());
@@ -125,7 +125,7 @@ public class ShardStateAction extends AbstractComponent {
                     logger.debug("Applying failed shard {}, reason [{}]", shardRouting, reason);
                 }
                 RoutingTable prevRoutingTable = currentState.routingTable();
-                RoutingTable newRoutingTable = shardsRoutingStrategy.applyFailedShards(currentState, newArrayList(shardRouting));
+                RoutingTable newRoutingTable = shardsAllocation.applyFailedShards(currentState, newArrayList(shardRouting));
                 if (prevRoutingTable == newRoutingTable) {
                     return currentState;
                 }
@@ -163,7 +163,7 @@ public class ShardStateAction extends AbstractComponent {
                 if (logger.isDebugEnabled()) {
                     logger.debug("Applying started shard {}, reason [{}]", shardRouting, reason);
                 }
-                RoutingTable newRoutingTable = shardsRoutingStrategy.applyStartedShards(currentState, newArrayList(shardRouting));
+                RoutingTable newRoutingTable = shardsAllocation.applyStartedShards(currentState, newArrayList(shardRouting));
                 if (routingTable == newRoutingTable) {
                     return currentState;
                 }

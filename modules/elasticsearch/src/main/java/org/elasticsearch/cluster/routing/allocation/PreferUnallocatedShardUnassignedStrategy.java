@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.strategy;
+package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -40,7 +40,6 @@ import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 
 import java.util.Iterator;
@@ -51,18 +50,19 @@ import java.util.concurrent.CountDownLatch;
  */
 public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent implements PreferUnallocatedStrategy {
 
-    private final ThreadPool threadPool;
-
     private final IndicesService indicesService;
 
     private final TransportNodesListShardStoreMetaData transportNodesListShardStoreMetaData;
 
-    @Inject public PreferUnallocatedShardUnassignedStrategy(Settings settings, ThreadPool threadPool, IndicesService indicesService,
-                                                            TransportNodesListShardStoreMetaData transportNodesListShardStoreMetaData) {
+    private final NodeAllocations nodeAllocations;
+
+    @Inject public PreferUnallocatedShardUnassignedStrategy(Settings settings, IndicesService indicesService,
+                                                            TransportNodesListShardStoreMetaData transportNodesListShardStoreMetaData,
+                                                            NodeAllocations nodeAllocations) {
         super(settings);
-        this.threadPool = threadPool;
         this.indicesService = indicesService;
         this.transportNodesListShardStoreMetaData = transportNodesListShardStoreMetaData;
+        this.nodeAllocations = nodeAllocations;
     }
 
     @Override public void prefetch(IndexMetaData index, DiscoveryNodes nodes) {
@@ -149,7 +149,7 @@ public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent 
                 }
 
                 // check if we can allocate on that node...
-                if (!(node.canAllocate(routingNodes) && node.canAllocate(shard))) {
+                if (!nodeAllocations.canAllocate(shard, node, routingNodes).allocate()) {
                     continue;
                 }
                 // if it is already allocated, we can't assign to it...

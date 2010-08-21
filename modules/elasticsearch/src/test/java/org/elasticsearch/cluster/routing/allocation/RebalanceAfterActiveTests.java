@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.strategy;
+package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -48,7 +48,7 @@ public class RebalanceAfterActiveTests {
 
     @Test public void testRebalanceOnlyAfterAllShardsAreActive() {
 
-        ShardsRoutingStrategy strategy = new ShardsRoutingStrategy();
+        ShardsAllocation strategy = new ShardsAllocation();
 
         logger.info("Building initial routing table");
 

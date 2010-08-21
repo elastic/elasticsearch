@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.strategy;
+package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -49,12 +49,12 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class SingleShardNoReplicasRoutingStrategyTests {
+public class SingleShardNoReplicasRoutingTests {
 
-    private final ESLogger logger = Loggers.getLogger(SingleShardNoReplicasRoutingStrategyTests.class);
+    private final ESLogger logger = Loggers.getLogger(SingleShardNoReplicasRoutingTests.class);
 
     @Test public void testSingleIndexStartedShard() {
-        ShardsRoutingStrategy strategy = new ShardsRoutingStrategy();
+        ShardsAllocation strategy = new ShardsAllocation();
 
         logger.info("Building initial routing table");
 
@@ -154,7 +154,7 @@ public class SingleShardNoReplicasRoutingStrategyTests {
     }
 
     @Test public void testSingleIndexShardFailed() {
-        ShardsRoutingStrategy strategy = new ShardsRoutingStrategy();
+        ShardsAllocation strategy = new ShardsAllocation();
 
         logger.info("Building initial routing table");
 
@@ -203,7 +203,7 @@ public class SingleShardNoReplicasRoutingStrategyTests {
     }
 
     @Test public void testMultiIndexEvenDistribution() {
-        ShardsRoutingStrategy strategy = new ShardsRoutingStrategy();
+        ShardsAllocation strategy = new ShardsAllocation();
 
         final int numberOfIndices = 50;
         logger.info("Building initial routing table with " + numberOfIndices + " indices");
@@ -311,7 +311,7 @@ public class SingleShardNoReplicasRoutingStrategyTests {
     }
 
     @Test public void testMultiIndexUnevenNodes() {
-        ShardsRoutingStrategy strategy = new ShardsRoutingStrategy();
+        ShardsAllocation strategy = new ShardsAllocation();
 
         final int numberOfIndices = 10;
         logger.info("Building initial routing table with " + numberOfIndices + " indices");

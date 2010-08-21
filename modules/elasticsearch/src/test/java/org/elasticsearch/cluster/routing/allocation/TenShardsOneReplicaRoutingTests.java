@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.strategy;
+package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -46,7 +46,7 @@ public class TenShardsOneReplicaRoutingTests {
     private final ESLogger logger = Loggers.getLogger(TenShardsOneReplicaRoutingTests.class);
 
     @Test public void testSingleIndexFirstStartPrimaryThenBackups() {
-        ShardsRoutingStrategy strategy = new ShardsRoutingStrategy();
+        ShardsAllocation strategy = new ShardsAllocation();
 
         logger.info("Building initial routing table");
 

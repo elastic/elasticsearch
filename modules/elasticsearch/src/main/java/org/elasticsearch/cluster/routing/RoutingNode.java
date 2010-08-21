@@ -117,30 +117,6 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
         return count;
     }
 
-    public boolean canAllocate(RoutingNodes nodes) {
-        return true;
-    }
-
-    public boolean canAllocate(ShardRouting requested) {
-        for (MutableShardRouting current : shards) {
-            // we do not allow for two shards of the same shard id to exists on the same node
-            if (current.shardId().equals(requested.shardId())) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    public boolean canAllocate(MutableShardRouting requested) {
-        for (MutableShardRouting current : shards) {
-            // we do not allow for two shards of the same shard id to exists on the same node
-            if (current.shardId().equals(requested.shardId())) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder();
         sb.append("-----node_id[").append(nodeId).append("]\n");

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.strategy;
+package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -41,12 +41,12 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class SingleShardOneReplicaRoutingStrategyTests {
+public class SingleShardOneReplicaRoutingTests {
 
-    private final ESLogger logger = Loggers.getLogger(SingleShardOneReplicaRoutingStrategyTests.class);
+    private final ESLogger logger = Loggers.getLogger(SingleShardOneReplicaRoutingTests.class);
 
     @Test public void testSingleIndexFirstStartPrimaryThenBackups() {
-        ShardsRoutingStrategy strategy = new ShardsRoutingStrategy();
+        ShardsAllocation strategy = new ShardsAllocation();
 
         logger.info("Building initial routing table");
 

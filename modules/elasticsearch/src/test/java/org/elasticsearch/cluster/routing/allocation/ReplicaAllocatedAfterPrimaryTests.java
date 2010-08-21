@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.strategy;
+package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -47,7 +47,7 @@ public class ReplicaAllocatedAfterPrimaryTests {
 
     @Test public void testBackupIsAllocatedAfterPrimary() {
 
-        ShardsRoutingStrategy strategy = new ShardsRoutingStrategy();
+        ShardsAllocation strategy = new ShardsAllocation();
 
         logger.info("Building initial routing table");
 

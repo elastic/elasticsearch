@@ -270,7 +270,7 @@ public class ShardsRoutingStrategy extends AbstractComponent {
                 }
             }
             // go over the nodes and try and allocate the remaining ones
-            for (RoutingNode routingNode : routingNodes.nodesToShards().values()) {
+            for (RoutingNode routingNode : routingNodes.sortedNodesLeastToHigh()) {
                 if (routingNode.canAllocate(routingNodes) && routingNode.canAllocate(shard)) {
                     changed = true;
                     routingNode.add(shard);

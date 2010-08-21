@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 /**
  * @author kimchy (shay.banon)
  */
+// TODO move this to be a NodeAllocation (once we remove the md5 and make listing fast for Unassigned impl)
 public interface PreferUnallocatedStrategy {
 
     void prefetch(IndexMetaData index, DiscoveryNodes nodes);

@@ -28,7 +28,7 @@ import static org.elasticsearch.common.collect.Lists.*;
 import static org.elasticsearch.common.collect.Maps.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 @NotThreadSafe
 public class RoutingNodes implements Iterable<RoutingNode> {
@@ -40,6 +40,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     private final Map<String, RoutingNode> nodesToShards = newHashMap();
 
     private final List<MutableShardRouting> unassigned = newArrayList();
+
+    private final List<MutableShardRouting> ignoredUnassigned = newArrayList();
 
     public RoutingNodes(MetaData metaData, RoutingTable routingTable) {
         this.metaData = metaData;
@@ -104,6 +106,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     public boolean hasUnassigned() {
         return !unassigned.isEmpty();
+    }
+
+    public List<MutableShardRouting> ignoredUnassigned() {
+        return this.ignoredUnassigned;
     }
 
     public List<MutableShardRouting> unassigned() {

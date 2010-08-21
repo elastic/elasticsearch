@@ -227,13 +227,22 @@ public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent 
             }
 
             if (lastNodeMatched != null) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("[{}][{}]: allocating [{}] to [{}] in order to reuse its unallocated persistent store with total_size [{}]", shard.index(), shard.id(), shard, lastDiscoNodeMatched, new ByteSizeValue(lastSizeMatched));
+                if (nodeAllocations.canAllocate(shard, lastNodeMatched, routingNodes) == NodeAllocation.Decision.THROTTLE) {
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("[{}][{}]: throttling allocation [{}] to [{}] in order to reuse its unallocated persistent store with total_size [{}]", shard.index(), shard.id(), shard, lastDiscoNodeMatched, new ByteSizeValue(lastSizeMatched));
+                    }
+                    // we are throttling this, but we have enough to allocate to this node, ignore it for now
+                    unassignedIterator.remove();
+                    routingNodes.ignoredUnassigned().add(shard);
+                } else {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("[{}][{}]: allocating [{}] to [{}] in order to reuse its unallocated persistent store with total_size [{}]", shard.index(), shard.id(), shard, lastDiscoNodeMatched, new ByteSizeValue(lastSizeMatched));
+                    }
+                    // we found a match
+                    changed = true;
+                    lastNodeMatched.add(shard);
+                    unassignedIterator.remove();
                 }
-                // we found a match
-                changed = true;
-                lastNodeMatched.add(shard);
-                unassignedIterator.remove();
             }
         }
 

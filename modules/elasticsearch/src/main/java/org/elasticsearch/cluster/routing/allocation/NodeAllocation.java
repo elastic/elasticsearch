@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -46,6 +47,8 @@ public interface NodeAllocation {
 
         abstract boolean allocate();
     }
+
+    boolean allocate(RoutingNodes routingNodes, DiscoveryNodes nodes);
 
     Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingNodes routingNodes);
 }

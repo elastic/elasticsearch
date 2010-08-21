@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -36,6 +37,10 @@ public class ReplicaAfterPrimaryActiveNodeAllocation extends AbstractComponent i
 
     @Inject public ReplicaAfterPrimaryActiveNodeAllocation(Settings settings) {
         super(settings);
+    }
+
+    @Override public boolean allocate(RoutingNodes routingNodes, DiscoveryNodes nodes) {
+        return false;
     }
 
     @Override public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingNodes routingNodes) {

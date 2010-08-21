@@ -177,9 +177,6 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
                 case TRANSLOG:
                     stage = PeerRecoveryStatus.Stage.TRANSLOG;
                     break;
-                case THROTTLE:
-                    stage = PeerRecoveryStatus.Stage.THROTTLE;
-                    break;
                 case FINALIZE:
                     stage = PeerRecoveryStatus.Stage.FINALIZE;
                     break;
@@ -190,7 +187,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
                     stage = PeerRecoveryStatus.Stage.INIT;
             }
             shardStatus.peerRecoveryStatus = new PeerRecoveryStatus(stage, peerRecoveryStatus.startTime(), peerRecoveryStatus.time(),
-                    peerRecoveryStatus.retryTime(), peerRecoveryStatus.phase1TotalSize(), peerRecoveryStatus.phase1ExistingTotalSize(),
+                    peerRecoveryStatus.phase1TotalSize(), peerRecoveryStatus.phase1ExistingTotalSize(),
                     peerRecoveryStatus.currentFilesSize(), peerRecoveryStatus.currentTranslogOperations());
         }
 
@@ -208,17 +205,14 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
                 case TRANSLOG:
                     stage = GatewayRecoveryStatus.Stage.TRANSLOG;
                     break;
-                case THROTTLE:
-                    stage = GatewayRecoveryStatus.Stage.THROTTLE;
-                    break;
                 case DONE:
                     stage = GatewayRecoveryStatus.Stage.DONE;
                     break;
                 default:
                     stage = GatewayRecoveryStatus.Stage.INIT;
             }
-            shardStatus.gatewayRecoveryStatus = new GatewayRecoveryStatus(stage, gatewayRecoveryStatus.startTime(), gatewayRecoveryStatus.time(), gatewayRecoveryStatus.retryTime(),
-                    gatewayRecoveryStatus.index().retryTime(), gatewayRecoveryStatus.index().totalSize(), gatewayRecoveryStatus.index().existingTotalSize(), gatewayRecoveryStatus.index().currentFilesSize(), gatewayRecoveryStatus.translog().currentTranslogOperations());
+            shardStatus.gatewayRecoveryStatus = new GatewayRecoveryStatus(stage, gatewayRecoveryStatus.startTime(), gatewayRecoveryStatus.time(),
+                    gatewayRecoveryStatus.index().totalSize(), gatewayRecoveryStatus.index().existingTotalSize(), gatewayRecoveryStatus.index().currentFilesSize(), gatewayRecoveryStatus.translog().currentTranslogOperations());
         }
 
         SnapshotStatus snapshotStatus = gatewayService.snapshotStatus();

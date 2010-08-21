@@ -30,11 +30,10 @@ public class GatewayRecoveryStatus {
 
     public enum Stage {
         INIT((byte) 0),
-        THROTTLE((byte) 1),
-        INDEX((byte) 2),
-        TRANSLOG((byte) 3),
-        FINALIZE((byte) 4),
-        DONE((byte) 5);
+        INDEX((byte) 1),
+        TRANSLOG((byte) 2),
+        FINALIZE((byte) 3),
+        DONE((byte) 4);
 
         private final byte value;
 
@@ -50,14 +49,12 @@ public class GatewayRecoveryStatus {
             if (value == 0) {
                 return INIT;
             } else if (value == 1) {
-                return THROTTLE;
-            } else if (value == 2) {
                 return INDEX;
-            } else if (value == 3) {
+            } else if (value == 2) {
                 return TRANSLOG;
-            } else if (value == 4) {
+            } else if (value == 3) {
                 return FINALIZE;
-            } else if (value == 5) {
+            } else if (value == 4) {
                 return DONE;
             }
             throw new ElasticSearchIllegalArgumentException("No stage found for [" + value + ']');
@@ -70,10 +67,6 @@ public class GatewayRecoveryStatus {
 
     final long time;
 
-    final long throttlingTime;
-
-    final long indexThrottlingTime;
-
     final long indexSize;
 
     final long reusedIndexSize;
@@ -82,13 +75,11 @@ public class GatewayRecoveryStatus {
 
     final long recoveredTranslogOperations;
 
-    public GatewayRecoveryStatus(Stage stage, long startTime, long time, long throttlingTime, long indexThrottlingTime, long indexSize, long reusedIndexSize,
+    public GatewayRecoveryStatus(Stage stage, long startTime, long time, long indexSize, long reusedIndexSize,
                                  long recoveredIndexSize, long recoveredTranslogOperations) {
         this.stage = stage;
         this.startTime = startTime;
         this.time = time;
-        this.throttlingTime = throttlingTime;
-        this.indexThrottlingTime = indexThrottlingTime;
         this.indexSize = indexSize;
         this.reusedIndexSize = reusedIndexSize;
         this.recoveredIndexSize = recoveredIndexSize;
@@ -113,22 +104,6 @@ public class GatewayRecoveryStatus {
 
     public TimeValue getTime() {
         return time();
-    }
-
-    public TimeValue throttlingTime() {
-        return TimeValue.timeValueMillis(throttlingTime);
-    }
-
-    public TimeValue getThrottlingTime() {
-        return throttlingTime();
-    }
-
-    public TimeValue indexThrottlingTime() {
-        return TimeValue.timeValueMillis(indexThrottlingTime);
-    }
-
-    public TimeValue getIndexThrottlingTime() {
-        return indexThrottlingTime();
     }
 
     public ByteSizeValue indexSize() {

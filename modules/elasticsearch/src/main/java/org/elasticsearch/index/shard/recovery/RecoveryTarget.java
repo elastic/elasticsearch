@@ -40,7 +40,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.recovery.throttler.RecoveryThrottler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -76,17 +75,14 @@ public class RecoveryTarget extends AbstractComponent {
 
     private final IndicesService indicesService;
 
-    private final RecoveryThrottler recoveryThrottler;
-
     private final ConcurrentMap<ShardId, RecoveryStatus> onGoingRecoveries = ConcurrentCollections.newConcurrentMap();
 
     @Inject public RecoveryTarget(Settings settings, ThreadPool threadPool, TransportService transportService, IndicesService indicesService,
-                                  IndicesLifecycle indicesLifecycle, RecoveryThrottler recoveryThrottler) {
+                                  IndicesLifecycle indicesLifecycle) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.indicesService = indicesService;
-        this.recoveryThrottler = recoveryThrottler;
 
         transportService.registerHandler(Actions.FILES_INFO, new FilesInfoRequestHandler());
         transportService.registerHandler(Actions.FILE_CHUNK, new FileChunkTransportRequestHandler());
@@ -167,13 +163,6 @@ public class RecoveryTarget extends AbstractComponent {
             onGoingRecoveries.put(request.shardId(), recovery);
         }
 
-        if (!recoveryThrottler.tryPeerRecovery(shard.shardId(), "peer recovery target")) {
-            recovery.stage = RecoveryStatus.Stage.THROTTLE;
-            recovery.retryTime = System.currentTimeMillis() - recovery.startTime;
-            listener.onRetryRecovery(recoveryThrottler.throttleInterval());
-            return;
-        }
-
         try {
             logger.trace("[{}][{}] starting recovery from {}", request.shardId().index().name(), request.shardId().id(), request.sourceNode());
 
@@ -183,15 +172,8 @@ public class RecoveryTarget extends AbstractComponent {
                     return new RecoveryResponse();
                 }
             }).txGet();
-            if (recoveryStatus.retry) {
-                if (shard.state() == IndexShardState.CLOSED) {
-                    listener.onIgnoreRecovery(false, "shard closed, stop recovery");
-                    return;
-                }
-                logger.trace("[{}][{}] retrying recovery in [{}], source shard is busy", request.shardId().index().name(), request.shardId().id(), recoveryThrottler.throttleInterval());
-                recovery.stage = RecoveryStatus.Stage.THROTTLE;
-                recovery.retryTime = System.currentTimeMillis() - recovery.startTime;
-                listener.onRetryRecovery(recoveryThrottler.throttleInterval());
+            if (shard.state() == IndexShardState.CLOSED) {
+                listener.onIgnoreRecovery(false, "shard closed, stop recovery");
                 return;
             }
             stopWatch.stop();
@@ -231,9 +213,7 @@ public class RecoveryTarget extends AbstractComponent {
             }
 
             if (cause instanceof IndexShardNotStartedException || cause instanceof IndexMissingException || cause instanceof IndexShardMissingException) {
-                recovery.stage = RecoveryStatus.Stage.THROTTLE;
-                recovery.retryTime = System.currentTimeMillis() - recovery.startTime;
-                listener.onRetryRecovery(recoveryThrottler.throttleInterval());
+                listener.onRetryRecovery(TimeValue.timeValueMillis(500));
                 return;
             }
 
@@ -251,8 +231,6 @@ public class RecoveryTarget extends AbstractComponent {
             }
 
             listener.onRecoveryFailure(new RecoveryFailedException(request, e), true);
-        } finally {
-            recoveryThrottler.recoveryPeerDone(shard.shardId(), "peer recovery target");
         }
     }
 

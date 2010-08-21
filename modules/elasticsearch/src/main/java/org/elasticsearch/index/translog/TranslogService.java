@@ -23,6 +23,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
@@ -80,6 +81,8 @@ public class TranslogService extends AbstractIndexShardComponent {
                 logger.trace("flushing translog, operations [{}], breached [{}]", currentSize, flushThreshold);
                 try {
                     indexShard.flush(new Engine.Flush());
+                } catch (EngineClosedException e) {
+                    // we are being closed, ignore
                 } catch (FlushNotAllowedEngineException e) {
                     // ignore this exception, we are not allowed to perform flush
                 } catch (Exception e) {

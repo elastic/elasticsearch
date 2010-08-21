@@ -28,7 +28,6 @@ public class RecoveryStatus {
 
     public static enum Stage {
         INIT,
-        THROTTLE,
         INDEX,
         TRANSLOG,
         DONE
@@ -37,8 +36,6 @@ public class RecoveryStatus {
     private Stage stage = Stage.INIT;
 
     private long startTime = System.currentTimeMillis();
-
-    private long retryTime = 0;
 
     private long time;
 
@@ -61,14 +58,6 @@ public class RecoveryStatus {
 
     public void startTime(long startTime) {
         this.startTime = startTime;
-    }
-
-    public long retryTime() {
-        return this.retryTime;
-    }
-
-    public void retryTime(long retryTime) {
-        this.retryTime = retryTime;
     }
 
     public long time() {
@@ -126,7 +115,6 @@ public class RecoveryStatus {
         private long totalSize = 0;
         private int numberOfExistingFiles = 0;
         private long existingTotalSize = 0;
-        private AtomicLong retryTime = new AtomicLong();
         private AtomicLong currentFilesSize = new AtomicLong();
 
         public long startTime() {
@@ -170,14 +158,6 @@ public class RecoveryStatus {
 
         public long existingTotalSize() {
             return this.existingTotalSize;
-        }
-
-        public void addRetryTime(long delta) {
-            retryTime.addAndGet(delta);
-        }
-
-        public long retryTime() {
-            return this.retryTime.get();
         }
 
         public void updateVersion(long version) {

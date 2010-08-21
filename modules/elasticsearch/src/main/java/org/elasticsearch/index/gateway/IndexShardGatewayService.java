@@ -34,7 +34,6 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.recovery.throttler.RecoveryThrottler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ScheduledFuture;
@@ -56,8 +55,6 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
 
     private final Store store;
 
-    private final RecoveryThrottler recoveryThrottler;
-
 
     private volatile long lastIndexVersion;
 
@@ -75,13 +72,12 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
 
     @Inject public IndexShardGatewayService(ShardId shardId, @IndexSettings Settings indexSettings,
                                             ThreadPool threadPool, IndexShard indexShard, IndexShardGateway shardGateway,
-                                            Store store, RecoveryThrottler recoveryThrottler) {
+                                            Store store) {
         super(shardId, indexSettings);
         this.threadPool = threadPool;
         this.indexShard = (InternalIndexShard) indexShard;
         this.shardGateway = shardGateway;
         this.store = store;
-        this.recoveryThrottler = recoveryThrottler;
 
         this.snapshotOnClose = componentSettings.getAsBoolean("snapshot_on_close", true);
         this.snapshotInterval = componentSettings.getAsTime("snapshot_interval", TimeValue.timeValueSeconds(10));
@@ -146,27 +142,6 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                 recoveryStatus = new RecoveryStatus();
                 recoveryStatus.updateStage(RecoveryStatus.Stage.INIT);
 
-                // we know we are on a thread, we can spin till we can engage in recovery
-                while (!recoveryThrottler.tryGatewayRecovery(shardId, "gateway")) {
-                    if (indexShard.state() == IndexShardState.CLOSED) {
-                        listener.onIgnoreRecovery("ignoring recovery while waiting on retry, closed");
-                        return;
-                    }
-                    recoveryStatus.updateStage(RecoveryStatus.Stage.THROTTLE);
-                    try {
-                        Thread.sleep(recoveryThrottler.throttleInterval().millis());
-                        recoveryStatus.retryTime(System.currentTimeMillis() - recoveryStatus.startTime());
-                    } catch (InterruptedException e) {
-                        recoveryStatus = null;
-                        if (indexShard.state() == IndexShardState.CLOSED) {
-                            listener.onIgnoreRecovery("Interrupted while waiting for recovery, but we should ignore since closed");
-                        } else {
-                            listener.onRecoveryFailed(new IndexShardGatewayRecoveryException(shardId, "Interrupted while waiting to recovery", e));
-                        }
-                        return;
-                    }
-                }
-
                 try {
                     logger.debug("starting recovery from {} ...", shardGateway);
                     shardGateway.recover(recoveryStatus);
@@ -188,8 +163,8 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
 
                     if (logger.isDebugEnabled()) {
                         StringBuilder sb = new StringBuilder();
-                        sb.append("recovery completed from ").append(shardGateway).append(", took [").append(timeValueMillis(recoveryStatus.time())).append("], retry_time [").append(TimeValue.timeValueMillis(recoveryStatus.retryTime())).append("]\n");
-                        sb.append("    index    : recovered_files [").append(recoveryStatus.index().numberOfFiles()).append("] with total_size [").append(new ByteSizeValue(recoveryStatus.index().totalSize())).append("], took [").append(TimeValue.timeValueMillis(recoveryStatus.index().time())).append("], throttling_wait [").append(TimeValue.timeValueMillis(recoveryStatus.index().retryTime())).append("]\n");
+                        sb.append("recovery completed from ").append(shardGateway).append(", took [").append(timeValueMillis(recoveryStatus.time())).append("]\n");
+                        sb.append("    index    : recovered_files [").append(recoveryStatus.index().numberOfFiles()).append("] with total_size [").append(new ByteSizeValue(recoveryStatus.index().totalSize())).append("], took [").append(TimeValue.timeValueMillis(recoveryStatus.index().time())).append("]\n");
                         sb.append("             : reusing_files   [").append(recoveryStatus.index().numberOfExistingFiles()).append("] with total_size [").append(new ByteSizeValue(recoveryStatus.index().existingTotalSize())).append("]\n");
                         sb.append("    translog : number_of_operations [").append(recoveryStatus.translog().currentTranslogOperations()).append("], took [").append(TimeValue.timeValueMillis(recoveryStatus.translog().time())).append("]");
                         logger.debug(sb.toString());
@@ -214,8 +189,6 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                     listener.onIgnoreRecovery("shard closed");
                 } catch (Exception e) {
                     listener.onRecoveryFailed(new IndexShardGatewayRecoveryException(shardId, "failed recovery", e));
-                } finally {
-                    recoveryThrottler.recoveryGatewayDone(shardId, "gateway");
                 }
             }
         });

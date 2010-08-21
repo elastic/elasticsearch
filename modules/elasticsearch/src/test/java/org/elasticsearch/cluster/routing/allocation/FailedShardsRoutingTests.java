@@ -38,6 +38,7 @@ import static org.elasticsearch.cluster.metadata.MetaData.*;
 import static org.elasticsearch.cluster.node.DiscoveryNodes.*;
 import static org.elasticsearch.cluster.routing.RoutingBuilders.*;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -50,7 +51,7 @@ public class FailedShardsRoutingTests {
     private final ESLogger logger = Loggers.getLogger(FailedShardsRoutingTests.class);
 
     @Test public void testFailures() {
-        ShardsAllocation strategy = new ShardsAllocation();
+        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
 
         logger.info("Building initial routing table");
 
@@ -163,7 +164,7 @@ public class FailedShardsRoutingTests {
     }
 
     @Test public void test10ShardsWith1ReplicaFailure() {
-        ShardsAllocation strategy = new ShardsAllocation();
+        ShardsAllocation strategy = new ShardsAllocation(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
 
         logger.info("Building initial routing table");
 

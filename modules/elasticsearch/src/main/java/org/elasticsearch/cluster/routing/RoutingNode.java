@@ -19,8 +19,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.cluster.metadata.MetaData;
-
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -119,7 +117,7 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
         return count;
     }
 
-    public boolean canAllocate(MetaData metaData, RoutingTable routingTable) {
+    public boolean canAllocate(RoutingNodes nodes) {
         return true;
     }
 

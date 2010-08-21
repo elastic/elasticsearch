@@ -171,7 +171,7 @@ public class ShardsRoutingStrategy extends AbstractComponent {
                         continue;
                     }
 
-                    if (lowRoutingNode.canAllocate(routingNodes.metaData(), routingNodes.routingTable()) && lowRoutingNode.canAllocate(startedShard)) {
+                    if (lowRoutingNode.canAllocate(routingNodes) && lowRoutingNode.canAllocate(startedShard)) {
                         changed = true;
                         lowRoutingNode.add(new MutableShardRouting(startedShard.index(), startedShard.id(),
                                 lowRoutingNode.nodeId(), startedShard.currentNodeId(),
@@ -245,7 +245,7 @@ public class ShardsRoutingStrategy extends AbstractComponent {
                 if (lastNode == nodes.size())
                     lastNode = 0;
 
-                if (node.canAllocate(routingNodes.metaData(), routingNodes.routingTable()) && node.canAllocate(shard)) {
+                if (node.canAllocate(routingNodes) && node.canAllocate(shard)) {
                     int numberOfShardsToAllocate = routingNodes.requiredAverageNumberOfShardsPerNode() - node.shards().size();
                     if (numberOfShardsToAllocate == 0) {
                         continue;
@@ -271,7 +271,7 @@ public class ShardsRoutingStrategy extends AbstractComponent {
             }
             // go over the nodes and try and allocate the remaining ones
             for (RoutingNode routingNode : routingNodes.nodesToShards().values()) {
-                if (routingNode.canAllocate(routingNodes.metaData(), routingNodes.routingTable()) && routingNode.canAllocate(shard)) {
+                if (routingNode.canAllocate(routingNodes) && routingNode.canAllocate(shard)) {
                     changed = true;
                     routingNode.add(shard);
                     it.remove();
@@ -463,7 +463,7 @@ public class ShardsRoutingStrategy extends AbstractComponent {
             List<RoutingNode> sortedNodesLeastToHigh = routingNodes.sortedNodesLeastToHigh();
             for (RoutingNode target : sortedNodesLeastToHigh) {
                 if (target.canAllocate(failedShard) &&
-                        target.canAllocate(routingNodes.metaData(), routingNodes.routingTable()) &&
+                        target.canAllocate(routingNodes) &&
                         !target.nodeId().equals(failedShard.currentNodeId())) {
 
                     target.add(new MutableShardRouting(failedShard.index(), failedShard.id(),

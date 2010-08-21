@@ -26,6 +26,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 
 /**
+ * Recovery Throttler allows to throttle recoveries (both gateway and peer).
+ *
  * @author kimchy (shay.banon)
  */
 public class RecoveryThrottler extends AbstractComponent {
@@ -36,7 +38,9 @@ public class RecoveryThrottler extends AbstractComponent {
 
     private final TimeValue throttleInterval;
 
-    private volatile int onGoingRecoveries = 0;
+    private volatile int onGoingGatewayRecoveries = 0;
+
+    private volatile int onGoingPeerRecoveries = 0;
 
     private final int concurrentStreams;
 
@@ -47,41 +51,72 @@ public class RecoveryThrottler extends AbstractComponent {
     @Inject public RecoveryThrottler(Settings settings) {
         super(settings);
 
-        int defaultConcurrent = Runtime.getRuntime().availableProcessors() + 1;
+        int defaultConcurrentRecoveries = Runtime.getRuntime().availableProcessors() + 1;
         // tap it at 10 (is it a good number?)
-        if (defaultConcurrent > 10) {
-            defaultConcurrent = 10;
-        } else if (defaultConcurrent < 3) {
-            defaultConcurrent = 3;
+        if (defaultConcurrentRecoveries > 10) {
+            defaultConcurrentRecoveries = 10;
+        } else if (defaultConcurrentRecoveries < 3) {
+            defaultConcurrentRecoveries = 3;
         }
 
-        concurrentRecoveries = componentSettings.getAsInt("concurrent_recoveries", defaultConcurrent);
-        concurrentStreams = componentSettings.getAsInt("concurrent_streams", defaultConcurrent);
+        concurrentRecoveries = componentSettings.getAsInt("concurrent_recoveries", defaultConcurrentRecoveries);
+        concurrentStreams = componentSettings.getAsInt("concurrent_streams", defaultConcurrentRecoveries * 2);
         throttleInterval = componentSettings.getAsTime("interval", TimeValue.timeValueMillis(100));
 
         logger.debug("concurrent_recoveries [{}], concurrent_streams [{}] interval [{}]", concurrentRecoveries, concurrentStreams, throttleInterval);
     }
 
-    public boolean tryRecovery(ShardId shardId, String reason) {
+    /**
+     * Try and check if gateway recovery is allowed. Only takes the on going gateway recoveries into account. Ignore
+     * on going peer recoveries so peer recovery will not block a much more important gateway recovery.
+     */
+    public boolean tryGatewayRecovery(ShardId shardId, String reason) {
         synchronized (concurrentRecoveryMutex) {
-            if (onGoingRecoveries + 1 > concurrentRecoveries) {
+            if ((onGoingGatewayRecoveries + 1) > concurrentRecoveries) {
                 return false;
             }
-            onGoingRecoveries++;
-            logger.trace("Recovery allowed for [{}], on going [{}], allowed [{}], reason [{}]", shardId, onGoingRecoveries, concurrentRecoveries, reason);
+            onGoingGatewayRecoveries++;
+            logger.trace("Recovery (gateway) allowed for [{}], on_going (gateway [{}], peer [{}]), allowed [{}], reason [{}]", shardId, onGoingGatewayRecoveries, onGoingPeerRecoveries, concurrentRecoveries, reason);
             return true;
         }
     }
 
-    public void recoveryDone(ShardId shardId, String reason) {
+    /**
+     * Mark gateway recvoery as done.
+     */
+    public void recoveryGatewayDone(ShardId shardId, String reason) {
         synchronized (concurrentRecoveryMutex) {
-            --onGoingRecoveries;
-            logger.trace("Recovery done for [{}], on going [{}], allowed [{}], reason [{}]", shardId, onGoingRecoveries, concurrentRecoveries, reason);
+            --onGoingGatewayRecoveries;
+            logger.trace("Recovery (gateway) done for [{}], on_going (gateway [{}], peer [{}]), allowed [{}], reason [{}]", shardId, onGoingGatewayRecoveries, onGoingPeerRecoveries, concurrentRecoveries, reason);
+        }
+    }
+
+    /**
+     * Try and check if peer recovery is allowed. Takes into account both on going gateway recovery and peer recovery.
+     */
+    public boolean tryPeerRecovery(ShardId shardId, String reason) {
+        synchronized (concurrentRecoveryMutex) {
+            if ((onGoingGatewayRecoveries + onGoingPeerRecoveries + 1) > concurrentRecoveries) {
+                return false;
+            }
+            onGoingPeerRecoveries++;
+            logger.trace("Recovery (peer) allowed for [{}], on_going (gateway [{}], peer [{}]), allowed [{}], reason [{}]", shardId, onGoingGatewayRecoveries, onGoingPeerRecoveries, concurrentRecoveries, reason);
+            return true;
+        }
+    }
+
+    /**
+     * Mark peer recovery as done.
+     */
+    public void recoveryPeerDone(ShardId shardId, String reason) {
+        synchronized (concurrentRecoveryMutex) {
+            --onGoingPeerRecoveries;
+            logger.trace("Recovery (peer) done for [{}], on_going (gateway [{}], peer [{}]), allowed [{}], reason [{}]", shardId, onGoingGatewayRecoveries, onGoingPeerRecoveries, concurrentRecoveries, reason);
         }
     }
 
     public int onGoingRecoveries() {
-        return onGoingRecoveries;
+        return onGoingGatewayRecoveries + onGoingPeerRecoveries;
     }
 
     public boolean tryStream(ShardId shardId, String streamName) {

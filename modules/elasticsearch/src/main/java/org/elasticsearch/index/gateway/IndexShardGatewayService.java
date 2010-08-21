@@ -147,7 +147,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                 recoveryStatus.updateStage(RecoveryStatus.Stage.INIT);
 
                 // we know we are on a thread, we can spin till we can engage in recovery
-                while (!recoveryThrottler.tryRecovery(shardId, "gateway")) {
+                while (!recoveryThrottler.tryGatewayRecovery(shardId, "gateway")) {
                     if (indexShard.state() == IndexShardState.CLOSED) {
                         listener.onIgnoreRecovery("ignoring recovery while waiting on retry, closed");
                         return;
@@ -215,7 +215,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                 } catch (Exception e) {
                     listener.onRecoveryFailed(new IndexShardGatewayRecoveryException(shardId, "failed recovery", e));
                 } finally {
-                    recoveryThrottler.recoveryDone(shardId, "gateway");
+                    recoveryThrottler.recoveryGatewayDone(shardId, "gateway");
                 }
             }
         });

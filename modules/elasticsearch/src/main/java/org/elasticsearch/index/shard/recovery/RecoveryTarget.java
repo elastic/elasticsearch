@@ -167,7 +167,7 @@ public class RecoveryTarget extends AbstractComponent {
             onGoingRecoveries.put(request.shardId(), recovery);
         }
 
-        if (!recoveryThrottler.tryRecovery(shard.shardId(), "peer recovery target")) {
+        if (!recoveryThrottler.tryPeerRecovery(shard.shardId(), "peer recovery target")) {
             recovery.stage = RecoveryStatus.Stage.THROTTLE;
             recovery.retryTime = System.currentTimeMillis() - recovery.startTime;
             listener.onRetryRecovery(recoveryThrottler.throttleInterval());
@@ -252,7 +252,7 @@ public class RecoveryTarget extends AbstractComponent {
 
             listener.onRecoveryFailure(new RecoveryFailedException(request, e), true);
         } finally {
-            recoveryThrottler.recoveryDone(shard.shardId(), "peer recovery target");
+            recoveryThrottler.recoveryPeerDone(shard.shardId(), "peer recovery target");
         }
     }
 

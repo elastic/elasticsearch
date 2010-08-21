@@ -94,7 +94,7 @@ public class RecoverySource extends AbstractComponent {
     }
 
     private RecoveryResponse recover(final StartRecoveryRequest request) {
-        if (!recoveryThrottler.tryRecovery(request.shardId(), "peer recovery source")) {
+        if (!recoveryThrottler.tryPeerRecovery(request.shardId(), "peer recovery source")) {
             RecoveryResponse retry = new RecoveryResponse();
             retry.retry = true;
             return retry;
@@ -282,7 +282,7 @@ public class RecoverySource extends AbstractComponent {
             });
             return response;
         } finally {
-            recoveryThrottler.recoveryDone(request.shardId(), "peer recovery source");
+            recoveryThrottler.recoveryPeerDone(request.shardId(), "peer recovery source");
         }
     }
 

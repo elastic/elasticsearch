@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -49,6 +50,14 @@ public class NodeAllocations extends AbstractComponent implements NodeAllocation
     @Inject public NodeAllocations(Settings settings, Set<NodeAllocation> allocations) {
         super(settings);
         this.allocations = allocations.toArray(new NodeAllocation[allocations.size()]);
+    }
+
+    @Override public boolean allocate(RoutingNodes routingNodes, DiscoveryNodes nodes) {
+        boolean changed = false;
+        for (NodeAllocation allocation : allocations) {
+            changed |= allocation.allocate(routingNodes, nodes);
+        }
+        return changed;
     }
 
     @Override public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingNodes routingNodes) {

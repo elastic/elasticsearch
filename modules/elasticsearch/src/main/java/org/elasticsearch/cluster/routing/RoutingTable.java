@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.Iterables;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,7 +38,7 @@ import static org.elasticsearch.common.collect.Lists.*;
 import static org.elasticsearch.common.collect.Maps.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 @Immutable
 public class RoutingTable implements Iterable<IndexRoutingTable> {
@@ -232,7 +233,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
                     indexBuilder.addShard(new ImmutableShardRouting(shardRoutingEntry));
                 }
             }
-            for (MutableShardRouting shardRoutingEntry : routingNodes.unassigned()) {
+            for (MutableShardRouting shardRoutingEntry : Iterables.concat(routingNodes.unassigned(), routingNodes.ignoredUnassigned())) {
                 String index = shardRoutingEntry.index();
                 IndexRoutingTable.Builder indexBuilder = indexRoutingTableBuilders.get(index);
                 if (indexBuilder == null) {

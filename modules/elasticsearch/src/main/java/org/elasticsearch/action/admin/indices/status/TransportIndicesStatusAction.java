@@ -177,8 +177,8 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
                 case TRANSLOG:
                     stage = PeerRecoveryStatus.Stage.TRANSLOG;
                     break;
-                case RETRY:
-                    stage = PeerRecoveryStatus.Stage.RETRY;
+                case THROTTLE:
+                    stage = PeerRecoveryStatus.Stage.THROTTLE;
                     break;
                 case FINALIZE:
                     stage = PeerRecoveryStatus.Stage.FINALIZE;
@@ -208,8 +208,8 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
                 case TRANSLOG:
                     stage = GatewayRecoveryStatus.Stage.TRANSLOG;
                     break;
-                case RETRY:
-                    stage = GatewayRecoveryStatus.Stage.RETRY;
+                case THROTTLE:
+                    stage = GatewayRecoveryStatus.Stage.THROTTLE;
                     break;
                 case DONE:
                     stage = GatewayRecoveryStatus.Stage.DONE;

@@ -33,7 +33,7 @@ public class RecoveryStatus {
 
     public static enum Stage {
         INIT,
-        RETRY,
+        THROTTLE,
         INDEX,
         TRANSLOG,
         FINALIZE,

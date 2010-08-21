@@ -30,7 +30,7 @@ public class GatewayRecoveryStatus {
 
     public enum Stage {
         INIT((byte) 0),
-        RETRY((byte) 1),
+        THROTTLE((byte) 1),
         INDEX((byte) 2),
         TRANSLOG((byte) 3),
         FINALIZE((byte) 4),
@@ -50,7 +50,7 @@ public class GatewayRecoveryStatus {
             if (value == 0) {
                 return INIT;
             } else if (value == 1) {
-                return RETRY;
+                return THROTTLE;
             } else if (value == 2) {
                 return INDEX;
             } else if (value == 3) {

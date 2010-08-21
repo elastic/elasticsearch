@@ -47,6 +47,10 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
 
     int relocatingShards = 0;
 
+    int initializingShards = 0;
+
+    int unassignedShards = 0;
+
     int activePrimaryShards = 0;
 
     ClusterHealthStatus status = ClusterHealthStatus.RED;
@@ -121,6 +125,22 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
         return activePrimaryShards();
     }
 
+    public int initializingShards() {
+        return initializingShards;
+    }
+
+    public int getInitializingShards() {
+        return initializingShards();
+    }
+
+    public int unassignedShards() {
+        return unassignedShards;
+    }
+
+    public int getUnassignedShards() {
+        return unassignedShards();
+    }
+
     public ClusterHealthStatus status() {
         return status;
     }
@@ -154,6 +174,8 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
         activePrimaryShards = in.readVInt();
         activeShards = in.readVInt();
         relocatingShards = in.readVInt();
+        initializingShards = in.readVInt();
+        unassignedShards = in.readVInt();
         status = ClusterHealthStatus.fromValue(in.readByte());
 
         int size = in.readVInt();
@@ -178,6 +200,8 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
         out.writeVInt(activePrimaryShards);
         out.writeVInt(activeShards);
         out.writeVInt(relocatingShards);
+        out.writeVInt(initializingShards);
+        out.writeVInt(unassignedShards);
         out.writeByte(status.value());
 
         out.writeVInt(shards.size());

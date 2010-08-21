@@ -48,6 +48,10 @@ public class ClusterHealthResponse implements ActionResponse, Iterable<ClusterIn
 
     int activePrimaryShards = 0;
 
+    int initializingShards = 0;
+
+    int unassignedShards = 0;
+
     boolean timedOut = false;
 
     ClusterHealthStatus status = ClusterHealthStatus.RED;
@@ -129,6 +133,22 @@ public class ClusterHealthResponse implements ActionResponse, Iterable<ClusterIn
         return activePrimaryShards();
     }
 
+    public int initializingShards() {
+        return initializingShards;
+    }
+
+    public int getInitializingShards() {
+        return initializingShards();
+    }
+
+    public int unassignedShards() {
+        return unassignedShards;
+    }
+
+    public int getUnassignedShards() {
+        return unassignedShards();
+    }
+
     public int numberOfNodes() {
         return this.numberOfNodes;
     }
@@ -173,6 +193,8 @@ public class ClusterHealthResponse implements ActionResponse, Iterable<ClusterIn
         activePrimaryShards = in.readVInt();
         activeShards = in.readVInt();
         relocatingShards = in.readVInt();
+        initializingShards = in.readVInt();
+        unassignedShards = in.readVInt();
         numberOfNodes = in.readVInt();
         status = ClusterHealthStatus.fromValue(in.readByte());
         int size = in.readVInt();
@@ -196,6 +218,8 @@ public class ClusterHealthResponse implements ActionResponse, Iterable<ClusterIn
         out.writeVInt(activePrimaryShards);
         out.writeVInt(activeShards);
         out.writeVInt(relocatingShards);
+        out.writeVInt(initializingShards);
+        out.writeVInt(unassignedShards);
         out.writeVInt(numberOfNodes);
         out.writeByte(status.value());
         out.writeVInt(indices.size());

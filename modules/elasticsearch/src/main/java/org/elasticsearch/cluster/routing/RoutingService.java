@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.*;
-import org.elasticsearch.cluster.routing.strategy.ShardsRoutingStrategy;
+import org.elasticsearch.cluster.routing.allocation.ShardsAllocation;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -42,7 +42,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
 
     private final ClusterService clusterService;
 
-    private final ShardsRoutingStrategy shardsRoutingStrategy;
+    private final ShardsAllocation shardsAllocation;
 
     private final TimeValue schedule;
 
@@ -50,11 +50,11 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
 
     private volatile Future scheduledRoutingTableFuture;
 
-    @Inject public RoutingService(Settings settings, ThreadPool threadPool, ClusterService clusterService, ShardsRoutingStrategy shardsRoutingStrategy) {
+    @Inject public RoutingService(Settings settings, ThreadPool threadPool, ClusterService clusterService, ShardsAllocation shardsAllocation) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.shardsRoutingStrategy = shardsRoutingStrategy;
+        this.shardsAllocation = shardsAllocation;
         this.schedule = componentSettings.getAsTime("schedule", timeValueSeconds(10));
     }
 
@@ -120,7 +120,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
                 }
                 clusterService.submitStateUpdateTask(CLUSTER_UPDATE_TASK_SOURCE, new ClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
-                        RoutingTable newRoutingTable = shardsRoutingStrategy.reroute(currentState);
+                        RoutingTable newRoutingTable = shardsAllocation.reroute(currentState);
                         if (newRoutingTable == currentState.routingTable()) {
                             // no state changed
                             return currentState;

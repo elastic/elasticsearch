@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.index.NodeIndexCreatedAction;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.strategy.ShardsRoutingStrategy;
+import org.elasticsearch.cluster.routing.allocation.ShardsAllocation;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -74,18 +74,18 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     private final IndicesService indicesService;
 
-    private final ShardsRoutingStrategy shardsRoutingStrategy;
+    private final ShardsAllocation shardsAllocation;
 
     private final NodeIndexCreatedAction nodeIndexCreatedAction;
 
     @Inject public MetaDataCreateIndexService(Settings settings, Environment environment, TimerService timerService, ClusterService clusterService, IndicesService indicesService,
-                                              ShardsRoutingStrategy shardsRoutingStrategy, NodeIndexCreatedAction nodeIndexCreatedAction) {
+                                              ShardsAllocation shardsAllocation, NodeIndexCreatedAction nodeIndexCreatedAction) {
         super(settings);
         this.environment = environment;
         this.timerService = timerService;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.shardsRoutingStrategy = shardsRoutingStrategy;
+        this.shardsAllocation = shardsAllocation;
         this.nodeIndexCreatedAction = nodeIndexCreatedAction;
     }
 
@@ -265,9 +265,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 }
                 // do prefetch here so we won't compute md5 and such on the cluster update state...
                 long prefetchTime = 0;
-                if (shardsRoutingStrategy.preferUnallocatedStrategy() != null) {
+                if (shardsAllocation.preferUnallocatedStrategy() != null) {
                     long start = System.currentTimeMillis();
-                    shardsRoutingStrategy.preferUnallocatedStrategy().prefetch(response.indexMetaData(), clusterService.state().nodes());
+                    shardsAllocation.preferUnallocatedStrategy().prefetch(response.indexMetaData(), clusterService.state().nodes());
                     prefetchTime = System.currentTimeMillis() - start;
                 }
                 final long fPrefetchTime = prefetchTime;
@@ -282,7 +282,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(request.index)
                                 .initializeEmpty(currentState.metaData().index(request.index));
                         routingTableBuilder.add(indexRoutingBuilder);
-                        RoutingTable newRoutingTable = shardsRoutingStrategy.reroute(newClusterStateBuilder().state(currentState).routingTable(routingTableBuilder).build());
+                        RoutingTable newRoutingTable = shardsAllocation.reroute(newClusterStateBuilder().state(currentState).routingTable(routingTableBuilder).build());
                         return newClusterStateBuilder().state(currentState).routingTable(newRoutingTable).build();
                     }
 

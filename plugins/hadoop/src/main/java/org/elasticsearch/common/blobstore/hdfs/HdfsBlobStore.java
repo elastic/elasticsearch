@@ -21,7 +21,6 @@ package org.elasticsearch.common.blobstore.hdfs;
 
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.elasticsearch.common.blobstore.AppendableBlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
@@ -79,10 +78,6 @@ public class HdfsBlobStore implements BlobStore {
 
     @Override public ImmutableBlobContainer immutableBlobContainer(BlobPath path) {
         return new HdfsImmutableBlobContainer(this, path, buildAndCreate(path));
-    }
-
-    @Override public AppendableBlobContainer appendableBlobContainer(BlobPath path) {
-        return new HdfsAppendableBlobContainer(this, path, buildAndCreate(path));
     }
 
     @Override public void delete(BlobPath path) {

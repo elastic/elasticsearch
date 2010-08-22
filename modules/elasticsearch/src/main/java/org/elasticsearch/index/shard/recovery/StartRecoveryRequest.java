@@ -43,7 +43,7 @@ public class StartRecoveryRequest implements Streamable {
 
     private boolean markAsRelocated;
 
-    Map<String, StoreFileMetaData> existingFiles;
+    private Map<String, StoreFileMetaData> existingFiles;
 
     StartRecoveryRequest() {
     }

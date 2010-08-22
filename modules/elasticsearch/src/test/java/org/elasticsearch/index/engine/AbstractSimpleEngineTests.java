@@ -35,11 +35,12 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.ram.RamStore;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.memory.MemoryTranslog;
+import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -82,7 +83,7 @@ public abstract class AbstractSimpleEngineTests {
     }
 
     protected Translog createTranslog() {
-        return new MemoryTranslog(shardId, EMPTY_SETTINGS);
+        return new FsTranslog(shardId, EMPTY_SETTINGS, new File("work/fs-translog"), false);
     }
 
     protected IndexDeletionPolicy createIndexDeletionPolicy() {

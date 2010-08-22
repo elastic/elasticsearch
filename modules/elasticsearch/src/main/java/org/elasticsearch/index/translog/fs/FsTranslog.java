@@ -49,7 +49,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
 
     private final Object mutex = new Object();
 
-    private volatile long id;
+    private volatile long id = 0;
 
     private final AtomicInteger operationCounter = new AtomicInteger();
 
@@ -87,11 +87,11 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         return new ByteSizeValue(0, ByteSizeUnit.BYTES);
     }
 
-    @Override public void newTranslog(long id) throws TranslogException {
+    @Override public void newTranslog() throws TranslogException {
         synchronized (mutex) {
             operationCounter.set(0);
             lastPosition = 0;
-            this.id = id;
+            this.id = id + 1;
             if (raf != null) {
                 raf.decreaseRefCount();
             }

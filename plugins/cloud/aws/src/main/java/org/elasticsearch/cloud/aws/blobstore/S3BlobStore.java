@@ -22,11 +22,9 @@ package org.elasticsearch.cloud.aws.blobstore;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
-import org.elasticsearch.common.blobstore.AppendableBlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
-import org.elasticsearch.common.blobstore.support.ImmutableAppendableBlobContainer;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -90,10 +88,6 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
 
     @Override public ImmutableBlobContainer immutableBlobContainer(BlobPath path) {
         return new S3ImmutableBlobContainer(path, this);
-    }
-
-    @Override public AppendableBlobContainer appendableBlobContainer(BlobPath path) {
-        return new ImmutableAppendableBlobContainer(immutableBlobContainer(path));
     }
 
     @Override public void delete(BlobPath path) {

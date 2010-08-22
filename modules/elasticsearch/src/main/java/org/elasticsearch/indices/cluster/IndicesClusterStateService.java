@@ -324,7 +324,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     final DiscoveryNode sourceNode = nodes.get(entry.currentNodeId());
                     try {
                         // we are recovering a backup from a primary, so no need to mark it as relocated
-                        final StartRecoveryRequest request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(), false, indexShard.store().listWithMd5());
+                        final StartRecoveryRequest request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(), false, indexShard.store().list());
                         recoveryTarget.startRecovery(request, false, new PeerRecoveryListener(request, shardRouting, indexService));
                     } catch (Exception e) {
                         handleRecoveryFailure(indexService, shardRouting, true, e);
@@ -354,7 +354,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 final DiscoveryNode sourceNode = nodes.get(shardRouting.relocatingNodeId());
                 try {
                     // we are recovering a backup from a primary, so no need to mark it as relocated
-                    final StartRecoveryRequest request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(), false, indexShard.store().listWithMd5());
+                    final StartRecoveryRequest request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(), false, indexShard.store().list());
                     recoveryTarget.startRecovery(request, false, new PeerRecoveryListener(request, shardRouting, indexService));
                 } catch (Exception e) {
                     handleRecoveryFailure(indexService, shardRouting, true, e);

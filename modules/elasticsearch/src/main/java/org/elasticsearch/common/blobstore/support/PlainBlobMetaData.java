@@ -28,29 +28,22 @@ public class PlainBlobMetaData implements BlobMetaData {
 
     private final String name;
 
-    private final long sizeInBytes;
+    private final long length;
 
-    private final String md5;
-
-    public PlainBlobMetaData(String name, long sizeInBytes, String md5) {
+    public PlainBlobMetaData(String name, long length) {
         this.name = name;
-        this.sizeInBytes = sizeInBytes;
-        this.md5 = md5;
+        this.length = length;
     }
 
     @Override public String name() {
         return this.name;
     }
 
-    @Override public long sizeInBytes() {
-        return this.sizeInBytes;
-    }
-
-    @Override public String md5() {
-        return this.md5;
+    @Override public long length() {
+        return this.length;
     }
 
     @Override public String toString() {
-        return "name[" + name + "], sizeInBytes[" + sizeInBytes + "], md5[" + md5 + "]";
+        return "name [" + name + "], length [" + length + "]";
     }
 }

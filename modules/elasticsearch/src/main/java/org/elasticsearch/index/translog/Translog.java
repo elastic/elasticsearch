@@ -35,6 +35,7 @@ import org.elasticsearch.index.shard.service.IndexShard;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.io.InputStream;
 
 /**
  * @author kimchy (shay.banon)
@@ -61,7 +62,7 @@ public interface Translog extends IndexShardComponent {
      * Creates a new transaction log internally. Note, users of this class should make
      * sure that no operations are performed on the trans log when this is called.
      */
-    void newTranslog(long id) throws TranslogException;
+    void newTranslog() throws TranslogException;
 
     /**
      * Adds a create operation to the transaction log.
@@ -108,6 +109,16 @@ public interface Translog extends IndexShardComponent {
         Operation next();
 
         void seekForward(long length);
+
+        /**
+         * Returns a stream of this snapshot.
+         */
+        InputStream stream() throws IOException;
+
+        /**
+         * The length in bytes of this channel.
+         */
+        long lengthInBytes();
     }
 
     /**

@@ -26,10 +26,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
 import org.elasticsearch.index.translog.TranslogStreams;
 
-import java.io.DataInputStream;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
+import java.io.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -70,6 +67,14 @@ public class FsStreamSnapshot implements Translog.Snapshot {
 
     @Override public long length() {
         return this.length;
+    }
+
+    @Override public InputStream stream() throws IOException {
+        return dis;
+    }
+
+    @Override public long lengthInBytes() {
+        return length - position;
     }
 
     @Override public boolean hasNext() {

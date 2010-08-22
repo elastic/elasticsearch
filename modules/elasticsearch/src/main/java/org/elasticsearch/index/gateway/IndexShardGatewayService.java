@@ -237,7 +237,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                     StringBuilder sb = new StringBuilder();
                     sb.append("snapshot (").append(reason).append(") completed to ").append(shardGateway).append(", took [").append(TimeValue.timeValueMillis(snapshotStatus.time())).append("]\n");
                     sb.append("    index    : version [").append(lastIndexVersion).append("], number_of_files [").append(snapshotStatus.index().numberOfFiles()).append("] with total_size [").append(new ByteSizeValue(snapshotStatus.index().totalSize())).append("], took [").append(TimeValue.timeValueMillis(snapshotStatus.index().time())).append("]\n");
-                    sb.append("    translog : id      [").append(lastTranslogId).append("], number_of_operations [").append(snapshotStatus.translog().currentTranslogOperations()).append("], took [").append(TimeValue.timeValueMillis(snapshotStatus.translog().time())).append("]");
+                    sb.append("    translog : id      [").append(lastTranslogId).append("], took [").append(TimeValue.timeValueMillis(snapshotStatus.translog().time())).append("]");
                     logger.debug(sb.toString());
                 }
             }

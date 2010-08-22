@@ -107,7 +107,7 @@ public class AbstarctS3BlobContainer extends AbstractBlobContainer {
             }
             for (S3ObjectSummary summary : list.getObjectSummaries()) {
                 String name = summary.getKey().substring(keyPath.length());
-                blobsBuilder.put(name, new PlainBlobMetaData(name, summary.getSize(), null));
+                blobsBuilder.put(name, new PlainBlobMetaData(name, summary.getSize()));
             }
             if (list.isTruncated()) {
                 prevListing = list;

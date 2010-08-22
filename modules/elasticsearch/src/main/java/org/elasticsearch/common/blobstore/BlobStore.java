@@ -7,8 +7,6 @@ public interface BlobStore {
 
     ImmutableBlobContainer immutableBlobContainer(BlobPath path);
 
-    AppendableBlobContainer appendableBlobContainer(BlobPath path);
-
     void delete(BlobPath path);
 
     void close();

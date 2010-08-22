@@ -20,8 +20,8 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.common.inject.Guice;
 import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.lucene.analysis.HTMLStripCharFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -50,10 +50,10 @@ public class AnalysisModuleTests {
 
     private void testSimpleConfiguration(Settings settings) {
         Index index = new Index("test");
-        Injector injector = Guice.createInjector(
+        Injector injector = new ModulesBuilder().add(
                 new IndexSettingsModule(settings),
                 new IndexNameModule(index),
-                new AnalysisModule(settings));
+                new AnalysisModule(settings)).createInjector();
 
         AnalysisService analysisService = injector.getInstance(AnalysisService.class);
 

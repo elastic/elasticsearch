@@ -19,15 +19,18 @@
 
 package org.elasticsearch.gateway;
 
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.ModulesFactory;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.Modules;
+import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.none.NoneGatewayModule;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class GatewayModule extends AbstractModule {
+public class GatewayModule extends AbstractModule implements SpawnModules {
 
     private final Settings settings;
 
@@ -35,8 +38,11 @@ public class GatewayModule extends AbstractModule {
         this.settings = settings;
     }
 
+    @Override public Iterable<? extends Module> spawnModules() {
+        return ImmutableList.of(Modules.createModule(settings.getAsClass("gateway.type", NoneGatewayModule.class, "org.elasticsearch.gateway.", "GatewayModule"), settings));
+    }
+
     @Override protected void configure() {
-        ModulesFactory.createModule(settings.getAsClass("gateway.type", NoneGatewayModule.class, "org.elasticsearch.gateway.", "GatewayModule"), settings).configure(binder());
         bind(GatewayService.class).asEagerSingleton();
     }
 }

@@ -26,9 +26,9 @@ import javax.annotation.Nullable;
 import java.lang.reflect.Constructor;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class ModulesFactory {
+public class Modules {
 
     public static Module createModule(String moduleClass, Settings settings) throws ClassNotFoundException {
         return createModule((Class<? extends Module>) settings.getClassLoader().loadClass(moduleClass), settings);
@@ -53,6 +53,16 @@ public class ModulesFactory {
                 }
             } catch (NoSuchMethodException e1) {
                 throw new ElasticSearchException("No constructor for [" + moduleClass + "]");
+            }
+        }
+    }
+
+    public static void processModules(Iterable<Module> modules) {
+        for (Module module : modules) {
+            if (module instanceof PreProcessModule) {
+                for (Module module1 : modules) {
+                    ((PreProcessModule) module).processModule(module1);
+                }
             }
         }
     }

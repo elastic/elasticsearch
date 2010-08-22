@@ -28,13 +28,16 @@ import org.elasticsearch.cluster.metadata.*;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationModule;
 import org.elasticsearch.cluster.service.InternalClusterService;
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class ClusterModule extends AbstractModule {
+public class ClusterModule extends AbstractModule implements SpawnModules {
 
     private final Settings settings;
 
@@ -42,11 +45,12 @@ public class ClusterModule extends AbstractModule {
         this.settings = settings;
     }
 
+    @Override public Iterable<? extends Module> spawnModules() {
+        return ImmutableList.of(new ShardAllocationModule(settings));
+    }
+
     @Override
     protected void configure() {
-
-        new ShardAllocationModule().configure(binder());
-
         bind(ClusterService.class).to(InternalClusterService.class).asEagerSingleton();
         bind(MetaDataCreateIndexService.class).asEagerSingleton();
         bind(MetaDataDeleteIndexService.class).asEagerSingleton();

@@ -19,18 +19,21 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Collection;
+import java.util.List;
 
-import static org.elasticsearch.common.inject.ModulesFactory.*;
+import static org.elasticsearch.common.inject.Modules.*;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class IndicesPluginsModule extends AbstractModule {
+public class IndicesPluginsModule extends AbstractModule implements SpawnModules {
 
     private final Settings settings;
 
@@ -41,10 +44,15 @@ public class IndicesPluginsModule extends AbstractModule {
         this.pluginsService = pluginsService;
     }
 
-    @Override protected void configure() {
-        Collection<Class<? extends Module>> modules = pluginsService.indexModules();
-        for (Class<? extends Module> module : modules) {
-            createModule(module, settings).configure(binder());
+    @Override public Iterable<? extends Module> spawnModules() {
+        List<Module> modules = Lists.newArrayList();
+        Collection<Class<? extends Module>> modulesClasses = pluginsService.indexModules();
+        for (Class<? extends Module> moduleClass : modulesClasses) {
+            modules.add(createModule(moduleClass, settings));
         }
+        return modules;
+    }
+
+    @Override protected void configure() {
     }
 }

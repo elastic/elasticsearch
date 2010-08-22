@@ -19,18 +19,19 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.Classes;
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.Modules;
+import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.local.LocalTransportModule;
-
-import static org.elasticsearch.common.inject.ModulesFactory.*;
+import org.elasticsearch.transport.netty.NettyTransportModule;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class TransportModule extends AbstractModule {
+public class TransportModule extends AbstractModule implements SpawnModules {
 
     private final Settings settings;
 
@@ -38,24 +39,18 @@ public class TransportModule extends AbstractModule {
         this.settings = settings;
     }
 
-    @Override
-    protected void configure() {
-        bind(TransportService.class).asEagerSingleton();
-        bind(TransportServiceManagement.class).asEagerSingleton();
-
+    @Override public Iterable<? extends Module> spawnModules() {
         Class<? extends Module> defaultTransportModule;
         if (settings.getAsBoolean("node.local", false)) {
             defaultTransportModule = LocalTransportModule.class;
         } else {
-            try {
-                Classes.getDefaultClassLoader().loadClass("org.elasticsearch.transport.netty.NettyTransport");
-                defaultTransportModule = (Class<? extends Module>) Classes.getDefaultClassLoader().loadClass("org.elasticsearch.transport.netty.NettyTransportModule");
-            } catch (ClassNotFoundException e) {
-                defaultTransportModule = LocalTransportModule.class;
-            }
+            defaultTransportModule = NettyTransportModule.class;
         }
+        return ImmutableList.of(Modules.createModule(settings.getAsClass("transport.type", defaultTransportModule, "org.elasticsearch.transport.", "TransportModule"), settings));
+    }
 
-        Class<? extends Module> moduleClass = settings.getAsClass("transport.type", defaultTransportModule, "org.elasticsearch.transport.", "TransportModule");
-        createModule(moduleClass, settings).configure(binder());
+    @Override protected void configure() {
+        bind(TransportService.class).asEagerSingleton();
+        bind(TransportServiceManagement.class).asEagerSingleton();
     }
 }

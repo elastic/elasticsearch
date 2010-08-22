@@ -19,18 +19,22 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.PreProcessModule;
+import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Collection;
+import java.util.List;
 
-import static org.elasticsearch.common.inject.ModulesFactory.*;
+import static org.elasticsearch.common.inject.Modules.*;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class PluginsModule extends AbstractModule {
+public class PluginsModule extends AbstractModule implements SpawnModules, PreProcessModule {
 
     private final Settings settings;
 
@@ -41,12 +45,22 @@ public class PluginsModule extends AbstractModule {
         this.pluginsService = pluginsService;
     }
 
+    @Override public Iterable<? extends Module> spawnModules() {
+        List<Module> modules = Lists.newArrayList();
+        Collection<Class<? extends Module>> modulesClasses = pluginsService.modules();
+        for (Class<? extends Module> moduleClass : modulesClasses) {
+            modules.add(createModule(moduleClass, settings));
+        }
+        return modules;
+    }
+
+    @Override public void processModule(Module module) {
+        for (Plugin plugin : pluginsService.plugins().values()) {
+            plugin.processModule(module);
+        }
+    }
+
     @Override protected void configure() {
         bind(PluginsService.class).toInstance(pluginsService);
-
-        Collection<Class<? extends Module>> modules = pluginsService.modules();
-        for (Class<? extends Module> module : modules) {
-            createModule(module, settings).configure(binder());
-        }
     }
 }

@@ -19,18 +19,20 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.robin.RobinEngineModule;
 import org.elasticsearch.index.engine.robin.RobinIndexEngineModule;
 
-import static org.elasticsearch.common.inject.ModulesFactory.*;
+import static org.elasticsearch.common.inject.Modules.*;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class IndexEngineModule extends AbstractModule {
+public class IndexEngineModule extends AbstractModule implements SpawnModules {
 
     public static final class EngineSettings {
         public static final String ENGINE_TYPE = "index.engine.type";
@@ -44,7 +46,10 @@ public class IndexEngineModule extends AbstractModule {
         this.settings = settings;
     }
 
+    @Override public Iterable<? extends Module> spawnModules() {
+        return ImmutableList.of(createModule(settings.getAsClass(EngineSettings.ENGINE_TYPE, EngineSettings.DEFAULT_INDEX_ENGINE, "org.elasticsearch.index.engine.", "IndexEngineModule"), settings));
+    }
+
     @Override protected void configure() {
-        createModule(settings.getAsClass(EngineSettings.ENGINE_TYPE, EngineSettings.DEFAULT_INDEX_ENGINE, "org.elasticsearch.index.engine.", "IndexEngineModule"), settings).configure(binder());
     }
 }

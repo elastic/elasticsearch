@@ -19,9 +19,11 @@
 
 package org.elasticsearch.index.store;
 
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.ModulesFactory;
+import org.elasticsearch.common.inject.Modules;
+import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.os.OsUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.store.fs.MmapFsIndexStoreModule;
@@ -31,9 +33,9 @@ import org.elasticsearch.index.store.memory.MemoryIndexStoreModule;
 import org.elasticsearch.index.store.ram.RamIndexStoreModule;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class IndexStoreModule extends AbstractModule {
+public class IndexStoreModule extends AbstractModule implements SpawnModules {
 
     private final Settings settings;
 
@@ -41,7 +43,7 @@ public class IndexStoreModule extends AbstractModule {
         this.settings = settings;
     }
 
-    @Override protected void configure() {
+    @Override public Iterable<? extends Module> spawnModules() {
         Class<? extends Module> indexStoreModule = NioFsIndexStoreModule.class;
         if (OsUtils.WINDOWS) {
             indexStoreModule = SimpleFsIndexStoreModule.class;
@@ -62,6 +64,9 @@ public class IndexStoreModule extends AbstractModule {
         } else if (storeType != null) {
             indexStoreModule = settings.getAsClass("index.store.type", indexStoreModule, "org.elasticsearch.index.store.", "IndexStoreModule");
         }
-        ModulesFactory.createModule(indexStoreModule, settings).configure(binder());
+        return ImmutableList.of(Modules.createModule(indexStoreModule, settings));
+    }
+
+    @Override protected void configure() {
     }
 }

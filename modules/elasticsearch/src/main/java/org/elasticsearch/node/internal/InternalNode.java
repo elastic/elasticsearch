@@ -34,10 +34,9 @@ import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Guice;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Injectors;
-import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
@@ -78,7 +77,6 @@ import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
@@ -114,7 +112,7 @@ public final class InternalNode implements Node {
         this.settings = pluginsService.updatedSettings();
         this.environment = tuple.v2();
 
-        ArrayList<Module> modules = new ArrayList<Module>();
+        ModulesBuilder modules = new ModulesBuilder();
         modules.add(new PluginsModule(settings, pluginsService));
         modules.add(new SettingsModule(settings));
         modules.add(new NodeModule(this));
@@ -141,9 +139,7 @@ public final class InternalNode implements Node {
         modules.add(new GatewayModule(settings));
         modules.add(new NodeClientModule());
 
-        pluginsService.processModules(modules);
-
-        injector = Guice.createInjector(modules);
+        injector = modules.createInjector();
 
         client = injector.getInstance(Client.class);
 

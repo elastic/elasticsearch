@@ -33,7 +33,7 @@ import org.elasticsearch.common.component.CloseableIndexComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Injectors;
-import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.gateway.Gateway;
@@ -59,7 +59,6 @@ import org.elasticsearch.plugins.IndicesPluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -211,7 +210,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
                 .globalSettings(settings.getGlobalSettings())
                 .build();
 
-        ArrayList<Module> modules = new ArrayList<Module>();
+        ModulesBuilder modules = new ModulesBuilder();
         modules.add(new IndexNameModule(index));
         modules.add(new LocalNodeIdModule(localNodeId));
         modules.add(new IndexSettingsModule(indexSettings));
@@ -227,9 +226,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         modules.add(new OperationRoutingModule(indexSettings));
         modules.add(new IndexModule());
 
-        pluginsService.processModules(modules);
-
-        Injector indexInjector = injector.createChildInjector(modules);
+        Injector indexInjector = modules.createChildInjector(injector);
 
         indicesInjectors.put(index.name(), indexInjector);
 

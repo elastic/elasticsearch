@@ -66,16 +66,12 @@ public class PluginsService extends AbstractComponent {
         this.plugins = ImmutableMap.copyOf(plugins);
     }
 
-    public Settings updatedSettings() {
-        return this.settings;
+    public ImmutableMap<String, Plugin> plugins() {
+        return plugins;
     }
 
-    public void processModules(Iterable<Module> modules) {
-        for (Module module : modules) {
-            for (Plugin plugin : plugins.values()) {
-                plugin.processModule(module);
-            }
-        }
+    public Settings updatedSettings() {
+        return this.settings;
     }
 
     public Collection<Class<? extends Module>> modules() {

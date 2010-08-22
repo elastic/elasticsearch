@@ -19,17 +19,18 @@
 
 package org.elasticsearch.http;
 
-import org.elasticsearch.common.Classes;
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.Modules;
+import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
-
-import static org.elasticsearch.common.inject.ModulesFactory.*;
+import org.elasticsearch.http.netty.NettyHttpServerTransportModule;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class HttpServerModule extends AbstractModule {
+public class HttpServerModule extends AbstractModule implements SpawnModules {
 
     private final Settings settings;
 
@@ -37,22 +38,11 @@ public class HttpServerModule extends AbstractModule {
         this.settings = settings;
     }
 
+    @Override public Iterable<? extends Module> spawnModules() {
+        return ImmutableList.of(Modules.createModule(settings.getAsClass("http.type", NettyHttpServerTransportModule.class, "org.elasticsearch.http.", "HttpServerTransportModule"), settings));
+    }
+
     @SuppressWarnings({"unchecked"}) @Override protected void configure() {
         bind(HttpServer.class).asEagerSingleton();
-
-        Class<? extends Module> defaultHttpServerTransportModule = null;
-        try {
-            Classes.getDefaultClassLoader().loadClass("org.elasticsearch.http.netty.NettyHttpServerTransport");
-            defaultHttpServerTransportModule = (Class<? extends Module>) Classes.getDefaultClassLoader().loadClass("org.elasticsearch.http.netty.NettyHttpServerTransportModule");
-        } catch (ClassNotFoundException e) {
-            // no netty one, ok...
-            if (settings.get("http.type") == null) {
-                // no explicit one is configured, bail
-                return;
-            }
-        }
-
-        Class<? extends Module> moduleClass = settings.getAsClass("http.type", defaultHttpServerTransportModule, "org.elasticsearch.http.", "HttpServerTransportModule");
-        createModule(moduleClass, settings).configure(binder());
     }
 }

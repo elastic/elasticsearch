@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.query.xcontent.plugin;
 
-import org.elasticsearch.common.inject.Guice;
 import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -61,7 +61,7 @@ public class IndexQueryParserPluginTests {
         });
 
         Index index = new Index("test");
-        Injector injector = Guice.createInjector(
+        Injector injector = new ModulesBuilder().add(
                 new SettingsModule(settings),
                 new ScriptModule(),
                 new IndexSettingsModule(settings),
@@ -71,7 +71,7 @@ public class IndexQueryParserPluginTests {
                 new SimilarityModule(settings),
                 queryParserModule,
                 new IndexNameModule(index)
-        );
+        ).createInjector();
         IndexQueryParserService indexQueryParserService = injector.getInstance(IndexQueryParserService.class);
 
 

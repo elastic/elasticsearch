@@ -21,11 +21,15 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.common.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class ShardAllocationModule extends AbstractModule {
+
+    public ShardAllocationModule(Settings settings) {
+    }
 
     @Override protected void configure() {
         bind(ShardsAllocation.class).asEagerSingleton();

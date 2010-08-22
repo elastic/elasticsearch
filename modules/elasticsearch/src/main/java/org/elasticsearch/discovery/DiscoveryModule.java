@@ -19,44 +19,37 @@
 
 package org.elasticsearch.discovery;
 
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.Modules;
+import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.local.LocalDiscoveryModule;
 import org.elasticsearch.discovery.zen.ZenDiscoveryModule;
 
-import static org.elasticsearch.common.inject.ModulesFactory.*;
-
 /**
  * @author kimchy (shay.banon)
  */
-public class DiscoveryModule extends AbstractModule {
+public class DiscoveryModule extends AbstractModule implements SpawnModules {
 
     private final Settings settings;
 
-    private Class<? extends Module> defaultDiscoModule;
-
     public DiscoveryModule(Settings settings) {
         this.settings = settings;
-        this.defaultDiscoModule = ZenDiscoveryModule.class;
     }
 
-    public void replaceDefaultDiscoModule(Class<? extends Module> defaultDiscoModule) {
-        this.defaultDiscoModule = defaultDiscoModule;
-    }
-
-    @Override
-    protected void configure() {
+    @Override public Iterable<? extends Module> spawnModules() {
         Class<? extends Module> defaultDiscoveryModule;
         if (settings.getAsBoolean("node.local", false)) {
             defaultDiscoveryModule = LocalDiscoveryModule.class;
         } else {
-            defaultDiscoveryModule = defaultDiscoModule;
+            defaultDiscoveryModule = ZenDiscoveryModule.class;
         }
+        return ImmutableList.of(Modules.createModule(settings.getAsClass("discovery.type", defaultDiscoveryModule, "org.elasticsearch.discovery.", "DiscoveryModule"), settings));
+    }
 
-        Class<? extends Module> moduleClass = settings.getAsClass("discovery.type", defaultDiscoveryModule, "org.elasticsearch.discovery.", "DiscoveryModule");
-        createModule(moduleClass, settings).configure(binder());
-
+    @Override protected void configure() {
         bind(DiscoveryService.class).asEagerSingleton();
     }
 }

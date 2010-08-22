@@ -19,18 +19,21 @@
 
 package org.elasticsearch.index.routing;
 
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.routing.hash.HashFunction;
 import org.elasticsearch.index.routing.hash.djb.DjbHashFunction;
 import org.elasticsearch.index.routing.plain.PlainOperationRoutingModule;
 
-import static org.elasticsearch.common.inject.ModulesFactory.*;
+import static org.elasticsearch.common.inject.Modules.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class OperationRoutingModule extends AbstractModule {
+public class OperationRoutingModule extends AbstractModule implements SpawnModules {
 
     private final Settings indexSettings;
 
@@ -38,8 +41,11 @@ public class OperationRoutingModule extends AbstractModule {
         this.indexSettings = indexSettings;
     }
 
+    @Override public Iterable<? extends Module> spawnModules() {
+        return ImmutableList.of(createModule(indexSettings.getAsClass("index.routing.type", PlainOperationRoutingModule.class, "org.elasticsearch.index.routing.", "OperationRoutingModule"), indexSettings));
+    }
+
     @Override protected void configure() {
         bind(HashFunction.class).to(indexSettings.getAsClass("index.routing.hash.type", DjbHashFunction.class, "org.elasticsearch.index.routing.hash.", "HashFunction")).asEagerSingleton();
-        createModule(indexSettings.getAsClass("index.routing.type", PlainOperationRoutingModule.class, "org.elasticsearch.index.routing.", "OperationRoutingModule"), indexSettings).configure(binder());
     }
 }

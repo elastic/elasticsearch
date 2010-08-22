@@ -23,13 +23,12 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchInterruptedException;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.component.CloseableIndexComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Injectors;
-import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.none.NoneGateway;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -69,7 +68,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -249,7 +247,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
         logger.debug("creating shard_id [{}]", shardId.id());
 
-        List<Module> modules = Lists.newArrayList();
+        ModulesBuilder modules = new ModulesBuilder();
         modules.add(new ShardsPluginsModule(indexSettings, pluginsService));
         modules.add(new IndexShardModule(shardId));
         modules.add(new StoreModule(indexSettings, injector.getInstance(IndexStore.class)));
@@ -260,9 +258,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         modules.add(new EngineModule(indexSettings));
         modules.add(new IndexShardGatewayModule(injector.getInstance(IndexGateway.class)));
 
-        pluginsService.processModules(modules);
-
-        Injector shardInjector = injector.createChildInjector(modules);
+        Injector shardInjector = modules.createChildInjector(injector);
 
         shardsInjectors = newMapBuilder(shardsInjectors).put(shardId.id(), shardInjector).immutableMap();
 

@@ -19,17 +19,18 @@
 
 package org.elasticsearch.memcached;
 
-import org.elasticsearch.common.Classes;
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.Modules;
+import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
-
-import static org.elasticsearch.common.inject.ModulesFactory.*;
+import org.elasticsearch.memcached.netty.NettyMemcachedServerTransportModule;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class MemcachedServerModule extends AbstractModule {
+public class MemcachedServerModule extends AbstractModule implements SpawnModules {
 
     private final Settings settings;
 
@@ -37,22 +38,11 @@ public class MemcachedServerModule extends AbstractModule {
         this.settings = settings;
     }
 
+    @Override public Iterable<? extends Module> spawnModules() {
+        return ImmutableList.of(Modules.createModule(settings.getAsClass("memcached.type", NettyMemcachedServerTransportModule.class, "org.elasticsearch.memcached.", "MemcachedServerTransportModule"), settings));
+    }
+
     @SuppressWarnings({"unchecked"}) @Override protected void configure() {
         bind(MemcachedServer.class).asEagerSingleton();
-
-        Class<? extends Module> defaultMemcachedServerTransportModule = null;
-        try {
-            Classes.getDefaultClassLoader().loadClass("org.elasticsearch.memcached.netty.NettyMemcachedServerTransport");
-            defaultMemcachedServerTransportModule = (Class<? extends Module>) Classes.getDefaultClassLoader().loadClass("org.elasticsearch.memcached.netty.NettyMemcachedServerTransportModule");
-        } catch (ClassNotFoundException e) {
-            // no netty one, ok...
-            if (settings.get("memcached.type") == null) {
-                // no explicit one is configured, bail
-                return;
-            }
-        }
-
-        Class<? extends Module> moduleClass = settings.getAsClass("memcached.type", defaultMemcachedServerTransportModule, "org.elasticsearch.memcached.", "MemcachedServerTransportModule");
-        createModule(moduleClass, settings).configure(binder());
     }
 }

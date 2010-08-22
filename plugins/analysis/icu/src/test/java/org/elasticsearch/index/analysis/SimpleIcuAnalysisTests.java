@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.common.inject.Guice;
 import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
@@ -37,10 +37,10 @@ public class SimpleIcuAnalysisTests {
 
     @Test public void testDefaultsIcuAnalysis() {
         Index index = new Index("test");
-        Injector injector = Guice.createInjector(
+        Injector injector = new ModulesBuilder().add(
                 new IndexSettingsModule(EMPTY_SETTINGS),
                 new IndexNameModule(index),
-                new AnalysisModule(EMPTY_SETTINGS).addProcessor(new IcuAnalysisBinderProcessor()));
+                new AnalysisModule(EMPTY_SETTINGS).addProcessor(new IcuAnalysisBinderProcessor())).createInjector();
 
         AnalysisService analysisService = injector.getInstance(AnalysisService.class);
 

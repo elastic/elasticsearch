@@ -44,9 +44,8 @@ import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.inject.Guice;
 import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -64,7 +63,6 @@ import org.elasticsearch.timer.TimerService;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
@@ -125,7 +123,7 @@ public class TransportClient extends AbstractClient {
                 .build();
         this.environment = tuple.v2();
 
-        ArrayList<Module> modules = new ArrayList<Module>();
+        ModulesBuilder modules = new ModulesBuilder();
         modules.add(new EnvironmentModule(environment));
         modules.add(new SettingsModule(settings));
         modules.add(new NetworkModule());
@@ -141,7 +139,7 @@ public class TransportClient extends AbstractClient {
             modules.add(new TransportClientClusterModule(settings));
         }
 
-        injector = Guice.createInjector(modules);
+        injector = modules.createInjector();
 
         injector.getInstance(TransportService.class).start();
         try {

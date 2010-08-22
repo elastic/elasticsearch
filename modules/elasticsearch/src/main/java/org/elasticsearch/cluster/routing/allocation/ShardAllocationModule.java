@@ -19,26 +19,38 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
+
+import java.util.List;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class ShardAllocationModule extends AbstractModule {
 
+    private List<Class<? extends NodeAllocation>> allocations = Lists.newArrayList();
+
     public ShardAllocationModule(Settings settings) {
+    }
+
+    public void addNodeAllocation(Class<? extends NodeAllocation> nodeAllocation) {
+        allocations.add(nodeAllocation);
     }
 
     @Override protected void configure() {
         bind(ShardsAllocation.class).asEagerSingleton();
         bind(PreferUnallocatedStrategy.class).to(PreferUnallocatedShardUnassignedStrategy.class).asEagerSingleton();
 
-        Multibinder<NodeAllocation> decidersBinder = Multibinder.newSetBinder(binder(), NodeAllocation.class);
-        decidersBinder.addBinding().to(SameShardNodeAllocation.class);
-        decidersBinder.addBinding().to(ReplicaAfterPrimaryActiveNodeAllocation.class);
-        decidersBinder.addBinding().to(ThrottlingNodeAllocation.class);
+        Multibinder<NodeAllocation> allocationMultibinder = Multibinder.newSetBinder(binder(), NodeAllocation.class);
+        allocationMultibinder.addBinding().to(SameShardNodeAllocation.class);
+        allocationMultibinder.addBinding().to(ReplicaAfterPrimaryActiveNodeAllocation.class);
+        allocationMultibinder.addBinding().to(ThrottlingNodeAllocation.class);
+        for (Class<? extends NodeAllocation> allocation : allocations) {
+            allocationMultibinder.addBinding().to(allocation);
+        }
 
         bind(NodeAllocations.class).asEagerSingleton();
     }

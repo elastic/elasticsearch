@@ -81,6 +81,7 @@
       <w>millis</w>
       <w>mmap</w>
       <w>multi</w>
+      <w>multibinder</w>
       <w>multicast</w>
       <w>multiline</w>
       <w>mvel</w>

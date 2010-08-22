@@ -52,7 +52,7 @@ public abstract class AbstractFsBlobContainer extends AbstractBlobContainer {
         }
         ImmutableMap.Builder<String, BlobMetaData> builder = ImmutableMap.builder();
         for (File file : files) {
-            builder.put(file.getName(), new PlainBlobMetaData(file.getName(), file.length(), null));
+            builder.put(file.getName(), new PlainBlobMetaData(file.getName(), file.length()));
         }
         return builder.build();
     }

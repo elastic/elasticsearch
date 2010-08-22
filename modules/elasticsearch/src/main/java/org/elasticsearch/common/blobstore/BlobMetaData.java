@@ -26,10 +26,5 @@ public interface BlobMetaData {
 
     String name();
 
-    long sizeInBytes();
-
-    /**
-     * If the blob store support native md5 checksum, return it. Can be <tt>null</tt>.
-     */
-    String md5();
+    long length();
 }

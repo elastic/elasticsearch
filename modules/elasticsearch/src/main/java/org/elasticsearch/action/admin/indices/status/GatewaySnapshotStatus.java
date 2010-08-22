@@ -72,14 +72,11 @@ public class GatewaySnapshotStatus {
 
     final long indexSize;
 
-    final long translogOperations;
-
-    public GatewaySnapshotStatus(Stage stage, long startTime, long time, long indexSize, long translogOperations) {
+    public GatewaySnapshotStatus(Stage stage, long startTime, long time, long indexSize) {
         this.stage = stage;
         this.startTime = startTime;
         this.time = time;
         this.indexSize = indexSize;
-        this.translogOperations = translogOperations;
     }
 
     public Stage stage() {
@@ -112,13 +109,5 @@ public class GatewaySnapshotStatus {
 
     public ByteSizeValue getIndexSize() {
         return indexSize();
-    }
-
-    public long translogOperations() {
-        return this.translogOperations;
-    }
-
-    public long getTranslogOperations() {
-        return translogOperations();
     }
 }

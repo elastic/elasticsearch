@@ -38,11 +38,7 @@ public interface Store extends IndexShardComponent {
 
     StoreFileMetaData metaData(String name) throws IOException;
 
-    StoreFileMetaData metaDataWithMd5(String name) throws IOException;
-
     ImmutableMap<String, StoreFileMetaData> list() throws IOException;
-
-    ImmutableMap<String, StoreFileMetaData> listWithMd5() throws IOException;
 
     /**
      * Just deletes the content of the store.

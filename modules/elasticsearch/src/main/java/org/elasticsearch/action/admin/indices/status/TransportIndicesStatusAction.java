@@ -239,7 +239,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
                     break;
             }
             shardStatus.gatewaySnapshotStatus = new GatewaySnapshotStatus(stage, snapshotStatus.startTime(), snapshotStatus.time(),
-                    snapshotStatus.index().totalSize(), snapshotStatus.translog().currentTranslogOperations());
+                    snapshotStatus.index().totalSize());
         }
 
         return shardStatus;

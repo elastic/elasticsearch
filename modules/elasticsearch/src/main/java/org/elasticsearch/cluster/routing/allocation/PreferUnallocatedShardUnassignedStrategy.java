@@ -27,12 +27,11 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.common.blobstore.BlobMetaData;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.gateway.CommitPoint;
 import org.elasticsearch.index.gateway.blobstore.BlobStoreIndexGateway;
 import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.shard.ShardId;
@@ -155,29 +154,29 @@ public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent 
                 if (shard.primary() && indexService.gateway() instanceof BlobStoreIndexGateway) {
                     BlobStoreIndexGateway indexGateway = (BlobStoreIndexGateway) indexService.gateway();
                     try {
-                        ImmutableMap<String, BlobMetaData> indexBlobsMetaData = indexGateway.listIndexBlobs(shard.id());
+                        CommitPoint commitPoint = indexGateway.findCommitPoint(shard.id());
 
                         if (logger.isDebugEnabled()) {
                             StringBuilder sb = new StringBuilder(shard + ": checking for pre_allocation (gateway) on node " + discoNode + "\n");
                             sb.append("    gateway_files:\n");
-                            for (BlobMetaData md : indexBlobsMetaData.values()) {
-                                sb.append("        [").append(md.name()).append("], size [").append(new ByteSizeValue(md.sizeInBytes())).append("], md5 [").append(md.md5()).append("]\n");
+                            for (CommitPoint.FileInfo fileInfo : commitPoint.indexFiles()) {
+                                sb.append("        [").append(fileInfo.name()).append("]/[" + fileInfo.physicalName() + "], size [").append(new ByteSizeValue(fileInfo.length())).append("]\n");
                             }
                             sb.append("    node_files:\n");
                             for (StoreFileMetaData md : storeFilesMetaData) {
-                                sb.append("        [").append(md.name()).append("], size [").append(new ByteSizeValue(md.sizeInBytes())).append("], md5 [").append(md.md5()).append("]\n");
+                                sb.append("        [").append(md.name()).append("], size [").append(new ByteSizeValue(md.length())).append("]\n");
                             }
                             logger.debug(sb.toString());
                         }
-                        logger.trace("{}: checking for pre_allocation (gateway) on node [{}]\n   gateway files", shard, discoNode, indexBlobsMetaData.keySet());
                         long sizeMatched = 0;
                         for (StoreFileMetaData storeFileMetaData : storeFilesMetaData) {
-                            if (indexBlobsMetaData.containsKey(storeFileMetaData.name())) {
-                                if (indexBlobsMetaData.get(storeFileMetaData.name()).md5().equals(storeFileMetaData.md5())) {
-                                    logger.trace("{}: [{}] reusing file since it exists on remote node and on gateway (same md5) with size [{}]", shard, storeFileMetaData.name(), new ByteSizeValue(storeFileMetaData.sizeInBytes()));
-                                    sizeMatched += storeFileMetaData.sizeInBytes();
+                            CommitPoint.FileInfo fileInfo = commitPoint.findPhysicalIndexFile(storeFileMetaData.name());
+                            if (fileInfo != null) {
+                                if (fileInfo.length() == storeFileMetaData.length()) {
+                                    logger.trace("{}: [{}] reusing file since it exists on remote node and on gateway with size [{}]", shard, storeFileMetaData.name(), new ByteSizeValue(storeFileMetaData.length()));
+                                    sizeMatched += storeFileMetaData.length();
                                 } else {
-                                    logger.trace("{}: [{}] ignore file since it exists on remote node and on gateway but has different md5, remote node [{}], gateway [{}]", shard, storeFileMetaData.name(), storeFileMetaData.md5(), indexBlobsMetaData.get(storeFileMetaData.name()).md5());
+                                    logger.trace("{}: [{}] ignore file since it exists on remote node and on gateway but has different size, remote node [{}], gateway [{}]", shard, storeFileMetaData.name(), storeFileMetaData.length(), fileInfo.length());
                                 }
                             } else {
                                 logger.trace("{}: [{}] exists on remote node, does not exists on gateway", shard, storeFileMetaData.name());
@@ -210,8 +209,8 @@ public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent 
 
                             IndexStore.StoreFilesMetaData primaryStoreFilesMetaData = primaryNodeStoreFileMetaData.storeFilesMetaData();
                             for (StoreFileMetaData storeFileMetaData : storeFilesMetaData) {
-                                if (primaryStoreFilesMetaData.fileExists(storeFileMetaData.name()) && primaryStoreFilesMetaData.file(storeFileMetaData.name()).sizeInBytes() == storeFileMetaData.sizeInBytes()) {
-                                    sizeMatched += storeFileMetaData.sizeInBytes();
+                                if (primaryStoreFilesMetaData.fileExists(storeFileMetaData.name()) && primaryStoreFilesMetaData.file(storeFileMetaData.name()).length() == storeFileMetaData.length()) {
+                                    sizeMatched += storeFileMetaData.length();
                                 }
                             }
                             if (sizeMatched > lastSizeMatched) {

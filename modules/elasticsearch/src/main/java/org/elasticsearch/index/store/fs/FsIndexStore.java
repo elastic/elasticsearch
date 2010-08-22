@@ -20,14 +20,11 @@
 package org.elasticsearch.index.store.fs;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.common.Digest;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.service.IndexService;
@@ -37,10 +34,8 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.store.support.AbstractIndexStore;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.ConcurrentMap;
 
 /**
  * @author kimchy (shay.banon)
@@ -48,8 +43,6 @@ import java.util.concurrent.ConcurrentMap;
 public abstract class FsIndexStore extends AbstractIndexStore {
 
     private final File location;
-
-    private final ConcurrentMap<ShardId, ConcurrentMap<String, String>> cachedUnallocatedMd5s = ConcurrentCollections.newConcurrentMap();
 
     public FsIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, NodeEnvironment nodeEnv) {
         super(index, indexSettings, indexService);
@@ -93,7 +86,6 @@ public abstract class FsIndexStore extends AbstractIndexStore {
         if (indexService.hasShard(shardId.id())) {
             throw new ElasticSearchIllegalStateException(shardId + " allocated, can't be deleted");
         }
-        cachedUnallocatedMd5s.remove(shardId);
         FileSystemUtils.deleteRecursively(shardLocation(shardId));
     }
 
@@ -105,51 +97,11 @@ public abstract class FsIndexStore extends AbstractIndexStore {
         if (!shardIndexLocation.exists()) {
             return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
         }
-        ConcurrentMap<String, String> shardIdCachedMd5s = cachedUnallocatedMd5s.get(shardId);
-        if (shardIdCachedMd5s == null) {
-            shardIdCachedMd5s = ConcurrentCollections.newConcurrentMap();
-            cachedUnallocatedMd5s.put(shardId, shardIdCachedMd5s);
-        }
         Map<String, StoreFileMetaData> files = Maps.newHashMap();
         for (File file : shardIndexLocation.listFiles()) {
-            // ignore md5 files
-            if (file.getName().endsWith(".md5")) {
-                continue;
-            }
-            // calculate md5
-            String md5 = shardIdCachedMd5s.get(file.getName());
-            if (md5 == null) {
-                // first, see if there is an md5 file associated with it
-                File md5File = new File(shardIndexLocation, file.getName() + ".md5");
-                if (md5File.exists()) {
-                    try {
-                        byte[] md5Bytes = Streams.copyToByteArray(md5File);
-                        md5 = Digest.md5HexFromByteArray(md5Bytes);
-                    } catch (Exception e) {
-                        // ignore, compute...
-                    }
-                }
-                // not created as a file, compute it
-                if (md5 == null) {
-                    FileInputStream is = new FileInputStream(file);
-                    try {
-                        md5 = Digest.md5Hex(is);
-                    } finally {
-                        is.close();
-                    }
-                }
-
-                if (md5 != null) {
-                    shardIdCachedMd5s.put(file.getName(), md5);
-                }
-            }
-            files.put(file.getName(), new StoreFileMetaData(file.getName(), file.length(), file.lastModified(), md5));
+            files.put(file.getName(), new StoreFileMetaData(file.getName(), file.length(), file.lastModified()));
         }
         return new StoreFilesMetaData(false, shardId, files);
-    }
-
-    ConcurrentMap<String, String> cachedShardMd5s(ShardId shardId) {
-        return cachedUnallocatedMd5s.get(shardId);
     }
 
     public File shardLocation(ShardId shardId) {

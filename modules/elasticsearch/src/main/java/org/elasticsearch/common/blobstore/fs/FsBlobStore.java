@@ -19,7 +19,10 @@
 
 package org.elasticsearch.common.blobstore.fs;
 
-import org.elasticsearch.common.blobstore.*;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -74,10 +77,6 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
 
     @Override public ImmutableBlobContainer immutableBlobContainer(BlobPath path) {
         return new FsImmutableBlobContainer(this, path, buildAndCreate(path));
-    }
-
-    @Override public AppendableBlobContainer appendableBlobContainer(BlobPath path) {
-        return new FsAppendableBlobContainer(this, path, buildAndCreate(path));
     }
 
     @Override public void delete(BlobPath path) {

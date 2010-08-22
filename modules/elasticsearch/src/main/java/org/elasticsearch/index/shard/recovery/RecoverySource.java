@@ -97,28 +97,28 @@ public class RecoverySource extends AbstractComponent {
                     StopWatch stopWatch = new StopWatch().start();
 
                     for (String name : snapshot.getFiles()) {
-                        StoreFileMetaData md = shard.store().metaDataWithMd5(name);
+                        StoreFileMetaData md = shard.store().metaData(name);
                         boolean useExisting = false;
-                        if (request.existingFiles.containsKey(name)) {
-                            if (md.md5().equals(request.existingFiles.get(name).md5())) {
+                        if (request.existingFiles().containsKey(name)) {
+                            if (!md.name().contains("segment") && md.length() == request.existingFiles().get(name).length()) {
                                 response.phase1ExistingFileNames.add(name);
-                                response.phase1ExistingFileSizes.add(md.sizeInBytes());
-                                existingTotalSize += md.sizeInBytes();
+                                response.phase1ExistingFileSizes.add(md.length());
+                                existingTotalSize += md.length();
                                 useExisting = true;
                                 if (logger.isTraceEnabled()) {
-                                    logger.trace("[{}][{}] recovery [phase1] to {}: not recovering [{}], exists in local store and has md5 [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), name, md.md5());
+                                    logger.trace("[{}][{}] recovery [phase1] to {}: not recovering [{}], exists in local store and has size [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), name, md.length());
                                 }
                             }
                         }
                         if (!useExisting) {
-                            if (request.existingFiles.containsKey(name)) {
-                                logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], exists in local store, but has different md5: remote [{}], local [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), name, request.existingFiles.get(name).md5(), md.md5());
+                            if (request.existingFiles().containsKey(name)) {
+                                logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], exists in local store, but has different length: remote [{}], local [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), name, request.existingFiles().get(name).length(), md.length());
                             } else {
                                 logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], does not exists in remote", request.shardId().index().name(), request.shardId().id(), request.targetNode(), name);
                             }
                             response.phase1FileNames.add(name);
-                            response.phase1FileSizes.add(md.sizeInBytes());
-                            totalSize += md.sizeInBytes();
+                            response.phase1FileSizes.add(md.length());
+                            totalSize += md.length();
                         }
                     }
                     response.phase1TotalSize = totalSize;

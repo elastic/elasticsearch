@@ -53,7 +53,7 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
         if (indexShard == null) {
             return listUnallocatedStoreMetaData(shardId);
         } else {
-            return new StoreFilesMetaData(true, shardId, indexShard.store().listWithMd5());
+            return new StoreFilesMetaData(true, shardId, indexShard.store().list());
         }
     }
 

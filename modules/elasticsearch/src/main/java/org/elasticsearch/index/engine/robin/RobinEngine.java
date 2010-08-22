@@ -154,7 +154,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             }
 
             try {
-                translog.newTranslog(IndexReader.getCurrentVersion(store.directory()));
+                translog.newTranslog();
                 this.nrtResource = buildNrtResource(indexWriter);
             } catch (IOException e) {
                 try {
@@ -346,7 +346,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
                     AcquirableResource<ReaderSearcherHolder> current = nrtResource;
                     nrtResource = buildNrtResource(indexWriter);
                     current.markForClose();
-                    translog.newTranslog(IndexReader.getCurrentVersion(store.directory()));
+                    translog.newTranslog();
                 } catch (IOException e) {
                     throw new FlushFailedEngineException(shardId, e);
                 } finally {
@@ -355,7 +355,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             } else {
                 try {
                     indexWriter.commit();
-                    translog.newTranslog(IndexReader.getCurrentVersion(store.directory()));
+                    translog.newTranslog();
                 } catch (IOException e) {
                     throw new FlushFailedEngineException(shardId, e);
                 }

@@ -38,13 +38,15 @@ import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.ram.RamStore;
-import org.elasticsearch.index.translog.memory.MemoryTranslog;
+import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.scaling.ScalingThreadPool;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.io.File;
 import java.io.IOException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
@@ -72,7 +74,7 @@ public class SimpleIndexShardTests {
 
         SnapshotDeletionPolicy policy = new SnapshotDeletionPolicy(new KeepOnlyLastDeletionPolicy(shardId, settings));
         Store store = new RamStore(shardId, settings, null);
-        MemoryTranslog translog = new MemoryTranslog(shardId, settings);
+        Translog translog = new FsTranslog(shardId, EMPTY_SETTINGS, new File("work/fs-translog"), false);
         Engine engine = new RobinEngine(shardId, settings, store, policy, translog,
                 new LogByteSizeMergePolicyProvider(store), new SerialMergeSchedulerProvider(shardId, settings),
                 analysisService, new SimilarityService(shardId.index()));

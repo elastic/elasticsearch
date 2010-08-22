@@ -34,18 +34,15 @@ public class StoreFileMetaData implements Streamable {
 
     private long lastModified;
 
-    private long sizeInBytes;
-
-    private String md5;
+    private long length;
 
     StoreFileMetaData() {
     }
 
-    public StoreFileMetaData(String name, long sizeInBytes, long lastModified, String md5) {
+    public StoreFileMetaData(String name, long length, long lastModified) {
         this.name = name;
         this.lastModified = lastModified;
-        this.sizeInBytes = sizeInBytes;
-        this.md5 = md5;
+        this.length = length;
     }
 
     public String name() {
@@ -56,12 +53,8 @@ public class StoreFileMetaData implements Streamable {
         return this.lastModified;
     }
 
-    public long sizeInBytes() {
-        return sizeInBytes;
-    }
-
-    public String md5() {
-        return md5;
+    public long length() {
+        return length;
     }
 
     public static StoreFileMetaData readStoreFileMetaData(StreamInput in) throws IOException {
@@ -71,25 +64,16 @@ public class StoreFileMetaData implements Streamable {
     }
 
     @Override public String toString() {
-        return "name[" + name + "], sizeInBytes[" + sizeInBytes + "], md5[" + md5 + "]";
+        return "name [" + name + "], length [" + length + "]";
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
-        sizeInBytes = in.readVLong();
-        if (in.readBoolean()) {
-            md5 = in.readUTF();
-        }
+        length = in.readVLong();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
-        out.writeVLong(sizeInBytes);
-        if (md5 == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(md5);
-        }
+        out.writeVLong(length);
     }
 }

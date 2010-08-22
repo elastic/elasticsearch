@@ -91,7 +91,7 @@ public interface IndexStore extends IndexComponent {
         public long totalSizeInBytes() {
             long totalSizeInBytes = 0;
             for (StoreFileMetaData file : this) {
-                totalSizeInBytes += file.sizeInBytes();
+                totalSizeInBytes += file.length();
             }
             return totalSizeInBytes;
         }

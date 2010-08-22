@@ -39,7 +39,7 @@ import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests {
 
@@ -82,6 +82,11 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         client("server1").index(Requests.indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
         logger.info("Indexing #2");
         client("server1").index(Requests.indexRequest("test").type("type1").id("2").source(source("2", "test"))).actionGet();
+
+        // perform snapshot to the index
+        logger.info("Gateway Snapshot");
+        client("server1").admin().indices().gatewaySnapshot(gatewaySnapshotRequest("test")).actionGet();
+
         logger.info("Deleting #1");
         client("server1").delete(deleteRequest("test").type("type1").id("1")).actionGet();
 

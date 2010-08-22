@@ -120,8 +120,6 @@ public class SnapshotStatus {
     }
 
     public static class Translog {
-        private volatile int currentTranslogOperations;
-
         private long startTime;
         private long time;
 
@@ -139,14 +137,6 @@ public class SnapshotStatus {
 
         public void time(long time) {
             this.time = time;
-        }
-
-        public void addTranslogOperations(long count) {
-            this.currentTranslogOperations += count;
-        }
-
-        public long currentTranslogOperations() {
-            return this.currentTranslogOperations;
         }
     }
 }

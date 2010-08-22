@@ -53,7 +53,7 @@ public abstract class AbstractHdfsBlobContainer extends AbstractBlobContainer {
         }
         ImmutableMap.Builder<String, BlobMetaData> builder = ImmutableMap.builder();
         for (FileStatus file : files) {
-            builder.put(file.getPath().getName(), new PlainBlobMetaData(file.getPath().getName(), file.getLen(), null));
+            builder.put(file.getPath().getName(), new PlainBlobMetaData(file.getPath().getName(), file.getLen()));
         }
         return builder.build();
     }
@@ -69,7 +69,7 @@ public abstract class AbstractHdfsBlobContainer extends AbstractBlobContainer {
         }
         ImmutableMap.Builder<String, BlobMetaData> builder = ImmutableMap.builder();
         for (FileStatus file : files) {
-            builder.put(file.getPath().getName(), new PlainBlobMetaData(file.getPath().getName(), file.getLen(), null));
+            builder.put(file.getPath().getName(), new PlainBlobMetaData(file.getPath().getName(), file.getLen()));
         }
         return builder.build();
     }

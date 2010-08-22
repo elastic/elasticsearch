@@ -20,12 +20,15 @@
 package org.elasticsearch.index.translog.fs;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.io.FileChannelInputStream;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStreams;
 
 import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 
@@ -68,6 +71,14 @@ public class FsChannelSnapshot implements Translog.Snapshot {
 
     @Override public long length() {
         return this.length;
+    }
+
+    @Override public InputStream stream() throws IOException {
+        return new FileChannelInputStream(channel, position, lengthInBytes());
+    }
+
+    @Override public long lengthInBytes() {
+        return length - position;
     }
 
     @Override public boolean hasNext() {

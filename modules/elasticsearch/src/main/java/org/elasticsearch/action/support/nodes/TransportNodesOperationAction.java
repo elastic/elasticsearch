@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public abstract class TransportNodesOperationAction<Request extends NodesOperationRequest, Response extends NodesOperationResponse, NodeRequest extends NodeOperationRequest, NodeResponse extends NodeOperationResponse> extends BaseAction<Request, Response> {
 
@@ -124,6 +124,10 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
                 });
                 return;
             }
+            TransportRequestOptions transportRequestOptions = TransportRequestOptions.options();
+            if (request.timeout() != null) {
+                transportRequestOptions.withTimeout(request.timeout());
+            }
             for (final String nodeId : nodesIds) {
                 final DiscoveryNode node = clusterState.nodes().nodes().get(nodeId);
                 if (nodeId.equals("_local") || nodeId.equals(clusterState.nodes().localNodeId())) {
@@ -151,7 +155,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
                         onFailure(nodeId, new NoSuchNodeException(nodeId));
                     } else {
                         NodeRequest nodeRequest = newNodeRequest(nodeId, request);
-                        transportService.sendRequest(node, transportNodeAction(), nodeRequest, new BaseTransportResponseHandler<NodeResponse>() {
+                        transportService.sendRequest(node, transportNodeAction(), nodeRequest, transportRequestOptions, new BaseTransportResponseHandler<NodeResponse>() {
                             @Override public NodeResponse newInstance() {
                                 return newNodeResponse();
                             }

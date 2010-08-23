@@ -21,7 +21,6 @@ package org.elasticsearch.indices.store;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.*;
 import org.elasticsearch.cluster.ClusterName;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStore;
@@ -40,6 +40,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
@@ -58,12 +59,8 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         this.indicesService = indicesService;
     }
 
-    public ActionFuture<NodesStoreFilesMetaData> list(ShardId shardId, boolean onlyUnallocated, Set<String> nodesIds) {
-        return execute(new Request(shardId, onlyUnallocated, nodesIds));
-    }
-
-    public void list(ShardId shardId, boolean onlyUnallocated, Set<String> nodesIds, ActionListener<NodesStoreFilesMetaData> listener) {
-        execute(new Request(shardId, onlyUnallocated, nodesIds), listener);
+    public ActionFuture<NodesStoreFilesMetaData> list(ShardId shardId, boolean onlyUnallocated, Set<String> nodesIds, @Nullable TimeValue timeout) {
+        return execute(new Request(shardId, onlyUnallocated, nodesIds).timeout(timeout));
     }
 
     @Override protected String transportAction() {
@@ -153,6 +150,11 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
             super(nodesIds);
             this.shardId = shardId;
             this.unallocated = unallocated;
+        }
+
+        @Override public Request timeout(TimeValue timeout) {
+            super.timeout(timeout);
+            return this;
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {

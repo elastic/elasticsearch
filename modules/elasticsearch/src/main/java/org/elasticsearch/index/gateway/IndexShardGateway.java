@@ -72,14 +72,16 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
         private final long lastTranslogId;
         private final long lastTranslogPosition;
         private final long lastTranslogLength;
+        private final int lastTotalTranslogOperations;
 
-        public Snapshot(SnapshotIndexCommit indexCommit, Translog.Snapshot translogSnapshot, long lastIndexVersion, long lastTranslogId, long lastTranslogPosition, long lastTranslogLength) {
+        public Snapshot(SnapshotIndexCommit indexCommit, Translog.Snapshot translogSnapshot, long lastIndexVersion, long lastTranslogId, long lastTranslogPosition, long lastTranslogLength, int lastTotalTranslogOperations) {
             this.indexCommit = indexCommit;
             this.translogSnapshot = translogSnapshot;
             this.lastIndexVersion = lastIndexVersion;
             this.lastTranslogId = lastTranslogId;
             this.lastTranslogPosition = lastTranslogPosition;
             this.lastTranslogLength = lastTranslogLength;
+            this.lastTotalTranslogOperations = lastTotalTranslogOperations;
         }
 
         /**
@@ -131,6 +133,10 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
 
         public long lastTranslogLength() {
             return lastTranslogLength;
+        }
+
+        public int lastTotalTranslogOperations() {
+            return this.lastTotalTranslogOperations;
         }
     }
 }

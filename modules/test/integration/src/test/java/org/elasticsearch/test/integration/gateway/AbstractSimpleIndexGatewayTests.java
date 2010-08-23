@@ -66,11 +66,10 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         // Translog tests
 
         logger.info("Creating index [{}]", "test");
-        client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
+        client("server1").admin().indices().prepareCreate("test").execute().actionGet();
 
         // create a mapping
-        PutMappingResponse putMappingResponse = client("server1").admin().indices().putMapping(putMappingRequest("test").type("type1")
-                .source(mappingSource())).actionGet();
+        PutMappingResponse putMappingResponse = client("server1").admin().indices().preparePutMapping("test").setType("type1").setSource(mappingSource()).execute().actionGet();
         assertThat(putMappingResponse.acknowledged(), equalTo(true));
 
         // verify that mapping is there

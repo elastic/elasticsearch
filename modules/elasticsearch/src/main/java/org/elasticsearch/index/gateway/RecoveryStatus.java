@@ -79,7 +79,7 @@ public class RecoveryStatus {
     public static class Translog {
         private long startTime = 0;
         private long time;
-        private volatile long currentTranslogOperations = 0;
+        private volatile int currentTranslogOperations = 0;
 
         public long startTime() {
             return this.startTime;
@@ -97,11 +97,11 @@ public class RecoveryStatus {
             this.time = time;
         }
 
-        public void addTranslogOperations(long count) {
+        public void addTranslogOperations(int count) {
             this.currentTranslogOperations += count;
         }
 
-        public long currentTranslogOperations() {
+        public int currentTranslogOperations() {
             return this.currentTranslogOperations;
         }
     }

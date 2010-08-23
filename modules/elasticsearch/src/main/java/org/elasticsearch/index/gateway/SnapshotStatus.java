@@ -122,6 +122,7 @@ public class SnapshotStatus {
     public static class Translog {
         private long startTime;
         private long time;
+        private int expectedNumberOfOperations;
 
         public long startTime() {
             return this.startTime;
@@ -137,6 +138,14 @@ public class SnapshotStatus {
 
         public void time(long time) {
             this.time = time;
+        }
+
+        public int expectedNumberOfOperations() {
+            return expectedNumberOfOperations;
+        }
+
+        public void expectedNumberOfOperations(int expectedNumberOfOperations) {
+            this.expectedNumberOfOperations = expectedNumberOfOperations;
         }
     }
 }

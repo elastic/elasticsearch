@@ -205,6 +205,10 @@ public class RestIndicesStatusAction extends BaseRestHandler {
                                     builder.field("size_in_bytes", gatewaySnapshotStatus.indexSize().bytes());
                                     builder.endObject();
 
+                                    builder.startObject("index");
+                                    builder.field("expected_operations", gatewaySnapshotStatus.expectedNumberOfOperations());
+                                    builder.endObject();
+
                                     builder.endObject();
                                 }
 

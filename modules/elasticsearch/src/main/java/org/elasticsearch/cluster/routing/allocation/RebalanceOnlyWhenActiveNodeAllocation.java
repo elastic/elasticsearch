@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.List;
@@ -34,7 +35,7 @@ import java.util.List;
  */
 public class RebalanceOnlyWhenActiveNodeAllocation extends NodeAllocation {
 
-    public RebalanceOnlyWhenActiveNodeAllocation(Settings settings) {
+    @Inject public RebalanceOnlyWhenActiveNodeAllocation(Settings settings) {
         super(settings);
     }
 

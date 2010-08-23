@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
@@ -35,7 +34,7 @@ import java.util.Set;
  *
  * @author kimchy (shay.banon)
  */
-public class NodeAllocations extends AbstractComponent implements NodeAllocation {
+public class NodeAllocations extends NodeAllocation {
 
     private final NodeAllocation[] allocations;
 
@@ -44,6 +43,7 @@ public class NodeAllocations extends AbstractComponent implements NodeAllocation
                 .add(new SameShardNodeAllocation(settings))
                 .add(new ReplicaAfterPrimaryActiveNodeAllocation(settings))
                 .add(new ThrottlingNodeAllocation(settings))
+                .add(new RebalanceOnlyWhenActiveNodeAllocation(settings))
                 .build()
         );
     }
@@ -51,6 +51,15 @@ public class NodeAllocations extends AbstractComponent implements NodeAllocation
     @Inject public NodeAllocations(Settings settings, Set<NodeAllocation> allocations) {
         super(settings);
         this.allocations = allocations.toArray(new NodeAllocation[allocations.size()]);
+    }
+
+    @Override public boolean canRebalance(ShardRouting shardRouting, RoutingNodes routingNodes, DiscoveryNodes nodes) {
+        for (NodeAllocation allocation : allocations) {
+            if (!allocation.canRebalance(shardRouting, routingNodes, nodes)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override public boolean allocate(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes) {

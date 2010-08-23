@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
@@ -33,7 +32,7 @@ import org.elasticsearch.common.settings.Settings;
  *
  * @author kimchy (shay.banon)
  */
-public class SameShardNodeAllocation extends AbstractComponent implements NodeAllocation {
+public class SameShardNodeAllocation extends NodeAllocation {
 
     @Inject public SameShardNodeAllocation(Settings settings) {
         super(settings);

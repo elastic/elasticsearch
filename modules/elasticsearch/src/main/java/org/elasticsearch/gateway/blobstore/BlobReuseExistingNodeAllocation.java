@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocation;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocations;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -47,7 +46,7 @@ import java.util.Iterator;
 /**
  * @author kimchy (shay.banon)
  */
-public class BlobReuseExistingNodeAllocation extends AbstractComponent implements NodeAllocation {
+public class BlobReuseExistingNodeAllocation extends NodeAllocation {
 
     private final IndicesService indicesService;
 

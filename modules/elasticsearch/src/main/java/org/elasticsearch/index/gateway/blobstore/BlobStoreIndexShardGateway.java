@@ -484,9 +484,10 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         for (CommitPoint.FileInfo fileInfo : commitPoint.indexFiles()) {
             StoreFileMetaData storeFile = store.metaData(fileInfo.physicalName());
             if (storeFile != null && !storeFile.name().contains("segment") && storeFile.length() == fileInfo.length()) {
+                numberOfFiles++;
+                totalSize += storeFile.length();
                 numberOfReusedFiles++;
                 reusedTotalSize += storeFile.length();
-                totalSize += storeFile.length();
                 if (logger.isTraceEnabled()) {
                     logger.trace("not_recovering [{}], exists in local store and has same length [{}]", fileInfo.physicalName(), fileInfo.length());
                 }

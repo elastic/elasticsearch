@@ -148,6 +148,10 @@ public class RecoveryStatus {
             return numberOfFiles;
         }
 
+        public int numberOfRecoveredFiles() {
+            return numberOfFiles - numberOfReusedFiles;
+        }
+
         public long totalSize() {
             return this.totalSize;
         }

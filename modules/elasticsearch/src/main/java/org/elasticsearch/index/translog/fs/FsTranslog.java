@@ -130,9 +130,9 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
             try {
                 raf.increaseRefCount();
                 if (useStream) {
-                    return new FsStreamSnapshot(shardId, this.id, raf, lastPosition);
+                    return new FsStreamSnapshot(shardId, this.id, raf, lastPosition, operationCounter.get(), operationCounter.get());
                 } else {
-                    return new FsChannelSnapshot(shardId, this.id, raf, lastPosition);
+                    return new FsChannelSnapshot(shardId, this.id, raf, lastPosition, operationCounter.get(), operationCounter.get());
                 }
             } catch (IOException e) {
                 throw new TranslogException(shardId, "Failed to snapshot", e);
@@ -148,11 +148,11 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
             try {
                 raf.increaseRefCount();
                 if (useStream) {
-                    FsStreamSnapshot newSnapshot = new FsStreamSnapshot(shardId, id, raf, lastPosition);
+                    FsStreamSnapshot newSnapshot = new FsStreamSnapshot(shardId, id, raf, lastPosition, operationCounter.get(), operationCounter.get() - snapshot.totalOperations());
                     newSnapshot.seekForward(snapshot.position());
                     return newSnapshot;
                 } else {
-                    FsChannelSnapshot newSnapshot = new FsChannelSnapshot(shardId, id, raf, lastPosition);
+                    FsChannelSnapshot newSnapshot = new FsChannelSnapshot(shardId, id, raf, lastPosition, operationCounter.get(), operationCounter.get() - snapshot.totalOperations());
                     newSnapshot.seekForward(snapshot.position());
                     return newSnapshot;
                 }

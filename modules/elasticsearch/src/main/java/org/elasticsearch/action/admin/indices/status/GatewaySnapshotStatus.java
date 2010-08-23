@@ -72,11 +72,14 @@ public class GatewaySnapshotStatus {
 
     final long indexSize;
 
-    public GatewaySnapshotStatus(Stage stage, long startTime, long time, long indexSize) {
+    final int expectedNumberOfOperations;
+
+    public GatewaySnapshotStatus(Stage stage, long startTime, long time, long indexSize, int expectedNumberOfOperations) {
         this.stage = stage;
         this.startTime = startTime;
         this.time = time;
         this.indexSize = indexSize;
+        this.expectedNumberOfOperations = expectedNumberOfOperations;
     }
 
     public Stage stage() {
@@ -109,5 +112,13 @@ public class GatewaySnapshotStatus {
 
     public ByteSizeValue getIndexSize() {
         return indexSize();
+    }
+
+    public int expectedNumberOfOperations() {
+        return expectedNumberOfOperations;
+    }
+
+    public int getExpectedNumberOfOperations() {
+        return expectedNumberOfOperations();
     }
 }

@@ -254,6 +254,7 @@ public class ShardStatus extends BroadcastShardOperationResponse {
             out.writeVLong(gatewaySnapshotStatus.startTime);
             out.writeVLong(gatewaySnapshotStatus.time);
             out.writeVLong(gatewaySnapshotStatus.indexSize);
+            out.writeVInt(gatewaySnapshotStatus.expectedNumberOfOperations());
         }
     }
 
@@ -284,7 +285,7 @@ public class ShardStatus extends BroadcastShardOperationResponse {
 
         if (in.readBoolean()) {
             gatewaySnapshotStatus = new GatewaySnapshotStatus(GatewaySnapshotStatus.Stage.fromValue(in.readByte()),
-                    in.readVLong(), in.readVLong(), in.readVLong());
+                    in.readVLong(), in.readVLong(), in.readVLong(), in.readVInt());
         }
     }
 }

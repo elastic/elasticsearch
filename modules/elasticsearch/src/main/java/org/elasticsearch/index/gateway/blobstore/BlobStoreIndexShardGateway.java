@@ -235,8 +235,12 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
 
         // Note, we assume the snapshot is always started from "base 0". We need to seek forward if we want to lastTranslogPosition if we want the delta
         List<CommitPoint.FileInfo> translogCommitPointFiles = Lists.newArrayList();
+        int expectedNumberOfOperations = 0;
         boolean snapshotRequired = snapshot.newTranslogCreated();
-        if (!snapshot.newTranslogCreated()) {
+        if (snapshot.newTranslogCreated()) {
+            snapshotRequired = true;
+            expectedNumberOfOperations = translogSnapshot.totalOperations();
+        } else {
             // if we have a commit point, check that we have all the files listed in it
             if (!commitPoints.commits().isEmpty()) {
                 CommitPoint commitPoint = commitPoints.commits().get(0);
@@ -253,12 +257,16 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                     if (snapshot.sameTranslogNewOperations()) {
                         translogSnapshot.seekForward(snapshot.lastTranslogPosition());
                         snapshotRequired = true;
+                        expectedNumberOfOperations = translogSnapshot.totalOperations() - snapshot.lastTotalTranslogOperations();
                     }
                 } else {
+                    // a full translog snapshot is required
+                    expectedNumberOfOperations = translogSnapshot.totalOperations();
                     snapshotRequired = true;
                 }
             }
         }
+        currentSnapshotStatus.translog().expectedNumberOfOperations(expectedNumberOfOperations);
 
         if (snapshotRequired) {
             CommitPoint.FileInfo addedTranslogFileInfo = new CommitPoint.FileInfo(fileNameFromGeneration(++generation), "translog-" + translogSnapshot.translogId(), translogSnapshot.lengthInBytes());

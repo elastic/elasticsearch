@@ -104,6 +104,16 @@ public interface Translog extends IndexShardComponent {
          */
         long length();
 
+        /**
+         * The total number of operations in the translog.
+         */
+        int totalOperations();
+
+        /**
+         * The number of operations in this snapshot.
+         */
+        int snapshotOperations();
+
         boolean hasNext();
 
         Operation next();
@@ -116,7 +126,7 @@ public interface Translog extends IndexShardComponent {
         InputStream stream() throws IOException;
 
         /**
-         * The length in bytes of this channel.
+         * The length in bytes of this stream.
          */
         long lengthInBytes();
     }

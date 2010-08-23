@@ -37,6 +37,10 @@ public class FsStreamSnapshot implements Translog.Snapshot {
 
     private final long id;
 
+    private final int totalOperations;
+
+    private final int snapshotOperations;
+
     private final RafReference raf;
 
     private final long length;
@@ -49,11 +53,13 @@ public class FsStreamSnapshot implements Translog.Snapshot {
 
     private byte[] cachedData;
 
-    public FsStreamSnapshot(ShardId shardId, long id, RafReference raf, long length) throws FileNotFoundException {
+    public FsStreamSnapshot(ShardId shardId, long id, RafReference raf, long length, int totalOperations, int snapshotOperations) throws FileNotFoundException {
         this.shardId = shardId;
         this.id = id;
         this.raf = raf;
         this.length = length;
+        this.totalOperations = totalOperations;
+        this.snapshotOperations = snapshotOperations;
         this.dis = new DataInputStream(new FileInputStream(raf.file()));
     }
 
@@ -67,6 +73,14 @@ public class FsStreamSnapshot implements Translog.Snapshot {
 
     @Override public long length() {
         return this.length;
+    }
+
+    @Override public int totalOperations() {
+        return this.totalOperations;
+    }
+
+    @Override public int snapshotOperations() {
+        return this.snapshotOperations;
     }
 
     @Override public InputStream stream() throws IOException {

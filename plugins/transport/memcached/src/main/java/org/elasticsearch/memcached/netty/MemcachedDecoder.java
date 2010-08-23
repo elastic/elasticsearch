@@ -153,6 +153,7 @@ public class MemcachedDecoder extends FrameDecoder {
                     }
                 }
                 if (!done) {
+                    sb.setLength(0);
                     buffer.resetReaderIndex();
                     return null;
                 }

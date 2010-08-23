@@ -212,7 +212,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
                     stage = GatewayRecoveryStatus.Stage.INIT;
             }
             shardStatus.gatewayRecoveryStatus = new GatewayRecoveryStatus(stage, gatewayRecoveryStatus.startTime(), gatewayRecoveryStatus.time(),
-                    gatewayRecoveryStatus.index().totalSize(), gatewayRecoveryStatus.index().existingTotalSize(), gatewayRecoveryStatus.index().currentFilesSize(), gatewayRecoveryStatus.translog().currentTranslogOperations());
+                    gatewayRecoveryStatus.index().totalSize(), gatewayRecoveryStatus.index().reusedTotalSize(), gatewayRecoveryStatus.index().currentFilesSize(), gatewayRecoveryStatus.translog().currentTranslogOperations());
         }
 
         SnapshotStatus snapshotStatus = gatewayService.snapshotStatus();

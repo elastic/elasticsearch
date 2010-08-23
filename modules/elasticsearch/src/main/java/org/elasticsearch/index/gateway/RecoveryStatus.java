@@ -113,8 +113,8 @@ public class RecoveryStatus {
         private long version = -1;
         private int numberOfFiles = 0;
         private long totalSize = 0;
-        private int numberOfExistingFiles = 0;
-        private long existingTotalSize = 0;
+        private int numberOfReusedFiles = 0;
+        private long reusedTotalSize = 0;
         private AtomicLong currentFilesSize = new AtomicLong();
 
         public long startTime() {
@@ -137,11 +137,11 @@ public class RecoveryStatus {
             return this.version;
         }
 
-        public void files(int numberOfFiles, long totalSize, int numberOfExistingFiles, long existingTotalSize) {
+        public void files(int numberOfFiles, long totalSize, int numberOfReusedFiles, long reusedTotalSize) {
             this.numberOfFiles = numberOfFiles;
             this.totalSize = totalSize;
-            this.numberOfExistingFiles = numberOfExistingFiles;
-            this.existingTotalSize = existingTotalSize;
+            this.numberOfReusedFiles = numberOfReusedFiles;
+            this.reusedTotalSize = reusedTotalSize;
         }
 
         public int numberOfFiles() {
@@ -152,12 +152,16 @@ public class RecoveryStatus {
             return this.totalSize;
         }
 
-        public int numberOfExistingFiles() {
-            return numberOfExistingFiles;
+        public int numberOfReusedFiles() {
+            return numberOfReusedFiles;
         }
 
-        public long existingTotalSize() {
-            return this.existingTotalSize;
+        public long reusedTotalSize() {
+            return this.reusedTotalSize;
+        }
+
+        public long recoveredTotalSize() {
+            return totalSize - reusedTotalSize;
         }
 
         public void updateVersion(long version) {

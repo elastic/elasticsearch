@@ -477,15 +477,15 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
     private void recoverIndex(CommitPoint commitPoint, ImmutableMap<String, BlobMetaData> blobs) throws Exception {
         int numberOfFiles = 0;
         long totalSize = 0;
-        int numberOfExistingFiles = 0;
-        long existingTotalSize = 0;
+        int numberOfReusedFiles = 0;
+        long reusedTotalSize = 0;
 
         List<CommitPoint.FileInfo> filesToRecover = Lists.newArrayList();
         for (CommitPoint.FileInfo fileInfo : commitPoint.indexFiles()) {
             StoreFileMetaData storeFile = store.metaData(fileInfo.physicalName());
             if (storeFile != null && !storeFile.name().contains("segment") && storeFile.length() == fileInfo.length()) {
-                numberOfExistingFiles++;
-                existingTotalSize += storeFile.length();
+                numberOfReusedFiles++;
+                reusedTotalSize += storeFile.length();
                 totalSize += storeFile.length();
                 if (logger.isTraceEnabled()) {
                     logger.trace("not_recovering [{}], exists in local store and has same length [{}]", fileInfo.physicalName(), fileInfo.length());
@@ -504,13 +504,13 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             }
         }
 
-        recoveryStatus.index().files(numberOfFiles, totalSize, numberOfExistingFiles, existingTotalSize);
+        recoveryStatus.index().files(numberOfFiles, totalSize, numberOfReusedFiles, reusedTotalSize);
         if (filesToRecover.isEmpty()) {
             logger.trace("no files to recover, all exists within the local store");
         }
 
         if (logger.isTraceEnabled()) {
-            logger.trace("recovering_files [{}] with total_size [{}], reusing_files [{}] with reused_size [{}]", numberOfFiles, new ByteSizeValue(totalSize), numberOfExistingFiles, new ByteSizeValue(existingTotalSize));
+            logger.trace("recovering_files [{}] with total_size [{}], reusing_files [{}] with reused_size [{}]", numberOfFiles, new ByteSizeValue(totalSize), numberOfReusedFiles, new ByteSizeValue(reusedTotalSize));
         }
 
         final CountDownLatch latch = new CountDownLatch(filesToRecover.size());

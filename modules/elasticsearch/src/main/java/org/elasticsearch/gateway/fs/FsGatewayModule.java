@@ -19,13 +19,13 @@
 
 package org.elasticsearch.gateway.fs;
 
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.gateway.Gateway;
+import org.elasticsearch.gateway.blobstore.BlobStoreGatewayModule;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class FsGatewayModule extends AbstractModule {
+public class FsGatewayModule extends BlobStoreGatewayModule {
 
     @Override protected void configure() {
         bind(Gateway.class).to(FsGateway.class).asEagerSingleton();

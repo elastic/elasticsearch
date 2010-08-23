@@ -53,10 +53,10 @@ public class NodeAllocations extends AbstractComponent implements NodeAllocation
         this.allocations = allocations.toArray(new NodeAllocation[allocations.size()]);
     }
 
-    @Override public boolean allocate(RoutingNodes routingNodes, DiscoveryNodes nodes) {
+    @Override public boolean allocate(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes) {
         boolean changed = false;
         for (NodeAllocation allocation : allocations) {
-            changed |= allocation.allocate(routingNodes, nodes);
+            changed |= allocation.allocate(nodeAllocations, routingNodes, nodes);
         }
         return changed;
     }

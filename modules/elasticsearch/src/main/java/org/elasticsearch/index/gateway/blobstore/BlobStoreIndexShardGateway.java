@@ -398,7 +398,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                 FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
                 boolean ignore = false;
 
-                @Override public void onPartial(byte[] data, int offset, int size) throws IOException {
+                @Override public synchronized void onPartial(byte[] data, int offset, int size) throws IOException {
                     if (ignore) {
                         return;
                     }
@@ -449,6 +449,9 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                 }
 
                 @Override public synchronized void onCompleted() {
+                    if (ignore) {
+                        return;
+                    }
                     if (!transIt.hasNext()) {
                         latch.countDown();
                         return;

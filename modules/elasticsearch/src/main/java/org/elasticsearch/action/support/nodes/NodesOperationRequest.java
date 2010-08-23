@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
@@ -37,6 +38,8 @@ public abstract class NodesOperationRequest implements ActionRequest {
     private String[] nodesIds;
 
     private boolean listenerThreaded = false;
+
+    private TimeValue timeout;
 
     protected NodesOperationRequest() {
 
@@ -64,6 +67,15 @@ public abstract class NodesOperationRequest implements ActionRequest {
         return this;
     }
 
+    public TimeValue timeout() {
+        return this.timeout;
+    }
+
+    public NodesOperationRequest timeout(TimeValue timeout) {
+        this.timeout = timeout;
+        return this;
+    }
+
     @Override public ActionRequestValidationException validate() {
         return null;
     }
@@ -72,6 +84,9 @@ public abstract class NodesOperationRequest implements ActionRequest {
         nodesIds = new String[in.readVInt()];
         for (int i = 0; i < nodesIds.length; i++) {
             nodesIds[i] = in.readUTF();
+        }
+        if (in.readBoolean()) {
+            timeout = TimeValue.readTimeValue(in);
         }
     }
 
@@ -83,6 +98,12 @@ public abstract class NodesOperationRequest implements ActionRequest {
             for (String nodeId : nodesIds) {
                 out.writeUTF(nodeId);
             }
+        }
+        if (timeout == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            timeout.writeTo(out);
         }
     }
 }

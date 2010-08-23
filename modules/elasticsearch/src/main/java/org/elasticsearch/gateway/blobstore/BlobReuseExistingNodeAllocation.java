@@ -32,6 +32,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.gateway.CommitPoint;
 import org.elasticsearch.index.gateway.blobstore.BlobStoreIndexGateway;
 import org.elasticsearch.index.service.InternalIndexService;
@@ -52,11 +53,15 @@ public class BlobReuseExistingNodeAllocation extends AbstractComponent implement
 
     private final TransportNodesListShardStoreMetaData transportNodesListShardStoreMetaData;
 
+    private final TimeValue listTimeout;
+
     @Inject public BlobReuseExistingNodeAllocation(Settings settings, IndicesService indicesService,
                                                    TransportNodesListShardStoreMetaData transportNodesListShardStoreMetaData) {
         super(settings);
         this.indicesService = indicesService;
         this.transportNodesListShardStoreMetaData = transportNodesListShardStoreMetaData;
+
+        this.listTimeout = componentSettings.getAsTime("list_timeout", TimeValue.timeValueMillis(500));
     }
 
     @Override public boolean allocate(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes) {
@@ -78,7 +83,7 @@ public class BlobReuseExistingNodeAllocation extends AbstractComponent implement
                 continue;
             }
 
-            TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData = transportNodesListShardStoreMetaData.list(shard.shardId(), false, nodes.dataNodes().keySet()).actionGet();
+            TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData = transportNodesListShardStoreMetaData.list(shard.shardId(), false, nodes.dataNodes().keySet(), listTimeout).actionGet();
 
             if (logger.isDebugEnabled()) {
                 if (nodesStoreFilesMetaData.failures().length > 0) {

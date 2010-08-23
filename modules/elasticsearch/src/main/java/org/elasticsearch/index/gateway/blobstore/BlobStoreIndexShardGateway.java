@@ -347,7 +347,24 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
             throw new IndexShardGatewayRecoveryException(shardId, "Failed to list content of gateway", e);
         }
 
-        CommitPoints commitPoints = buildCommitPoints(blobs);
+        List<CommitPoint> commitPointsList = Lists.newArrayList();
+        boolean atLeastOneCommitPointExists = false;
+        for (String name : blobs.keySet()) {
+            if (name.startsWith("commit-")) {
+                atLeastOneCommitPointExists = true;
+                try {
+                    commitPointsList.add(CommitPoints.fromXContent(blobContainer.readBlobFully(name)));
+                } catch (Exception e) {
+                    logger.warn("failed to read commit point [{}]", e, name);
+                }
+            }
+        }
+        if (atLeastOneCommitPointExists && commitPointsList.isEmpty()) {
+            // no commit point managed to load, bail so we won't corrupt the index, will require manual intervention
+            throw new IndexShardGatewayRecoveryException(shardId, "Commit points exists but none could be loaded", null);
+        }
+        CommitPoints commitPoints = new CommitPoints(commitPointsList);
+
         if (commitPoints.commits().isEmpty()) {
             recoveryStatus.index().startTime(System.currentTimeMillis());
             recoveryStatus.index().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
@@ -768,7 +785,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                 try {
                     commitPoints.add(CommitPoints.fromXContent(blobContainer.readBlobFully(name)));
                 } catch (Exception e) {
-                    logger.warn("failed to read commit point [{}]", name);
+                    logger.warn("failed to read commit point [{}]", e, name);
                 }
             }
         }

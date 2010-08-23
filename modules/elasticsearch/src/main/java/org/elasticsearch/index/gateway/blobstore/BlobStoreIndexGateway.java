@@ -78,7 +78,7 @@ public abstract class BlobStoreIndexGateway extends AbstractIndexComponent imple
                 try {
                     commitPointsList.add(CommitPoints.fromXContent(container.readBlobFully(name)));
                 } catch (Exception e) {
-                    logger.warn("failed to read commit point [{}]", name);
+                    logger.warn("failed to read commit point [{}]", e, name);
                 }
             }
         }

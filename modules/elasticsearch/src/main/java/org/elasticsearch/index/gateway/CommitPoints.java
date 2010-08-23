@@ -162,7 +162,7 @@ public class CommitPoints implements Iterable<CommitPoint> {
                                 throw new IOException("Malformed commit, missing physical_name for [" + fileName + "]");
                             }
                             if (size == -1) {
-                                throw new IOException("Malformed commit, missing size for [" + fileName + "]");
+                                throw new IOException("Malformed commit, missing length for [" + fileName + "]");
                             }
                             files.add(new CommitPoint.FileInfo(fileName, physicalName, size));
                         }

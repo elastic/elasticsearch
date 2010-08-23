@@ -202,11 +202,11 @@ public class MemcachedDecoder extends FrameDecoder {
                     return request;
                 } else {
                     this.request = null;
-                    throw new StreamCorruptedException("Expecting \r\n after data block");
+                    throw new StreamCorruptedException("Expecting separator after data block");
                 }
             } else {
                 this.request = null;
-                throw new StreamCorruptedException("Expecting \r\n after data block");
+                throw new StreamCorruptedException("Expecting separator after data block");
             }
         }
         return null;

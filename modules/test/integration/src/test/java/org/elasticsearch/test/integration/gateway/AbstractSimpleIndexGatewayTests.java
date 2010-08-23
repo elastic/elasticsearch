@@ -220,6 +220,10 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         testLoad(false);
     }
 
+    protected boolean isPersistentStorage() {
+        return true;
+    }
+
     private void testLoad(boolean fullRecovery) {
         startNode("server1");
 
@@ -265,7 +269,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         for (IndexShardStatus indexShardStatus : statusResponse.index("test")) {
             for (ShardStatus shardStatus : indexShardStatus) {
                 if (shardStatus.shardRouting().primary()) {
-                    if (fullRecovery) {
+                    if (fullRecovery || !isPersistentStorage()) {
                         assertThat(shardStatus.gatewayRecoveryStatus().reusedIndexSize().bytes(), equalTo(0l));
                     } else {
                         assertThat(shardStatus.gatewayRecoveryStatus().reusedIndexSize().bytes(), greaterThan(shardStatus.gatewayRecoveryStatus().indexSize().bytes() - 4098 /* segments file */));

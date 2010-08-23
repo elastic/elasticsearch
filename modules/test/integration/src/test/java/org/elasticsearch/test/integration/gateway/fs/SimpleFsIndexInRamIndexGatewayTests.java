@@ -26,4 +26,7 @@ import org.elasticsearch.test.integration.gateway.AbstractSimpleIndexGatewayTest
  */
 public class SimpleFsIndexInRamIndexGatewayTests extends AbstractSimpleIndexGatewayTests {
 
+    @Override protected boolean isPersistentStorage() {
+        return false;
+    }
 }

@@ -118,7 +118,9 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
                 }
 
                 // check if we can allocate on that node...
-                if (!nodeAllocations.canAllocate(shard, node, routingNodes).allocate()) {
+                // we only check for NO, since if this node is THROTTLING and it has enough "same data"
+                // then we will try and assign it next time
+                if (nodeAllocations.canAllocate(shard, node, routingNodes) == Decision.NO) {
                     continue;
                 }
 

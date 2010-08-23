@@ -19,13 +19,13 @@
 
 package org.elasticsearch.gateway.s3;
 
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.gateway.Gateway;
+import org.elasticsearch.gateway.blobstore.BlobStoreGatewayModule;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class S3GatewayModule extends AbstractModule {
+public class S3GatewayModule extends BlobStoreGatewayModule {
 
     @Override protected void configure() {
         bind(Gateway.class).to(S3Gateway.class).asEagerSingleton();

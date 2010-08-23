@@ -263,15 +263,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 if (timeout != null) {
                     timeout.cancel();
                 }
-                // do prefetch here so we won't compute md5 and such on the cluster update state...
-                long prefetchTime = 0;
-                if (shardsAllocation.preferUnallocatedStrategy() != null) {
-                    long start = System.currentTimeMillis();
-                    shardsAllocation.preferUnallocatedStrategy().prefetch(response.indexMetaData(), clusterService.state().nodes());
-                    prefetchTime = System.currentTimeMillis() - start;
-                }
-                final long fPrefetchTime = prefetchTime;
-
                 // do the reroute after indices have been created on all the other nodes so we can query them for some info (like shard allocation)
                 clusterService.submitStateUpdateTask("reroute after index [" + request.index + "] creation", new ProcessedClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
@@ -287,7 +278,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
 
                     @Override public void clusterStateProcessed(ClusterState clusterState) {
-                        logger.info("[{}] created and added to cluster_state, prefetch_took [{}]", request.index, TimeValue.timeValueMillis(fPrefetchTime));
+                        logger.info("[{}] created and added to cluster_state", request.index);
                         listener.onResponse(response);
                     }
                 });

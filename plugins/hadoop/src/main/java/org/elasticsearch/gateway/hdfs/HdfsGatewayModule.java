@@ -19,13 +19,13 @@
 
 package org.elasticsearch.gateway.hdfs;
 
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.gateway.Gateway;
+import org.elasticsearch.gateway.blobstore.BlobStoreGatewayModule;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class HdfsGatewayModule extends AbstractModule {
+public class HdfsGatewayModule extends BlobStoreGatewayModule {
 
     @Override protected void configure() {
         bind(Gateway.class).to(HdfsGateway.class).asEagerSingleton();

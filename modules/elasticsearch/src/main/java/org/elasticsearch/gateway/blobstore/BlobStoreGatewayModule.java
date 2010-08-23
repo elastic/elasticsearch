@@ -17,19 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.allocation;
+package org.elasticsearch.gateway.blobstore;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationModule;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.PreProcessModule;
 
 /**
  * @author kimchy (shay.banon)
  */
-// TODO move this to be a NodeAllocation (once we remove the md5 and make listing fast for Unassigned impl)
-public interface PreferUnallocatedStrategy {
+public abstract class BlobStoreGatewayModule extends AbstractModule implements PreProcessModule {
 
-    void prefetch(IndexMetaData index, DiscoveryNodes nodes);
-
-    boolean allocateUnassigned(RoutingNodes routingNodes, DiscoveryNodes nodes);
+    @Override public void processModule(Module module) {
+        if (module instanceof ShardAllocationModule) {
+            ((ShardAllocationModule) module).addNodeAllocation(BlobReuseExistingNodeAllocation.class);
+        }
+    }
 }

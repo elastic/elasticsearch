@@ -23,6 +23,9 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
+import org.elasticsearch.action.admin.indices.status.IndexShardStatus;
+import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
+import org.elasticsearch.action.admin.indices.status.ShardStatus;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -256,6 +259,20 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
 
         logger.info("--> checking count");
         assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(12345l));
+
+        logger.info("--> checking reuse / recovery status");
+        IndicesStatusResponse statusResponse = client("server1").admin().indices().prepareStatus().execute().actionGet();
+        for (IndexShardStatus indexShardStatus : statusResponse.index("test")) {
+            for (ShardStatus shardStatus : indexShardStatus) {
+                if (shardStatus.shardRouting().primary()) {
+                    if (fullRecovery) {
+                        assertThat(shardStatus.gatewayRecoveryStatus().reusedIndexSize().bytes(), equalTo(0l));
+                    } else {
+                        assertThat(shardStatus.gatewayRecoveryStatus().reusedIndexSize().bytes(), greaterThan(shardStatus.gatewayRecoveryStatus().indexSize().bytes() - 4098 /* segments file */));
+                    }
+                }
+            }
+        }
     }
 
     private String mappingSource() {

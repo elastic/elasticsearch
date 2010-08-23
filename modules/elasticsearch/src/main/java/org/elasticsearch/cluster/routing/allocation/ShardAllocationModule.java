@@ -42,7 +42,6 @@ public class ShardAllocationModule extends AbstractModule {
 
     @Override protected void configure() {
         bind(ShardsAllocation.class).asEagerSingleton();
-        bind(PreferUnallocatedStrategy.class).to(PreferUnallocatedShardUnassignedStrategy.class).asEagerSingleton();
 
         Multibinder<NodeAllocation> allocationMultibinder = Multibinder.newSetBinder(binder(), NodeAllocation.class);
         allocationMultibinder.addBinding().to(SameShardNodeAllocation.class);

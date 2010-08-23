@@ -39,7 +39,7 @@ public class ReplicaAfterPrimaryActiveNodeAllocation extends AbstractComponent i
         super(settings);
     }
 
-    @Override public boolean allocate(RoutingNodes routingNodes, DiscoveryNodes nodes) {
+    @Override public boolean allocate(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes) {
         return false;
     }
 

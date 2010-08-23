@@ -28,7 +28,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 
-import javax.annotation.Nullable;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -43,25 +42,17 @@ public class ShardsAllocation extends AbstractComponent {
 
     private final NodeAllocations nodeAllocations;
 
-    private final PreferUnallocatedStrategy preferUnallocatedStrategy;
-
     public ShardsAllocation() {
         this(ImmutableSettings.Builder.EMPTY_SETTINGS);
     }
 
     public ShardsAllocation(Settings settings) {
-        this(settings, new NodeAllocations(settings), null);
+        this(settings, new NodeAllocations(settings));
     }
 
-    @Inject public ShardsAllocation(Settings settings, NodeAllocations nodeAllocations,
-                                    @Nullable PreferUnallocatedStrategy preferUnallocatedStrategy) {
+    @Inject public ShardsAllocation(Settings settings, NodeAllocations nodeAllocations) {
         super(settings);
         this.nodeAllocations = nodeAllocations;
-        this.preferUnallocatedStrategy = preferUnallocatedStrategy;
-    }
-
-    public PreferUnallocatedStrategy preferUnallocatedStrategy() {
-        return preferUnallocatedStrategy;
     }
 
     /**
@@ -122,10 +113,7 @@ public class ShardsAllocation extends AbstractComponent {
 
         // now allocate all the unassigned to available nodes
         if (routingNodes.hasUnassigned()) {
-            if (preferUnallocatedStrategy != null) {
-                changed |= preferUnallocatedStrategy.allocateUnassigned(routingNodes, nodes);
-            }
-            changed |= nodeAllocations.allocate(routingNodes, nodes);
+            changed |= nodeAllocations.allocate(nodeAllocations, routingNodes, nodes);
             changed |= allocateUnassigned(routingNodes);
             // elect primaries again, in case this is needed with unassigned allocation
             changed |= electPrimaries(routingNodes);

@@ -17,16 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing.allocation;
+package org.elasticsearch.gateway.blobstore;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocation;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocations;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -34,7 +35,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.gateway.CommitPoint;
 import org.elasticsearch.index.gateway.blobstore.BlobStoreIndexGateway;
 import org.elasticsearch.index.service.InternalIndexService;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.IndicesService;
@@ -42,50 +42,24 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.transport.ConnectTransportException;
 
 import java.util.Iterator;
-import java.util.concurrent.CountDownLatch;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent implements PreferUnallocatedStrategy {
+public class BlobReuseExistingNodeAllocation extends AbstractComponent implements NodeAllocation {
 
     private final IndicesService indicesService;
 
     private final TransportNodesListShardStoreMetaData transportNodesListShardStoreMetaData;
 
-    private final NodeAllocations nodeAllocations;
-
-    @Inject public PreferUnallocatedShardUnassignedStrategy(Settings settings, IndicesService indicesService,
-                                                            TransportNodesListShardStoreMetaData transportNodesListShardStoreMetaData,
-                                                            NodeAllocations nodeAllocations) {
+    @Inject public BlobReuseExistingNodeAllocation(Settings settings, IndicesService indicesService,
+                                                   TransportNodesListShardStoreMetaData transportNodesListShardStoreMetaData) {
         super(settings);
         this.indicesService = indicesService;
         this.transportNodesListShardStoreMetaData = transportNodesListShardStoreMetaData;
-        this.nodeAllocations = nodeAllocations;
     }
 
-    @Override public void prefetch(IndexMetaData index, DiscoveryNodes nodes) {
-        final CountDownLatch latch = new CountDownLatch(index.numberOfShards());
-        for (int shardId = 0; shardId < index.numberOfShards(); shardId++) {
-            transportNodesListShardStoreMetaData.list(new ShardId(index.index(), shardId), false, nodes.dataNodes().keySet(), new ActionListener<TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData>() {
-                @Override public void onResponse(TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData) {
-                    latch.countDown();
-                }
-
-                @Override public void onFailure(Throwable e) {
-                    latch.countDown();
-                }
-            });
-        }
-
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            // ignore
-        }
-    }
-
-    public boolean allocateUnassigned(RoutingNodes routingNodes, DiscoveryNodes nodes) {
+    @Override public boolean allocate(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes) {
         boolean changed = false;
 
         if (nodes.dataNodes().isEmpty()) {
@@ -160,7 +134,7 @@ public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent 
                             StringBuilder sb = new StringBuilder(shard + ": checking for pre_allocation (gateway) on node " + discoNode + "\n");
                             sb.append("    gateway_files:\n");
                             for (CommitPoint.FileInfo fileInfo : commitPoint.indexFiles()) {
-                                sb.append("        [").append(fileInfo.name()).append("]/[" + fileInfo.physicalName() + "], size [").append(new ByteSizeValue(fileInfo.length())).append("]\n");
+                                sb.append("        [").append(fileInfo.name()).append("]/[").append(fileInfo.physicalName()).append("], size [").append(new ByteSizeValue(fileInfo.length())).append("]\n");
                             }
                             sb.append("    node_files:\n");
                             for (StoreFileMetaData md : storeFilesMetaData) {
@@ -246,5 +220,9 @@ public class PreferUnallocatedShardUnassignedStrategy extends AbstractComponent 
         }
 
         return changed;
+    }
+
+    @Override public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingNodes routingNodes) {
+        return Decision.YES;
     }
 }

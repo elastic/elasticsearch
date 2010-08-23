@@ -33,22 +33,22 @@ public interface NodeAllocation {
 
     enum Decision {
         YES {
-            @Override boolean allocate() {
+            @Override public boolean allocate() {
                 return true;
             }},
         NO {
-            @Override boolean allocate() {
+            @Override public boolean allocate() {
                 return false;
             }},
         THROTTLE {
-            @Override boolean allocate() {
+            @Override public boolean allocate() {
                 return false;
             }};
 
-        abstract boolean allocate();
+        public abstract boolean allocate();
     }
 
-    boolean allocate(RoutingNodes routingNodes, DiscoveryNodes nodes);
+    boolean allocate(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes);
 
     Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingNodes routingNodes);
 }

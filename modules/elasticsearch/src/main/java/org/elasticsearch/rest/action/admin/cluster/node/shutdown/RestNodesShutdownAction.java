@@ -42,6 +42,7 @@ public class RestNodesShutdownAction extends BaseRestHandler {
     @Inject public RestNodesShutdownAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
 
+        controller.registerHandler(RestRequest.Method.POST, "/_shutdown", this);
         controller.registerHandler(RestRequest.Method.POST, "/_cluster/nodes/_shutdown", this);
         controller.registerHandler(RestRequest.Method.POST, "/_cluster/nodes/{nodeId}/_shutdown", this);
     }

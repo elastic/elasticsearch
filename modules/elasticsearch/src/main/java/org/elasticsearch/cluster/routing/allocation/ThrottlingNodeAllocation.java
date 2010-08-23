@@ -21,14 +21,13 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class ThrottlingNodeAllocation extends AbstractComponent implements NodeAllocation {
+public class ThrottlingNodeAllocation extends NodeAllocation {
 
     private final int concurrentRecoveries;
 

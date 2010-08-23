@@ -20,49 +20,31 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.List;
+
 /**
- * A pluggable logic allowing to control if allocation of a shard is allowed on a specific node.
+ * Only allow rebalancing when all shards are active within the shard replication group.
  *
  * @author kimchy (shay.banon)
  */
-public abstract class NodeAllocation extends AbstractComponent {
+public class RebalanceOnlyWhenActiveNodeAllocation extends NodeAllocation {
 
-    public static enum Decision {
-        YES {
-            @Override public boolean allocate() {
-                return true;
-            }},
-        NO {
-            @Override public boolean allocate() {
-                return false;
-            }},
-        THROTTLE {
-            @Override public boolean allocate() {
-                return false;
-            }};
-
-        public abstract boolean allocate();
-    }
-
-    protected NodeAllocation(Settings settings) {
+    public RebalanceOnlyWhenActiveNodeAllocation(Settings settings) {
         super(settings);
     }
 
-    public boolean allocate(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes) {
-        return false;
-    }
-
-    public boolean canRebalance(ShardRouting shardRouting, RoutingNodes routingNodes, DiscoveryNodes nodes) {
+    @Override public boolean canRebalance(ShardRouting shardRouting, RoutingNodes routingNodes, DiscoveryNodes nodes) {
+        List<MutableShardRouting> shards = routingNodes.shardsRoutingFor(shardRouting);
+        for (ShardRouting allShard : shards) {
+            if (!allShard.active()) {
+                return false;
+            }
+        }
         return true;
-    }
-
-    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingNodes routingNodes) {
-        return Decision.YES;
     }
 }

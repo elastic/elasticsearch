@@ -47,6 +47,7 @@ public class ShardAllocationModule extends AbstractModule {
         allocationMultibinder.addBinding().to(SameShardNodeAllocation.class);
         allocationMultibinder.addBinding().to(ReplicaAfterPrimaryActiveNodeAllocation.class);
         allocationMultibinder.addBinding().to(ThrottlingNodeAllocation.class);
+        allocationMultibinder.addBinding().to(RebalanceOnlyWhenActiveNodeAllocation.class);
         for (Class<? extends NodeAllocation> allocation : allocations) {
             allocationMultibinder.addBinding().to(allocation);
         }

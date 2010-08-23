@@ -120,12 +120,12 @@ public class ShardsAllocation extends AbstractComponent {
         }
 
         // rebalance
-        changed |= rebalance(routingNodes);
+        changed |= rebalance(routingNodes, nodes);
 
         return changed;
     }
 
-    private boolean rebalance(RoutingNodes routingNodes) {
+    private boolean rebalance(RoutingNodes routingNodes, DiscoveryNodes nodes) {
         boolean changed = false;
         List<RoutingNode> sortedNodesLeastToHigh = routingNodes.sortedNodesLeastToHigh();
         if (sortedNodesLeastToHigh.isEmpty()) {
@@ -155,16 +155,7 @@ public class ShardsAllocation extends AbstractComponent {
                 boolean relocated = false;
                 List<MutableShardRouting> startedShards = highRoutingNode.shardsWithState(STARTED);
                 for (MutableShardRouting startedShard : startedShards) {
-                    // we only relocate shards that all other shards within the replication group are active
-                    List<MutableShardRouting> allShards = routingNodes.shardsRoutingFor(startedShard);
-                    boolean ignoreShard = false;
-                    for (MutableShardRouting allShard : allShards) {
-                        if (!allShard.active()) {
-                            ignoreShard = true;
-                            break;
-                        }
-                    }
-                    if (ignoreShard) {
+                    if (!nodeAllocations.canRebalance(startedShard, routingNodes, nodes)) {
                         continue;
                     }
 

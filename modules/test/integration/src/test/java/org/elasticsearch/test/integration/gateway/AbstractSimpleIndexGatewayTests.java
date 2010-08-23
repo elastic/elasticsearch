@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.Gateway;
@@ -35,6 +36,7 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -205,6 +207,55 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
 
         logger.info("Deleting the index");
         client("server1").admin().indices().delete(deleteIndexRequest("test")).actionGet();
+    }
+
+    @Test public void testLoadWithFullRecovery() {
+        testLoad(true);
+    }
+
+    @Test public void testLoadWithReuseRecovery() {
+        testLoad(false);
+    }
+
+    private void testLoad(boolean fullRecovery) {
+        startNode("server1");
+
+        // get the environment, so we can clear the work dir when needed
+        Environment environment = ((InternalNode) node("server1")).injector().getInstance(Environment.class);
+
+        logger.info("--> creating test index ...");
+        client("server1").admin().indices().prepareCreate("test").execute().actionGet();
+
+        logger.info("--> indexing 12345 docs");
+        for (long i = 0; i < 12345; i++) {
+            client("server1").prepareIndex("test", "type1", Long.toString(i))
+                    .setCreate(true) // make sure we use create, so if we recover wrongly, we will get increments...
+                    .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
+        }
+
+        logger.info("--> refreshing and checking count");
+        client("server1").admin().indices().prepareRefresh().execute().actionGet();
+        assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(12345l));
+
+
+        logger.info("--> closing the server");
+        closeNode("server1");
+        if (fullRecovery) {
+            logger.info("Clearing cluster work dir, so there will be a full recovery from the gateway");
+            FileSystemUtils.deleteRecursively(environment.workWithClusterFile());
+            logger.info("Starting the server, should recover from the gateway (both index and translog) without reusing work dir");
+        }
+
+        startNode("server1");
+
+        logger.info("--> running Cluster Health (wait for the shards to startup)");
+        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
+        logger.info("--> done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
+
+        logger.info("--> checking count");
+        assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(12345l));
     }
 
     private String mappingSource() {

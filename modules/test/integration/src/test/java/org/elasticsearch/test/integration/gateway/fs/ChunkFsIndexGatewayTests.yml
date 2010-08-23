@@ -4,7 +4,7 @@ cluster:
 gateway:
   type: fs
   fs:
-    chunk_size: 128b
+    chunk_size: 11k
 index:
   number_of_shards: 1
   number_of_replicas: 1

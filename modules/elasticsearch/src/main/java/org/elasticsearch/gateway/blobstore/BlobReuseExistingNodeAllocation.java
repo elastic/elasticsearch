@@ -136,7 +136,7 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
                     try {
                         CommitPoint commitPoint = indexGateway.findCommitPoint(shard.id());
 
-                        if (logger.isDebugEnabled()) {
+                        if (logger.isTraceEnabled()) {
                             StringBuilder sb = new StringBuilder(shard + ": checking for pre_allocation (gateway) on node " + discoNode + "\n");
                             sb.append("    gateway_files:\n");
                             for (CommitPoint.FileInfo fileInfo : commitPoint.indexFiles()) {
@@ -146,7 +146,7 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
                             for (StoreFileMetaData md : storeFilesMetaData) {
                                 sb.append("        [").append(md.name()).append("], size [").append(new ByteSizeValue(md.length())).append("]\n");
                             }
-                            logger.debug(sb.toString());
+                            logger.trace(sb.toString());
                         }
                         long sizeMatched = 0;
                         for (StoreFileMetaData storeFileMetaData : storeFilesMetaData) {

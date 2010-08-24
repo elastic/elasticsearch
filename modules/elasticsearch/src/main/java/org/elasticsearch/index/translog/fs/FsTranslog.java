@@ -104,6 +104,23 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         }
     }
 
+    @Override public void newTranslog(long id) throws TranslogException {
+        synchronized (mutex) {
+            operationCounter.set(0);
+            lastPosition = 0;
+            this.id = id;
+            if (raf != null) {
+                raf.decreaseRefCount();
+            }
+            try {
+                raf = new RafReference(new File(location, "translog-" + id));
+            } catch (FileNotFoundException e) {
+                raf = null;
+                throw new TranslogException(shardId, "translog not found", e);
+            }
+        }
+    }
+
     @Override public void add(Operation operation) throws TranslogException {
         try {
             BytesStreamOutput out = CachedStreamOutput.cachedBytes();

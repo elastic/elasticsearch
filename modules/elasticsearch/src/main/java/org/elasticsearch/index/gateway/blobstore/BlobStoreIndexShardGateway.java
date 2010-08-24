@@ -243,7 +243,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                 expectedNumberOfOperations = translogSnapshot.totalOperations();
             }
         } else {
-            // if we have a commit point, check that we have all the files listed in it
+            // if we have a commit point, check that we have all the files listed in it in the blob store
             if (!commitPoints.commits().isEmpty()) {
                 CommitPoint commitPoint = commitPoints.commits().get(0);
                 boolean allTranslogFilesExists = true;
@@ -749,11 +749,6 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         }
     }
 
-    private void writeCommitPoint(CommitPoint commitPoint) throws Exception {
-        byte[] data = CommitPoints.toXContent(commitPoint);
-        blobContainer.writeBlob("commit-" + commitPoint.version(), new FastByteArrayInputStream(data), data.length);
-    }
-
     private boolean commitPointExistsInBlobs(CommitPoint commitPoint, ImmutableMap<String, BlobMetaData> blobs) {
         for (CommitPoint.FileInfo fileInfo : Iterables.concat(commitPoint.indexFiles(), commitPoint.translogFiles())) {
             if (!commitPointFileExistsInBlobs(fileInfo, blobs)) {
@@ -818,9 +813,13 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                 name = name.substring(0, name.indexOf(".part"));
             }
 
-            long currentGen = Long.parseLong(name.substring(2) /*__*/, Character.MAX_RADIX);
-            if (currentGen > generation) {
-                generation = currentGen;
+            try {
+                long currentGen = Long.parseLong(name.substring(2) /*__*/, Character.MAX_RADIX);
+                if (currentGen > generation) {
+                    generation = currentGen;
+                }
+            } catch (NumberFormatException e) {
+                logger.warn("file [{}] does not conform to the '__' schema");
             }
         }
         return generation;

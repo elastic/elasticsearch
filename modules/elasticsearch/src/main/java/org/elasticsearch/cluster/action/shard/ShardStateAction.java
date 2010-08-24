@@ -161,7 +161,7 @@ public class ShardStateAction extends AbstractComponent {
                     }
                 }
                 if (logger.isDebugEnabled()) {
-                    logger.debug("Applying started shard {}, reason [{}]", shardRouting, reason);
+                    logger.debug("applying started shard {}, reason [{}]", shardRouting, reason);
                 }
                 RoutingTable newRoutingTable = shardsAllocation.applyStartedShards(currentState, newArrayList(shardRouting));
                 if (routingTable == newRoutingTable) {

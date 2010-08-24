@@ -236,10 +236,12 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         // Note, we assume the snapshot is always started from "base 0". We need to seek forward if we want to lastTranslogPosition if we want the delta
         List<CommitPoint.FileInfo> translogCommitPointFiles = Lists.newArrayList();
         int expectedNumberOfOperations = 0;
-        boolean snapshotRequired = snapshot.newTranslogCreated();
+        boolean snapshotRequired = false;
         if (snapshot.newTranslogCreated()) {
-            snapshotRequired = true;
-            expectedNumberOfOperations = translogSnapshot.totalOperations();
+            if (translogSnapshot.lengthInBytes() > 0) {
+                snapshotRequired = true;
+                expectedNumberOfOperations = translogSnapshot.totalOperations();
+            }
         } else {
             // if we have a commit point, check that we have all the files listed in it
             if (!commitPoints.commits().isEmpty()) {
@@ -256,11 +258,21 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                     translogCommitPointFiles.addAll(commitPoint.translogFiles());
                     if (snapshot.sameTranslogNewOperations()) {
                         translogSnapshot.seekForward(snapshot.lastTranslogPosition());
-                        snapshotRequired = true;
-                        expectedNumberOfOperations = translogSnapshot.totalOperations() - snapshot.lastTotalTranslogOperations();
+                        if (translogSnapshot.lengthInBytes() > 0) {
+                            snapshotRequired = true;
+                            expectedNumberOfOperations = translogSnapshot.totalOperations() - snapshot.lastTotalTranslogOperations();
+                        }
                     }
                 } else {
                     // a full translog snapshot is required
+                    if (translogSnapshot.lengthInBytes() > 0) {
+                        expectedNumberOfOperations = translogSnapshot.totalOperations();
+                        snapshotRequired = true;
+                    }
+                }
+            } else {
+                // no commit point, snapshot all the translog
+                if (translogSnapshot.lengthInBytes() > 0) {
                     expectedNumberOfOperations = translogSnapshot.totalOperations();
                     snapshotRequired = true;
                 }

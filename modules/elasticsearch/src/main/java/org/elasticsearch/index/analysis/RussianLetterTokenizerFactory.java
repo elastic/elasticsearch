@@ -19,24 +19,26 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.ru.RussianLetterTokenizer;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
+
+import java.io.Reader;
 
 /**
  * @author kimchy (shay.banon)
  */
-public abstract class AbstractTokenizerFactory extends AbstractIndexComponent implements TokenizerFactory {
+public class RussianLetterTokenizerFactory extends AbstractTokenizerFactory {
 
-    private final String name;
-
-    public AbstractTokenizerFactory(Index index, @IndexSettings Settings indexSettings, String name) {
-        super(index, indexSettings);
-        this.name = name;
+    @Inject public RussianLetterTokenizerFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
+        super(index, indexSettings, name);
     }
 
-    @Override public String name() {
-        return this.name;
+    @Override public Tokenizer create(Reader reader) {
+        return new RussianLetterTokenizer(reader);
     }
 }

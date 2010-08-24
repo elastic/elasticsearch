@@ -305,6 +305,8 @@ public class AnalysisModule extends AbstractModule {
             tokenizersBindings.processTokenizer("letter", LetterTokenizerFactory.class);
             tokenizersBindings.processTokenizer("lowercase", LowerCaseTokenizerFactory.class);
             tokenizersBindings.processTokenizer("whitespace", WhitespaceTokenizerFactory.class);
+            tokenizersBindings.processTokenizer("russian_letter", RussianLetterTokenizerFactory.class);
+            tokenizersBindings.processTokenizer("russianLetter", RussianLetterTokenizerFactory.class);
         }
 
         @Override public void processAnalyzers(AnalyzersBindings analyzersBindings) {
@@ -347,7 +349,7 @@ public class AnalysisModule extends AbstractModule {
             analyzersBindings.processAnalyzer("arabic", ArabicAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("brazilian", BrazilianAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("chinese", ChineseAnalyzerProvider.class);
-            analyzersBindings.processAnalyzer("cjk", ChineseAnalyzerProvider.class);
+            analyzersBindings.processAnalyzer("cjk", CjkAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("czech", CzechAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("dutch", DutchAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("french", FrenchAnalyzerProvider.class);

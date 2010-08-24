@@ -114,30 +114,6 @@ public abstract class AbstractThreadPool extends AbstractComponent implements Th
         return result;
     }
 
-    @Override public <T> Future<T> submit(Callable<T> task) {
-        return executorService.submit(task);
-    }
-
-    @Override public <T> Future<T> submit(Callable<T> task, FutureListener<T> listener) {
-        return executorService.submit(new FutureCallable<T>(task, listener));
-    }
-
-    @Override public <T> Future<T> submit(Runnable task, T result) {
-        return executorService.submit(task, result);
-    }
-
-    @Override public <T> Future<T> submit(Runnable task, T result, FutureListener<T> listener) {
-        return executorService.submit(new FutureRunnable<T>(task, result, listener), result);
-    }
-
-    @Override public Future<?> submit(Runnable task) {
-        return executorService.submit(task);
-    }
-
-    @Override public Future<?> submit(Runnable task, FutureListener<?> listener) {
-        return executorService.submit(new FutureRunnable(task, null, listener));
-    }
-
     @Override public ScheduledFuture<?> schedule(Runnable command, TimeValue delay) {
         return schedule(command, delay.millis(), TimeUnit.MILLISECONDS);
     }

@@ -32,6 +32,10 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
+ * A thread pool based on {@link org.elasticsearch.common.util.concurrent.jsr166y.TransferQueue}.
+ *
+ * <p>Limited compared to ExecutorServer in what it does, but focused on speed.
+ *
  * @author kimchy (shay.banon)
  */
 public class TransferThreadPoolExecutor extends AbstractExecutorService {
@@ -247,7 +251,7 @@ public class TransferThreadPoolExecutor extends AbstractExecutorService {
                 succeeded = workQueue.tryTransfer(command, blockingTime, TimeUnit.NANOSECONDS);
                 if (!succeeded) {
                     throw new RejectedExecutionException("Rejected execution after waiting "
-                            + TimeUnit.NANOSECONDS.toSeconds(blockingTime) + "ms for task [" + command.getClass() + "] to be executed.");
+                            + TimeUnit.NANOSECONDS.toSeconds(blockingTime) + "s for task [" + command.getClass() + "] to be executed.");
                 }
             } catch (InterruptedException e) {
                 throw new RejectedExecutionException(e);

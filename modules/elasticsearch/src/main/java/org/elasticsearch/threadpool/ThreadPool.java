@@ -21,7 +21,10 @@ package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.unit.TimeValue;
 
-import java.util.concurrent.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author kimchy (shay.banon)
@@ -95,18 +98,6 @@ public interface ThreadPool extends Executor {
     boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException;
 
     void execute(Runnable command);
-
-    <T> Future<T> submit(Callable<T> task);
-
-    <T> Future<T> submit(Runnable task, T result);
-
-    Future<?> submit(Runnable task);
-
-    <T> Future<T> submit(Callable<T> task, FutureListener<T> listener);
-
-    <T> Future<T> submit(Runnable task, T result, FutureListener<T> listener);
-
-    Future<?> submit(Runnable task, FutureListener<?> listener);
 
     public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit);
 

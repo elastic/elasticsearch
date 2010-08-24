@@ -126,23 +126,23 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             handleException(handler, new TransportSerializationException("Failed to deserialize response of type [" + streamable.getClass().getName() + "]", e));
             return;
         }
-        if (handler.spawn()) {
-            threadPool.execute(new Runnable() {
-                @SuppressWarnings({"unchecked"}) @Override public void run() {
-                    try {
-                        handler.handleResponse(streamable);
-                    } catch (Exception e) {
-                        handleException(handler, new ResponseHandlerFailureTransportException("Failed to handle response", e));
+        try {
+            if (handler.spawn()) {
+                threadPool.execute(new Runnable() {
+                    @SuppressWarnings({"unchecked"}) @Override public void run() {
+                        try {
+                            handler.handleResponse(streamable);
+                        } catch (Exception e) {
+                            handleException(handler, new ResponseHandlerFailureTransportException("Failed to handle response", e));
+                        }
                     }
-                }
-            });
-        } else {
-            try {
+                });
+            } else {
                 //noinspection unchecked
                 handler.handleResponse(streamable);
-            } catch (Exception e) {
-                handleException(handler, new ResponseHandlerFailureTransportException("Failed to handle response", e));
             }
+        } catch (Exception e) {
+            handleException(handler, new ResponseHandlerFailureTransportException("Failed to handle response", e));
         }
     }
 

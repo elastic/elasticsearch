@@ -202,13 +202,15 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                         listener.clusterChanged(clusterChangedEvent);
                     }
 
-                    threadPool.execute(new Runnable() {
-                        @Override public void run() {
-                            for (DiscoveryNode node : nodesDelta.removedNodes()) {
-                                transportService.disconnectFromNode(node);
+                    if (!nodesDelta.removedNodes().isEmpty()) {
+                        threadPool.cached().execute(new Runnable() {
+                            @Override public void run() {
+                                for (DiscoveryNode node : nodesDelta.removedNodes()) {
+                                    transportService.disconnectFromNode(node);
+                                }
                             }
-                        }
-                    });
+                        });
+                    }
 
                     // if we are the master, publish the new state to all nodes
                     if (clusterState.nodes().localNodeMaster()) {

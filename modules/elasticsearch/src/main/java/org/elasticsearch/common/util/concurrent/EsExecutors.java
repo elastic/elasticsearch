@@ -20,13 +20,21 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 
-import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.*;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class EsExecutors {
+
+    public static ExecutorService newCachedThreadPool(TimeValue keepAlive, ThreadFactory threadFactory) {
+        return new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+                keepAlive.millis(), TimeUnit.MILLISECONDS,
+                new SynchronousQueue<Runnable>(),
+                threadFactory);
+    }
 
     public static ThreadFactory daemonThreadFactory(Settings settings, String namePrefix) {
         String name = settings.get("name");

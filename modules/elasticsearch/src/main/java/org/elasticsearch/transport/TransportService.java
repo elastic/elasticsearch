@@ -261,7 +261,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
 
         @Override public void raiseNodeConnected(final DiscoveryNode node) {
-            threadPool.execute(new Runnable() {
+            threadPool.cached().execute(new Runnable() {
                 @Override public void run() {
                     for (TransportConnectionListener connectionListener : connectionListeners) {
                         connectionListener.onNodeConnected(node);

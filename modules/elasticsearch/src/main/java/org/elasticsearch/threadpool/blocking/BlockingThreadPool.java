@@ -21,8 +21,7 @@ package org.elasticsearch.threadpool.blocking;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.TransferThreadPoolExecutor;
@@ -58,14 +57,21 @@ public class BlockingThreadPool extends AbstractThreadPool {
         super(settings);
         this.scheduledSize = componentSettings.getAsInt("scheduled_size", 20);
         this.min = componentSettings.getAsInt("min", 1);
-        this.max = componentSettings.getAsInt("max", 100);
-        this.capacity = (int) componentSettings.getAsBytesSize("capacity", new ByteSizeValue(1, ByteSizeUnit.KB)).bytes();
+        int max = componentSettings.getAsInt("max", 100);
+        if (max < 10) {
+            logger.warn("blocking threadpool max threads [{}] must not be lower than 10, setting it to 10", max);
+            max = 10;
+        }
+        this.max = max;
+
+        // capacity is set to 0 as it might cause starvation in blocking mode
+        this.capacity = (int) componentSettings.getAsSize("capacity", new SizeValue(0)).singles();
         this.waitTime = componentSettings.getAsTime("wait_time", timeValueSeconds(60));
         this.keepAlive = componentSettings.getAsTime("keep_alive", timeValueSeconds(60));
-        logger.debug("Initializing {} thread pool with min[{}], max[{}], keep_alive[{}], capacity[{}], wait_time[{}], scheduled_size[{}]", getType(), min, max, keepAlive, capacity, waitTime, scheduledSize);
+        logger.debug("initializing {} thread pool with min[{}], max[{}], keep_alive[{}], capacity[{}], wait_time[{}], scheduled_size[{}]", getType(), min, max, keepAlive, capacity, waitTime, scheduledSize);
         executorService = TransferThreadPoolExecutor.newBlockingExecutor(min, max, keepAlive.millis(), TimeUnit.MILLISECONDS, waitTime.millis(), TimeUnit.MILLISECONDS, capacity, EsExecutors.daemonThreadFactory(settings, "[tp]"));
         scheduledExecutorService = Executors.newScheduledThreadPool(scheduledSize, EsExecutors.daemonThreadFactory(settings, "[sc]"));
-        cached = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory(settings, "[cached]"));
+        cached = EsExecutors.newCachedThreadPool(keepAlive, EsExecutors.daemonThreadFactory(settings, "[cached]"));
         started = true;
     }
 

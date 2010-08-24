@@ -16,10 +16,11 @@
     <orderEntry type="module-library" exported="">
       <library name="jarjar">
         <CLASSES>
-          <root url="jar://$MODULE_DIR$/../../modules/jarjar/build/libs/jarjar-0.9.1-SNAPSHOT.jar!/" />
+          <root url="file://$MODULE_DIR$/../../modules/jarjar/build/libs" />
         </CLASSES>
         <JAVADOC />
         <SOURCES />
+        <jarDirectory url="file://$MODULE_DIR$/../../modules/jarjar/build/libs" recursive="false" />
       </library>
     </orderEntry>
     <orderEntry type="library" exported="" name="logging" level="project" />

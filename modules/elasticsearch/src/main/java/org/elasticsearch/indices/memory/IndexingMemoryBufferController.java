@@ -49,13 +49,25 @@ public class IndexingMemoryBufferController extends AbstractComponent {
         super(settings);
         this.indicesService = indicesService;
 
-        String indexingBuffer = componentSettings.get("index_buffer_size", "40%");
-        if (indexingBuffer.endsWith("%")) {
-            double percent = Double.parseDouble(indexingBuffer.substring(0, indexingBuffer.length() - 1));
-            this.indexingBuffer = new ByteSizeValue((long) (((double) JvmInfo.jvmInfo().mem().heapMax().bytes()) * (percent / 100)));
+        ByteSizeValue indexingBuffer;
+        String indexingBufferSetting = componentSettings.get("index_buffer_size", "10%");
+        if (indexingBufferSetting.endsWith("%")) {
+            double percent = Double.parseDouble(indexingBufferSetting.substring(0, indexingBufferSetting.length() - 1));
+            indexingBuffer = new ByteSizeValue((long) (((double) JvmInfo.jvmInfo().mem().heapMax().bytes()) * (percent / 100)));
+            ByteSizeValue minIndexingBuffer = componentSettings.getAsBytesSize("min_index_buffer_size", new ByteSizeValue(48, ByteSizeUnit.MB));
+            ByteSizeValue maxIndexingBuffer = componentSettings.getAsBytesSize("max_index_buffer_size", null);
+
+            if (indexingBuffer.bytes() < minIndexingBuffer.bytes()) {
+                indexingBuffer = minIndexingBuffer;
+            }
+            if (maxIndexingBuffer != null && indexingBuffer.bytes() > maxIndexingBuffer.bytes()) {
+                indexingBuffer = maxIndexingBuffer;
+            }
         } else {
-            this.indexingBuffer = ByteSizeValue.parseBytesSizeValue(indexingBuffer, null);
+            indexingBuffer = ByteSizeValue.parseBytesSizeValue(indexingBufferSetting, null);
         }
+
+        this.indexingBuffer = indexingBuffer;
         this.minShardIndexBufferSize = componentSettings.getAsBytesSize("min_shard_index_buffer_size", new ByteSizeValue(4, ByteSizeUnit.MB));
 
         logger.debug("using index_buffer_size [{}], with min_shard_index_buffer_size [{}]", this.indexingBuffer, this.minShardIndexBufferSize);

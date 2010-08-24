@@ -60,7 +60,7 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
         this.indicesService = indicesService;
         this.transportNodesListShardStoreMetaData = transportNodesListShardStoreMetaData;
 
-        this.listTimeout = componentSettings.getAsTime("list_timeout", TimeValue.timeValueMillis(500));
+        this.listTimeout = componentSettings.getAsTime("list_timeout", TimeValue.timeValueMillis(5000));
     }
 
     @Override public boolean allocate(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes) {

@@ -208,7 +208,7 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
             if (lastNodeMatched != null) {
                 if (nodeAllocations.canAllocate(shard, lastNodeMatched, routingNodes) == NodeAllocation.Decision.THROTTLE) {
                     if (logger.isTraceEnabled()) {
-                        logger.trace("[{}][{}]: throttling allocation [{}] to [{}] in order to reuse its unallocated persistent store with total_size [{}]", shard.index(), shard.id(), shard, lastDiscoNodeMatched, new ByteSizeValue(lastSizeMatched));
+                        logger.debug("[{}][{}]: throttling allocation [{}] to [{}] in order to reuse its unallocated persistent store with total_size [{}]", shard.index(), shard.id(), shard, lastDiscoNodeMatched, new ByteSizeValue(lastSizeMatched));
                     }
                     // we are throttling this, but we have enough to allocate to this node, ignore it for now
                     unassignedIterator.remove();

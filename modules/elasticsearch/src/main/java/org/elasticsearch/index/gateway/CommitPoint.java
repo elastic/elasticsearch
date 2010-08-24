@@ -28,6 +28,8 @@ import java.util.List;
  */
 public class CommitPoint {
 
+    public static CommitPoint NULL = new CommitPoint(-1, "_null_", Type.GENERATED, ImmutableList.<CommitPoint.FileInfo>of(), ImmutableList.<CommitPoint.FileInfo>of());
+
     public static class FileInfo {
         private final String name;
         private final String physicalName;

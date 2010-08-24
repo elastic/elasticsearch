@@ -22,19 +22,18 @@ package org.elasticsearch.gateway.blobstore;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocation;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocations;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.gateway.CommitPoint;
 import org.elasticsearch.index.gateway.blobstore.BlobStoreIndexGateway;
 import org.elasticsearch.index.service.InternalIndexService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.IndicesService;
@@ -42,6 +41,7 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.transport.ConnectTransportException;
 
 import java.util.Iterator;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * @author kimchy (shay.banon)
@@ -54,19 +54,39 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
 
     private final TimeValue listTimeout;
 
+    private final ConcurrentMap<ShardId, CommitPoint> cachedCommitPoints = ConcurrentCollections.newConcurrentMap();
+
     @Inject public BlobReuseExistingNodeAllocation(Settings settings, IndicesService indicesService,
                                                    TransportNodesListShardStoreMetaData transportNodesListShardStoreMetaData) {
         super(settings);
         this.indicesService = indicesService;
         this.transportNodesListShardStoreMetaData = transportNodesListShardStoreMetaData;
 
-        this.listTimeout = componentSettings.getAsTime("list_timeout", TimeValue.timeValueMillis(5000));
+        this.listTimeout = componentSettings.getAsTime("list_timeout", TimeValue.timeValueSeconds(60));
     }
 
     @Override public boolean allocate(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes) {
         boolean changed = false;
 
         if (nodes.dataNodes().isEmpty()) {
+            return changed;
+        }
+
+        // clean cached commit points for primaries that are already active
+        for (ShardId shardId : cachedCommitPoints.keySet()) {
+            IndexRoutingTable indexRoutingTable = routingNodes.routingTable().index(shardId.index().name());
+            if (indexRoutingTable == null) {
+                cachedCommitPoints.remove(shardId);
+                continue;
+            }
+
+            ShardRouting primaryShardRouting = indexRoutingTable.shard(shardId.id()).primaryShard();
+            if (primaryShardRouting.active()) {
+                cachedCommitPoints.remove(shardId);
+            }
+        }
+
+        if (!routingNodes.hasUnassigned()) {
             return changed;
         }
 
@@ -134,7 +154,21 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
                 if (shard.primary() && indexService.gateway() instanceof BlobStoreIndexGateway) {
                     BlobStoreIndexGateway indexGateway = (BlobStoreIndexGateway) indexService.gateway();
                     try {
-                        CommitPoint commitPoint = indexGateway.findCommitPoint(shard.id());
+                        CommitPoint commitPoint = cachedCommitPoints.get(shard.shardId());
+                        if (commitPoint == null) {
+                            commitPoint = indexGateway.findCommitPoint(shard.id());
+                            if (commitPoint != null) {
+                                cachedCommitPoints.put(shard.shardId(), commitPoint);
+                            } else {
+                                cachedCommitPoints.put(shard.shardId(), CommitPoint.NULL);
+                            }
+                        } else if (commitPoint == CommitPoint.NULL) {
+                            commitPoint = null;
+                        }
+
+                        if (commitPoint == null) {
+                            break;
+                        }
 
                         if (logger.isTraceEnabled()) {
                             StringBuilder sb = new StringBuilder(shard + ": checking for pre_allocation (gateway) on node " + discoNode + "\n");

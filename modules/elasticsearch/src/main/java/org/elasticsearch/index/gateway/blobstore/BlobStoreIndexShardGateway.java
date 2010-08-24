@@ -333,7 +333,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         // now go over all the blobs, and if they don't exists in a commit point, delete them
         for (String blobName : blobs.keySet()) {
             String name = blobName;
-            if (name.startsWith("commit-")) {
+            if (!name.startsWith("__")) {
                 continue;
             }
             if (blobName.contains(".part")) {
@@ -811,7 +811,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
     private long findLatestFileNameGeneration(ImmutableMap<String, BlobMetaData> blobs) {
         long generation = -1;
         for (String name : blobs.keySet()) {
-            if (name.startsWith("commit-")) {
+            if (!name.startsWith("__")) {
                 continue;
             }
             if (name.contains(".part")) {

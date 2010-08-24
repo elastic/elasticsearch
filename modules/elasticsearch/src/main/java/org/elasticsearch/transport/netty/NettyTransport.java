@@ -340,11 +340,17 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         } else {
             index = address.lastIndexOf(':');
             if (index == -1) {
-                throw new ElasticSearchIllegalStateException("Port must be provided to create inet address from [" + address + "]");
+                List<TransportAddress> addresses = Lists.newArrayList();
+                int[] iPorts = new PortsRange(this.port).ports();
+                for (int iPort : iPorts) {
+                    addresses.add(new InetSocketTransportAddress(address, iPort));
+                }
+                return addresses.toArray(new TransportAddress[addresses.size()]);
+            } else {
+                String host = address.substring(0, index);
+                int port = Integer.parseInt(address.substring(index + 1));
+                return new TransportAddress[]{new InetSocketTransportAddress(host, port)};
             }
-            String host = address.substring(0, index);
-            int port = Integer.parseInt(address.substring(index + 1));
-            return new TransportAddress[]{new InetSocketTransportAddress(host, port)};
         }
     }
 

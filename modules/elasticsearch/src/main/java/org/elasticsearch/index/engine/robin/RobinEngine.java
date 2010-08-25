@@ -154,7 +154,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             }
 
             try {
-                translog.newTranslog(IndexReader.getCurrentVersion(store.directory()));
+                translog.newTranslog(newTransactionLogId());
                 this.nrtResource = buildNrtResource(indexWriter);
             } catch (IOException e) {
                 try {
@@ -346,7 +346,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
                     AcquirableResource<ReaderSearcherHolder> current = nrtResource;
                     nrtResource = buildNrtResource(indexWriter);
                     current.markForClose();
-                    translog.newTranslog(IndexReader.getCurrentVersion(store.directory()));
+                    translog.newTranslog(newTransactionLogId());
                 } catch (IOException e) {
                     throw new FlushFailedEngineException(shardId, e);
                 } finally {
@@ -355,7 +355,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             } else {
                 try {
                     indexWriter.commit();
-                    translog.newTranslog(IndexReader.getCurrentVersion(store.directory()));
+                    translog.newTranslog(newTransactionLogId());
                 } catch (IOException e) {
                     throw new FlushFailedEngineException(shardId, e);
                 }
@@ -553,6 +553,14 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         IndexSearcher indexSearcher = new IndexSearcher(indexReader);
         indexSearcher.setSimilarity(similarityService.defaultSearchSimilarity());
         return newAcquirableResource(new ReaderSearcherHolder(indexSearcher));
+    }
+
+    private long newTransactionLogId() throws IOException {
+        try {
+            return IndexWriters.rollbackSegmentInfos(indexWriter).getVersion();
+        } catch (Exception e) {
+            return IndexReader.getCurrentVersion(store.directory());
+        }
     }
 
     private static class RobinSearchResult implements Searcher {

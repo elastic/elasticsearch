@@ -62,7 +62,7 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
         this.indicesService = indicesService;
         this.transportNodesListShardStoreMetaData = transportNodesListShardStoreMetaData;
 
-        this.listTimeout = componentSettings.getAsTime("list_timeout", TimeValue.timeValueSeconds(60));
+        this.listTimeout = componentSettings.getAsTime("list_timeout", TimeValue.timeValueSeconds(30));
     }
 
     @Override public boolean allocate(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes) {
@@ -102,6 +102,25 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
                 continue;
             }
 
+            // pre-check if it can be allocated to any node that currently exists, so we won't list the store for it for nothing
+            boolean canBeAllocatedToAtLeastOneNode = false;
+            for (DiscoveryNode discoNode : nodes.dataNodes().values()) {
+                RoutingNode node = routingNodes.node(discoNode.id());
+                if (node == null) {
+                    continue;
+                }
+                // if its THROTTLING, we are not going to allocate it to this node, so ignore it as well
+                if (nodeAllocations.canAllocate(shard, node, routingNodes).allocate()) {
+                    canBeAllocatedToAtLeastOneNode = true;
+                    break;
+                }
+            }
+
+            if (!canBeAllocatedToAtLeastOneNode) {
+                continue;
+            }
+
+            // go and fetch the shard store data for it
             TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData = transportNodesListShardStoreMetaData.list(shard.shardId(), false, nodes.dataNodes().keySet(), listTimeout).actionGet();
 
             if (logger.isDebugEnabled()) {

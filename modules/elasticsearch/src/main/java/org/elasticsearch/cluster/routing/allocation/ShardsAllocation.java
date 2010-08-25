@@ -62,8 +62,8 @@ public class ShardsAllocation extends AbstractComponent {
      */
     public RoutingTable applyStartedShards(ClusterState clusterState, List<? extends ShardRouting> startedShards) {
         RoutingNodes routingNodes = clusterState.routingNodes();
-        boolean changed = applyStartedShards(routingNodes, startedShards);
         nodeAllocations.applyStartedShards(nodeAllocations, routingNodes, clusterState.nodes(), startedShards);
+        boolean changed = applyStartedShards(routingNodes, startedShards);
         if (!changed) {
             return clusterState.routingTable();
         }
@@ -78,8 +78,8 @@ public class ShardsAllocation extends AbstractComponent {
      */
     public RoutingTable applyFailedShards(ClusterState clusterState, List<? extends ShardRouting> failedShards) {
         RoutingNodes routingNodes = clusterState.routingNodes();
-        boolean changed = applyFailedShards(routingNodes, failedShards);
         nodeAllocations.applyFailedShards(nodeAllocations, routingNodes, clusterState.nodes(), failedShards);
+        boolean changed = applyFailedShards(routingNodes, failedShards);
         if (!changed) {
             return clusterState.routingTable();
         }

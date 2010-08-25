@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocation;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocations;
+import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -41,6 +42,7 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.transport.ConnectTransportException;
 
 import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -90,6 +92,7 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
             return changed;
         }
 
+        Map<ShardId, TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData> cachedNodesStoreFilesMetaData = Maps.newHashMap();
         Iterator<MutableShardRouting> unassignedIterator = routingNodes.unassigned().iterator();
         while (unassignedIterator.hasNext()) {
             MutableShardRouting shard = unassignedIterator.next();
@@ -121,7 +124,11 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
             }
 
             // go and fetch the shard store data for it
-            TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData = transportNodesListShardStoreMetaData.list(shard.shardId(), false, nodes.dataNodes().keySet(), listTimeout).actionGet();
+            TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData = cachedNodesStoreFilesMetaData.get(shard.shardId());
+            if (nodesStoreFilesMetaData == null) {
+                nodesStoreFilesMetaData = transportNodesListShardStoreMetaData.list(shard.shardId(), false, nodes.dataNodes().keySet(), listTimeout).actionGet();
+                cachedNodesStoreFilesMetaData.put(shard.shardId(), nodesStoreFilesMetaData);
+            }
 
             if (logger.isDebugEnabled()) {
                 if (nodesStoreFilesMetaData.failures().length > 0) {

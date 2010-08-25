@@ -74,6 +74,10 @@ public class AndFilterParser extends AbstractIndexComponent implements XContentF
             }
         }
 
+        if (filters.isEmpty()) {
+            throw new QueryParsingException(index, "[or] filter requires 'filters' to be set on it'");
+        }
+
         if (cache) {
             for (int i = 0; i < filters.size(); i++) {
                 filters.set(i, parseContext.cacheFilterIfPossible(filters.get(i)));

@@ -519,6 +519,19 @@ public class SimpleIndexQueryParserTests {
         assertThat(((TermFilter) andFilter.filters().get(1)).getTerm(), equalTo(new Term("name.first", "shay4")));
     }
 
+    @Test public void testAndFilteredQuery2() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/and-filter2.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+
+        AndFilter andFilter = (AndFilter) filteredQuery.getFilter();
+        assertThat(andFilter.filters().size(), equalTo(2));
+        assertThat(((TermFilter) andFilter.filters().get(0)).getTerm(), equalTo(new Term("name.first", "shay1")));
+        assertThat(((TermFilter) andFilter.filters().get(1)).getTerm(), equalTo(new Term("name.first", "shay4")));
+    }
+
     @Test public void testOrFilteredQueryBuilder() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
         Query parsedQuery = queryParser.parse(filtered(matchAllQuery(), orFilter(termFilter("name.first", "shay1"), termFilter("name.first", "shay4"))));
@@ -534,6 +547,19 @@ public class SimpleIndexQueryParserTests {
     @Test public void testOrFilteredQuery() throws IOException {
         IndexQueryParser queryParser = newQueryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/or-filter.json");
+        Query parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
+
+        OrFilter orFilter = (OrFilter) filteredQuery.getFilter();
+        assertThat(orFilter.filters().size(), equalTo(2));
+        assertThat(((TermFilter) orFilter.filters().get(0)).getTerm(), equalTo(new Term("name.first", "shay1")));
+        assertThat(((TermFilter) orFilter.filters().get(1)).getTerm(), equalTo(new Term("name.first", "shay4")));
+    }
+
+    @Test public void testOrFilteredQuery2() throws IOException {
+        IndexQueryParser queryParser = newQueryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/xcontent/or-filter2.json");
         Query parsedQuery = queryParser.parse(query);
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;

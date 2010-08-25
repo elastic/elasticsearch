@@ -57,19 +57,29 @@ public class AndFilterParser extends AbstractIndexComponent implements XContentF
         boolean cache = true;
 
         String currentFieldName = null;
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                if ("filters".equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        filters.add(parseContext.parseInnerFilter());
+        XContentParser.Token token = parser.currentToken();
+        if (token == XContentParser.Token.START_ARRAY) {
+            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                filters.add(parseContext.parseInnerFilter());
+            }
+        } else {
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    if ("filters".equals(currentFieldName)) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            filters.add(parseContext.parseInnerFilter());
+                        }
+                    } else {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            filters.add(parseContext.parseInnerFilter());
+                        }
                     }
-                }
-            } else if (token.isValue()) {
-                if ("cache".equals(currentFieldName)) {
-                    cache = parser.booleanValue();
+                } else if (token.isValue()) {
+                    if ("cache".equals(currentFieldName)) {
+                        cache = parser.booleanValue();
+                    }
                 }
             }
         }

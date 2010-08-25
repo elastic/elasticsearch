@@ -38,7 +38,7 @@ public class SameShardNodeAllocation extends NodeAllocation {
         super(settings);
     }
 
-    @Override public boolean allocate(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes) {
+    @Override public boolean allocateUnassigned(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes) {
         return false;
     }
 

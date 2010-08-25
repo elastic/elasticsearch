@@ -60,9 +60,11 @@ public class ShardsAllocation extends AbstractComponent {
      *
      * <p>If the same instance of the routing table is returned, then no change has been made.
      */
-    public RoutingTable applyStartedShards(ClusterState clusterState, Iterable<? extends ShardRouting> startedShardEntries) {
+    public RoutingTable applyStartedShards(ClusterState clusterState, List<? extends ShardRouting> startedShards) {
         RoutingNodes routingNodes = clusterState.routingNodes();
-        if (!applyStartedShards(routingNodes, startedShardEntries)) {
+        boolean changed = applyStartedShards(routingNodes, startedShards);
+        nodeAllocations.applyStartedShards(nodeAllocations, routingNodes, clusterState.nodes(), startedShards);
+        if (!changed) {
             return clusterState.routingTable();
         }
         reroute(routingNodes, clusterState.nodes());
@@ -74,9 +76,11 @@ public class ShardsAllocation extends AbstractComponent {
      *
      * <p>If the same instance of the routing table is returned, then no change has been made.
      */
-    public RoutingTable applyFailedShards(ClusterState clusterState, Iterable<? extends ShardRouting> failedShardEntries) {
+    public RoutingTable applyFailedShards(ClusterState clusterState, List<? extends ShardRouting> failedShards) {
         RoutingNodes routingNodes = clusterState.routingNodes();
-        if (!applyFailedShards(routingNodes, failedShardEntries)) {
+        boolean changed = applyFailedShards(routingNodes, failedShards);
+        nodeAllocations.applyFailedShards(nodeAllocations, routingNodes, clusterState.nodes(), failedShards);
+        if (!changed) {
             return clusterState.routingTable();
         }
         // If we reroute again, the failed shard will try and be assigned to the same node, which we do no do in the applyFailedShards
@@ -113,7 +117,7 @@ public class ShardsAllocation extends AbstractComponent {
 
         // now allocate all the unassigned to available nodes
         if (routingNodes.hasUnassigned()) {
-            changed |= nodeAllocations.allocate(nodeAllocations, routingNodes, nodes);
+            changed |= nodeAllocations.allocateUnassigned(nodeAllocations, routingNodes, nodes);
             changed |= allocateUnassigned(routingNodes);
             // elect primaries again, in case this is needed with unassigned allocation
             changed |= electPrimaries(routingNodes);

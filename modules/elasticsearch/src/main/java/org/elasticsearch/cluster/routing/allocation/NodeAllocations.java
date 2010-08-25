@@ -27,6 +27,7 @@ import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -53,6 +54,18 @@ public class NodeAllocations extends NodeAllocation {
         this.allocations = allocations.toArray(new NodeAllocation[allocations.size()]);
     }
 
+    @Override public void applyStartedShards(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes, List<? extends ShardRouting> startedShards) {
+        for (NodeAllocation allocation : allocations) {
+            allocation.applyStartedShards(nodeAllocations, routingNodes, nodes, startedShards);
+        }
+    }
+
+    @Override public void applyFailedShards(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes, List<? extends ShardRouting> failedShards) {
+        for (NodeAllocation allocation : allocations) {
+            allocation.applyFailedShards(nodeAllocations, routingNodes, nodes, failedShards);
+        }
+    }
+
     @Override public boolean canRebalance(ShardRouting shardRouting, RoutingNodes routingNodes, DiscoveryNodes nodes) {
         for (NodeAllocation allocation : allocations) {
             if (!allocation.canRebalance(shardRouting, routingNodes, nodes)) {
@@ -62,10 +75,10 @@ public class NodeAllocations extends NodeAllocation {
         return true;
     }
 
-    @Override public boolean allocate(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes) {
+    @Override public boolean allocateUnassigned(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes) {
         boolean changed = false;
         for (NodeAllocation allocation : allocations) {
-            changed |= allocation.allocate(nodeAllocations, routingNodes, nodes);
+            changed |= allocation.allocateUnassigned(nodeAllocations, routingNodes, nodes);
         }
         return changed;
     }

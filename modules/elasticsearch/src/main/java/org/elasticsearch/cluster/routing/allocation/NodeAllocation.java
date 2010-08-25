@@ -26,6 +26,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.List;
+
 /**
  * A pluggable logic allowing to control if allocation of a shard is allowed on a specific node.
  *
@@ -54,7 +56,14 @@ public abstract class NodeAllocation extends AbstractComponent {
         super(settings);
     }
 
-    public boolean allocate(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes) {
+    public void applyStartedShards(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes, List<? extends ShardRouting> startedShards) {
+    }
+
+    public void applyFailedShards(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes, List<? extends ShardRouting> failedShards) {
+
+    }
+
+    public boolean allocateUnassigned(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes) {
         return false;
     }
 

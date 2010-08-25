@@ -22,7 +22,10 @@ package org.elasticsearch.gateway.blobstore;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocation;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocations;
 import org.elasticsearch.common.collect.Maps;
@@ -42,6 +45,7 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.transport.ConnectTransportException;
 
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
@@ -67,25 +71,23 @@ public class BlobReuseExistingNodeAllocation extends NodeAllocation {
         this.listTimeout = componentSettings.getAsTime("list_timeout", TimeValue.timeValueSeconds(30));
     }
 
-    @Override public boolean allocate(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes) {
+    @Override public void applyStartedShards(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes, List<? extends ShardRouting> startedShards) {
+        for (ShardRouting shardRouting : startedShards) {
+            cachedCommitPoints.remove(shardRouting.shardId());
+        }
+    }
+
+    @Override public void applyFailedShards(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes, List<? extends ShardRouting> failedShards) {
+        for (ShardRouting shardRouting : failedShards) {
+            cachedCommitPoints.remove(shardRouting.shardId());
+        }
+    }
+
+    @Override public boolean allocateUnassigned(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes) {
         boolean changed = false;
 
         if (nodes.dataNodes().isEmpty()) {
             return changed;
-        }
-
-        // clean cached commit points for primaries that are already active
-        for (ShardId shardId : cachedCommitPoints.keySet()) {
-            IndexRoutingTable indexRoutingTable = routingNodes.routingTable().index(shardId.index().name());
-            if (indexRoutingTable == null) {
-                cachedCommitPoints.remove(shardId);
-                continue;
-            }
-
-            ShardRouting primaryShardRouting = indexRoutingTable.shard(shardId.id()).primaryShard();
-            if (primaryShardRouting.active()) {
-                cachedCommitPoints.remove(shardId);
-            }
         }
 
         if (!routingNodes.hasUnassigned()) {

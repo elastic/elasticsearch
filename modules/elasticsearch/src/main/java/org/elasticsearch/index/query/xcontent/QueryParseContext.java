@@ -118,14 +118,14 @@ public class QueryParseContext {
         String queryName = parser.currentName();
         // move to the next START_OBJECT
         token = parser.nextToken();
-        assert token == XContentParser.Token.START_OBJECT;
+        assert token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY;
 
         XContentQueryParser queryParser = queryParserRegistry.queryParser(queryName);
         if (queryParser == null) {
             throw new QueryParsingException(index, "No query parser registered for [" + queryName + "]");
         }
         Query result = queryParser.parse(this);
-        if (parser.currentToken() == XContentParser.Token.END_OBJECT) {
+        if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
             // if we are at END_OBJECT, move to the next one...
             parser.nextToken();
         }
@@ -142,16 +142,16 @@ public class QueryParseContext {
         token = parser.nextToken();
         assert token == XContentParser.Token.FIELD_NAME;
         String queryName = parser.currentName();
-        // move to the next START_OBJECT
+        // move to the next START_OBJECT or START_ARRAY
         token = parser.nextToken();
-        assert token == XContentParser.Token.START_OBJECT;
+        assert token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY;
 
         XContentFilterParser filterParser = queryParserRegistry.filterParser(queryName);
         if (filterParser == null) {
             throw new QueryParsingException(index, "No query parser registered for [" + queryName + "]");
         }
         Filter result = filterParser.parse(this);
-        if (parser.currentToken() == XContentParser.Token.END_OBJECT) {
+        if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
             // if we are at END_OBJECT, move to the next one...
             parser.nextToken();
         }

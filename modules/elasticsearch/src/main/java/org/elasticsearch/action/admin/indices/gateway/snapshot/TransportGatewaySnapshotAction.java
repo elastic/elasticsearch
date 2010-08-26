@@ -19,50 +19,97 @@
 
 package org.elasticsearch.action.admin.indices.gateway.snapshot;
 
+import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.TransportActions;
-import org.elasticsearch.action.support.replication.TransportIndicesReplicationOperationAction;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.gateway.IndexShardGatewayService;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class TransportGatewaySnapshotAction extends TransportIndicesReplicationOperationAction<GatewaySnapshotRequest, GatewaySnapshotResponse, IndexGatewaySnapshotRequest, IndexGatewaySnapshotResponse, ShardGatewaySnapshotRequest, ShardGatewaySnapshotResponse> {
+public class TransportGatewaySnapshotAction extends TransportBroadcastOperationAction<GatewaySnapshotRequest, GatewaySnapshotResponse, ShardGatewaySnapshotRequest, ShardGatewaySnapshotResponse> {
 
-    @Inject public TransportGatewaySnapshotAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                                  ThreadPool threadPool, TransportIndexGatewaySnapshotAction indexAction) {
-        super(settings, transportService, clusterService, threadPool, indexAction);
-    }
-
-    @Override protected GatewaySnapshotRequest newRequestInstance() {
-        return new GatewaySnapshotRequest();
-    }
-
-    @Override protected GatewaySnapshotResponse newResponseInstance(GatewaySnapshotRequest request, AtomicReferenceArray indexResponses) {
-        GatewaySnapshotResponse response = new GatewaySnapshotResponse();
-        for (int i = 0; i < indexResponses.length(); i++) {
-            IndexGatewaySnapshotResponse indexResponse = (IndexGatewaySnapshotResponse) indexResponses.get(i);
-            if (indexResponse != null) {
-                response.indices().put(indexResponse.index(), indexResponse);
-            }
-        }
-        return response;
-    }
-
-    @Override protected boolean accumulateExceptions() {
-        return false;
+    @Inject public TransportGatewaySnapshotAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                                  TransportService transportService, IndicesService indicesService) {
+        super(settings, threadPool, clusterService, transportService, indicesService);
     }
 
     @Override protected String transportAction() {
         return TransportActions.Admin.Indices.Gateway.SNAPSHOT;
     }
 
-    @Override protected IndexGatewaySnapshotRequest newIndexRequestInstance(GatewaySnapshotRequest request, String index) {
-        return new IndexGatewaySnapshotRequest(request, index);
+    @Override protected String transportShardAction() {
+        return "indices/gateway/snapshot/shard";
+    }
+
+    @Override protected GatewaySnapshotRequest newRequest() {
+        return new GatewaySnapshotRequest();
+    }
+
+    @Override protected boolean ignoreNonActiveExceptions() {
+        return true;
+    }
+
+    @Override protected GatewaySnapshotResponse newResponse(GatewaySnapshotRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
+        int successfulShards = 0;
+        int failedShards = 0;
+        List<ShardOperationFailedException> shardFailures = null;
+        for (int i = 0; i < shardsResponses.length(); i++) {
+            Object shardResponse = shardsResponses.get(i);
+            if (shardResponse == null) {
+                // non active shard, ignore
+            } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
+                failedShards++;
+                if (shardFailures == null) {
+                    shardFailures = Lists.newArrayList();
+                }
+                shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
+            } else {
+                successfulShards++;
+            }
+        }
+        return new GatewaySnapshotResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures);
+    }
+
+    @Override protected ShardGatewaySnapshotRequest newShardRequest() {
+        return new ShardGatewaySnapshotRequest();
+    }
+
+    @Override protected ShardGatewaySnapshotRequest newShardRequest(ShardRouting shard, GatewaySnapshotRequest request) {
+        return new ShardGatewaySnapshotRequest(shard.index(), shard.id());
+    }
+
+    @Override protected ShardGatewaySnapshotResponse newShardResponse() {
+        return new ShardGatewaySnapshotResponse();
+    }
+
+    @Override protected ShardGatewaySnapshotResponse shardOperation(ShardGatewaySnapshotRequest request) throws ElasticSearchException {
+        IndexShardGatewayService shardGatewayService = indicesService.indexServiceSafe(request.index())
+                .shardInjectorSafe(request.shardId()).getInstance(IndexShardGatewayService.class);
+        shardGatewayService.snapshot("api");
+        return new ShardGatewaySnapshotResponse(request.index(), request.shardId());
+    }
+
+    /**
+     * The refresh request works against *all* shards.
+     */
+    @Override protected GroupShardsIterator shards(GatewaySnapshotRequest request, ClusterState clusterState) {
+        return clusterState.routingTable().primaryShardsGrouped(request.indices());
     }
 }

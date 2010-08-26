@@ -19,25 +19,29 @@
 
 package org.elasticsearch.action.admin.indices.gateway.snapshot;
 
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
-class ShardGatewaySnapshotResponse implements ActionResponse, Streamable {
+class ShardGatewaySnapshotResponse extends BroadcastShardOperationResponse {
 
     ShardGatewaySnapshotResponse() {
+    }
 
+    public ShardGatewaySnapshotResponse(String index, int shardId) {
+        super(index, shardId);
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
     }
 }

@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRe
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotResponse;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
-import org.elasticsearch.common.unit.TimeValue;
 
 /**
  * @author kimchy (shay.banon)
@@ -37,16 +36,6 @@ public class GatewaySnapshotRequestBuilder extends BaseIndicesRequestBuilder<Gat
 
     public GatewaySnapshotRequestBuilder setIndices(String... indices) {
         request.indices(indices);
-        return this;
-    }
-
-    public GatewaySnapshotRequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
-        return this;
-    }
-
-    public GatewaySnapshotRequestBuilder setTimeout(String timeout) {
-        request.timeout(timeout);
         return this;
     }
 

@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.admin.indices.gateway.snapshot;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequest;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotResponse;
-import org.elasticsearch.action.admin.indices.gateway.snapshot.IndexGatewaySnapshotResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -33,9 +32,9 @@ import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.support.replication.ShardReplicationOperationRequest.*;
 import static org.elasticsearch.rest.RestRequest.Method.*;
 import static org.elasticsearch.rest.RestResponse.Status.*;
+import static org.elasticsearch.rest.action.support.RestActions.*;
 
 /**
  * @author kimchy (Shay Banon)
@@ -50,26 +49,16 @@ public class RestGatewaySnapshotAction extends BaseRestHandler {
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
         GatewaySnapshotRequest gatewaySnapshotRequest = new GatewaySnapshotRequest(RestActions.splitIndices(request.param("index")));
-        gatewaySnapshotRequest.timeout(request.paramAsTime("timeout", DEFAULT_TIMEOUT));
         gatewaySnapshotRequest.listenerThreaded(false);
         client.admin().indices().gatewaySnapshot(gatewaySnapshotRequest, new ActionListener<GatewaySnapshotResponse>() {
-            @Override public void onResponse(GatewaySnapshotResponse result) {
+            @Override public void onResponse(GatewaySnapshotResponse response) {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
                     builder.field("ok", true);
-                    builder.startObject("indices");
-                    for (IndexGatewaySnapshotResponse indexResponse : result.indices().values()) {
-                        builder.startObject(indexResponse.index())
-                                .field("ok", true)
-                                .startObject("_shards")
-                                .field("total", indexResponse.totalShards())
-                                .field("successful", indexResponse.successfulShards())
-                                .field("failed", indexResponse.failedShards())
-                                .endObject()
-                                .endObject();
-                    }
-                    builder.endObject();
+
+                    buildBroadcastShardsHeader(builder, response);
+
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (Exception e) {

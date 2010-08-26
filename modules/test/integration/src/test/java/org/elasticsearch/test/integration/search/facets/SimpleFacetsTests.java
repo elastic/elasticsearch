@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.facets.filter.FilterFacet;
 import org.elasticsearch.search.facets.histogram.HistogramFacet;
 import org.elasticsearch.search.facets.range.RangeFacet;
@@ -32,6 +33,8 @@ import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
+
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.xcontent.FilterBuilders.*;
@@ -494,6 +497,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .addFacet(histogramFacet("stats2").field("multi_num").interval(10))
                 .addFacet(histogramFacet("stats3").keyField("num").valueField("multi_num").interval(100))
                 .addFacet(histogramScriptFacet("stats4").keyScript("doc['date'].date.minuteOfHour").valueScript("doc['num'].value"))
+                .addFacet(histogramFacet("stats5").field("date").interval(1, TimeUnit.MINUTES))
                 .execute().actionGet();
 
         if (searchResponse.failedShards() > 0) {
@@ -555,6 +559,14 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().get(1).count(), equalTo(1l));
         assertThat(facet.entries().get(1).total(), equalTo(1175d));
         assertThat(facet.entries().get(1).mean(), equalTo(1175d));
+
+        facet = searchResponse.facets().facet("stats5");
+        assertThat(facet.name(), equalTo("stats5"));
+        assertThat(facet.entries().size(), equalTo(2));
+        assertThat(facet.entries().get(0).key(), equalTo(0l));
+        assertThat(facet.entries().get(0).count(), equalTo(2l));
+        assertThat(facet.entries().get(1).key(), equalTo(TimeValue.timeValueMinutes(2).millis()));
+        assertThat(facet.entries().get(1).count(), equalTo(1l));
     }
 
     @Test public void testRangeFacets() throws Exception {

@@ -59,7 +59,7 @@ public class OptimizeRequest extends BroadcastOperationRequest {
      * @param indices The indices to optimize, no indices passed means all indices will be optimized.
      */
     public OptimizeRequest(String... indices) {
-        super(indices, null);
+        super(indices);
         // we want to do the optimize in parallel on local shards...
         operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
     }

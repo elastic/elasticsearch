@@ -127,7 +127,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
     }
 
     /**
-     * All the shards (replicas) for the provided indices grouped (each group is a single element, consisting
+     * All the shards (primary + replicas) for the provided indices grouped (each group is a single element, consisting
      * of the shard). This is handy for components that expect to get group iterators, but still want in some
      * cases to iterate over all the shards (and not just one shard in replication group).
      *
@@ -150,6 +150,33 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
                     its.add(shardRouting.shardsIt());
                 }
+            }
+        }
+        return its;
+    }
+
+    /**
+     * All the primary shards for the provided indices grouped (each group is a single element, consisting
+     * of the primary shard). This is handy for components that expect to get group iterators, but still want in some
+     * cases to iterate over all primary shards (and not just one shard in replication group).
+     *
+     * @param indices The indices to return all the shards (replicas), can be <tt>null</tt> or empty array to indicate all indices
+     * @return All the primary shards grouped into a single shard element group each
+     * @throws IndexMissingException If an index passed does not exists
+     * @see IndexRoutingTable#groupByAllIt()
+     */
+    public GroupShardsIterator primaryShardsGrouped(String... indices) throws IndexMissingException {
+        GroupShardsIterator its = new GroupShardsIterator();
+        if (indices == null || indices.length == 0) {
+            indices = indicesRouting.keySet().toArray(new String[indicesRouting.keySet().size()]);
+        }
+        for (String index : indices) {
+            IndexRoutingTable indexRoutingTable = index(index);
+            if (indexRoutingTable == null) {
+                throw new IndexMissingException(new Index(index));
+            }
+            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                its.add(indexShardRoutingTable.primaryShard().shardsIt());
             }
         }
         return its;

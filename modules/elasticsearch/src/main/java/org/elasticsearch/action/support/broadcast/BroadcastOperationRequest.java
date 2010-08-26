@@ -25,7 +25,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 
 /**
@@ -35,7 +34,6 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
 
     protected String[] indices;
 
-    @Nullable protected String queryHint;
 
     private boolean listenerThreaded = false;
     private BroadcastOperationThreading operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
@@ -44,9 +42,8 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
 
     }
 
-    protected BroadcastOperationRequest(String[] indices, @Nullable String queryHint) {
+    protected BroadcastOperationRequest(String[] indices) {
         this.indices = indices;
-        this.queryHint = queryHint;
     }
 
     public String[] indices() {
@@ -56,10 +53,6 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
     public BroadcastOperationRequest indices(String[] indices) {
         this.indices = indices;
         return this;
-    }
-
-    public String queryHint() {
-        return queryHint;
     }
 
     @Override public ActionRequestValidationException validate() {
@@ -116,12 +109,6 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
                 out.writeUTF(index);
             }
         }
-        if (queryHint == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeUTF(queryHint);
-        }
         out.writeByte(operationThreading.id());
     }
 
@@ -134,9 +121,6 @@ public abstract class BroadcastOperationRequest implements ActionRequest {
             for (int i = 0; i < indices.length; i++) {
                 indices[i] = in.readUTF();
             }
-        }
-        if (in.readBoolean()) {
-            queryHint = in.readUTF();
         }
         operationThreading = BroadcastOperationThreading.fromId(in.readByte());
     }

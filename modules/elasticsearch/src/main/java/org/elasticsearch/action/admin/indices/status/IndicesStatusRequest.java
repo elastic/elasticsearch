@@ -33,7 +33,7 @@ public class IndicesStatusRequest extends BroadcastOperationRequest {
     }
 
     public IndicesStatusRequest(String... indices) {
-        super(indices, null);
+        super(indices);
     }
 
     @Override public IndicesStatusRequest listenerThreaded(boolean listenerThreaded) {

@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
 import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
@@ -62,6 +63,8 @@ public class CountRequest extends BroadcastOperationRequest {
 
     private float minScore = DEFAULT_MIN_SCORE;
 
+    @Nullable protected String queryHint;
+
     private byte[] querySource;
     private int querySourceOffset;
     private int querySourceLength;
@@ -78,7 +81,8 @@ public class CountRequest extends BroadcastOperationRequest {
      * run against all indices.
      */
     public CountRequest(String... indices) {
-        super(indices, null);
+        super(indices);
+        this.queryHint = null;
     }
 
     @Override public ActionRequestValidationException validate() {
@@ -87,6 +91,10 @@ public class CountRequest extends BroadcastOperationRequest {
             validationException = Actions.addValidationError("query is missing", validationException);
         }
         return validationException;
+    }
+
+    public String queryHint() {
+        return queryHint;
     }
 
     /**
@@ -261,6 +269,10 @@ public class CountRequest extends BroadcastOperationRequest {
         super.readFrom(in);
         minScore = in.readFloat();
 
+        if (in.readBoolean()) {
+            queryHint = in.readUTF();
+        }
+
         querySourceUnsafe = false;
         querySourceOffset = 0;
         querySourceLength = in.readVInt();
@@ -282,6 +294,13 @@ public class CountRequest extends BroadcastOperationRequest {
     @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeFloat(minScore);
+
+        if (queryHint == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(queryHint);
+        }
 
         out.writeVInt(querySourceLength);
         out.writeBytes(querySource, querySourceOffset, querySourceLength);

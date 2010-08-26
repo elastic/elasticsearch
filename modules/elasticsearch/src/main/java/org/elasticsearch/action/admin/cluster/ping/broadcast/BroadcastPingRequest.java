@@ -24,18 +24,22 @@ import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class BroadcastPingRequest extends BroadcastOperationRequest {
+
+    @Nullable protected String queryHint;
 
     BroadcastPingRequest() {
     }
 
     public BroadcastPingRequest(String... indices) {
-        super(indices, null);
+        super(indices);
+        this.queryHint = null;
     }
 
     @Override public BroadcastPingRequest operationThreading(BroadcastOperationThreading operationThreading) {
@@ -48,6 +52,10 @@ public class BroadcastPingRequest extends BroadcastOperationRequest {
         return this;
     }
 
+    public String queryHint() {
+        return this.queryHint;
+    }
+
     public BroadcastPingRequest queryHint(String queryHint) {
         this.queryHint = queryHint;
         return this;
@@ -55,9 +63,18 @@ public class BroadcastPingRequest extends BroadcastOperationRequest {
 
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        if (in.readBoolean()) {
+            queryHint = in.readUTF();
+        }
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        if (queryHint == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeUTF(queryHint);
+        }
     }
 }

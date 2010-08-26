@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.gateway.snapshot;
 
-import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -28,38 +28,20 @@ import java.io.IOException;
 /**
  * @author kimchy (shay.banon)
  */
-class ShardGatewaySnapshotRequest extends ShardReplicationOperationRequest {
-
-    private int shardId;
-
-    ShardGatewaySnapshotRequest(IndexGatewaySnapshotRequest request, int shardId) {
-        this(request.index(), shardId);
-        timeout = request.timeout();
-    }
-
-    ShardGatewaySnapshotRequest(String index, int shardId) {
-        this.index = index;
-        this.shardId = shardId;
-    }
+class ShardGatewaySnapshotRequest extends BroadcastShardOperationRequest {
 
     ShardGatewaySnapshotRequest() {
     }
 
-    public int shardId() {
-        return this.shardId;
+    public ShardGatewaySnapshotRequest(String index, int shardId) {
+        super(index, shardId);
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        shardId = in.readVInt();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(shardId);
-    }
-
-    @Override public String toString() {
-        return "gateway_snapshot {[" + index + "][" + shardId + "]}";
     }
 }

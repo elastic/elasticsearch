@@ -19,67 +19,34 @@
 
 package org.elasticsearch.action.admin.indices.gateway.snapshot;
 
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
+import java.util.List;
 
 /**
- * Reponse for the gateway snapshot action.
+ * Response for the gateway snapshot action.
  *
  * @author kimchy (shay.banon)
  */
-public class GatewaySnapshotResponse implements ActionResponse, Streamable, Iterable<IndexGatewaySnapshotResponse> {
-
-    private Map<String, IndexGatewaySnapshotResponse> indices = new HashMap<String, IndexGatewaySnapshotResponse>();
+public class GatewaySnapshotResponse extends BroadcastOperationResponse {
 
     GatewaySnapshotResponse() {
 
     }
 
-    @Override public Iterator<IndexGatewaySnapshotResponse> iterator() {
-        return indices.values().iterator();
-    }
-
-    /**
-     * A map of index level responses of the gateway snapshot operation.
-     */
-    public Map<String, IndexGatewaySnapshotResponse> indices() {
-        return indices;
-    }
-
-    /**
-     * A map of index level responses of the gateway snapshot operation.
-     */
-    public Map<String, IndexGatewaySnapshotResponse> getIndices() {
-        return indices();
-    }
-
-    /**
-     * The index level gateway snapshot response for the given index.
-     */
-    public IndexGatewaySnapshotResponse index(String index) {
-        return indices.get(index);
+    GatewaySnapshotResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+        super(totalShards, successfulShards, failedShards, shardFailures);
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            IndexGatewaySnapshotResponse response = new IndexGatewaySnapshotResponse();
-            response.readFrom(in);
-            indices.put(response.index(), response);
-        }
+        super.readFrom(in);
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(indices.size());
-        for (IndexGatewaySnapshotResponse indexGatewaySnapshotResponse : indices.values()) {
-            indexGatewaySnapshotResponse.writeTo(out);
-        }
+        super.writeTo(out);
     }
 }

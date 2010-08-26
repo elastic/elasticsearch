@@ -19,8 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.gateway.snapshot;
 
-import org.elasticsearch.action.support.replication.IndicesReplicationOperationRequest;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 
 /**
  * Gateway snapshot allows to explicitly perform a snapshot through the gateway of one or more indices (backup them).
@@ -32,7 +31,7 @@ import org.elasticsearch.common.unit.TimeValue;
  * @see org.elasticsearch.client.IndicesAdminClient#gatewaySnapshot(GatewaySnapshotRequest)
  * @see GatewaySnapshotResponse
  */
-public class GatewaySnapshotRequest extends IndicesReplicationOperationRequest {
+public class GatewaySnapshotRequest extends BroadcastOperationRequest {
 
     GatewaySnapshotRequest() {
 
@@ -52,14 +51,5 @@ public class GatewaySnapshotRequest extends IndicesReplicationOperationRequest {
     @Override public GatewaySnapshotRequest listenerThreaded(boolean threadedListener) {
         super.listenerThreaded(threadedListener);
         return this;
-    }
-
-    public GatewaySnapshotRequest timeout(TimeValue timeout) {
-        this.timeout = timeout;
-        return this;
-    }
-
-    public GatewaySnapshotRequest timeout(String timeout) {
-        return timeout(TimeValue.parseTimeValue(timeout, null));
     }
 }

@@ -52,7 +52,7 @@ public class RangeFilterBuilder extends BaseFilterBuilder {
     /**
      * The from part of the filter query. Null indicates unbounded.
      */
-    public RangeFilterBuilder from(String from) {
+    public RangeFilterBuilder from(Object from) {
         this.from = from;
         return this;
     }
@@ -92,7 +92,7 @@ public class RangeFilterBuilder extends BaseFilterBuilder {
     /**
      * The from part of the filter query. Null indicates unbounded.
      */
-    public RangeFilterBuilder gt(String from) {
+    public RangeFilterBuilder gt(Object from) {
         this.from = from;
         this.includeLower = false;
         return this;
@@ -137,7 +137,7 @@ public class RangeFilterBuilder extends BaseFilterBuilder {
     /**
      * The from part of the filter query. Null indicates unbounded.
      */
-    public RangeFilterBuilder gte(String from) {
+    public RangeFilterBuilder gte(Object from) {
         this.from = from;
         this.includeLower = true;
         return this;
@@ -182,7 +182,7 @@ public class RangeFilterBuilder extends BaseFilterBuilder {
     /**
      * The to part of the filter query. Null indicates unbounded.
      */
-    public RangeFilterBuilder to(String to) {
+    public RangeFilterBuilder to(Object to) {
         this.to = to;
         return this;
     }
@@ -222,7 +222,7 @@ public class RangeFilterBuilder extends BaseFilterBuilder {
     /**
      * The to part of the filter query. Null indicates unbounded.
      */
-    public RangeFilterBuilder lt(String to) {
+    public RangeFilterBuilder lt(Object to) {
         this.to = to;
         this.includeUpper = false;
         return this;

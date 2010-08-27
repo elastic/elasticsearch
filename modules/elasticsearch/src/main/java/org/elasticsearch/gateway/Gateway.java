@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 
@@ -30,11 +29,15 @@ public interface Gateway extends LifecycleComponent<Gateway> {
 
     String type();
 
-    void write(MetaData metaData) throws GatewayException;
-
-    MetaData read() throws GatewayException;
+    void performStateRecovery(GatewayStateRecoveredListener listener) throws GatewayException;
 
     Class<? extends Module> suggestIndexGateway();
 
     void reset() throws Exception;
+
+    interface GatewayStateRecoveredListener {
+        void onSuccess();
+
+        void onFailure(Throwable t);
+    }
 }

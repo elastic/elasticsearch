@@ -22,7 +22,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.ElasticSearchException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TransportException extends ElasticSearchException {
 

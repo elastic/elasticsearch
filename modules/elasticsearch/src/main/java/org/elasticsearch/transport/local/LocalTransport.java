@@ -237,7 +237,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
                     try {
                         handler.handleResponse(streamable);
                     } catch (Exception e) {
-                        handleException(handler, new ResponseHandlerFailureTransportException("Failed to handle response", e));
+                        handleException(handler, new ResponseHandlerFailureTransportException(e));
                     }
                 }
             });
@@ -246,7 +246,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
                 //noinspection unchecked
                 handler.handleResponse(streamable);
             } catch (Exception e) {
-                handleException(handler, new ResponseHandlerFailureTransportException("Failed to handle response", e));
+                handleException(handler, new ResponseHandlerFailureTransportException(e));
             }
         }
     }

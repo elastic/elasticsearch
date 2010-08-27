@@ -133,7 +133,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                         try {
                             handler.handleResponse(streamable);
                         } catch (Exception e) {
-                            handleException(handler, new ResponseHandlerFailureTransportException("Failed to handle response", e));
+                            handleException(handler, new ResponseHandlerFailureTransportException(e));
                         }
                     }
                 });
@@ -142,7 +142,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 handler.handleResponse(streamable);
             }
         } catch (Exception e) {
-            handleException(handler, new ResponseHandlerFailureTransportException("Failed to handle response", e));
+            handleException(handler, new ResponseHandlerFailureTransportException(e));
         }
     }
 
@@ -159,7 +159,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
     private void handleException(final TransportResponseHandler handler, Throwable error) {
         if (!(error instanceof RemoteTransportException)) {
-            error = new RemoteTransportException("None remote transport exception", error);
+            error = new RemoteTransportException(error.getMessage(), error);
         }
         final RemoteTransportException rtx = (RemoteTransportException) error;
         if (handler.spawn()) {

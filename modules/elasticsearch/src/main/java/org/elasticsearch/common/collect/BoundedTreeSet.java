@@ -24,7 +24,9 @@ import java.util.Comparator;
 import java.util.TreeSet;
 
 /**
- * @author kimchy (Shay Banon)
+ * A {@link TreeSet} that is bounded by size.
+ *
+ * @author kimchy (shay.banon)
  */
 public class BoundedTreeSet<E> extends TreeSet<E> {
 

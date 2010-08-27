@@ -20,15 +20,11 @@
 package org.elasticsearch.transport;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
-public class ResponseHandlerFailureTransportException extends TransportException {
+public class ResponseHandlerFailureTransportException extends RemoteTransportException {
 
-    public ResponseHandlerFailureTransportException(String msg) {
-        super(msg);
-    }
-
-    public ResponseHandlerFailureTransportException(String msg, Throwable cause) {
-        super(msg, cause);
+    public ResponseHandlerFailureTransportException(Throwable cause) {
+        super(cause.getMessage(), cause);
     }
 }

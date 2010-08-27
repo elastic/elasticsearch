@@ -20,7 +20,6 @@
 package org.elasticsearch.gateway.none;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
@@ -57,12 +56,8 @@ public class NoneGateway extends AbstractLifecycleComponent<Gateway> implements 
     @Override protected void doClose() throws ElasticSearchException {
     }
 
-    @Override public void write(MetaData metaData) throws GatewayException {
-
-    }
-
-    @Override public MetaData read() throws GatewayException {
-        return null;
+    @Override public void performStateRecovery(GatewayStateRecoveredListener listener) throws GatewayException {
+        listener.onSuccess();
     }
 
     @Override public Class<? extends Module> suggestIndexGateway() {

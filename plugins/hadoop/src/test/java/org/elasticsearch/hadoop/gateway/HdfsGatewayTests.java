@@ -22,6 +22,7 @@ package org.elasticsearch.hadoop.gateway;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Requests;
@@ -78,7 +79,8 @@ public class HdfsGatewayTests {
 
     @Test public void testHdfsGateway() {
         // first, test meta data
-        node.client().admin().indices().create(createIndexRequest("test")).actionGet();
+        CreateIndexResponse createIndexResponse = node.client().admin().indices().create(createIndexRequest("test")).actionGet();
+        assertThat(createIndexResponse.acknowledged(), equalTo(true));
         node.close();
         node = buildNode().start();
         try {

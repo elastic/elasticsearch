@@ -19,12 +19,12 @@
 
 package org.elasticsearch.gateway.blobstore;
 
-import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.common.blobstore.*;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -32,8 +32,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
-import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.GatewayException;
+import org.elasticsearch.gateway.shared.SharedStorageGateway;
 
 import javax.annotation.Nullable;
 import java.io.ByteArrayInputStream;
@@ -42,7 +42,7 @@ import java.io.IOException;
 /**
  * @author kimchy (shay.banon)
  */
-public abstract class BlobStoreGateway extends AbstractLifecycleComponent<Gateway> implements Gateway {
+public abstract class BlobStoreGateway extends SharedStorageGateway {
 
     private BlobStore blobStore;
 
@@ -54,8 +54,8 @@ public abstract class BlobStoreGateway extends AbstractLifecycleComponent<Gatewa
 
     private volatile int currentIndex;
 
-    protected BlobStoreGateway(Settings settings) throws IOException {
-        super(settings);
+    protected BlobStoreGateway(Settings settings, ClusterService clusterService, MetaDataCreateIndexService createIndexService) {
+        super(settings, clusterService, createIndexService);
     }
 
     protected void initialize(BlobStore blobStore, ClusterName clusterName, @Nullable ByteSizeValue defaultChunkSize) throws IOException {
@@ -85,15 +85,6 @@ public abstract class BlobStoreGateway extends AbstractLifecycleComponent<Gatewa
 
     @Override public void reset() throws Exception {
         blobStore.delete(BlobPath.cleanPath());
-    }
-
-    @Override protected void doStart() throws ElasticSearchException {
-    }
-
-    @Override protected void doStop() throws ElasticSearchException {
-    }
-
-    @Override protected void doClose() throws ElasticSearchException {
     }
 
     @Override public MetaData read() throws GatewayException {

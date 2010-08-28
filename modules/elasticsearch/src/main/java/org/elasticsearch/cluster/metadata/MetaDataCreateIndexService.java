@@ -24,11 +24,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.index.NodeIndexCreatedAction;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.ShardsAllocation;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Maps;
+import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
@@ -53,6 +56,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -218,7 +222,14 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         listener.timeout = timeoutTask;
                     }
 
-                    return newClusterStateBuilder().state(currentState).metaData(newMetaData).build();
+                    ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
+                    if (!request.blocks.isEmpty()) {
+                        for (ClusterBlock block : request.blocks) {
+                            blocks.addIndexBlock(request.index, block);
+                        }
+                    }
+
+                    return newClusterStateBuilder().state(currentState).blocks(blocks).metaData(newMetaData).build();
                 } catch (Exception e) {
                     listener.onFailure(e);
                     return currentState;
@@ -314,6 +325,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         TimeValue timeout = TimeValue.timeValueSeconds(5);
 
+        Set<ClusterBlock> blocks = Sets.newHashSet();
+
         public Request(String cause, String index) {
             this.cause = cause;
             this.index = index;
@@ -333,6 +346,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             for (Map.Entry<String, CompressedString> entry : mappings.entrySet()) {
                 this.mappings.put(entry.getKey(), entry.getValue().string());
             }
+            return this;
+        }
+
+        public Request blocks(Set<ClusterBlock> blocks) {
+            this.blocks.addAll(blocks);
             return this;
         }
 

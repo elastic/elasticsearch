@@ -135,16 +135,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     @Override protected void doStart() throws ElasticSearchException {
         Map<String, String> nodeAttributes = buildCommonNodesAttributes(settings);
-        Boolean zenMaster = componentSettings.getAsBoolean("master", null);
-        if (zenMaster != null) {
-            if (zenMaster.equals(Boolean.FALSE)) {
-                nodeAttributes.put("zen.master", "false");
-            }
-        } else if (nodeAttributes.containsKey("client")) {
-            if (nodeAttributes.get("client").equals("true")) {
-                nodeAttributes.put("zen.master", "false");
-            }
-        }
         // note, we rely on the fact that its a new id each time we start, see FD and "kill -9" handling
         String nodeId = UUID.randomUUID().toString();
         localNode = new DiscoveryNode(settings.get("name"), nodeId, transportService.boundAddress().publishAddress(), nodeAttributes);

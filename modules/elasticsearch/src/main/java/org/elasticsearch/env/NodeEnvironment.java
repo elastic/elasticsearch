@@ -49,7 +49,8 @@ public class NodeEnvironment extends AbstractComponent {
     @Inject public NodeEnvironment(Settings settings, Environment environment) throws IOException {
         super(settings);
 
-        if (!settings.getAsBoolean("node.data", true) || settings.getAsBoolean("node.client", false)) {
+        if (!settings.getAsBoolean("node.data", true) || settings.getAsBoolean("node.client", false) ||
+                !settings.getAsBoolean("node.master", true)) {
             nodeFile = null;
             lock = null;
             return;

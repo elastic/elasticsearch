@@ -303,12 +303,17 @@ public class MetaData implements Iterable<IndexMetaData> {
         public static MetaData fromXContent(XContentParser parser, @Nullable Settings globalSettings) throws IOException {
             Builder builder = new Builder();
 
-            String currentFieldName = null;
-            XContentParser.Token token = parser.nextToken();
-            if (token == null) {
-                // no data...
-                return builder.build();
+            XContentParser.Token token = parser.currentToken();
+            String currentFieldName = parser.currentName();
+            if (!"meta-data".equals(currentFieldName)) {
+                token = parser.nextToken();
+                currentFieldName = parser.currentName();
+                if (token == null) {
+                    // no data...
+                    return builder.build();
+                }
             }
+
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();

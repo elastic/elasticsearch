@@ -87,7 +87,7 @@ public class ReplicaAllocatedAfterPrimaryTests {
         assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), nullValue());
 
         logger.info("Start all the primary shards");
-        RoutingNodes routingNodes = routingTable.routingNodes(clusterState.metaData());
+        RoutingNodes routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.node("node1").shardsWithState(INITIALIZING));
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();

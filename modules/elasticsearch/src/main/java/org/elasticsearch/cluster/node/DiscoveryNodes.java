@@ -46,13 +46,16 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
 
     private final ImmutableMap<String, DiscoveryNode> dataNodes;
 
+    private final ImmutableMap<String, DiscoveryNode> masterNodes;
+
     private final String masterNodeId;
 
     private final String localNodeId;
 
-    private DiscoveryNodes(ImmutableMap<String, DiscoveryNode> nodes, ImmutableMap<String, DiscoveryNode> dataNodes, String masterNodeId, String localNodeId) {
+    private DiscoveryNodes(ImmutableMap<String, DiscoveryNode> nodes, ImmutableMap<String, DiscoveryNode> dataNodes, ImmutableMap<String, DiscoveryNode> masterNodes, String masterNodeId, String localNodeId) {
         this.nodes = nodes;
         this.dataNodes = dataNodes;
+        this.masterNodes = masterNodes;
         this.masterNodeId = masterNodeId;
         this.localNodeId = localNodeId;
     }
@@ -102,6 +105,14 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
 
     public ImmutableMap<String, DiscoveryNode> getDataNodes() {
         return dataNodes();
+    }
+
+    public ImmutableMap<String, DiscoveryNode> masterNodes() {
+        return this.masterNodes;
+    }
+
+    public ImmutableMap<String, DiscoveryNode> getMasterNodes() {
+        return masterNodes();
     }
 
     public DiscoveryNode get(String nodeId) {
@@ -366,12 +377,16 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
 
         public DiscoveryNodes build() {
             ImmutableMap.Builder<String, DiscoveryNode> dataNodesBuilder = ImmutableMap.builder();
+            ImmutableMap.Builder<String, DiscoveryNode> masterNodesBuilder = ImmutableMap.builder();
             for (Map.Entry<String, DiscoveryNode> nodeEntry : nodes.entrySet()) {
                 if (nodeEntry.getValue().dataNode()) {
                     dataNodesBuilder.put(nodeEntry.getKey(), nodeEntry.getValue());
                 }
+                if (nodeEntry.getValue().masterNode()) {
+                    masterNodesBuilder.put(nodeEntry.getKey(), nodeEntry.getValue());
+                }
             }
-            return new DiscoveryNodes(ImmutableMap.copyOf(nodes), dataNodesBuilder.build(), masterNodeId, localNodeId);
+            return new DiscoveryNodes(ImmutableMap.copyOf(nodes), dataNodesBuilder.build(), masterNodesBuilder.build(), masterNodeId, localNodeId);
         }
 
         public static void writeTo(DiscoveryNodes nodes, StreamOutput out) throws IOException {

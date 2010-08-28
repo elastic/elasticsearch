@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.util.concurrent.NotThreadSafe;
 
@@ -35,6 +36,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private final MetaData metaData;
 
+    private final ClusterBlocks blocks;
+
     private final RoutingTable routingTable;
 
     private final Map<String, RoutingNode> nodesToShards = newHashMap();
@@ -43,8 +46,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private final List<MutableShardRouting> ignoredUnassigned = newArrayList();
 
-    public RoutingNodes(MetaData metaData, RoutingTable routingTable) {
+    public RoutingNodes(MetaData metaData, ClusterBlocks blocks, RoutingTable routingTable) {
         this.metaData = metaData;
+        this.blocks = blocks;
         this.routingTable = routingTable;
         Map<String, List<MutableShardRouting>> nodesToShards = newHashMap();
         for (IndexRoutingTable indexRoutingTable : routingTable.indicesRouting().values()) {
@@ -98,6 +102,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     public MetaData getMetaData() {
         return metaData();
+    }
+
+    public ClusterBlocks blocks() {
+        return this.blocks;
+    }
+
+    public ClusterBlocks getBlocks() {
+        return this.blocks;
     }
 
     public int requiredAverageNumberOfShardsPerNode() {

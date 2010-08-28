@@ -91,6 +91,10 @@ public class ClusterBlocks {
         return levelHolders[level.id()].indices();
     }
 
+    public boolean hasIndexBlock(String index, ClusterBlock block) {
+        return indicesBlocks.containsKey(index) && indicesBlocks.get(index).contains(block);
+    }
+
     public void indexBlockedRaiseException(ClusterBlockLevel level, String index) throws ClusterBlockException {
         if (!indexBlocked(level, index)) {
             return;
@@ -132,22 +136,6 @@ public class ClusterBlocks {
         }
 
         public ImmutableMap<String, ImmutableSet<ClusterBlock>> indices() {
-            return indices;
-        }
-    }
-
-    static class LevelHolder {
-        private final Set<ClusterBlock> global = Sets.newHashSet();
-        private final Map<String, Set<ClusterBlock>> indices = Maps.newHashMap();
-
-        LevelHolder() {
-        }
-
-        public Set<ClusterBlock> global() {
-            return global;
-        }
-
-        public Map<String, Set<ClusterBlock>> indices() {
             return indices;
         }
     }

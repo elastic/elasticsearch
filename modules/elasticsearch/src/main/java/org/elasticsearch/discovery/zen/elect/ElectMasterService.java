@@ -79,10 +79,8 @@ public class ElectMasterService extends AbstractComponent {
         // clean non master nodes
         for (Iterator<DiscoveryNode> it = possibleNodes.iterator(); it.hasNext();) {
             DiscoveryNode node = it.next();
-            if (node.attributes().containsKey("zen.master")) {
-                if (node.attributes().get("zen.master").equals("false")) {
-                    it.remove();
-                }
+            if (!node.masterNode()) {
+                it.remove();
             }
         }
         Collections.sort(possibleNodes, nodeComparator);

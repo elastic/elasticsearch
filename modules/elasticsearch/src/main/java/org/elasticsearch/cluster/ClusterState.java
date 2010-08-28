@@ -94,7 +94,7 @@ public class ClusterState {
     }
 
     public RoutingNodes routingNodes() {
-        return routingTable.routingNodes(metaData);
+        return routingTable.routingNodes(metaData, blocks);
     }
 
     public RoutingNodes getRoutingNodes() {
@@ -117,7 +117,7 @@ public class ClusterState {
         if (routingNodes != null) {
             return routingNodes;
         }
-        routingNodes = routingTable.routingNodes(metaData);
+        routingNodes = routingTable.routingNodes(metaData, blocks);
         return routingNodes;
     }
 
@@ -174,6 +174,11 @@ public class ClusterState {
 
         public Builder blocks(ClusterBlocks block) {
             this.blocks = block;
+            return this;
+        }
+
+        public Builder version(long version) {
+            this.version = version;
             return this;
         }
 

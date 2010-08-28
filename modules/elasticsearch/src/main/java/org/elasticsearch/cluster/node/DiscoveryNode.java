@@ -153,7 +153,10 @@ public class DiscoveryNode implements Streamable, Serializable {
      */
     public boolean dataNode() {
         String data = attributes.get("data");
-        return data == null || data.equals("true");
+        if (data == null) {
+            return !clientNode();
+        }
+        return data.equals("true");
     }
 
     /**
@@ -173,6 +176,24 @@ public class DiscoveryNode implements Streamable, Serializable {
 
     public boolean isClientNode() {
         return clientNode();
+    }
+
+    /**
+     * Can this node become master or not.
+     */
+    public boolean masterNode() {
+        String master = attributes.get("master");
+        if (master == null) {
+            return !clientNode();
+        }
+        return master.equals("true");
+    }
+
+    /**
+     * Can this node become master or not.
+     */
+    public boolean isMasterNode() {
+        return masterNode();
     }
 
     public static DiscoveryNode readNode(StreamInput in) throws IOException {

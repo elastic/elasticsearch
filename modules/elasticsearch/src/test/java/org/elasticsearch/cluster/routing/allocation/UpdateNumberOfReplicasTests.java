@@ -60,13 +60,13 @@ public class UpdateNumberOfReplicasTests {
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         logger.info("Start all the primary shards");
-        RoutingNodes routingNodes = routingTable.routingNodes(clusterState.metaData());
+        RoutingNodes routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.node("node1").shardsWithState(INITIALIZING));
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         logger.info("Start all the replica shards");
-        routingNodes = routingTable.routingNodes(clusterState.metaData());
+        routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
@@ -82,7 +82,7 @@ public class UpdateNumberOfReplicasTests {
         assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), equalTo("node2"));
 
         logger.info("add another replica");
-        routingNodes = routingTable.routingNodes(clusterState.metaData());
+        routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
         routingTable = newRoutingTableBuilder().routingTable(routingTable).updateNumberOfReplicas(2).build();
         metaData = MetaData.newMetaDataBuilder().metaData(clusterState.metaData()).updateNumberOfReplicas(2).build();
@@ -117,7 +117,7 @@ public class UpdateNumberOfReplicasTests {
         assertThat(routingTable.index("test").shard(0).replicaShards().get(1).state(), equalTo(INITIALIZING));
         assertThat(routingTable.index("test").shard(0).replicaShards().get(1).currentNodeId(), equalTo("node3"));
 
-        routingNodes = routingTable.routingNodes(clusterState.metaData());
+        routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
@@ -134,7 +134,7 @@ public class UpdateNumberOfReplicasTests {
         assertThat(routingTable.index("test").shard(0).replicaShards().get(1).currentNodeId(), equalTo("node3"));
 
         logger.info("now remove a replica");
-        routingNodes = routingTable.routingNodes(clusterState.metaData());
+        routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
         routingTable = newRoutingTableBuilder().routingTable(routingTable).updateNumberOfReplicas(1).build();
         metaData = MetaData.newMetaDataBuilder().metaData(clusterState.metaData()).updateNumberOfReplicas(1).build();

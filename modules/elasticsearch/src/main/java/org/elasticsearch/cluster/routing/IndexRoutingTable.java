@@ -105,6 +105,34 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
         return shards.get(shardId);
     }
 
+    public boolean allPrimaryShardsActive() {
+        return primaryShardsActive() == shards().size();
+    }
+
+    public int primaryShardsActive() {
+        int counter = 0;
+        for (IndexShardRoutingTable shardRoutingTable : this) {
+            if (shardRoutingTable.primaryShard().active()) {
+                counter++;
+            }
+        }
+        return counter;
+    }
+
+    public boolean allPrimaryShardsUnassigned() {
+        return primaryShardsUnassigned() == shards.size();
+    }
+
+    public int primaryShardsUnassigned() {
+        int counter = 0;
+        for (IndexShardRoutingTable shardRoutingTable : this) {
+            if (shardRoutingTable.primaryShard().unassigned()) {
+                counter++;
+            }
+        }
+        return counter;
+    }
+
     public List<ShardRouting> shardsWithState(ShardRoutingState... states) {
         List<ShardRouting> shards = newArrayList();
         for (IndexShardRoutingTable shardRoutingTable : this) {

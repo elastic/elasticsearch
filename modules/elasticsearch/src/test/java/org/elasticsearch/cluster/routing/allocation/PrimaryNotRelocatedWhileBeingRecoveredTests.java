@@ -68,7 +68,7 @@ public class PrimaryNotRelocatedWhileBeingRecoveredTests {
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         logger.info("Start the primary shard (on node1)");
-        RoutingNodes routingNodes = routingTable.routingNodes(clusterState.metaData());
+        RoutingNodes routingNodes = clusterState.routingNodes();
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.node("node1").shardsWithState(INITIALIZING));
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 

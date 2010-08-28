@@ -99,7 +99,7 @@ public class TenShardsOneReplicaRoutingTests {
         assertThat(prevRoutingTable == routingTable, equalTo(true));
 
         logger.info("Start the primary shard (on node1)");
-        RoutingNodes routingNodes = routingTable.routingNodes(clusterState.metaData());
+        RoutingNodes routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.node("node1").shardsWithState(INITIALIZING));
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
@@ -123,11 +123,11 @@ public class TenShardsOneReplicaRoutingTests {
         assertThat(prevRoutingTable == routingTable, equalTo(true));
 
         logger.info("Start the backup shard");
-        routingNodes = routingTable.routingNodes(metaData);
+        routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.node("node2").shardsWithState(INITIALIZING));
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
-        routingNodes = routingTable.routingNodes(metaData);
+        routingNodes = clusterState.routingNodes();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
         assertThat(routingTable.index("test").shards().size(), equalTo(10));
@@ -148,7 +148,7 @@ public class TenShardsOneReplicaRoutingTests {
         prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState);
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
-        routingNodes = routingTable.routingNodes(metaData);
+        routingNodes = clusterState.routingNodes();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
         assertThat(routingTable.index("test").shards().size(), equalTo(10));
@@ -159,11 +159,11 @@ public class TenShardsOneReplicaRoutingTests {
         assertThat(routingNodes.node("node3").numberOfShardsWithState(INITIALIZING), equalTo(6));
 
         logger.info("Start the shards on node 3");
-        routingNodes = routingTable.routingNodes(clusterState.metaData());
+        routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.node("node3").shardsWithState(INITIALIZING));
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
-        routingNodes = routingTable.routingNodes(metaData);
+        routingNodes = clusterState.routingNodes();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
         assertThat(routingTable.index("test").shards().size(), equalTo(10));

@@ -72,7 +72,7 @@ public class FailedShardsRoutingTests {
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         logger.info("Start the shards (primaries)");
-        RoutingNodes routingNodes = routingTable.routingNodes(clusterState.metaData());
+        RoutingNodes routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
@@ -90,7 +90,7 @@ public class FailedShardsRoutingTests {
         }
 
         logger.info("Start the shards (backups)");
-        routingNodes = routingTable.routingNodes(clusterState.metaData());
+        routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
@@ -112,7 +112,7 @@ public class FailedShardsRoutingTests {
         prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState);
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
-        routingNodes = routingTable.routingNodes(metaData);
+        routingNodes = clusterState.routingNodes();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
         assertThat(routingTable.index("test").shards().size(), equalTo(3));
@@ -123,11 +123,11 @@ public class FailedShardsRoutingTests {
         assertThat(routingNodes.node("node3").numberOfShardsWithState(INITIALIZING), equalTo(2));
 
         logger.info("Fail the shards on node 3");
-        routingNodes = routingTable.routingNodes(clusterState.metaData());
+        routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
         routingTable = strategy.applyFailedShards(clusterState, routingNodes.node("node3").shardsWithState(INITIALIZING));
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
-        routingNodes = routingTable.routingNodes(metaData);
+        routingNodes = clusterState.routingNodes();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
         assertThat(routingTable.index("test").shards().size(), equalTo(3));
@@ -139,7 +139,7 @@ public class FailedShardsRoutingTests {
         prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState);
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
-        routingNodes = routingTable.routingNodes(metaData);
+        routingNodes = clusterState.routingNodes();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
         assertThat(routingTable.index("test").shards().size(), equalTo(3));
@@ -150,11 +150,11 @@ public class FailedShardsRoutingTests {
         assertThat(routingNodes.node("node3").numberOfShardsWithState(INITIALIZING), equalTo(2));
 
         logger.info("Start the shards on node 3");
-        routingNodes = routingTable.routingNodes(clusterState.metaData());
+        routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.node("node3").shardsWithState(INITIALIZING));
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
-        routingNodes = routingTable.routingNodes(metaData);
+        routingNodes = clusterState.routingNodes();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
         assertThat(routingTable.index("test").shards().size(), equalTo(3));
@@ -227,7 +227,7 @@ public class FailedShardsRoutingTests {
         }
 
         logger.info("Start the primary shards");
-        RoutingNodes routingNodes = routingTable.routingNodes(clusterState.metaData());
+        RoutingNodes routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
@@ -250,12 +250,12 @@ public class FailedShardsRoutingTests {
         assertThat(prevRoutingTable == routingTable, equalTo(true));
 
         logger.info("Fail backup shards on node2");
-        routingNodes = routingTable.routingNodes(metaData);
+        routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
         List<MutableShardRouting> failedShards = routingNodes.node("node2").shardsWithState(INITIALIZING);
         routingTable = strategy.applyFailedShards(clusterState, failedShards);
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
-        routingNodes = routingTable.routingNodes(metaData);
+        routingNodes = clusterState.routingNodes();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
         assertThat(routingTable.index("test").shards().size(), equalTo(10));
@@ -272,7 +272,7 @@ public class FailedShardsRoutingTests {
         // fail them again...
         routingTable = strategy.applyFailedShards(clusterState, failedShards);
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
-        routingNodes = routingTable.routingNodes(metaData);
+        routingNodes = clusterState.routingNodes();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
         assertThat(routingTable.index("test").shards().size(), equalTo(10));

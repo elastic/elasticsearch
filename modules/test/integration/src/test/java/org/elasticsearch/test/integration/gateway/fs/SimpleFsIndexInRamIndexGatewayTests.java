@@ -19,8 +19,6 @@
 
 package org.elasticsearch.test.integration.gateway.fs;
 
-import org.elasticsearch.test.integration.gateway.AbstractSimpleIndexGatewayTests;
-
 /**
  * @author kimchy (shay.banon)
  */

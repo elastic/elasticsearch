@@ -215,10 +215,6 @@ public final class InternalNode implements Node {
             injector.getInstance(plugin).stop();
         }
 
-        injector.getInstance(NodeEnvironment.class).close();
-
-        Injectors.close(injector);
-
         logger.info("{{}}[{}]: stopped", Version.full(), JvmInfo.jvmInfo().pid());
 
         return this;
@@ -294,6 +290,9 @@ public final class InternalNode implements Node {
         if (logger.isTraceEnabled()) {
             logger.trace("Close times for each service:\n{}", stopWatch.prettyPrint());
         }
+
+        injector.getInstance(NodeEnvironment.class).close();
+        Injectors.close(injector);
 
         logger.info("{{}}[{}]: closed", Version.full(), JvmInfo.jvmInfo().pid());
     }

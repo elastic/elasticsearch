@@ -347,7 +347,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         }
         try {
             // now we can close the translog
-            shardInjector.getInstance(Translog.class).close();
+            shardInjector.getInstance(Translog.class).close(delete);
         } catch (Exception e) {
             // ignore
         }

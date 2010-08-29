@@ -47,7 +47,7 @@ import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.GatewayException;
-import org.elasticsearch.index.gateway.none.NoneIndexGatewayModule;
+import org.elasticsearch.index.gateway.local.LocalIndexGatewayModule;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.*;
@@ -195,7 +195,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
     }
 
     @Override public Class<? extends Module> suggestIndexGateway() {
-        return NoneIndexGatewayModule.class;
+        return LocalIndexGatewayModule.class;
     }
 
     @Override public void reset() throws Exception {

@@ -34,7 +34,6 @@ import org.elasticsearch.index.translog.TranslogException;
 import org.elasticsearch.index.translog.TranslogStreams;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -97,11 +96,12 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
             lastPosition = 0;
             this.id = id + 1;
             if (raf != null) {
-                raf.decreaseRefCount();
+                raf.decreaseRefCount(true);
             }
             try {
                 raf = new RafReference(new File(location, "translog-" + id));
-            } catch (FileNotFoundException e) {
+                raf.raf().setLength(0);
+            } catch (IOException e) {
                 raf = null;
                 throw new TranslogException(shardId, "translog not found", e);
             }
@@ -114,11 +114,13 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
             lastPosition = 0;
             this.id = id;
             if (raf != null) {
-                raf.decreaseRefCount();
+                raf.decreaseRefCount(true);
             }
             try {
                 raf = new RafReference(new File(location, "translog-" + id));
-            } catch (FileNotFoundException e) {
+                // clean the file if it exists
+                raf.raf().setLength(0);
+            } catch (IOException e) {
                 raf = null;
                 throw new TranslogException(shardId, "translog not found", e);
             }
@@ -183,10 +185,10 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         }
     }
 
-    @Override public void close() {
+    @Override public void close(boolean delete) {
         synchronized (mutex) {
             if (raf != null) {
-                raf.decreaseRefCount();
+                raf.decreaseRefCount(delete);
                 raf = null;
             }
         }

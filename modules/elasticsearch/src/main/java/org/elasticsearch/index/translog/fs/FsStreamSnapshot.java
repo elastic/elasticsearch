@@ -136,7 +136,7 @@ public class FsStreamSnapshot implements Translog.Snapshot {
         } catch (IOException e) {
             // ignore
         }
-        raf.decreaseRefCount();
+        raf.decreaseRefCount(true);
         return true;
     }
 }

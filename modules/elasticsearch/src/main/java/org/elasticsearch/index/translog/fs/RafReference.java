@@ -54,11 +54,13 @@ public class RafReference {
         refCount.incrementAndGet();
     }
 
-    public void decreaseRefCount() {
+    public void decreaseRefCount(boolean delete) {
         if (refCount.decrementAndGet() <= 0) {
             try {
                 raf.close();
-                file.delete();
+                if (delete) {
+                    file.delete();
+                }
             } catch (IOException e) {
                 // ignore
             }

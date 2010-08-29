@@ -233,6 +233,17 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         logger.info("--> creating test index ...");
         client("server1").admin().indices().prepareCreate("test").execute().actionGet();
 
+        logger.info("Running Cluster Health (wait for the shards to startup)");
+        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
+
+
+        logger.info("--> refreshing and checking count");
+        client("server1").admin().indices().prepareRefresh().execute().actionGet();
+        assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(0l));
+
         logger.info("--> indexing 12345 docs");
         for (long i = 0; i < 12345; i++) {
             client("server1").prepareIndex("test", "type1", Long.toString(i))
@@ -256,7 +267,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         startNode("server1");
 
         logger.info("--> running Cluster Health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
+        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("--> done Cluster Health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));

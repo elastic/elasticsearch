@@ -378,6 +378,12 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         CommitPoints commitPoints = new CommitPoints(commitPointsList);
 
         if (commitPoints.commits().isEmpty()) {
+            // no commit points, clean the store just so we won't recover wrong files
+            try {
+                indexShard.store().deleteContent();
+            } catch (IOException e) {
+                logger.warn("failed to clean store before starting shard", e);
+            }
             recoveryStatus.index().startTime(System.currentTimeMillis());
             recoveryStatus.index().time(System.currentTimeMillis() - recoveryStatus.index().startTime());
             recoveryStatus.translog().startTime(System.currentTimeMillis());

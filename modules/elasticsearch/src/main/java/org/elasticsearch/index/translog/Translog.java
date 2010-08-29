@@ -90,7 +90,7 @@ public interface Translog extends IndexShardComponent {
     /**
      * Closes the transaction log.
      */
-    void close();
+    void close(boolean delete);
 
     /**
      * A snapshot of the transaction log, allows to iterate over all the transaction log operations.

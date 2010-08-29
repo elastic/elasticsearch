@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.integration.gateway;
+package org.elasticsearch.test.integration.gateway.fs;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;

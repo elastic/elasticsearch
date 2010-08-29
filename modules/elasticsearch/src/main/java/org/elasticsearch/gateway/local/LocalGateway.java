@@ -48,7 +48,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.GatewayException;
 import org.elasticsearch.index.gateway.local.LocalIndexGatewayModule;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.*;
 import java.util.Map;
@@ -68,8 +67,6 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
 
     private File location;
 
-    private final ClusterName clusterName;
-
     private final ClusterService clusterService;
 
     private final NodeEnvironment nodeEnv;
@@ -81,9 +78,8 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
     private volatile LocalGatewayState currentState;
 
     @Inject public LocalGateway(Settings settings, ClusterService clusterService, MetaDataCreateIndexService createIndexService,
-                                NodeEnvironment nodeEnv, ClusterName clusterName, ThreadPool threadPool, TransportNodesListGatewayState listGatewayState) {
+                                NodeEnvironment nodeEnv, TransportNodesListGatewayState listGatewayState) {
         super(settings);
-        this.clusterName = clusterName;
         this.clusterService = clusterService;
         this.createIndexService = createIndexService;
         this.nodeEnv = nodeEnv;
@@ -105,7 +101,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
             return;
         }
         // create the location where the state will be stored
-        this.location = new File(nodeEnv.nodeFile(), "_state");
+        this.location = new File(nodeEnv.nodeLocation(), "_state");
         this.location.mkdirs();
 
         try {
@@ -199,6 +195,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
     }
 
     @Override public void reset() throws Exception {
+        FileSystemUtils.deleteRecursively(nodeEnv.nodeLocation());
     }
 
     @Override public void clusterChanged(final ClusterChangedEvent event) {

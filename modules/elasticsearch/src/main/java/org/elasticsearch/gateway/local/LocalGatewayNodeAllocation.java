@@ -21,10 +21,7 @@ package org.elasticsearch.gateway.local;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocation;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocations;
 import org.elasticsearch.common.collect.Maps;
@@ -35,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -48,6 +46,10 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
     @Inject public LocalGatewayNodeAllocation(Settings settings, TransportNodesListGatewayState listGatewayState) {
         super(settings);
         this.listGatewayState = listGatewayState;
+    }
+
+    @Override public void applyFailedShards(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes, List<? extends ShardRouting> failedShards) {
+        // TODO when a shard failed and we in the initial allocation, find an existing one
     }
 
     @Override public boolean allocateUnassigned(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes) {
@@ -104,6 +106,8 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
                 }
             }
         }
+
+        // TODO optimize replica allocation to existing work locations
 
         return changed;
     }

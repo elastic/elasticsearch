@@ -75,6 +75,10 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         this.useStream = useStream;
     }
 
+    public File location() {
+        return location;
+    }
+
     @Override public long currentId() {
         return this.id;
     }

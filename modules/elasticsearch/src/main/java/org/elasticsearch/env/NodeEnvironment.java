@@ -89,7 +89,7 @@ public class NodeEnvironment extends AbstractComponent {
         return nodeFile != null && lock != null;
     }
 
-    public File nodeFile() {
+    public File nodeLocation() {
         if (nodeFile == null || lock == null) {
             throw new ElasticSearchIllegalStateException("node is not configured to store local location");
         }

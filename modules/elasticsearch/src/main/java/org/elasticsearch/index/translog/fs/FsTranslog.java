@@ -59,7 +59,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
 
     @Inject public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv) {
         super(shardId, indexSettings);
-        this.location = new File(new File(new File(new File(nodeEnv.nodeFile(), "indices"), shardId.index().name()), Integer.toString(shardId.id())), "translog");
+        this.location = new File(new File(new File(new File(nodeEnv.nodeLocation(), "indices"), shardId.index().name()), Integer.toString(shardId.id())), "translog");
         this.location.mkdirs();
         this.useStream = componentSettings.getAsBoolean("use_stream", false);
     }

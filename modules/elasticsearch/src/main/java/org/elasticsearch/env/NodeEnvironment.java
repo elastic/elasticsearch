@@ -29,8 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import java.io.File;
 import java.io.IOException;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
-
 /**
  * @author kimchy (shay.banon)
  */
@@ -40,11 +38,7 @@ public class NodeEnvironment extends AbstractComponent {
 
     private final Lock lock;
 
-    public NodeEnvironment(File nodeFile) {
-        super(EMPTY_SETTINGS);
-        this.nodeFile = nodeFile;
-        this.lock = null;
-    }
+    private final int localNodeId;
 
     @Inject public NodeEnvironment(Settings settings, Environment environment) throws IOException {
         super(settings);
@@ -53,11 +47,13 @@ public class NodeEnvironment extends AbstractComponent {
                 !settings.getAsBoolean("node.master", true)) {
             nodeFile = null;
             lock = null;
+            localNodeId = -1;
             return;
         }
 
         Lock lock = null;
         File dir = null;
+        int localNodeId = -1;
         for (int i = 0; i < 100; i++) {
             dir = new File(new File(environment.workWithClusterFile(), "nodes"), Integer.toString(i));
             if (!dir.exists()) {
@@ -69,6 +65,7 @@ public class NodeEnvironment extends AbstractComponent {
                 boolean obtained = tmpLock.obtain();
                 if (obtained) {
                     lock = tmpLock;
+                    localNodeId = i;
                     break;
                 }
             } catch (IOException e) {
@@ -78,11 +75,16 @@ public class NodeEnvironment extends AbstractComponent {
         if (lock == null) {
             throw new IOException("Failed to obtain node lock");
         }
+        this.localNodeId = localNodeId;
         this.lock = lock;
         this.nodeFile = dir;
         if (logger.isDebugEnabled()) {
-            logger.debug("using node location [{}]", dir);
+            logger.debug("using node location [{}], local_node_id [{}]", dir, localNodeId);
         }
+    }
+
+    public int localNodeId() {
+        return this.localNodeId;
     }
 
     public boolean hasNodeFile() {

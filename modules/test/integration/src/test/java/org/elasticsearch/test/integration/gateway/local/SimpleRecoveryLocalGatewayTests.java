@@ -40,18 +40,20 @@ import static org.hamcrest.Matchers.*;
  */
 public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
 
-    @AfterMethod public void closeNodes() throws Exception {
-        node("node1").stop();
-        // since we store (by default) the index snapshot under the gateway, resetting it will reset the index data as well
-        ((InternalNode) node("node1")).injector().getInstance(Gateway.class).reset();
+    @AfterMethod public void cleanAndCloseNodes() throws Exception {
+        for (int i = 0; i < 10; i++) {
+            if (node("node" + i) != null) {
+                node("node" + i).stop();
+                // since we store (by default) the index snapshot under the gateway, resetting it will reset the index data as well
+                ((InternalNode) node("node" + i)).injector().getInstance(Gateway.class).reset();
+            }
+        }
         closeAllNodes();
     }
 
     @Test public void testSingleNode() throws Exception {
         buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
-        // since we store (by default) the index snapshot under the gateway, resetting it will reset the index data as well
-        ((InternalNode) node("node1")).injector().getInstance(Gateway.class).reset();
-        closeAllNodes();
+        cleanAndCloseNodes();
 
         Node node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).build());
         node1.client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
@@ -69,6 +71,42 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         logger.info("Done Cluster Health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
+
+        assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+    }
+
+    @Test public void testTwoNodeFirstNodeCleared() throws Exception {
+        // clean two nodes
+        buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
+        buildNode("node2", settingsBuilder().put("gateway.type", "local").build());
+        cleanAndCloseNodes();
+
+        Node node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).build());
+        Node node2 = startNode("node2", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).build());
+
+        node1.client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
+        node1.client().admin().indices().prepareFlush().execute().actionGet();
+        node1.client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).execute().actionGet();
+        node1.client().admin().indices().prepareRefresh().execute().actionGet();
+
+        assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+
+        logger.info("--> closing nodes");
+        closeNode("node1");
+        closeNode("node2");
+
+        logger.info("--> cleaning node1 gateway");
+        buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
+        cleanAndCloseNodes();
+
+        node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").put("gateway.recover_after_nodes", 2).build());
+        node2 = startNode("node2", settingsBuilder().put("gateway.type", "local").put("gateway.recover_after_nodes", 2).build());
+
+        logger.info("Running Cluster Health (wait for the shards to startup)");
+        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(2)).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
 
         assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2l));
     }

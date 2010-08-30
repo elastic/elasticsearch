@@ -36,6 +36,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+
 /**
  * @author kimchy (shay.banon)
  */
@@ -49,7 +51,60 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
     }
 
     @Override public void applyFailedShards(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes, List<? extends ShardRouting> failedShards) {
-        // TODO when a shard failed and we in the initial allocation, find an existing one
+        for (ShardRouting failedShard : failedShards) {
+            IndexRoutingTable indexRoutingTable = routingNodes.routingTable().index(failedShard.index());
+            if (!routingNodes.blocks().hasIndexBlock(indexRoutingTable.index(), LocalGateway.INDEX_NOT_RECOVERED_BLOCK)) {
+                continue;
+            }
+
+            // we are still in the initial allocation, find another node with existing shards
+            // all primary are unassigned for the index, see if we can allocate it on existing nodes, if not, don't assign
+            Set<String> nodesIds = Sets.newHashSet();
+            nodesIds.addAll(nodes.dataNodes().keySet());
+            nodesIds.addAll(nodes.masterNodes().keySet());
+            TransportNodesListGatewayState.NodesLocalGatewayState nodesState = listGatewayState.list(nodesIds, null).actionGet();
+
+            // make a list of ShardId to Node, each one from the latest version
+            Tuple<DiscoveryNode, Long> t = null;
+            for (TransportNodesListGatewayState.NodeLocalGatewayState nodeState : nodesState) {
+                // we don't want to reallocate to the node we failed on
+                if (nodeState.node().id().equals(failedShard.currentNodeId())) {
+                    continue;
+                }
+                // go and find
+                for (Map.Entry<ShardId, Long> entry : nodeState.state().shards().entrySet()) {
+                    if (entry.getKey().equals(failedShard.shardId())) {
+                        if (t == null || entry.getValue() > t.v2().longValue()) {
+                            t = new Tuple<DiscoveryNode, Long>(nodeState.node(), entry.getValue());
+                        }
+                    }
+                }
+            }
+            if (t != null) {
+                // we found a node to allocate to, do it
+                RoutingNode currentRoutingNode = routingNodes.nodesToShards().get(failedShard.currentNodeId());
+                if (currentRoutingNode == null) {
+                    // already failed (might be called several times for the same shard)
+                    continue;
+                }
+
+                // find the shard and cancel relocation
+                Iterator<MutableShardRouting> shards = currentRoutingNode.iterator();
+                while (shards.hasNext()) {
+                    MutableShardRouting shard = shards.next();
+                    if (shard.shardId().equals(failedShard.shardId())) {
+                        shard.deassignNode();
+                        shards.remove();
+                        break;
+                    }
+                }
+
+                RoutingNode targetNode = routingNodes.nodesToShards().get(t.v1().id());
+                targetNode.add(new MutableShardRouting(failedShard.index(), failedShard.id(),
+                        targetNode.nodeId(), failedShard.relocatingNodeId(),
+                        failedShard.primary(), INITIALIZING));
+            }
+        }
     }
 
     @Override public boolean allocateUnassigned(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes) {

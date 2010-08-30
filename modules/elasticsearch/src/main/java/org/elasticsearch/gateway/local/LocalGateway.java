@@ -77,6 +77,8 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
 
     private volatile LocalGatewayState currentState;
 
+    private volatile boolean initialized = false;
+
     @Inject public LocalGateway(Settings settings, ClusterService clusterService, MetaDataCreateIndexService createIndexService,
                                 NodeEnvironment nodeEnv, TransportNodesListGatewayState listGatewayState) {
         super(settings);
@@ -91,28 +93,12 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
     }
 
     public LocalGatewayState currentState() {
+        lazyInitialize();
         return this.currentState;
     }
 
     @Override protected void doStart() throws ElasticSearchException {
-        // if this is not a possible master node or data node, bail, we won't save anything here...
-        if (!clusterService.state().nodes().localNode().masterNode() || !clusterService.state().nodes().localNode().dataNode()) {
-            location = null;
-            return;
-        }
-        // create the location where the state will be stored
-        this.location = new File(nodeEnv.nodeLocation(), "_state");
-        this.location.mkdirs();
-
-        try {
-            long version = findLatestStateVersion();
-            if (version != -1) {
-                this.currentState = readState(Streams.copyToByteArray(new FileInputStream(new File(location, "state-" + version))));
-            }
-        } catch (Exception e) {
-            logger.warn("failed to read local state", e);
-        }
-
+        lazyInitialize();
         clusterService.add(this);
     }
 
@@ -280,6 +266,37 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
         });
         for (File file : files) {
             file.delete();
+        }
+    }
+
+    /**
+     * We do here lazy initialization on not only on start(), since we might be called before start by another node (really will
+     * happen in term of timing in testing, but still), and we want to return the cluster state when we can.
+     *
+     * It is synchronized since we want to wait for it to be loaded if called concurrently. There should really be a nicer
+     * solution here, but for now, its good enough.
+     */
+    private synchronized void lazyInitialize() {
+        if (initialized) {
+            return;
+        }
+        initialized = true;
+
+        // if this is not a possible master node or data node, bail, we won't save anything here...
+        if (!clusterService.state().nodes().localNode().masterNode() || !clusterService.state().nodes().localNode().dataNode()) {
+            location = null;
+        } else {
+            // create the location where the state will be stored
+            this.location = new File(nodeEnv.nodeLocation(), "_state");
+            this.location.mkdirs();
+            try {
+                long version = findLatestStateVersion();
+                if (version != -1) {
+                    this.currentState = readState(Streams.copyToByteArray(new FileInputStream(new File(location, "state-" + version))));
+                }
+            } catch (Exception e) {
+                logger.warn("failed to read local state", e);
+            }
         }
     }
 

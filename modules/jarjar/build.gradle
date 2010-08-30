@@ -18,7 +18,7 @@ dependencies {
     runtime 'org.codehaus.jackson:jackson-core-asl:1.5.5'
     runtime 'org.yaml:snakeyaml:1.6'
 
-    runtime('org.jboss.netty:netty:3.2.1.Final') { transitive = false }
+    runtime('org.jboss.netty:netty:3.2.2.Final') { transitive = false }
 }
 
 configurations {

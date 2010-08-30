@@ -66,7 +66,6 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
 
     @Override public void recover(RecoveryStatus recoveryStatus) throws IndexShardGatewayRecoveryException {
         recoveryStatus().index().startTime(System.currentTimeMillis());
-        // read the gateway data persisted
         long version = -1;
         try {
             if (IndexReader.indexExists(indexShard.store().directory())) {

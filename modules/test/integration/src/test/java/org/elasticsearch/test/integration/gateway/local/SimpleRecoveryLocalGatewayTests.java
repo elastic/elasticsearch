@@ -72,7 +72,9 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
 
-        assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+        for (int i = 0; i < 10; i++) {
+            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+        }
     }
 
     @Test public void testTwoNodeFirstNodeCleared() throws Exception {
@@ -89,7 +91,15 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         node1.client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).execute().actionGet();
         node1.client().admin().indices().prepareRefresh().execute().actionGet();
 
-        assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+        logger.info("Running Cluster Health (wait for the shards to startup)");
+        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(2)).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+
+        for (int i = 0; i < 10; i++) {
+            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+        }
 
         logger.info("--> closing nodes");
         closeNode("node1");
@@ -103,11 +113,13 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         node2 = startNode("node2", settingsBuilder().put("gateway.type", "local").put("gateway.recover_after_nodes", 2).build());
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(2)).actionGet();
+        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(2)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
 
-        assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+        for (int i = 0; i < 10; i++) {
+            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+        }
     }
 }

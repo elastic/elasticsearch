@@ -190,6 +190,11 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
             return;
         }
 
+        // the location is set to null, so we should not store it (for example, its not a data/master node)
+        if (location == null) {
+            return;
+        }
+
         // go over the indices, if they are blocked, and all are allocated, update the cluster state that it is no longer blocked
         for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : event.state().blocks().indices().entrySet()) {
             final String index = entry.getKey();

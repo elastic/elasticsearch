@@ -122,4 +122,57 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
             assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2l));
         }
     }
+
+    @Test public void testLatestVersionLoaded() throws Exception {
+        // clean two nodes
+        buildNode("node1", settingsBuilder().put("gateway.type", "local").build());
+        buildNode("node2", settingsBuilder().put("gateway.type", "local").build());
+        cleanAndCloseNodes();
+
+        Node node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).build());
+        Node node2 = startNode("node2", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).build());
+
+        node1.client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
+        node1.client().admin().indices().prepareFlush().execute().actionGet();
+        node1.client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).execute().actionGet();
+        node1.client().admin().indices().prepareRefresh().execute().actionGet();
+
+        logger.info("--> running cluster_health (wait for the shards to startup)");
+        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(2)).actionGet();
+        logger.info("--> done cluster_health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+
+        for (int i = 0; i < 10; i++) {
+            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+        }
+
+        logger.info("--> closing first node, and indexing more data to the second node");
+        closeNode("node1");
+
+        node2.client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().field("field", "value3").endObject()).execute().actionGet();
+        node2.client().admin().indices().prepareRefresh().execute().actionGet();
+
+        for (int i = 0; i < 10; i++) {
+            assertThat(node2.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(3l));
+        }
+
+        logger.info("--> closing the second node");
+        closeNode("node2");
+
+        logger.info("--> starting two nodes back, verifying we got the latest version");
+
+        node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").put("gateway.recover_after_nodes", 2).build());
+        node2 = startNode("node2", settingsBuilder().put("gateway.type", "local").put("gateway.recover_after_nodes", 2).build());
+
+        logger.info("--> running cluster_health (wait for the shards to startup)");
+        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(2)).actionGet();
+        logger.info("--> done cluster_health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+
+        for (int i = 0; i < 10; i++) {
+            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(3l));
+        }
+    }
 }

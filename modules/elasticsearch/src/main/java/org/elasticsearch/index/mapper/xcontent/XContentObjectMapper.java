@@ -315,6 +315,10 @@ public class XContentObjectMapper implements XContentMapper, XContentIncludeInAl
 
         String currentFieldName = parser.currentName();
         XContentParser.Token token = parser.currentToken();
+        if (token == XContentParser.Token.VALUE_NULL) {
+            // the object is null ("obj1" : null), simply bail
+            return;
+        }
         // if we are at the end of the previous object, advance
         if (token == XContentParser.Token.END_OBJECT) {
             token = parser.nextToken();

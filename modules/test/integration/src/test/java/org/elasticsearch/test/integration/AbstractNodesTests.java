@@ -59,6 +59,12 @@ public abstract class AbstractNodesTests {
                 .put(settings)
                 .put("name", id)
                 .build();
+
+        if (finalSettings.get("gateway.type") == null) {
+            // default to non gateway
+            finalSettings = settingsBuilder().put(finalSettings).put("gateway.type", "none").build();
+        }
+
         Node node = nodeBuilder()
                 .settings(finalSettings)
                 .build();

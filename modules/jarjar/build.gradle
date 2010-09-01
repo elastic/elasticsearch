@@ -62,7 +62,7 @@ jar << {
         copy(file: jarjarArchivePath, tofile: jar.archivePath)
         delete(file: jarjarArchivePath)
 
-        // seems like empty dirst still exists, unjar and clean them
+        // seems like empty dirs still exists, unjar and clean them
         unjar(src: jar.archivePath, dest: "build/tmp/extracted")
         delete(dir: "build/tmp/extracted/jsr166y")
         delete(dir: "build/tmp/extracted/gnu/trove")

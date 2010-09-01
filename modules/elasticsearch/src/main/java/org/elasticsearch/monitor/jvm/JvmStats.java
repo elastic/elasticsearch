@@ -31,8 +31,10 @@ import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import java.io.IOException;
 import java.io.Serializable;
 import java.lang.management.*;
+import java.lang.reflect.Method;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -40,14 +42,45 @@ import java.util.concurrent.TimeUnit;
  */
 public class JvmStats implements Streamable, Serializable, ToXContent {
 
-    private static RuntimeMXBean runtimeMXBean;
-    private static MemoryMXBean memoryMXBean;
-    private static ThreadMXBean threadMXBean;
+    private final static RuntimeMXBean runtimeMXBean;
+    private final static MemoryMXBean memoryMXBean;
+    private final static ThreadMXBean threadMXBean;
+
+    private static boolean sunGc;
+    private static Method getLastGcInfoMethod;
+    private static Method getMemoryUsageBeforeGcMethod;
+    private static Method getMemoryUsageAfterGcMethod;
+    private static Method getStartTimeMethod;
+    private static Method getEndTimeMethod;
+    private static Method getDurationMethod;
 
     static {
         runtimeMXBean = ManagementFactory.getRuntimeMXBean();
         memoryMXBean = ManagementFactory.getMemoryMXBean();
         threadMXBean = ManagementFactory.getThreadMXBean();
+
+        try {
+            Class sunGcClass = Class.forName("com.sun.management.GarbageCollectorMXBean");
+            Class gcInfoClass = Class.forName("com.sun.management.GcInfo");
+
+            getLastGcInfoMethod = sunGcClass.getDeclaredMethod("getLastGcInfo");
+            getLastGcInfoMethod.setAccessible(true);
+
+            getMemoryUsageBeforeGcMethod = gcInfoClass.getDeclaredMethod("getMemoryUsageBeforeGc");
+            getMemoryUsageBeforeGcMethod.setAccessible(true);
+            getMemoryUsageAfterGcMethod = gcInfoClass.getDeclaredMethod("getMemoryUsageAfterGc");
+            getMemoryUsageAfterGcMethod.setAccessible(true);
+            getStartTimeMethod = gcInfoClass.getDeclaredMethod("getStartTime");
+            getStartTimeMethod.setAccessible(true);
+            getEndTimeMethod = gcInfoClass.getDeclaredMethod("getEndTime");
+            getEndTimeMethod.setAccessible(true);
+            getDurationMethod = gcInfoClass.getDeclaredMethod("getDuration");
+            getDurationMethod.setAccessible(true);
+
+            sunGc = true;
+        } catch (Throwable ex) {
+            sunGc = false;
+        }
     }
 
     public static JvmStats jvmStats() {
@@ -73,6 +106,34 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             stats.gc.collectors[i].name = gcMxBean.getName();
             stats.gc.collectors[i].collectionCount = gcMxBean.getCollectionCount();
             stats.gc.collectors[i].collectionTime = gcMxBean.getCollectionTime();
+            if (sunGc) {
+                try {
+                    Object lastGcInfo = getLastGcInfoMethod.invoke(gcMxBean);
+                    if (lastGcInfo != null) {
+                        Map<String, MemoryUsage> usageBeforeGc = (Map<String, MemoryUsage>) getMemoryUsageBeforeGcMethod.invoke(lastGcInfo);
+                        Map<String, MemoryUsage> usageAfterGc = (Map<String, MemoryUsage>) getMemoryUsageAfterGcMethod.invoke(lastGcInfo);
+                        long startTime = (Long) getStartTimeMethod.invoke(lastGcInfo);
+                        long endTime = (Long) getEndTimeMethod.invoke(lastGcInfo);
+                        long duration = (Long) getDurationMethod.invoke(lastGcInfo);
+
+                        long previousMemoryUsed = 0;
+                        long memoryUsed = 0;
+                        long memoryMax = 0;
+                        for (Map.Entry<String, MemoryUsage> entry : usageBeforeGc.entrySet()) {
+                            previousMemoryUsed += entry.getValue().getUsed();
+                        }
+                        for (Map.Entry<String, MemoryUsage> entry : usageAfterGc.entrySet()) {
+                            MemoryUsage mu = entry.getValue();
+                            memoryUsed += mu.getUsed();
+                            memoryMax += mu.getMax();
+                        }
+
+                        stats.gc.collectors[i].lastGc = new GarbageCollector.LastGc(startTime, endTime, memoryMax, previousMemoryUsed, memoryUsed, duration);
+                    }
+                } catch (Exception e) {
+//                    e.printStackTrace();
+                }
+            }
         }
 
         return stats;
@@ -232,6 +293,10 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             }
         }
 
+        public GarbageCollector[] collectors() {
+            return this.collectors;
+        }
+
         @Override public Iterator iterator() {
             return Iterators.forArray(collectors);
         }
@@ -255,9 +320,112 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
 
     public static class GarbageCollector implements Streamable, Serializable {
 
+        public static class LastGc implements Streamable {
+
+            long startTime;
+            long endTime;
+            long max;
+            long beforeUsed;
+            long afterUsed;
+            long duration;
+
+            LastGc() {
+            }
+
+            public LastGc(long startTime, long endTime, long max, long beforeUsed, long afterUsed, long duration) {
+                this.startTime = startTime;
+                this.endTime = endTime;
+                this.max = max;
+                this.beforeUsed = beforeUsed;
+                this.afterUsed = afterUsed;
+                this.duration = duration;
+            }
+
+            public long startTime() {
+                return this.startTime;
+            }
+
+            public long getStartTime() {
+                return startTime();
+            }
+
+            public long endTime() {
+                return this.endTime;
+            }
+
+            public long getEndTime() {
+                return endTime();
+            }
+
+            public ByteSizeValue max() {
+                return new ByteSizeValue(max);
+            }
+
+            public ByteSizeValue getMax() {
+                return max();
+            }
+
+            public ByteSizeValue afterUsed() {
+                return new ByteSizeValue(afterUsed);
+            }
+
+            public ByteSizeValue getAfterUsed() {
+                return afterUsed();
+            }
+
+            public ByteSizeValue beforeUsed() {
+                return new ByteSizeValue(beforeUsed);
+            }
+
+            public ByteSizeValue getBeforeUsed() {
+                return beforeUsed();
+            }
+
+            public ByteSizeValue reclaimed() {
+                return new ByteSizeValue(beforeUsed - afterUsed);
+            }
+
+            public ByteSizeValue getReclaimed() {
+                return reclaimed();
+            }
+
+            public TimeValue duration() {
+                return new TimeValue(this.duration);
+            }
+
+            public TimeValue getDuration() {
+                return duration();
+            }
+
+            public static LastGc readLastGc(StreamInput in) throws IOException {
+                LastGc lastGc = new LastGc();
+                lastGc.readFrom(in);
+                return lastGc;
+            }
+
+            @Override public void readFrom(StreamInput in) throws IOException {
+                startTime = in.readVLong();
+                endTime = in.readVLong();
+                max = in.readVLong();
+                beforeUsed = in.readVLong();
+                afterUsed = in.readVLong();
+                duration = in.readVLong();
+            }
+
+            @Override public void writeTo(StreamOutput out) throws IOException {
+                out.writeLong(startTime);
+                out.writeLong(endTime);
+                out.writeVLong(max);
+                out.writeVLong(beforeUsed);
+                out.writeVLong(afterUsed);
+                out.writeVLong(duration);
+            }
+        }
+
         String name;
         long collectionCount;
         long collectionTime;
+        LastGc lastGc;
 
         GarbageCollector() {
         }
@@ -272,12 +440,21 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             name = in.readUTF();
             collectionCount = in.readVLong();
             collectionTime = in.readVLong();
+            if (in.readBoolean()) {
+                lastGc = LastGc.readLastGc(in);
+            }
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {
             out.writeUTF(name);
             out.writeVLong(collectionCount);
             out.writeVLong(collectionTime);
+            if (lastGc == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                lastGc.writeTo(out);
+            }
         }
 
         public String name() {
@@ -302,6 +479,14 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
 
         public TimeValue getCollectionTime() {
             return collectionTime();
+        }
+
+        public LastGc lastGc() {
+            return this.lastGc;
+        }
+
+        public LastGc getLastGc() {
+            return lastGc();
         }
     }
 

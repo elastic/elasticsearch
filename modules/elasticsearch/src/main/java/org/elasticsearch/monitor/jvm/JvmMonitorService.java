@@ -52,7 +52,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
 
     private final TimeValue interval;
 
-    private final TimeValue gcCollectionWarning;
+    private final TimeValue gcThreshold;
 
     private volatile ScheduledFuture scheduledFuture;
 
@@ -63,7 +63,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
 
         this.enabled = componentSettings.getAsBoolean("enabled", true);
         this.interval = componentSettings.getAsTime("interval", timeValueSeconds(10));
-        this.gcCollectionWarning = componentSettings.getAsTime("gcCollectionWarning", timeValueSeconds(10));
+        this.gcThreshold = componentSettings.getAsTime("gc_threshold", timeValueMillis(5000));
     }
 
     @Override protected void doStart() throws ElasticSearchException {
@@ -99,9 +99,26 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
 
         private void monitorLongGc() {
             JvmStats currentJvmStats = jvmStats();
-            long collectionTime = currentJvmStats.gc().collectionTime().millis() - lastJvmStats.gc().collectionTime().millis();
-            if (collectionTime > gcCollectionWarning.millis()) {
-                logger.warn("Long GC collection occurred, took [" + new TimeValue(collectionTime) + "], breached threshold [" + gcCollectionWarning + "]");
+
+            for (int i = 0; i < currentJvmStats.gc().collectors().length; i++) {
+                GarbageCollector gc = currentJvmStats.gc().collectors()[i];
+                if (gc.lastGc() != null) {
+                    GarbageCollector.LastGc lastGc = gc.lastGc();
+                    if (lastGc.startTime == lastJvmStats.gc.collectors()[i].lastGc().startTime()) {
+                        // we already handled this one...
+                        continue;
+                    }
+                    if (lastGc.duration().millis() > gcThreshold.millis()) {
+                        logger.info("[gc][{}][{}] took [{}]/[{}], reclaimed [{}], leaving [{}] used, max [{}]", gc.name(), gc.getCollectionCount(), lastGc.duration(), gc.getCollectionTime(), lastGc.reclaimed(), lastGc.afterUsed(), lastGc.max());
+                    } else if (logger.isDebugEnabled()) {
+                        logger.debug("[gc][{}][{}] took [{}]/[{}], reclaimed [{}], leaving [{}] used, max [{}]", gc.name(), gc.getCollectionCount(), lastGc.duration(), gc.getCollectionTime(), lastGc.reclaimed(), lastGc.afterUsed(), lastGc.max());
+                    }
+                } else {
+                    long collectionTime = gc.collectionTime().millis() - lastJvmStats.gc().collectors()[i].collectionTime().millis();
+                    if (collectionTime > gcThreshold.millis()) {
+                        logger.info("[gc][{}] collection occurred, took [{}]", gc.name(), new TimeValue(collectionTime));
+                    }
+                }
             }
             lastJvmStats = currentJvmStats;
         }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -26,6 +27,8 @@ import org.elasticsearch.common.unit.TimeValue;
  * @author kimchy (shay.banon)
  */
 public interface ClusterService extends LifecycleComponent<ClusterService> {
+
+    DiscoveryNode localNode();
 
     ClusterState state();
 

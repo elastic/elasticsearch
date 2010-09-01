@@ -44,29 +44,29 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  * @author kimchy (shay.banon)
  */
-public class TransportNodesListGatewayState extends TransportNodesOperationAction<TransportNodesListGatewayState.Request, TransportNodesListGatewayState.NodesLocalGatewayState, TransportNodesListGatewayState.NodeRequest, TransportNodesListGatewayState.NodeLocalGatewayState> {
+public class TransportNodesListGatewayMetaState extends TransportNodesOperationAction<TransportNodesListGatewayMetaState.Request, TransportNodesListGatewayMetaState.NodesLocalGatewayMetaState, TransportNodesListGatewayMetaState.NodeRequest, TransportNodesListGatewayMetaState.NodeLocalGatewayMetaState> {
 
     private LocalGateway gateway;
 
-    @Inject public TransportNodesListGatewayState(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
+    @Inject public TransportNodesListGatewayMetaState(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
         super(settings, clusterName, threadPool, clusterService, transportService);
     }
 
-    TransportNodesListGatewayState initGateway(LocalGateway gateway) {
+    TransportNodesListGatewayMetaState initGateway(LocalGateway gateway) {
         this.gateway = gateway;
         return this;
     }
 
-    public ActionFuture<NodesLocalGatewayState> list(Set<String> nodesIds, @Nullable TimeValue timeout) {
+    public ActionFuture<NodesLocalGatewayMetaState> list(Set<String> nodesIds, @Nullable TimeValue timeout) {
         return execute(new Request(nodesIds).timeout(timeout));
     }
 
     @Override protected String transportAction() {
-        return "/gateway/local/state";
+        return "/gateway/local/meta-state";
     }
 
     @Override protected String transportNodeAction() {
-        return "/gateway/local/state/node";
+        return "/gateway/local/meta-state/node";
     }
 
     @Override protected Request newRequest() {
@@ -81,27 +81,27 @@ public class TransportNodesListGatewayState extends TransportNodesOperationActio
         return new NodeRequest(nodeId);
     }
 
-    @Override protected NodeLocalGatewayState newNodeResponse() {
-        return new NodeLocalGatewayState();
+    @Override protected NodeLocalGatewayMetaState newNodeResponse() {
+        return new NodeLocalGatewayMetaState();
     }
 
-    @Override protected NodesLocalGatewayState newResponse(Request request, AtomicReferenceArray responses) {
-        final List<NodeLocalGatewayState> nodesList = Lists.newArrayList();
+    @Override protected NodesLocalGatewayMetaState newResponse(Request request, AtomicReferenceArray responses) {
+        final List<NodeLocalGatewayMetaState> nodesList = Lists.newArrayList();
         final List<FailedNodeException> failures = Lists.newArrayList();
         for (int i = 0; i < responses.length(); i++) {
             Object resp = responses.get(i);
-            if (resp instanceof NodeLocalGatewayState) { // will also filter out null response for unallocated ones
-                nodesList.add((NodeLocalGatewayState) resp);
+            if (resp instanceof NodeLocalGatewayMetaState) { // will also filter out null response for unallocated ones
+                nodesList.add((NodeLocalGatewayMetaState) resp);
             } else if (resp instanceof FailedNodeException) {
                 failures.add((FailedNodeException) resp);
             }
         }
-        return new NodesLocalGatewayState(clusterName, nodesList.toArray(new NodeLocalGatewayState[nodesList.size()]),
+        return new NodesLocalGatewayMetaState(clusterName, nodesList.toArray(new NodeLocalGatewayMetaState[nodesList.size()]),
                 failures.toArray(new FailedNodeException[failures.size()]));
     }
 
-    @Override protected NodeLocalGatewayState nodeOperation(NodeRequest request) throws ElasticSearchException {
-        return new NodeLocalGatewayState(clusterService.state().nodes().localNode(), gateway.currentState());
+    @Override protected NodeLocalGatewayMetaState nodeOperation(NodeRequest request) throws ElasticSearchException {
+        return new NodeLocalGatewayMetaState(clusterService.localNode(), gateway.currentMetaState());
     }
 
     @Override protected boolean accumulateExceptions() {
@@ -131,14 +131,14 @@ public class TransportNodesListGatewayState extends TransportNodesOperationActio
         }
     }
 
-    public static class NodesLocalGatewayState extends NodesOperationResponse<NodeLocalGatewayState> {
+    public static class NodesLocalGatewayMetaState extends NodesOperationResponse<NodeLocalGatewayMetaState> {
 
         private FailedNodeException[] failures;
 
-        NodesLocalGatewayState() {
+        NodesLocalGatewayMetaState() {
         }
 
-        public NodesLocalGatewayState(ClusterName clusterName, NodeLocalGatewayState[] nodes, FailedNodeException[] failures) {
+        public NodesLocalGatewayMetaState(ClusterName clusterName, NodeLocalGatewayMetaState[] nodes, FailedNodeException[] failures) {
             super(clusterName, nodes);
             this.failures = failures;
         }
@@ -149,9 +149,9 @@ public class TransportNodesListGatewayState extends TransportNodesOperationActio
 
         @Override public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            nodes = new NodeLocalGatewayState[in.readVInt()];
+            nodes = new NodeLocalGatewayMetaState[in.readVInt()];
             for (int i = 0; i < nodes.length; i++) {
-                nodes[i] = new NodeLocalGatewayState();
+                nodes[i] = new NodeLocalGatewayMetaState();
                 nodes[i].readFrom(in);
             }
         }
@@ -159,7 +159,7 @@ public class TransportNodesListGatewayState extends TransportNodesOperationActio
         @Override public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeVInt(nodes.length);
-            for (NodeLocalGatewayState response : nodes) {
+            for (NodeLocalGatewayMetaState response : nodes) {
                 response.writeTo(out);
             }
         }
@@ -184,26 +184,26 @@ public class TransportNodesListGatewayState extends TransportNodesOperationActio
         }
     }
 
-    public static class NodeLocalGatewayState extends NodeOperationResponse {
+    public static class NodeLocalGatewayMetaState extends NodeOperationResponse {
 
-        private LocalGatewayState state;
+        private LocalGatewayMetaState state;
 
-        NodeLocalGatewayState() {
+        NodeLocalGatewayMetaState() {
         }
 
-        public NodeLocalGatewayState(DiscoveryNode node, LocalGatewayState state) {
+        public NodeLocalGatewayMetaState(DiscoveryNode node, LocalGatewayMetaState state) {
             super(node);
             this.state = state;
         }
 
-        public LocalGatewayState state() {
+        public LocalGatewayMetaState state() {
             return state;
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             if (in.readBoolean()) {
-                state = LocalGatewayState.Builder.readFrom(in, null);
+                state = LocalGatewayMetaState.Builder.readFrom(in, null);
             }
         }
 
@@ -213,7 +213,7 @@ public class TransportNodesListGatewayState extends TransportNodesOperationActio
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                LocalGatewayState.Builder.writeTo(state, out);
+                LocalGatewayMetaState.Builder.writeTo(state, out);
             }
         }
     }

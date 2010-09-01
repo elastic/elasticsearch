@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
 
 /**
@@ -30,6 +31,8 @@ import org.elasticsearch.common.component.LifecycleComponent;
  * @author kimchy (shay.banon)
  */
 public interface Discovery extends LifecycleComponent<Discovery> {
+
+    DiscoveryNode localNode();
 
     void addListener(InitialStateDiscoveryListener listener);
 

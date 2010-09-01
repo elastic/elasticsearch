@@ -20,7 +20,6 @@
 package org.elasticsearch.index.shard.recovery;
 
 import org.apache.lucene.store.IndexOutput;
-import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -405,7 +404,8 @@ public class RecoveryTarget extends AbstractComponent {
                 indexOutput = onGoingRecovery.openIndexOutputs.get(request.name());
             }
             if (indexOutput == null) {
-                throw new ElasticSearchIllegalStateException("No ongoing output file to write to, request: " + request);
+                // shard is getting closed on us
+                throw new IndexShardClosedException(shard.shardId());
             }
             synchronized (indexOutput) {
                 try {

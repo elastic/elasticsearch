@@ -32,7 +32,8 @@ public class LocalGatewayModule extends AbstractModule implements PreProcessModu
 
     @Override protected void configure() {
         bind(Gateway.class).to(LocalGateway.class).asEagerSingleton();
-        bind(TransportNodesListGatewayState.class).asEagerSingleton();
+        bind(TransportNodesListGatewayMetaState.class).asEagerSingleton();
+        bind(TransportNodesListGatewayStartedShards.class).asEagerSingleton();
     }
 
     @Override public void processModule(Module module) {

@@ -177,6 +177,10 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     @Override protected void doClose() throws ElasticSearchException {
     }
 
+    @Override public DiscoveryNode localNode() {
+        return localNode;
+    }
+
     @Override public void addListener(InitialStateDiscoveryListener listener) {
         this.initialStateListeners.add(listener);
     }

@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.node.NodeBuilder.*;
 import static org.hamcrest.MatcherAssert.*;
@@ -47,7 +48,7 @@ public abstract class AbstractMemcachedActionsTests {
 
     @BeforeMethod
     public void setup() throws IOException {
-        node = nodeBuilder().node();
+        node = nodeBuilder().settings(settingsBuilder().put("gateway.type", "none")).node();
         memcachedClient = createMemcachedClient();
     }
 

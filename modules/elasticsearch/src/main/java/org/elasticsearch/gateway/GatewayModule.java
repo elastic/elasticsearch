@@ -25,7 +25,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.Modules;
 import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.gateway.none.NoneGatewayModule;
+import org.elasticsearch.gateway.local.LocalGatewayModule;
 
 /**
  * @author kimchy (shay.banon)
@@ -39,7 +39,7 @@ public class GatewayModule extends AbstractModule implements SpawnModules {
     }
 
     @Override public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(Modules.createModule(settings.getAsClass("gateway.type", NoneGatewayModule.class, "org.elasticsearch.gateway.", "GatewayModule"), settings));
+        return ImmutableList.of(Modules.createModule(settings.getAsClass("gateway.type", LocalGatewayModule.class, "org.elasticsearch.gateway.", "GatewayModule"), settings));
     }
 
     @Override protected void configure() {

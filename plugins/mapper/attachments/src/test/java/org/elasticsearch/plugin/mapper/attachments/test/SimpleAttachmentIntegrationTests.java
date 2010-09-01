@@ -47,7 +47,7 @@ public class SimpleAttachmentIntegrationTests {
     private Node node;
 
     @BeforeClass public void setupServer() {
-        node = nodeBuilder().local(true).node();
+        node = nodeBuilder().local(true).settings(settingsBuilder().put("gateway.type", "none")).node();
     }
 
     @AfterClass public void closeServer() {

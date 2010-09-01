@@ -41,6 +41,9 @@ class SimpleActionsTests {
             node {
                 local = true
             }
+            gateway {
+                type = "none"
+            }
         }
 
         node = nodeBuilder.node()

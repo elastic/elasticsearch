@@ -20,6 +20,7 @@
 package org.elasticsearch.gateway.local;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
@@ -56,7 +57,7 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
 
     private final IndicesService indicesService;
 
-    private final TransportNodesListGatewayState listGatewayState;
+    private final TransportNodesListGatewayStartedShards listGatewayStartedShards;
 
     private final TransportNodesListShardStoreMetaData listShardStoreMetaData;
 
@@ -65,10 +66,10 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
     private final TimeValue listTimeout;
 
     @Inject public LocalGatewayNodeAllocation(Settings settings, IndicesService indicesService,
-                                              TransportNodesListGatewayState listGatewayState, TransportNodesListShardStoreMetaData listShardStoreMetaData) {
+                                              TransportNodesListGatewayStartedShards listGatewayStartedShards, TransportNodesListShardStoreMetaData listShardStoreMetaData) {
         super(settings);
         this.indicesService = indicesService;
-        this.listGatewayState = listGatewayState;
+        this.listGatewayStartedShards = listGatewayStartedShards;
         this.listShardStoreMetaData = listShardStoreMetaData;
 
         this.listTimeout = componentSettings.getAsTime("list_timeout", TimeValue.timeValueSeconds(30));
@@ -94,12 +95,14 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
             // all primary are unassigned for the index, see if we can allocate it on existing nodes, if not, don't assign
             Set<String> nodesIds = Sets.newHashSet();
             nodesIds.addAll(nodes.dataNodes().keySet());
-            nodesIds.addAll(nodes.masterNodes().keySet());
-            TransportNodesListGatewayState.NodesLocalGatewayState nodesState = listGatewayState.list(nodesIds, null).actionGet();
+            TransportNodesListGatewayStartedShards.NodesLocalGatewayStartedShards nodesState = listGatewayStartedShards.list(nodesIds, null).actionGet();
 
             // make a list of ShardId to Node, each one from the latest version
             Tuple<DiscoveryNode, Long> t = null;
-            for (TransportNodesListGatewayState.NodeLocalGatewayState nodeState : nodesState) {
+            for (TransportNodesListGatewayStartedShards.NodeLocalGatewayStartedShards nodeState : nodesState) {
+                if (nodeState.state() == null) {
+                    continue;
+                }
                 // we don't want to reallocate to the node we failed on
                 if (nodeState.node().id().equals(failedShard.currentNodeId())) {
                     continue;
@@ -153,12 +156,20 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
                 // all primary are unassigned for the index, see if we can allocate it on existing nodes, if not, don't assign
                 Set<String> nodesIds = Sets.newHashSet();
                 nodesIds.addAll(nodes.dataNodes().keySet());
-                nodesIds.addAll(nodes.masterNodes().keySet());
-                TransportNodesListGatewayState.NodesLocalGatewayState nodesState = listGatewayState.list(nodesIds, null).actionGet();
+                TransportNodesListGatewayStartedShards.NodesLocalGatewayStartedShards nodesState = listGatewayStartedShards.list(nodesIds, null).actionGet();
+
+                if (nodesState.failures().length > 0) {
+                    for (FailedNodeException failedNodeException : nodesState.failures()) {
+                        logger.warn("failed to fetch shards state from node", failedNodeException);
+                    }
+                }
 
                 // make a list of ShardId to Node, each one from the latest version
                 Map<ShardId, Tuple<DiscoveryNode, Long>> shards = Maps.newHashMap();
-                for (TransportNodesListGatewayState.NodeLocalGatewayState nodeState : nodesState) {
+                for (TransportNodesListGatewayStartedShards.NodeLocalGatewayStartedShards nodeState : nodesState) {
+                    if (nodeState.state() == null) {
+                        continue;
+                    }
                     for (Map.Entry<ShardId, Long> entry : nodeState.state().shards().entrySet()) {
                         if (entry.getKey().index().name().equals(indexRoutingTable.index())) {
                             Tuple<DiscoveryNode, Long> t = shards.get(entry.getKey());

@@ -98,6 +98,10 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     @Override protected void doClose() throws ElasticSearchException {
     }
 
+    @Override public DiscoveryNode localNode() {
+        return discoveryService.localNode();
+    }
+
     public ClusterState state() {
         return this.clusterState;
     }

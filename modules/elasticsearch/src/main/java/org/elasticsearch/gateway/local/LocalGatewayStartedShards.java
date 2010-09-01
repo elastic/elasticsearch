@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gateway.local;
 
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,7 +36,7 @@ import java.util.Map;
 /**
  * @author kimchy (shay.banon)
  */
-public class LocalGatewayState {
+public class LocalGatewayStartedShards {
 
     public static class StartedShard {
         private final long version;
@@ -59,13 +58,10 @@ public class LocalGatewayState {
 
     private final long version;
 
-    private final MetaData metaData;
-
     private final ImmutableMap<ShardId, Long> shards;
 
-    public LocalGatewayState(long version, MetaData metaData, Map<ShardId, Long> shards) {
+    public LocalGatewayStartedShards(long version, Map<ShardId, Long> shards) {
         this.version = version;
-        this.metaData = metaData;
         this.shards = ImmutableMap.copyOf(shards);
     }
 
@@ -73,16 +69,8 @@ public class LocalGatewayState {
         return version;
     }
 
-    public MetaData metaData() {
-        return metaData;
-    }
-
     public ImmutableMap<ShardId, Long> shards() {
-        return this.shards;
-    }
-
-    public Long startedShardVersion(ShardId shardId) {
-        return shards.get(shardId);
+        return shards;
     }
 
     public static Builder builder() {
@@ -93,24 +81,16 @@ public class LocalGatewayState {
 
         private long version;
 
-        private MetaData metaData;
-
         private Map<ShardId, Long> shards = Maps.newHashMap();
 
-        public Builder state(LocalGatewayState state) {
+        public Builder state(LocalGatewayStartedShards state) {
             this.version = state.version();
-            this.metaData = state.metaData();
             this.shards.putAll(state.shards);
             return this;
         }
 
         public Builder version(long version) {
             this.version = version;
-            return this;
-        }
-
-        public Builder metaData(MetaData metaData) {
-            this.metaData = metaData;
             return this;
         }
 
@@ -124,15 +104,14 @@ public class LocalGatewayState {
             return this;
         }
 
-        public LocalGatewayState build() {
-            return new LocalGatewayState(version, metaData, shards);
+        public LocalGatewayStartedShards build() {
+            return new LocalGatewayStartedShards(version, shards);
         }
 
-        public static void toXContent(LocalGatewayState state, XContentBuilder builder, ToXContent.Params params) throws IOException {
+        public static void toXContent(LocalGatewayStartedShards state, XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject("state");
 
             builder.field("version", state.version());
-            MetaData.Builder.toXContent(state.metaData(), builder, params);
 
             builder.startArray("shards");
             for (Map.Entry<ShardId, Long> entry : state.shards.entrySet()) {
@@ -147,7 +126,7 @@ public class LocalGatewayState {
             builder.endObject();
         }
 
-        public static LocalGatewayState fromXContent(XContentParser parser, @Nullable Settings globalSettings) throws IOException {
+        public static LocalGatewayStartedShards fromXContent(XContentParser parser, @Nullable Settings globalSettings) throws IOException {
             Builder builder = new Builder();
 
             String currentFieldName = null;
@@ -159,10 +138,6 @@ public class LocalGatewayState {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    if ("meta-data".equals(currentFieldName)) {
-                        builder.metaData = MetaData.Builder.fromXContent(parser, globalSettings);
-                    }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if ("shards".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -197,10 +172,9 @@ public class LocalGatewayState {
             return builder.build();
         }
 
-        public static LocalGatewayState readFrom(StreamInput in, @Nullable Settings globalSettings) throws IOException {
-            LocalGatewayState.Builder builder = new Builder();
+        public static LocalGatewayStartedShards readFrom(StreamInput in, @Nullable Settings globalSettings) throws IOException {
+            LocalGatewayStartedShards.Builder builder = new Builder();
             builder.version = in.readLong();
-            builder.metaData = MetaData.Builder.readFrom(in, globalSettings);
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
                 builder.shards.put(ShardId.readShardId(in), in.readLong());
@@ -208,9 +182,8 @@ public class LocalGatewayState {
             return builder.build();
         }
 
-        public static void writeTo(LocalGatewayState state, StreamOutput out) throws IOException {
+        public static void writeTo(LocalGatewayStartedShards state, StreamOutput out) throws IOException {
             out.writeLong(state.version());
-            MetaData.Builder.writeTo(state.metaData(), out);
 
             out.writeVInt(state.shards.size());
             for (Map.Entry<ShardId, Long> entry : state.shards.entrySet()) {
@@ -219,4 +192,5 @@ public class LocalGatewayState {
             }
         }
     }
+
 }

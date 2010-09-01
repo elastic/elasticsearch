@@ -187,6 +187,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         pingService.close();
     }
 
+    @Override public DiscoveryNode localNode() {
+        return localNode;
+    }
+
     @Override public void addListener(InitialStateDiscoveryListener listener) {
         this.initialStateListeners.add(listener);
     }

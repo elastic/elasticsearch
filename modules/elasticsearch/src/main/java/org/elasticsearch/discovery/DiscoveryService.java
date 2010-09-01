@@ -21,6 +21,7 @@ package org.elasticsearch.discovery;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -80,6 +81,10 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
 
     @Override protected void doClose() throws ElasticSearchException {
         discovery.close();
+    }
+
+    public DiscoveryNode localNode() {
+        return discovery.localNode();
     }
 
     /**

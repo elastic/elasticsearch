@@ -53,6 +53,8 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
 
     private final String ports;
 
+    private final boolean bindAnyGroup;
+
     private final ImmutableSet<String> groups;
 
     private final ImmutableSet<String> availabilityZones;
@@ -66,6 +68,7 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
         this.hostType = HostType.valueOf(componentSettings.get("host_type", "private_ip").toUpperCase());
         this.ports = componentSettings.get("ports", "9300-9302");
 
+        this.bindAnyGroup = componentSettings.getAsBoolean("any_group", true);
         Set<String> groups = Sets.newHashSet(componentSettings.getAsArray("groups"));
         if (componentSettings.get("groups") != null) {
             groups.addAll(Strings.commaDelimitedListToSet(componentSettings.get("groups")));
@@ -89,10 +92,18 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
             if (!groups.isEmpty()) {
                 // lets see if we can filter based on groups
                 List<String> groupNames = reservation.getGroupNames();
-                if (Collections.disjoint(groups, groupNames)) {
-                    logger.trace("filtering out reservation {} based on groups {}, not part of {}", reservation.getReservationId(), groupNames, groups);
-                    // continue to the next reservation
-                    continue;
+                if (bindAnyGroup) {
+                    if (Collections.disjoint(groups, groupNames)) {
+                        logger.trace("filtering out reservation {} based on groups {}, not part of {}", reservation.getReservationId(), groupNames, groups);
+                        // continue to the next reservation
+                        continue;
+                    }
+                } else {
+                    if (!groupNames.containsAll(groups)) {
+                        logger.trace("filtering out reservation {} based on groups {}, does not include all of {}", reservation.getReservationId(), groupNames, groups);
+                        // continue to the next reservation
+                        continue;
+                    }
                 }
             }
 

@@ -19,17 +19,17 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.MapMaker;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.math.UnboxedMathUtils;
-import org.elasticsearch.common.mvel2.MVEL;
-import org.elasticsearch.common.mvel2.ParserContext;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.mvel.MvelScriptEngineService;
 
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -37,28 +37,37 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class ScriptService extends AbstractComponent {
 
-    private final ConcurrentMap<String, Object> cache = new MapMaker().softValues().makeMap();
+    private final String defaultType;
 
-    private final ParserContext parserContext;
+    private final ImmutableMap<String, ScriptEngineService> scriptEngines;
 
-    @Inject public ScriptService(Settings settings) {
-        super(settings);
+    private final ConcurrentMap<String, CompiledScript> cache = new MapMaker().softValues().makeMap();
 
-        parserContext = new ParserContext();
-        parserContext.addPackageImport("java.util");
-        parserContext.addPackageImport("org.elasticsearch.util.gnu.trove");
-        parserContext.addPackageImport("org.elasticsearch.common.joda");
-        parserContext.addImport("time", MVEL.getStaticMethod(System.class, "currentTimeMillis", new Class[0]));
-        // unboxed version of Math, better performance since conversion from boxed to unboxed my mvel is not needed
-        for (Method m : UnboxedMathUtils.class.getMethods()) {
-            if ((m.getModifiers() & Modifier.STATIC) > 0) {
-                parserContext.addImport(m.getName(), m);
-            }
-        }
+    public ScriptService(Settings settings) {
+        this(settings, ImmutableSet.<ScriptEngineService>builder()
+                .add(new MvelScriptEngineService(settings))
+                .build()
+        );
     }
 
-    public Object compile(String script) {
-        Object compiled = cache.get(script);
+    @Inject public ScriptService(Settings settings, Set<ScriptEngineService> scriptEngines) {
+        super(settings);
+
+        this.defaultType = componentSettings.get("default_type", "mvel");
+
+        ImmutableMap.Builder<String, ScriptEngineService> builder = ImmutableMap.builder();
+        for (ScriptEngineService scriptEngine : scriptEngines) {
+            builder.put(scriptEngine.type(), scriptEngine);
+        }
+        this.scriptEngines = builder.build();
+    }
+
+    public CompiledScript compile(String script) {
+        return compile(defaultType, script);
+    }
+
+    public CompiledScript compile(String type, String script) {
+        CompiledScript compiled = cache.get(script);
         if (compiled != null) {
             return compiled;
         }
@@ -67,17 +76,22 @@ public class ScriptService extends AbstractComponent {
             if (compiled != null) {
                 return compiled;
             }
-            compiled = MVEL.compileExpression(script, parserContext);
+            ScriptEngineService service = scriptEngines.get(type);
+            if (service == null) {
+                throw new ElasticSearchIllegalArgumentException("script_type not supported [" + type + "]");
+            }
+            compiled = new CompiledScript(type, service.compile(script));
             cache.put(script, compiled);
         }
         return compiled;
     }
 
-    public Object execute(Object script, Map vars) {
-        return MVEL.executeExpression(script, vars);
+    public Object execute(CompiledScript compiledScript, Map vars) {
+        return scriptEngines.get(compiledScript.type()).execute(compiledScript.compiled(), vars);
     }
 
     public void clear() {
         cache.clear();
     }
+
 }

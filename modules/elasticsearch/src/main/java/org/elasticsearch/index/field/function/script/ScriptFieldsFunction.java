@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldSelector;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ScriptService;
 
 import javax.annotation.Nullable;
@@ -67,7 +68,7 @@ public class ScriptFieldsFunction implements FieldsFunction {
 
     final ScriptService scriptService;
 
-    final Object script;
+    final CompiledScript script;
 
     final DocMap docMap;
 

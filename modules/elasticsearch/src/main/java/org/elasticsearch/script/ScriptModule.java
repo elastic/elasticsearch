@@ -19,14 +19,35 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.script.mvel.MvelScriptEngineService;
+
+import java.util.List;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class ScriptModule extends AbstractModule {
 
+    private List<Class<? extends ScriptEngineService>> scriptEngines = Lists.newArrayList();
+
+    public void addScriptEngine(Class<? extends ScriptEngineService> scriptEngine) {
+        scriptEngines.add(scriptEngine);
+    }
+
     @Override protected void configure() {
+        Multibinder<ScriptEngineService> multibinder = Multibinder.newSetBinder(binder(), ScriptEngineService.class);
+        try {
+            multibinder.addBinding().to(MvelScriptEngineService.class);
+        } catch (Throwable t) {
+            // no MVEL
+        }
+        for (Class<? extends ScriptEngineService> scriptEngine : scriptEngines) {
+            multibinder.addBinding().to(scriptEngine);
+        }
+
         bind(ScriptService.class).asEagerSingleton();
     }
 }

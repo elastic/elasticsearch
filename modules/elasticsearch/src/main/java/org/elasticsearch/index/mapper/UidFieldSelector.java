@@ -29,6 +29,12 @@ import org.apache.lucene.document.FieldSelectorResult;
  */
 public class UidFieldSelector implements FieldSelector {
 
+    public static UidFieldSelector INSTANCE = new UidFieldSelector();
+
+    private UidFieldSelector() {
+
+    }
+
     @Override public FieldSelectorResult accept(String fieldName) {
         if (UidFieldMapper.NAME.equals(fieldName)) {
             return FieldSelectorResult.LOAD_AND_BREAK;

@@ -22,12 +22,14 @@ package org.elasticsearch.test.integration.search.scriptfield;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.client.Requests.*;
@@ -46,20 +48,21 @@ public class ScriptFieldSearchTests extends AbstractNodesTests {
 
     @BeforeMethod public void createNodes() throws Exception {
         startNode("server1");
+        startNode("client1", ImmutableSettings.settingsBuilder().put("node.client", true).build());
         client = getClient();
     }
 
     @AfterMethod public void closeNodes() {
         client.close();
+        closeNode("client1");
         closeAllNodes();
     }
 
     protected Client getClient() {
-        return client("server1");
+        return client("client1");
     }
 
-    @Test
-    public void testCustomScriptBoost() throws Exception {
+    @Test public void testCustomScriptBoost() throws Exception {
         client.admin().indices().prepareCreate("test").execute().actionGet();
         client.prepareIndex("test", "type1", "1")
                 .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).field("date", "1970-01-01T00:00:00").endObject())
@@ -109,5 +112,39 @@ public class ScriptFieldSearchTests extends AbstractNodesTests {
         assertThat((Double) response.hits().getAt(1).fields().get("sNum1").values().get(0), equalTo(4.0));
         assertThat(response.hits().getAt(2).id(), equalTo("3"));
         assertThat((Double) response.hits().getAt(2).fields().get("sNum1").values().get(0), equalTo(6.0));
+    }
+
+    @Test public void testScriptFieldUsingSource() throws Exception {
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.prepareIndex("test", "type1", "1")
+                .setSource(jsonBuilder().startObject()
+                        .startObject("obj1").field("test", "something").endObject()
+                        .startObject("obj2").startArray("arr2").value("arr_value1").value("arr_value2").endArray().endObject()
+                        .endObject())
+                .execute().actionGet();
+        client.admin().indices().refresh(refreshRequest()).actionGet();
+
+        SearchResponse response = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addScriptField("s_obj1", "_source.obj1")
+                .addScriptField("s_obj1_test", "_source.obj1.test")
+                .addScriptField("s_obj2", "_source.obj2")
+                .addScriptField("s_obj2_arr2", "_source.obj2.arr2")
+                .execute().actionGet();
+
+        Map<String, Object> sObj1 = (Map<String, Object>) response.hits().getAt(0).field("s_obj1").value();
+        assertThat(sObj1.get("test").toString(), equalTo("something"));
+        assertThat(response.hits().getAt(0).field("s_obj1_test").value().toString(), equalTo("something"));
+
+        Map<String, Object> sObj2 = (Map<String, Object>) response.hits().getAt(0).field("s_obj2").value();
+        List sObj2Arr2 = (List) sObj2.get("arr2");
+        assertThat(sObj2Arr2.size(), equalTo(2));
+        assertThat(sObj2Arr2.get(0).toString(), equalTo("arr_value1"));
+        assertThat(sObj2Arr2.get(1).toString(), equalTo("arr_value2"));
+
+        sObj2Arr2 = (List) response.hits().getAt(0).field("s_obj2_arr2").value();
+        assertThat(sObj2Arr2.size(), equalTo(2));
+        assertThat(sObj2Arr2.get(0).toString(), equalTo("arr_value1"));
+        assertThat(sObj2Arr2.get(1).toString(), equalTo("arr_value2"));
     }
 }

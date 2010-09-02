@@ -34,6 +34,10 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
@@ -278,7 +282,9 @@ public class Lucene {
 
     public static Object readFieldValue(StreamInput in) throws IOException {
         byte type = in.readByte();
-        if (type == 0) {
+        if (type == -1) {
+            return null;
+        } else if (type == 0) {
             return in.readUTF();
         } else if (type == 1) {
             return in.readInt();
@@ -295,12 +301,30 @@ public class Lucene {
             byte[] value = new byte[bytesSize];
             in.readFully(value);
             return value;
+        } else if (type == 7) {
+            int size = in.readVInt();
+            List list = new ArrayList(size);
+            for (int i = 0; i < size; i++) {
+                list.add(readFieldValue(in));
+            }
+            return list;
+        } else if (type == 8) {
+            int size = in.readVInt();
+            Map map = new HashMap();
+            for (int i = 0; i < size; i++) {
+                map.put(in.readUTF(), readFieldValue(in));
+            }
+            return map;
         } else {
             throw new IOException("Can't read unknown type [" + type + "]");
         }
     }
 
     public static void writeFieldValue(StreamOutput out, Object value) throws IOException {
+        if (value == null) {
+            out.writeByte((byte) -1);
+            return;
+        }
         Class type = value.getClass();
         if (type == String.class) {
             out.writeByte((byte) 0);
@@ -324,6 +348,21 @@ public class Lucene {
             out.writeByte((byte) 6);
             out.writeVInt(((byte[]) value).length);
             out.writeBytes(((byte[]) value));
+        } else if (value instanceof List) {
+            out.writeByte((byte) 7);
+            List list = (List) value;
+            out.writeVInt(list.size());
+            for (Object o : list) {
+                writeFieldValue(out, o);
+            }
+        } else if (value instanceof Map) {
+            out.writeByte((byte) 8);
+            Map<String, Object> map = (Map<String, Object>) value;
+            out.writeVInt(map.size());
+            for (Map.Entry<String, Object> entry : map.entrySet()) {
+                out.writeUTF(entry.getKey());
+                writeFieldValue(out, entry.getValue());
+            }
         } else {
             throw new IOException("Can't write type [" + type + "]");
         }

@@ -25,6 +25,7 @@ import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
@@ -46,6 +47,12 @@ import java.util.Map;
  * @author kimchy (shay.banon)
  */
 public class FetchPhase implements SearchPhase {
+
+    private static ThreadLocal<ThreadLocals.CleanableValue<Map<String, Object>>> cachedSameDocScriptCache = new ThreadLocal<ThreadLocals.CleanableValue<Map<String, Object>>>() {
+        @Override protected ThreadLocals.CleanableValue<Map<String, Object>> initialValue() {
+            return new ThreadLocals.CleanableValue<java.util.Map<java.lang.String, java.lang.Object>>(new HashMap<String, Object>());
+        }
+    };
 
     private final HighlightPhase highlightPhase;
 
@@ -69,6 +76,8 @@ public class FetchPhase implements SearchPhase {
 
     public void execute(SearchContext context) {
         FieldSelector fieldSelector = buildFieldSelectors(context);
+
+        Map<String, Object> sameDocCache = cachedSameDocScriptCache.get().get();
 
         InternalSearchHit[] hits = new InternalSearchHit[context.docIdsToLoadSize()];
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
@@ -127,13 +136,14 @@ public class FetchPhase implements SearchPhase {
             }
 
             if (context.scriptFields() != null) {
+                sameDocCache.clear();
                 int readerIndex = context.searcher().readerIndex(docId);
                 IndexReader subReader = context.searcher().subReaders()[readerIndex];
                 int subDoc = docId - context.searcher().docStarts()[readerIndex];
                 for (ScriptFieldsContext.ScriptField scriptField : context.scriptFields().fields()) {
                     scriptField.scriptFieldsFunction().setNextReader(subReader);
 
-                    Object value = scriptField.scriptFieldsFunction().execute(subDoc, scriptField.params());
+                    Object value = scriptField.scriptFieldsFunction().execute(subDoc, scriptField.params(), sameDocCache);
 
                     if (searchHit.fields() == null) {
                         searchHit.fields(new HashMap<String, SearchHitField>(2));
@@ -146,6 +156,7 @@ public class FetchPhase implements SearchPhase {
                     }
                     hitField.values().add(value);
                 }
+                sameDocCache.clear();
             }
 
             doExplanation(context, docId, searchHit);
@@ -194,7 +205,7 @@ public class FetchPhase implements SearchPhase {
     private FieldSelector buildFieldSelectors(SearchContext context) {
         if (context.scriptFields() != null && context.fieldNames() == null) {
             // we ask for script fields, and no field names, don't load the source
-            return new UidFieldSelector();
+            return UidFieldSelector.INSTANCE;
         }
 
         if (context.fieldNames() == null) {
@@ -202,7 +213,7 @@ public class FetchPhase implements SearchPhase {
         }
 
         if (context.fieldNames().isEmpty()) {
-            return new UidFieldSelector();
+            return UidFieldSelector.INSTANCE;
         }
 
         // asked for all stored fields, just return null so all of them will be loaded

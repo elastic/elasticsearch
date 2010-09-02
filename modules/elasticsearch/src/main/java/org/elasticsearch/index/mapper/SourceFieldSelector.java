@@ -17,29 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.index.field.function;
+package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.IndexReader;
-
-import java.util.Map;
+import org.apache.lucene.document.FieldSelector;
+import org.apache.lucene.document.FieldSelectorResult;
 
 /**
+ * An optimized field selector that loads just the uid.
+ *
  * @author kimchy (shay.banon)
  */
-public interface FieldsFunction {
+public class SourceFieldSelector implements FieldSelector {
 
-    void setNextReader(IndexReader reader);
+    public static SourceFieldSelector INSTANCE = new SourceFieldSelector();
 
-    /**
-     * @param docId The doc id
-     * @param vars  The vars providing additional parameters, should be reused and has values added to it in execute
-     */
-    Object execute(int docId, Map<String, Object> vars);
+    private SourceFieldSelector() {
 
-    /**
-     * @param docId        The doc id
-     * @param vars         The vars providing additional parameters, should be reused and has values added to it in execute
-     * @param sameDocCache If executing against the same doc id several times (possibly with different scripts), pass this across the invocations
-     */
-    Object execute(int docId, Map<String, Object> vars, Map<String, Object> sameDocCache);
+    }
+
+    @Override public FieldSelectorResult accept(String fieldName) {
+        if (SourceFieldMapper.NAME.equals(fieldName)) {
+            return FieldSelectorResult.LOAD_AND_BREAK;
+        }
+        return FieldSelectorResult.NO_LOAD;
+    }
 }

@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapConverter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -210,6 +211,15 @@ public abstract class XContentBuilder<T extends XContentBuilder> {
         return builder;
     }
 
+    public T field(String name, List<Object> value) throws IOException {
+        startArray(name);
+        for (Object o : value) {
+            value(o);
+        }
+        endArray();
+        return builder;
+    }
+
     public T field(String name, Object value) throws IOException {
         if (value == null) {
             nullField(name);
@@ -236,6 +246,8 @@ public abstract class XContentBuilder<T extends XContentBuilder> {
             field(name, (ReadableInstant) value);
         } else if (value instanceof Map) {
             field(name, (Map<String, Object>) value);
+        } else if (value instanceof List) {
+            field(name, (List) value);
         } else {
             field(name, value.toString());
         }

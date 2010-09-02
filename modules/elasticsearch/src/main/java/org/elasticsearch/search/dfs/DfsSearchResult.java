@@ -27,8 +27,6 @@ import org.elasticsearch.search.SearchShardTarget;
 
 import java.io.IOException;
 
-import static org.elasticsearch.search.SearchShardTarget.*;
-
 /**
  * @author kimchy (shay.banon)
  */
@@ -65,6 +63,10 @@ public class DfsSearchResult implements SearchPhaseResult {
         return shardTarget;
     }
 
+    @Override public void shardTarget(SearchShardTarget shardTarget) {
+        this.shardTarget = shardTarget;
+    }
+
     public DfsSearchResult maxDoc(int maxDoc) {
         this.maxDoc = maxDoc;
         return this;
@@ -96,7 +98,7 @@ public class DfsSearchResult implements SearchPhaseResult {
 
     @Override public void readFrom(StreamInput in) throws IOException {
         id = in.readLong();
-        shardTarget = readSearchShardTarget(in);
+//        shardTarget = readSearchShardTarget(in);
         int termsSize = in.readVInt();
         if (termsSize == 0) {
             terms = EMPTY_TERMS;
@@ -120,7 +122,7 @@ public class DfsSearchResult implements SearchPhaseResult {
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(id);
-        shardTarget.writeTo(out);
+//        shardTarget.writeTo(out);
         out.writeVInt(terms.length);
         for (Term term : terms) {
             out.writeUTF(term.field());

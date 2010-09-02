@@ -27,7 +27,6 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 
 import java.io.IOException;
 
-import static org.elasticsearch.search.SearchShardTarget.*;
 import static org.elasticsearch.search.internal.InternalSearchHits.*;
 
 /**
@@ -65,6 +64,10 @@ public class FetchSearchResult implements Streamable, FetchSearchResultProvider 
         return this.shardTarget;
     }
 
+    @Override public void shardTarget(SearchShardTarget shardTarget) {
+        this.shardTarget = shardTarget;
+    }
+
     public void hits(InternalSearchHits hits) {
         this.hits = hits;
     }
@@ -90,13 +93,13 @@ public class FetchSearchResult implements Streamable, FetchSearchResultProvider 
 
     @Override public void readFrom(StreamInput in) throws IOException {
         id = in.readLong();
-        shardTarget = readSearchShardTarget(in);
+//        shardTarget = readSearchShardTarget(in);
         hits = readSearchHits(in);
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(id);
-        shardTarget.writeTo(out);
+//        shardTarget.writeTo(out);
         hits.writeTo(out);
     }
 }

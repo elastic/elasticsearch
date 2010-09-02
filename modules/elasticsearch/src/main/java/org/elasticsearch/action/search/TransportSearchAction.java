@@ -35,7 +35,7 @@ import org.elasticsearch.transport.TransportService;
 import static org.elasticsearch.action.search.SearchType.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TransportSearchAction extends BaseAction<SearchRequest, SearchResponse> {
 

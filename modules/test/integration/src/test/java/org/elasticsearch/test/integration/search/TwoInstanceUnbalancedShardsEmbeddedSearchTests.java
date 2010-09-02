@@ -157,7 +157,7 @@ public class TwoInstanceUnbalancedShardsEmbeddedSearchTests extends AbstractNode
         // now try and scroll to the next batch of results
         Map<SearchShardTarget, QuerySearchResultProvider> scollQueryResults = newHashMap();
         for (QuerySearchResultProvider queryResult : queryResults.values()) {
-            scollQueryResults.put(queryResult.queryResult().shardTarget(), nodeToSearchService.get(queryResult.shardTarget().nodeId()).executeQueryPhase(new InternalScrollSearchRequest(queryResult.id())));
+            scollQueryResults.put(queryResult.queryResult().shardTarget(), nodeToSearchService.get(queryResult.shardTarget().nodeId()).executeQueryPhase(new InternalScrollSearchRequest(queryResult.id())).queryResult());
         }
         queryResults = scollQueryResults;
 
@@ -224,7 +224,7 @@ public class TwoInstanceUnbalancedShardsEmbeddedSearchTests extends AbstractNode
         // now try and scroll to the next batch of results
         Map<SearchShardTarget, QuerySearchResultProvider> scollQueryResults = newHashMap();
         for (QuerySearchResultProvider queryResult : queryResults.values()) {
-            scollQueryResults.put(queryResult.queryResult().shardTarget(), nodeToSearchService.get(queryResult.shardTarget().nodeId()).executeQueryPhase(new InternalScrollSearchRequest(queryResult.id()).scroll(new Scroll(timeValueMinutes(10)))));
+            scollQueryResults.put(queryResult.queryResult().shardTarget(), nodeToSearchService.get(queryResult.shardTarget().nodeId()).executeQueryPhase(new InternalScrollSearchRequest(queryResult.id()).scroll(new Scroll(timeValueMinutes(10)))).queryResult());
         }
         queryResults = scollQueryResults;
 
@@ -250,7 +250,7 @@ public class TwoInstanceUnbalancedShardsEmbeddedSearchTests extends AbstractNode
         // now try and scroll to the next next batch of results
         scollQueryResults = newHashMap();
         for (QuerySearchResultProvider queryResult : queryResults.values()) {
-            scollQueryResults.put(queryResult.queryResult().shardTarget(), nodeToSearchService.get(queryResult.shardTarget().nodeId()).executeQueryPhase(new InternalScrollSearchRequest(queryResult.id())));
+            scollQueryResults.put(queryResult.queryResult().shardTarget(), nodeToSearchService.get(queryResult.shardTarget().nodeId()).executeQueryPhase(new InternalScrollSearchRequest(queryResult.id())).queryResult());
         }
         queryResults = scollQueryResults;
 

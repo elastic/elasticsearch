@@ -98,6 +98,16 @@ public class JmxService {
         started = true;
         this.nodeDescription = nodeDescription;
         if (settings.getAsBoolean(SettingsConstants.CREATE_CONNECTOR, false)) {
+            // we are going to create the connector, set the GC interval to a large value
+            try {
+                if (System.getProperty("sun.rmi.dgc.client.gcInterval") == null)
+                    System.setProperty("sun.rmi.dgc.client.gcInterval", "36000000");
+                if (System.getProperty("sun.rmi.dgc.server.gcInterval") == null)
+                    System.setProperty("sun.rmi.dgc.server.gcInterval", "36000000");
+            } catch (Exception secExc) {
+                logger.warn("Failed to set sun.rmi.dgc.xxx system properties", secExc);
+            }
+
             final String port = settings.get("jmx.port", "9400-9500");
 
             PortsRange portsRange = new PortsRange(port);

@@ -31,7 +31,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.log4j.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.jmx.JmxService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPerparer;
@@ -43,7 +42,6 @@ import java.util.concurrent.CountDownLatch;
 import static jline.ANSIBuffer.ANSICodes.*;
 import static org.elasticsearch.common.collect.Sets.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
 
 /**
  * A main entry point when starting from the command line.
@@ -73,11 +71,12 @@ public class Bootstrap {
     }
 
     private static Tuple<Settings, Environment> setupJmx(Tuple<Settings, Environment> tuple) {
-        if (tuple.v1().get(JmxService.SettingsConstants.CREATE_CONNECTOR) == null) {
-            // automatically create the connector if we are bootstrapping
-            Settings updated = settingsBuilder().put(tuple.v1()).put(JmxService.SettingsConstants.CREATE_CONNECTOR, true).build();
-            tuple = new Tuple<Settings, Environment>(updated, tuple.v2());
-        }
+        // We disable JMX on by default, since we don't really want the overhead of RMI (and RMI GC...)
+//        if (tuple.v1().get(JmxService.SettingsConstants.CREATE_CONNECTOR) == null) {
+//            // automatically create the connector if we are bootstrapping
+//            Settings updated = settingsBuilder().put(tuple.v1()).put(JmxService.SettingsConstants.CREATE_CONNECTOR, true).build();
+//            tuple = new Tuple<Settings, Environment>(updated, tuple.v2());
+//        }
         return tuple;
     }
 

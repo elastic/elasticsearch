@@ -39,7 +39,7 @@ import java.util.Set;
 /**
  * @author kimchy (shay.banon)
  */
-public class ScriptFieldsFunction implements FieldsFunction, Map {
+public class ScriptFieldsFunction implements FieldsFunction {
 
     private static ThreadLocal<ThreadLocals.CleanableValue<Map<String, FieldData>>> cachedFieldData = new ThreadLocal<ThreadLocals.CleanableValue<Map<String, FieldData>>>() {
         @Override protected ThreadLocals.CleanableValue<Map<String, FieldData>> initialValue() {
@@ -53,113 +53,131 @@ public class ScriptFieldsFunction implements FieldsFunction, Map {
         }
     };
 
-    final Object script;
-
-    final MapperService mapperService;
-
-    final FieldDataCache fieldDataCache;
-
     final ScriptService scriptService;
 
-    final Map<String, FieldData> localCacheFieldData = cachedFieldData.get().get();
+    final Object script;
 
-    IndexReader reader;
-
-    int docId;
+    final DocMap docMap;
 
     public ScriptFieldsFunction(String script, ScriptService scriptService, MapperService mapperService, FieldDataCache fieldDataCache) {
         this.scriptService = scriptService;
-        this.mapperService = mapperService;
-        this.fieldDataCache = fieldDataCache;
         this.script = scriptService.compile(script);
+        this.docMap = new DocMap(cachedFieldData.get().get(), mapperService, fieldDataCache);
     }
 
     @Override public void setNextReader(IndexReader reader) {
-        this.reader = reader;
-        localCacheFieldData.clear();
+        docMap.setNextReader(reader);
     }
 
     @Override public Object execute(int docId, Map<String, Object> vars) {
-        this.docId = docId;
+        docMap.setNextDocId(docId);
         if (vars == null) {
             vars = cachedVars.get().get();
             vars.clear();
         }
-        vars.put("doc", this);
+        vars.put("doc", docMap);
         return scriptService.execute(script, vars);
     }
 
     // --- Map implementation for doc field data lookup
 
-    @Override public Object get(Object key) {
-        // assume its a string...
-        String fieldName = key.toString();
-        FieldData fieldData = localCacheFieldData.get(fieldName);
-        if (fieldData == null) {
-            FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);
-            if (mapper == null) {
-                throw new ElasticSearchIllegalArgumentException("No field found for [" + fieldName + "]");
-            }
-            try {
-                fieldData = fieldDataCache.cache(mapper.fieldDataType(), reader, mapper.names().indexName());
-            } catch (IOException e) {
-                throw new ElasticSearchException("Failed to load field data for [" + fieldName + "]", e);
-            }
-            localCacheFieldData.put(fieldName, fieldData);
+    static class DocMap implements Map {
+
+        private final Map<String, FieldData> localCacheFieldData;
+
+        private final MapperService mapperService;
+
+        private final FieldDataCache fieldDataCache;
+
+        private IndexReader reader;
+
+        private int docId;
+
+        DocMap(Map<String, FieldData> localCacheFieldData, MapperService mapperService, FieldDataCache fieldDataCache) {
+            this.localCacheFieldData = localCacheFieldData;
+            this.mapperService = mapperService;
+            this.fieldDataCache = fieldDataCache;
         }
-        return fieldData.docFieldData(docId);
-    }
 
-    public boolean containsKey(Object key) {
-        // assume its a string...
-        String fieldName = key.toString();
-        FieldData fieldData = localCacheFieldData.get(fieldName);
-        if (fieldData == null) {
-            FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);
-            if (mapper == null) {
-                return false;
-            }
+        public void setNextReader(IndexReader reader) {
+            this.reader = reader;
+            localCacheFieldData.clear();
         }
-        return true;
-    }
 
-    public int size() {
-        throw new UnsupportedOperationException();
-    }
+        public void setNextDocId(int docId) {
+            this.docId = docId;
+        }
 
-    public boolean isEmpty() {
-        throw new UnsupportedOperationException();
-    }
+        @Override public Object get(Object key) {
+            // assume its a string...
+            String fieldName = key.toString();
+            FieldData fieldData = localCacheFieldData.get(fieldName);
+            if (fieldData == null) {
+                FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);
+                if (mapper == null) {
+                    throw new ElasticSearchIllegalArgumentException("No field found for [" + fieldName + "]");
+                }
+                try {
+                    fieldData = fieldDataCache.cache(mapper.fieldDataType(), reader, mapper.names().indexName());
+                } catch (IOException e) {
+                    throw new ElasticSearchException("Failed to load field data for [" + fieldName + "]", e);
+                }
+                localCacheFieldData.put(fieldName, fieldData);
+            }
+            return fieldData.docFieldData(docId);
+        }
 
-    public boolean containsValue(Object value) {
-        throw new UnsupportedOperationException();
-    }
+        public boolean containsKey(Object key) {
+            // assume its a string...
+            String fieldName = key.toString();
+            FieldData fieldData = localCacheFieldData.get(fieldName);
+            if (fieldData == null) {
+                FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName);
+                if (mapper == null) {
+                    return false;
+                }
+            }
+            return true;
+        }
 
-    public Object put(Object key, Object value) {
-        throw new UnsupportedOperationException();
-    }
+        public int size() {
+            throw new UnsupportedOperationException();
+        }
 
-    public Object remove(Object key) {
-        throw new UnsupportedOperationException();
-    }
+        public boolean isEmpty() {
+            throw new UnsupportedOperationException();
+        }
 
-    public void putAll(Map m) {
-        throw new UnsupportedOperationException();
-    }
+        public boolean containsValue(Object value) {
+            throw new UnsupportedOperationException();
+        }
 
-    public void clear() {
-        throw new UnsupportedOperationException();
-    }
+        public Object put(Object key, Object value) {
+            throw new UnsupportedOperationException();
+        }
 
-    public Set keySet() {
-        throw new UnsupportedOperationException();
-    }
+        public Object remove(Object key) {
+            throw new UnsupportedOperationException();
+        }
 
-    public Collection values() {
-        throw new UnsupportedOperationException();
-    }
+        public void putAll(Map m) {
+            throw new UnsupportedOperationException();
+        }
 
-    public Set entrySet() {
-        throw new UnsupportedOperationException();
+        public void clear() {
+            throw new UnsupportedOperationException();
+        }
+
+        public Set keySet() {
+            throw new UnsupportedOperationException();
+        }
+
+        public Collection values() {
+            throw new UnsupportedOperationException();
+        }
+
+        public Set entrySet() {
+            throw new UnsupportedOperationException();
+        }
     }
 }

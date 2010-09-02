@@ -30,10 +30,9 @@ import org.elasticsearch.search.facets.internal.InternalFacets;
 import java.io.IOException;
 
 import static org.elasticsearch.common.lucene.Lucene.*;
-import static org.elasticsearch.search.SearchShardTarget.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class QuerySearchResult implements Streamable, QuerySearchResultProvider {
 
@@ -74,6 +73,10 @@ public class QuerySearchResult implements Streamable, QuerySearchResultProvider 
 
     public SearchShardTarget shardTarget() {
         return shardTarget;
+    }
+
+    @Override public void shardTarget(SearchShardTarget shardTarget) {
+        this.shardTarget = shardTarget;
     }
 
     public void searchTimedOut(boolean searchTimedOut) {
@@ -126,7 +129,7 @@ public class QuerySearchResult implements Streamable, QuerySearchResultProvider 
 
     @Override public void readFrom(StreamInput in) throws IOException {
         id = in.readLong();
-        shardTarget = readSearchShardTarget(in);
+//        shardTarget = readSearchShardTarget(in);
         from = in.readVInt();
         size = in.readVInt();
         topDocs = readTopDocs(in);
@@ -138,7 +141,7 @@ public class QuerySearchResult implements Streamable, QuerySearchResultProvider 
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(id);
-        shardTarget.writeTo(out);
+//        shardTarget.writeTo(out);
         out.writeVInt(from);
         out.writeVInt(size);
         writeTopDocs(out, topDocs, 0);

@@ -93,13 +93,13 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
             final AtomicInteger counter = new AtomicInteger(docIdsToLoad.size());
 
             int localOperations = 0;
-            for (Map.Entry<SearchShardTarget, ExtTIntArrayList> entry : docIdsToLoad.entrySet()) {
+            for (final Map.Entry<SearchShardTarget, ExtTIntArrayList> entry : docIdsToLoad.entrySet()) {
                 DiscoveryNode node = nodes.get(entry.getKey().nodeId());
                 if (node.id().equals(nodes.localNodeId())) {
                     localOperations++;
                 } else {
                     FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(queryResults.get(entry.getKey()).id(), entry.getValue());
-                    executeFetch(counter, fetchSearchRequest, node);
+                    executeFetch(entry.getKey(), counter, fetchSearchRequest, node);
                 }
             }
 
@@ -107,29 +107,29 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
                 if (request.operationThreading() == SearchOperationThreading.SINGLE_THREAD) {
                     threadPool.execute(new Runnable() {
                         @Override public void run() {
-                            for (Map.Entry<SearchShardTarget, ExtTIntArrayList> entry : docIdsToLoad.entrySet()) {
+                            for (final Map.Entry<SearchShardTarget, ExtTIntArrayList> entry : docIdsToLoad.entrySet()) {
                                 DiscoveryNode node = nodes.get(entry.getKey().nodeId());
                                 if (node.id().equals(nodes.localNodeId())) {
                                     FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(queryResults.get(entry.getKey()).id(), entry.getValue());
-                                    executeFetch(counter, fetchSearchRequest, node);
+                                    executeFetch(entry.getKey(), counter, fetchSearchRequest, node);
                                 }
                             }
                         }
                     });
                 } else {
                     boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
-                    for (Map.Entry<SearchShardTarget, ExtTIntArrayList> entry : docIdsToLoad.entrySet()) {
+                    for (final Map.Entry<SearchShardTarget, ExtTIntArrayList> entry : docIdsToLoad.entrySet()) {
                         final DiscoveryNode node = nodes.get(entry.getKey().nodeId());
                         if (node.id().equals(nodes.localNodeId())) {
                             final FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(queryResults.get(entry.getKey()).id(), entry.getValue());
                             if (localAsync) {
                                 threadPool.execute(new Runnable() {
                                     @Override public void run() {
-                                        executeFetch(counter, fetchSearchRequest, node);
+                                        executeFetch(entry.getKey(), counter, fetchSearchRequest, node);
                                     }
                                 });
                             } else {
-                                executeFetch(counter, fetchSearchRequest, node);
+                                executeFetch(entry.getKey(), counter, fetchSearchRequest, node);
                             }
                         }
                     }
@@ -137,9 +137,10 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
             }
         }
 
-        private void executeFetch(final AtomicInteger counter, final FetchSearchRequest fetchSearchRequest, DiscoveryNode node) {
+        private void executeFetch(final SearchShardTarget shardTarget, final AtomicInteger counter, final FetchSearchRequest fetchSearchRequest, DiscoveryNode node) {
             searchService.sendExecuteFetch(node, fetchSearchRequest, new SearchServiceListener<FetchSearchResult>() {
                 @Override public void onResult(FetchSearchResult result) {
+                    result.shardTarget(shardTarget);
                     fetchResults.put(result.shardTarget(), result);
                     if (counter.decrementAndGet() == 0) {
                         finishHim();

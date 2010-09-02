@@ -17,76 +17,51 @@
  * under the License.
  */
 
-package org.elasticsearch.search.fetch;
+package org.elasticsearch.search.query;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.query.QuerySearchResultProvider;
 
 import java.io.IOException;
 
-import static org.elasticsearch.search.fetch.FetchSearchResult.*;
+import static org.elasticsearch.search.SearchShardTarget.*;
 import static org.elasticsearch.search.query.QuerySearchResult.*;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class QueryFetchSearchResult implements Streamable, QuerySearchResultProvider, FetchSearchResultProvider {
+public class ScrollQuerySearchResult implements Streamable {
 
     private QuerySearchResult queryResult;
 
-    private FetchSearchResult fetchResult;
+    private SearchShardTarget shardTarget;
 
-    public QueryFetchSearchResult() {
-
+    public ScrollQuerySearchResult() {
     }
 
-    public QueryFetchSearchResult(QuerySearchResult queryResult, FetchSearchResult fetchResult) {
+    public ScrollQuerySearchResult(QuerySearchResult queryResult, SearchShardTarget shardTarget) {
         this.queryResult = queryResult;
-        this.fetchResult = fetchResult;
-    }
-
-    public long id() {
-        return queryResult.id();
-    }
-
-    public SearchShardTarget shardTarget() {
-        return queryResult.shardTarget();
-    }
-
-    @Override public void shardTarget(SearchShardTarget shardTarget) {
-        queryResult.shardTarget(shardTarget);
-        fetchResult.shardTarget(shardTarget);
-    }
-
-    @Override public boolean includeFetch() {
-        return true;
+        this.shardTarget = shardTarget;
     }
 
     public QuerySearchResult queryResult() {
         return queryResult;
     }
 
-    public FetchSearchResult fetchResult() {
-        return fetchResult;
-    }
-
-    public static QueryFetchSearchResult readQueryFetchSearchResult(StreamInput in) throws IOException {
-        QueryFetchSearchResult result = new QueryFetchSearchResult();
-        result.readFrom(in);
-        return result;
+    public SearchShardTarget shardTarget() {
+        return shardTarget;
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
+        shardTarget = readSearchShardTarget(in);
         queryResult = readQuerySearchResult(in);
-        fetchResult = readFetchSearchResult(in);
+        queryResult.shardTarget(shardTarget);
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
+        shardTarget.writeTo(out);
         queryResult.writeTo(out);
-        fetchResult.writeTo(out);
     }
 }

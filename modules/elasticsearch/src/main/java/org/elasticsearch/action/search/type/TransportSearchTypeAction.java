@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
@@ -77,7 +78,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
         this.searchPhaseController = searchPhaseController;
     }
 
-    protected abstract class BaseAsyncAction<FirstResult> {
+    protected abstract class BaseAsyncAction<FirstResult extends SearchPhaseResult> {
 
         protected final ActionListener<SearchResponse> listener;
 
@@ -205,6 +206,7 @@ public abstract class TransportSearchTypeAction extends BaseAction<SearchRequest
         }
 
         private void onFirstPhaseResult(ShardRouting shard, FirstResult result, ShardsIterator shardIt) {
+            result.shardTarget(new SearchShardTarget(shard.currentNodeId(), shard.index(), shard.id()));
             processFirstPhaseResult(shard, result);
             // increment all the "future" shards to update the total ops since we some may work and some may not...
             // and when that happens, we break on total ops, so we must maintain them

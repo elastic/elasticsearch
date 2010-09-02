@@ -29,4 +29,6 @@ public interface SearchPhaseResult extends Streamable {
     long id();
 
     SearchShardTarget shardTarget();
+
+    void shardTarget(SearchShardTarget shardTarget);
 }

@@ -152,7 +152,7 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractNodesTests {
         // now try and scroll to the next batch of results
         Map<SearchShardTarget, QuerySearchResultProvider> scrollQueryResults = newHashMap();
         for (QuerySearchResultProvider queryResult : queryResults.values()) {
-            scrollQueryResults.put(queryResult.queryResult().shardTarget(), nodeToSearchService.get(queryResult.shardTarget().nodeId()).executeQueryPhase(new InternalScrollSearchRequest(queryResult.id())));
+            scrollQueryResults.put(queryResult.queryResult().shardTarget(), nodeToSearchService.get(queryResult.shardTarget().nodeId()).executeQueryPhase(new InternalScrollSearchRequest(queryResult.id())).queryResult());
         }
         queryResults = scrollQueryResults;
 
@@ -219,7 +219,7 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractNodesTests {
         // now try and scroll to the next batch of results
         Map<SearchShardTarget, QuerySearchResultProvider> scrollQueryResults = newHashMap();
         for (QuerySearchResultProvider queryResult : queryResults.values()) {
-            scrollQueryResults.put(queryResult.queryResult().shardTarget(), nodeToSearchService.get(queryResult.shardTarget().nodeId()).executeQueryPhase(new InternalScrollSearchRequest(queryResult.id()).scroll(new Scroll(timeValueMinutes(10)))));
+            scrollQueryResults.put(queryResult.queryResult().shardTarget(), nodeToSearchService.get(queryResult.shardTarget().nodeId()).executeQueryPhase(new InternalScrollSearchRequest(queryResult.id()).scroll(new Scroll(timeValueMinutes(10)))).queryResult());
         }
         queryResults = scrollQueryResults;
 
@@ -245,7 +245,7 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractNodesTests {
         // now try and scroll to the next next batch of results
         scrollQueryResults = newHashMap();
         for (QuerySearchResultProvider queryResult : queryResults.values()) {
-            scrollQueryResults.put(queryResult.queryResult().shardTarget(), nodeToSearchService.get(queryResult.shardTarget().nodeId()).executeQueryPhase(new InternalScrollSearchRequest(queryResult.id())));
+            scrollQueryResults.put(queryResult.queryResult().shardTarget(), nodeToSearchService.get(queryResult.shardTarget().nodeId()).executeQueryPhase(new InternalScrollSearchRequest(queryResult.id())).queryResult());
         }
         queryResults = scrollQueryResults;
 
@@ -295,7 +295,7 @@ public class TwoInstanceEmbeddedSearchTests extends AbstractNodesTests {
         // scrolling with query+fetch is not perfect when it comes to dist sorting
         Map<SearchShardTarget, QueryFetchSearchResult> scrollQueryFetchResults = newHashMap();
         for (QueryFetchSearchResult searchResult : queryFetchResults.values()) {
-            QueryFetchSearchResult queryFetchResult = nodeToSearchService.get(searchResult.shardTarget().nodeId()).executeFetchPhase(new InternalScrollSearchRequest(searchResult.id()).scroll(new Scroll(timeValueMinutes(10))));
+            QueryFetchSearchResult queryFetchResult = nodeToSearchService.get(searchResult.shardTarget().nodeId()).executeFetchPhase(new InternalScrollSearchRequest(searchResult.id()).scroll(new Scroll(timeValueMinutes(10)))).result();
             scrollQueryFetchResults.put(queryFetchResult.shardTarget(), queryFetchResult);
         }
         queryFetchResults = scrollQueryFetchResults;

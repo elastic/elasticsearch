@@ -46,7 +46,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.action.search.type.TransportSearchHelper.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAction {
 
@@ -87,42 +87,42 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
             final AtomicInteger counter = new AtomicInteger(dfsResults.size());
 
             int localOperations = 0;
-            for (DfsSearchResult dfsResult : dfsResults) {
+            for (final DfsSearchResult dfsResult : dfsResults) {
                 DiscoveryNode node = nodes.get(dfsResult.shardTarget().nodeId());
                 if (node.id().equals(nodes.localNodeId())) {
                     localOperations++;
                 } else {
                     QuerySearchRequest querySearchRequest = new QuerySearchRequest(dfsResult.id(), dfs);
-                    executeSecondPhase(counter, node, querySearchRequest);
+                    executeSecondPhase(dfsResult, counter, node, querySearchRequest);
                 }
             }
             if (localOperations > 0) {
                 if (request.operationThreading() == SearchOperationThreading.SINGLE_THREAD) {
                     threadPool.execute(new Runnable() {
                         @Override public void run() {
-                            for (DfsSearchResult dfsResult : dfsResults) {
+                            for (final DfsSearchResult dfsResult : dfsResults) {
                                 DiscoveryNode node = nodes.get(dfsResult.shardTarget().nodeId());
                                 if (node.id().equals(nodes.localNodeId())) {
                                     QuerySearchRequest querySearchRequest = new QuerySearchRequest(dfsResult.id(), dfs);
-                                    executeSecondPhase(counter, node, querySearchRequest);
+                                    executeSecondPhase(dfsResult, counter, node, querySearchRequest);
                                 }
                             }
                         }
                     });
                 } else {
                     boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
-                    for (DfsSearchResult dfsResult : dfsResults) {
+                    for (final DfsSearchResult dfsResult : dfsResults) {
                         final DiscoveryNode node = nodes.get(dfsResult.shardTarget().nodeId());
                         if (node.id().equals(nodes.localNodeId())) {
                             final QuerySearchRequest querySearchRequest = new QuerySearchRequest(dfsResult.id(), dfs);
                             if (localAsync) {
                                 threadPool.execute(new Runnable() {
                                     @Override public void run() {
-                                        executeSecondPhase(counter, node, querySearchRequest);
+                                        executeSecondPhase(dfsResult, counter, node, querySearchRequest);
                                     }
                                 });
                             } else {
-                                executeSecondPhase(counter, node, querySearchRequest);
+                                executeSecondPhase(dfsResult, counter, node, querySearchRequest);
                             }
                         }
                     }
@@ -130,9 +130,10 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
             }
         }
 
-        private void executeSecondPhase(final AtomicInteger counter, DiscoveryNode node, final QuerySearchRequest querySearchRequest) {
+        private void executeSecondPhase(final DfsSearchResult dfsResult, final AtomicInteger counter, DiscoveryNode node, final QuerySearchRequest querySearchRequest) {
             searchService.sendExecuteFetch(node, querySearchRequest, new SearchServiceListener<QueryFetchSearchResult>() {
                 @Override public void onResult(QueryFetchSearchResult result) {
+                    result.shardTarget(dfsResult.shardTarget());
                     queryFetchResults.put(result.shardTarget(), result);
                     if (counter.decrementAndGet() == 0) {
                         finishHim();

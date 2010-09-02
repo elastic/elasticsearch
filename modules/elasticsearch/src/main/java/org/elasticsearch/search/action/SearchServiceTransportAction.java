@@ -32,10 +32,12 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchRequest;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
+import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.transport.*;
 
 /**
@@ -186,20 +188,20 @@ public class SearchServiceTransportAction extends AbstractComponent {
     public void sendExecuteQuery(DiscoveryNode node, final InternalScrollSearchRequest request, final SearchServiceListener<QuerySearchResult> listener) {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             try {
-                QuerySearchResult result = searchService.executeQueryPhase(request);
-                listener.onResult(result);
+                ScrollQuerySearchResult result = searchService.executeQueryPhase(request);
+                listener.onResult(result.queryResult());
             } catch (Exception e) {
                 listener.onFailure(e);
             }
         } else {
-            transportService.sendRequest(node, SearchQueryScrollTransportHandler.ACTION, request, new BaseTransportResponseHandler<QuerySearchResult>() {
+            transportService.sendRequest(node, SearchQueryScrollTransportHandler.ACTION, request, new BaseTransportResponseHandler<ScrollQuerySearchResult>() {
 
-                @Override public QuerySearchResult newInstance() {
-                    return new QuerySearchResult();
+                @Override public ScrollQuerySearchResult newInstance() {
+                    return new ScrollQuerySearchResult();
                 }
 
-                @Override public void handleResponse(QuerySearchResult response) {
-                    listener.onResult(response);
+                @Override public void handleResponse(ScrollQuerySearchResult response) {
+                    listener.onResult(response.queryResult());
                 }
 
                 @Override public void handleException(RemoteTransportException exp) {
@@ -276,20 +278,20 @@ public class SearchServiceTransportAction extends AbstractComponent {
     public void sendExecuteFetch(DiscoveryNode node, final InternalScrollSearchRequest request, final SearchServiceListener<QueryFetchSearchResult> listener) {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             try {
-                QueryFetchSearchResult result = searchService.executeFetchPhase(request);
-                listener.onResult(result);
+                ScrollQueryFetchSearchResult result = searchService.executeFetchPhase(request);
+                listener.onResult(result.result());
             } catch (Exception e) {
                 listener.onFailure(e);
             }
         } else {
-            transportService.sendRequest(node, SearchQueryFetchScrollTransportHandler.ACTION, request, new BaseTransportResponseHandler<QueryFetchSearchResult>() {
+            transportService.sendRequest(node, SearchQueryFetchScrollTransportHandler.ACTION, request, new BaseTransportResponseHandler<ScrollQueryFetchSearchResult>() {
 
-                @Override public QueryFetchSearchResult newInstance() {
-                    return new QueryFetchSearchResult();
+                @Override public ScrollQueryFetchSearchResult newInstance() {
+                    return new ScrollQueryFetchSearchResult();
                 }
 
-                @Override public void handleResponse(QueryFetchSearchResult response) {
-                    listener.onResult(response);
+                @Override public void handleResponse(ScrollQueryFetchSearchResult response) {
+                    listener.onResult(response.result());
                 }
 
                 @Override public void handleException(RemoteTransportException exp) {
@@ -399,7 +401,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
 
         @Override public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel) throws Exception {
-            QuerySearchResult result = searchService.executeQueryPhase(request);
+            ScrollQuerySearchResult result = searchService.executeQueryPhase(request);
             channel.sendResponse(result);
         }
     }
@@ -455,7 +457,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
 
         @Override public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel) throws Exception {
-            QueryFetchSearchResult result = searchService.executeFetchPhase(request);
+            ScrollQueryFetchSearchResult result = searchService.executeFetchPhase(request);
             channel.sendResponse(result);
         }
     }

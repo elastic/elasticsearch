@@ -55,7 +55,7 @@ import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.store.IndicesStore;
-import org.elasticsearch.plugins.IndicesPluginsModule;
+import org.elasticsearch.plugins.IndexPluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -214,7 +214,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         modules.add(new IndexNameModule(index));
         modules.add(new LocalNodeIdModule(localNodeId));
         modules.add(new IndexSettingsModule(indexSettings));
-        modules.add(new IndicesPluginsModule(indexSettings, pluginsService));
+        modules.add(new IndexPluginsModule(indexSettings, pluginsService));
         modules.add(new IndexStoreModule(indexSettings));
         modules.add(new IndexEngineModule(indexSettings));
         modules.add(new AnalysisModule(indexSettings, indicesAnalysisService));

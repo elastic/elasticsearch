@@ -22,6 +22,7 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.PreProcessModule;
 import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
 
@@ -33,7 +34,7 @@ import static org.elasticsearch.common.inject.Modules.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class ShardsPluginsModule extends AbstractModule implements SpawnModules {
+public class ShardsPluginsModule extends AbstractModule implements SpawnModules, PreProcessModule {
 
     private final Settings settings;
 
@@ -51,6 +52,10 @@ public class ShardsPluginsModule extends AbstractModule implements SpawnModules 
             modules.add(createModule(moduleClass, settings));
         }
         return modules;
+    }
+
+    @Override public void processModule(Module module) {
+        pluginsService.processModule(module);
     }
 
     @Override protected void configure() {

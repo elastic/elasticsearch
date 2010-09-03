@@ -22,6 +22,7 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.PreProcessModule;
 import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
 
@@ -33,13 +34,13 @@ import static org.elasticsearch.common.inject.Modules.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class IndicesPluginsModule extends AbstractModule implements SpawnModules {
+public class IndexPluginsModule extends AbstractModule implements SpawnModules, PreProcessModule {
 
     private final Settings settings;
 
     private final PluginsService pluginsService;
 
-    public IndicesPluginsModule(Settings settings, PluginsService pluginsService) {
+    public IndexPluginsModule(Settings settings, PluginsService pluginsService) {
         this.settings = settings;
         this.pluginsService = pluginsService;
     }
@@ -51,6 +52,10 @@ public class IndicesPluginsModule extends AbstractModule implements SpawnModules
             modules.add(createModule(moduleClass, settings));
         }
         return modules;
+    }
+
+    @Override public void processModule(Module module) {
+        pluginsService.processModule(module);
     }
 
     @Override protected void configure() {

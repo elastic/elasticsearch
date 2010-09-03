@@ -55,9 +55,7 @@ public class PluginsModule extends AbstractModule implements SpawnModules, PrePr
     }
 
     @Override public void processModule(Module module) {
-        for (Plugin plugin : pluginsService.plugins().values()) {
-            plugin.processModule(module);
-        }
+        pluginsService.processModule(module);
     }
 
     @Override protected void configure() {

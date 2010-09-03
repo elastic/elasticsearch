@@ -70,6 +70,18 @@ public class PluginsService extends AbstractComponent {
         return plugins;
     }
 
+    public void processModules(Iterable<Module> modules) {
+        for (Module module : modules) {
+            processModule(module);
+        }
+    }
+
+    public void processModule(Module module) {
+        for (Plugin plugin : plugins().values()) {
+            plugin.processModule(module);
+        }
+    }
+
     public Settings updatedSettings() {
         return this.settings;
     }

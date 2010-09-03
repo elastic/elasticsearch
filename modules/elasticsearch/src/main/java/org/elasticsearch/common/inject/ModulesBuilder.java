@@ -21,12 +21,13 @@ package org.elasticsearch.common.inject;
 
 import org.elasticsearch.common.collect.Lists;
 
+import java.util.Iterator;
 import java.util.List;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class ModulesBuilder {
+public class ModulesBuilder implements Iterable<Module> {
 
     private final List<Module> modules = Lists.newArrayList();
 
@@ -46,6 +47,10 @@ public class ModulesBuilder {
             }
         }
         return this;
+    }
+
+    @Override public Iterator<Module> iterator() {
+        return modules.iterator();
     }
 
     public Injector createInjector() {

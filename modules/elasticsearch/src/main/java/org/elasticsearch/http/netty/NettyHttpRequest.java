@@ -27,7 +27,6 @@ import org.elasticsearch.rest.support.RestUtils;
 
 import java.nio.charset.Charset;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -139,10 +138,6 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
 
     @Override public String header(String name) {
         return request.getHeader(name);
-    }
-
-    @Override public List<String> headers(String name) {
-        return request.getHeaders(name);
     }
 
     @Override public String cookie() {

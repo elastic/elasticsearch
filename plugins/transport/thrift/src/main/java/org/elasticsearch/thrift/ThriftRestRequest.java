@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.memcached;
+package org.elasticsearch.thrift;
 
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.ImmutableSet;
@@ -31,90 +31,55 @@ import java.util.Set;
 /**
  * @author kimchy (shay.banon)
  */
-public class MemcachedRestRequest extends AbstractRestRequest {
+public class ThriftRestRequest extends AbstractRestRequest implements org.elasticsearch.rest.RestRequest {
 
-    private final Method method;
-
-    private final String uri;
-
-    private final byte[] uriBytes;
-
-    private final int dataSize;
-
-    private boolean binary;
-
-    private final Map<String, String> params;
+    private final org.elasticsearch.thrift.RestRequest request;
 
     private final String path;
 
-    private byte[] data;
+    private final Map<String, String> params;
 
-    private int opaque;
+    public ThriftRestRequest(org.elasticsearch.thrift.RestRequest request) {
+        this.request = request;
+        this.params = request.getParams() == null ? new HashMap<String, String>() : request.getParams();
 
-    private boolean quiet;
-
-    public MemcachedRestRequest(Method method, String uri, byte[] uriBytes, int dataSize, boolean binary) {
-        this.method = method;
-        this.uri = uri;
-        this.uriBytes = uriBytes;
-        this.dataSize = dataSize;
-        this.binary = binary;
-        this.params = new HashMap<String, String>();
-        int pathEndPos = uri.indexOf('?');
+        int pathEndPos = request.getUri().indexOf('?');
         if (pathEndPos < 0) {
-            this.path = uri;
+            this.path = request.getUri();
         } else {
-            this.path = uri.substring(0, pathEndPos);
-            RestUtils.decodeQueryString(uri, pathEndPos + 1, params);
+            this.path = request.getUri().substring(0, pathEndPos);
+            RestUtils.decodeQueryString(request.getUri(), pathEndPos + 1, params);
         }
     }
 
     @Override public Method method() {
-        return this.method;
+        switch (request.getMethod()) {
+            case GET:
+                return Method.GET;
+            case POST:
+                return Method.POST;
+            case PUT:
+                return Method.PUT;
+            case DELETE:
+                return Method.DELETE;
+            case HEAD:
+                return Method.HEAD;
+            case OPTIONS:
+                return Method.OPTIONS;
+        }
+        return null;
     }
 
     @Override public String uri() {
-        return this.uri;
+        return request.getUri();
     }
 
     @Override public String path() {
         return this.path;
     }
 
-    public byte[] getUriBytes() {
-        return uriBytes;
-    }
-
-    public boolean isBinary() {
-        return binary;
-    }
-
-    public int getOpaque() {
-        return opaque;
-    }
-
-    public void setOpaque(int opaque) {
-        this.opaque = opaque;
-    }
-
-    public boolean isQuiet() {
-        return quiet;
-    }
-
-    public void setQuiet(boolean quiet) {
-        this.quiet = quiet;
-    }
-
-    public int getDataSize() {
-        return dataSize;
-    }
-
-    public void setData(byte[] data) {
-        this.data = data;
-    }
-
     @Override public boolean hasContent() {
-        return data != null;
+        return request.getBody() != null && request.getBody().remaining() > 0;
     }
 
     @Override public boolean contentUnsafe() {
@@ -122,27 +87,33 @@ public class MemcachedRestRequest extends AbstractRestRequest {
     }
 
     @Override public byte[] contentByteArray() {
-        return data;
+        return request.getBody().array();
     }
 
     @Override public int contentByteArrayOffset() {
-        return 0;
+        return request.getBody().arrayOffset();
     }
 
     @Override public int contentLength() {
-        return dataSize;
+        return request.getBody().remaining();
     }
 
     @Override public String contentAsString() {
-        return Unicode.fromBytes(data);
+        return Unicode.fromBytes(contentByteArray(), contentByteArrayOffset(), contentLength());
     }
 
     @Override public Set<String> headerNames() {
-        return ImmutableSet.of();
+        if (request.getHeaders() == null) {
+            return ImmutableSet.of();
+        }
+        return request.getHeaders().keySet();
     }
 
     @Override public String header(String name) {
-        return null;
+        if (request.getHeaders() == null) {
+            return null;
+        }
+        return request.getHeaders().get(name);
     }
 
     @Override public String cookie() {

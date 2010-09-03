@@ -23,7 +23,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -66,8 +65,6 @@ public interface RestRequest extends ToXContent.Params {
     Set<String> headerNames();
 
     String header(String name);
-
-    List<String> headers(String name);
 
     String cookie();
 

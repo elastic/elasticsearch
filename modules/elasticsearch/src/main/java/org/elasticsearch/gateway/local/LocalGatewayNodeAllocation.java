@@ -21,6 +21,7 @@ package org.elasticsearch.gateway.local;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
@@ -31,6 +32,9 @@ import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
+import org.elasticsearch.common.trove.TObjectIntHashMap;
+import org.elasticsearch.common.trove.TObjectIntIterator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -65,6 +69,8 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
 
     private final TimeValue listTimeout;
 
+    private final String initialShards;
+
     @Inject public LocalGatewayNodeAllocation(Settings settings, IndicesService indicesService,
                                               TransportNodesListGatewayStartedShards listGatewayStartedShards, TransportNodesListShardStoreMetaData listShardStoreMetaData) {
         super(settings);
@@ -73,6 +79,7 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
         this.listShardStoreMetaData = listShardStoreMetaData;
 
         this.listTimeout = componentSettings.getAsTime("list_timeout", TimeValue.timeValueSeconds(30));
+        this.initialShards = componentSettings.get("initial_shards", "quorum");
     }
 
     @Override public void applyStartedShards(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes, List<? extends ShardRouting> startedShards) {
@@ -166,16 +173,21 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
 
                 // make a list of ShardId to Node, each one from the latest version
                 Map<ShardId, Tuple<DiscoveryNode, Long>> shards = Maps.newHashMap();
+                // and a list of the number of shard instances
+                TObjectIntHashMap<ShardId> shardsCounts = new ExtTObjectIntHasMap<ShardId>().defaultReturnValue(-1);
                 for (TransportNodesListGatewayStartedShards.NodeLocalGatewayStartedShards nodeState : nodesState) {
                     if (nodeState.state() == null) {
                         continue;
                     }
                     for (Map.Entry<ShardId, Long> entry : nodeState.state().shards().entrySet()) {
-                        if (entry.getKey().index().name().equals(indexRoutingTable.index())) {
-                            Tuple<DiscoveryNode, Long> t = shards.get(entry.getKey());
+                        ShardId shardId = entry.getKey();
+                        if (shardId.index().name().equals(indexRoutingTable.index())) {
+                            shardsCounts.adjustOrPutValue(shardId, 1, 1);
+
+                            Tuple<DiscoveryNode, Long> t = shards.get(shardId);
                             if (t == null || entry.getValue() > t.v2().longValue()) {
                                 t = new Tuple<DiscoveryNode, Long>(nodeState.node(), entry.getValue());
-                                shards.put(entry.getKey(), t);
+                                shards.put(shardId, t);
                             }
                         }
                     }
@@ -183,25 +195,48 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
 
                 // check if we managed to allocate to all of them, if not, move all relevant shards to ignored
                 if (shards.size() < indexRoutingTable.shards().size()) {
-                    for (Iterator<MutableShardRouting> it = routingNodes.unassigned().iterator(); it.hasNext();) {
-                        MutableShardRouting shardRouting = it.next();
-                        if (shardRouting.index().equals(indexRoutingTable.index())) {
-                            it.remove();
-                            routingNodes.ignoredUnassigned().add(shardRouting);
+                    moveIndexToIgnoreUnassigned(routingNodes, indexRoutingTable);
+                } else {
+                    // check if the counts meets the minimum set
+                    int requiredNumber = 1;
+                    IndexMetaData indexMetaData = routingNodes.metaData().index(indexRoutingTable.index());
+                    if ("quorum".equals(initialShards)) {
+                        if (indexMetaData.numberOfReplicas() > 1) {
+                            requiredNumber = ((1 + indexMetaData.numberOfReplicas()) / 2) + 1;
+                        }
+                    } else if ("full".equals(initialShards)) {
+                        requiredNumber = indexMetaData.numberOfReplicas() + 1;
+                    } else if ("full-1".equals(initialShards)) {
+                        if (indexMetaData.numberOfReplicas() > 1) {
+                            requiredNumber = indexMetaData.numberOfReplicas();
+                        }
+                    } else {
+                        requiredNumber = Integer.parseInt(initialShards);
+                    }
+
+                    boolean allocate = true;
+                    for (TObjectIntIterator<ShardId> it = shardsCounts.iterator(); it.hasNext();) {
+                        it.advance();
+                        if (it.value() < requiredNumber) {
+                            allocate = false;
                         }
                     }
-                } else {
-                    changed = true;
-                    // we found all nodes to allocate to, do the allocation
-                    for (Iterator<MutableShardRouting> it = routingNodes.unassigned().iterator(); it.hasNext();) {
-                        MutableShardRouting shardRouting = it.next();
-                        if (shardRouting.primary()) {
-                            DiscoveryNode node = shards.get(shardRouting.shardId()).v1();
-                            logger.debug("[{}][{}] initial allocation to [{}]", shardRouting.index(), shardRouting.id(), node);
-                            RoutingNode routingNode = routingNodes.node(node.id());
-                            routingNode.add(shardRouting);
-                            it.remove();
+
+                    if (allocate) {
+                        changed = true;
+                        // we found all nodes to allocate to, do the allocation
+                        for (Iterator<MutableShardRouting> it = routingNodes.unassigned().iterator(); it.hasNext();) {
+                            MutableShardRouting shardRouting = it.next();
+                            if (shardRouting.primary()) {
+                                DiscoveryNode node = shards.get(shardRouting.shardId()).v1();
+                                logger.debug("[{}][{}] initial allocation to [{}]", shardRouting.index(), shardRouting.id(), node);
+                                RoutingNode routingNode = routingNodes.node(node.id());
+                                routingNode.add(shardRouting);
+                                it.remove();
+                            }
                         }
+                    } else {
+                        moveIndexToIgnoreUnassigned(routingNodes, indexRoutingTable);
                     }
                 }
             }
@@ -320,6 +355,16 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
         }
 
         return changed;
+    }
+
+    private void moveIndexToIgnoreUnassigned(RoutingNodes routingNodes, IndexRoutingTable indexRoutingTable) {
+        for (Iterator<MutableShardRouting> it = routingNodes.unassigned().iterator(); it.hasNext();) {
+            MutableShardRouting shardRouting = it.next();
+            if (shardRouting.index().equals(indexRoutingTable.index())) {
+                it.remove();
+                routingNodes.ignoredUnassigned().add(shardRouting);
+            }
+        }
     }
 
     private ConcurrentMap<DiscoveryNode, IndexStore.StoreFilesMetaData> buildShardStores(DiscoveryNodes nodes, MutableShardRouting shard) {

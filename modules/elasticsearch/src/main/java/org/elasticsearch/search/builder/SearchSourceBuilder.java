@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.builder;
 
+import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.trove.TObjectFloatHashMap;
@@ -109,6 +110,14 @@ public class SearchSourceBuilder implements ToXContent {
      */
     public SearchSourceBuilder query(byte[] queryBinary) {
         this.queryBinary = queryBinary;
+        return this;
+    }
+
+    /**
+     * Constructs a new search source builder with a raw search query.
+     */
+    public SearchSourceBuilder query(String queryString) {
+        this.queryBinary = Unicode.fromStringAsBytes(queryString);
         return this;
     }
 

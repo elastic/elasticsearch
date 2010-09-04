@@ -26,7 +26,10 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+
+import java.util.Map;
 
 import static org.elasticsearch.cluster.routing.RoutingTable.*;
 
@@ -42,7 +45,16 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
         this.clusterService = clusterService;
     }
 
-    public void updateSettings(final Settings settings, final String[] indices, final Listener listener) {
+    public void updateSettings(final Settings pSettings, final String[] indices, final Listener listener) {
+        ImmutableSettings.Builder updatedSettingsBuilder = ImmutableSettings.settingsBuilder();
+        for (Map.Entry<String, String> entry : pSettings.getAsMap().entrySet()) {
+            if (!entry.getKey().startsWith("index.")) {
+                updatedSettingsBuilder.put("index." + entry.getKey(), entry.getValue());
+            } else {
+                updatedSettingsBuilder.put(entry.getKey(), entry.getValue());
+            }
+        }
+        final Settings settings = updatedSettingsBuilder.build();
         clusterService.submitStateUpdateTask("update-settings", new ClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
                 try {

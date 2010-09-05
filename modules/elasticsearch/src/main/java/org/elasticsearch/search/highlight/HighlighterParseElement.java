@@ -41,7 +41,7 @@ import static org.elasticsearch.common.collect.Lists.*;
  *      field1 : {  },
  *      field2 : { fragment_size : 100, number_of_fragments : 2 },
  *      field3 : { number_of_fragments : 5, order : "simple", tags_schema : "styled" },
- *      field4 : { fragment_type : "content", pre_tags : ["openingTagA", "openingTagB"], post_tags : ["closingTag"] }
+ *      field4 : { number_of_fragments: 0, pre_tags : ["openingTagA", "openingTagB"], post_tags : ["closingTag"] }
  *  }
  * }
  * </pre>

@@ -24,7 +24,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.vectorhighlight.*;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.SearchHit;
@@ -35,10 +34,9 @@ import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Map;
 
-import static org.elasticsearch.common.collect.Maps.newHashMap;
+import static org.elasticsearch.common.collect.Maps.*;
 
 /**
  * @author kimchy (shay.banon)
@@ -57,9 +55,6 @@ public class HighlightPhase implements SearchPhase {
             return;
         }
 
-        Map<Integer,FastVectorHighlighter> highlighterMap = newHashMap();
-        Map<Integer,FieldQuery> fieldQueryMap = newHashMap();
-
         for (SearchHit hit : context.fetchResult().hits().hits()) {
             InternalSearchHit internalHit = (InternalSearchHit) hit;
 
@@ -67,24 +62,23 @@ public class HighlightPhase implements SearchPhase {
             int docId = internalHit.docId();
 
             Map<String, HighlightField> highlightFields = newHashMap();
-            for (SearchContextHighlight.ParsedHighlightField parsedHighlightField : context.highlight().fields()) {
-                String fieldName = parsedHighlightField.field();
-                FieldMapper mapper = documentMapper.mappers().smartNameFieldMapper(parsedHighlightField.field());
+            for (SearchContextHighlight.Field field : context.highlight().fields()) {
+                String fieldName = field.field();
+                FieldMapper mapper = documentMapper.mappers().smartNameFieldMapper(field.field());
                 if (mapper != null) {
                     fieldName = mapper.names().indexName();
                 }
 
-                Tuple<Integer,FastVectorHighlighter> highlighterTuple = getHighlighter(highlighterMap, parsedHighlightField.settings());
-                FastVectorHighlighter highlighter = highlighterTuple.v2();
-                FieldQuery fieldQuery = getFieldQuery(highlighterTuple.v1(), fieldQueryMap, highlighter, context.query(), context.searcher().getIndexReader(), parsedHighlightField.settings());
-                
+                FastVectorHighlighter highlighter = buildHighlighter(field);
+                FieldQuery fieldQuery = buildFieldQuery(highlighter, context.query(), context.searcher().getIndexReader(), field);
+
                 String[] fragments;
                 try {
-                    fragments = highlighter.getBestFragments(fieldQuery, context.searcher().getIndexReader(), docId, fieldName, parsedHighlightField.settings().fragmentCharSize(), parsedHighlightField.settings().numberOfFragments());
+                    fragments = highlighter.getBestFragments(fieldQuery, context.searcher().getIndexReader(), docId, fieldName, field.fragmentCharSize(), field.numberOfFragments());
                 } catch (IOException e) {
-                    throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + parsedHighlightField.field() + "]", e);
+                    throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + field.field() + "]", e);
                 }
-                HighlightField highlightField = new HighlightField(parsedHighlightField.field(), fragments);
+                HighlightField highlightField = new HighlightField(field.field(), fragments);
                 highlightFields.put(highlightField.name(), highlightField);
             }
 
@@ -92,43 +86,27 @@ public class HighlightPhase implements SearchPhase {
         }
     }
 
-    private FieldQuery getFieldQuery(int key, Map<Integer,FieldQuery> fieldQueryMap, FastVectorHighlighter highlighter, Query query, IndexReader indexReader, SearchContextHighlight.ParsedHighlightSettings settings) {
-        FieldQuery fq = fieldQueryMap.get(key);
-        if (fq == null) {
-            CustomFieldQuery.reader.set(indexReader);
-            CustomFieldQuery.highlightFilters.set(settings.highlightFilter());
-            fq = new CustomFieldQuery(query, highlighter);
-            fieldQueryMap.put(key,fq);
-        }
-        return fq;
+    private FieldQuery buildFieldQuery(FastVectorHighlighter highlighter, Query query, IndexReader indexReader, SearchContextHighlight.Field field) {
+        CustomFieldQuery.reader.set(indexReader);
+        CustomFieldQuery.highlightFilters.set(field.highlightFilter());
+        return new CustomFieldQuery(query, highlighter);
     }
 
-    private Tuple<Integer, FastVectorHighlighter> getHighlighter(Map<Integer,FastVectorHighlighter> highlighterMap, SearchContextHighlight.ParsedHighlightSettings settings) {
-
+    private FastVectorHighlighter buildHighlighter(SearchContextHighlight.Field field) {
         FragListBuilder fragListBuilder;
         FragmentsBuilder fragmentsBuilder;
-        if (!settings.fragmentsAllowed()) {
+        if (field.numberOfFragments() == 0) {
             fragListBuilder = new SingleFragListBuilder();
-            fragmentsBuilder = new SimpleFragmentsBuilder(settings.preTags(), settings.postTags());
+            fragmentsBuilder = new SimpleFragmentsBuilder(field.preTags(), field.postTags());
         } else {
             fragListBuilder = new SimpleFragListBuilder();
-            if (settings.scoreOrdered()) {
-                fragmentsBuilder = new ScoreOrderFragmentsBuilder(settings.preTags(), settings.postTags());
+            if (field.scoreOrdered()) {
+                fragmentsBuilder = new ScoreOrderFragmentsBuilder(field.preTags(), field.postTags());
             } else {
-                fragmentsBuilder = new SimpleFragmentsBuilder(settings.preTags(), settings.postTags());
+                fragmentsBuilder = new SimpleFragmentsBuilder(field.preTags(), field.postTags());
             }
         }
 
-        // highlighter key is determined by tags and FragList and Fragment builder classes.
-        String[] mask = Arrays.copyOf(settings.preTags(), settings.preTags().length + settings.postTags().length);
-        System.arraycopy(settings.postTags(), 0, mask, settings.preTags().length, settings.postTags().length);
-        int key = (Arrays.toString(mask)+fragListBuilder.getClass().getSimpleName()+fragmentsBuilder.getClass().getSimpleName()).hashCode();
-
-        FastVectorHighlighter highlighter = highlighterMap.get(key);
-        if (highlighter == null) {
-            highlighter = new FastVectorHighlighter(true, false, fragListBuilder, fragmentsBuilder);
-            highlighterMap.put(key,highlighter);
-        }
-        return Tuple.tuple(key, highlighter);
+        return new FastVectorHighlighter(true, false, fragListBuilder, fragmentsBuilder);
     }
 }

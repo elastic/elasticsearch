@@ -17,18 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.gateway;
+package org.elasticsearch.indexer;
 
-import org.elasticsearch.index.CloseableIndexComponent;
-import org.elasticsearch.index.IndexComponent;
+import org.elasticsearch.ElasticSearchException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface IndexGateway extends IndexComponent, CloseableIndexComponent {
+public class IndexerException extends ElasticSearchException {
 
-    String type();
+    private final IndexerName indexer;
 
-    Class<? extends IndexShardGateway> shardGatewayClass();
+    public IndexerException(IndexerName indexer, String msg) {
+        this(indexer, msg, null);
+    }
 
+    public IndexerException(IndexerName indexer, String msg, Throwable cause) {
+        this(indexer, true, msg, cause);
+    }
+
+    protected IndexerException(IndexerName indexer, boolean withSpace, String msg, Throwable cause) {
+        super("[" + indexer.type() + "][" + indexer.name() + "]" + (withSpace ? " " : "") + msg, cause);
+        this.indexer = indexer;
+    }
+
+    public IndexerName indexerName() {
+        return indexer;
+    }
 }

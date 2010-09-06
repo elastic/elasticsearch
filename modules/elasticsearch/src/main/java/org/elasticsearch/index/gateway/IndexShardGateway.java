@@ -20,7 +20,7 @@
 package org.elasticsearch.index.gateway;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.common.component.CloseableIndexComponent;
+import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.translog.Translog;

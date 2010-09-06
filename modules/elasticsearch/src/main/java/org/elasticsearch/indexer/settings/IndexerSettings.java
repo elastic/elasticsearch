@@ -17,21 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.common.component;
+package org.elasticsearch.indexer.settings;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.inject.BindingAnnotation;
+
+import java.lang.annotation.Documented;
+import java.lang.annotation.Retention;
+import java.lang.annotation.Target;
+
+import static java.lang.annotation.ElementType.*;
+import static java.lang.annotation.RetentionPolicy.*;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface CloseableIndexComponent {
 
-    /**
-     * Closes the index component. A boolean indicating if its part of an actual index
-     * deletion or not is passed.
-     *
-     * @param delete <tt>true</tt> if the index is being deleted.
-     * @throws ElasticSearchException
-     */
-    void close(boolean delete) throws ElasticSearchException;
+@BindingAnnotation
+@Target({FIELD, PARAMETER})
+@Retention(RUNTIME)
+@Documented
+public @interface IndexerSettings {
 }

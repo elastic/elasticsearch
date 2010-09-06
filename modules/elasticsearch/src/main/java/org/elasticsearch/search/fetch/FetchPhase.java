@@ -135,7 +135,7 @@ public class FetchPhase implements SearchPhase {
                 hitField.values().add(value);
             }
 
-            if (context.scriptFields() != null) {
+            if (context.hasScriptFields()) {
                 sameDocCache.clear();
                 int readerIndex = context.searcher().readerIndex(docId);
                 IndexReader subReader = context.searcher().subReaders()[readerIndex];
@@ -203,12 +203,12 @@ public class FetchPhase implements SearchPhase {
     }
 
     private FieldSelector buildFieldSelectors(SearchContext context) {
-        if (context.scriptFields() != null && context.fieldNames() == null) {
+        if (context.hasScriptFields() && !context.hasFieldNames()) {
             // we ask for script fields, and no field names, don't load the source
             return UidFieldSelector.INSTANCE;
         }
 
-        if (context.fieldNames() == null) {
+        if (!context.hasFieldNames()) {
             return new UidAndSourceFieldSelector();
         }
 

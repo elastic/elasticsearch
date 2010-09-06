@@ -19,12 +19,11 @@
 
 package org.elasticsearch.search.fetch;
 
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.field.function.script.ScriptFieldsFunction;
 import org.elasticsearch.search.SearchParseElement;
+import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.internal.SearchContext;
-
-import java.util.ArrayList;
 
 /**
  * @author kimchy (shay.banon)
@@ -34,17 +33,28 @@ public class FieldsParseElement implements SearchParseElement {
     @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.START_ARRAY) {
-            ArrayList<String> fieldNames = new ArrayList<String>();
+            boolean added = false;
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                fieldNames.add(parser.text());
+                added = true;
+                String name = parser.text();
+                if (name.contains("_source.") || name.contains("doc[")) {
+                    // script field to load from source
+                    context.scriptFields().add(new ScriptFieldsContext.ScriptField(name, new ScriptFieldsFunction(name, context.scriptService(), context.mapperService(), context.fieldDataCache()), null));
+                } else {
+                    context.fieldNames().add(name);
+                }
             }
-            if (fieldNames.isEmpty()) {
-                context.fieldNames(ImmutableList.<String>of());
-            } else {
-                context.fieldNames(fieldNames);
+            if (!added) {
+                context.emptyFieldNames();
             }
         } else if (token == XContentParser.Token.VALUE_STRING) {
-            context.fieldNames(ImmutableList.of(parser.text()));
+            String name = parser.text();
+            if (name.contains("_source.") || name.contains("doc[")) {
+                // script field to load from source
+                context.scriptFields().add(new ScriptFieldsContext.ScriptField(name, new ScriptFieldsFunction(name, context.scriptService(), context.mapperService(), context.fieldDataCache()), null));
+            } else {
+                context.fieldNames().add(name);
+            }
         }
     }
 }

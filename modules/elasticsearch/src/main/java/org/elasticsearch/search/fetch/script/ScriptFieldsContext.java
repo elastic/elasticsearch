@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.fetch.script;
 
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.index.field.function.script.ScriptFieldsFunction;
 
 import java.util.List;
@@ -53,10 +54,13 @@ public class ScriptFieldsContext {
         }
     }
 
-    private List<ScriptField> fields;
+    private List<ScriptField> fields = Lists.newArrayList();
 
-    public ScriptFieldsContext(List<ScriptField> fields) {
-        this.fields = fields;
+    public ScriptFieldsContext() {
+    }
+
+    public void add(ScriptField field) {
+        this.fields.add(field);
     }
 
     public List<ScriptField> fields() {

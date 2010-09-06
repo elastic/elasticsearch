@@ -17,18 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.index.gateway;
+package org.elasticsearch.indexer.settings;
 
-import org.elasticsearch.index.CloseableIndexComponent;
-import org.elasticsearch.index.IndexComponent;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface IndexGateway extends IndexComponent, CloseableIndexComponent {
+public class IndexerSettingsModule extends AbstractModule {
 
-    String type();
+    private final Settings settings;
 
-    Class<? extends IndexShardGateway> shardGatewayClass();
+    public IndexerSettingsModule(Settings settings) {
+        this.settings = settings;
+    }
 
+    @Override protected void configure() {
+        bind(Settings.class).annotatedWith(IndexerSettings.class).toInstance(settings);
+    }
 }

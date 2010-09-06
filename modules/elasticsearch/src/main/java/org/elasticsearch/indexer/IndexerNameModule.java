@@ -17,18 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.index.gateway;
+package org.elasticsearch.indexer;
 
-import org.elasticsearch.index.CloseableIndexComponent;
-import org.elasticsearch.index.IndexComponent;
+import org.elasticsearch.common.inject.AbstractModule;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface IndexGateway extends IndexComponent, CloseableIndexComponent {
+public class IndexerNameModule extends AbstractModule {
 
-    String type();
+    private final IndexerName indexerName;
 
-    Class<? extends IndexShardGateway> shardGatewayClass();
+    public IndexerNameModule(IndexerName indexerName) {
+        this.indexerName = indexerName;
+    }
 
+    @Override protected void configure() {
+        bind(IndexerName.class).toInstance(indexerName);
+    }
 }

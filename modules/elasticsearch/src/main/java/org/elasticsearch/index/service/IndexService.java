@@ -21,8 +21,8 @@ package org.elasticsearch.index.service;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.component.CloseableIndexComponent;
 import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.cache.IndexCache;

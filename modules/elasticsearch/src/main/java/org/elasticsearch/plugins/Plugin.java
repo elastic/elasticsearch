@@ -19,9 +19,9 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.common.component.CloseableIndexComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.index.CloseableIndexComponent;
 
 import java.util.Collection;
 

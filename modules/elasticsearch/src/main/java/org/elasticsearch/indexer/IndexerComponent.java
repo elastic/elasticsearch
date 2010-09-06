@@ -17,18 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.index.gateway;
-
-import org.elasticsearch.index.CloseableIndexComponent;
-import org.elasticsearch.index.IndexComponent;
+package org.elasticsearch.indexer;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface IndexGateway extends IndexComponent, CloseableIndexComponent {
+public interface IndexerComponent {
 
-    String type();
-
-    Class<? extends IndexShardGateway> shardGatewayClass();
-
+    IndexerName indexerName();
 }

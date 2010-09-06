@@ -17,18 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.index.gateway;
+package org.elasticsearch.index;
 
-import org.elasticsearch.index.CloseableIndexComponent;
-import org.elasticsearch.index.IndexComponent;
+import org.elasticsearch.ElasticSearchException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public interface IndexGateway extends IndexComponent, CloseableIndexComponent {
+public interface CloseableIndexComponent {
 
-    String type();
-
-    Class<? extends IndexShardGateway> shardGatewayClass();
-
+    /**
+     * Closes the index component. A boolean indicating if its part of an actual index
+     * deletion or not is passed.
+     *
+     * @param delete <tt>true</tt> if the index is being deleted.
+     * @throws ElasticSearchException
+     */
+    void close(boolean delete) throws ElasticSearchException;
 }

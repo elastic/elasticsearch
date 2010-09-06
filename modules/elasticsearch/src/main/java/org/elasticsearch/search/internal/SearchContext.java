@@ -22,6 +22,8 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.timer.Timeout;
 import org.elasticsearch.common.unit.TimeValue;
@@ -198,12 +200,15 @@ public class SearchContext implements Releasable {
         this.highlight = highlight;
     }
 
-    public ScriptFieldsContext scriptFields() {
-        return this.scriptFields;
+    public boolean hasScriptFields() {
+        return scriptFields != null;
     }
 
-    public void scriptFields(ScriptFieldsContext scriptFields) {
-        this.scriptFields = scriptFields;
+    public ScriptFieldsContext scriptFields() {
+        if (scriptFields == null) {
+            scriptFields = new ScriptFieldsContext();
+        }
+        return this.scriptFields;
     }
 
     public ContextIndexSearcher searcher() {
@@ -322,13 +327,19 @@ public class SearchContext implements Releasable {
         return this;
     }
 
+    public boolean hasFieldNames() {
+        return fieldNames != null;
+    }
+
     public List<String> fieldNames() {
+        if (fieldNames == null) {
+            fieldNames = Lists.newArrayList();
+        }
         return fieldNames;
     }
 
-    public SearchContext fieldNames(List<String> fieldNames) {
-        this.fieldNames = fieldNames;
-        return this;
+    public void emptyFieldNames() {
+        this.fieldNames = ImmutableList.of();
     }
 
     public boolean explain() {

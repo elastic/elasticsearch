@@ -126,13 +126,18 @@ public class ScriptFieldSearchTests extends AbstractNodesTests {
 
         SearchResponse response = client.prepareSearch()
                 .setQuery(matchAllQuery())
+                .addField("_source.obj1") // we also automatically detect _source in fields
                 .addScriptField("s_obj1", "_source.obj1")
                 .addScriptField("s_obj1_test", "_source.obj1.test")
                 .addScriptField("s_obj2", "_source.obj2")
                 .addScriptField("s_obj2_arr2", "_source.obj2.arr2")
                 .execute().actionGet();
 
-        Map<String, Object> sObj1 = (Map<String, Object>) response.hits().getAt(0).field("s_obj1").value();
+        Map<String, Object> sObj1 = (Map<String, Object>) response.hits().getAt(0).field("_source.obj1").value();
+        assertThat(sObj1.get("test").toString(), equalTo("something"));
+        assertThat(response.hits().getAt(0).field("s_obj1_test").value().toString(), equalTo("something"));
+
+        sObj1 = (Map<String, Object>) response.hits().getAt(0).field("s_obj1").value();
         assertThat(sObj1.get("test").toString(), equalTo("something"));
         assertThat(response.hits().getAt(0).field("s_obj1_test").value().toString(), equalTo("something"));
 

@@ -19,14 +19,11 @@
 
 package org.elasticsearch.search.fetch.script;
 
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.field.function.script.ScriptFieldsFunction;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -48,7 +45,6 @@ public class ScriptFieldsParseElement implements SearchParseElement {
     @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
         XContentParser.Token token;
         String currentFieldName = null;
-        List<ScriptFieldsContext.ScriptField> scriptFields = Lists.newArrayList();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -65,11 +61,8 @@ public class ScriptFieldsParseElement implements SearchParseElement {
                         script = parser.text();
                     }
                 }
-                scriptFields.add(new ScriptFieldsContext.ScriptField(fieldName,
-                        new ScriptFieldsFunction(script, context.scriptService(), context.mapperService(), context.fieldDataCache()),
-                        params == null ? new HashMap<String, Object>() : params));
+                context.scriptFields().add(new ScriptFieldsContext.ScriptField(fieldName, new ScriptFieldsFunction(script, context.scriptService(), context.mapperService(), context.fieldDataCache()), params));
             }
         }
-        context.scriptFields(new ScriptFieldsContext(scriptFields));
     }
 }

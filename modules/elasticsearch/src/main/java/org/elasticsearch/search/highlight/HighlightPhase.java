@@ -98,6 +98,8 @@ public class HighlightPhase implements SearchPhase {
         if (field.numberOfFragments() == 0) {
             fragListBuilder = new SingleFragListBuilder();
             fragmentsBuilder = new SimpleFragmentsBuilder(field.preTags(), field.postTags());
+            // a HACK to make highlighter do highlighting, even though its using the single frag list builder
+            field.numberOfFragments(1);
         } else {
             fragListBuilder = new SimpleFragListBuilder();
             if (field.scoreOrdered()) {

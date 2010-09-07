@@ -386,19 +386,24 @@ public class XContentObjectMapper implements XContentMapper, XContentIncludeInAl
     }
 
     private void serializeArray(ParseContext context, String lastFieldName) throws IOException {
-        XContentParser parser = context.parser();
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            if (token == XContentParser.Token.START_OBJECT) {
-                serializeObject(context, lastFieldName);
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                serializeArray(context, lastFieldName);
-            } else if (token == XContentParser.Token.FIELD_NAME) {
-                lastFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.VALUE_NULL) {
-                serializeNullValue(context, lastFieldName);
-            } else {
-                serializeValue(context, lastFieldName, token);
+        XContentMapper mapper = mappers.get(lastFieldName);
+        if (mapper != null && mapper instanceof XContentArrayValueMapperParser) {
+            mapper.parse(context);
+        } else {
+            XContentParser parser = context.parser();
+            XContentParser.Token token;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                if (token == XContentParser.Token.START_OBJECT) {
+                    serializeObject(context, lastFieldName);
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    serializeArray(context, lastFieldName);
+                } else if (token == XContentParser.Token.FIELD_NAME) {
+                    lastFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.VALUE_NULL) {
+                    serializeNullValue(context, lastFieldName);
+                } else {
+                    serializeValue(context, lastFieldName, token);
+                }
             }
         }
     }

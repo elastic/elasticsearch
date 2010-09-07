@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.xcontent;
 
+import org.apache.lucene.document.Field;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.geo.GeoHashUtils;
@@ -62,6 +63,7 @@ public class XContentGeoPointFieldMapper implements XContentMapper {
 
     public static class Defaults {
         public static final ContentPath.Type PATH_TYPE = ContentPath.Type.FULL;
+        public static final Field.Store STORE = Field.Store.NO;
     }
 
     public static class Builder extends XContentMapper.Builder<Builder, XContentGeoPointFieldMapper> {
@@ -77,6 +79,8 @@ public class XContentGeoPointFieldMapper implements XContentMapper {
         private Integer precisionStep;
 
         private int geohashPrecision = GeoHashUtils.PRECISION;
+
+        private Field.Store store = Defaults.STORE;
 
         public Builder(String name) {
             super(name);
@@ -113,6 +117,11 @@ public class XContentGeoPointFieldMapper implements XContentMapper {
             return this;
         }
 
+        public Builder store(Field.Store store) {
+            this.store = store;
+            return this;
+        }
+
         @Override public XContentGeoPointFieldMapper build(BuilderContext context) {
             ContentPath.Type origPathType = context.path().pathType();
             context.path().pathType(pathType);
@@ -138,8 +147,8 @@ public class XContentGeoPointFieldMapper implements XContentMapper {
                     latMapperBuilder.precisionStep(precisionStep);
                     lonMapperBuilder.precisionStep(precisionStep);
                 }
-                latMapper = (XContentNumberFieldMapper) latMapperBuilder.includeInAll(false).build(context);
-                lonMapper = (XContentNumberFieldMapper) lonMapperBuilder.includeInAll(false).build(context);
+                latMapper = (XContentNumberFieldMapper) latMapperBuilder.includeInAll(false).store(store).build(context);
+                lonMapper = (XContentNumberFieldMapper) lonMapperBuilder.includeInAll(false).store(store).build(context);
             }
             if (enableGeohash) {
                 geohashMapper = stringField(Names.GEOHASH).includeInAll(false).build(context);
@@ -161,6 +170,8 @@ public class XContentGeoPointFieldMapper implements XContentMapper {
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("path")) {
                     builder.pathType(parsePathType(name, fieldNode.toString()));
+                } else if (fieldName.equals("store")) {
+                    builder.store(parseStore(name, fieldNode.toString()));
                 } else if (fieldName.equals("lat_lon")) {
                     builder.enableLatLon(XContentMapValues.nodeBooleanValue(fieldNode));
                 } else if (fieldName.equals("geohash")) {
@@ -330,6 +341,7 @@ public class XContentGeoPointFieldMapper implements XContentMapper {
         builder.field("lat_lon", enableLatLon);
         builder.field("geohash", enableGeohash);
         builder.field("resolution", resolution);
+        builder.field("store", latMapper.name().toLowerCase());
         builder.field("geohash_precision", geohashPrecision);
         if (precisionStep != null) {
             builder.field("precision_step", precisionStep);

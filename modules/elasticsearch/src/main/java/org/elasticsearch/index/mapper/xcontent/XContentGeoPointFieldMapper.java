@@ -221,6 +221,7 @@ public class XContentGeoPointFieldMapper implements XContentMapper {
         context.path().pathType(pathType);
         context.path().add(name);
 
+        boolean added = false;
         XContentParser.Token token = context.parser().currentToken();
         if (token == XContentParser.Token.VALUE_STRING) {
             String value = context.parser().text();
@@ -228,9 +229,11 @@ public class XContentGeoPointFieldMapper implements XContentMapper {
             if (comma != -1) {
                 double lat = Double.parseDouble(value.substring(0, comma).trim());
                 double lon = Double.parseDouble(value.substring(comma + 1).trim());
+                added = true;
                 parseLatLon(context, lat, lon);
             } else {
                 // geo hash
+                added = true;
                 parseGeohash(context, value);
             }
         } else if (token == XContentParser.Token.START_OBJECT) {
@@ -252,8 +255,10 @@ public class XContentGeoPointFieldMapper implements XContentMapper {
                 }
             }
             if (geohash != null) {
+                added = true;
                 parseGeohash(context, geohash);
             } else if (lat != null && lon != null) {
+                added = true;
                 parseLatLon(context, lat, lon);
             }
         } else if (token == XContentParser.Token.START_ARRAY) {
@@ -265,7 +270,12 @@ public class XContentGeoPointFieldMapper implements XContentMapper {
             while ((token = context.parser().nextToken()) != XContentParser.Token.END_ARRAY) {
 
             }
+            added = true;
             parseLatLon(context, lat, lon);
+        }
+
+        if (!added) {
+            throw new MapperParsingException("failed to find location values for [" + name + "]");
         }
 
         context.path().remove();

@@ -365,7 +365,11 @@ public class XContentGeoPointFieldMapper implements XContentMapper, XContentArra
         builder.field("lat_lon", enableLatLon);
         builder.field("geohash", enableGeohash);
         builder.field("resolution", resolution);
-        builder.field("store", latMapper.name().toLowerCase());
+        if (latMapper != null) {
+            builder.field("store", latMapper.store().name().toLowerCase());
+        } else if (geohashMapper != null) {
+            builder.field("store", geohashMapper.store().name().toLowerCase());
+        }
         builder.field("geohash_precision", geohashPrecision);
         if (precisionStep != null) {
             builder.field("precision_step", precisionStep);

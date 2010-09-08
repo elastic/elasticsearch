@@ -40,6 +40,8 @@ import static org.elasticsearch.common.collect.Lists.*;
  */
 public class Loggers {
 
+    private final static String commonPrefix = System.getProperty("es.logger.prefix", "");
+
     public static final String SPACE = " ";
 
     private static boolean consoleLoggingEnabled = true;
@@ -152,6 +154,6 @@ public class Loggers {
         if (name.startsWith("org.elasticsearch.")) {
             return name.substring("org.elasticsearch.".length());
         }
-        return name;
+        return commonPrefix + name;
     }
 }

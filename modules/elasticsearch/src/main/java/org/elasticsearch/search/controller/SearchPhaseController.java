@@ -101,8 +101,8 @@ public class SearchPhaseController {
                         break;
                     }
                 }
-                if (!resolvedField && allValuesAreNull) {
-                    // we did not manage to resolve a field, and all the fields are null (which can only happen for STRING), make it a STRING
+                if (!resolvedField && allValuesAreNull && fieldDocs.fields[i].getField() != null) {
+                    // we did not manage to resolve a field (and its not score or doc, which have no field), and all the fields are null (which can only happen for STRING), make it a STRING
                     fieldDocs.fields[i] = new SortField(fieldDocs.fields[i].getField(), SortField.STRING, fieldDocs.fields[i].getReverse());
                 }
             }

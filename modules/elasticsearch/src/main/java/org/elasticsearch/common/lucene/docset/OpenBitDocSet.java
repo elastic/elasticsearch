@@ -26,7 +26,7 @@ import org.apache.lucene.util.OpenBitSetDISI;
 import java.io.IOException;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class OpenBitDocSet extends DocSet {
 
@@ -45,7 +45,7 @@ public class OpenBitDocSet extends DocSet {
     }
 
     @Override public boolean get(int doc) throws IOException {
-        return set.get(doc);
+        return set.fastGet(doc);
     }
 
     @Override public DocIdSetIterator iterator() throws IOException {

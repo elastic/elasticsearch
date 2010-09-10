@@ -32,7 +32,7 @@ public class QueryParseElement implements SearchParseElement {
 
     @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
         XContentIndexQueryParser indexQueryParser = (XContentIndexQueryParser) context.queryParser();
-        Query query = indexQueryParser.parse(parser);
+        Query query = indexQueryParser.parse(parser).query();
         context.query(query);
     }
 }

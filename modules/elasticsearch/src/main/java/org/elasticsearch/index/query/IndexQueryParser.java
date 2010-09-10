@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.index.IndexComponent;
 
@@ -30,11 +29,11 @@ public interface IndexQueryParser extends IndexComponent {
 
     String name();
 
-    Query parse(byte[] source) throws ElasticSearchException;
+    ParsedQuery parse(byte[] source) throws ElasticSearchException;
 
-    Query parse(byte[] source, int offset, int length) throws ElasticSearchException;
+    ParsedQuery parse(byte[] source, int offset, int length) throws ElasticSearchException;
 
-    Query parse(String source) throws ElasticSearchException;
+    ParsedQuery parse(String source) throws ElasticSearchException;
 
-    Query parse(QueryBuilder queryBuilder) throws ElasticSearchException;
+    ParsedQuery parse(QueryBuilder queryBuilder) throws ElasticSearchException;
 }

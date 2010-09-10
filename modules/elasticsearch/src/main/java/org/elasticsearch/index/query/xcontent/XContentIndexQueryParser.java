@@ -36,6 +36,7 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParser;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -134,7 +135,7 @@ public class XContentIndexQueryParser extends AbstractIndexComponent implements 
         return this.queryParserRegistry;
     }
 
-    @Override public Query parse(QueryBuilder queryBuilder) throws ElasticSearchException {
+    @Override public ParsedQuery parse(QueryBuilder queryBuilder) throws ElasticSearchException {
         XContentParser parser = null;
         try {
             FastByteArrayOutputStream unsafeBytes = queryBuilder.buildAsUnsafeBytes();
@@ -151,11 +152,11 @@ public class XContentIndexQueryParser extends AbstractIndexComponent implements 
         }
     }
 
-    @Override public Query parse(byte[] source) throws ElasticSearchException {
+    @Override public ParsedQuery parse(byte[] source) throws ElasticSearchException {
         return parse(source, 0, source.length);
     }
 
-    @Override public Query parse(byte[] source, int offset, int length) throws ElasticSearchException {
+    @Override public ParsedQuery parse(byte[] source, int offset, int length) throws ElasticSearchException {
         XContentParser parser = null;
         try {
             parser = XContentFactory.xContent(source, offset, length).createParser(source, offset, length);
@@ -171,7 +172,7 @@ public class XContentIndexQueryParser extends AbstractIndexComponent implements 
         }
     }
 
-    @Override public Query parse(String source) throws QueryParsingException {
+    @Override public ParsedQuery parse(String source) throws QueryParsingException {
         XContentParser parser = null;
         try {
             parser = XContentFactory.xContent(source).createParser(source);
@@ -187,7 +188,7 @@ public class XContentIndexQueryParser extends AbstractIndexComponent implements 
         }
     }
 
-    public Query parse(XContentParser parser) {
+    public ParsedQuery parse(XContentParser parser) {
         try {
             return parse(cache.get().get(), parser);
         } catch (IOException e) {
@@ -207,8 +208,8 @@ public class XContentIndexQueryParser extends AbstractIndexComponent implements 
         return context.parseInnerQuery();
     }
 
-    private Query parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
+    private ParsedQuery parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
         parseContext.reset(parser);
-        return parseContext.parseInnerQuery();
+        return new ParsedQuery(parseContext.parseInnerQuery());
     }
 }

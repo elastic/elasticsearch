@@ -42,7 +42,7 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.*;
  */
 public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComponent implements FilterCache {
 
-    private final ConcurrentMap<Object, ConcurrentMap<Filter, DocSet>> cache;
+    final ConcurrentMap<Object, ConcurrentMap<Filter, DocSet>> cache;
 
     protected AbstractConcurrentMapFilterCache(Index index, @IndexSettings Settings indexSettings,
                                                ConcurrentMap<Object, ConcurrentMap<Filter, DocSet>> cache) {
@@ -83,7 +83,10 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
     }
 
     @Override public Filter cache(Filter filterToCache) {
-        return new FilterCacheFilterWrapper(filterToCache);
+        if (isCached(filterToCache)) {
+            return filterToCache;
+        }
+        return new FilterCacheFilterWrapper(filterToCache, this);
     }
 
     @Override public boolean isCached(Filter filter) {
@@ -98,19 +101,22 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
     // and not use the DeletableConstantScoreQuery, instead pass the DeletesMode enum to the cache method
     // see: https://issues.apache.org/jira/browse/LUCENE-2468
 
-    private class FilterCacheFilterWrapper extends Filter {
+    static class FilterCacheFilterWrapper extends Filter {
 
         private final Filter filter;
 
-        private FilterCacheFilterWrapper(Filter filter) {
+        private final AbstractConcurrentMapFilterCache cache;
+
+        FilterCacheFilterWrapper(Filter filter, AbstractConcurrentMapFilterCache cache) {
             this.filter = filter;
+            this.cache = cache;
         }
 
         @Override public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-            ConcurrentMap<Filter, DocSet> cachedFilters = cache.get(reader.getFieldCacheKey());
+            ConcurrentMap<Filter, DocSet> cachedFilters = cache.cache.get(reader.getFieldCacheKey());
             if (cachedFilters == null) {
-                cachedFilters = buildFilterMap();
-                cache.putIfAbsent(reader.getFieldCacheKey(), cachedFilters);
+                cachedFilters = cache.buildFilterMap();
+                cache.cache.putIfAbsent(reader.getFieldCacheKey(), cachedFilters);
             }
             DocSet docSet = cachedFilters.get(filter);
             if (docSet != null) {

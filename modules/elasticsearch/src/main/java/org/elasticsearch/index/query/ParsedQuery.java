@@ -17,25 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.search.query;
+package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
-import org.elasticsearch.search.SearchParseElement;
-import org.elasticsearch.search.internal.SearchContext;
 
 /**
+ * The result of parsing a query.
+ *
  * @author kimchy (shay.banon)
  */
-public class QueryBinaryParseElement implements SearchParseElement {
+public class ParsedQuery {
 
-    @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
-        XContentIndexQueryParser indexQueryParser = (XContentIndexQueryParser) context.queryParser();
-        byte[] querySource = parser.binaryValue();
-        XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource);
-        Query query = indexQueryParser.parse(qSourceParser).query();
-        context.query(query);
+    private final Query query;
+
+    public ParsedQuery(Query query) {
+        this.query = query;
+    }
+
+    /**
+     * The query parsed.
+     */
+    public Query query() {
+        return this.query;
     }
 }

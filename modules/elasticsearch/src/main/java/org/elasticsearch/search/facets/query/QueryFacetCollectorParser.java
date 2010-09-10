@@ -39,7 +39,7 @@ public class QueryFacetCollectorParser implements FacetCollectorParser {
 
     @Override public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) {
         XContentIndexQueryParser indexQueryParser = (XContentIndexQueryParser) context.queryParser();
-        Query facetQuery = indexQueryParser.parse(parser);
+        Query facetQuery = indexQueryParser.parse(parser).query();
         return new QueryFacetCollector(facetName, facetQuery, context.filterCache());
     }
 }

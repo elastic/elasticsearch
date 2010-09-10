@@ -75,6 +75,7 @@ public class GeoBoundingBoxFilter extends Filter {
         final NumericFieldData latFieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, latFieldName);
         final NumericFieldData lonFieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, lonFieldName);
 
+        //checks to see if bounding box crosses 180 degrees
         if (topLeft.lon > bottomRight.lon) {
             return new GetDocSet(reader.maxDoc()) {
                 @Override public boolean get(int doc) throws IOException {
@@ -86,17 +87,33 @@ public class GeoBoundingBoxFilter extends Filter {
                         double[] lats = latFieldData.doubleValues(doc);
                         double[] lons = latFieldData.doubleValues(doc);
                         for (int i = 0; i < lats.length; i++) {
-                            if (topLeft.lon >= lons[i] && bottomRight.lon <= lons[i]
-                                    && topLeft.lat >= lats[i] && bottomRight.lat <= lats[i]) {
-                                return true;
+                            double lat = lats[i];
+                            double lon = lons[i];
+                            if (lon < 0) {
+                                if (-180.0 <= lon && bottomRight.lon >= lon
+                                        && topLeft.lat >= lat && bottomRight.lat <= lat) {
+                                    return true;
+                                }
+                            } else {
+                                if (topLeft.lon <= lon && 180 >= lon
+                                        && topLeft.lat >= lat && bottomRight.lat <= lat) {
+                                    return true;
+                                }
                             }
                         }
                     } else {
                         double lat = latFieldData.doubleValue(doc);
                         double lon = lonFieldData.doubleValue(doc);
-                        if (topLeft.lon >= lon && bottomRight.lon <= lon
-                                && topLeft.lat >= lat && bottomRight.lat <= lat) {
-                            return true;
+                        if (lon < 0) {
+                            if (-180.0 <= lon && bottomRight.lon >= lon
+                                    && topLeft.lat >= lat && bottomRight.lat <= lat) {
+                                return true;
+                            }
+                        } else {
+                            if (topLeft.lon <= lon && 180 >= lon
+                                    && topLeft.lat >= lat && bottomRight.lat <= lat) {
+                                return true;
+                            }
                         }
                     }
                     return false;

@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParser;
 import org.elasticsearch.index.query.IndexQueryParserMissingException;
 import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -94,7 +95,7 @@ public class SearchContext implements Releasable {
 
     private String queryParserName;
 
-    private Query originalQuery;
+    private ParsedQuery originalQuery;
 
     private Query query;
 
@@ -272,17 +273,14 @@ public class SearchContext implements Releasable {
         return this;
     }
 
-    public SearchContext query(Query query) {
+    public SearchContext parsedQuery(ParsedQuery query) {
         queryRewritten = false;
         this.originalQuery = query;
-        this.query = query;
+        this.query = query.query();
         return this;
     }
 
-    /**
-     * The original query to execute, unmodified.
-     */
-    public Query originalQuery() {
+    public ParsedQuery parsedQuery() {
         return this.originalQuery;
     }
 

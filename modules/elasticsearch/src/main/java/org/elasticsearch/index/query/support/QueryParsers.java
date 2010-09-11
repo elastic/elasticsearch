@@ -19,7 +19,11 @@
 
 package org.elasticsearch.index.query.support;
 
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.xcontent.QueryParseContext;
@@ -56,12 +60,6 @@ public final class QueryParsers {
             return filter;
         }
         DocumentMapper docMapper = smartFieldMappers.docMapper();
-        BooleanFilter booleanFilter = new BooleanFilter();
-
-        booleanFilter.add(new FilterClause(parseContext.cacheFilterIfPossible(docMapper.typeFilter()), BooleanClause.Occur.MUST));
-        booleanFilter.add(new FilterClause(filter, BooleanClause.Occur.MUST));
-
-        // don't cache the boolean filter...
-        return booleanFilter;
+        return new AndFilter(ImmutableList.of(parseContext.cacheFilterIfPossible(docMapper.typeFilter()), filter));
     }
 }

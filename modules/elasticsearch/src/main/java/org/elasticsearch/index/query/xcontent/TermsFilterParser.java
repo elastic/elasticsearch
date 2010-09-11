@@ -55,38 +55,46 @@ public class TermsFilterParser extends AbstractIndexComponent implements XConten
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        XContentParser.Token token = parser.nextToken();
-        assert token == XContentParser.Token.FIELD_NAME;
-        String fieldName = parser.currentName();
-
-        FieldMapper fieldMapper = null;
-        MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null) {
-            if (smartNameFieldMappers.hasMapper()) {
-                fieldMapper = smartNameFieldMappers.mapper();
-                fieldName = fieldMapper.names().indexName();
-            }
-        }
-
-        token = parser.nextToken();
-        if (token != XContentParser.Token.START_ARRAY) {
-            throw new QueryParsingException(index, "Terms filter must define the terms to filter on as an array");
-        }
-
+        MapperService.SmartNameFieldMappers smartNameFieldMappers = null;
         TermsFilter termsFilter = new PublicTermsFilter();
-        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            String value = parser.text();
-            if (value == null) {
-                throw new QueryParsingException(index, "No value specified for term filter");
+        String filterName = null;
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                String fieldName = currentFieldName;
+                FieldMapper fieldMapper = null;
+                smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
+                if (smartNameFieldMappers != null) {
+                    if (smartNameFieldMappers.hasMapper()) {
+                        fieldMapper = smartNameFieldMappers.mapper();
+                        fieldName = fieldMapper.names().indexName();
+                    }
+                }
+
+                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    String value = parser.text();
+                    if (value == null) {
+                        throw new QueryParsingException(index, "No value specified for term filter");
+                    }
+                    if (fieldMapper != null) {
+                        value = fieldMapper.indexedValue(value);
+                    }
+                    termsFilter.addTerm(new Term(fieldName, value));
+                }
+            } else if (token.isValue()) {
+                if ("_name".equals(currentFieldName)) {
+                    filterName = parser.text();
+                }
             }
-            if (fieldMapper != null) {
-                value = fieldMapper.indexedValue(value);
-            }
-            termsFilter.addTerm(new Term(fieldName, value));
         }
-        parser.nextToken();
 
-
-        return wrapSmartNameFilter(termsFilter, smartNameFieldMappers, parseContext);
+        Filter filter = wrapSmartNameFilter(termsFilter, smartNameFieldMappers, parseContext);
+        if (filterName != null) {
+            parseContext.addNamedFilter(filterName, filter);
+        }
+        return filter;
     }
 }

@@ -40,6 +40,8 @@ public class RangeFilterBuilder extends BaseFilterBuilder {
 
     private boolean includeUpper = true;
 
+    private String filterName;
+
     /**
      * A filter that restricts search results to values that are within the given range.
      *
@@ -325,14 +327,25 @@ public class RangeFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    public RangeFilterBuilder filterName(String filterName) {
+        this.filterName = filterName;
+        return this;
+    }
+
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(RangeFilterParser.NAME);
+
         builder.startObject(name);
         builder.field("from", from);
         builder.field("to", to);
         builder.field("include_lower", includeLower);
         builder.field("include_upper", includeUpper);
         builder.endObject();
+
+        if (filterName != null) {
+            builder.field("_name", filterName);
+        }
+
         builder.endObject();
     }
 }

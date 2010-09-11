@@ -34,6 +34,8 @@ public class TermsFilterBuilder extends BaseFilterBuilder {
 
     private final Object[] values;
 
+    private String filterName;
+
     /**
      * A filer for a field based on several terms matching on any of them.
      *
@@ -111,6 +113,11 @@ public class TermsFilterBuilder extends BaseFilterBuilder {
         this.values = values;
     }
 
+    public TermsFilterBuilder filterName(String filterName) {
+        this.filterName = filterName;
+        return this;
+    }
+
     @Override public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(TermsFilterParser.NAME);
         builder.startArray(name);
@@ -118,6 +125,11 @@ public class TermsFilterBuilder extends BaseFilterBuilder {
             builder.value(value);
         }
         builder.endArray();
+
+        if (filterName != null) {
+            builder.field("_name", filterName);
+        }
+
         builder.endObject();
     }
 }

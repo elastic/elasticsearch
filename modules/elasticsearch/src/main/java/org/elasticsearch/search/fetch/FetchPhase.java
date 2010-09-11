@@ -23,8 +23,12 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldSelector;
 import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.search.SearchHitField;
@@ -41,6 +45,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -157,6 +162,27 @@ public class FetchPhase implements SearchPhase {
                     hitField.values().add(value);
                 }
                 sameDocCache.clear();
+            }
+
+            if (!context.parsedQuery().namedFilters().isEmpty()) {
+                int readerIndex = context.searcher().readerIndex(docId);
+                IndexReader subReader = context.searcher().subReaders()[readerIndex];
+                int subDoc = docId - context.searcher().docStarts()[readerIndex];
+                List<String> matchedFilters = Lists.newArrayListWithCapacity(2);
+                for (Map.Entry<String, Filter> entry : context.parsedQuery().namedFilters().entrySet()) {
+                    String name = entry.getKey();
+                    Filter filter = entry.getValue();
+                    filter = context.filterCache().cache(filter);
+                    try {
+                        DocIdSet docIdSet = filter.getDocIdSet(subReader);
+                        if (docIdSet instanceof DocSet && ((DocSet) docIdSet).get(subDoc)) {
+                            matchedFilters.add(name);
+                        }
+                    } catch (IOException e) {
+                        // ignore
+                    }
+                }
+                searchHit.matchedFilters(matchedFilters.toArray(new String[matchedFilters.size()]));
             }
 
             doExplanation(context, docId, searchHit);

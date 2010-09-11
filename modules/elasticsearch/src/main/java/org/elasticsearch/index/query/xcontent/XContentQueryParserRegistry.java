@@ -90,6 +90,7 @@ public class XContentQueryParserRegistry {
         add(filterParsersMap, new GeoBoundingBoxFilterParser(index, indexSettings));
         add(filterParsersMap, new GeoPolygonFilterParser(index, indexSettings));
         add(filterParsersMap, new QueryFilterParser(index, indexSettings));
+        add(filterParsersMap, new FQueryFilterParser(index, indexSettings));
         add(filterParsersMap, new BoolFilterParser(index, indexSettings));
         add(filterParsersMap, new AndFilterParser(index, indexSettings));
         add(filterParsersMap, new OrFilterParser(index, indexSettings));

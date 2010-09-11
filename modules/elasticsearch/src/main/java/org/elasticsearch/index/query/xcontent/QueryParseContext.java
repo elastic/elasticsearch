@@ -22,6 +22,8 @@ package org.elasticsearch.index.query.xcontent;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Similarity;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.IndexCache;
@@ -35,6 +37,7 @@ import org.elasticsearch.script.ScriptService;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
@@ -55,6 +58,8 @@ public class QueryParseContext {
 
     private final XContentQueryParserRegistry queryParserRegistry;
 
+    private final Map<String, Filter> namedFilters = Maps.newHashMap();
+
     private XContentParser parser;
 
     public QueryParseContext(Index index, XContentQueryParserRegistry queryParserRegistry,
@@ -72,6 +77,7 @@ public class QueryParseContext {
 
     public void reset(XContentParser jp) {
         this.parser = jp;
+        this.namedFilters.clear();
     }
 
     public XContentParser parser() {
@@ -104,6 +110,17 @@ public class QueryParseContext {
 
     public Filter cacheFilterIfPossible(Filter filter) {
         return indexCache.filter().cache(filter);
+    }
+
+    public void addNamedFilter(String name, Filter filter) {
+        namedFilters.put(name, filter);
+    }
+
+    public ImmutableMap<String, Filter> copyNamedFilters() {
+        if (namedFilters.isEmpty()) {
+            return ImmutableMap.of();
+        }
+        return ImmutableMap.copyOf(namedFilters);
     }
 
     public Query parseInnerQuery() throws IOException, QueryParsingException {

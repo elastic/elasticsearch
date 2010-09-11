@@ -35,6 +35,8 @@ public class ScriptFilterBuilder extends BaseFilterBuilder {
 
     private Map<String, Object> params;
 
+    private String filterName;
+
     public ScriptFilterBuilder(String script) {
         this.script = script;
     }
@@ -56,11 +58,19 @@ public class ScriptFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    public ScriptFilterBuilder filterName(String filterName) {
+        this.filterName = filterName;
+        return this;
+    }
+
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(ScriptFilterParser.NAME);
         builder.field("script", script);
         if (this.params != null) {
             builder.field("params", this.params);
+        }
+        if (filterName != null) {
+            builder.field("_name", filterName);
         }
         builder.endObject();
     }

@@ -40,6 +40,8 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
 
     private String bottomRightGeohash;
 
+    private String filterName;
+
     public GeoBoundingBoxFilterBuilder(String name) {
         this.name = name;
     }
@@ -68,6 +70,14 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    /**
+     * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public GeoBoundingBoxFilterBuilder filterName(String filterName) {
+        this.filterName = filterName;
+        return this;
+    }
+
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(GeoBoundingBoxFilterParser.NAME);
 
@@ -88,6 +98,10 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
             throw new QueryBuilderException("geo_bounding_box requires 'bottom_right' to be set");
         }
         builder.endObject();
+
+        if (filterName != null) {
+            builder.field("_name", filterName);
+        }
 
         builder.endObject();
     }

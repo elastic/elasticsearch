@@ -56,6 +56,7 @@ public class AndFilterParser extends AbstractIndexComponent implements XContentF
 
         boolean cache = true;
 
+        String filterName = null;
         String currentFieldName = null;
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.START_ARRAY) {
@@ -77,8 +78,10 @@ public class AndFilterParser extends AbstractIndexComponent implements XContentF
                         }
                     }
                 } else if (token.isValue()) {
-                    if ("cache".equals(currentFieldName)) {
+                    if ("_cache".equals(currentFieldName)) {
                         cache = parser.booleanValue();
+                    } else if ("_name".equals(currentFieldName)) {
+                        filterName = parser.text();
                     }
                 }
             }
@@ -94,6 +97,10 @@ public class AndFilterParser extends AbstractIndexComponent implements XContentF
             }
         }
         // no need to cache this one
-        return new AndFilter(filters);
+        AndFilter filter = new AndFilter(filters);
+        if (filterName != null) {
+            parseContext.addNamedFilter(filterName, filter);
+        }
+        return filter;
     }
 }

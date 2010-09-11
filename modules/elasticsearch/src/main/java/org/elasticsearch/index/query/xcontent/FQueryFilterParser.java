@@ -19,30 +19,27 @@
 
 package org.elasticsearch.index.query.xcontent;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.PrefixFilter;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.support.QueryParsers.*;
-
 /**
  * @author kimchy (shay.banon)
  */
-public class PrefixFilterParser extends AbstractIndexComponent implements XContentFilterParser {
+public class FQueryFilterParser extends AbstractIndexComponent implements XContentFilterParser {
 
-    public static final String NAME = "prefix";
+    public static final String NAME = "fquery";
 
-    @Inject public PrefixFilterParser(Index index, @IndexSettings Settings settings) {
+    @Inject public FQueryFilterParser(Index index, @IndexSettings Settings settings) {
         super(index, settings);
     }
 
@@ -53,8 +50,7 @@ public class PrefixFilterParser extends AbstractIndexComponent implements XConte
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        String fieldName = null;
-        String value = null;
+        Query query = null;
 
         String filterName = null;
         String currentFieldName = null;
@@ -62,30 +58,17 @@ public class PrefixFilterParser extends AbstractIndexComponent implements XConte
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if ("query".equals(currentFieldName)) {
+                    query = parseContext.parseInnerQuery();
+                }
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
-                } else {
-                    fieldName = currentFieldName;
-                    value = parser.text();
                 }
             }
         }
-
-        if (value == null) {
-            throw new QueryParsingException(index, "No value specified for prefix filter");
-        }
-
-        MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null) {
-            if (smartNameFieldMappers.hasMapper()) {
-                fieldName = smartNameFieldMappers.mapper().names().indexName();
-                value = smartNameFieldMappers.mapper().indexedValue(value);
-            }
-        }
-
-        Filter filter = new PrefixFilter(new Term(fieldName, value));
-        filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
+        Filter filter = new QueryWrapperFilter(query);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

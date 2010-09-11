@@ -210,6 +210,7 @@ public class XContentIndexQueryParser extends AbstractIndexComponent implements 
 
     private ParsedQuery parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
         parseContext.reset(parser);
-        return new ParsedQuery(parseContext.parseInnerQuery());
+        Query query = parseContext.parseInnerQuery();
+        return new ParsedQuery(query, parseContext.copyNamedFilters());
     }
 }

@@ -148,6 +148,16 @@ public interface SearchHit extends Streamable, ToXContent, Iterable<SearchHitFie
     Object[] getSortValues();
 
     /**
+     * The set of filter names the query matched. Mainly makes sense for OR filters.
+     */
+    String[] matchedFilters();
+
+    /**
+     * The set of filter names the query matched. Mainly makes sense for OR filters.
+     */
+    String[] getMatchedFilters();
+
+    /**
      * The shard of the search hit.
      */
     SearchShardTarget shard();

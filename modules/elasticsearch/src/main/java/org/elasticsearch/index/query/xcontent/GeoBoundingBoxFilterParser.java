@@ -53,89 +53,96 @@ public class GeoBoundingBoxFilterParser extends AbstractIndexComponent implement
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        XContentParser.Token token = parser.nextToken();
-        assert token == XContentParser.Token.FIELD_NAME;
-        String latFieldName = parser.currentName() + XContentGeoPointFieldMapper.Names.LAT_SUFFIX;
-        String lonFieldName = parser.currentName() + XContentGeoPointFieldMapper.Names.LON_SUFFIX;
-
-        // now, we move after the field name, which starts the object
-        token = parser.nextToken();
-        assert token == XContentParser.Token.START_OBJECT;
-
-
+        String latFieldName = null;
+        String lonFieldName = null;
         GeoBoundingBoxFilter.Point topLeft = new GeoBoundingBoxFilter.Point();
         GeoBoundingBoxFilter.Point bottomRight = new GeoBoundingBoxFilter.Point();
 
+        String filterName = null;
         String currentFieldName = null;
+        XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                GeoBoundingBoxFilter.Point point = null;
-                if ("top_left".equals(currentFieldName) || "topLeft".equals(currentFieldName)) {
-                    point = topLeft;
-                } else if ("bottom_right".equals(currentFieldName) || "bottomRight".equals(currentFieldName)) {
-                    point = bottomRight;
-                }
-
-                if (point != null) {
-                    token = parser.nextToken();
-                    point.lat = parser.doubleValue();
-                    token = parser.nextToken();
-                    point.lon = parser.doubleValue();
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-
-                    }
-                }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                GeoBoundingBoxFilter.Point point = null;
-                if ("top_left".equals(currentFieldName) || "topLeft".equals(currentFieldName)) {
-                    point = topLeft;
-                } else if ("bottom_right".equals(currentFieldName) || "bottomRight".equals(currentFieldName)) {
-                    point = bottomRight;
-                }
+                latFieldName = currentFieldName + XContentGeoPointFieldMapper.Names.LAT_SUFFIX;
+                lonFieldName = currentFieldName + XContentGeoPointFieldMapper.Names.LON_SUFFIX;
 
-                if (point != null) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if (token.isValue()) {
-                            if (currentFieldName.equals(XContentGeoPointFieldMapper.Names.LAT)) {
-                                point.lat = parser.doubleValue();
-                            } else if (currentFieldName.equals(XContentGeoPointFieldMapper.Names.LON)) {
-                                point.lon = parser.doubleValue();
-                            } else if (currentFieldName.equals(XContentGeoPointFieldMapper.Names.GEOHASH)) {
-                                double[] values = GeoHashUtils.decode(parser.text());
-                                point.lat = values[0];
-                                point.lon = values[1];
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                    } else if (token == XContentParser.Token.START_ARRAY) {
+                        GeoBoundingBoxFilter.Point point = null;
+                        if ("top_left".equals(currentFieldName) || "topLeft".equals(currentFieldName)) {
+                            point = topLeft;
+                        } else if ("bottom_right".equals(currentFieldName) || "bottomRight".equals(currentFieldName)) {
+                            point = bottomRight;
+                        }
+
+                        if (point != null) {
+                            token = parser.nextToken();
+                            point.lat = parser.doubleValue();
+                            token = parser.nextToken();
+                            point.lon = parser.doubleValue();
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+
+                            }
+                        }
+                    } else if (token == XContentParser.Token.START_OBJECT) {
+                        GeoBoundingBoxFilter.Point point = null;
+                        if ("top_left".equals(currentFieldName) || "topLeft".equals(currentFieldName)) {
+                            point = topLeft;
+                        } else if ("bottom_right".equals(currentFieldName) || "bottomRight".equals(currentFieldName)) {
+                            point = bottomRight;
+                        }
+
+                        if (point != null) {
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                if (token == XContentParser.Token.FIELD_NAME) {
+                                    currentFieldName = parser.currentName();
+                                } else if (token.isValue()) {
+                                    if (currentFieldName.equals(XContentGeoPointFieldMapper.Names.LAT)) {
+                                        point.lat = parser.doubleValue();
+                                    } else if (currentFieldName.equals(XContentGeoPointFieldMapper.Names.LON)) {
+                                        point.lon = parser.doubleValue();
+                                    } else if (currentFieldName.equals(XContentGeoPointFieldMapper.Names.GEOHASH)) {
+                                        double[] values = GeoHashUtils.decode(parser.text());
+                                        point.lat = values[0];
+                                        point.lon = values[1];
+                                    }
+                                }
+                            }
+                        }
+                    } else if (token.isValue()) {
+                        if ("field".equals(currentFieldName)) {
+                            latFieldName = parser.text() + XContentGeoPointFieldMapper.Names.LAT_SUFFIX;
+                            lonFieldName = parser.text() + XContentGeoPointFieldMapper.Names.LON_SUFFIX;
+                        } else {
+                            GeoBoundingBoxFilter.Point point = null;
+                            if ("top_left".equals(currentFieldName) || "topLeft".equals(currentFieldName)) {
+                                point = topLeft;
+                            } else if ("bottom_right".equals(currentFieldName) || "bottomRight".equals(currentFieldName)) {
+                                point = bottomRight;
+                            }
+
+                            if (point != null) {
+                                String value = parser.text();
+                                int comma = value.indexOf(',');
+                                if (comma != -1) {
+                                    point.lat = Double.parseDouble(value.substring(0, comma).trim());
+                                    point.lon = Double.parseDouble(value.substring(comma + 1).trim());
+                                } else {
+                                    double[] values = GeoHashUtils.decode(value);
+                                    point.lat = values[0];
+                                    point.lon = values[1];
+                                }
                             }
                         }
                     }
                 }
             } else if (token.isValue()) {
-                if ("field".equals(currentFieldName)) {
-                    latFieldName = parser.text() + XContentGeoPointFieldMapper.Names.LAT_SUFFIX;
-                    lonFieldName = parser.text() + XContentGeoPointFieldMapper.Names.LON_SUFFIX;
-                } else {
-                    GeoBoundingBoxFilter.Point point = null;
-                    if ("top_left".equals(currentFieldName) || "topLeft".equals(currentFieldName)) {
-                        point = topLeft;
-                    } else if ("bottom_right".equals(currentFieldName) || "bottomRight".equals(currentFieldName)) {
-                        point = bottomRight;
-                    }
-
-                    if (point != null) {
-                        String value = parser.text();
-                        int comma = value.indexOf(',');
-                        if (comma != -1) {
-                            point.lat = Double.parseDouble(value.substring(0, comma).trim());
-                            point.lon = Double.parseDouble(value.substring(comma + 1).trim());
-                        } else {
-                            double[] values = GeoHashUtils.decode(value);
-                            point.lat = values[0];
-                            point.lon = values[1];
-                        }
-                    }
+                if ("_name".equals(currentFieldName)) {
+                    filterName = parser.text();
                 }
             }
         }
@@ -154,6 +161,10 @@ public class GeoBoundingBoxFilterParser extends AbstractIndexComponent implement
         lonFieldName = mapper.names().indexName();
 
 
-        return new GeoBoundingBoxFilter(topLeft, bottomRight, latFieldName, lonFieldName, mapper.fieldDataType(), parseContext.indexCache().fieldData());
+        GeoBoundingBoxFilter filter = new GeoBoundingBoxFilter(topLeft, bottomRight, latFieldName, lonFieldName, mapper.fieldDataType(), parseContext.indexCache().fieldData());
+        if (filterName != null) {
+            parseContext.addNamedFilter(filterName, filter);
+        }
+        return filter;
     }
 }

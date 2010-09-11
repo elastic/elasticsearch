@@ -247,7 +247,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                 LocalGatewayMetaState.Builder.toXContent(stateToWrite, xContentBuilder, ToXContent.EMPTY_PARAMS);
                 xContentBuilder.endObject();
 
-                File stateFile = new File(location, "state-" + event.state().version());
+                File stateFile = new File(location, "metadata-" + event.state().version());
                 FileOutputStream fos = new FileOutputStream(stateFile);
                 fos.write(xContentBuilder.unsafeBytes(), 0, xContentBuilder.unsafeBytesLength());
                 fos.close();
@@ -259,7 +259,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                 // delete all the other files
                 File[] files = location.listFiles(new FilenameFilter() {
                     @Override public boolean accept(File dir, String name) {
-                        return name.startsWith("state-") && !name.equals("state-" + event.state().version());
+                        return name.startsWith("metadata-") && !name.equals("metadata-" + event.state().version());
                     }
                 });
                 for (File file : files) {
@@ -353,7 +353,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                 try {
                     long version = findLatestMetaStateVersion();
                     if (version != -1) {
-                        this.currentMetaState = readMetaState(Streams.copyToByteArray(new FileInputStream(new File(location, "state-" + version))));
+                        this.currentMetaState = readMetaState(Streams.copyToByteArray(new FileInputStream(new File(location, "metadata-" + version))));
                     }
                 } catch (Exception e) {
                     logger.warn("failed to read local state", e);
@@ -405,7 +405,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                 logger.trace("[findLatestState]: Processing [" + stateFile.getName() + "]");
             }
             String name = stateFile.getName();
-            if (!name.startsWith("state-")) {
+            if (!name.startsWith("metadata-")) {
                 continue;
             }
             long fileIndex = Long.parseLong(name.substring(name.indexOf('-') + 1));

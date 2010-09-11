@@ -27,6 +27,13 @@ package org.elasticsearch.index.query.xcontent;
 public abstract class FilterBuilders {
 
     /**
+     * A filter that matches all documents.
+     */
+    public static MatchAllFilterBuilder matchAllFilter() {
+        return new MatchAllFilterBuilder();
+    }
+
+    /**
      * A filter for a field based on a term.
      *
      * @param name  The field name

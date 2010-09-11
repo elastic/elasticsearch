@@ -45,13 +45,6 @@ public class InternalSettingsPerparer {
 
         Environment environment = new Environment(settingsBuilder.build());
 
-        // put back the env settings
-        settingsBuilder = settingsBuilder().put(pSettings);
-        settingsBuilder.put("path.home", cleanPath(environment.homeFile().getAbsolutePath()));
-        settingsBuilder.put("path.work", cleanPath(environment.workFile().getAbsolutePath()));
-        settingsBuilder.put("path.work_with_cluster", cleanPath(environment.workWithClusterFile().getAbsolutePath()));
-        settingsBuilder.put("path.logs", cleanPath(environment.logsFile().getAbsolutePath()));
-
         if (loadConfigSettings) {
             try {
                 settingsBuilder.loadFromUrl(environment.resolveConfig("elasticsearch.yml"));
@@ -99,6 +92,18 @@ public class InternalSettingsPerparer {
             settingsBuilder.put(ClusterName.SETTING, ClusterName.DEFAULT.value());
         }
 
-        return new Tuple<Settings, Environment>(settingsBuilder.build(), environment);
+        Settings v1 = settingsBuilder.build();
+        environment = new Environment(v1);
+
+        // put back the env settings
+        settingsBuilder = settingsBuilder().put(v1);
+        settingsBuilder.put("path.home", cleanPath(environment.homeFile().getAbsolutePath()));
+        settingsBuilder.put("path.work", cleanPath(environment.workFile().getAbsolutePath()));
+        settingsBuilder.put("path.work_with_cluster", cleanPath(environment.workWithClusterFile().getAbsolutePath()));
+        settingsBuilder.put("path.logs", cleanPath(environment.logsFile().getAbsolutePath()));
+
+        v1 = settingsBuilder.build();
+
+        return new Tuple<Settings, Environment>(v1, environment);
     }
 }

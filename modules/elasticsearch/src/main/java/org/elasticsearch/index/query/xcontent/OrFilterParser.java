@@ -56,6 +56,7 @@ public class OrFilterParser extends AbstractIndexComponent implements XContentFi
 
         boolean cache = true;
 
+        String filterName = null;
         String currentFieldName = null;
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.START_ARRAY) {
@@ -77,8 +78,10 @@ public class OrFilterParser extends AbstractIndexComponent implements XContentFi
                         }
                     }
                 } else if (token.isValue()) {
-                    if ("cache".equals(currentFieldName)) {
+                    if ("_cache".equals(currentFieldName)) {
                         cache = parser.booleanValue();
+                    } else if ("_name".equals(currentFieldName)) {
+                        filterName = parser.text();
                     }
                 }
             }
@@ -94,6 +97,10 @@ public class OrFilterParser extends AbstractIndexComponent implements XContentFi
             }
         }
         // no need to cache this one
-        return new OrFilter(filters);
+        OrFilter filter = new OrFilter(filters);
+        if (filterName != null) {
+            parseContext.addNamedFilter(filterName, filter);
+        }
+        return filter;
     }
 }

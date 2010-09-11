@@ -34,6 +34,8 @@ public class TermFilterBuilder extends BaseFilterBuilder {
 
     private final Object value;
 
+    private String filterName;
+
     /**
      * A filter for a field based on a term.
      *
@@ -95,9 +97,17 @@ public class TermFilterBuilder extends BaseFilterBuilder {
         this.value = value;
     }
 
+    public TermFilterBuilder filterName(String filterName) {
+        this.filterName = filterName;
+        return this;
+    }
+
     @Override public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(TermFilterParser.NAME);
         builder.field(name, value);
+        if (filterName != null) {
+            builder.field("_name", filterName);
+        }
         builder.endObject();
     }
 }

@@ -52,51 +52,53 @@ public class RangeFilterParser extends AbstractIndexComponent implements XConten
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        XContentParser.Token token = parser.nextToken();
-        assert token == XContentParser.Token.FIELD_NAME;
-        String fieldName = parser.currentName();
-
-        // now, we move after the field name, which starts the object
-        token = parser.nextToken();
-        assert token == XContentParser.Token.START_OBJECT;
-
+        String fieldName = null;
         String from = null;
         String to = null;
         boolean includeLower = true;
         boolean includeUpper = true;
 
+        String filterName = null;
         String currentFieldName = null;
+        XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else {
-                if ("from".equals(currentFieldName)) {
-                    from = parser.textOrNull();
-                } else if ("to".equals(currentFieldName)) {
-                    to = parser.textOrNull();
-                } else if ("include_lower".equals(currentFieldName) || "includeLower".equals(currentFieldName)) {
-                    includeLower = parser.booleanValue();
-                } else if ("include_upper".equals(currentFieldName) || "includeUpper".equals(currentFieldName)) {
-                    includeUpper = parser.booleanValue();
-                } else if ("gt".equals(currentFieldName)) {
-                    from = parser.textOrNull();
-                    includeLower = false;
-                } else if ("gte".equals(currentFieldName) || "ge".equals(currentFieldName)) {
-                    from = parser.textOrNull();
-                    includeLower = true;
-                } else if ("lt".equals(currentFieldName)) {
-                    to = parser.textOrNull();
-                    includeUpper = false;
-                } else if ("lte".equals(currentFieldName) || "le".equals(currentFieldName)) {
-                    to = parser.textOrNull();
-                    includeUpper = true;
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                fieldName = currentFieldName;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                    } else {
+                        if ("from".equals(currentFieldName)) {
+                            from = parser.textOrNull();
+                        } else if ("to".equals(currentFieldName)) {
+                            to = parser.textOrNull();
+                        } else if ("include_lower".equals(currentFieldName) || "includeLower".equals(currentFieldName)) {
+                            includeLower = parser.booleanValue();
+                        } else if ("include_upper".equals(currentFieldName) || "includeUpper".equals(currentFieldName)) {
+                            includeUpper = parser.booleanValue();
+                        } else if ("gt".equals(currentFieldName)) {
+                            from = parser.textOrNull();
+                            includeLower = false;
+                        } else if ("gte".equals(currentFieldName) || "ge".equals(currentFieldName)) {
+                            from = parser.textOrNull();
+                            includeLower = true;
+                        } else if ("lt".equals(currentFieldName)) {
+                            to = parser.textOrNull();
+                            includeUpper = false;
+                        } else if ("lte".equals(currentFieldName) || "le".equals(currentFieldName)) {
+                            to = parser.textOrNull();
+                            includeUpper = true;
+                        }
+                    }
+                }
+            } else if (token.isValue()) {
+                if ("_name".equals(currentFieldName)) {
+                    filterName = parser.text();
                 }
             }
         }
-
-        // move to the next end object, to close the field name
-        token = parser.nextToken();
-        assert token == XContentParser.Token.END_OBJECT;
 
         Filter filter = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
@@ -108,6 +110,10 @@ public class RangeFilterParser extends AbstractIndexComponent implements XConten
         if (filter == null) {
             filter = new TermRangeFilter(fieldName, from, to, includeLower, includeUpper);
         }
-        return wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
+        filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
+        if (filterName != null) {
+            parseContext.addNamedFilter(filterName, filter);
+        }
+        return filter;
     }
 }

@@ -34,6 +34,8 @@ public class BoolFilterBuilder extends BaseFilterBuilder {
 
     private ArrayList<Clause> clauses = new ArrayList<Clause>();
 
+    private String filterName;
+
     /**
      * Adds a filter that <b>must</b> appear in the matching documents.
      */
@@ -60,6 +62,14 @@ public class BoolFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    /**
+     * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public BoolFilterBuilder filterName(String filterName) {
+        this.filterName = filterName;
+        return this;
+    }
+
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("bool");
         for (Clause clause : clauses) {
@@ -73,6 +83,9 @@ public class BoolFilterBuilder extends BaseFilterBuilder {
                 builder.field("should");
                 clause.filterBuilder.toXContent(builder, params);
             }
+        }
+        if (filterName != null) {
+            builder.field("_name", filterName);
         }
         builder.endObject();
     }

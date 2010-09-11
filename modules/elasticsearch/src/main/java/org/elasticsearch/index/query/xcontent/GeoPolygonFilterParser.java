@@ -66,70 +66,79 @@ public class GeoPolygonFilterParser extends AbstractIndexComponent implements XC
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        XContentParser.Token token = parser.nextToken();
-        assert token == XContentParser.Token.FIELD_NAME;
-        String latFieldName = parser.currentName() + XContentGeoPointFieldMapper.Names.LAT_SUFFIX;
-        String lonFieldName = parser.currentName() + XContentGeoPointFieldMapper.Names.LON_SUFFIX;
-
-        // now, we move after the field name, which starts the object
-        token = parser.nextToken();
-        assert token == XContentParser.Token.START_OBJECT;
-
+        String latFieldName = null;
+        String lonFieldName = null;
         List<GeoPolygonFilter.Point> points = Lists.newArrayList();
 
 
+        String filterName = null;
         String currentFieldName = null;
+        XContentParser.Token token;
+
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                if ("points".equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if (token == XContentParser.Token.START_ARRAY) {
-                            GeoPolygonFilter.Point point = new GeoPolygonFilter.Point();
-                            token = parser.nextToken();
-                            point.lat = parser.doubleValue();
-                            token = parser.nextToken();
-                            point.lon = parser.doubleValue();
-                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                latFieldName = currentFieldName + XContentGeoPointFieldMapper.Names.LAT_SUFFIX;
+                lonFieldName = currentFieldName + XContentGeoPointFieldMapper.Names.LON_SUFFIX;
 
-                            }
-                            points.add(point);
-                        } else if (token == XContentParser.Token.START_OBJECT) {
-                            GeoPolygonFilter.Point point = new GeoPolygonFilter.Point();
-                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                    } else if (token == XContentParser.Token.START_ARRAY) {
+                        if ("points".equals(currentFieldName)) {
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                                 if (token == XContentParser.Token.FIELD_NAME) {
                                     currentFieldName = parser.currentName();
+                                } else if (token == XContentParser.Token.START_ARRAY) {
+                                    GeoPolygonFilter.Point point = new GeoPolygonFilter.Point();
+                                    token = parser.nextToken();
+                                    point.lat = parser.doubleValue();
+                                    token = parser.nextToken();
+                                    point.lon = parser.doubleValue();
+                                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+
+                                    }
+                                    points.add(point);
+                                } else if (token == XContentParser.Token.START_OBJECT) {
+                                    GeoPolygonFilter.Point point = new GeoPolygonFilter.Point();
+                                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                        if (token == XContentParser.Token.FIELD_NAME) {
+                                            currentFieldName = parser.currentName();
+                                        } else if (token.isValue()) {
+                                            if (currentFieldName.equals(XContentGeoPointFieldMapper.Names.LAT)) {
+                                                point.lat = parser.doubleValue();
+                                            } else if (currentFieldName.equals(XContentGeoPointFieldMapper.Names.LON)) {
+                                                point.lon = parser.doubleValue();
+                                            } else if (currentFieldName.equals(XContentGeoPointFieldMapper.Names.GEOHASH)) {
+                                                double[] values = GeoHashUtils.decode(parser.text());
+                                                point.lat = values[0];
+                                                point.lon = values[1];
+                                            }
+                                        }
+                                    }
+                                    points.add(point);
                                 } else if (token.isValue()) {
-                                    if (currentFieldName.equals(XContentGeoPointFieldMapper.Names.LAT)) {
-                                        point.lat = parser.doubleValue();
-                                    } else if (currentFieldName.equals(XContentGeoPointFieldMapper.Names.LON)) {
-                                        point.lon = parser.doubleValue();
-                                    } else if (currentFieldName.equals(XContentGeoPointFieldMapper.Names.GEOHASH)) {
-                                        double[] values = GeoHashUtils.decode(parser.text());
+                                    GeoPolygonFilter.Point point = new GeoPolygonFilter.Point();
+                                    String value = parser.text();
+                                    int comma = value.indexOf(',');
+                                    if (comma != -1) {
+                                        point.lat = Double.parseDouble(value.substring(0, comma).trim());
+                                        point.lon = Double.parseDouble(value.substring(comma + 1).trim());
+                                    } else {
+                                        double[] values = GeoHashUtils.decode(value);
                                         point.lat = values[0];
                                         point.lon = values[1];
                                     }
+                                    points.add(point);
                                 }
                             }
-                            points.add(point);
-                        } else if (token.isValue()) {
-                            GeoPolygonFilter.Point point = new GeoPolygonFilter.Point();
-                            String value = parser.text();
-                            int comma = value.indexOf(',');
-                            if (comma != -1) {
-                                point.lat = Double.parseDouble(value.substring(0, comma).trim());
-                                point.lon = Double.parseDouble(value.substring(comma + 1).trim());
-                            } else {
-                                double[] values = GeoHashUtils.decode(value);
-                                point.lat = values[0];
-                                point.lon = values[1];
-                            }
-                            points.add(point);
                         }
                     }
+                }
+            } else if (token.isValue()) {
+                if ("_name".equals(currentFieldName)) {
+                    filterName = parser.text();
                 }
             }
         }
@@ -151,6 +160,10 @@ public class GeoPolygonFilterParser extends AbstractIndexComponent implements XC
         }
         lonFieldName = mapper.names().indexName();
 
-        return new GeoPolygonFilter(points.toArray(new GeoPolygonFilter.Point[points.size()]), latFieldName, lonFieldName, mapper.fieldDataType(), parseContext.indexCache().fieldData());
+        GeoPolygonFilter filter = new GeoPolygonFilter(points.toArray(new GeoPolygonFilter.Point[points.size()]), latFieldName, lonFieldName, mapper.fieldDataType(), parseContext.indexCache().fieldData());
+        if (filterName != null) {
+            parseContext.addNamedFilter(filterName, filter);
+        }
+        return filter;
     }
 }

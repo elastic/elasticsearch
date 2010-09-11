@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.collect.ImmutableMap;
 
 /**
  * The result of parsing a query.
@@ -30,8 +32,16 @@ public class ParsedQuery {
 
     private final Query query;
 
-    public ParsedQuery(Query query) {
+    private final ImmutableMap<String, Filter> namedFilters;
+
+    public ParsedQuery(Query query, ImmutableMap<String, Filter> namedFilters) {
         this.query = query;
+        this.namedFilters = namedFilters;
+    }
+
+    public ParsedQuery(Query query, ParsedQuery parsedQuery) {
+        this.query = query;
+        this.namedFilters = parsedQuery.namedFilters;
     }
 
     /**
@@ -39,5 +49,9 @@ public class ParsedQuery {
      */
     public Query query() {
         return this.query;
+    }
+
+    public ImmutableMap<String, Filter> namedFilters() {
+        return this.namedFilters;
     }
 }

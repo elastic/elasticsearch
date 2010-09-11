@@ -80,7 +80,7 @@ public class ContextIndexSearcher extends ExtendedIndexSearcher {
     }
 
     @Override public Query rewrite(Query original) throws IOException {
-        if (original == searchContext.query() || original == searchContext.originalQuery()) {
+        if (original == searchContext.query() || original == searchContext.parsedQuery().query()) {
             // optimize in case its the top level search query and we already rewrote it...
             if (searchContext.queryRewritten()) {
                 return searchContext.query();

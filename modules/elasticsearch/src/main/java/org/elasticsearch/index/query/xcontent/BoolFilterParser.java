@@ -53,6 +53,7 @@ public class BoolFilterParser extends AbstractIndexComponent implements XContent
 
         boolean cache = true;
 
+        String filterName = null;
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -81,22 +82,27 @@ public class BoolFilterParser extends AbstractIndexComponent implements XContent
                     }
                 }
             } else if (token.isValue()) {
-                if ("cache".equals(currentFieldName)) {
+                if ("_cache".equals(currentFieldName)) {
                     cache = parser.booleanValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    filterName = parser.text();
                 }
             }
         }
 
-        BooleanFilter booleanFilter = new PublicBooleanFilter();
+        BooleanFilter filter = new PublicBooleanFilter();
         for (OpenFilterClause filterClause : clauses) {
 
             if (cache) {
                 filterClause.setFilter(parseContext.cacheFilterIfPossible(filterClause.getFilter()));
             }
 
-            booleanFilter.add(filterClause);
+            filter.add(filterClause);
         }
         // no need to cache this one, inner queries will be cached and that's is  good enough (I think...)
-        return booleanFilter;
+        if (filterName != null) {
+            parseContext.addNamedFilter(filterName, filter);
+        }
+        return filter;
     }
 }

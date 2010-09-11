@@ -35,6 +35,8 @@ public class PrefixFilterBuilder extends BaseFilterBuilder {
 
     private final String prefix;
 
+    private String filterName;
+
     /**
      * A filter that restricts search results to values that have a matching prefix in a given
      * field.
@@ -47,9 +49,17 @@ public class PrefixFilterBuilder extends BaseFilterBuilder {
         this.prefix = prefix;
     }
 
+    public PrefixFilterBuilder filterName(String filterName) {
+        this.filterName = filterName;
+        return this;
+    }
+
     @Override public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(PrefixFilterParser.NAME);
         builder.field(name, prefix);
+        if (filterName != null) {
+            builder.field("_name", filterName);
+        }
         builder.endObject();
     }
 }

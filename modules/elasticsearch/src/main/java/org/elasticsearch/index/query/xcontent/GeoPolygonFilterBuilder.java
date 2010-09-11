@@ -36,6 +36,8 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
 
     private final List<GeoPolygonFilter.Point> points = Lists.newArrayList();
 
+    private String filterName;
+
     public GeoPolygonFilterBuilder(String name) {
         this.name = name;
     }
@@ -50,6 +52,11 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
         return addPoint(values[0], values[1]);
     }
 
+    public GeoPolygonFilterBuilder filterName(String filterName) {
+        this.filterName = filterName;
+        return this;
+    }
+
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(GeoPolygonFilterParser.NAME);
 
@@ -60,6 +67,10 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
         }
         builder.endArray();
         builder.endObject();
+
+        if (filterName != null) {
+            builder.field("_name", filterName);
+        }
 
         builder.endObject();
     }

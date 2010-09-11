@@ -1,10 +1,10 @@
 {
-    filtered : {
-        query : {
-            term : { "name.first" : "shay" }
+    "filtered" : {
+        "query" : {
+            "term" : { "name.first" : "shay" }
         },
-        filter : {
-            terms : {
+        "filter" : {
+            "terms" : {
                 "name.last" : ["banon", "kimchy"]
             }
         }

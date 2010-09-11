@@ -21,6 +21,7 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.compress.lzf.LZFDecoder;
@@ -68,6 +69,8 @@ public class InternalSearchHit implements SearchHit {
     private Map<String, HighlightField> highlightFields = ImmutableMap.of();
 
     private Object[] sortValues = EMPTY_SORT_VALUES;
+
+    private String[] matchedFilters = Strings.EMPTY_ARRAY;
 
     private Explanation explanation;
 
@@ -248,6 +251,18 @@ public class InternalSearchHit implements SearchHit {
         this.shard = target;
     }
 
+    public void matchedFilters(String[] matchedFilters) {
+        this.matchedFilters = matchedFilters;
+    }
+
+    public String[] matchedFilters() {
+        return this.matchedFilters;
+    }
+
+    @Override public String[] getMatchedFilters() {
+        return this.matchedFilters;
+    }
+
     @Override public void toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("_index", shard.index());
@@ -302,6 +317,13 @@ public class InternalSearchHit implements SearchHit {
             builder.startArray("sort");
             for (Object sortValue : sortValues) {
                 builder.value(sortValue);
+            }
+            builder.endArray();
+        }
+        if (matchedFilters.length > 0) {
+            builder.startArray("matched_filters");
+            for (String matchedFilter : matchedFilters) {
+                builder.value(matchedFilter);
             }
             builder.endArray();
         }
@@ -447,6 +469,14 @@ public class InternalSearchHit implements SearchHit {
             }
         }
 
+        size = in.readVInt();
+        if (size > 0) {
+            matchedFilters = new String[size];
+            for (int i = 0; i < size; i++) {
+                matchedFilters[i] = in.readUTF();
+            }
+        }
+
         if (shardLookupMap != null) {
             int lookupId = in.readVInt();
             if (lookupId > 0) {
@@ -527,6 +557,15 @@ public class InternalSearchHit implements SearchHit {
                         throw new IOException("Can't handle sort field value of type [" + type + "]");
                     }
                 }
+            }
+        }
+
+        if (matchedFilters.length == 0) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(matchedFilters.length);
+            for (String matchedFilter : matchedFilters) {
+                out.writeUTF(matchedFilter);
             }
         }
 

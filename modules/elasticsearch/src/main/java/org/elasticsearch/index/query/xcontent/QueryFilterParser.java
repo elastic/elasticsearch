@@ -24,7 +24,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryParsingException;
@@ -48,10 +47,7 @@ public class QueryFilterParser extends AbstractIndexComponent implements XConten
     }
 
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
-        XContentParser parser = parseContext.parser();
-
         Query query = parseContext.parseInnerQuery();
-        Filter filter = new QueryWrapperFilter(query);
-        return filter;
+        return new QueryWrapperFilter(query);
     }
 }

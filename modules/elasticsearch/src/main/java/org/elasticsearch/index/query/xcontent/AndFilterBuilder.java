@@ -36,6 +36,8 @@ public class AndFilterBuilder extends BaseFilterBuilder {
 
     private Boolean cache;
 
+    private String filterName;
+
     public AndFilterBuilder(XContentFilterBuilder... filters) {
         for (XContentFilterBuilder filter : filters) {
             this.filters.add(filter);
@@ -58,6 +60,14 @@ public class AndFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    /**
+     * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public AndFilterBuilder filterName(String filterName) {
+        this.filterName = filterName;
+        return this;
+    }
+
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(AndFilterParser.NAME);
         builder.startArray("filters");
@@ -66,7 +76,10 @@ public class AndFilterBuilder extends BaseFilterBuilder {
         }
         builder.endArray();
         if (cache != null) {
-            builder.field("cache", cache);
+            builder.field("_cache", cache);
+        }
+        if (filterName != null) {
+            builder.field("_name", filterName);
         }
         builder.endObject();
     }

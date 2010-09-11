@@ -1,0 +1,19 @@
+{
+    "filtered" : {
+        "query" : {
+            "match_all" : {}
+        },
+        "filter" : {
+            "geo_polygon" : {
+                "person.location" : {
+                    "points" : [
+                        [40, -70],
+                        [30, -80],
+                        [20, -90]
+                    ]
+                },
+                "_name" : "test"
+            }
+        }
+    }
+}

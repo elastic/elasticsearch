@@ -26,6 +26,7 @@ import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
@@ -67,7 +68,7 @@ public class QueryPhase implements SearchPhase {
             throw new SearchParseException(context, "No query specified in search request");
         }
         if (context.queryBoost() != 1.0f) {
-            context.query(new FunctionScoreQuery(context.query(), new BoostScoreFunction(context.queryBoost())));
+            context.parsedQuery(new ParsedQuery(new FunctionScoreQuery(context.query(), new BoostScoreFunction(context.queryBoost())), context.parsedQuery()));
         }
         facetsPhase.preProcess(context);
     }

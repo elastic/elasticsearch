@@ -4,7 +4,10 @@
             "term" : { "name.first" : "shay" }
         },
         "filter" : {
-            "prefix" : { "name.first" : "sh" }
+            "term" : {
+                "name.last" : "banon",
+                "_name" : "test"
+            }
         }
     }
 }

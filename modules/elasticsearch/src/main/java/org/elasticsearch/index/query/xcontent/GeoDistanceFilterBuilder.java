@@ -42,6 +42,8 @@ public class GeoDistanceFilterBuilder extends BaseFilterBuilder {
 
     private GeoDistance geoDistance;
 
+    private String filterName;
+
     public GeoDistanceFilterBuilder(String name) {
         this.name = name;
     }
@@ -82,6 +84,11 @@ public class GeoDistanceFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    public GeoDistanceFilterBuilder filterName(String filterName) {
+        this.filterName = filterName;
+        return this;
+    }
+
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(GeoDistanceFilterParser.NAME);
         if (geohash != null) {
@@ -92,6 +99,9 @@ public class GeoDistanceFilterBuilder extends BaseFilterBuilder {
         builder.field("distance", distance);
         if (geoDistance != null) {
             builder.field("distance_type", geoDistance.name().toLowerCase());
+        }
+        if (filterName != null) {
+            builder.field("_name", filterName);
         }
         builder.endObject();
     }

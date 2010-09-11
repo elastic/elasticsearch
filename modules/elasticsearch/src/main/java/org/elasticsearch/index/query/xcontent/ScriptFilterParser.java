@@ -62,6 +62,7 @@ public class ScriptFilterParser extends AbstractIndexComponent implements XConte
         String script = null;
         Map<String, Object> params = null;
 
+        String filterName = null;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -73,6 +74,8 @@ public class ScriptFilterParser extends AbstractIndexComponent implements XConte
             } else if (token.isValue()) {
                 if ("script".equals(currentFieldName)) {
                     script = parser.text();
+                } else if ("_name".equals(currentFieldName)) {
+                    filterName = parser.text();
                 }
             }
         }
@@ -84,7 +87,11 @@ public class ScriptFilterParser extends AbstractIndexComponent implements XConte
             params = Maps.newHashMap();
         }
 
-        return new ScriptFilter(script, params, parseContext.mapperService(), parseContext.indexCache().fieldData(), parseContext.scriptService());
+        Filter filter = new ScriptFilter(script, params, parseContext.mapperService(), parseContext.indexCache().fieldData(), parseContext.scriptService());
+        if (filterName != null) {
+            parseContext.addNamedFilter(filterName, filter);
+        }
+        return filter;
     }
 
     public static class ScriptFilter extends Filter {

@@ -32,6 +32,8 @@ public class QueryFilterBuilder extends BaseFilterBuilder {
 
     private final XContentQueryBuilder queryBuilder;
 
+    private String filterName;
+
     /**
      * A filter that simply wraps a query.
      *
@@ -41,8 +43,21 @@ public class QueryFilterBuilder extends BaseFilterBuilder {
         this.queryBuilder = queryBuilder;
     }
 
+    public QueryFilterBuilder filterName(String filterName) {
+        this.filterName = filterName;
+        return this;
+    }
+
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(QueryFilterParser.NAME);
-        queryBuilder.toXContent(builder, params);
+        if (filterName != null) {
+            builder.field(QueryFilterParser.NAME);
+            queryBuilder.toXContent(builder, params);
+        } else {
+            builder.startObject(FQueryFilterParser.NAME);
+            builder.field("query");
+            queryBuilder.toXContent(builder, params);
+            builder.field("_name", filterName);
+            builder.endObject();
+        }
     }
 }

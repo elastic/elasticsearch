@@ -53,15 +53,24 @@ public class TermFilterParser extends AbstractIndexComponent implements XContent
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        XContentParser.Token token = parser.nextToken();
-        assert token == XContentParser.Token.FIELD_NAME;
-        String fieldName = parser.currentName();
+        String fieldName = null;
+        String value = null;
 
-
-        parser.nextToken();
-        String value = parser.text();
-        // move to the next token (from VALUE)
-        parser.nextToken();
+        String filterName = null;
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if ("_name".equals(currentFieldName)) {
+                    filterName = parser.text();
+                } else {
+                    fieldName = currentFieldName;
+                    value = parser.text();
+                }
+            }
+        }
 
         if (value == null) {
             throw new QueryParsingException(index, "No value specified for term filter");
@@ -77,6 +86,10 @@ public class TermFilterParser extends AbstractIndexComponent implements XContent
         if (filter == null) {
             filter = new TermFilter(new Term(fieldName, value));
         }
-        return wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
+        filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
+        if (filterName != null) {
+            parseContext.addNamedFilter(filterName, filter);
+        }
+        return filter;
     }
 }

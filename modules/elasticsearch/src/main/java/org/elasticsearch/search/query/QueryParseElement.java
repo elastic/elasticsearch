@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.query;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.search.SearchParseElement;
@@ -32,7 +31,6 @@ public class QueryParseElement implements SearchParseElement {
 
     @Override public void parse(XContentParser parser, SearchContext context) throws Exception {
         XContentIndexQueryParser indexQueryParser = (XContentIndexQueryParser) context.queryParser();
-        Query query = indexQueryParser.parse(parser).query();
-        context.query(query);
+        context.parsedQuery(indexQueryParser.parse(parser));
     }
 }

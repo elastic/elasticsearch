@@ -34,6 +34,8 @@ public class NotFilterBuilder extends BaseFilterBuilder {
 
     private Boolean cache;
 
+    private String filterName;
+
     public NotFilterBuilder(XContentFilterBuilder filter) {
         this.filter = filter;
     }
@@ -46,12 +48,20 @@ public class NotFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    public NotFilterBuilder filterName(String filterName) {
+        this.filterName = filterName;
+        return this;
+    }
+
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NotFilterParser.NAME);
         builder.field("filter");
         filter.toXContent(builder, params);
         if (cache != null) {
-            builder.field("cache", cache);
+            builder.field("_cache", cache);
+        }
+        if (filterName != null) {
+            builder.field("_name", filterName);
         }
         builder.endObject();
     }

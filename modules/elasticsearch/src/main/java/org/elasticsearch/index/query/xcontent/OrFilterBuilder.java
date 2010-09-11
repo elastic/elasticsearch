@@ -36,6 +36,8 @@ public class OrFilterBuilder extends BaseFilterBuilder {
 
     private Boolean cache;
 
+    private String filterName;
+
     public OrFilterBuilder(XContentFilterBuilder... filters) {
         for (XContentFilterBuilder filter : filters) {
             this.filters.add(filter);
@@ -58,6 +60,11 @@ public class OrFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    public OrFilterBuilder filterName(String filterName) {
+        this.filterName = filterName;
+        return this;
+    }
+
     @Override protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(OrFilterParser.NAME);
         builder.startArray("filters");
@@ -66,7 +73,10 @@ public class OrFilterBuilder extends BaseFilterBuilder {
         }
         builder.endArray();
         if (cache != null) {
-            builder.field("cache", cache);
+            builder.field("_cache", cache);
+        }
+        if (filterName != null) {
+            builder.field("_name", filterName);
         }
         builder.endObject();
     }

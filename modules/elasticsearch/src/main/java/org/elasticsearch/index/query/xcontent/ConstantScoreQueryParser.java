@@ -68,7 +68,7 @@ public class ConstantScoreQueryParser extends AbstractIndexComponent implements 
             } else if (token.isValue()) {
                 if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if ("cache".equals(currentFieldName)) {
+                } else if ("_cache".equals(currentFieldName)) {
                     cache = parser.booleanValue();
                 }
             }

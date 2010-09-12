@@ -19,10 +19,9 @@
 
 package org.elasticsearch.groovy.common.xcontent
 
+import org.elasticsearch.common.xcontent.XContentBuilder
 import org.elasticsearch.common.xcontent.XContentFactory
 import org.elasticsearch.common.xcontent.XContentType
-import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder
-import org.elasticsearch.common.xcontent.builder.TextXContentBuilder
 
 /**
  * Used to build JSON data.
@@ -49,7 +48,7 @@ class GXContentBuilder {
     }
 
     String buildAsString(Closure c) {
-        TextXContentBuilder builder = XContentFactory.contentTextBuilder(XContentType.JSON);
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         def json = build(c)
         builder.map(json);
         return builder.string();
@@ -60,7 +59,7 @@ class GXContentBuilder {
     }
 
     byte[] buildAsBytes(Closure c, XContentType contentType) {
-        BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
+        XContentBuilder builder = XContentFactory.contentBuilder(contentType);
         def json = build(c)
         builder.map(json);
         return builder.copiedBytes();

@@ -32,10 +32,9 @@ import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
-import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -217,7 +216,7 @@ public class SearchRequest implements ActionRequest {
      * The source of the search request.
      */
     public SearchRequest source(SearchSourceBuilder sourceBuilder) {
-        FastByteArrayOutputStream bos = sourceBuilder.buildAsUnsafeBytes();
+        FastByteArrayOutputStream bos = sourceBuilder.buildAsUnsafeBytes(Requests.CONTENT_TYPE);
         this.source = bos.unsafeByteArray();
         this.sourceOffset = 0;
         this.sourceLength = bos.size();
@@ -243,7 +242,7 @@ public class SearchRequest implements ActionRequest {
      */
     public SearchRequest source(Map source) {
         try {
-            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(source);
             return source(builder);
         } catch (IOException e) {
@@ -300,7 +299,7 @@ public class SearchRequest implements ActionRequest {
      * Allows to provide additional source that will be used as well.
      */
     public SearchRequest extraSource(SearchSourceBuilder sourceBuilder) {
-        FastByteArrayOutputStream bos = sourceBuilder.buildAsUnsafeBytes();
+        FastByteArrayOutputStream bos = sourceBuilder.buildAsUnsafeBytes(Requests.CONTENT_TYPE);
         this.extraSource = bos.unsafeByteArray();
         this.extraSourceOffset = 0;
         this.extraSourceLength = bos.size();
@@ -310,7 +309,7 @@ public class SearchRequest implements ActionRequest {
 
     public SearchRequest extraSource(Map extraSource) {
         try {
-            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(extraSource);
             return extraSource(builder);
         } catch (IOException e) {

@@ -21,10 +21,10 @@ package org.elasticsearch.index.gateway;
 
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -86,7 +86,7 @@ public class CommitPoints implements Iterable<CommitPoint> {
     }
 
     public static byte[] toXContent(CommitPoint commitPoint) throws Exception {
-        XContentBuilder builder = XContentFactory.contentBinaryBuilder(XContentType.JSON).prettyPrint();
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
         builder.startObject();
         builder.field("version", commitPoint.version());
         builder.field("name", commitPoint.name());

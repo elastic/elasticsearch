@@ -30,10 +30,9 @@ import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
-import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -49,8 +48,8 @@ import static org.elasticsearch.action.Actions.*;
  * {@link #source(byte[])} to be set.
  *
  * <p>The source (content to index) can be set in its bytes form using ({@link #source(byte[])}),
- * its string form ({@link #source(String)}) or using a {@link org.elasticsearch.common.xcontent.builder.XContentBuilder}
- * ({@link #source(org.elasticsearch.common.xcontent.builder.XContentBuilder)}).
+ * its string form ({@link #source(String)}) or using a {@link org.elasticsearch.common.xcontent.XContentBuilder}
+ * ({@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}).
  *
  * <p>If the {@link #id(String)} is not set, it will be automatically generated.
  *
@@ -238,7 +237,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
      */
     @Required public IndexRequest source(Map source, XContentType contentType) throws ElasticSearchGenerationException {
         try {
-            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(source);
             return source(builder);
         } catch (IOException e) {
@@ -249,7 +248,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     /**
      * Sets the document source to index.
      *
-     * <p>Note, its preferable to either set it using {@link #source(org.elasticsearch.common.xcontent.builder.XContentBuilder)}
+     * <p>Note, its preferable to either set it using {@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}
      * or using the {@link #source(byte[])}.
      */
     @Required public IndexRequest source(String source) {

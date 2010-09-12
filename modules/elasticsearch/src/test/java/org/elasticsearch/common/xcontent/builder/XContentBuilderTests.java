@@ -21,12 +21,13 @@ package org.elasticsearch.common.xcontent.builder;
 
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.io.FastCharArrayWriter;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.common.xcontent.builder.XContentBuilder.FieldCaseConversion.*;
+import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -57,10 +58,11 @@ public class XContentBuilderTests {
     }
 
     @Test public void testSimpleGenerator() throws Exception {
-        TextXContentBuilder builder = XContentFactory.contentTextBuilder(XContentType.JSON);
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject().field("test", "value").endObject();
         assertThat(builder.string(), equalTo("{\"test\":\"value\"}"));
-        builder.reset();
+
+        builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject().field("test", "value").endObject();
         assertThat(builder.string(), equalTo("{\"test\":\"value\"}"));
     }
@@ -83,11 +85,11 @@ public class XContentBuilderTests {
     }
 
     @Test public void testFieldCaseConversion() throws Exception {
-        TextXContentBuilder builder = XContentFactory.contentTextBuilder(XContentType.JSON).fieldCaseConversion(CAMELCASE);
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).fieldCaseConversion(CAMELCASE);
         builder.startObject().field("test_name", "value").endObject();
         assertThat(builder.string(), equalTo("{\"testName\":\"value\"}"));
 
-        builder = XContentFactory.contentTextBuilder(XContentType.JSON).fieldCaseConversion(UNDERSCORE);
+        builder = XContentFactory.contentBuilder(XContentType.JSON).fieldCaseConversion(UNDERSCORE);
         builder.startObject().field("testName", "value").endObject();
         assertThat(builder.string(), equalTo("{\"test_name\":\"value\"}"));
     }

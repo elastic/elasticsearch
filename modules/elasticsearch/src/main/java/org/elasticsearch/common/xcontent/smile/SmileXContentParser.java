@@ -17,36 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.common.xcontent.xson;
+package org.elasticsearch.common.xcontent.smile;
+
+import org.elasticsearch.common.jackson.JsonParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContentParser;
 
 /**
  * @author kimchy (shay.banon)
  */
-public enum XsonType {
+public class SmileXContentParser extends JsonXContentParser {
 
-    START_ARRAY((byte) 0x01),
-    END_ARRAY((byte) 0x02),
-    START_OBJECT((byte) 0x03),
-    END_OBJECT((byte) 0x04),
-    FIELD_NAME((byte) 0x05),
-    VALUE_STRING((byte) 0x06),
-    VALUE_BINARY((byte) 0x07),
-    VALUE_INTEGER((byte) 0x08),
-    VALUE_LONG((byte) 0x09),
-    VALUE_FLOAT((byte) 0x0A),
-    VALUE_DOUBLE((byte) 0x0B),
-    VALUE_BOOLEAN((byte) 0x0C),
-    VALUE_NULL((byte) 0x0D),;
-
-    public static final int HEADER = 0x00;
-
-    private final byte code;
-
-    XsonType(byte code) {
-        this.code = code;
+    public SmileXContentParser(JsonParser parser) {
+        super(parser);
     }
 
-    public byte code() {
-        return code;
+    @Override public XContentType contentType() {
+        return XContentType.SMILE;
     }
 }

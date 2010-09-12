@@ -34,10 +34,9 @@ import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
-import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -324,7 +323,7 @@ public class MoreLikeThisRequest implements ActionRequest {
      * more like this documents.
      */
     public MoreLikeThisRequest searchSource(SearchSourceBuilder sourceBuilder) {
-        FastByteArrayOutputStream bos = sourceBuilder.buildAsUnsafeBytes();
+        FastByteArrayOutputStream bos = sourceBuilder.buildAsUnsafeBytes(Requests.CONTENT_TYPE);
         this.searchSource = bos.unsafeByteArray();
         this.searchSourceOffset = 0;
         this.searchSourceLength = bos.size();
@@ -347,7 +346,7 @@ public class MoreLikeThisRequest implements ActionRequest {
 
     public MoreLikeThisRequest searchSource(Map searchSource) {
         try {
-            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(searchSource);
             return searchSource(builder);
         } catch (IOException e) {

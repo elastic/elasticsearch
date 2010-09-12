@@ -179,6 +179,13 @@ public class FastByteArrayOutputStream extends OutputStream {
     }
 
     /**
+     * Seeks back to the given position. Size will become the seeked location.
+     */
+    public void seek(int position) {
+        this.count = position;
+    }
+
+    /**
      * Converts the buffer's contents into a string decoding bytes using the
      * platform's default character set. The length of the new <tt>String</tt>
      * is a function of the character set, and hence may not be equal to the

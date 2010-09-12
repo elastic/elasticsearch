@@ -22,7 +22,7 @@ package org.elasticsearch.index.query.xcontent;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.lucene.geo.GeoHashUtils;
 import org.elasticsearch.common.lucene.geo.GeoPolygonFilter;
-import org.elasticsearch.common.xcontent.builder.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;

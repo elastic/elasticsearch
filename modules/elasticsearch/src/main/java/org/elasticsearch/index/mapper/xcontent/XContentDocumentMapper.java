@@ -27,11 +27,7 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.thread.ThreadLocals;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.builder.XContentBuilder;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.*;
 
@@ -422,7 +418,7 @@ public class XContentDocumentMapper implements DocumentMapper, ToXContent {
 
     @Override public void refreshSource() throws FailedToGenerateSourceMapperException {
         try {
-            XContentBuilder builder = XContentFactory.contentTextBuilder(XContentType.JSON);
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.startObject();
             toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();

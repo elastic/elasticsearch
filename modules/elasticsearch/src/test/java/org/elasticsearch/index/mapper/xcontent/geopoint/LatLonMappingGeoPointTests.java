@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.xcontent.geopoint;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.geo.GeoHashUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
 import org.elasticsearch.index.mapper.xcontent.XContentMapperTests;
@@ -37,7 +36,7 @@ import static org.hamcrest.Matchers.*;
 public class LatLonMappingGeoPointTests {
 
     @Test public void testLatLonValues() throws Exception {
-        String mapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject("type")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").endObject().endObject()
                 .endObject().endObject().string();
 
@@ -57,7 +56,7 @@ public class LatLonMappingGeoPointTests {
     }
 
     @Test public void testLatLonValuesStored() throws Exception {
-        String mapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject("type")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("store", "yes").endObject().endObject()
                 .endObject().endObject().string();
 
@@ -77,7 +76,7 @@ public class LatLonMappingGeoPointTests {
     }
 
     @Test public void testArrayLatLonValues() throws Exception {
-        String mapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject("type")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("store", "yes").endObject().endObject()
                 .endObject().endObject().string();
 
@@ -103,7 +102,7 @@ public class LatLonMappingGeoPointTests {
     }
 
     @Test public void testLatLonInOneValue() throws Exception {
-        String mapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject("type")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").endObject().endObject()
                 .endObject().endObject().string();
 
@@ -121,7 +120,7 @@ public class LatLonMappingGeoPointTests {
     }
 
     @Test public void testLatLonInOneValueStored() throws Exception {
-        String mapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject("type")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("store", "yes").endObject().endObject()
                 .endObject().endObject().string();
 
@@ -141,7 +140,7 @@ public class LatLonMappingGeoPointTests {
     }
 
     @Test public void testLatLonInOneValueArray() throws Exception {
-        String mapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject("type")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("store", "yes").endObject().endObject()
                 .endObject().endObject().string();
 
@@ -167,7 +166,7 @@ public class LatLonMappingGeoPointTests {
     }
 
     @Test public void testGeoHashValue() throws Exception {
-        String mapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject("type")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").endObject().endObject()
                 .endObject().endObject().string();
 
@@ -185,7 +184,7 @@ public class LatLonMappingGeoPointTests {
     }
 
     @Test public void testLatLonArray() throws Exception {
-        String mapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject("type")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").endObject().endObject()
                 .endObject().endObject().string();
 
@@ -205,7 +204,7 @@ public class LatLonMappingGeoPointTests {
     }
 
     @Test public void testLatLonArrayStored() throws Exception {
-        String mapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject("type")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("store", "yes").endObject().endObject()
                 .endObject().endObject().string();
 
@@ -225,7 +224,7 @@ public class LatLonMappingGeoPointTests {
     }
 
     @Test public void testLatLonArrayArrayStored() throws Exception {
-        String mapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject("type")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("store", "yes").endObject().endObject()
                 .endObject().endObject().string();
 

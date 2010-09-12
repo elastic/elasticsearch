@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query.xcontent;
 
 import org.elasticsearch.common.trove.ExtTObjectFloatHashMap;
-import org.elasticsearch.common.xcontent.builder.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;

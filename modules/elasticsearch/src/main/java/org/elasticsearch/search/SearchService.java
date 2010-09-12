@@ -355,6 +355,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     break;
                 }
             }
+            parser.close();
         } catch (Exception e) {
             throw new SearchParseException(context, "Failed to parse [" + Unicode.fromBytes(source, offset, length) + "]", e);
         }

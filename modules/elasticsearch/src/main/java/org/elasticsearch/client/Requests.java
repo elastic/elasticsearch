@@ -59,7 +59,7 @@ public class Requests {
     /**
      * The content type used to generate request builders (query / search).
      */
-    public static XContentType CONTENT_TYPE = XContentType.XSON;
+    public static XContentType CONTENT_TYPE = XContentType.SMILE;
 
     public static IndexRequest indexRequest() {
         return new IndexRequest();

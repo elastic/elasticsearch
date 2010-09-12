@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.xcontent.defaultsource;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
@@ -36,7 +35,7 @@ import static org.hamcrest.Matchers.*;
 public class DefaultSourceMappingTests {
 
     @Test public void testDefaultMappingAndNoMapping() throws Exception {
-        String defaultMapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject(MapperService.DEFAULT_MAPPING)
+        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
                 .startObject("_source").field("enabled", false).endObject()
                 .endObject().endObject().string();
 
@@ -55,11 +54,11 @@ public class DefaultSourceMappingTests {
     }
 
     @Test public void testDefaultMappingAndWithMappingOverride() throws Exception {
-        String defaultMapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject(MapperService.DEFAULT_MAPPING)
+        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
                 .startObject("_source").field("enabled", false).endObject()
                 .endObject().endObject().string();
 
-        String mapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject("type")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_source").field("enabled", true).endObject()
                 .endObject().endObject().string();
 
@@ -69,7 +68,7 @@ public class DefaultSourceMappingTests {
     }
 
     @Test public void testDefaultMappingAndNoMappingWithMapperService() throws Exception {
-        String defaultMapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject(MapperService.DEFAULT_MAPPING)
+        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
                 .startObject("_source").field("enabled", false).endObject()
                 .endObject().endObject().string();
 
@@ -82,14 +81,14 @@ public class DefaultSourceMappingTests {
     }
 
     @Test public void testDefaultMappingAndWithMappingOverrideWithMapperService() throws Exception {
-        String defaultMapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject(MapperService.DEFAULT_MAPPING)
+        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
                 .startObject("_source").field("enabled", false).endObject()
                 .endObject().endObject().string();
 
         MapperService mapperService = XContentMapperTests.newMapperService();
         mapperService.add(MapperService.DEFAULT_MAPPING, defaultMapping);
 
-        String mapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject("type")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_source").field("enabled", true).endObject()
                 .endObject().endObject().string();
         mapperService.add("my_type", mapping);

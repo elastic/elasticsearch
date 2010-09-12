@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query.xcontent;
 
 import org.apache.lucene.search.BooleanClause;
-import org.elasticsearch.common.xcontent.builder.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;

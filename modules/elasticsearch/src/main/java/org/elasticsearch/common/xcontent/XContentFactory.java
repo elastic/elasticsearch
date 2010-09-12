@@ -21,17 +21,16 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
-import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
-import org.elasticsearch.common.xcontent.builder.TextXContentBuilder;
+import org.elasticsearch.common.jackson.smile.SmileConstants;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.common.xcontent.xson.XsonXContent;
+import org.elasticsearch.common.xcontent.smile.SmileXContent;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 
 /**
- * A one stop to use {@link org.elasticsearch.common.xcontent.XContent} and {@link org.elasticsearch.common.xcontent.builder.XContentBuilder}.
+ * A one stop to use {@link org.elasticsearch.common.xcontent.XContent} and {@link XContentBuilder}.
  *
  * @author kimchy (shay.banon)
  */
@@ -43,32 +42,32 @@ public class XContentFactory {
 
     static {
         contents = new XContent[2];
-        contents[0] = new JsonXContent();
-        contents[1] = new XsonXContent();
+        contents[0] = JsonXContent.jsonXContent;
+        contents[1] = SmileXContent.smileXContent;
     }
 
     /**
-     * Returns a binary content builder using JSON format ({@link org.elasticsearch.common.xcontent.XContentType#JSON}.
+     * Returns a content builder using JSON format ({@link org.elasticsearch.common.xcontent.XContentType#JSON}.
      */
-    public static BinaryXContentBuilder jsonBuilder() throws IOException {
-        return contentBinaryBuilder(XContentType.JSON);
+    public static XContentBuilder jsonBuilder() throws IOException {
+        return contentBuilder(XContentType.JSON);
     }
 
     /**
-     * Returns a binary content builder using XSON format ({@link org.elasticsearch.common.xcontent.XContentType#XSON}.
+     * Returns a content builder using SMILE format ({@link org.elasticsearch.common.xcontent.XContentType#SMILE}.
      */
-    public static BinaryXContentBuilder xsonBuilder() throws IOException {
-        return contentBinaryBuilder(XContentType.XSON);
+    public static XContentBuilder smileBuilder() throws IOException {
+        return contentBuilder(XContentType.SMILE);
     }
 
     /**
      * Returns a binary content builder for the provided content type.
      */
-    public static BinaryXContentBuilder contentBuilder(XContentType type) throws IOException {
+    public static XContentBuilder contentBuilder(XContentType type) throws IOException {
         if (type == XContentType.JSON) {
-            return JsonXContent.contentBinaryBuilder();
-        } else if (type == XContentType.XSON) {
-            return XsonXContent.contentBinaryBuilder();
+            return JsonXContent.contentBuilder();
+        } else if (type == XContentType.SMILE) {
+            return SmileXContent.contentBuilder();
         }
         throw new ElasticSearchIllegalArgumentException("No matching content type for " + type);
     }
@@ -76,21 +75,11 @@ public class XContentFactory {
     /**
      * Returns a binary content builder for the provided content type.
      */
-    public static BinaryXContentBuilder contentBinaryBuilder(XContentType type) throws IOException {
+    public static XContentBuilder unCachedContentBuilder(XContentType type) throws IOException {
         if (type == XContentType.JSON) {
-            return JsonXContent.contentBinaryBuilder();
-        } else if (type == XContentType.XSON) {
-            return XsonXContent.contentBinaryBuilder();
-        }
-        throw new ElasticSearchIllegalArgumentException("No matching content type for " + type);
-    }
-
-    /**
-     * Returns a textual content builder for the provided content type. Note, XSON does not support this... .
-     */
-    public static TextXContentBuilder contentTextBuilder(XContentType type) throws IOException {
-        if (type == XContentType.JSON) {
-            return JsonXContent.contentTextBuilder();
+            return JsonXContent.unCachedContentBuilder();
+        } else if (type == XContentType.SMILE) {
+            return SmileXContent.unCachedContentBuilder();
         }
         throw new ElasticSearchIllegalArgumentException("No matching content type for " + type);
     }
@@ -164,8 +153,11 @@ public class XContentFactory {
         if (second == -1) {
             return null;
         }
-        if (first == 0x00 && second == 0x00) {
-            return XContentType.XSON;
+        if (first == SmileConstants.HEADER_BYTE_1 && second == SmileConstants.HEADER_BYTE_2) {
+            int third = si.read();
+            if (third == SmileConstants.HEADER_BYTE_3) {
+                return XContentType.SMILE;
+            }
         }
         if (first == '{' || second == '{') {
             return XContentType.JSON;
@@ -187,8 +179,8 @@ public class XContentFactory {
      */
     public static XContentType xContentType(byte[] data, int offset, int length) {
         length = length < GUESS_HEADER_LENGTH ? length : GUESS_HEADER_LENGTH;
-        if (length > 1 && data[offset] == 0x00 && data[offset + 1] == 0x00) {
-            return XContentType.XSON;
+        if (length > 2 && data[offset] == SmileConstants.HEADER_BYTE_1 && data[offset + 1] == SmileConstants.HEADER_BYTE_2 && data[offset + 2] == SmileConstants.HEADER_BYTE_3) {
+            return XContentType.SMILE;
         }
         for (int i = offset; i < length; i++) {
             if (data[i] == '{') {

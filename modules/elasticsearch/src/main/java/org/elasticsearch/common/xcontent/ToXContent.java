@@ -20,13 +20,12 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
 
 /**
- * An interface allowing to transfer an object to "XContent" using an {@link org.elasticsearch.common.xcontent.builder.XContentBuilder}.
+ * An interface allowing to transfer an object to "XContent" using an {@link XContentBuilder}.
  *
  * @author kimchy (shay.banon)
  */

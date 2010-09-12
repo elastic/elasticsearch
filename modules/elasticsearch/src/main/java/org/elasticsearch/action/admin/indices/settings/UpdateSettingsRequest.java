@@ -26,9 +26,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.builder.TextXContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -114,7 +114,7 @@ public class UpdateSettingsRequest extends MasterNodeOperationRequest {
      */
     public UpdateSettingsRequest settings(Map source) {
         try {
-            TextXContentBuilder builder = XContentFactory.contentTextBuilder(XContentType.JSON);
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
             settings(builder.string());
         } catch (IOException e) {

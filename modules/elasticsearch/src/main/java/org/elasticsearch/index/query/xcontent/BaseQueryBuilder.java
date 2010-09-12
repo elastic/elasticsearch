@@ -20,10 +20,9 @@
 package org.elasticsearch.index.query.xcontent;
 
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
-import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilderException;
 
 import java.io.IOException;
@@ -39,7 +38,7 @@ public abstract class BaseQueryBuilder implements XContentQueryBuilder {
 
     @Override public FastByteArrayOutputStream buildAsUnsafeBytes(XContentType contentType) throws QueryBuilderException {
         try {
-            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             toXContent(builder, EMPTY_PARAMS);
             return builder.unsafeStream();
         } catch (Exception e) {
@@ -53,7 +52,7 @@ public abstract class BaseQueryBuilder implements XContentQueryBuilder {
 
     @Override public byte[] buildAsBytes(XContentType contentType) throws QueryBuilderException {
         try {
-            XContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             toXContent(builder, EMPTY_PARAMS);
             return builder.copiedBytes();
         } catch (Exception e) {

@@ -24,10 +24,9 @@ import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.LZFStreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
-import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
@@ -37,7 +36,7 @@ import java.io.IOException;
  */
 public class RestXContentBuilder {
 
-    public static BinaryXContentBuilder restContentBuilder(RestRequest request) throws IOException {
+    public static XContentBuilder restContentBuilder(RestRequest request) throws IOException {
         XContentType contentType = XContentType.fromRestContentType(request.header("Content-Type"));
         if (contentType == null) {
             // try and guess it from the body, if exists
@@ -49,7 +48,7 @@ public class RestXContentBuilder {
             // default to JSON
             contentType = XContentType.JSON;
         }
-        BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
+        XContentBuilder builder = XContentFactory.contentBuilder(contentType);
         if (request.paramAsBoolean("pretty", false)) {
             builder.prettyPrint();
         }

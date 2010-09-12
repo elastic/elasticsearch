@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.xcontent.overridetype;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
 import org.elasticsearch.index.mapper.xcontent.XContentMapperTests;
 import org.testng.annotations.Test;
@@ -34,7 +33,7 @@ import static org.hamcrest.Matchers.*;
 public class OverrideTypeMappingTests {
 
     @Test public void testOverrideType() throws Exception {
-        String mapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject("type")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_source").field("enabled", false).endObject()
                 .endObject().endObject().string();
 

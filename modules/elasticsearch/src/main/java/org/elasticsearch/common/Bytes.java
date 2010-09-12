@@ -28,7 +28,7 @@ public class Bytes {
 
     public static ThreadLocal<ThreadLocals.CleanableValue<byte[]>> cachedBytes = new ThreadLocal<ThreadLocals.CleanableValue<byte[]>>() {
         @Override protected ThreadLocals.CleanableValue<byte[]> initialValue() {
-            return new ThreadLocals.CleanableValue<byte[]>(new byte[256]);
+            return new ThreadLocals.CleanableValue<byte[]>(new byte[1024]);
         }
     };
 

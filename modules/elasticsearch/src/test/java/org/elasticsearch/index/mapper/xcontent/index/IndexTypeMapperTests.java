@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.xcontent.index;
 
 import org.apache.lucene.document.Field;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
@@ -37,7 +36,7 @@ import static org.hamcrest.Matchers.*;
 public class IndexTypeMapperTests {
 
     @Test public void simpleIndexMapperTests() throws Exception {
-        String mapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject("type")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_index").field("enabled", true).field("store", "yes").endObject()
                 .endObject().endObject().string();
         XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(mapping);
@@ -56,7 +55,7 @@ public class IndexTypeMapperTests {
     }
 
     @Test public void explicitDisabledIndexMapperTests() throws Exception {
-        String mapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject("type")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_index").field("enabled", false).field("store", "yes").endObject()
                 .endObject().endObject().string();
         XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(mapping);
@@ -74,7 +73,7 @@ public class IndexTypeMapperTests {
     }
 
     @Test public void defaultDisabledIndexMapperTests() throws Exception {
-        String mapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject("type")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
         XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(mapping);
         assertThat(docMapper.indexMapper().enabled(), equalTo(false));

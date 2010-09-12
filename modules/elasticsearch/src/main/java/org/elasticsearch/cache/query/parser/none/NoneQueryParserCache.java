@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cache.query.parser.none;
 
+import org.apache.lucene.queryParser.QueryParserSettings;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cache.query.parser.QueryParserCache;
 import org.elasticsearch.common.inject.Inject;
@@ -31,10 +32,13 @@ public class NoneQueryParserCache implements QueryParserCache {
     @Inject public NoneQueryParserCache() {
     }
 
-    @Override public Query get(String queryString) {
+    @Override public Query get(QueryParserSettings queryString) {
         return null;
     }
 
-    @Override public void put(String queryString, Query query) {
+    @Override public void put(QueryParserSettings queryString, Query query) {
+    }
+
+    @Override public void clear() {
     }
 }

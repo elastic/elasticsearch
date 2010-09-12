@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query.xcontent.guice;
 
+import org.elasticsearch.cache.query.parser.QueryParserCacheModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -57,6 +58,7 @@ public class IndexQueryParserModuleTests {
         Index index = new Index("test");
         Injector injector = new ModulesBuilder().add(
                 new SettingsModule(settings),
+                new QueryParserCacheModule(settings),
                 new ScriptModule(),
                 new IndexSettingsModule(settings),
                 new IndexCacheModule(settings),

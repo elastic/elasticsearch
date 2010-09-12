@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cache.query.parser.support;
 
+import org.apache.lucene.queryParser.QueryParserSettings;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cache.query.parser.QueryParserCache;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -31,18 +32,22 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class AbstractJvmQueryParserCache extends AbstractComponent implements QueryParserCache {
 
-    final ConcurrentMap<String, Query> cache;
+    final ConcurrentMap<QueryParserSettings, Query> cache;
 
-    protected AbstractJvmQueryParserCache(Settings settings, ConcurrentMap<String, Query> cache) {
+    protected AbstractJvmQueryParserCache(Settings settings, ConcurrentMap<QueryParserSettings, Query> cache) {
         super(settings);
         this.cache = cache;
     }
 
-    @Override public Query get(String queryString) {
+    @Override public void clear() {
+        cache.clear();
+    }
+
+    @Override public Query get(QueryParserSettings queryString) {
         return cache.get(queryString);
     }
 
-    @Override public void put(String queryString, Query query) {
+    @Override public void put(QueryParserSettings queryString, Query query) {
         cache.put(queryString, query);
     }
 }

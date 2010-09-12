@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cache.query.parser.soft;
 
+import org.apache.lucene.queryParser.QueryParserSettings;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cache.query.parser.support.AbstractJvmQueryParserCache;
 import org.elasticsearch.common.collect.MapMaker;
@@ -31,6 +32,6 @@ import org.elasticsearch.common.settings.Settings;
 public class SoftQueryParserCache extends AbstractJvmQueryParserCache {
 
     @Inject public SoftQueryParserCache(Settings settings) {
-        super(settings, new MapMaker().softValues().<String, Query>makeMap());
+        super(settings, new MapMaker().softValues().<QueryParserSettings, Query>makeMap());
     }
 }

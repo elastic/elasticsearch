@@ -24,6 +24,7 @@ import org.apache.lucene.queryParser.ParseException;
 import org.apache.lucene.queryParser.QueryParser;
 import org.apache.lucene.queryParser.QueryParserSettings;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.cache.query.parser.QueryParserCache;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -46,9 +47,12 @@ public class FieldQueryParser extends AbstractIndexComponent implements XContent
 
     private final AnalysisService analysisService;
 
-    @Inject public FieldQueryParser(Index index, @IndexSettings Settings settings, AnalysisService analysisService) {
+    private final QueryParserCache queryParserCache;
+
+    @Inject public FieldQueryParser(Index index, @IndexSettings Settings settings, AnalysisService analysisService, QueryParserCache queryParserCache) {
         super(index, settings);
         this.analysisService = analysisService;
+        this.queryParserCache = queryParserCache;
     }
 
     @Override public String[] names() {
@@ -122,12 +126,19 @@ public class FieldQueryParser extends AbstractIndexComponent implements XContent
             qpSettings.queryString(QueryParser.escape(qpSettings.queryString()));
         }
 
+        Query query = queryParserCache.get(qpSettings);
+        if (query != null) {
+            return query;
+        }
+
         MapperQueryParser queryParser = parseContext.queryParser(qpSettings);
 
         try {
-            Query query = queryParser.parse(qpSettings.queryString());
+            query = queryParser.parse(qpSettings.queryString());
             query.setBoost(qpSettings.boost());
-            return optimizeQuery(fixNegativeQueryIfNeeded(query));
+            query = optimizeQuery(fixNegativeQueryIfNeeded(query));
+            queryParserCache.put(qpSettings, query);
+            return query;
         } catch (ParseException e) {
             throw new QueryParsingException(index, "Failed to parse query [" + qpSettings.queryString() + "]", e);
         }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cache.query.parser.weak;
 
+import org.apache.lucene.queryParser.QueryParserSettings;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cache.query.parser.support.AbstractJvmQueryParserCache;
 import org.elasticsearch.common.collect.MapMaker;
@@ -31,6 +32,6 @@ import org.elasticsearch.common.settings.Settings;
 public class WeakQueryParserCache extends AbstractJvmQueryParserCache {
 
     @Inject public WeakQueryParserCache(Settings settings) {
-        super(settings, new MapMaker().weakValues().<String, Query>makeMap());
+        super(settings, new MapMaker().weakValues().<QueryParserSettings, Query>makeMap());
     }
 }

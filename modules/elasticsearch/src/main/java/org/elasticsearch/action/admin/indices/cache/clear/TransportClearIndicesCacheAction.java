@@ -25,6 +25,7 @@ import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
+import org.elasticsearch.cache.query.parser.QueryParserCache;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -48,9 +49,12 @@ import static org.elasticsearch.common.collect.Lists.*;
  */
 public class TransportClearIndicesCacheAction extends TransportBroadcastOperationAction<ClearIndicesCacheRequest, ClearIndicesCacheResponse, ShardClearIndicesCacheRequest, ShardClearIndicesCacheResponse> {
 
+    private final QueryParserCache queryParserCache;
+
     @Inject public TransportClearIndicesCacheAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                                    TransportService transportService, IndicesService indicesService) {
+                                                    TransportService transportService, IndicesService indicesService, QueryParserCache queryParserCache) {
         super(settings, threadPool, clusterService, transportService, indicesService);
+        this.queryParserCache = queryParserCache;
     }
 
     @Override protected String transportAction() {
@@ -106,6 +110,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
     @Override protected ShardClearIndicesCacheResponse shardOperation(ShardClearIndicesCacheRequest request) throws ElasticSearchException {
         // TODO we can optimize to go to a single node where the index exists
         IndexCache cache = indicesService.indexServiceSafe(request.index()).cache();
+        queryParserCache.clear();
         if (request.filterCache()) {
             cache.filter().clear();
         }

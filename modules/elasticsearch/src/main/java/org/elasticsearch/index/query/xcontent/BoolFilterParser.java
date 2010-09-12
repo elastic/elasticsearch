@@ -38,12 +38,14 @@ import static org.elasticsearch.common.collect.Lists.*;
  */
 public class BoolFilterParser extends AbstractIndexComponent implements XContentFilterParser {
 
+    public static final String NAME = "bool";
+
     @Inject public BoolFilterParser(Index index, @IndexSettings Settings settings) {
         super(index, settings);
     }
 
     @Override public String[] names() {
-        return new String[]{"bool"};
+        return new String[]{NAME};
     }
 
     @Override public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {

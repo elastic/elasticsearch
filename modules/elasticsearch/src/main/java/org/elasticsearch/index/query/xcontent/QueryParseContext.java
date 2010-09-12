@@ -50,17 +50,7 @@ public class QueryParseContext {
 
     private final Index index;
 
-    private final ScriptService scriptService;
-
-    private final MapperService mapperService;
-
-    private final SimilarityService similarityService;
-
-    private final IndexCache indexCache;
-
-    private final IndexEngine indexEngine;
-
-    private final XContentQueryParserRegistry queryParserRegistry;
+    XContentIndexQueryParser indexQueryParser;
 
     private final Map<String, Filter> namedFilters = Maps.newHashMap();
 
@@ -70,17 +60,9 @@ public class QueryParseContext {
 
     private XContentParser parser;
 
-    public QueryParseContext(Index index, XContentQueryParserRegistry queryParserRegistry,
-                             ScriptService scriptService,
-                             MapperService mapperService, SimilarityService similarityService,
-                             IndexCache indexCache, IndexEngine indexEngine) {
+    public QueryParseContext(Index index, XContentIndexQueryParser indexQueryParser) {
         this.index = index;
-        this.queryParserRegistry = queryParserRegistry;
-        this.scriptService = scriptService;
-        this.mapperService = mapperService;
-        this.similarityService = similarityService;
-        this.indexCache = indexCache;
-        this.indexEngine = indexEngine;
+        this.indexQueryParser = indexQueryParser;
     }
 
     public void reset(XContentParser jp) {
@@ -93,27 +75,27 @@ public class QueryParseContext {
     }
 
     public ScriptService scriptService() {
-        return scriptService;
+        return indexQueryParser.scriptService;
     }
 
     public MapperService mapperService() {
-        return mapperService;
+        return indexQueryParser.mapperService;
     }
 
     public IndexEngine indexEngine() {
-        return this.indexEngine;
+        return indexQueryParser.indexEngine;
     }
 
     @Nullable public SimilarityService similarityService() {
-        return this.similarityService;
+        return indexQueryParser.similarityService;
     }
 
     public Similarity searchSimilarity() {
-        return similarityService != null ? similarityService.defaultSearchSimilarity() : null;
+        return indexQueryParser.similarityService != null ? indexQueryParser.similarityService.defaultSearchSimilarity() : null;
     }
 
     public IndexCache indexCache() {
-        return indexCache;
+        return indexQueryParser.indexCache;
     }
 
     public MapperQueryParser queryParser(QueryParserSettings settings) {
@@ -127,7 +109,7 @@ public class QueryParseContext {
     }
 
     public Filter cacheFilterIfPossible(Filter filter) {
-        return indexCache.filter().cache(filter);
+        return indexQueryParser.indexCache.filter().cache(filter);
     }
 
     public void addNamedFilter(String name, Filter filter) {
@@ -155,7 +137,7 @@ public class QueryParseContext {
         token = parser.nextToken();
         assert token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY;
 
-        XContentQueryParser queryParser = queryParserRegistry.queryParser(queryName);
+        XContentQueryParser queryParser = indexQueryParser.queryParser(queryName);
         if (queryParser == null) {
             throw new QueryParsingException(index, "No query parser registered for [" + queryName + "]");
         }
@@ -181,7 +163,7 @@ public class QueryParseContext {
         token = parser.nextToken();
         assert token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY;
 
-        XContentFilterParser filterParser = queryParserRegistry.filterParser(queryName);
+        XContentFilterParser filterParser = indexQueryParser.filterParser(queryName);
         if (filterParser == null) {
             throw new QueryParsingException(index, "No query parser registered for [" + queryName + "]");
         }
@@ -194,7 +176,7 @@ public class QueryParseContext {
     }
 
     public FieldMapper fieldMapper(String name) {
-        FieldMappers fieldMappers = mapperService.smartNameFieldMappers(name);
+        FieldMappers fieldMappers = indexQueryParser.mapperService.smartNameFieldMappers(name);
         if (fieldMappers == null) {
             return null;
         }
@@ -210,6 +192,6 @@ public class QueryParseContext {
     }
 
     public MapperService.SmartNameFieldMappers smartFieldMappers(String name) {
-        return mapperService.smartName(name);
+        return indexQueryParser.mapperService.smartName(name);
     }
 }

@@ -31,7 +31,6 @@ import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
-import org.elasticsearch.index.query.xcontent.XContentQueryParserRegistry;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.script.ScriptModule;
@@ -70,14 +69,14 @@ public class IndexQueryParserModuleTests {
         IndexQueryParserService indexQueryParserService = injector.getInstance(IndexQueryParserService.class);
 
 
-        XContentQueryParserRegistry parserRegistry = ((XContentIndexQueryParser) indexQueryParserService.defaultIndexQueryParser()).queryParserRegistry();
+        XContentIndexQueryParser indexQueryParser = ((XContentIndexQueryParser) indexQueryParserService.defaultIndexQueryParser());
 
-        MyJsonQueryParser myJsonQueryParser = (MyJsonQueryParser) parserRegistry.queryParser("my");
+        MyJsonQueryParser myJsonQueryParser = (MyJsonQueryParser) indexQueryParser.queryParser("my");
 
         assertThat(myJsonQueryParser.names()[0], equalTo("my"));
         assertThat(myJsonQueryParser.settings().get("param1"), equalTo("value1"));
 
-        MyJsonFilterParser myJsonFilterParser = (MyJsonFilterParser) parserRegistry.filterParser("my");
+        MyJsonFilterParser myJsonFilterParser = (MyJsonFilterParser) indexQueryParser.filterParser("my");
         assertThat(myJsonFilterParser.names()[0], equalTo("my"));
         assertThat(myJsonFilterParser.settings().get("param2"), equalTo("value2"));
     }

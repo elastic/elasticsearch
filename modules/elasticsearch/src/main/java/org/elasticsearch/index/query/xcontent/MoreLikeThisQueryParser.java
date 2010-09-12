@@ -22,6 +22,7 @@ package org.elasticsearch.index.query.xcontent;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Sets;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -42,7 +43,7 @@ public class MoreLikeThisQueryParser extends AbstractIndexComponent implements X
 
     public static final String NAME = "mlt";
 
-    public MoreLikeThisQueryParser(Index index, @IndexSettings Settings indexSettings) {
+    @Inject public MoreLikeThisQueryParser(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
     }
 

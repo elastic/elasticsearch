@@ -24,14 +24,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.cache.IndexCache;
-import org.elasticsearch.index.engine.IndexEngine;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.xcontent.XContentIndexQueryParser;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.script.ScriptService;
 
 import javax.annotation.Nullable;
 import java.util.Map;
@@ -53,15 +46,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     private final Map<String, IndexQueryParser> indexQueryParsers;
 
-    public IndexQueryParserService(Index index, MapperService mapperService, IndexCache indexCache, IndexEngine indexEngine, AnalysisService analysisService) {
-        this(index, EMPTY_SETTINGS, new ScriptService(EMPTY_SETTINGS), mapperService, indexCache, indexEngine, analysisService, null, null);
-    }
-
     @Inject public IndexQueryParserService(Index index, @IndexSettings Settings indexSettings,
-                                           ScriptService scriptService,
-                                           MapperService mapperService, IndexCache indexCache,
-                                           IndexEngine indexEngine, AnalysisService analysisService,
-                                           @Nullable SimilarityService similarityService,
                                            @Nullable Map<String, IndexQueryParserFactory> indexQueryParsersFactories) {
         super(index, indexSettings);
         Map<String, Settings> queryParserGroupSettings;
@@ -81,11 +66,6 @@ public class IndexQueryParserService extends AbstractIndexComponent {
                 qparsers.put(qparserName, entry.getValue().create(qparserName, qparserSettings));
             }
         }
-        if (!qparsers.containsKey(Defaults.DEFAULT)) {
-            IndexQueryParser defaultQueryParser = new XContentIndexQueryParser(index, indexSettings, scriptService, mapperService, indexCache, indexEngine, analysisService, similarityService, null, null, Defaults.DEFAULT, null);
-            qparsers.put(Defaults.DEFAULT, defaultQueryParser);
-        }
-
         indexQueryParsers = ImmutableMap.copyOf(qparsers);
 
         defaultIndexQueryParser = indexQueryParser(Defaults.DEFAULT);

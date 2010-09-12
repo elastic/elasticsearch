@@ -22,6 +22,7 @@ package org.elasticsearch.index.query.xcontent;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -41,7 +42,7 @@ public class FuzzyQueryParser extends AbstractIndexComponent implements XContent
 
     public static final String NAME = "fuzzy";
 
-    public FuzzyQueryParser(Index index, @IndexSettings Settings indexSettings) {
+    @Inject public FuzzyQueryParser(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
     }
 

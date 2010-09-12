@@ -22,6 +22,7 @@ package org.elasticsearch.index.query.xcontent;
 import org.apache.lucene.search.FuzzyLikeThisQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -51,7 +52,7 @@ public class FuzzyLikeThisQueryParser extends AbstractIndexComponent implements 
 
     public static final String NAME = "flt";
 
-    public FuzzyLikeThisQueryParser(Index index, @IndexSettings Settings indexSettings) {
+    @Inject public FuzzyLikeThisQueryParser(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
     }
 

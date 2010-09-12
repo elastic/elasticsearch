@@ -19,6 +19,10 @@
 
 package org.elasticsearch.index.query.xcontent;
 
+import org.apache.lucene.queryParser.MapperQueryParser;
+import org.apache.lucene.queryParser.MultiFieldMapperQueryParser;
+import org.apache.lucene.queryParser.MultiFieldQueryParserSettings;
+import org.apache.lucene.queryParser.QueryParserSettings;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Similarity;
@@ -59,6 +63,10 @@ public class QueryParseContext {
     private final XContentQueryParserRegistry queryParserRegistry;
 
     private final Map<String, Filter> namedFilters = Maps.newHashMap();
+
+    private final MapperQueryParser queryParser = new MapperQueryParser(this);
+
+    private final MultiFieldMapperQueryParser multiFieldQueryParser = new MultiFieldMapperQueryParser(this);
 
     private XContentParser parser;
 
@@ -106,6 +114,16 @@ public class QueryParseContext {
 
     public IndexCache indexCache() {
         return indexCache;
+    }
+
+    public MapperQueryParser queryParser(QueryParserSettings settings) {
+        queryParser.reset(settings);
+        return queryParser;
+    }
+
+    public MultiFieldMapperQueryParser queryParser(MultiFieldQueryParserSettings settings) {
+        multiFieldQueryParser.reset(settings);
+        return multiFieldQueryParser;
     }
 
     public Filter cacheFilterIfPossible(Filter filter) {

@@ -19,10 +19,12 @@
 
 package org.elasticsearch.indexer;
 
+import java.io.Serializable;
+
 /**
  * @author kimchy (shay.banon)
  */
-public class IndexerName {
+public class IndexerName implements Serializable {
 
     private final String type;
 

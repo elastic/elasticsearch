@@ -119,7 +119,7 @@ public final class InternalNode implements Node {
         modules.add(new SettingsModule(settings));
         modules.add(new NodeModule(this));
         modules.add(new NetworkModule());
-        modules.add(new NodeCacheModule());
+        modules.add(new NodeCacheModule(settings));
         modules.add(new ScriptModule());
         modules.add(new JmxModule(settings));
         modules.add(new EnvironmentModule(environment));

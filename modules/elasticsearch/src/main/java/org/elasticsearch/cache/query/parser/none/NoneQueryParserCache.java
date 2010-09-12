@@ -17,28 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.cache;
+package org.elasticsearch.cache.query.parser.none;
 
-import org.elasticsearch.cache.memory.ByteBufferCache;
-import org.elasticsearch.cache.query.parser.QueryParserCacheModule;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.cache.query.parser.QueryParserCache;
+import org.elasticsearch.common.inject.Inject;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class NodeCacheModule extends AbstractModule {
+public class NoneQueryParserCache implements QueryParserCache {
 
-    private final Settings settings;
-
-    public NodeCacheModule(Settings settings) {
-        this.settings = settings;
+    @Inject public NoneQueryParserCache() {
     }
 
-    @Override protected void configure() {
-        bind(NodeCache.class).asEagerSingleton();
-        bind(ByteBufferCache.class).asEagerSingleton();
+    @Override public Query get(String queryString) {
+        return null;
+    }
 
-        new QueryParserCacheModule(settings).configure(binder());
+    @Override public void put(String queryString, Query query) {
     }
 }

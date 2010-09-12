@@ -24,6 +24,7 @@ import org.apache.lucene.queryParser.MultiFieldQueryParserSettings;
 import org.apache.lucene.queryParser.ParseException;
 import org.apache.lucene.queryParser.QueryParser;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.cache.query.parser.QueryParserCache;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
@@ -50,9 +51,12 @@ public class QueryStringQueryParser extends AbstractIndexComponent implements XC
 
     private final AnalysisService analysisService;
 
-    @Inject public QueryStringQueryParser(Index index, @IndexSettings Settings settings, AnalysisService analysisService) {
+    private final QueryParserCache queryParserCache;
+
+    @Inject public QueryStringQueryParser(Index index, @IndexSettings Settings settings, AnalysisService analysisService, QueryParserCache queryParserCache) {
         super(index, settings);
         this.analysisService = analysisService;
+        this.queryParserCache = queryParserCache;
     }
 
     @Override public String[] names() {
@@ -150,6 +154,11 @@ public class QueryStringQueryParser extends AbstractIndexComponent implements XC
             qpSettings.queryString(QueryParser.escape(qpSettings.queryString()));
         }
 
+        Query query = queryParserCache.get(qpSettings);
+        if (query != null) {
+            return query;
+        }
+
         MapperQueryParser queryParser;
         if (qpSettings.fields() != null) {
             if (qpSettings.fields().size() == 1) {
@@ -163,10 +172,13 @@ public class QueryStringQueryParser extends AbstractIndexComponent implements XC
             queryParser = parseContext.queryParser(qpSettings);
         }
 
+
         try {
-            Query query = queryParser.parse(qpSettings.queryString());
+            query = queryParser.parse(qpSettings.queryString());
             query.setBoost(qpSettings.boost());
-            return optimizeQuery(fixNegativeQueryIfNeeded(query));
+            query = optimizeQuery(fixNegativeQueryIfNeeded(query));
+            queryParserCache.put(qpSettings, query);
+            return query;
         } catch (ParseException e) {
             throw new QueryParsingException(index, "Failed to parse query [" + qpSettings.queryString() + "]", e);
         }

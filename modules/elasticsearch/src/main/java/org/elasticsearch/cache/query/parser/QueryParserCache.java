@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cache.query.parser;
 
+import org.apache.lucene.queryParser.QueryParserSettings;
 import org.apache.lucene.search.Query;
 
 /**
@@ -26,7 +27,9 @@ import org.apache.lucene.search.Query;
  */
 public interface QueryParserCache {
 
-    Query get(String queryString);
+    Query get(QueryParserSettings queryString);
 
-    void put(String queryString, Query query);
+    void put(QueryParserSettings queryString, Query query);
+
+    void clear();
 }

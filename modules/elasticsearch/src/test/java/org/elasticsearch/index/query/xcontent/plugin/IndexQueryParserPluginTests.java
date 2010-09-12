@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query.xcontent.plugin;
 
+import org.elasticsearch.cache.query.parser.QueryParserCacheModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -63,6 +64,7 @@ public class IndexQueryParserPluginTests {
         Injector injector = new ModulesBuilder().add(
                 new SettingsModule(settings),
                 new ScriptModule(),
+                new QueryParserCacheModule(settings),
                 new IndexSettingsModule(settings),
                 new IndexCacheModule(settings),
                 new AnalysisModule(settings),

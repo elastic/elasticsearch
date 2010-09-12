@@ -22,6 +22,7 @@ package org.elasticsearch.index.query.xcontent;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
@@ -31,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.mapper.MapperService;
@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.collect.Lists.*;
+import static org.elasticsearch.common.collect.Maps.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 
 /**
@@ -63,28 +64,30 @@ public class XContentIndexQueryParser extends AbstractIndexComponent implements 
 
     private ThreadLocal<ThreadLocals.CleanableValue<QueryParseContext>> cache = new ThreadLocal<ThreadLocals.CleanableValue<QueryParseContext>>() {
         @Override protected ThreadLocals.CleanableValue<QueryParseContext> initialValue() {
-            return new ThreadLocals.CleanableValue<QueryParseContext>(new QueryParseContext(index, queryParserRegistry, scriptService, mapperService, similarityService, indexCache, indexEngine));
+            return new ThreadLocals.CleanableValue<QueryParseContext>(new QueryParseContext(index, XContentIndexQueryParser.this));
         }
     };
 
     private final String name;
 
-    private final ScriptService scriptService;
+    final ScriptService scriptService;
 
-    private final MapperService mapperService;
+    final MapperService mapperService;
 
-    private final SimilarityService similarityService;
+    final SimilarityService similarityService;
 
-    private final IndexCache indexCache;
+    final IndexCache indexCache;
 
-    private final IndexEngine indexEngine;
+    final IndexEngine indexEngine;
 
-    private final XContentQueryParserRegistry queryParserRegistry;
+    private final Map<String, XContentQueryParser> queryParsers;
+
+    private final Map<String, XContentFilterParser> filterParsers;
 
     @Inject public XContentIndexQueryParser(Index index,
                                             @IndexSettings Settings indexSettings, ScriptService scriptService,
                                             MapperService mapperService, IndexCache indexCache, IndexEngine indexEngine,
-                                            AnalysisService analysisService, @Nullable SimilarityService similarityService,
+                                            @Nullable SimilarityService similarityService,
                                             @Nullable Map<String, XContentQueryParserFactory> namedQueryParsers,
                                             @Nullable Map<String, XContentFilterParserFactory> namedFilterParsers,
                                             @Assisted String name, @Assisted @Nullable Settings settings) {
@@ -110,6 +113,14 @@ public class XContentIndexQueryParser extends AbstractIndexComponent implements 
             }
         }
 
+        Map<String, XContentQueryParser> queryParsersMap = newHashMap();
+        if (queryParsers != null) {
+            for (XContentQueryParser queryParser : queryParsers) {
+                add(queryParsersMap, queryParser);
+            }
+        }
+        this.queryParsers = ImmutableMap.copyOf(queryParsersMap);
+
         List<XContentFilterParser> filterParsers = newArrayList();
         if (namedFilterParsers != null) {
             Map<String, Settings> filterParserGroups = indexSettings.getGroups(XContentIndexQueryParser.Defaults.FILTER_PREFIX);
@@ -124,15 +135,25 @@ public class XContentIndexQueryParser extends AbstractIndexComponent implements 
             }
         }
 
-        this.queryParserRegistry = new XContentQueryParserRegistry(index, indexSettings, analysisService, queryParsers, filterParsers);
+        Map<String, XContentFilterParser> filterParsersMap = newHashMap();
+        if (filterParsers != null) {
+            for (XContentFilterParser filterParser : filterParsers) {
+                add(filterParsersMap, filterParser);
+            }
+        }
+        this.filterParsers = ImmutableMap.copyOf(filterParsersMap);
     }
 
     @Override public String name() {
         return this.name;
     }
 
-    public XContentQueryParserRegistry queryParserRegistry() {
-        return this.queryParserRegistry;
+    public XContentQueryParser queryParser(String name) {
+        return queryParsers.get(name);
+    }
+
+    public XContentFilterParser filterParser(String name) {
+        return filterParsers.get(name);
     }
 
     @Override public ParsedQuery parse(QueryBuilder queryBuilder) throws ElasticSearchException {
@@ -212,5 +233,17 @@ public class XContentIndexQueryParser extends AbstractIndexComponent implements 
         parseContext.reset(parser);
         Query query = parseContext.parseInnerQuery();
         return new ParsedQuery(query, parseContext.copyNamedFilters());
+    }
+
+    private void add(Map<String, XContentFilterParser> map, XContentFilterParser filterParser) {
+        for (String name : filterParser.names()) {
+            map.put(name.intern(), filterParser);
+        }
+    }
+
+    private void add(Map<String, XContentQueryParser> map, XContentQueryParser queryParser) {
+        for (String name : queryParser.names()) {
+            map.put(name.intern(), queryParser);
+        }
     }
 }

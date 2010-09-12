@@ -41,12 +41,14 @@ import static org.elasticsearch.common.lucene.search.Queries.*;
  */
 public class BoolQueryParser extends AbstractIndexComponent implements XContentQueryParser {
 
+    public static final String NAME = "bool";
+
     @Inject public BoolQueryParser(Index index, @IndexSettings Settings settings) {
         super(index, settings);
     }
 
     @Override public String[] names() {
-        return new String[]{"bool"};
+        return new String[]{NAME};
     }
 
     @Override public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {

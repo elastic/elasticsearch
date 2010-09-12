@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.FuzzyLikeThisQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -53,7 +54,7 @@ public class FuzzyLikeThisFieldQueryParser extends AbstractIndexComponent implem
 
     public static final String NAME = "flt_field";
 
-    public FuzzyLikeThisFieldQueryParser(Index index, @IndexSettings Settings indexSettings) {
+    @Inject public FuzzyLikeThisFieldQueryParser(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
     }
 

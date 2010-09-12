@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.xcontent.geopoint;
 
 import org.elasticsearch.common.lucene.geo.GeoHashUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
 import org.elasticsearch.index.mapper.xcontent.XContentMapperTests;
@@ -36,7 +35,7 @@ import static org.hamcrest.Matchers.*;
 public class GeohashMappingGeoPointTests {
 
     @Test public void testLatLonValues() throws Exception {
-        String mapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject("type")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("geohash", true).field("lat_lon", false).endObject().endObject()
                 .endObject().endObject().string();
 
@@ -54,7 +53,7 @@ public class GeohashMappingGeoPointTests {
     }
 
     @Test public void testLatLonInOneValue() throws Exception {
-        String mapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject("type")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("geohash", true).field("lat_lon", false).endObject().endObject()
                 .endObject().endObject().string();
 
@@ -72,7 +71,7 @@ public class GeohashMappingGeoPointTests {
     }
 
     @Test public void testGeoHashValue() throws Exception {
-        String mapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject("type")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("geohash", true).field("lat_lon", false).endObject().endObject()
                 .endObject().endObject().string();
 

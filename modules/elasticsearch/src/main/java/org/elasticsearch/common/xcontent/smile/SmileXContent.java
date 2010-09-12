@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.common.xcontent.json;
+package org.elasticsearch.common.xcontent.smile;
 
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.jackson.JsonEncoding;
-import org.elasticsearch.common.jackson.JsonFactory;
-import org.elasticsearch.common.jackson.JsonGenerator;
-import org.elasticsearch.common.jackson.JsonParser;
+import org.elasticsearch.common.jackson.smile.SmileFactory;
+import org.elasticsearch.common.jackson.smile.SmileGenerator;
 import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.json.JsonXContentParser;
 
 import java.io.*;
 
@@ -33,58 +33,57 @@ import java.io.*;
  *
  * @author kimchy (shay.banon)
  */
-public class JsonXContent implements XContent {
+public class SmileXContent implements XContent {
 
     public static XContentBuilder contentBuilder() throws IOException {
-        return XContentBuilder.cachedBuilder(jsonXContent);
+        return XContentBuilder.cachedBuilder(smileXContent);
     }
 
     public static XContentBuilder unCachedContentBuilder() throws IOException {
-        return XContentBuilder.builder(jsonXContent);
+        return XContentBuilder.builder(smileXContent);
     }
 
-    private final static JsonFactory jsonFactory;
-    public final static JsonXContent jsonXContent;
+    private final static SmileFactory smileFactory;
+    public final static SmileXContent smileXContent;
 
     static {
-        jsonFactory = new JsonFactory();
-        jsonFactory.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
-        jsonFactory.configure(JsonGenerator.Feature.QUOTE_FIELD_NAMES, true);
-        jsonXContent = new JsonXContent();
+        smileFactory = new SmileFactory();
+        smileFactory.configure(SmileGenerator.Feature.ENCODE_BINARY_AS_7BIT, false); // for now, this is an overhead, might make sense for web sockets
+        smileXContent = new SmileXContent();
     }
 
-    private JsonXContent() {
+    private SmileXContent() {
     }
 
     @Override public XContentType type() {
-        return XContentType.JSON;
+        return XContentType.SMILE;
     }
 
     @Override public XContentGenerator createGenerator(OutputStream os) throws IOException {
-        return new JsonXContentGenerator(jsonFactory.createJsonGenerator(os, JsonEncoding.UTF8));
+        return new SmileXContentGenerator(smileFactory.createJsonGenerator(os, JsonEncoding.UTF8));
     }
 
     @Override public XContentGenerator createGenerator(Writer writer) throws IOException {
-        return new JsonXContentGenerator(jsonFactory.createJsonGenerator(writer));
+        return new SmileXContentGenerator(smileFactory.createJsonGenerator(writer));
     }
 
     @Override public XContentParser createParser(String content) throws IOException {
-        return new JsonXContentParser(jsonFactory.createJsonParser(new FastStringReader(content)));
+        return new SmileXContentParser(smileFactory.createJsonParser(new FastStringReader(content)));
     }
 
     @Override public XContentParser createParser(InputStream is) throws IOException {
-        return new JsonXContentParser(jsonFactory.createJsonParser(is));
+        return new SmileXContentParser(smileFactory.createJsonParser(is));
     }
 
     @Override public XContentParser createParser(byte[] data) throws IOException {
-        return new JsonXContentParser(jsonFactory.createJsonParser(data));
+        return new SmileXContentParser(smileFactory.createJsonParser(data));
     }
 
     @Override public XContentParser createParser(byte[] data, int offset, int length) throws IOException {
-        return new JsonXContentParser(jsonFactory.createJsonParser(data, offset, length));
+        return new SmileXContentParser(smileFactory.createJsonParser(data, offset, length));
     }
 
     @Override public XContentParser createParser(Reader reader) throws IOException {
-        return new JsonXContentParser(jsonFactory.createJsonParser(reader));
+        return new JsonXContentParser(smileFactory.createJsonParser(reader));
     }
 }

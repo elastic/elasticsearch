@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.common.xcontent.builder;
+package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.Unicode;
+import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.joda.time.ReadableInstant;
 import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
 import org.elasticsearch.common.joda.time.format.ISODateTimeFormat;
-import org.elasticsearch.common.xcontent.XContentGenerator;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapConverter;
 
 import java.io.IOException;
@@ -37,7 +37,7 @@ import java.util.Map;
 /**
  * @author kimchy (shay.banon)
  */
-public abstract class XContentBuilder<T extends XContentBuilder> {
+public final class XContentBuilder {
 
     public static enum FieldCaseConversion {
         /**
@@ -62,168 +62,187 @@ public abstract class XContentBuilder<T extends XContentBuilder> {
         XContentBuilder.globalFieldCaseConversion = globalFieldCaseConversion;
     }
 
-    protected XContentGenerator generator;
+    private XContentGenerator generator;
 
-    protected T builder;
+    private final FastByteArrayOutputStream bos;
 
-    protected FieldCaseConversion fieldCaseConversion = globalFieldCaseConversion;
+    private FieldCaseConversion fieldCaseConversion = globalFieldCaseConversion;
 
-    protected StringBuilder cachedStringBuilder = new StringBuilder();
+    private StringBuilder cachedStringBuilder;
 
-    public T fieldCaseConversion(FieldCaseConversion fieldCaseConversion) {
+    public static XContentBuilder cachedBuilder(XContent xContent) throws IOException {
+        return new XContentBuilder(FastByteArrayOutputStream.Cached.cached(), xContent);
+    }
+
+    public static XContentBuilder builder(XContent xContent) throws IOException {
+        return new XContentBuilder(new FastByteArrayOutputStream(), xContent);
+    }
+
+    public XContentBuilder(FastByteArrayOutputStream bos, XContent xContent) throws IOException {
+        this.bos = bos;
+        this.generator = xContent.createGenerator(bos);
+    }
+
+    public XContentBuilder fieldCaseConversion(FieldCaseConversion fieldCaseConversion) {
         this.fieldCaseConversion = fieldCaseConversion;
-        return builder;
+        return this;
     }
 
     public XContentType contentType() {
         return generator.contentType();
     }
 
-    public T prettyPrint() {
+    public XContentBuilder prettyPrint() {
         generator.usePrettyPrint();
-        return builder;
+        return this;
     }
 
-    public T startObject(String name) throws IOException {
+    public XContentBuilder startObject(String name) throws IOException {
         field(name);
         startObject();
-        return builder;
+        return this;
     }
 
-    public T startObject() throws IOException {
+    public XContentBuilder startObject() throws IOException {
         generator.writeStartObject();
-        return builder;
+        return this;
     }
 
-    public T endObject() throws IOException {
+    public XContentBuilder endObject() throws IOException {
         generator.writeEndObject();
-        return builder;
+        return this;
     }
 
-    public T array(String name, String... values) throws IOException {
+    public XContentBuilder array(String name, String... values) throws IOException {
         startArray(name);
         for (String value : values) {
             value(value);
         }
         endArray();
-        return builder;
+        return this;
     }
 
-    public T array(String name, Object... values) throws IOException {
+    public XContentBuilder array(String name, Object... values) throws IOException {
         startArray(name);
         for (Object value : values) {
             value(value);
         }
         endArray();
-        return builder;
+        return this;
     }
 
-    public T startArray(String name) throws IOException {
+    public XContentBuilder startArray(String name) throws IOException {
         field(name);
         startArray();
-        return builder;
+        return this;
     }
 
-    public T startArray() throws IOException {
+    public XContentBuilder startArray() throws IOException {
         generator.writeStartArray();
-        return builder;
+        return this;
     }
 
-    public T endArray() throws IOException {
+    public XContentBuilder endArray() throws IOException {
         generator.writeEndArray();
-        return builder;
+        return this;
     }
 
-    public T field(String name) throws IOException {
+    public XContentBuilder field(String name) throws IOException {
         if (fieldCaseConversion == FieldCaseConversion.UNDERSCORE) {
+            if (cachedStringBuilder == null) {
+                cachedStringBuilder = new StringBuilder();
+            }
             name = Strings.toUnderscoreCase(name, cachedStringBuilder);
         } else if (fieldCaseConversion == FieldCaseConversion.CAMELCASE) {
+            if (cachedStringBuilder == null) {
+                cachedStringBuilder = new StringBuilder();
+            }
             name = Strings.toCamelCase(name, cachedStringBuilder);
         }
         generator.writeFieldName(name);
-        return builder;
+        return this;
     }
 
-    public T field(String name, char[] value, int offset, int length) throws IOException {
+    public XContentBuilder field(String name, char[] value, int offset, int length) throws IOException {
         field(name);
         if (value == null) {
             generator.writeNull();
         } else {
             generator.writeString(value, offset, length);
         }
-        return builder;
+        return this;
     }
 
-    public T field(String name, String value) throws IOException {
+    public XContentBuilder field(String name, String value) throws IOException {
         field(name);
         if (value == null) {
             generator.writeNull();
         } else {
             generator.writeString(value);
         }
-        return builder;
+        return this;
     }
 
-    public T field(String name, Integer value) throws IOException {
+    public XContentBuilder field(String name, Integer value) throws IOException {
         return field(name, value.intValue());
     }
 
-    public T field(String name, int value) throws IOException {
+    public XContentBuilder field(String name, int value) throws IOException {
         field(name);
         generator.writeNumber(value);
-        return builder;
+        return this;
     }
 
-    public T field(String name, Long value) throws IOException {
+    public XContentBuilder field(String name, Long value) throws IOException {
         return field(name, value.longValue());
     }
 
-    public T field(String name, long value) throws IOException {
+    public XContentBuilder field(String name, long value) throws IOException {
         field(name);
         generator.writeNumber(value);
-        return builder;
+        return this;
     }
 
-    public T field(String name, Float value) throws IOException {
+    public XContentBuilder field(String name, Float value) throws IOException {
         return field(name, value.floatValue());
     }
 
-    public T field(String name, float value) throws IOException {
+    public XContentBuilder field(String name, float value) throws IOException {
         field(name);
         generator.writeNumber(value);
-        return builder;
+        return this;
     }
 
 
-    public T field(String name, Double value) throws IOException {
+    public XContentBuilder field(String name, Double value) throws IOException {
         return field(name, value.doubleValue());
     }
 
-    public T field(String name, double value) throws IOException {
+    public XContentBuilder field(String name, double value) throws IOException {
         field(name);
         generator.writeNumber(value);
-        return builder;
+        return this;
     }
 
-    public T field(String name, Map<String, Object> value) throws IOException {
+    public XContentBuilder field(String name, Map<String, Object> value) throws IOException {
         field(name);
         value(value);
-        return builder;
+        return this;
     }
 
-    public T field(String name, List<Object> value) throws IOException {
+    public XContentBuilder field(String name, List<Object> value) throws IOException {
         startArray(name);
         for (Object o : value) {
             value(o);
         }
         endArray();
-        return builder;
+        return this;
     }
 
-    public T field(String name, Object value) throws IOException {
+    public XContentBuilder field(String name, Object value) throws IOException {
         if (value == null) {
             nullField(name);
-            return builder;
+            return this;
         }
         Class type = value.getClass();
         if (type == String.class) {
@@ -251,147 +270,143 @@ public abstract class XContentBuilder<T extends XContentBuilder> {
         } else {
             field(name, value.toString());
         }
-        return builder;
+        return this;
     }
 
-    public T field(String name, boolean value) throws IOException {
+    public XContentBuilder field(String name, boolean value) throws IOException {
         field(name);
         generator.writeBoolean(value);
-        return builder;
+        return this;
     }
 
-    public T field(String name, byte[] value) throws IOException {
+    public XContentBuilder field(String name, byte[] value) throws IOException {
         field(name);
         generator.writeBinary(value);
-        return builder;
+        return this;
     }
 
-    public T field(String name, ReadableInstant date) throws IOException {
+    public XContentBuilder field(String name, ReadableInstant date) throws IOException {
         field(name);
         return value(date);
     }
 
-    public T field(String name, ReadableInstant date, DateTimeFormatter formatter) throws IOException {
+    public XContentBuilder field(String name, ReadableInstant date, DateTimeFormatter formatter) throws IOException {
         field(name);
         return value(date, formatter);
     }
 
-    public T field(String name, Date date) throws IOException {
+    public XContentBuilder field(String name, Date date) throws IOException {
         field(name);
         return value(date);
     }
 
-    public T field(String name, Date date, DateTimeFormatter formatter) throws IOException {
+    public XContentBuilder field(String name, Date date, DateTimeFormatter formatter) throws IOException {
         field(name);
         return value(date, formatter);
     }
 
-    public T nullField(String name) throws IOException {
+    public XContentBuilder nullField(String name) throws IOException {
         generator.writeNullField(name);
-        return builder;
+        return this;
     }
 
-    public T nullValue() throws IOException {
+    public XContentBuilder nullValue() throws IOException {
         generator.writeNull();
-        return builder;
+        return this;
     }
 
-    public T rawField(String fieldName, byte[] content) throws IOException {
-        generator.writeRawFieldStart(fieldName);
-        return raw(content);
+    public XContentBuilder rawField(String fieldName, byte[] content) throws IOException {
+        generator.writeRawField(fieldName, content, bos);
+        return this;
     }
 
-    public T rawField(String fieldName, InputStream content) throws IOException {
-        generator.writeRawFieldStart(fieldName);
-        return raw(content);
+    public XContentBuilder rawField(String fieldName, InputStream content) throws IOException {
+        generator.writeRawField(fieldName, content, bos);
+        return this;
     }
 
-    public abstract T raw(byte[] content) throws IOException;
-
-    public abstract T raw(InputStream content) throws IOException;
-
-    public T value(Boolean value) throws IOException {
+    public XContentBuilder value(Boolean value) throws IOException {
         return value(value.booleanValue());
     }
 
-    public T value(boolean value) throws IOException {
+    public XContentBuilder value(boolean value) throws IOException {
         generator.writeBoolean(value);
-        return builder;
+        return this;
     }
 
-    public T value(ReadableInstant date) throws IOException {
+    public XContentBuilder value(ReadableInstant date) throws IOException {
         return value(date, defaultDatePrinter);
     }
 
-    public T value(ReadableInstant date, DateTimeFormatter dateTimeFormatter) throws IOException {
+    public XContentBuilder value(ReadableInstant date, DateTimeFormatter dateTimeFormatter) throws IOException {
         return value(dateTimeFormatter.print(date));
     }
 
-    public T value(Date date) throws IOException {
+    public XContentBuilder value(Date date) throws IOException {
         return value(date, defaultDatePrinter);
     }
 
-    public T value(Date date, DateTimeFormatter dateTimeFormatter) throws IOException {
+    public XContentBuilder value(Date date, DateTimeFormatter dateTimeFormatter) throws IOException {
         return value(dateTimeFormatter.print(date.getTime()));
     }
 
-    public T value(Integer value) throws IOException {
+    public XContentBuilder value(Integer value) throws IOException {
         return value(value.intValue());
     }
 
-    public T value(int value) throws IOException {
+    public XContentBuilder value(int value) throws IOException {
         generator.writeNumber(value);
-        return builder;
+        return this;
     }
 
-    public T value(Long value) throws IOException {
+    public XContentBuilder value(Long value) throws IOException {
         return value(value.longValue());
     }
 
-    public T value(long value) throws IOException {
+    public XContentBuilder value(long value) throws IOException {
         generator.writeNumber(value);
-        return builder;
+        return this;
     }
 
-    public T value(Float value) throws IOException {
+    public XContentBuilder value(Float value) throws IOException {
         return value(value.floatValue());
     }
 
-    public T value(float value) throws IOException {
+    public XContentBuilder value(float value) throws IOException {
         generator.writeNumber(value);
-        return builder;
+        return this;
     }
 
-    public T value(Double value) throws IOException {
+    public XContentBuilder value(Double value) throws IOException {
         return value(value.doubleValue());
     }
 
-    public T value(double value) throws IOException {
+    public XContentBuilder value(double value) throws IOException {
         generator.writeNumber(value);
-        return builder;
+        return this;
     }
 
-    public T value(String value) throws IOException {
+    public XContentBuilder value(String value) throws IOException {
         generator.writeString(value);
-        return builder;
+        return this;
     }
 
-    public T value(byte[] value) throws IOException {
+    public XContentBuilder value(byte[] value) throws IOException {
         generator.writeBinary(value);
-        return builder;
+        return this;
     }
 
-    public T map(Map<String, Object> map) throws IOException {
+    public XContentBuilder map(Map<String, Object> map) throws IOException {
         XContentMapConverter.writeMap(generator, map);
-        return builder;
+        return this;
     }
 
-    public T value(Map<String, Object> map) throws IOException {
+    public XContentBuilder value(Map<String, Object> map) throws IOException {
         XContentMapConverter.writeMap(generator, map);
-        return builder;
+        return this;
     }
 
-    public T value(Object value) throws IOException {
+    public XContentBuilder value(Object value) throws IOException {
         Class type = value.getClass();
         if (type == String.class) {
             value((String) value);
@@ -416,12 +431,12 @@ public abstract class XContentBuilder<T extends XContentBuilder> {
         } else {
             throw new IOException("Type not allowed [" + type + "]");
         }
-        return builder;
+        return this;
     }
 
-    public T flush() throws IOException {
+    public XContentBuilder flush() throws IOException {
         generator.flush();
-        return builder;
+        return this;
     }
 
     public void close() {
@@ -432,13 +447,28 @@ public abstract class XContentBuilder<T extends XContentBuilder> {
         }
     }
 
-    public abstract T reset() throws IOException;
+    public byte[] unsafeBytes() throws IOException {
+        close();
+        return bos.unsafeByteArray();
+    }
 
-    public abstract byte[] unsafeBytes() throws IOException;
+    public int unsafeBytesLength() throws IOException {
+        close();
+        return bos.size();
+    }
 
-    public abstract int unsafeBytesLength() throws IOException;
+    public FastByteArrayOutputStream unsafeStream() throws IOException {
+        close();
+        return bos;
+    }
 
-    public abstract byte[] copiedBytes() throws IOException;
+    public byte[] copiedBytes() throws IOException {
+        close();
+        return bos.copiedByteArray();
+    }
 
-    public abstract String string() throws IOException;
+    public String string() throws IOException {
+        close();
+        return Unicode.fromBytes(bos.unsafeByteArray(), 0, bos.size());
+    }
 }

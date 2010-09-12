@@ -34,11 +34,11 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class JsonVsXsonTests {
+public class JsonVsSmileTests {
 
     @Test public void compareParsingTokens() throws IOException {
         FastByteArrayOutputStream xsonOs = new FastByteArrayOutputStream();
-        XContentGenerator xsonGen = XContentFactory.xContent(XContentType.XSON).createGenerator(xsonOs);
+        XContentGenerator xsonGen = XContentFactory.xContent(XContentType.SMILE).createGenerator(xsonOs);
 
         FastByteArrayOutputStream jsonOs = new FastByteArrayOutputStream();
         XContentGenerator jsonGen = XContentFactory.xContent(XContentType.JSON).createGenerator(jsonOs);
@@ -64,7 +64,7 @@ public class JsonVsXsonTests {
         xsonGen.close();
         jsonGen.close();
 
-        verifySameTokens(XContentFactory.xContent(XContentType.JSON).createParser(jsonOs.copiedByteArray()), XContentFactory.xContent(XContentType.XSON).createParser(xsonOs.copiedByteArray()));
+        verifySameTokens(XContentFactory.xContent(XContentType.JSON).createParser(jsonOs.copiedByteArray()), XContentFactory.xContent(XContentType.SMILE).createParser(xsonOs.copiedByteArray()));
     }
 
     private void verifySameTokens(XContentParser parser1, XContentParser parser2) throws IOException {

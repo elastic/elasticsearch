@@ -27,9 +27,8 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.common.Unicode;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
@@ -115,6 +114,6 @@ public class BroadcastActionsTests extends AbstractNodesTests {
     }
 
     private XContentBuilder source(String id, String nameValue) throws IOException {
-        return XContentFactory.contentBinaryBuilder(XContentType.JSON).startObject().field("id", id).field("name", nameValue).endObject();
+        return XContentFactory.jsonBuilder().startObject().field("id", id).field("name", nameValue).endObject();
     }
 }

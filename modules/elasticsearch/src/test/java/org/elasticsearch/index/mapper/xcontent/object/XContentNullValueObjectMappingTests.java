@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.xcontent.object;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
 import org.elasticsearch.index.mapper.xcontent.XContentMapperTests;
@@ -37,7 +36,7 @@ import static org.hamcrest.Matchers.*;
 public class XContentNullValueObjectMappingTests {
 
     @Test public void testNullValueObject() throws IOException {
-        String mapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject("type")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("obj1").field("type", "object").endObject().endObject()
                 .endObject().endObject().string();
 

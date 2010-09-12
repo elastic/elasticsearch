@@ -19,16 +19,16 @@
 
 package org.elasticsearch.search.builder;
 
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.trove.TObjectFloatHashMap;
 import org.elasticsearch.common.trove.TObjectFloatIterator;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
-import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.query.xcontent.XContentQueryBuilder;
 import org.elasticsearch.search.facets.AbstractFacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
@@ -264,13 +264,9 @@ public class SearchSourceBuilder implements ToXContent {
         return this;
     }
 
-    public FastByteArrayOutputStream buildAsUnsafeBytes() throws SearchSourceBuilderException {
-        return buildAsUnsafeBytes(XContentType.JSON);
-    }
-
     public FastByteArrayOutputStream buildAsUnsafeBytes(XContentType contentType) throws SearchSourceBuilderException {
         try {
-            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             toXContent(builder, ToXContent.EMPTY_PARAMS);
             return builder.unsafeStream();
         } catch (Exception e) {
@@ -279,12 +275,12 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     public byte[] buildAsBytes() throws SearchSourceBuilderException {
-        return buildAsBytes(XContentType.JSON);
+        return buildAsBytes(Requests.CONTENT_TYPE);
     }
 
     public byte[] buildAsBytes(XContentType contentType) throws SearchSourceBuilderException {
         try {
-            XContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             toXContent(builder, EMPTY_PARAMS);
             return builder.copiedBytes();
         } catch (Exception e) {
@@ -315,8 +311,7 @@ public class SearchSourceBuilder implements ToXContent {
             if (XContentFactory.xContentType(queryBinary) == builder.contentType()) {
                 builder.rawField("query", queryBinary);
             } else {
-                builder.field("query_binary");
-                builder.value(queryBinary);
+                builder.field("query_binary", queryBinary);
             }
         }
 

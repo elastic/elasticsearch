@@ -32,10 +32,9 @@ import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
-import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import javax.annotation.Nullable;
@@ -184,7 +183,7 @@ public class CountRequest extends BroadcastOperationRequest {
      */
     @Required public CountRequest query(Map querySource) {
         try {
-            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(querySource);
             return query(builder);
         } catch (IOException e) {

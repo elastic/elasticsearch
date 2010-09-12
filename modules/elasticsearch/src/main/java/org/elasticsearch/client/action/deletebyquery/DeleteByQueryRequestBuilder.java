@@ -26,7 +26,7 @@ import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.action.support.BaseRequestBuilder;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.builder.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.util.Map;

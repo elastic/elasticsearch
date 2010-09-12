@@ -27,11 +27,7 @@ import org.elasticsearch.common.blobstore.*;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.gateway.GatewayException;
 import org.elasticsearch.gateway.shared.SharedStorageGateway;
 
@@ -108,9 +104,9 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
 
     @Override public void write(MetaData metaData) throws GatewayException {
         final String newMetaData = "metadata-" + (currentIndex + 1);
-        BinaryXContentBuilder builder;
+        XContentBuilder builder;
         try {
-            builder = XContentFactory.contentBinaryBuilder(XContentType.JSON);
+            builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.prettyPrint();
             builder.startObject();
             MetaData.Builder.toXContent(metaData, builder, ToXContent.EMPTY_PARAMS);

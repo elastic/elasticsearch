@@ -19,11 +19,15 @@
 
 package org.elasticsearch.common.xcontent.json;
 
+import org.elasticsearch.common.Bytes;
+import org.elasticsearch.common.io.FastByteArrayOutputStream;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.jackson.JsonGenerator;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 /**
  * @author kimchy (shay.banon)
@@ -144,9 +148,17 @@ public class JsonXContentGenerator implements XContentGenerator {
         generator.writeObjectFieldStart(fieldName);
     }
 
-    @Override public void writeRawFieldStart(String fieldName) throws IOException {
+    @Override public void writeRawField(String fieldName, byte[] content, FastByteArrayOutputStream bos) throws IOException {
         generator.writeRaw(", \"" + fieldName + "\" : ");
+        flush();
+        bos.write(content);
+    }
 
+    @Override public void writeRawField(String fieldName, InputStream content, FastByteArrayOutputStream bos) throws IOException {
+        generator.writeRaw(", \"" + fieldName + "\" : ");
+        flush();
+        byte[] bytes = Bytes.cachedBytes.get().get();
+        Streams.copy(content, bos, bytes);
     }
 
     @Override public void flush() throws IOException {

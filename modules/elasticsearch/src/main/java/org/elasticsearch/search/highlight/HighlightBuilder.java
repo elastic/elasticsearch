@@ -20,7 +20,7 @@
 package org.elasticsearch.search.highlight;
 
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.builder.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;

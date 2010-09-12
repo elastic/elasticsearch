@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query.xcontent;
 
-import org.elasticsearch.common.xcontent.builder.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilderException;
 
 import java.io.IOException;

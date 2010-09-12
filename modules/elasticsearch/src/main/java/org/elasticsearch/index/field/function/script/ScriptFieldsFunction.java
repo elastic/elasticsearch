@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.LZFStreamInput;
 import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldData;
@@ -129,6 +130,7 @@ public class ScriptFieldsFunction implements FieldsFunction {
             if (source != null) {
                 return source;
             }
+            XContentParser parser = null;
             try {
                 Document doc = reader.document(docId, SourceFieldSelector.INSTANCE);
                 Fieldable sourceField = doc.getFieldable(SourceFieldMapper.NAME);
@@ -138,12 +140,18 @@ public class ScriptFieldsFunction implements FieldsFunction {
                     LZFStreamInput siLzf = CachedStreamInput.cachedLzf(siBytes);
                     XContentType contentType = XContentFactory.xContentType(siLzf);
                     siLzf.resetToBufferStart();
-                    this.source = XContentFactory.xContent(contentType).createParser(siLzf).map();
+                    parser = XContentFactory.xContent(contentType).createParser(siLzf);
+                    this.source = parser.map();
                 } else {
-                    this.source = XContentFactory.xContent(source).createParser(source).map();
+                    parser = XContentFactory.xContent(source).createParser(source);
+                    this.source = parser.map();
                 }
             } catch (Exception e) {
                 throw new ElasticSearchParseException("failed to parse source", e);
+            } finally {
+                if (parser != null) {
+                    parser.close();
+                }
             }
             return this.source;
         }

@@ -16,6 +16,7 @@ dependencies {
     runtime 'org.mvel:mvel2:2.0.17'
 
     runtime 'org.codehaus.jackson:jackson-core-asl:1.6.0'
+    runtime 'org.codehaus.jackson:jackson-smile:1.6.0'
     runtime 'org.yaml:snakeyaml:1.6'
 
     runtime('org.jboss.netty:netty:3.2.2.Final') { transitive = false }

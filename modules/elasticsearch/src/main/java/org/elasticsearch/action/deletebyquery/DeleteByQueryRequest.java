@@ -32,10 +32,9 @@ import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
-import org.elasticsearch.common.xcontent.builder.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
@@ -147,7 +146,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
      */
     @Required public DeleteByQueryRequest query(Map querySource) {
         try {
-            BinaryXContentBuilder builder = XContentFactory.contentBinaryBuilder(contentType);
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(querySource);
             return query(builder);
         } catch (IOException e) {

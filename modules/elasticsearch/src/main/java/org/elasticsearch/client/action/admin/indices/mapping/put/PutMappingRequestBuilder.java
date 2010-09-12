@@ -25,7 +25,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.action.admin.indices.support.BaseIndicesRequestBuilder;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.builder.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.util.Map;
 

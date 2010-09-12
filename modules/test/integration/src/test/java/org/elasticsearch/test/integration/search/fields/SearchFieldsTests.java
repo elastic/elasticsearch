@@ -22,7 +22,6 @@ package org.elasticsearch.test.integration.search.fields;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -59,7 +58,7 @@ public class SearchFieldsTests extends AbstractNodesTests {
         client.admin().indices().prepareCreate("test").execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
-        String mapping = XContentFactory.contentTextBuilder(XContentType.JSON).startObject().startObject("type").startObject("properties")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("field1").field("type", "string").field("store", "yes").endObject()
                 .startObject("field2").field("type", "string").field("store", "no").endObject()
                 .startObject("field3").field("type", "string").field("store", "yes").endObject()

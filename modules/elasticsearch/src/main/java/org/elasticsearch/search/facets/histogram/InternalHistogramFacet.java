@@ -26,7 +26,7 @@ import org.elasticsearch.common.trove.TLongDoubleHashMap;
 import org.elasticsearch.common.trove.TLongDoubleIterator;
 import org.elasticsearch.common.trove.TLongLongHashMap;
 import org.elasticsearch.common.trove.TLongLongIterator;
-import org.elasticsearch.common.xcontent.builder.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.facets.Facet;
 import org.elasticsearch.search.facets.internal.InternalFacet;
 

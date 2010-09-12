@@ -20,7 +20,7 @@
 package org.elasticsearch.search.facets.statistical;
 
 import org.elasticsearch.common.collect.Maps;
-import org.elasticsearch.common.xcontent.builder.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.xcontent.XContentFilterBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import org.elasticsearch.search.facets.AbstractFacetBuilder;

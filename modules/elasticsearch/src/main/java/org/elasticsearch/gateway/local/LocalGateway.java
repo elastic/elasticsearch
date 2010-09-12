@@ -40,11 +40,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.builder.BinaryXContentBuilder;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.gateway.GatewayException;
@@ -241,7 +237,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
 
             try {
                 LocalGatewayMetaState stateToWrite = builder.build();
-                BinaryXContentBuilder xContentBuilder = XContentFactory.contentBinaryBuilder(XContentType.JSON);
+                XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
                 xContentBuilder.prettyPrint();
                 xContentBuilder.startObject();
                 LocalGatewayMetaState.Builder.toXContent(stateToWrite, xContentBuilder, ToXContent.EMPTY_PARAMS);
@@ -298,7 +294,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
 
             try {
                 LocalGatewayStartedShards stateToWrite = builder.build();
-                BinaryXContentBuilder xContentBuilder = XContentFactory.contentBinaryBuilder(XContentType.JSON);
+                XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
                 xContentBuilder.prettyPrint();
                 xContentBuilder.startObject();
                 LocalGatewayStartedShards.Builder.toXContent(stateToWrite, xContentBuilder, ToXContent.EMPTY_PARAMS);

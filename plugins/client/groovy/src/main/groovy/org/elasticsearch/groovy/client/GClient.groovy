@@ -136,7 +136,7 @@ class GClient {
         }
     }
 
-    public static XContentType contentType = XContentType.XSON;
+    public static XContentType contentType = XContentType.SMILE;
 
     public static XContentType indexContentType = XContentType.JSON;
 

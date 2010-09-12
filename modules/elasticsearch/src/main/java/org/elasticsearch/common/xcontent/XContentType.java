@@ -31,9 +31,9 @@ public enum XContentType {
      */
     JSON(0),
     /**
-     * An optimized binary form of JSON.
+     * The jackson based smile binary format. Fast and compact binary format.
      */
-    XSON(1);
+    SMILE(1);
 
     public static XContentType fromRestContentType(String contentType) {
         if (contentType == null) {
@@ -43,8 +43,8 @@ public enum XContentType {
             return JSON;
         }
 
-        if ("application/xson".equals(contentType) || "xson".equalsIgnoreCase(contentType)) {
-            return XSON;
+        if ("application/smile".equals(contentType) || "smile".equalsIgnoreCase(contentType)) {
+            return SMILE;
         }
 
         return null;

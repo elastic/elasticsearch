@@ -17,12 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query.support;
+package org.apache.lucene.queryParser;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queryParser.ParseException;
-import org.apache.lucene.queryParser.QueryParser;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
@@ -52,11 +49,28 @@ public class MapperQueryParser extends QueryParser {
 
     private FieldMapper currentMapper;
 
-    public MapperQueryParser(String defaultField, Analyzer analyzer,
-                             QueryParseContext parseContext) {
-        super(Lucene.QUERYPARSER_VERSION, defaultField, analyzer);
+    public MapperQueryParser(QueryParseContext parseContext) {
+        super(Lucene.QUERYPARSER_VERSION, null, null);
         this.parseContext = parseContext;
+    }
+
+    public MapperQueryParser(QueryParserSettings settings, QueryParseContext parseContext) {
+        super(Lucene.QUERYPARSER_VERSION, settings.defaultField(), settings.analyzer());
+        this.parseContext = parseContext;
+        reset(settings);
+    }
+
+    public void reset(QueryParserSettings settings) {
+        this.field = settings.defaultField();
+        this.analyzer = settings.analyzer();
         setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT);
+        setEnablePositionIncrements(settings.enablePositionIncrements());
+        setAllowLeadingWildcard(settings.allowLeadingWildcard());
+        setLowercaseExpandedTerms(settings.lowercaseExpandedTerms());
+        setPhraseSlop(settings.phraseSlop());
+        setDefaultOperator(settings.defaultOperator());
+        setFuzzyMinSim(settings.fuzzyMinSim());
+        setFuzzyPrefixLength(settings.fuzzyPrefixLength());
     }
 
     @Override protected Query newTermQuery(Term term) {

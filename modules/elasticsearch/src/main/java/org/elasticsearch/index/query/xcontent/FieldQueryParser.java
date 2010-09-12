@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.query.xcontent;
 
-import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.queryParser.MapperQueryParser;
 import org.apache.lucene.queryParser.ParseException;
 import org.apache.lucene.queryParser.QueryParser;
-import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.queryParser.QueryParserSettings;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -31,7 +31,6 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.query.QueryParsingException;
-import org.elasticsearch.index.query.support.MapperQueryParser;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
@@ -63,17 +62,8 @@ public class FieldQueryParser extends AbstractIndexComponent implements XContent
         assert token == XContentParser.Token.FIELD_NAME;
         String fieldName = parser.currentName();
 
-        String queryString = null;
-        float boost = 1.0f;
-        MapperQueryParser.Operator defaultOperator = QueryParser.Operator.OR;
-        boolean allowLeadingWildcard = true;
-        boolean lowercaseExpandedTerms = true;
-        boolean enablePositionIncrements = true;
-        int phraseSlop = 0;
-        float fuzzyMinSim = FuzzyQuery.defaultMinSimilarity;
-        int fuzzyPrefixLength = FuzzyQuery.defaultPrefixLength;
-        boolean escape = false;
-        Analyzer analyzer = null;
+        QueryParserSettings qpSettings = new QueryParserSettings();
+        qpSettings.defaultField(fieldName);
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {
             String currentFieldName = null;
@@ -82,71 +72,64 @@ public class FieldQueryParser extends AbstractIndexComponent implements XContent
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
                     if ("query".equals(currentFieldName)) {
-                        queryString = parser.text();
+                        qpSettings.queryString(parser.text());
                     } else if ("boost".equals(currentFieldName)) {
-                        boost = parser.floatValue();
+                        qpSettings.boost(parser.floatValue());
                     } else if ("enable_position_increments".equals(currentFieldName) || "enablePositionIncrements".equals(currentFieldName)) {
-                        enablePositionIncrements = parser.booleanValue();
+                        qpSettings.enablePositionIncrements(parser.booleanValue());
                     } else if ("allow_leading_wildcard".equals(currentFieldName) || "allowLeadingWildcard".equals(currentFieldName)) {
-                        allowLeadingWildcard = parser.booleanValue();
+                        qpSettings.allowLeadingWildcard(parser.booleanValue());
                     } else if ("lowercase_expanded_terms".equals(currentFieldName) || "lowercaseExpandedTerms".equals(currentFieldName)) {
-                        lowercaseExpandedTerms = parser.booleanValue();
+                        qpSettings.lowercaseExpandedTerms(parser.booleanValue());
                     } else if ("phrase_slop".equals(currentFieldName) || "phraseSlop".equals(currentFieldName)) {
-                        phraseSlop = parser.intValue();
+                        qpSettings.phraseSlop(parser.intValue());
                     } else if ("analyzer".equals(currentFieldName)) {
-                        analyzer = analysisService.analyzer(parser.text());
+                        qpSettings.analyzer(analysisService.analyzer(parser.text()));
                     } else if ("default_operator".equals(currentFieldName) || "defaultOperator".equals(currentFieldName)) {
                         String op = parser.text();
                         if ("or".equalsIgnoreCase(op)) {
-                            defaultOperator = QueryParser.Operator.OR;
+                            qpSettings.defaultOperator(QueryParser.Operator.OR);
                         } else if ("and".equalsIgnoreCase(op)) {
-                            defaultOperator = QueryParser.Operator.AND;
+                            qpSettings.defaultOperator(QueryParser.Operator.AND);
                         } else {
                             throw new QueryParsingException(index, "Query default operator [" + op + "] is not allowed");
                         }
                     } else if ("fuzzy_min_sim".equals(currentFieldName) || "fuzzyMinSim".equals(currentFieldName)) {
-                        fuzzyMinSim = parser.floatValue();
+                        qpSettings.fuzzyMinSim(parser.floatValue());
                     } else if ("fuzzy_prefix_length".equals(currentFieldName) || "fuzzyPrefixLength".equals(currentFieldName)) {
-                        fuzzyPrefixLength = parser.intValue();
+                        qpSettings.fuzzyPrefixLength(parser.intValue());
                     } else if ("escape".equals(currentFieldName)) {
-                        escape = parser.booleanValue();
+                        qpSettings.escape(parser.booleanValue());
                     }
                 }
             }
             parser.nextToken();
         } else {
-            queryString = parser.text();
+            qpSettings.queryString(parser.text());
             // move to the next token
             parser.nextToken();
         }
 
-        if (analyzer == null) {
-            analyzer = parseContext.mapperService().searchAnalyzer();
+        if (qpSettings.analyzer() == null) {
+            qpSettings.analyzer(parseContext.mapperService().searchAnalyzer());
         }
 
-        if (queryString == null) {
+        if (qpSettings.queryString() == null) {
             throw new QueryParsingException(index, "No value specified for term query");
         }
 
-        MapperQueryParser queryParser = new MapperQueryParser(fieldName, analyzer, parseContext);
-        queryParser.setEnablePositionIncrements(enablePositionIncrements);
-        queryParser.setAllowLeadingWildcard(allowLeadingWildcard);
-        queryParser.setLowercaseExpandedTerms(lowercaseExpandedTerms);
-        queryParser.setPhraseSlop(phraseSlop);
-        queryParser.setDefaultOperator(defaultOperator);
-        queryParser.setFuzzyMinSim(fuzzyMinSim);
-        queryParser.setFuzzyPrefixLength(fuzzyPrefixLength);
-
-        if (escape) {
-            queryString = QueryParser.escape(queryString);
+        if (qpSettings.escape()) {
+            qpSettings.queryString(QueryParser.escape(qpSettings.queryString()));
         }
 
+        MapperQueryParser queryParser = parseContext.queryParser(qpSettings);
+
         try {
-            Query query = queryParser.parse(queryString);
-            query.setBoost(boost);
+            Query query = queryParser.parse(qpSettings.queryString());
+            query.setBoost(qpSettings.boost());
             return optimizeQuery(fixNegativeQueryIfNeeded(query));
         } catch (ParseException e) {
-            throw new QueryParsingException(index, "Failed to parse query [" + queryString + "]", e);
+            throw new QueryParsingException(index, "Failed to parse query [" + qpSettings.queryString() + "]", e);
         }
     }
 }

@@ -17,28 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.cache;
+package org.elasticsearch.cache.query.parser;
 
-import org.elasticsearch.cache.memory.ByteBufferCache;
-import org.elasticsearch.cache.query.parser.QueryParserCacheModule;
+import org.elasticsearch.cache.query.parser.weak.WeakQueryParserCache;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.settings.Settings;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class NodeCacheModule extends AbstractModule {
+public class QueryParserCacheModule extends AbstractModule {
 
     private final Settings settings;
 
-    public NodeCacheModule(Settings settings) {
+    public QueryParserCacheModule(Settings settings) {
         this.settings = settings;
     }
 
     @Override protected void configure() {
-        bind(NodeCache.class).asEagerSingleton();
-        bind(ByteBufferCache.class).asEagerSingleton();
-
-        new QueryParserCacheModule(settings).configure(binder());
+        bind(QueryParserCache.class)
+                .to(settings.getAsClass("cache.query.parser.type", WeakQueryParserCache.class, "org.elasticsearch.cache.query.parser.", "QueryParserCache"))
+                .in(Scopes.SINGLETON);
     }
 }

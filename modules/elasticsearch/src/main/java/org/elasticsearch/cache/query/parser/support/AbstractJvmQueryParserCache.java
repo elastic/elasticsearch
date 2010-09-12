@@ -17,28 +17,32 @@
  * under the License.
  */
 
-package org.elasticsearch.cache;
+package org.elasticsearch.cache.query.parser.support;
 
-import org.elasticsearch.cache.memory.ByteBufferCache;
-import org.elasticsearch.cache.query.parser.QueryParserCacheModule;
-import org.elasticsearch.common.inject.AbstractModule;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.cache.query.parser.QueryParserCache;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class NodeCacheModule extends AbstractModule {
+public class AbstractJvmQueryParserCache extends AbstractComponent implements QueryParserCache {
 
-    private final Settings settings;
+    final ConcurrentMap<String, Query> cache;
 
-    public NodeCacheModule(Settings settings) {
-        this.settings = settings;
+    protected AbstractJvmQueryParserCache(Settings settings, ConcurrentMap<String, Query> cache) {
+        super(settings);
+        this.cache = cache;
     }
 
-    @Override protected void configure() {
-        bind(NodeCache.class).asEagerSingleton();
-        bind(ByteBufferCache.class).asEagerSingleton();
+    @Override public Query get(String queryString) {
+        return cache.get(queryString);
+    }
 
-        new QueryParserCacheModule(settings).configure(binder());
+    @Override public void put(String queryString, Query query) {
+        cache.put(queryString, query);
     }
 }

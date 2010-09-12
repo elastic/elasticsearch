@@ -20,8 +20,11 @@
 package org.elasticsearch.cache;
 
 import org.elasticsearch.cache.memory.ByteBufferCache;
+import org.elasticsearch.cache.query.parser.QueryParserCache;
+import org.elasticsearch.cache.query.parser.none.NoneQueryParserCache;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -31,9 +34,16 @@ public class NodeCache extends AbstractComponent {
 
     private final ByteBufferCache byteBufferCache;
 
-    @Inject public NodeCache(Settings settings, ByteBufferCache byteBufferCache) {
+    private final QueryParserCache queryParserCache;
+
+    public NodeCache() {
+        this(ImmutableSettings.Builder.EMPTY_SETTINGS, new ByteBufferCache(ImmutableSettings.Builder.EMPTY_SETTINGS), new NoneQueryParserCache());
+    }
+
+    @Inject public NodeCache(Settings settings, ByteBufferCache byteBufferCache, QueryParserCache queryParserCache) {
         super(settings);
         this.byteBufferCache = byteBufferCache;
+        this.queryParserCache = queryParserCache;
     }
 
     public void close() {
@@ -42,5 +52,9 @@ public class NodeCache extends AbstractComponent {
 
     public ByteBufferCache byteBuffer() {
         return byteBufferCache;
+    }
+
+    public QueryParserCache queryParser() {
+        return queryParserCache;
     }
 }

@@ -17,26 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.indexer;
+package org.elasticsearch.indexer.cluster;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indexer.cluster.IndexerClusterService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class IndexersModule extends AbstractModule {
+public class IndexerNodeHelper {
 
-    private final Settings settings;
-
-    public IndexersModule(Settings settings) {
-        this.settings = settings;
-    }
-
-    @Override protected void configure() {
-        bind(IndexersService.class).asEagerSingleton();
-        bind(IndexerClusterService.class).asEagerSingleton();
-        bind(IndexerManager.class).asEagerSingleton();
+    public static boolean isIndexerNode(DiscoveryNode node) {
+        if (node.clientNode()) {
+            return false;
+        }
+        String indexer = node.attributes().get("indexer");
+        // by default, if not set, its an indexer node (better OOB exp)
+        if (indexer == null) {
+            return true;
+        }
+        if ("_none_".equals(indexer)) {
+            return false;
+        }
+        // there is at least one indexer settings, we need it
+        return true;
     }
 }

@@ -54,8 +54,8 @@ import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerModule;
+import org.elasticsearch.indexer.IndexerManager;
 import org.elasticsearch.indexer.IndexersModule;
-import org.elasticsearch.indexer.IndexersService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
@@ -171,7 +171,7 @@ public final class InternalNode implements Node {
 
         injector.getInstance(IndicesService.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
-        injector.getInstance(IndexersService.class).start();
+        injector.getInstance(IndexerManager.class).start();
         injector.getInstance(ClusterService.class).start();
         injector.getInstance(RoutingService.class).start();
         injector.getInstance(SearchService.class).start();
@@ -209,7 +209,7 @@ public final class InternalNode implements Node {
         injector.getInstance(MonitorService.class).stop();
         injector.getInstance(GatewayService.class).stop();
         injector.getInstance(SearchService.class).stop();
-        injector.getInstance(IndexersService.class).stop();
+        injector.getInstance(IndexerManager.class).stop();
         injector.getInstance(IndicesClusterStateService.class).stop();
         injector.getInstance(IndicesService.class).stop();
         injector.getInstance(RestController.class).stop();
@@ -256,7 +256,7 @@ public final class InternalNode implements Node {
         stopWatch.stop().start("search");
         injector.getInstance(SearchService.class).close();
         stopWatch.stop().start("indexers");
-        injector.getInstance(IndexersService.class).close();
+        injector.getInstance(IndexerManager.class).close();
         stopWatch.stop().start("indices_cluster");
         injector.getInstance(IndicesClusterStateService.class).close();
         stopWatch.stop().start("indices");

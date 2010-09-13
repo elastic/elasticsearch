@@ -17,26 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.indexer;
+package org.elasticsearch.indexer.routing;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indexer.cluster.IndexerClusterService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.indexer.IndexerName;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class IndexersModule extends AbstractModule {
+public class IndexerRouting {
 
-    private final Settings settings;
+    private IndexerName indexerName;
 
-    public IndexersModule(Settings settings) {
-        this.settings = settings;
+    private DiscoveryNode node;
+
+    IndexerRouting(IndexerName indexerName, DiscoveryNode node) {
+        this.indexerName = indexerName;
+        this.node = node;
     }
 
-    @Override protected void configure() {
-        bind(IndexersService.class).asEagerSingleton();
-        bind(IndexerClusterService.class).asEagerSingleton();
-        bind(IndexerManager.class).asEagerSingleton();
+    public IndexerName indexerName() {
+        return indexerName;
+    }
+
+    public DiscoveryNode node() {
+        return node;
     }
 }

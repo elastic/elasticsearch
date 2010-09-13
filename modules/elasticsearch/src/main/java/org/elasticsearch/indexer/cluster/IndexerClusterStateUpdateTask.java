@@ -17,26 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.indexer;
-
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indexer.cluster.IndexerClusterService;
+package org.elasticsearch.indexer.cluster;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class IndexersModule extends AbstractModule {
+public interface IndexerClusterStateUpdateTask {
 
-    private final Settings settings;
-
-    public IndexersModule(Settings settings) {
-        this.settings = settings;
-    }
-
-    @Override protected void configure() {
-        bind(IndexersService.class).asEagerSingleton();
-        bind(IndexerClusterService.class).asEagerSingleton();
-        bind(IndexerManager.class).asEagerSingleton();
-    }
+    IndexerClusterState execute(IndexerClusterState currentState);
 }

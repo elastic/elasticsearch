@@ -24,6 +24,8 @@ import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.jackson.JsonGenerator;
 import org.elasticsearch.common.xcontent.XContentGenerator;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -34,7 +36,7 @@ import java.io.InputStream;
  */
 public class JsonXContentGenerator implements XContentGenerator {
 
-    private final JsonGenerator generator;
+    protected final JsonGenerator generator;
 
     public JsonXContentGenerator(JsonGenerator generator) {
         this.generator = generator;
@@ -159,6 +161,14 @@ public class JsonXContentGenerator implements XContentGenerator {
         flush();
         byte[] bytes = Bytes.cachedBytes.get().get();
         Streams.copy(content, bos, bytes);
+    }
+
+    @Override public void copyCurrentStructure(XContentParser parser) throws IOException {
+        if (parser instanceof JsonXContentParser) {
+            generator.copyCurrentStructure(((JsonXContentParser) parser).parser);
+        } else {
+            XContentHelper.copyCurrentStructure(this, parser);
+        }
     }
 
     @Override public void flush() throws IOException {

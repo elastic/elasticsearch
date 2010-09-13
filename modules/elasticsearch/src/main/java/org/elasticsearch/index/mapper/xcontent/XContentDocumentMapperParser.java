@@ -27,7 +27,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentMerger;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
@@ -116,7 +116,7 @@ public class XContentDocumentMapperParser extends AbstractIndexComponent impleme
         if (defaultSource != null) {
             Tuple<String, Map<String, Object>> t = extractMapping(MapperService.DEFAULT_MAPPING, defaultSource);
             if (t.v2() != null) {
-                XContentMerger.mergeDefaults(mapping, t.v2());
+                XContentHelper.mergeDefaults(mapping, t.v2());
             }
         }
 

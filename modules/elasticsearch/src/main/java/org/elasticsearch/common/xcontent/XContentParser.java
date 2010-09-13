@@ -96,6 +96,8 @@ public interface XContentParser {
 
     String textOrNull() throws IOException;
 
+    boolean hasTextCharacters();
+
     char[] textCharacters() throws IOException;
 
     int textLength() throws IOException;

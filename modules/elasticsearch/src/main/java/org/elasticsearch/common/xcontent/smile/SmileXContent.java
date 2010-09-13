@@ -43,7 +43,7 @@ public class SmileXContent implements XContent {
         return XContentBuilder.builder(smileXContent);
     }
 
-    private final static SmileFactory smileFactory;
+    final static SmileFactory smileFactory;
     public final static SmileXContent smileXContent;
 
     static {

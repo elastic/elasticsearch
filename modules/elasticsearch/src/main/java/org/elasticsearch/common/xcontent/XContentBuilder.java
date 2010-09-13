@@ -434,6 +434,11 @@ public final class XContentBuilder {
         return this;
     }
 
+    public XContentBuilder copyCurrentStructure(XContentParser parser) throws IOException {
+        generator.copyCurrentStructure(parser);
+        return this;
+    }
+
     public XContentBuilder flush() throws IOException {
         generator.flush();
         return this;

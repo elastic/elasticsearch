@@ -23,10 +23,7 @@ import org.elasticsearch.common.compress.lzf.LZFDecoder;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.LZFStreamInput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
@@ -73,14 +70,28 @@ public class RestXContentBuilder {
                 builder.rawField("_source", siLzf);
             } else {
                 // TODO, should we just return it as binary and not auto convert it?
-                builder.field("_source", XContentFactory.xContent(builder.contentType()).createParser(siLzf).map());
+                XContentParser parser = XContentFactory.xContent(builder.contentType()).createParser(siLzf);
+                try {
+                    parser.nextToken();
+                    builder.field("_source");
+                    builder.copyCurrentStructure(parser);
+                } finally {
+                    parser.close();
+                }
             }
         } else {
             if (XContentFactory.xContentType(source) == builder.contentType()) {
                 builder.rawField("_source", source);
             } else {
                 // TODO, should we just return it as binary and not auto convert it?
-                builder.field("_source", XContentFactory.xContent(builder.contentType()).createParser(source).map());
+                XContentParser parser = XContentFactory.xContent(builder.contentType()).createParser(source);
+                try {
+                    parser.nextToken();
+                    builder.field("_source");
+                    builder.copyCurrentStructure(parser);
+                } finally {
+                    parser.close();
+                }
             }
         }
     }

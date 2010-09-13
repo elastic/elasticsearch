@@ -88,6 +88,8 @@ public interface XContentGenerator {
 
     void writeRawField(String fieldName, InputStream content, FastByteArrayOutputStream bos) throws IOException;
 
+    void copyCurrentStructure(XContentParser parser) throws IOException;
+
     void flush() throws IOException;
 
     void close() throws IOException;

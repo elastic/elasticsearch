@@ -32,7 +32,7 @@ import java.io.IOException;
  */
 public class JsonXContentParser extends AbstractXContentParser {
 
-    private final JsonParser parser;
+    final JsonParser parser;
 
     public JsonXContentParser(JsonParser parser) {
         this.parser = parser;
@@ -72,6 +72,10 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override public String text() throws IOException {
         return parser.getText();
+    }
+
+    @Override public boolean hasTextCharacters() {
+        return parser.hasTextCharacters();
     }
 
     @Override public char[] textCharacters() throws IOException {

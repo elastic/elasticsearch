@@ -21,9 +21,9 @@ package org.elasticsearch.common.xcontent.smile;
 
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.jackson.JsonGenerator;
+import org.elasticsearch.common.jackson.smile.SmileParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContentGenerator;
-import org.elasticsearch.common.xcontent.support.XContentMapConverter;
 
 import java.io.IOException;
 
@@ -42,7 +42,12 @@ public class SmileXContentGenerator extends JsonXContentGenerator {
 
     @Override public void writeRawField(String fieldName, byte[] content, FastByteArrayOutputStream bos) throws IOException {
         writeFieldName(fieldName);
-        // crap here, need to find a better way... (at least don't create the map and direct parser to generator)
-        XContentMapConverter.writeMap(this, SmileXContent.smileXContent.createParser(content).map());
+        SmileParser parser = SmileXContent.smileFactory.createJsonParser(content);
+        try {
+            parser.nextToken();
+            generator.copyCurrentStructure(parser);
+        } finally {
+            parser.close();
+        }
     }
 }

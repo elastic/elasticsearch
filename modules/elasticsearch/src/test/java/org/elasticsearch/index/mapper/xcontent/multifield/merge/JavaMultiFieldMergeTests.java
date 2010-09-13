@@ -21,9 +21,13 @@ package org.elasticsearch.index.mapper.xcontent.multifield.merge;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapper;
+import org.elasticsearch.index.mapper.xcontent.XContentDocumentMapperParser;
 import org.elasticsearch.index.mapper.xcontent.XContentMapperTests;
 import org.testng.annotations.Test;
+
+import java.util.Arrays;
 
 import static org.elasticsearch.common.io.Streams.*;
 import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.*;
@@ -38,7 +42,9 @@ public class JavaMultiFieldMergeTests {
 
     @Test public void testMergeMultiField() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/multifield/merge/test-mapping1.json");
-        XContentDocumentMapper docMapper = XContentMapperTests.newParser().parse(mapping);
+        XContentDocumentMapperParser parser = XContentMapperTests.newParser();
+
+        XContentDocumentMapper docMapper = parser.parse(mapping);
 
         assertThat(docMapper.mappers().fullName("name").mapper().indexed(), equalTo(true));
         assertThat(docMapper.mappers().fullName("name.indexed"), nullValue());
@@ -52,9 +58,10 @@ public class JavaMultiFieldMergeTests {
 
 
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/multifield/merge/test-mapping2.json");
-        XContentDocumentMapper docMapper2 = XContentMapperTests.newParser().parse(mapping);
+        XContentDocumentMapper docMapper2 = parser.parse(mapping);
 
-        docMapper.merge(docMapper2, mergeFlags().simulate(true));
+        DocumentMapper.MergeResult mergeResult = docMapper.merge(docMapper2, mergeFlags().simulate(true));
+        assertThat(Arrays.toString(mergeResult.conflicts()), mergeResult.hasConflicts(), equalTo(false));
 
         docMapper.merge(docMapper2, mergeFlags().simulate(false));
 
@@ -62,6 +69,9 @@ public class JavaMultiFieldMergeTests {
 
         assertThat(docMapper.mappers().fullName("name").mapper().indexed(), equalTo(true));
         assertThat(docMapper.mappers().fullName("name.indexed").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("name.not_indexed").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("name.not_indexed2"), nullValue());
+        assertThat(docMapper.mappers().fullName("name.not_indexed3"), nullValue());
 
         json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/multifield/merge/test-data.json");
         doc = docMapper.parse(json).doc();
@@ -69,5 +79,38 @@ public class JavaMultiFieldMergeTests {
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");
         assertThat(f, notNullValue());
+
+        mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/multifield/merge/test-mapping3.json");
+        XContentDocumentMapper docMapper3 = parser.parse(mapping);
+
+        mergeResult = docMapper.merge(docMapper3, mergeFlags().simulate(true));
+        assertThat(Arrays.toString(mergeResult.conflicts()), mergeResult.hasConflicts(), equalTo(false));
+
+        docMapper.merge(docMapper3, mergeFlags().simulate(false));
+
+        assertThat(docMapper.mappers().name("name").mapper().indexed(), equalTo(true));
+
+        assertThat(docMapper.mappers().fullName("name").mapper().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name.indexed").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("name.not_indexed").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("name.not_indexed2").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("name.not_indexed3"), nullValue());
+
+
+        mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/multifield/merge/test-mapping4.json");
+        XContentDocumentMapper docMapper4 = parser.parse(mapping);
+
+        mergeResult = docMapper.merge(docMapper4, mergeFlags().simulate(true));
+        assertThat(Arrays.toString(mergeResult.conflicts()), mergeResult.hasConflicts(), equalTo(false));
+
+        docMapper.merge(docMapper4, mergeFlags().simulate(false));
+
+        assertThat(docMapper.mappers().name("name").mapper().indexed(), equalTo(true));
+
+        assertThat(docMapper.mappers().fullName("name").mapper().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name.indexed").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("name.not_indexed").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("name.not_indexed2").mapper(), notNullValue());
+        assertThat(docMapper.mappers().fullName("name.not_indexed3").mapper(), notNullValue());
     }
 }

@@ -196,61 +196,72 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         return engine.estimateFlushableMemorySize();
     }
 
-    @Override public ParsedDocument create(String type, String id, byte[] source) throws ElasticSearchException {
-        writeAllowed();
-        return innerCreate(type, id, source);
-    }
-
-    private ParsedDocument innerCreate(String type, String id, byte[] source) {
+    @Override public Engine.Create prepareCreate(String type, String id, byte[] source) throws ElasticSearchException {
         DocumentMapper docMapper = mapperService.type(type);
         if (docMapper == null) {
             throw new DocumentMapperNotFoundException("No mapper found for type [" + type + "]");
         }
         ParsedDocument doc = docMapper.parse(type, id, source);
+        return new Engine.Create(doc, docMapper.mappers().indexAnalyzer());
+    }
+
+    @Override public ParsedDocument create(String type, String id, byte[] source) throws ElasticSearchException {
+        return create(prepareCreate(type, id, source));
+    }
+
+    @Override public ParsedDocument create(Engine.Create create) throws ElasticSearchException {
+        writeAllowed();
         if (logger.isTraceEnabled()) {
-            logger.trace("index {}", doc);
+            logger.trace("index {}", create.doc());
         }
-        engine.create(new Engine.Create(doc.doc(), docMapper.mappers().indexAnalyzer(), docMapper.type(), doc.id(), doc.source()));
-        return doc;
+        engine.create(create);
+        return create.parsedDoc();
+    }
+
+    @Override public Engine.Index prepareIndex(String type, String id, byte[] source) throws ElasticSearchException {
+        DocumentMapper docMapper = mapperService.type(type);
+        if (docMapper == null) {
+            throw new DocumentMapperNotFoundException("No mapper found for type [" + type + "]");
+        }
+        ParsedDocument doc = docMapper.parse(type, id, source);
+        return new Engine.Index(docMapper.uidMapper().term(doc.uid()), doc, docMapper.mappers().indexAnalyzer());
     }
 
     @Override public ParsedDocument index(String type, String id, byte[] source) throws ElasticSearchException {
-        writeAllowed();
-        return innerIndex(type, id, source);
+        return index(prepareIndex(type, id, source));
     }
 
-    private ParsedDocument innerIndex(String type, String id, byte[] source) {
+    @Override public ParsedDocument index(Engine.Index index) throws ElasticSearchException {
+        writeAllowed();
+        if (logger.isTraceEnabled()) {
+            logger.trace("index {}", index.doc());
+        }
+        engine.index(index);
+        return index.parsedDoc();
+    }
+
+    @Override public Engine.Delete prepareDelete(String type, String id) throws ElasticSearchException {
         DocumentMapper docMapper = mapperService.type(type);
         if (docMapper == null) {
             throw new DocumentMapperNotFoundException("No mapper found for type [" + type + "]");
         }
-        ParsedDocument doc = docMapper.parse(type, id, source);
-        if (logger.isTraceEnabled()) {
-            logger.trace("index {}", doc);
-        }
-        engine.index(new Engine.Index(docMapper.uidMapper().term(doc.uid()), doc.doc(), docMapper.mappers().indexAnalyzer(), docMapper.type(), doc.id(), doc.source()));
-        return doc;
+        return new Engine.Delete(docMapper.uidMapper().term(type, id));
     }
 
     @Override public void delete(String type, String id) {
-        writeAllowed();
-        DocumentMapper docMapper = mapperService.type(type);
-        if (docMapper == null) {
-            throw new DocumentMapperNotFoundException("No mapper found for type [" + type + "]");
-        }
-        innerDelete(docMapper.uidMapper().term(type, id));
+        delete(prepareDelete(type, id));
     }
 
     @Override public void delete(Term uid) {
-        writeAllowed();
-        innerDelete(uid);
+        delete(new Engine.Delete(uid));
     }
 
-    private void innerDelete(Term uid) {
+    @Override public void delete(Engine.Delete delete) throws ElasticSearchException {
+        writeAllowed();
         if (logger.isTraceEnabled()) {
-            logger.trace("delete [{}]", uid.text());
+            logger.trace("delete [{}]", delete.uid().text());
         }
-        engine.delete(new Engine.Delete(uid));
+        engine.delete(delete);
     }
 
     @Override public void deleteByQuery(byte[] querySource, @Nullable String queryParserName, String... types) throws ElasticSearchException {
@@ -436,15 +447,15 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         switch (operation.opType()) {
             case CREATE:
                 Translog.Create create = (Translog.Create) operation;
-                innerCreate(create.type(), create.id(), create.source());
+                engine.create(prepareCreate(create.type(), create.id(), create.source()));
                 break;
             case SAVE:
                 Translog.Index index = (Translog.Index) operation;
-                innerIndex(index.type(), index.id(), index.source());
+                engine.index(prepareIndex(index.type(), index.id(), index.source()));
                 break;
             case DELETE:
                 Translog.Delete delete = (Translog.Delete) operation;
-                innerDelete(delete.uid());
+                engine.delete(new Engine.Delete(delete.uid()));
                 break;
             case DELETE_BY_QUERY:
                 Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) operation;

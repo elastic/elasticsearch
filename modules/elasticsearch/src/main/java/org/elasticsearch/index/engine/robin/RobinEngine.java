@@ -179,6 +179,58 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
         return refreshInterval;
     }
 
+    @Override public EngineException[] bulk(Bulk bulk) throws EngineException {
+        EngineException[] failures = null;
+        rwl.readLock().lock();
+        try {
+            IndexWriter writer = this.indexWriter;
+            if (writer == null) {
+                throw new EngineClosedException(shardId);
+            }
+            for (int i = 0; i < bulk.ops().length; i++) {
+                Operation op = bulk.ops()[i];
+                try {
+                    switch (op.opType()) {
+                        case CREATE:
+                            Create create = (Create) op;
+                            writer.addDocument(create.doc(), create.analyzer());
+                            translog.add(new Translog.Create(create));
+                            break;
+                        case INDEX:
+                            Index index = (Index) op;
+                            writer.updateDocument(index.uid(), index.doc(), index.analyzer());
+                            translog.add(new Translog.Index(index));
+                            break;
+                        case DELETE:
+                            Delete delete = (Delete) op;
+                            writer.deleteDocuments(delete.uid());
+                            translog.add(new Translog.Delete(delete));
+                            break;
+                    }
+                } catch (Exception e) {
+                    if (failures == null) {
+                        failures = new EngineException[bulk.ops().length];
+                    }
+                    switch (op.opType()) {
+                        case CREATE:
+                            failures[i] = new CreateFailedEngineException(shardId, (Create) op, e);
+                            break;
+                        case INDEX:
+                            failures[i] = new IndexFailedEngineException(shardId, (Index) op, e);
+                            break;
+                        case DELETE:
+                            failures[i] = new DeleteFailedEngineException(shardId, (Delete) op, e);
+                            break;
+                    }
+                }
+            }
+            dirty = true;
+        } finally {
+            rwl.readLock().unlock();
+        }
+        return failures;
+    }
+
     @Override public void create(Create create) throws EngineException {
         rwl.readLock().lock();
         try {

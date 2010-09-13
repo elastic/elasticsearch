@@ -17,26 +17,37 @@
  * under the License.
  */
 
-package org.elasticsearch.indexer;
-
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indexer.cluster.IndexerClusterService;
+package org.elasticsearch.indexer.cluster;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class IndexersModule extends AbstractModule {
+public class IndexerClusterChangedEvent {
 
-    private final Settings settings;
+    private final String source;
 
-    public IndexersModule(Settings settings) {
-        this.settings = settings;
+    private final IndexerClusterState previousState;
+
+    private final IndexerClusterState state;
+
+    public IndexerClusterChangedEvent(String source, IndexerClusterState state, IndexerClusterState previousState) {
+        this.source = source;
+        this.state = state;
+        this.previousState = previousState;
     }
 
-    @Override protected void configure() {
-        bind(IndexersService.class).asEagerSingleton();
-        bind(IndexerClusterService.class).asEagerSingleton();
-        bind(IndexerManager.class).asEagerSingleton();
+    /**
+     * The source that caused this cluster event to be raised.
+     */
+    public String source() {
+        return this.source;
+    }
+
+    public IndexerClusterState state() {
+        return this.state;
+    }
+
+    public IndexerClusterState previousState() {
+        return this.previousState;
     }
 }

@@ -202,43 +202,53 @@ public class XContentMultiFieldMapper implements XContentMapper, XContentInclude
     }
 
     @Override public void merge(XContentMapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        if (!(mergeWith instanceof XContentMultiFieldMapper)) {
-            mergeContext.addConflict("Can't merge a non multi_field mapping [" + mergeWith.name() + "] with a multi_field mapping [" + name() + "]");
+        if (!(mergeWith instanceof XContentMultiFieldMapper) && !(mergeWith instanceof XContentFieldMapper)) {
+            mergeContext.addConflict("Can't merge a non multi_field / non simple mapping [" + mergeWith.name() + "] with a multi_field mapping [" + name() + "]");
             return;
         }
-        XContentMultiFieldMapper mergeWithMultiField = (XContentMultiFieldMapper) mergeWith;
         synchronized (mutex) {
-            // merge the default mapper
-            if (defaultMapper == null) {
-                if (mergeWithMultiField.defaultMapper != null) {
+            if (mergeWith instanceof XContentFieldMapper) {
+                // its a single field mapper, upgraded into a multi field mapper, just update the default mapper
+                if (defaultMapper == null) {
                     if (!mergeContext.mergeFlags().simulate()) {
-                        defaultMapper = mergeWithMultiField.defaultMapper;
+                        defaultMapper = mergeWith;
                         mergeContext.docMapper().addFieldMapper((FieldMapper) defaultMapper);
                     }
                 }
             } else {
-                if (mergeWithMultiField.defaultMapper != null) {
-                    defaultMapper.merge(mergeWithMultiField.defaultMapper, mergeContext);
-                }
-            }
-
-            // merge all the other mappers
-            for (XContentMapper mergeWithMapper : mergeWithMultiField.mappers.values()) {
-                XContentMapper mergeIntoMapper = mappers.get(mergeWithMapper.name());
-                if (mergeIntoMapper == null) {
-                    // no mapping, simply add it if not simulating
-                    if (!mergeContext.mergeFlags().simulate()) {
-                        // disable the mapper from being in all, only the default mapper is in all
-                        if (mergeWithMapper instanceof XContentIncludeInAllMapper) {
-                            ((XContentIncludeInAllMapper) mergeWithMapper).includeInAll(false);
-                        }
-                        mappers = newMapBuilder(mappers).put(mergeWithMapper.name(), mergeWithMapper).immutableMap();
-                        if (mergeWithMapper instanceof XContentFieldMapper) {
-                            mergeContext.docMapper().addFieldMapper((FieldMapper) mergeWithMapper);
+                XContentMultiFieldMapper mergeWithMultiField = (XContentMultiFieldMapper) mergeWith;
+                // merge the default mapper
+                if (defaultMapper == null) {
+                    if (mergeWithMultiField.defaultMapper != null) {
+                        if (!mergeContext.mergeFlags().simulate()) {
+                            defaultMapper = mergeWithMultiField.defaultMapper;
+                            mergeContext.docMapper().addFieldMapper((FieldMapper) defaultMapper);
                         }
                     }
                 } else {
-                    mergeIntoMapper.merge(mergeWithMapper, mergeContext);
+                    if (mergeWithMultiField.defaultMapper != null) {
+                        defaultMapper.merge(mergeWithMultiField.defaultMapper, mergeContext);
+                    }
+                }
+
+                // merge all the other mappers
+                for (XContentMapper mergeWithMapper : mergeWithMultiField.mappers.values()) {
+                    XContentMapper mergeIntoMapper = mappers.get(mergeWithMapper.name());
+                    if (mergeIntoMapper == null) {
+                        // no mapping, simply add it if not simulating
+                        if (!mergeContext.mergeFlags().simulate()) {
+                            // disable the mapper from being in all, only the default mapper is in all
+                            if (mergeWithMapper instanceof XContentIncludeInAllMapper) {
+                                ((XContentIncludeInAllMapper) mergeWithMapper).includeInAll(false);
+                            }
+                            mappers = newMapBuilder(mappers).put(mergeWithMapper.name(), mergeWithMapper).immutableMap();
+                            if (mergeWithMapper instanceof XContentFieldMapper) {
+                                mergeContext.docMapper().addFieldMapper((FieldMapper) mergeWithMapper);
+                            }
+                        }
+                    } else {
+                        mergeIntoMapper.merge(mergeWithMapper, mergeContext);
+                    }
                 }
             }
         }

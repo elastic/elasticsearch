@@ -151,13 +151,17 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override public void writeRawField(String fieldName, byte[] content, FastByteArrayOutputStream bos) throws IOException {
-        generator.writeRaw(", \"" + fieldName + "\" : ");
+        generator.writeRaw(", \"");
+        generator.writeRaw(fieldName);
+        generator.writeRaw("\" : ");
         flush();
         bos.write(content);
     }
 
     @Override public void writeRawField(String fieldName, InputStream content, FastByteArrayOutputStream bos) throws IOException {
-        generator.writeRaw(", \"" + fieldName + "\" : ");
+        generator.writeRaw(", \"");
+        generator.writeRaw(fieldName);
+        generator.writeRaw("\" : ");
         flush();
         byte[] bytes = Bytes.cachedBytes.get().get();
         Streams.copy(content, bos, bytes);

@@ -36,6 +36,7 @@ import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.robin.RobinEngine;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.shard.ShardId;
@@ -163,10 +164,11 @@ public class SimpleEngineBenchmark {
             String sId = Integer.toString(id);
             Document doc = doc().add(field("_id", sId))
                     .add(field("content", contentItem)).build();
+            ParsedDocument pDoc = new ParsedDocument(sId, sId, "type", doc, TRANSLOG_PAYLOAD, false);
             if (create) {
-                engine.create(new Engine.Create(doc, Lucene.STANDARD_ANALYZER, "type", sId, TRANSLOG_PAYLOAD));
+                engine.create(new Engine.Create(pDoc, Lucene.STANDARD_ANALYZER));
             } else {
-                engine.index(new Engine.Index(new Term("_id", sId), doc, Lucene.STANDARD_ANALYZER, "type", sId, TRANSLOG_PAYLOAD));
+                engine.index(new Engine.Index(new Term("_id", sId), pDoc, Lucene.STANDARD_ANALYZER));
             }
         }
         engine.refresh(new Engine.Refresh(true));
@@ -276,10 +278,11 @@ public class SimpleEngineBenchmark {
                     String sId = Integer.toString(id);
                     Document doc = doc().add(field("_id", sId))
                             .add(field("content", content(id))).build();
+                    ParsedDocument pDoc = new ParsedDocument(sId, sId, "type", doc, TRANSLOG_PAYLOAD, false);
                     if (create) {
-                        engine.create(new Engine.Create(doc, Lucene.STANDARD_ANALYZER, "type", sId, TRANSLOG_PAYLOAD));
+                        engine.create(new Engine.Create(pDoc, Lucene.STANDARD_ANALYZER));
                     } else {
-                        engine.index(new Engine.Index(new Term("_id", sId), doc, Lucene.STANDARD_ANALYZER, "type", sId, TRANSLOG_PAYLOAD));
+                        engine.index(new Engine.Index(new Term("_id", sId), pDoc, Lucene.STANDARD_ANALYZER));
                     }
                 }
             } catch (Exception e) {

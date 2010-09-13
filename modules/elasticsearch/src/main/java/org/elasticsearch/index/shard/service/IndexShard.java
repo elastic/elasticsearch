@@ -48,13 +48,25 @@ public interface IndexShard extends IndexShardComponent, CloseableComponent {
      */
     ByteSizeValue estimateFlushableMemorySize() throws ElasticSearchException;
 
+    Engine.Create prepareCreate(String type, String id, byte[] source) throws ElasticSearchException;
+
     ParsedDocument create(String type, String id, byte[] source) throws ElasticSearchException;
+
+    ParsedDocument create(Engine.Create create) throws ElasticSearchException;
+
+    Engine.Index prepareIndex(String type, String id, byte[] source) throws ElasticSearchException;
+
+    ParsedDocument index(Engine.Index index) throws ElasticSearchException;
 
     ParsedDocument index(String type, String id, byte[] source) throws ElasticSearchException;
 
-    void delete(String type, String id);
+    Engine.Delete prepareDelete(String type, String id) throws ElasticSearchException;
 
-    void delete(Term uid);
+    void delete(Engine.Delete delete) throws ElasticSearchException;
+
+    void delete(String type, String id) throws ElasticSearchException;
+
+    void delete(Term uid) throws ElasticSearchException;
 
     void deleteByQuery(byte[] querySource, @Nullable String queryParserName, String... types) throws ElasticSearchException;
 

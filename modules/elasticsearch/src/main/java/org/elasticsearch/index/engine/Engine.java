@@ -31,6 +31,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.translog.Translog;
 
@@ -51,6 +52,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
      * be changed.
      */
     void start() throws EngineException;
+
+    EngineException[] bulk(Bulk bulk) throws EngineException;
 
     void create(Create create) throws EngineException;
 
@@ -237,31 +240,55 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         }
     }
 
-    static class Create {
-        private final Document document;
-        private final Analyzer analyzer;
-        private final String type;
-        private final String id;
-        private final byte[] source;
+    static interface Operation {
+        static enum Type {
+            CREATE,
+            INDEX,
+            DELETE
+        }
 
-        public Create(Document document, Analyzer analyzer, String type, String id, byte[] source) {
-            this.document = document;
+        Type opType();
+    }
+
+    static class Bulk {
+        private final Operation[] ops;
+
+        public Bulk(Operation[] ops) {
+            this.ops = ops;
+        }
+
+        public Operation[] ops() {
+            return this.ops;
+        }
+    }
+
+    static class Create implements Operation {
+        private final ParsedDocument doc;
+        private final Analyzer analyzer;
+
+        public Create(ParsedDocument doc, Analyzer analyzer) {
+            this.doc = doc;
             this.analyzer = analyzer;
-            this.type = type;
-            this.id = id;
-            this.source = source;
+        }
+
+        @Override public Type opType() {
+            return Type.CREATE;
+        }
+
+        public ParsedDocument parsedDoc() {
+            return this.doc;
         }
 
         public String type() {
-            return this.type;
+            return this.doc.type();
         }
 
         public String id() {
-            return this.id;
+            return this.doc.id();
         }
 
         public Document doc() {
-            return this.document;
+            return this.doc.doc();
         }
 
         public Analyzer analyzer() {
@@ -269,33 +296,35 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         }
 
         public byte[] source() {
-            return this.source;
+            return this.doc.source();
         }
     }
 
-    static class Index {
+    static class Index implements Operation {
         private final Term uid;
-        private final Document document;
+        private final ParsedDocument doc;
         private final Analyzer analyzer;
-        private final String type;
-        private final String id;
-        private final byte[] source;
 
-        public Index(Term uid, Document document, Analyzer analyzer, String type, String id, byte[] source) {
+        public Index(Term uid, ParsedDocument doc, Analyzer analyzer) {
             this.uid = uid;
-            this.document = document;
+            this.doc = doc;
             this.analyzer = analyzer;
-            this.type = type;
-            this.id = id;
-            this.source = source;
+        }
+
+        @Override public Type opType() {
+            return Type.INDEX;
         }
 
         public Term uid() {
             return this.uid;
         }
 
+        public ParsedDocument parsedDoc() {
+            return this.doc;
+        }
+
         public Document doc() {
-            return this.document;
+            return this.doc.doc();
         }
 
         public Analyzer analyzer() {
@@ -303,23 +332,27 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         }
 
         public String id() {
-            return this.id;
+            return this.doc.id();
         }
 
         public String type() {
-            return this.type;
+            return this.doc.type();
         }
 
         public byte[] source() {
-            return this.source;
+            return this.doc.source();
         }
     }
 
-    static class Delete {
+    static class Delete implements Operation {
         private final Term uid;
 
         public Delete(Term uid) {
             this.uid = uid;
+        }
+
+        @Override public Type opType() {
+            return Type.DELETE;
         }
 
         public Term uid() {

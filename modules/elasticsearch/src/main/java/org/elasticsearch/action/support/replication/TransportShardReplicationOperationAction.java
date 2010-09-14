@@ -109,6 +109,10 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     }
 
+    protected TransportRequestOptions transportOptions() {
+        return TransportRequestOptions.EMPTY;
+    }
+
     /**
      * Should the operations be performed on the replicas as well. Defaults to <tt>false</tt> meaning operations
      * will be executed on the replica.
@@ -283,7 +287,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                         }
                     } else {
                         DiscoveryNode node = nodes.get(shard.currentNodeId());
-                        transportService.sendRequest(node, transportAction(), request, new BaseTransportResponseHandler<Response>() {
+                        transportService.sendRequest(node, transportAction(), request, transportOptions(), new BaseTransportResponseHandler<Response>() {
 
                             @Override public Response newInstance() {
                                 return newResponseInstance();
@@ -511,7 +515,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             final ShardOperationRequest shardRequest = new ShardOperationRequest(shards.shardId().id(), request);
             if (!nodeId.equals(nodes.localNodeId())) {
                 DiscoveryNode node = nodes.get(nodeId);
-                transportService.sendRequest(node, transportReplicaAction(), shardRequest, new VoidTransportResponseHandler() {
+                transportService.sendRequest(node, transportReplicaAction(), shardRequest, transportOptions(), new VoidTransportResponseHandler() {
                     @Override public void handleResponse(VoidStreamable vResponse) {
                         finishIfPossible();
                     }

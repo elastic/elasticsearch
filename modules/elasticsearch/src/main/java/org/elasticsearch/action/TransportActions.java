@@ -24,6 +24,8 @@ package org.elasticsearch.action;
  */
 public class TransportActions {
 
+    public static final String BULK = "indices/bulk";
+
     public static final String INDEX = "indices/index/shard/index";
 
     public static final String COUNT = "indices/count";

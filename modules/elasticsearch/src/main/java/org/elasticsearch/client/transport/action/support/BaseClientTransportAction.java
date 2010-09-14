@@ -33,6 +33,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.lang.reflect.Constructor;
@@ -67,7 +68,7 @@ public abstract class BaseClientTransportAction<Request extends ActionRequest, R
     }
 
     @Override public void execute(DiscoveryNode node, final Request request, final ActionListener<Response> listener) {
-        transportService.sendRequest(node, action(), request, new BaseTransportResponseHandler<Response>() {
+        transportService.sendRequest(node, action(), request, options(), new BaseTransportResponseHandler<Response>() {
             @Override public Response newInstance() {
                 return BaseClientTransportAction.this.newInstance();
             }
@@ -84,6 +85,10 @@ public abstract class BaseClientTransportAction<Request extends ActionRequest, R
                 return request.listenerThreaded();
             }
         });
+    }
+
+    protected TransportRequestOptions options() {
+        return TransportRequestOptions.EMPTY;
     }
 
     protected abstract String action();

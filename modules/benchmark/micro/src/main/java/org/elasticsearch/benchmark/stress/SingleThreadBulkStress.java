@@ -19,7 +19,10 @@
 
 package org.elasticsearch.benchmark.stress;
 
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,7 +41,7 @@ import static org.elasticsearch.node.NodeBuilder.*;
 /**
  * @author kimchy (shay.banon)
  */
-public class SingleThreadIndexingStress {
+public class SingleThreadBulkStress {
 
     public static void main(String[] args) throws Exception {
         Random random = new Random();
@@ -63,13 +66,21 @@ public class SingleThreadIndexingStress {
 
         StopWatch stopWatch = new StopWatch().start();
         int COUNT = 200000;
+        int BATCH = 1000;
         System.out.println("Indexing [" + COUNT + "] ...");
+        int ITERS = COUNT / BATCH;
         int i = 1;
-        for (; i <= COUNT; i++) {
-            client1.prepareIndex("test", "type1").setId(Integer.toString(i)).setSource(source(Integer.toString(i), "test" + i))
-                    .setCreate(false).execute().actionGet();
-            if ((i % 10000) == 0) {
-                System.out.println("Indexed " + i + " took " + stopWatch.stop().lastTaskTime());
+        for (; i <= ITERS; i++) {
+            BulkRequestBuilder request = client1.prepareBulk();
+            for (int j = 0; j < BATCH; j++) {
+                request.add(Requests.indexRequest("test").type("type1").id(Integer.toString(i)).source(source(Integer.toString(i), "test" + i)));
+            }
+            BulkResponse response = request.execute().actionGet();
+            if (response.hasFailures()) {
+                System.err.println("failures...");
+            }
+            if (((i * BATCH) % 10000) == 0) {
+                System.out.println("Indexed " + (i * 100) + " took " + stopWatch.stop().lastTaskTime());
                 stopWatch.start();
             }
         }

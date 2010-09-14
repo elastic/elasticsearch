@@ -21,6 +21,9 @@ package org.elasticsearch.client.node;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.count.TransportCountAction;
@@ -59,6 +62,8 @@ public class NodeClient extends AbstractClient implements InternalClient {
 
     private final TransportDeleteAction deleteAction;
 
+    private final TransportBulkAction bulkAction;
+
     private final TransportDeleteByQueryAction deleteByQueryAction;
 
     private final TransportGetAction getAction;
@@ -72,7 +77,7 @@ public class NodeClient extends AbstractClient implements InternalClient {
     private final TransportMoreLikeThisAction moreLikeThisAction;
 
     @Inject public NodeClient(Settings settings, ThreadPool threadPool, NodeAdminClient admin,
-                              TransportIndexAction indexAction, TransportDeleteAction deleteAction,
+                              TransportIndexAction indexAction, TransportDeleteAction deleteAction, TransportBulkAction bulkAction,
                               TransportDeleteByQueryAction deleteByQueryAction, TransportGetAction getAction, TransportCountAction countAction,
                               TransportSearchAction searchAction, TransportSearchScrollAction searchScrollAction,
                               TransportMoreLikeThisAction moreLikeThisAction) {
@@ -80,6 +85,7 @@ public class NodeClient extends AbstractClient implements InternalClient {
         this.admin = admin;
         this.indexAction = indexAction;
         this.deleteAction = deleteAction;
+        this.bulkAction = bulkAction;
         this.deleteByQueryAction = deleteByQueryAction;
         this.getAction = getAction;
         this.countAction = countAction;
@@ -114,6 +120,14 @@ public class NodeClient extends AbstractClient implements InternalClient {
 
     @Override public void delete(DeleteRequest request, ActionListener<DeleteResponse> listener) {
         deleteAction.execute(request, listener);
+    }
+
+    @Override public ActionFuture<BulkResponse> bulk(BulkRequest request) {
+        return bulkAction.execute(request);
+    }
+
+    @Override public void bulk(BulkRequest request, ActionListener<BulkResponse> listener) {
+        bulkAction.execute(request, listener);
     }
 
     @Override public ActionFuture<DeleteByQueryResponse> deleteByQuery(DeleteByQueryRequest request) {

@@ -39,6 +39,12 @@ public class ActionRequestValidationException extends ElasticSearchException {
         validationErrors.add(error);
     }
 
+    public void addValidationErrors(Iterable<String> errors) {
+        for (String error : errors) {
+            validationErrors.add(error);
+        }
+    }
+
     public List<String> validationErrors() {
         return validationErrors;
     }

@@ -39,6 +39,7 @@ import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
@@ -87,6 +88,13 @@ public class Requests {
      */
     public static DeleteRequest deleteRequest(String index) {
         return new DeleteRequest(index);
+    }
+
+    /**
+     * Creats a new bulk request.
+     */
+    public static BulkRequest bulkRequest() {
+        return new BulkRequest();
     }
 
     /**

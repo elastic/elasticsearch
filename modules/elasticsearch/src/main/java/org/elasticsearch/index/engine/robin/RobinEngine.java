@@ -189,6 +189,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine, 
             }
             for (int i = 0; i < bulk.ops().length; i++) {
                 Operation op = bulk.ops()[i];
+                if (op == null) {
+                    continue;
+                }
                 try {
                     switch (op.opType()) {
                         case CREATE:

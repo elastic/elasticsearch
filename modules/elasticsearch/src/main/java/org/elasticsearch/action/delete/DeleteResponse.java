@@ -41,11 +41,11 @@ public class DeleteResponse implements ActionResponse, Streamable {
 
     private String type;
 
-    DeleteResponse() {
+    public DeleteResponse() {
 
     }
 
-    DeleteResponse(String index, String type, String id) {
+    public DeleteResponse(String index, String type, String id) {
         this.index = index;
         this.id = id;
         this.type = type;

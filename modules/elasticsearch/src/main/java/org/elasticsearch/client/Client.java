@@ -21,6 +21,8 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -35,6 +37,7 @@ import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.client.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.client.action.count.CountRequestBuilder;
 import org.elasticsearch.client.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.client.action.deletebyquery.DeleteByQueryRequestBuilder;
@@ -152,6 +155,29 @@ public interface Client {
      * @param id    The id of the document to delete
      */
     DeleteRequestBuilder prepareDelete(String index, String type, String id);
+
+    /**
+     * Executes a bulk of index / delete operations.
+     *
+     * @param request The bulk request
+     * @return The result future
+     * @see org.elasticsearch.client.Requests#bulkRequest()
+     */
+    ActionFuture<BulkResponse> bulk(BulkRequest request);
+
+    /**
+     * Executes a bulk of index / delete operations.
+     *
+     * @param request  The bulk request
+     * @param listener A listener to be notified with a result
+     * @see org.elasticsearch.client.Requests#bulkRequest()
+     */
+    void bulk(BulkRequest request, ActionListener<BulkResponse> listener);
+
+    /**
+     * Executes a bulk of index / delete operations.
+     */
+    BulkRequestBuilder prepareBulk();
 
     /**
      * Deletes all documents from one or more indices based on a query.

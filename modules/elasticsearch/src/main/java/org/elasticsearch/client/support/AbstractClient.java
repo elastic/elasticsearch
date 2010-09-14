@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.support;
 
+import org.elasticsearch.client.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.client.action.count.CountRequestBuilder;
 import org.elasticsearch.client.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.client.action.deletebyquery.DeleteByQueryRequestBuilder;
@@ -53,6 +54,10 @@ public abstract class AbstractClient implements InternalClient {
 
     @Override public DeleteRequestBuilder prepareDelete(String index, String type, String id) {
         return prepareDelete().setIndex(index).setType(type).setId(id);
+    }
+
+    @Override public BulkRequestBuilder prepareBulk() {
+        return new BulkRequestBuilder(this);
     }
 
     @Override public DeleteByQueryRequestBuilder prepareDeleteByQuery(String... indices) {

@@ -41,11 +41,11 @@ public class IndexResponse implements ActionResponse, Streamable {
 
     private String type;
 
-    IndexResponse() {
+    public IndexResponse() {
 
     }
 
-    IndexResponse(String index, String type, String id) {
+    public IndexResponse(String index, String type, String id) {
         this.index = index;
         this.id = id;
         this.type = type;

@@ -130,7 +130,7 @@ public abstract class ShardReplicationOperationRequest implements ActionRequest 
     /**
      * Called before the request gets forked into a local thread.
      */
-    protected void beforeLocalFork() {
+    public void beforeLocalFork() {
 
     }
 }

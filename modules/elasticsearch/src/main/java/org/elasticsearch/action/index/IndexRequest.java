@@ -109,6 +109,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     private int sourceOffset;
     private int sourceLength;
     private boolean sourceUnsafe;
+    private boolean sourceFromBuilder;
 
     private OpType opType = OpType.INDEX;
 
@@ -150,8 +151,15 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     /**
      * Before we fork on a local thread, make sure we copy over the bytes if they are unsafe
      */
-    @Override protected void beforeLocalFork() {
+    @Override public void beforeLocalFork() {
         source();
+    }
+
+    /**
+     * Need this in case builders are used, we need to copy after adding...
+     */
+    public boolean sourceFromBuilder() {
+        return sourceFromBuilder;
     }
 
     /**
@@ -182,7 +190,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     /**
      * The type of the indexed document.
      */
-    String type() {
+    public String type() {
         return type;
     }
 
@@ -197,7 +205,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     /**
      * The id of the indexed document. If not set, will be automatically generated.
      */
-    String id() {
+    public String id() {
         return id;
     }
 
@@ -212,7 +220,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
     /**
      * The source of the JSON document to index.
      */
-    byte[] source() {
+    public byte[] source() {
         if (sourceUnsafe || sourceOffset > 0) {
             source = Arrays.copyOfRange(source, sourceOffset, sourceLength);
             sourceOffset = 0;
@@ -269,6 +277,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
             sourceOffset = 0;
             sourceLength = sourceBuilder.unsafeBytesLength();
             sourceUnsafe = true;
+            this.sourceFromBuilder = true;
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + sourceBuilder + "]", e);
         }

@@ -22,6 +22,8 @@ package org.elasticsearch.client.transport.support;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -40,6 +42,7 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.client.transport.TransportClientNodesService;
+import org.elasticsearch.client.transport.action.bulk.ClientTransportBulkAction;
 import org.elasticsearch.client.transport.action.count.ClientTransportCountAction;
 import org.elasticsearch.client.transport.action.delete.ClientTransportDeleteAction;
 import org.elasticsearch.client.transport.action.deletebyquery.ClientTransportDeleteByQueryAction;
@@ -68,6 +71,8 @@ public class InternalTransportClient extends AbstractClient implements InternalC
 
     private final ClientTransportDeleteAction deleteAction;
 
+    private final ClientTransportBulkAction bulkAction;
+
     private final ClientTransportGetAction getAction;
 
     private final ClientTransportDeleteByQueryAction deleteByQueryAction;
@@ -82,7 +87,7 @@ public class InternalTransportClient extends AbstractClient implements InternalC
 
     @Inject public InternalTransportClient(Settings settings, ThreadPool threadPool,
                                            TransportClientNodesService nodesService, InternalTransportAdminClient adminClient,
-                                           ClientTransportIndexAction indexAction, ClientTransportDeleteAction deleteAction, ClientTransportGetAction getAction,
+                                           ClientTransportIndexAction indexAction, ClientTransportDeleteAction deleteAction, ClientTransportBulkAction bulkAction, ClientTransportGetAction getAction,
                                            ClientTransportDeleteByQueryAction deleteByQueryAction, ClientTransportCountAction countAction,
                                            ClientTransportSearchAction searchAction, ClientTransportSearchScrollAction searchScrollAction,
                                            ClientTransportMoreLikeThisAction moreLikeThisAction) {
@@ -92,6 +97,7 @@ public class InternalTransportClient extends AbstractClient implements InternalC
 
         this.indexAction = indexAction;
         this.deleteAction = deleteAction;
+        this.bulkAction = bulkAction;
         this.getAction = getAction;
         this.deleteByQueryAction = deleteByQueryAction;
         this.countAction = countAction;
@@ -141,6 +147,23 @@ public class InternalTransportClient extends AbstractClient implements InternalC
         nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
             @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
                 deleteAction.execute(node, request, listener);
+                return null;
+            }
+        });
+    }
+
+    @Override public ActionFuture<BulkResponse> bulk(final BulkRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<BulkResponse>>() {
+            @Override public ActionFuture<BulkResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+                return bulkAction.execute(node, request);
+            }
+        });
+    }
+
+    @Override public void bulk(final BulkRequest request, final ActionListener<BulkResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
+            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+                bulkAction.execute(node, request, listener);
                 return null;
             }
         });

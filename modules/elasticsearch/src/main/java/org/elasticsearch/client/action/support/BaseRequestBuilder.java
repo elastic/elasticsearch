@@ -42,6 +42,10 @@ public abstract class BaseRequestBuilder<Request extends ActionRequest, Response
         this.request = request;
     }
 
+    public Request request() {
+        return this.request;
+    }
+
     @Override public ListenableActionFuture<Response> execute() {
         PlainListenableActionFuture<Response> future = new PlainListenableActionFuture<Response>(request.listenerThreaded(), client.threadPool());
         execute(future);

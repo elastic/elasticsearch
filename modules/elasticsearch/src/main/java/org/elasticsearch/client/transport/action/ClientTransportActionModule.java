@@ -39,6 +39,7 @@ import org.elasticsearch.client.transport.action.admin.indices.optimize.ClientTr
 import org.elasticsearch.client.transport.action.admin.indices.refresh.ClientTransportRefreshAction;
 import org.elasticsearch.client.transport.action.admin.indices.settings.ClientTransportUpdateSettingsAction;
 import org.elasticsearch.client.transport.action.admin.indices.status.ClientTransportIndicesStatusAction;
+import org.elasticsearch.client.transport.action.bulk.ClientTransportBulkAction;
 import org.elasticsearch.client.transport.action.count.ClientTransportCountAction;
 import org.elasticsearch.client.transport.action.delete.ClientTransportDeleteAction;
 import org.elasticsearch.client.transport.action.deletebyquery.ClientTransportDeleteByQueryAction;
@@ -61,6 +62,7 @@ public class ClientTransportActionModule extends AbstractModule {
         bind(ClientTransportCountAction.class).asEagerSingleton();
         bind(ClientTransportSearchAction.class).asEagerSingleton();
         bind(ClientTransportSearchScrollAction.class).asEagerSingleton();
+        bind(ClientTransportBulkAction.class).asEagerSingleton();
 
         bind(ClientTransportIndicesStatusAction.class).asEagerSingleton();
         bind(ClientTransportRefreshAction.class).asEagerSingleton();

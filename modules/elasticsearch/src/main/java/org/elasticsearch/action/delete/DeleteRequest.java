@@ -69,7 +69,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
         this.id = id;
     }
 
-    DeleteRequest() {
+    public DeleteRequest() {
     }
 
     @Override public ActionRequestValidationException validate() {
@@ -119,7 +119,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
     /**
      * The type of the document to delete.
      */
-    String type() {
+    public String type() {
         return type;
     }
 
@@ -134,7 +134,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest {
     /**
      * The id of the document to delete.
      */
-    String id() {
+    public String id() {
         return id;
     }
 

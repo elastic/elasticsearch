@@ -312,7 +312,7 @@ public class MoreLikeThisRequest implements ActionRequest {
 
     void beforeLocalFork() {
         if (searchSourceUnsafe) {
-            searchSource = Arrays.copyOfRange(searchSource, searchSourceOffset, searchSourceLength);
+            searchSource = Arrays.copyOfRange(searchSource, searchSourceOffset, searchSourceOffset + searchSourceLength);
             searchSourceOffset = 0;
             searchSourceUnsafe = false;
         }

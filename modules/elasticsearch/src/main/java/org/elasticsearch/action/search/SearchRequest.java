@@ -121,12 +121,12 @@ public class SearchRequest implements ActionRequest {
      */
     public void beforeLocalFork() {
         if (source != null && sourceUnsafe) {
-            source = Arrays.copyOfRange(source, sourceOffset, sourceLength);
+            source = Arrays.copyOfRange(source, sourceOffset, sourceOffset + sourceLength);
             sourceOffset = 0;
             sourceUnsafe = false;
         }
         if (extraSource != null && extraSourceUnsafe) {
-            extraSource = Arrays.copyOfRange(extraSource, extraSourceOffset, extraSourceLength);
+            extraSource = Arrays.copyOfRange(extraSource, extraSourceOffset, extraSourceOffset + extraSourceLength);
             extraSourceOffset = 0;
             extraSourceUnsafe = false;
         }

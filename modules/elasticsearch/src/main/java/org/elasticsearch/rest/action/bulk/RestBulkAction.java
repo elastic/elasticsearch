@@ -148,6 +148,7 @@ public class RestBulkAction extends BaseRestHandler {
 
                     builder.startArray("items");
                     for (BulkItemResponse itemResponse : response) {
+                        builder.startObject();
                         builder.startObject(itemResponse.opType());
                         builder.field("index", itemResponse.index());
                         builder.field("type", itemResponse.type());
@@ -155,6 +156,7 @@ public class RestBulkAction extends BaseRestHandler {
                         if (itemResponse.failed()) {
                             builder.field("error", itemResponse.failure().message());
                         }
+                        builder.endObject();
                         builder.endObject();
                     }
                     builder.endArray();

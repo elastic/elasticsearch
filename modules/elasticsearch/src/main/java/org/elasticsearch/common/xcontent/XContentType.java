@@ -29,11 +29,17 @@ public enum XContentType {
     /**
      * A JSON based content type.
      */
-    JSON(0),
+    JSON(0) {
+        @Override public String restContentType() {
+            return "application/json; charset=UTF-8";
+        }},
     /**
      * The jackson based smile binary format. Fast and compact binary format.
      */
-    SMILE(1);
+    SMILE(1) {
+        @Override public String restContentType() {
+            return "application/smile";
+        }};
 
     public static XContentType fromRestContentType(String contentType) {
         if (contentType == null) {
@@ -59,4 +65,6 @@ public enum XContentType {
     public int index() {
         return index;
     }
+
+    public abstract String restContentType();
 }

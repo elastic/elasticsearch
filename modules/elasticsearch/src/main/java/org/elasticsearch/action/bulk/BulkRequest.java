@@ -33,7 +33,11 @@ import java.util.List;
 import static org.elasticsearch.action.Actions.*;
 
 /**
+ * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
+ * it in a single batch.
+ *
  * @author kimchy (shay.banon)
+ * @see org.elasticsearch.client.Client#bulk(BulkRequest)
  */
 public class BulkRequest implements ActionRequest {
 
@@ -41,6 +45,10 @@ public class BulkRequest implements ActionRequest {
 
     private boolean listenerThreaded = false;
 
+    /**
+     * Adds an {@link IndexRequest} to the list of actions to execute. Follows the same behavior of {@link IndexRequest}
+     * (for example, if no id is provided, one will be generated, or usage of the create flag).
+     */
     public BulkRequest add(IndexRequest request) {
         // if the source is from a builder, we need to copy it over before adding the next one, which can come from a builder as well...
         if (request.sourceFromBuilder()) {
@@ -50,6 +58,9 @@ public class BulkRequest implements ActionRequest {
         return this;
     }
 
+    /**
+     * Adds an {@link DeleteRequest} to the list of actions to execute.
+     */
     public BulkRequest add(DeleteRequest request) {
         requests.add(request);
         return this;

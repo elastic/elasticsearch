@@ -29,10 +29,16 @@ import org.elasticsearch.common.io.stream.Streamable;
 import java.io.IOException;
 
 /**
+ * Represents a single item response for an action executed as part of the bulk API. Holds the index/type/id
+ * of the relevant action, and if it has failed or not (with the failure message incase it failed).
+ *
  * @author kimchy (shay.banon)
  */
 public class BulkItemResponse implements Streamable {
 
+    /**
+     * Represents a failure.
+     */
     public static class Failure {
         private final String index;
         private final String type;
@@ -46,36 +52,60 @@ public class BulkItemResponse implements Streamable {
             this.message = message;
         }
 
+        /**
+         * The index name of the action.
+         */
         public String index() {
             return this.index;
         }
 
+        /**
+         * The index name of the action.
+         */
         public String getIndex() {
             return index();
         }
 
-        public String message() {
-            return this.message;
-        }
-
-        public String getMessage() {
-            return message();
-        }
-
+        /**
+         * The type of the action.
+         */
         public String type() {
             return type;
         }
 
+        /**
+         * The type of the action.
+         */
         public String getType() {
             return type();
         }
 
+        /**
+         * The id of the action.
+         */
         public String id() {
             return id;
         }
 
+        /**
+         * The id of the action.
+         */
         public String getId() {
             return this.id;
+        }
+
+        /**
+         * The failure message.
+         */
+        public String message() {
+            return this.message;
+        }
+
+        /**
+         * The failure message.
+         */
+        public String getMessage() {
+            return message();
         }
     }
 
@@ -103,14 +133,23 @@ public class BulkItemResponse implements Streamable {
         this.failure = failure;
     }
 
+    /**
+     * The numeric order of the item matching the same request order in the bulk request.
+     */
     public int itemId() {
         return id;
     }
 
+    /**
+     * The operation type ("index", "create" or "delete").
+     */
     public String opType() {
         return this.opType;
     }
 
+    /**
+     * The index name of the action.
+     */
     public String index() {
         if (failure != null) {
             return failure.index();
@@ -123,10 +162,16 @@ public class BulkItemResponse implements Streamable {
         return null;
     }
 
+    /**
+     * The index name of the action.
+     */
     public String getIndex() {
         return index();
     }
 
+    /**
+     * The type of the action.
+     */
     public String type() {
         if (failure != null) {
             return failure.type();
@@ -139,10 +184,16 @@ public class BulkItemResponse implements Streamable {
         return null;
     }
 
+    /**
+     * The type of the action.
+     */
     public String getType() {
         return this.type();
     }
 
+    /**
+     * The id of the action.
+     */
     public String id() {
         if (failure != null) {
             return failure.id();
@@ -155,26 +206,62 @@ public class BulkItemResponse implements Streamable {
         return null;
     }
 
+    /**
+     * The id of the action.
+     */
     public String getId() {
         return id();
     }
 
+    /**
+     * The actual response ({@link IndexResponse} or {@link DeleteResponse}). <tt>null</tt> in
+     * case of failure.
+     */
     public ActionResponse response() {
         return response;
     }
 
+    /**
+     * Is this a failed execution of an operation.
+     */
     public boolean failed() {
         return failure != null;
     }
 
+    /**
+     * Is this a failed execution of an operation.
+     */
     public boolean isFailed() {
         return failed();
     }
 
+    /**
+     * The failure message, <tt>null</tt> if it did not fail.
+     */
+    public String failureMessage() {
+        if (failure != null) {
+            return failure.message();
+        }
+        return null;
+    }
+
+    /**
+     * The failure message, <tt>null</tt> if it did not fail.
+     */
+    public String getFailureMessage() {
+        return failureMessage();
+    }
+
+    /**
+     * The actual failure object if there was a failure.
+     */
     public Failure failure() {
         return this.failure;
     }
 
+    /**
+     * The actual failure object if there was a failure.
+     */
     public Failure getFailure() {
         return failure();
     }

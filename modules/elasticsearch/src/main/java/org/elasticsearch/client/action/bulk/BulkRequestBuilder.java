@@ -30,6 +30,9 @@ import org.elasticsearch.client.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.action.support.BaseRequestBuilder;
 
 /**
+ * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
+ * it in a single batch.
+ *
  * @author kimchy (shay.banon)
  */
 public class BulkRequestBuilder extends BaseRequestBuilder<BulkRequest, BulkResponse> {
@@ -38,21 +41,35 @@ public class BulkRequestBuilder extends BaseRequestBuilder<BulkRequest, BulkResp
         super(client, new BulkRequest());
     }
 
+    /**
+     * Adds an {@link IndexRequest} to the list of actions to execute. Follows the same behavior of {@link IndexRequest}
+     * (for example, if no id is provided, one will be generated, or usage of the create flag).
+     */
     public BulkRequestBuilder add(IndexRequest request) {
         super.request.add(request);
         return this;
     }
 
+    /**
+     * Adds an {@link IndexRequest} to the list of actions to execute. Follows the same behavior of {@link IndexRequest}
+     * (for example, if no id is provided, one will be generated, or usage of the create flag).
+     */
     public BulkRequestBuilder add(IndexRequestBuilder request) {
         super.request.add(request.request());
         return this;
     }
 
+    /**
+     * Adds an {@link DeleteRequest} to the list of actions to execute.
+     */
     public BulkRequestBuilder add(DeleteRequest request) {
         super.request.add(request);
         return this;
     }
 
+    /**
+     * Adds an {@link DeleteRequest} to the list of actions to execute.
+     */
     public BulkRequestBuilder add(DeleteRequestBuilder request) {
         super.request.add(request.request());
         return this;

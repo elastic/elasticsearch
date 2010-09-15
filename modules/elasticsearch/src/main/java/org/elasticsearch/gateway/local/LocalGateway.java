@@ -143,6 +143,12 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
             listener.onSuccess();
             return;
         }
+        if (electedState.state().metaData().indices().isEmpty()) {
+            logger.debug("no indices in metadata");
+            listener.onSuccess();
+            return;
+        }
+
         logger.debug("elected state from [{}]", electedState.node());
         final LocalGatewayMetaState state = electedState.state();
         final AtomicInteger indicesCounter = new AtomicInteger(state.metaData().indices().size());

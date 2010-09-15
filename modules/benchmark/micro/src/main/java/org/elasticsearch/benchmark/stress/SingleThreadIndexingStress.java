@@ -33,6 +33,7 @@ import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
+import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.elasticsearch.node.NodeBuilder.*;
 
 /**
@@ -46,6 +47,7 @@ public class SingleThreadIndexingStress {
         Settings settings = settingsBuilder()
                 .put("cluster.routing.schedule", 200, TimeUnit.MILLISECONDS)
                 .put("index.engine.robin.refreshInterval", "-1")
+                .put("gateway.type", "none")
                 .put(SETTING_NUMBER_OF_SHARDS, 2)
                 .put(SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();
@@ -74,6 +76,9 @@ public class SingleThreadIndexingStress {
             }
         }
         System.out.println("Indexing took " + stopWatch.totalTime() + ", TPS " + (((double) COUNT) / stopWatch.totalTime().secondsFrac()));
+
+        client.client().admin().indices().prepareRefresh().execute().actionGet();
+        System.out.println("Count: " + client.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count());
 
         client.close();
 

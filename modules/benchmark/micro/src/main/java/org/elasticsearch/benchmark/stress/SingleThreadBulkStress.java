@@ -36,6 +36,7 @@ import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
+import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
 import static org.elasticsearch.node.NodeBuilder.*;
 
 /**
@@ -49,6 +50,7 @@ public class SingleThreadBulkStress {
         Settings settings = settingsBuilder()
                 .put("cluster.routing.schedule", 200, TimeUnit.MILLISECONDS)
                 .put("index.engine.robin.refreshInterval", "-1")
+                .put("gateway.type", "none")
                 .put(SETTING_NUMBER_OF_SHARDS, 2)
                 .put(SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();
@@ -70,10 +72,12 @@ public class SingleThreadBulkStress {
         System.out.println("Indexing [" + COUNT + "] ...");
         int ITERS = COUNT / BATCH;
         int i = 1;
+        int counter = 0;
         for (; i <= ITERS; i++) {
             BulkRequestBuilder request = client1.prepareBulk();
             for (int j = 0; j < BATCH; j++) {
-                request.add(Requests.indexRequest("test").type("type1").id(Integer.toString(i)).source(source(Integer.toString(i), "test" + i)));
+                counter++;
+                request.add(Requests.indexRequest("test").type("type1").id(Integer.toString(counter)).source(source(Integer.toString(counter), "test" + counter)));
             }
             BulkResponse response = request.execute().actionGet();
             if (response.hasFailures()) {
@@ -85,6 +89,9 @@ public class SingleThreadBulkStress {
             }
         }
         System.out.println("Indexing took " + stopWatch.totalTime() + ", TPS " + (((double) COUNT) / stopWatch.totalTime().secondsFrac()));
+
+        client.client().admin().indices().prepareRefresh().execute().actionGet();
+        System.out.println("Count: " + client.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count());
 
         client.close();
 

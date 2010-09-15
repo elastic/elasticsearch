@@ -195,6 +195,13 @@ public class SearchSourceBuilder implements ToXContent {
         return this;
     }
 
+    public HighlightBuilder highlighter() {
+        if (highlightBuilder == null) {
+            highlightBuilder = new HighlightBuilder();
+        }
+        return highlightBuilder;
+    }
+
     /**
      * Adds highlight to perform as part of the search.
      */

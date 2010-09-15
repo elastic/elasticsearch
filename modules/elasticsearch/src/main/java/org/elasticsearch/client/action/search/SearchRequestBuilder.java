@@ -47,8 +47,6 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
 
     private SearchSourceBuilder sourceBuilder;
 
-    private HighlightBuilder highlightBuilder;
-
     public SearchRequestBuilder(Client client) {
         super(client, new SearchRequest());
     }
@@ -376,10 +374,11 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
         return this;
     }
 
+    public SearchSourceBuilder internalBuilder() {
+        return sourceBuilder();
+    }
+
     @Override protected void doExecute(ActionListener<SearchResponse> listener) {
-        if (highlightBuilder != null) {
-            sourceBuilder().highlight(highlightBuilder);
-        }
         request.source(sourceBuilder());
         client.search(request, listener);
     }
@@ -392,9 +391,6 @@ public class SearchRequestBuilder extends BaseRequestBuilder<SearchRequest, Sear
     }
 
     private HighlightBuilder highlightBuilder() {
-        if (highlightBuilder == null) {
-            highlightBuilder = new HighlightBuilder();
-        }
-        return highlightBuilder;
+        return sourceBuilder().highlighter();
     }
 }

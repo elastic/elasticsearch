@@ -146,6 +146,7 @@ public class RestBulkAction extends BaseRestHandler {
                     XContentBuilder builder = restContentBuilder(request);
                     builder.startObject();
 
+                    builder.startArray("items");
                     for (BulkItemResponse itemResponse : response) {
                         builder.startObject(itemResponse.opType());
                         builder.field("index", itemResponse.index());
@@ -156,6 +157,7 @@ public class RestBulkAction extends BaseRestHandler {
                         }
                         builder.endObject();
                     }
+                    builder.endArray();
 
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));

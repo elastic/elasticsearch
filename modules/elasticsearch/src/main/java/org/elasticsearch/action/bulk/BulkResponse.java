@@ -29,7 +29,8 @@ import java.util.Iterator;
 
 /**
  * A response of a bulk execution. Holding a response for each item responding (in order) of the
- * bulk requests.
+ * bulk requests. Each item holds the index/type/id is operated on, and if it failed or not (with the
+ * failure message).
  *
  * @author kimchy (shay.banon)
  */
@@ -44,6 +45,9 @@ public class BulkResponse implements ActionResponse, Iterable<BulkItemResponse> 
         this.responses = responses;
     }
 
+    /**
+     * Has anything failed with the execution.
+     */
     public boolean hasFailures() {
         for (BulkItemResponse response : responses) {
             if (response.failed()) {
@@ -53,6 +57,9 @@ public class BulkResponse implements ActionResponse, Iterable<BulkItemResponse> 
         return false;
     }
 
+    /**
+     * The items representing each action performed in the bulk operation (in the same order!).
+     */
     public BulkItemResponse[] items() {
         return responses;
     }

@@ -33,6 +33,8 @@ public interface XContent {
      */
     XContentType type();
 
+    byte streamSeparator();
+
     /**
      * Creates a new generator using the provided output stream.
      */

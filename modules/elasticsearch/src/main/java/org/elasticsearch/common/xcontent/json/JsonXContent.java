@@ -60,6 +60,10 @@ public class JsonXContent implements XContent {
         return XContentType.JSON;
     }
 
+    @Override public byte streamSeparator() {
+        return '\n';
+    }
+
     @Override public XContentGenerator createGenerator(OutputStream os) throws IOException {
         return new JsonXContentGenerator(jsonFactory.createJsonGenerator(os, JsonEncoding.UTF8));
     }

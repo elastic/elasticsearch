@@ -59,6 +59,10 @@ public class SmileXContent implements XContent {
         return XContentType.SMILE;
     }
 
+    @Override public byte streamSeparator() {
+        return (byte) 0xFF;
+    }
+
     @Override public XContentGenerator createGenerator(OutputStream os) throws IOException {
         return new SmileXContentGenerator(smileFactory.createJsonGenerator(os, JsonEncoding.UTF8));
     }

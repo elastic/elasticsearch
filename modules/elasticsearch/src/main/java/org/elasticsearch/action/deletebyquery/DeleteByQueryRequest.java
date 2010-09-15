@@ -107,7 +107,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest {
      */
     byte[] querySource() {
         if (querySourceUnsafe || querySourceOffset > 0) {
-            querySource = Arrays.copyOfRange(querySource, querySourceOffset, querySourceLength);
+            querySource = Arrays.copyOfRange(querySource, querySourceOffset, querySourceOffset + querySourceLength);
             querySourceOffset = 0;
             querySourceUnsafe = false;
         }

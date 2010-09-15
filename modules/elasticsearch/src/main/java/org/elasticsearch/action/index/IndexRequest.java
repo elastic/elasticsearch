@@ -222,7 +222,7 @@ public class IndexRequest extends ShardReplicationOperationRequest {
      */
     public byte[] source() {
         if (sourceUnsafe || sourceOffset > 0) {
-            source = Arrays.copyOfRange(source, sourceOffset, sourceLength);
+            source = Arrays.copyOfRange(source, sourceOffset, sourceOffset + sourceLength);
             sourceOffset = 0;
             sourceUnsafe = false;
         }

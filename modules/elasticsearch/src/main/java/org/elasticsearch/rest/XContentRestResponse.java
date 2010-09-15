@@ -64,7 +64,7 @@ public class XContentRestResponse extends AbstractRestResponse {
     }
 
     @Override public String contentType() {
-        return "application/json; charset=UTF-8";
+        return builder.contentType().restContentType();
     }
 
     @Override public boolean contentThreadSafe() {

@@ -22,6 +22,8 @@ package org.elasticsearch.action.admin.indices.mapping.delete;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.TransportActions;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.TransportDeleteByQueryAction;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
@@ -52,11 +54,15 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
 
     private final TransportDeleteByQueryAction deleteByQueryAction;
 
+    private final TransportRefreshAction refreshAction;
+
     @Inject public TransportDeleteMappingAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                                ThreadPool threadPool, MetaDataMappingService metaDataMappingService, TransportDeleteByQueryAction deleteByQueryAction) {
+                                                ThreadPool threadPool, MetaDataMappingService metaDataMappingService,
+                                                TransportDeleteByQueryAction deleteByQueryAction, TransportRefreshAction refreshAction) {
         super(settings, transportService, clusterService, threadPool);
         this.metaDataMappingService = metaDataMappingService;
         this.deleteByQueryAction = deleteByQueryAction;
+        this.refreshAction = refreshAction;
     }
 
 
@@ -87,8 +93,17 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
         final CountDownLatch latch = new CountDownLatch(1);
         deleteByQueryAction.execute(Requests.deleteByQueryRequest(request.indices()).query(QueryBuilders.filtered(QueryBuilders.matchAllQuery(), FilterBuilders.termFilter(TypeFieldMapper.NAME, request.type()))), new ActionListener<DeleteByQueryResponse>() {
             @Override public void onResponse(DeleteByQueryResponse deleteByQueryResponse) {
-                metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()));
-                latch.countDown();
+                refreshAction.execute(Requests.refreshRequest(request.indices()), new ActionListener<RefreshResponse>() {
+                    @Override public void onResponse(RefreshResponse refreshResponse) {
+                        metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()));
+                        latch.countDown();
+                    }
+
+                    @Override public void onFailure(Throwable e) {
+                        metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()));
+                        latch.countDown();
+                    }
+                });
             }
 
             @Override public void onFailure(Throwable e) {

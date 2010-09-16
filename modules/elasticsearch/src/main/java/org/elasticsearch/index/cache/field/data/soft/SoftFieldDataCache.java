@@ -35,9 +35,11 @@ import java.util.concurrent.ConcurrentMap;
 public class SoftFieldDataCache extends AbstractConcurrentMapFieldDataCache {
 
     @Inject public SoftFieldDataCache(Index index, @IndexSettings Settings indexSettings) {
-        super(index, indexSettings, new MapMaker()
-                .softKeys()
-                .<Object, ConcurrentMap<String, FieldData>>makeMap());
+        super(index, indexSettings);
+    }
+
+    @Override protected ConcurrentMap<String, FieldData> buildFieldDataMap() {
+        return new MapMaker().softValues().makeMap();
     }
 
     @Override public String type() {

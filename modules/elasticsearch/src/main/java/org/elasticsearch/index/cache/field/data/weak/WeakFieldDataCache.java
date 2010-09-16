@@ -35,9 +35,11 @@ import java.util.concurrent.ConcurrentMap;
 public class WeakFieldDataCache extends AbstractConcurrentMapFieldDataCache {
 
     @Inject public WeakFieldDataCache(Index index, @IndexSettings Settings indexSettings) {
-        super(index, indexSettings, new MapMaker()
-                .weakKeys()
-                .<Object, ConcurrentMap<String, FieldData>>makeMap());
+        super(index, indexSettings);
+    }
+
+    @Override protected ConcurrentMap<String, FieldData> buildFieldDataMap() {
+        return new MapMaker().weakValues().makeMap();
     }
 
     @Override public String type() {

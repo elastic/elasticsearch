@@ -122,6 +122,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
     @Test public void testTermsIndexFacet() throws Exception {
         try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
             client.admin().indices().prepareDelete("test1").execute().actionGet();
             client.admin().indices().prepareDelete("test2").execute().actionGet();
         } catch (Exception e) {

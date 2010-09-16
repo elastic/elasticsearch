@@ -21,6 +21,7 @@ package org.elasticsearch.index.cache.field.data.support;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.collect.MapMaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -41,10 +42,11 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
 
     private final Object creationMutex = new Object();
 
-    protected AbstractConcurrentMapFieldDataCache(Index index, @IndexSettings Settings indexSettings,
-                                                  ConcurrentMap<Object, ConcurrentMap<String, FieldData>> cache) {
+    protected AbstractConcurrentMapFieldDataCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
-        this.cache = cache;
+        // weak keys is fine, it will only be cleared once IndexReader references will be removed
+        // (assuming clear(...) will not be called)
+        this.cache = new MapMaker().weakKeys().makeMap();
     }
 
     @Override public void close() throws ElasticSearchException {
@@ -56,7 +58,11 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
     }
 
     @Override public void clear(IndexReader reader) {
-        cache.remove(reader.getFieldCacheKey());
+        ConcurrentMap<String, FieldData> map = cache.remove(reader.getFieldCacheKey());
+        // help soft/weak handling GC
+        if (map != null) {
+            map.clear();
+        }
     }
 
     @Override public void clearUnreferenced() {
@@ -67,7 +73,7 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
         return cache(type.fieldDataClass(), reader, fieldName);
     }
 
-    protected ConcurrentMap<String, FieldData> buildFilterMap() {
+    protected ConcurrentMap<String, FieldData> buildFieldDataMap() {
         return ConcurrentCollections.newConcurrentMap();
     }
 
@@ -77,7 +83,7 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
             synchronized (creationMutex) {
                 fieldDataCache = cache.get(reader.getFieldCacheKey());
                 if (fieldDataCache == null) {
-                    fieldDataCache = buildFilterMap();
+                    fieldDataCache = buildFieldDataMap();
                     cache.put(reader.getFieldCacheKey(), fieldDataCache);
                 }
             }

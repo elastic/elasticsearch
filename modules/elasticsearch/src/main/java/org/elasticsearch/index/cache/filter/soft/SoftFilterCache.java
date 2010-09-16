@@ -38,7 +38,13 @@ import java.util.concurrent.ConcurrentMap;
 public class SoftFilterCache extends AbstractConcurrentMapFilterCache {
 
     @Inject public SoftFilterCache(Index index, @IndexSettings Settings indexSettings) {
-        super(index, indexSettings, new MapMaker().softKeys().<Object, ConcurrentMap<Filter, DocSet>>makeMap());
+        super(index, indexSettings);
+    }
+
+    @Override protected ConcurrentMap<Filter, DocSet> buildFilterMap() {
+        // DocSet are not really stored with strong reference only when searching on them...
+        // Filter might be stored in query cache
+        return new MapMaker().softValues().makeMap();
     }
 
     @Override public String type() {

@@ -22,6 +22,7 @@ package org.elasticsearch.index.cache.filter.support;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.common.collect.MapMaker;
 import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -44,10 +45,11 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
 
     final ConcurrentMap<Object, ConcurrentMap<Filter, DocSet>> cache;
 
-    protected AbstractConcurrentMapFilterCache(Index index, @IndexSettings Settings indexSettings,
-                                               ConcurrentMap<Object, ConcurrentMap<Filter, DocSet>> cache) {
+    protected AbstractConcurrentMapFilterCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
-        this.cache = cache;
+        // weak keys is fine, it will only be cleared once IndexReader references will be removed
+        // (assuming clear(...) will not be called)
+        this.cache = new MapMaker().weakKeys().makeMap();
     }
 
     @Override public void close() {
@@ -59,7 +61,11 @@ public abstract class AbstractConcurrentMapFilterCache extends AbstractIndexComp
     }
 
     @Override public void clear(IndexReader reader) {
-        cache.remove(reader.getFieldCacheKey());
+        ConcurrentMap<Filter, DocSet> map = cache.remove(reader.getFieldCacheKey());
+        // help soft/weak handling GC
+        if (map != null) {
+            map.clear();
+        }
     }
 
     @Override public void clearUnreferenced() {

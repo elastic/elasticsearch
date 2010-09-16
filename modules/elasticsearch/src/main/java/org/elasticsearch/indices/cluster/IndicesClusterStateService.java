@@ -35,11 +35,13 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexShardAlreadyExistsException;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
@@ -58,6 +60,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
 
 import static org.elasticsearch.ExceptionsHelper.*;
 import static org.elasticsearch.common.collect.Sets.*;
@@ -82,6 +85,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private final NodeIndexDeletedAction nodeIndexDeletedAction;
 
     private final NodeMappingCreatedAction nodeMappingCreatedAction;
+
+    // a map of mappings type we have seen per index
+    private final ConcurrentMap<Tuple<String, String>, Boolean> seenMappings = ConcurrentCollections.newConcurrentMap();
 
     @Inject public IndicesClusterStateService(Settings settings, IndicesService indicesService, ClusterService clusterService,
                                               ThreadPool threadPool, RecoveryTarget recoveryTarget, ShardStateAction shardStateAction,
@@ -199,6 +205,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             for (Map.Entry<String, CompressedString> entry : mappings.entrySet()) {
                 String mappingType = entry.getKey();
                 CompressedString mappingSource = entry.getValue();
+                if (!seenMappings.containsKey(new Tuple<String, String>(index, mappingType))) {
+                    seenMappings.put(new Tuple<String, String>(index, mappingType), true);
+                }
 
                 try {
                     if (!mapperService.hasMapping(mappingType)) {
@@ -224,8 +233,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
             // go over and remove mappings
             for (DocumentMapper documentMapper : mapperService) {
-                if (!mappings.containsKey(documentMapper.type())) {
-                    // we have it in our mappings, but not in the metadata, remove it
+                if (seenMappings.containsKey(new Tuple<String, String>(index, documentMapper.type())) && !mappings.containsKey(documentMapper.type())) {
+                    // we have it in our mappings, but not in the metadata, and we have seen it in the cluster state, remove it
                     mapperService.remove(documentMapper.type());
                 }
             }

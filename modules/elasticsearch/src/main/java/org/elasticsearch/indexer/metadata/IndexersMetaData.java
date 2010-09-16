@@ -49,6 +49,10 @@ public class IndexersMetaData implements Iterable<IndexerMetaData> {
         return indexers.values().iterator();
     }
 
+    public IndexerMetaData indexer(IndexerName indexerName) {
+        return indexers.get(indexerName);
+    }
+
     public boolean recoveredFromGateway() {
         return recoveredFromGateway;
     }

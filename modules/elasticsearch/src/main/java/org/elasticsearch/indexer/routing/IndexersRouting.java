@@ -40,6 +40,10 @@ public class IndexersRouting implements Iterable<IndexerRouting> {
         this.indexers = indexers;
     }
 
+    public IndexerRouting routing(IndexerName indexerName) {
+        return indexers.get(indexerName);
+    }
+
     @Override public Iterator<IndexerRouting> iterator() {
         return indexers.values().iterator();
     }

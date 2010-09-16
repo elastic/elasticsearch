@@ -113,7 +113,26 @@ public class MetaDataMappingService extends AbstractComponent {
         });
     }
 
-    public void putMapping(final Request request, final Listener userListener) {
+    public void removeMapping(final RemoveRequest request) {
+        clusterService.submitStateUpdateTask("remove-mapping [" + request.mappingType + "]", new ClusterStateUpdateTask() {
+            @Override public ClusterState execute(ClusterState currentState) {
+                if (request.indices.length == 0) {
+                    throw new IndexMissingException(new Index("_all"));
+                }
+
+                MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
+                for (String indexName : request.indices) {
+                    if (currentState.metaData().hasIndex(indexName)) {
+                        builder.put(newIndexMetaDataBuilder(currentState.metaData().index(indexName)).removeMapping(request.mappingType));
+                    }
+                }
+
+                return ClusterState.builder().state(currentState).metaData(builder).build();
+            }
+        });
+    }
+
+    public void putMapping(final PutRequest request, final Listener userListener) {
         clusterService.submitStateUpdateTask("put-mapping [" + request.mappingType + "]", new ClusterStateUpdateTask() {
             @Override public ClusterState execute(ClusterState currentState) {
                 final PutMappingListener listener = new PutMappingListener(request, userListener);
@@ -256,13 +275,13 @@ public class MetaDataMappingService extends AbstractComponent {
 
         private AtomicBoolean notified = new AtomicBoolean();
 
-        private final Request request;
+        private final PutRequest request;
 
         private final Listener listener;
 
         volatile Timeout timeout;
 
-        private PutMappingListener(Request request, Listener listener) {
+        private PutMappingListener(PutRequest request, Listener listener) {
             this.request = request;
             this.listener = listener;
         }
@@ -293,7 +312,19 @@ public class MetaDataMappingService extends AbstractComponent {
         void onFailure(Throwable t);
     }
 
-    public static class Request {
+    public static class RemoveRequest {
+
+        final String[] indices;
+
+        final String mappingType;
+
+        public RemoveRequest(String[] indices, String mappingType) {
+            this.indices = indices;
+            this.mappingType = mappingType;
+        }
+    }
+
+    public static class PutRequest {
 
         final String[] indices;
 
@@ -305,18 +336,18 @@ public class MetaDataMappingService extends AbstractComponent {
 
         TimeValue timeout = TimeValue.timeValueSeconds(10);
 
-        public Request(String[] indices, String mappingType, String mappingSource) {
+        public PutRequest(String[] indices, String mappingType, String mappingSource) {
             this.indices = indices;
             this.mappingType = mappingType;
             this.mappingSource = mappingSource;
         }
 
-        public Request ignoreConflicts(boolean ignoreConflicts) {
+        public PutRequest ignoreConflicts(boolean ignoreConflicts) {
             this.ignoreConflicts = ignoreConflicts;
             return this;
         }
 
-        public Request timeout(TimeValue timeout) {
+        public PutRequest timeout(TimeValue timeout) {
             this.timeout = timeout;
             return this;
         }

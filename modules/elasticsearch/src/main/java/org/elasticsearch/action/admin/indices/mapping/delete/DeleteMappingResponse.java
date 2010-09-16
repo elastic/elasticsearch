@@ -17,34 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.action.admin.indices.mapping.delete;
 
-import org.apache.lucene.document.FieldSelector;
-import org.apache.lucene.document.FieldSelectorResult;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 
-import java.util.HashSet;
+import java.io.IOException;
 
 /**
+ * The response of remove mapping operation.
+ *
  * @author kimchy (shay.banon)
  */
-public class FieldMappersFieldSelector implements FieldSelector {
+public class DeleteMappingResponse implements ActionResponse, Streamable {
 
-    private final HashSet<String> names = new HashSet<String>();
+    DeleteMappingResponse() {
 
-    public void add(String fieldName) {
-        names.add(fieldName);
     }
 
-    public void add(FieldMappers fieldMappers) {
-        for (FieldMapper fieldMapper : fieldMappers) {
-            names.add(fieldMapper.names().indexName());
-        }
+    @Override public void readFrom(StreamInput in) throws IOException {
     }
 
-    @Override public FieldSelectorResult accept(String fieldName) {
-        if (names.contains(fieldName)) {
-            return FieldSelectorResult.LOAD;
-        }
-        return FieldSelectorResult.NO_LOAD;
+    @Override public void writeTo(StreamOutput out) throws IOException {
     }
 }

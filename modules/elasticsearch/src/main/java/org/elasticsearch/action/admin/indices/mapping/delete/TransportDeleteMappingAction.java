@@ -17,17 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.mapping.put;
+package org.elasticsearch.action.admin.indices.mapping.delete;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.TransportActions;
+import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
+import org.elasticsearch.action.deletebyquery.TransportDeleteByQueryAction;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.index.query.xcontent.FilterBuilders;
+import org.elasticsearch.index.query.xcontent.QueryBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -35,34 +42,37 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Put mapping action.
+ * Delete mapping action.
  *
  * @author kimchy (shay.banon)
  */
-public class TransportPutMappingAction extends TransportMasterNodeOperationAction<PutMappingRequest, PutMappingResponse> {
+public class TransportDeleteMappingAction extends TransportMasterNodeOperationAction<DeleteMappingRequest, DeleteMappingResponse> {
 
     private final MetaDataMappingService metaDataMappingService;
 
-    @Inject public TransportPutMappingAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                             ThreadPool threadPool, MetaDataMappingService metaDataMappingService) {
+    private final TransportDeleteByQueryAction deleteByQueryAction;
+
+    @Inject public TransportDeleteMappingAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                                ThreadPool threadPool, MetaDataMappingService metaDataMappingService, TransportDeleteByQueryAction deleteByQueryAction) {
         super(settings, transportService, clusterService, threadPool);
         this.metaDataMappingService = metaDataMappingService;
+        this.deleteByQueryAction = deleteByQueryAction;
     }
 
 
     @Override protected String transportAction() {
-        return TransportActions.Admin.Indices.Mapping.PUT;
+        return TransportActions.Admin.Indices.Mapping.DELETE;
     }
 
-    @Override protected PutMappingRequest newRequest() {
-        return new PutMappingRequest();
+    @Override protected DeleteMappingRequest newRequest() {
+        return new DeleteMappingRequest();
     }
 
-    @Override protected PutMappingResponse newResponse() {
-        return new PutMappingResponse();
+    @Override protected DeleteMappingResponse newResponse() {
+        return new DeleteMappingResponse();
     }
 
-    @Override protected void checkBlock(PutMappingRequest request, ClusterState state) {
+    @Override protected void checkBlock(DeleteMappingRequest request, ClusterState state) {
         // update to concrete indices
         request.indices(state.metaData().concreteIndices(request.indices()));
 
@@ -71,24 +81,18 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
         }
     }
 
-    @Override protected PutMappingResponse masterOperation(PutMappingRequest request, ClusterState state) throws ElasticSearchException {
-        ClusterState clusterState = clusterService.state();
+    @Override protected DeleteMappingResponse masterOperation(final DeleteMappingRequest request, final ClusterState state) throws ElasticSearchException {
 
-        // update to concrete indices
-        request.indices(clusterState.metaData().concreteIndices(request.indices()));
-        final String[] indices = request.indices();
-
-        final AtomicReference<PutMappingResponse> responseRef = new AtomicReference<PutMappingResponse>();
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
-        metaDataMappingService.putMapping(new MetaDataMappingService.PutRequest(request.indices(), request.type(), request.source()).ignoreConflicts(request.ignoreConflicts()).timeout(request.timeout()), new MetaDataMappingService.Listener() {
-            @Override public void onResponse(MetaDataMappingService.Response response) {
-                responseRef.set(new PutMappingResponse(response.acknowledged()));
+        deleteByQueryAction.execute(Requests.deleteByQueryRequest(request.indices()).query(QueryBuilders.filtered(QueryBuilders.matchAllQuery(), FilterBuilders.termFilter(TypeFieldMapper.NAME, request.type()))), new ActionListener<DeleteByQueryResponse>() {
+            @Override public void onResponse(DeleteByQueryResponse deleteByQueryResponse) {
+                metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()));
                 latch.countDown();
             }
 
-            @Override public void onFailure(Throwable t) {
-                failureRef.set(t);
+            @Override public void onFailure(Throwable e) {
+                failureRef.set(e);
                 latch.countDown();
             }
         });
@@ -107,6 +111,6 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
             }
         }
 
-        return responseRef.get();
+        return new DeleteMappingResponse();
     }
 }

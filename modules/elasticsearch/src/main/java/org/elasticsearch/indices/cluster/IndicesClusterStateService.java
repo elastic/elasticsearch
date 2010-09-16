@@ -195,7 +195,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             IndexService indexService = indicesService.indexServiceSafe(index);
             MapperService mapperService = indexService.mapperService();
             ImmutableMap<String, CompressedString> mappings = indexMetaData.mappings();
-            // we don't support removing mappings for now ...
+            // go over and add the relevant mappings (or update them)
             for (Map.Entry<String, CompressedString> entry : mappings.entrySet()) {
                 String mappingType = entry.getKey();
                 CompressedString mappingSource = entry.getValue();
@@ -220,6 +220,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     }
                 } catch (Exception e) {
                     logger.warn("[{}] failed to add mapping [{}], source [{}]", e, index, mappingType, mappingSource);
+                }
+            }
+            // go over and remove mappings
+            for (DocumentMapper documentMapper : mapperService) {
+                if (!mappings.containsKey(documentMapper.type())) {
+                    // we have it in our mappings, but not in the metadata, remove it
+                    mapperService.remove(documentMapper.type());
                 }
             }
         }

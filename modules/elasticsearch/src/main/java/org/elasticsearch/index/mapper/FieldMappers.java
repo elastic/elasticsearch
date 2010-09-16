@@ -24,6 +24,8 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.util.concurrent.Immutable;
 
+import java.util.List;
+
 /**
  * A holder for several {@link FieldMapper}.
  *
@@ -84,5 +86,31 @@ public class FieldMappers implements Iterable<FieldMapper> {
      */
     public FieldMappers concat(FieldMappers mappers) {
         return new FieldMappers(new ImmutableList.Builder<FieldMapper>().addAll(fieldMappers).addAll(mappers).build());
+    }
+
+    public FieldMappers remove(List<FieldMapper> mappers) {
+        ImmutableList.Builder<FieldMapper> builder = new ImmutableList.Builder<FieldMapper>();
+        for (FieldMapper fieldMapper : fieldMappers) {
+            boolean found = false;
+            for (FieldMapper mapper : mappers) {
+                if (fieldMapper.equals(mapper)) { // identify equality
+                    found = true;
+                }
+            }
+            if (!found) {
+                builder.add(fieldMapper);
+            }
+        }
+        return new FieldMappers(builder.build());
+    }
+
+    public FieldMappers remove(FieldMapper mapper) {
+        ImmutableList.Builder<FieldMapper> builder = new ImmutableList.Builder<FieldMapper>();
+        for (FieldMapper fieldMapper : fieldMappers) {
+            if (!fieldMapper.equals(mapper)) { // identify equality
+                builder.add(fieldMapper);
+            }
+        }
+        return new FieldMappers(builder.build());
     }
 }

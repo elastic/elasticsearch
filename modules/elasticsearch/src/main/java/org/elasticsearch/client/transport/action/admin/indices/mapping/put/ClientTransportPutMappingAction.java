@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.transport.action.admin.indices.mapping.create;
+package org.elasticsearch.client.transport.action.admin.indices.mapping.put;
 
 import org.elasticsearch.action.TransportActions;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;

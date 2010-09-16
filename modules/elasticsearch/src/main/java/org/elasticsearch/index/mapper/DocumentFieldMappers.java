@@ -99,6 +99,14 @@ public class DocumentFieldMappers implements Iterable<FieldMapper> {
         return fieldMappers.iterator();
     }
 
+    public ImmutableList<FieldMapper> mappers() {
+        return this.fieldMappers;
+    }
+
+    public boolean hasMapper(FieldMapper fieldMapper) {
+        return fieldMappers.contains(fieldMapper);
+    }
+
     public FieldMappers name(String name) {
         return nameFieldMappers.get(name);
     }

@@ -62,6 +62,7 @@ public class TransportActions {
 
             public static class Mapping {
                 public static final String PUT = "indices/mapping/put";
+                public static final String DELETE = "indices/mapping/delete";
             }
 
             public static class Cache {

@@ -24,6 +24,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indexer.cluster.IndexerClusterService;
+import org.elasticsearch.indexer.routing.IndexersRouter;
 
 /**
  * @author kimchy (shay.banon)
@@ -34,23 +35,29 @@ public class IndexerManager extends AbstractLifecycleComponent<IndexerManager> {
 
     private final IndexerClusterService clusterService;
 
-    @Inject public IndexerManager(Settings settings, IndexersService indexersService, IndexerClusterService clusterService) {
+    private final IndexersRouter indexersRouter;
+
+    @Inject public IndexerManager(Settings settings, IndexersService indexersService, IndexerClusterService clusterService, IndexersRouter indexersRouter) {
         super(settings);
         this.indexersService = indexersService;
         this.clusterService = clusterService;
+        this.indexersRouter = indexersRouter;
     }
 
     @Override protected void doStart() throws ElasticSearchException {
+        indexersRouter.start();
         indexersService.start();
         clusterService.start();
     }
 
     @Override protected void doStop() throws ElasticSearchException {
+        indexersRouter.stop();
         clusterService.stop();
         indexersService.stop();
     }
 
     @Override protected void doClose() throws ElasticSearchException {
+        indexersRouter.close();
         clusterService.close();
         indexersService.close();
     }

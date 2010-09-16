@@ -28,6 +28,8 @@ import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.NoClassSettingsException;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.Map;
+
 import static org.elasticsearch.common.Strings.*;
 
 /**
@@ -37,42 +39,40 @@ public class IndexerModule extends AbstractModule implements SpawnModules {
 
     private IndexerName indexerName;
 
-    private final Settings settings;
+    private final Settings globalSettings;
 
-    public IndexerModule(IndexerName indexerName, Settings settings) {
+    private final Map<String, Object> settings;
+
+    public IndexerModule(IndexerName indexerName, Map<String, Object> settings, Settings globalSettings) {
         this.indexerName = indexerName;
+        this.globalSettings = globalSettings;
         this.settings = settings;
     }
 
     @Override public Iterable<? extends Module> spawnModules() {
-        String type = settings.get("indexer.type");
-        if (type == null) {
-            return ImmutableList.of(Modules.createModule(loadTypeModule(indexerName.type(), "org.elasticsearch.indexer.", "IndexerModule"), settings));
-        } else {
-            return ImmutableList.of(Modules.createModule(settings.getAsClass("indexer.type", Module.class, "org.elasticsearch.indexer.", "IndexerModule"), settings));
-        }
+        return ImmutableList.of(Modules.createModule(loadTypeModule(indexerName.type(), "org.elasticsearch.indexer.", "IndexerModule"), globalSettings));
     }
 
     @Override protected void configure() {
-
+        bind(Map.class).annotatedWith(IndexerSettings.class).toInstance(settings);
     }
 
     private Class<? extends Module> loadTypeModule(String type, String prefixPackage, String suffixClassName) {
         String fullClassName = type;
         try {
-            return (Class<? extends Module>) settings.getClassLoader().loadClass(fullClassName);
+            return (Class<? extends Module>) globalSettings.getClassLoader().loadClass(fullClassName);
         } catch (ClassNotFoundException e) {
             fullClassName = prefixPackage + Strings.capitalize(toCamelCase(type)) + suffixClassName;
             try {
-                return (Class<? extends Module>) settings.getClassLoader().loadClass(fullClassName);
+                return (Class<? extends Module>) globalSettings.getClassLoader().loadClass(fullClassName);
             } catch (ClassNotFoundException e1) {
                 fullClassName = prefixPackage + toCamelCase(type) + "." + Strings.capitalize(toCamelCase(type)) + suffixClassName;
                 try {
-                    return (Class<? extends Module>) settings.getClassLoader().loadClass(fullClassName);
+                    return (Class<? extends Module>) globalSettings.getClassLoader().loadClass(fullClassName);
                 } catch (ClassNotFoundException e2) {
                     fullClassName = prefixPackage + toCamelCase(type).toLowerCase() + "." + Strings.capitalize(toCamelCase(type)) + suffixClassName;
                     try {
-                        return (Class<? extends Module>) settings.getClassLoader().loadClass(fullClassName);
+                        return (Class<? extends Module>) globalSettings.getClassLoader().loadClass(fullClassName);
                     } catch (ClassNotFoundException e3) {
                         throw new NoClassSettingsException("Failed to load class with value [" + type + "]", e);
                     }

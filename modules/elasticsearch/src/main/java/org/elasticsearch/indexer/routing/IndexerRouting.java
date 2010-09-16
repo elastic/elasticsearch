@@ -20,19 +20,30 @@
 package org.elasticsearch.indexer.routing;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.indexer.IndexerName;
+
+import java.io.IOException;
 
 /**
  * @author kimchy (shay.banon)
  */
-public class IndexerRouting {
+public class IndexerRouting implements Streamable {
 
     private IndexerName indexerName;
 
+    private IndexerRoutingState state;
+
     private DiscoveryNode node;
 
-    IndexerRouting(IndexerName indexerName, DiscoveryNode node) {
+    private IndexerRouting() {
+    }
+
+    IndexerRouting(IndexerName indexerName, IndexerRoutingState state, DiscoveryNode node) {
         this.indexerName = indexerName;
+        this.state = state;
         this.node = node;
     }
 
@@ -40,7 +51,40 @@ public class IndexerRouting {
         return indexerName;
     }
 
+    /**
+     * The node the indexer is allocated to, <tt>null</tt> if its not allocated.
+     */
     public DiscoveryNode node() {
         return node;
+    }
+
+    public IndexerRoutingState state() {
+        return this.state;
+    }
+
+    public static IndexerRouting readIndexerRouting(StreamInput in) throws IOException {
+        IndexerRouting routing = new IndexerRouting();
+        routing.readFrom(in);
+        return routing;
+    }
+
+    @Override public void readFrom(StreamInput in) throws IOException {
+        indexerName = new IndexerName(in.readUTF(), in.readUTF());
+        state = IndexerRoutingState.fromValue(in.readByte());
+        if (in.readBoolean()) {
+            node = DiscoveryNode.readNode(in);
+        }
+    }
+
+    @Override public void writeTo(StreamOutput out) throws IOException {
+        out.writeUTF(indexerName.type());
+        out.writeUTF(indexerName.name());
+        out.writeByte(state.value());
+        if (node == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            node.writeTo(out);
+        }
     }
 }

@@ -100,7 +100,7 @@ public class PublishIndexerClusterStateAction extends AbstractComponent {
         }
 
         @Override public void readFrom(StreamInput in) throws IOException {
-            clusterState = IndexerClusterState.Builder.readFrom(in, settings);
+            clusterState = IndexerClusterState.Builder.readFrom(in);
         }
 
         @Override public void writeTo(StreamOutput out) throws IOException {

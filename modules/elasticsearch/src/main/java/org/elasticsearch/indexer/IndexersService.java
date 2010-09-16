@@ -20,6 +20,9 @@
 package org.elasticsearch.indexer;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -36,20 +39,20 @@ import org.elasticsearch.indexer.cluster.IndexerClusterChangedEvent;
 import org.elasticsearch.indexer.cluster.IndexerClusterService;
 import org.elasticsearch.indexer.cluster.IndexerClusterState;
 import org.elasticsearch.indexer.cluster.IndexerClusterStateListener;
-import org.elasticsearch.indexer.metadata.IndexerMetaData;
 import org.elasticsearch.indexer.routing.IndexerRouting;
-import org.elasticsearch.indexer.settings.IndexerSettingsModule;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
-
 /**
  * @author kimchy (shay.banon)
  */
 public class IndexersService extends AbstractLifecycleComponent<IndexersService> {
+
+    private final String indexerIndexName;
+
+    private Client client;
 
     private final ThreadPool threadPool;
 
@@ -61,8 +64,10 @@ public class IndexersService extends AbstractLifecycleComponent<IndexersService>
 
     private volatile ImmutableMap<IndexerName, Indexer> indexers = ImmutableMap.of();
 
-    @Inject public IndexersService(Settings settings, ThreadPool threadPool, ClusterService clusterService, IndexerClusterService indexerClusterService, Injector injector) {
+    @Inject public IndexersService(Settings settings, Client client, ThreadPool threadPool, ClusterService clusterService, IndexerClusterService indexerClusterService, Injector injector) {
         super(settings);
+        this.indexerIndexName = settings.get("indexer.index_name", "indexer");
+        this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.injector = injector;
@@ -98,24 +103,16 @@ public class IndexersService extends AbstractLifecycleComponent<IndexersService>
     @Override protected void doClose() throws ElasticSearchException {
     }
 
-    public synchronized Indexer createIndexer(IndexerName indexerName, Settings settings) throws ElasticSearchException {
+    public synchronized Indexer createIndexer(IndexerName indexerName, Map<String, Object> settings) throws ElasticSearchException {
         if (indexersInjectors.containsKey(indexerName)) {
             throw new IndexerException(indexerName, "indexer already exists");
         }
 
         logger.debug("creating indexer [{}][{}]", indexerName.type(), indexerName.name());
 
-        Settings indexerSettings = settingsBuilder()
-                .put(this.settings)
-                .put(settings)
-                .classLoader(settings.getClassLoader())
-                .globalSettings(settings.getGlobalSettings())
-                .build();
-
         ModulesBuilder modules = new ModulesBuilder();
         modules.add(new IndexerNameModule(indexerName));
-        modules.add(new IndexerSettingsModule(indexerSettings));
-        modules.add(new IndexerModule(indexerName, indexerSettings));
+        modules.add(new IndexerModule(indexerName, settings, this.settings));
 
         Injector indexInjector = modules.createChildInjector(injector);
         indexersInjectors.put(indexerName, indexInjector);
@@ -170,12 +167,6 @@ public class IndexersService extends AbstractLifecycleComponent<IndexersService>
 
             // first, go over and delete ones that either don't exists or are not allocated
             for (IndexerName indexerName : indexers.keySet()) {
-                // if its not on the metadata, it was deleted, delete it
-                IndexerMetaData indexerMetaData = state.metaData().indexer(indexerName);
-                if (indexerMetaData == null) {
-                    deleteIndexer(indexerName);
-                }
-
                 IndexerRouting routing = state.routing().routing(indexerName);
                 if (routing == null || !localNode.equals(routing.node())) {
                     // not routed at all, and not allocated here, clean it (we delete the relevant ones before)
@@ -183,15 +174,27 @@ public class IndexersService extends AbstractLifecycleComponent<IndexersService>
                 }
             }
 
-            for (IndexerRouting routing : state.routing()) {
+            for (final IndexerRouting routing : state.routing()) {
+                // not allocated
+                if (routing.node() == null) {
+                    continue;
+                }
                 // only apply changes to the local node
                 if (!routing.node().equals(localNode)) {
                     continue;
                 }
+                client.prepareGet(indexerIndexName, routing.indexerName().name(), "_meta").execute(new ActionListener<GetResponse>() {
+                    @Override public void onResponse(GetResponse getResponse) {
+                        if (getResponse.exists()) {
+                            // only create the indexer if it exists, otherwise, the indexing meta data has not been visible yet... 
+                            createIndexer(routing.indexerName(), getResponse.sourceAsMap());
+                        }
+                    }
 
-                IndexerMetaData indexerMetaData = state.metaData().indexer(routing.indexerName());
-
-                createIndexer(indexerMetaData.indexerName(), indexerMetaData.settings());
+                    @Override public void onFailure(Throwable e) {
+                        logger.warn("failed to get _meta from [{}]/[{}]", routing.indexerName().type(), routing.indexerName().name());
+                    }
+                });
             }
         }
     }

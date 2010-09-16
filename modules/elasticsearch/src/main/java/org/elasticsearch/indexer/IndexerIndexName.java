@@ -17,23 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.indexer.settings;
+package org.elasticsearch.indexer;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.inject.BindingAnnotation;
+
+import java.lang.annotation.Documented;
+import java.lang.annotation.Retention;
+import java.lang.annotation.Target;
+
+import static java.lang.annotation.ElementType.*;
+import static java.lang.annotation.RetentionPolicy.*;
 
 /**
- * @author kimchy (shay.banon)
+ * @author kimchy (Shay Banon)
  */
-public class IndexerSettingsModule extends AbstractModule {
 
-    private final Settings settings;
-
-    public IndexerSettingsModule(Settings settings) {
-        this.settings = settings;
-    }
-
-    @Override protected void configure() {
-        bind(Settings.class).annotatedWith(IndexerSettings.class).toInstance(settings);
-    }
+@BindingAnnotation
+@Target({FIELD, PARAMETER})
+@Retention(RUNTIME)
+@Documented
+public @interface IndexerIndexName {
 }

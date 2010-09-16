@@ -255,7 +255,7 @@ public class FetchPhase implements SearchPhase {
             }
             fieldSelector.add(x);
         }
-        fieldSelector.add(context.mapperService().uidFieldMappers());
+        fieldSelector.add(UidFieldMapper.NAME);
         return fieldSelector;
     }
 }

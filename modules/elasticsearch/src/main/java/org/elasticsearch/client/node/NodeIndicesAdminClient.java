@@ -39,6 +39,9 @@ import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequest;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotResponse;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.TransportGatewaySnapshotAction;
+import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
+import org.elasticsearch.action.admin.indices.mapping.delete.TransportDeleteMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
@@ -81,6 +84,8 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
 
     private final TransportPutMappingAction putMappingAction;
 
+    private final TransportDeleteMappingAction deleteMappingAction;
+
     private final TransportGatewaySnapshotAction gatewaySnapshotAction;
 
     private final TransportIndicesAliasesAction indicesAliasesAction;
@@ -92,7 +97,7 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
     @Inject public NodeIndicesAdminClient(Settings settings, ThreadPool threadPool, TransportIndicesStatusAction indicesStatusAction,
                                           TransportCreateIndexAction createIndexAction, TransportDeleteIndexAction deleteIndexAction,
                                           TransportRefreshAction refreshAction, TransportFlushAction flushAction, TransportOptimizeAction optimizeAction,
-                                          TransportPutMappingAction putMappingAction, TransportGatewaySnapshotAction gatewaySnapshotAction,
+                                          TransportPutMappingAction putMappingAction, TransportDeleteMappingAction deleteMappingAction, TransportGatewaySnapshotAction gatewaySnapshotAction,
                                           TransportIndicesAliasesAction indicesAliasesAction, TransportClearIndicesCacheAction clearIndicesCacheAction,
                                           TransportUpdateSettingsAction updateSettingsAction) {
         this.threadPool = threadPool;
@@ -102,6 +107,7 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
         this.refreshAction = refreshAction;
         this.flushAction = flushAction;
         this.optimizeAction = optimizeAction;
+        this.deleteMappingAction = deleteMappingAction;
         this.putMappingAction = putMappingAction;
         this.gatewaySnapshotAction = gatewaySnapshotAction;
         this.indicesAliasesAction = indicesAliasesAction;
@@ -167,6 +173,14 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
 
     @Override public void putMapping(PutMappingRequest request, ActionListener<PutMappingResponse> listener) {
         putMappingAction.execute(request, listener);
+    }
+
+    @Override public ActionFuture<DeleteMappingResponse> deleteMapping(DeleteMappingRequest request) {
+        return deleteMappingAction.execute(request);
+    }
+
+    @Override public void deleteMapping(DeleteMappingRequest request, ActionListener<DeleteMappingResponse> listener) {
+        deleteMappingAction.execute(request, listener);
     }
 
     @Override public ActionFuture<GatewaySnapshotResponse> gatewaySnapshot(GatewaySnapshotRequest request) {

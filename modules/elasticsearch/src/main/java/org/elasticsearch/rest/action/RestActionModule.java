@@ -35,6 +35,7 @@ import org.elasticsearch.rest.action.admin.indices.create.RestCreateIndexAction;
 import org.elasticsearch.rest.action.admin.indices.delete.RestDeleteIndexAction;
 import org.elasticsearch.rest.action.admin.indices.flush.RestFlushAction;
 import org.elasticsearch.rest.action.admin.indices.gateway.snapshot.RestGatewaySnapshotAction;
+import org.elasticsearch.rest.action.admin.indices.mapping.delete.RestDeleteMappingAction;
 import org.elasticsearch.rest.action.admin.indices.mapping.get.RestGetMappingAction;
 import org.elasticsearch.rest.action.admin.indices.mapping.put.RestPutMappingAction;
 import org.elasticsearch.rest.action.admin.indices.optimize.RestOptimizeAction;
@@ -78,6 +79,7 @@ public class RestActionModule extends AbstractModule {
         bind(RestUpdateSettingsAction.class).asEagerSingleton();
 
         bind(RestPutMappingAction.class).asEagerSingleton();
+        bind(RestDeleteMappingAction.class).asEagerSingleton();
         bind(RestGetMappingAction.class).asEagerSingleton();
 
         bind(RestGatewaySnapshotAction.class).asEagerSingleton();

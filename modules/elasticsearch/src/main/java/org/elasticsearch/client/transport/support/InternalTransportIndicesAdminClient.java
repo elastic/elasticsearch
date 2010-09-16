@@ -34,6 +34,8 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequest;
 import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotResponse;
+import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
@@ -53,7 +55,8 @@ import org.elasticsearch.client.transport.action.admin.indices.create.ClientTran
 import org.elasticsearch.client.transport.action.admin.indices.delete.ClientTransportDeleteIndexAction;
 import org.elasticsearch.client.transport.action.admin.indices.flush.ClientTransportFlushAction;
 import org.elasticsearch.client.transport.action.admin.indices.gateway.snapshot.ClientTransportGatewaySnapshotAction;
-import org.elasticsearch.client.transport.action.admin.indices.mapping.create.ClientTransportPutMappingAction;
+import org.elasticsearch.client.transport.action.admin.indices.mapping.delete.ClientTransportDeleteMappingAction;
+import org.elasticsearch.client.transport.action.admin.indices.mapping.put.ClientTransportPutMappingAction;
 import org.elasticsearch.client.transport.action.admin.indices.optimize.ClientTransportOptimizeAction;
 import org.elasticsearch.client.transport.action.admin.indices.refresh.ClientTransportRefreshAction;
 import org.elasticsearch.client.transport.action.admin.indices.settings.ClientTransportUpdateSettingsAction;
@@ -86,6 +89,8 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
 
     private final ClientTransportPutMappingAction putMappingAction;
 
+    private final ClientTransportDeleteMappingAction deleteMappingAction;
+
     private final ClientTransportGatewaySnapshotAction gatewaySnapshotAction;
 
     private final ClientTransportIndicesAliasesAction indicesAliasesAction;
@@ -98,7 +103,7 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
                                                        ClientTransportIndicesStatusAction indicesStatusAction,
                                                        ClientTransportCreateIndexAction createIndexAction, ClientTransportDeleteIndexAction deleteIndexAction,
                                                        ClientTransportRefreshAction refreshAction, ClientTransportFlushAction flushAction, ClientTransportOptimizeAction optimizeAction,
-                                                       ClientTransportPutMappingAction putMappingAction, ClientTransportGatewaySnapshotAction gatewaySnapshotAction,
+                                                       ClientTransportPutMappingAction putMappingAction, ClientTransportDeleteMappingAction deleteMappingAction, ClientTransportGatewaySnapshotAction gatewaySnapshotAction,
                                                        ClientTransportIndicesAliasesAction indicesAliasesAction, ClientTransportClearIndicesCacheAction clearIndicesCacheAction,
                                                        ClientTransportUpdateSettingsAction updateSettingsAction) {
         this.nodesService = nodesService;
@@ -110,6 +115,7 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
         this.flushAction = flushAction;
         this.optimizeAction = optimizeAction;
         this.putMappingAction = putMappingAction;
+        this.deleteMappingAction = deleteMappingAction;
         this.gatewaySnapshotAction = gatewaySnapshotAction;
         this.indicesAliasesAction = indicesAliasesAction;
         this.clearIndicesCacheAction = clearIndicesCacheAction;
@@ -234,6 +240,23 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
         nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
             @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
                 putMappingAction.execute(node, request, listener);
+                return null;
+            }
+        });
+    }
+
+    @Override public ActionFuture<DeleteMappingResponse> deleteMapping(final DeleteMappingRequest request) {
+        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<DeleteMappingResponse>>() {
+            @Override public ActionFuture<DeleteMappingResponse> doWithNode(DiscoveryNode node) throws ElasticSearchException {
+                return deleteMappingAction.execute(node, request);
+            }
+        });
+    }
+
+    @Override public void deleteMapping(final DeleteMappingRequest request, final ActionListener<DeleteMappingResponse> listener) {
+        nodesService.execute(new TransportClientNodesService.NodeCallback<Void>() {
+            @Override public Void doWithNode(DiscoveryNode node) throws ElasticSearchException {
+                deleteMappingAction.execute(node, request, listener);
                 return null;
             }
         });

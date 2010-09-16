@@ -67,10 +67,6 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     private volatile ImmutableMap<String, FieldMappers> nameFieldMappers = ImmutableMap.of();
     private volatile ImmutableMap<String, FieldMappers> indexNameFieldMappers = ImmutableMap.of();
     private volatile ImmutableMap<String, FieldMappers> fullNameFieldMappers = ImmutableMap.of();
-    private volatile FieldMappers idFieldMappers = new FieldMappers();
-    private volatile FieldMappers typeFieldMappers = new FieldMappers();
-    private volatile FieldMappers uidFieldMappers = new FieldMappers();
-    private volatile FieldMappers sourceFieldMappers = new FieldMappers();
 
     // for now, just use the xcontent one. Can work on it more to support custom ones
     private final DocumentMapperParser documentParser;
@@ -163,6 +159,49 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         }
     }
 
+    public void remove(String type) {
+        synchronized (mutex) {
+            DocumentMapper docMapper = mappers.get(type);
+            if (docMapper == null) {
+                return;
+            }
+            mappers = newMapBuilder(mappers).remove(type).immutableMap();
+
+            // we need to remove those mappers
+            for (FieldMapper mapper : docMapper.mappers()) {
+                FieldMappers mappers = nameFieldMappers.get(mapper.names().name());
+                if (mappers != null) {
+                    mappers = mappers.remove(mapper);
+                    if (mappers.isEmpty()) {
+                        nameFieldMappers = newMapBuilder(nameFieldMappers).remove(mapper.names().name()).immutableMap();
+                    } else {
+                        nameFieldMappers = newMapBuilder(nameFieldMappers).put(mapper.names().name(), mappers).immutableMap();
+                    }
+                }
+
+                mappers = indexNameFieldMappers.get(mapper.names().name());
+                if (mappers != null) {
+                    mappers = mappers.remove(mapper);
+                    if (mappers.isEmpty()) {
+                        indexNameFieldMappers = newMapBuilder(indexNameFieldMappers).remove(mapper.names().name()).immutableMap();
+                    } else {
+                        indexNameFieldMappers = newMapBuilder(indexNameFieldMappers).put(mapper.names().name(), mappers).immutableMap();
+                    }
+                }
+
+                mappers = fullNameFieldMappers.get(mapper.names().name());
+                if (mappers != null) {
+                    mappers = mappers.remove(mapper);
+                    if (mappers.isEmpty()) {
+                        fullNameFieldMappers = newMapBuilder(fullNameFieldMappers).remove(mapper.names().name()).immutableMap();
+                    } else {
+                        fullNameFieldMappers = newMapBuilder(fullNameFieldMappers).put(mapper.names().name(), mappers).immutableMap();
+                    }
+                }
+            }
+        }
+    }
+
     /**
      * Just parses and returns the mapper without adding it.
      */
@@ -176,22 +215,6 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
 
     public DocumentMapper documentMapper(String type) {
         return mappers.get(type);
-    }
-
-    public FieldMappers idFieldMappers() {
-        return this.idFieldMappers;
-    }
-
-    public FieldMappers typeFieldMappers() {
-        return this.typeFieldMappers;
-    }
-
-    public FieldMappers sourceFieldMappers() {
-        return this.sourceFieldMappers;
-    }
-
-    public FieldMappers uidFieldMappers() {
-        return this.uidFieldMappers;
     }
 
     /**
@@ -411,20 +434,6 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     private class InternalFieldMapperListener implements FieldMapperListener {
         @Override public void fieldMapper(FieldMapper fieldMapper) {
             synchronized (mutex) {
-                if (fieldMapper instanceof IdFieldMapper) {
-                    idFieldMappers = idFieldMappers.concat(fieldMapper);
-                }
-                if (fieldMapper instanceof TypeFieldMapper) {
-                    typeFieldMappers = typeFieldMappers.concat(fieldMapper);
-                }
-                if (fieldMapper instanceof SourceFieldMapper) {
-                    sourceFieldMappers = sourceFieldMappers.concat(fieldMapper);
-                }
-                if (fieldMapper instanceof UidFieldMapper) {
-                    uidFieldMappers = uidFieldMappers.concat(fieldMapper);
-                }
-
-
                 FieldMappers mappers = nameFieldMappers.get(fieldMapper.names().name());
                 if (mappers == null) {
                     mappers = new FieldMappers(fieldMapper);

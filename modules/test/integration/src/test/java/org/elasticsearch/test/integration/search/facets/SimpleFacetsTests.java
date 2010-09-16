@@ -120,6 +120,47 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         assertThat(facet.entries().get(0).count(), equalTo(2));
     }
 
+    @Test public void testTermsIndexFacet() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test1").execute().actionGet();
+            client.admin().indices().prepareDelete("test2").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test1").execute().actionGet();
+        client.admin().indices().prepareCreate("test2").execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test1", "type1").setSource(jsonBuilder().startObject()
+                .field("stag", "111")
+                .endObject()).execute().actionGet();
+
+        client.prepareIndex("test1", "type1").setSource(jsonBuilder().startObject()
+                .field("stag", "111")
+                .endObject()).execute().actionGet();
+
+        client.prepareIndex("test2", "type1").setSource(jsonBuilder().startObject()
+                .field("stag", "111")
+                .endObject()).execute().actionGet();
+        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setSize(0)
+                .setQuery(matchAllQuery())
+                .addFacet(termsFacet("facet1").field("_index").size(10))
+                .execute().actionGet();
+
+
+        TermsFacet facet = searchResponse.facets().facet("facet1");
+        assertThat(facet.name(), equalTo("facet1"));
+        assertThat(facet.entries().size(), equalTo(2));
+        assertThat(facet.entries().get(0).term(), equalTo("test1"));
+        assertThat(facet.entries().get(0).count(), equalTo(2));
+        assertThat(facet.entries().get(1).term(), equalTo("test2"));
+        assertThat(facet.entries().get(1).count(), equalTo(1));
+    }
+
     @Test public void testFilterFacets() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();

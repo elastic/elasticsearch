@@ -84,6 +84,11 @@ public class TermsFacetCollectorParser implements FacetCollectorParser {
                 }
             }
         }
+
+        if ("_index".equals(field)) {
+            return new IndexNameFacetCollector(facetName, context.shardTarget().index(), comparatorType, size);
+        }
+
         Pattern pattern = null;
         if (regex != null) {
             pattern = Regex.compile(regex, regexFlags);

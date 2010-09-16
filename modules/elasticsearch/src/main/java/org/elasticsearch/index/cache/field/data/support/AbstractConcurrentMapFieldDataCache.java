@@ -67,13 +67,17 @@ public abstract class AbstractConcurrentMapFieldDataCache extends AbstractIndexC
         return cache(type.fieldDataClass(), reader, fieldName);
     }
 
+    protected ConcurrentMap<String, FieldData> buildFilterMap() {
+        return ConcurrentCollections.newConcurrentMap();
+    }
+
     @Override public <T extends FieldData> T cache(Class<T> type, IndexReader reader, String fieldName) throws IOException {
         ConcurrentMap<String, FieldData> fieldDataCache = cache.get(reader.getFieldCacheKey());
         if (fieldDataCache == null) {
             synchronized (creationMutex) {
                 fieldDataCache = cache.get(reader.getFieldCacheKey());
                 if (fieldDataCache == null) {
-                    fieldDataCache = ConcurrentCollections.newConcurrentMap();
+                    fieldDataCache = buildFilterMap();
                     cache.put(reader.getFieldCacheKey(), fieldDataCache);
                 }
             }

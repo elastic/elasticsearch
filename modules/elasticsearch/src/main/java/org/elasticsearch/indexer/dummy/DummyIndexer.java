@@ -19,20 +19,21 @@
 
 package org.elasticsearch.indexer.dummy;
 
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indexer.AbstractIndexerComponent;
 import org.elasticsearch.indexer.Indexer;
 import org.elasticsearch.indexer.IndexerName;
-import org.elasticsearch.indexer.settings.IndexerSettings;
+import org.elasticsearch.indexer.IndexerSettings;
+
+import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
  */
 public class DummyIndexer extends AbstractIndexerComponent implements Indexer {
 
-    @Inject public DummyIndexer(IndexerName indexerName, @IndexerSettings Settings indexSettings) {
-        super(indexerName, indexSettings);
+    public DummyIndexer(IndexerName indexerName, Settings settings, @IndexerSettings Map<String, Object> indexerSettings) {
+        super(indexerName, settings, indexerSettings);
         logger.info("created");
     }
 

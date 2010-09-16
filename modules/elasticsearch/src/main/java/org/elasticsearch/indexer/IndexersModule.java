@@ -22,6 +22,7 @@ package org.elasticsearch.indexer;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indexer.cluster.IndexerClusterService;
+import org.elasticsearch.indexer.routing.IndexersRouter;
 
 /**
  * @author kimchy (shay.banon)
@@ -35,8 +36,10 @@ public class IndexersModule extends AbstractModule {
     }
 
     @Override protected void configure() {
+        bind(String.class).annotatedWith(IndexerIndexName.class).toInstance(settings.get("indexer.index_name", "indexer"));
         bind(IndexersService.class).asEagerSingleton();
         bind(IndexerClusterService.class).asEagerSingleton();
+        bind(IndexersRouter.class).asEagerSingleton();
         bind(IndexerManager.class).asEagerSingleton();
     }
 }

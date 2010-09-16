@@ -21,11 +21,8 @@ package org.elasticsearch.indexer.cluster;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indexer.metadata.IndexersMetaData;
 import org.elasticsearch.indexer.routing.IndexersRouting;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 
 /**
@@ -35,28 +32,20 @@ public class IndexerClusterState {
 
     private final long version;
 
-    private final IndexersMetaData metaData;
-
     private final IndexersRouting routing;
 
     public IndexerClusterState(long version, IndexerClusterState state) {
         this.version = version;
-        this.metaData = state.metaData();
         this.routing = state.routing();
     }
 
-    IndexerClusterState(long version, IndexersMetaData metaData, IndexersRouting routing) {
+    IndexerClusterState(long version, IndexersRouting routing) {
         this.version = version;
-        this.metaData = metaData;
         this.routing = routing;
     }
 
     public long version() {
         return this.version;
-    }
-
-    public IndexersMetaData metaData() {
-        return metaData;
     }
 
     public IndexersRouting routing() {
@@ -71,23 +60,11 @@ public class IndexerClusterState {
 
         private long version = 0;
 
-        private IndexersMetaData metaData;
-
-        private IndexersRouting routing;
+        private IndexersRouting routing = IndexersRouting.EMPTY;
 
         public Builder state(IndexerClusterState state) {
             this.version = state.version();
-            this.metaData = state.metaData();
             this.routing = state.routing();
-            return this;
-        }
-
-        public Builder metaData(IndexersMetaData.Builder builder) {
-            return metaData(builder.build());
-        }
-
-        public Builder metaData(IndexersMetaData metaData) {
-            this.metaData = metaData;
             return this;
         }
 
@@ -101,20 +78,18 @@ public class IndexerClusterState {
         }
 
         public IndexerClusterState build() {
-            return new IndexerClusterState(version, metaData, routing);
+            return new IndexerClusterState(version, routing);
         }
 
-        public static IndexerClusterState readFrom(StreamInput in, @Nullable Settings settings) throws IOException {
+        public static IndexerClusterState readFrom(StreamInput in) throws IOException {
             Builder builder = new Builder();
             builder.version = in.readVLong();
-            builder.metaData = IndexersMetaData.Builder.readFrom(in, settings);
             builder.routing = IndexersRouting.Builder.readFrom(in);
             return builder.build();
         }
 
         public static void writeTo(IndexerClusterState clusterState, StreamOutput out) throws IOException {
             out.writeVLong(clusterState.version);
-            IndexersMetaData.Builder.writeTo(clusterState.metaData, out);
             IndexersRouting.Builder.writeTo(clusterState.routing, out);
         }
     }

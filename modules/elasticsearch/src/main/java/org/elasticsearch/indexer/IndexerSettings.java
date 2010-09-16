@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.indexer.settings;
+package org.elasticsearch.indexer;
 
 import org.elasticsearch.common.inject.BindingAnnotation;
 
@@ -29,7 +29,7 @@ import static java.lang.annotation.ElementType.*;
 import static java.lang.annotation.RetentionPolicy.*;
 
 /**
- * @author kimchy (shay.banon)
+ * @author kimchy (Shay Banon)
  */
 
 @BindingAnnotation

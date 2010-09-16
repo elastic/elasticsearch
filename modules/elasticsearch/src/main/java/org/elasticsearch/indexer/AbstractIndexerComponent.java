@@ -22,7 +22,8 @@ package org.elasticsearch.indexer;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indexer.settings.IndexerSettings;
+
+import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
@@ -33,24 +34,16 @@ public class AbstractIndexerComponent implements IndexerComponent {
 
     protected final IndexerName indexerName;
 
-    protected final Settings indexSettings;
+    protected final Settings settings;
 
-    protected final Settings componentSettings;
+    protected final Map<String, Object> indexerSettings;
 
-    protected AbstractIndexerComponent(IndexerName indexerName, @IndexerSettings Settings indexSettings) {
+    protected AbstractIndexerComponent(IndexerName indexerName, Settings settings, @IndexerSettings Map<String, Object> indexerSettings) {
         this.indexerName = indexerName;
-        this.indexSettings = indexSettings;
-        this.componentSettings = indexSettings.getComponentSettings(getClass());
+        this.settings = settings;
+        this.indexerSettings = indexerSettings;
 
-        this.logger = Loggers.getLogger(getClass(), indexSettings, indexerName);
-    }
-
-    protected AbstractIndexerComponent(IndexerName indexerName, @IndexerSettings Settings indexSettings, String prefixSettings) {
-        this.indexerName = indexerName;
-        this.indexSettings = indexSettings;
-        this.componentSettings = indexSettings.getComponentSettings(prefixSettings, getClass());
-
-        this.logger = Loggers.getLogger(getClass(), indexSettings, indexerName);
+        this.logger = Loggers.getLogger(getClass(), settings, indexerName);
     }
 
     @Override public IndexerName indexerName() {
@@ -58,6 +51,6 @@ public class AbstractIndexerComponent implements IndexerComponent {
     }
 
     public String nodeName() {
-        return indexSettings.get("name", "");
+        return settings.get("name", "");
     }
 }

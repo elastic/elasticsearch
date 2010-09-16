@@ -35,6 +35,13 @@ public class XContentMapValues {
         return node instanceof List;
     }
 
+    public static String nodeStringValue(Object node, String defaultValue) {
+        if (node == null) {
+            return defaultValue;
+        }
+        return node.toString();
+    }
+
     public static float nodeFloatValue(Object node) {
         if (node instanceof Number) {
             return ((Number) node).floatValue();

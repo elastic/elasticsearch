@@ -20,6 +20,8 @@
 package org.elasticsearch.indexer;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -30,6 +32,12 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Injectors;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indexer.cluster.IndexerClusterChangedEvent;
+import org.elasticsearch.indexer.cluster.IndexerClusterService;
+import org.elasticsearch.indexer.cluster.IndexerClusterState;
+import org.elasticsearch.indexer.cluster.IndexerClusterStateListener;
+import org.elasticsearch.indexer.metadata.IndexerMetaData;
+import org.elasticsearch.indexer.routing.IndexerRouting;
 import org.elasticsearch.indexer.settings.IndexerSettingsModule;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -45,16 +53,20 @@ public class IndexersService extends AbstractLifecycleComponent<IndexersService>
 
     private final ThreadPool threadPool;
 
+    private final ClusterService clusterService;
+
     private final Injector injector;
 
     private final Map<IndexerName, Injector> indexersInjectors = Maps.newHashMap();
 
     private volatile ImmutableMap<IndexerName, Indexer> indexers = ImmutableMap.of();
 
-    @Inject public IndexersService(Settings settings, ThreadPool threadPool, Injector injector) {
+    @Inject public IndexersService(Settings settings, ThreadPool threadPool, ClusterService clusterService, IndexerClusterService indexerClusterService, Injector injector) {
         super(settings);
         this.threadPool = threadPool;
+        this.clusterService = clusterService;
         this.injector = injector;
+        indexerClusterService.add(new ApplyIndexers());
     }
 
     @Override protected void doStart() throws ElasticSearchException {
@@ -149,6 +161,38 @@ public class IndexersService extends AbstractLifecycleComponent<IndexersService>
         indexerInjector.getInstance(Indexer.class).close(delete);
 
         Injectors.close(injector);
+    }
 
+    private class ApplyIndexers implements IndexerClusterStateListener {
+        @Override public void indexerClusterChanged(IndexerClusterChangedEvent event) {
+            DiscoveryNode localNode = clusterService.localNode();
+            IndexerClusterState state = event.state();
+
+            // first, go over and delete ones that either don't exists or are not allocated
+            for (IndexerName indexerName : indexers.keySet()) {
+                // if its not on the metadata, it was deleted, delete it
+                IndexerMetaData indexerMetaData = state.metaData().indexer(indexerName);
+                if (indexerMetaData == null) {
+                    deleteIndexer(indexerName);
+                }
+
+                IndexerRouting routing = state.routing().routing(indexerName);
+                if (routing == null || !localNode.equals(routing.node())) {
+                    // not routed at all, and not allocated here, clean it (we delete the relevant ones before)
+                    cleanIndexer(indexerName);
+                }
+            }
+
+            for (IndexerRouting routing : state.routing()) {
+                // only apply changes to the local node
+                if (!routing.node().equals(localNode)) {
+                    continue;
+                }
+
+                IndexerMetaData indexerMetaData = state.metaData().indexer(routing.indexerName());
+
+                createIndexer(indexerMetaData.indexerName(), indexerMetaData.settings());
+            }
+        }
     }
 }

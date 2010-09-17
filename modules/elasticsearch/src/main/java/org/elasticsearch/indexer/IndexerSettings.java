@@ -19,22 +19,30 @@
 
 package org.elasticsearch.indexer;
 
-import org.elasticsearch.common.inject.BindingAnnotation;
+import org.elasticsearch.common.settings.Settings;
 
-import java.lang.annotation.Documented;
-import java.lang.annotation.Retention;
-import java.lang.annotation.Target;
-
-import static java.lang.annotation.ElementType.*;
-import static java.lang.annotation.RetentionPolicy.*;
+import java.util.Map;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shayy.banon)
  */
 
-@BindingAnnotation
-@Target({FIELD, PARAMETER})
-@Retention(RUNTIME)
-@Documented
-public @interface IndexerSettings {
+public class IndexerSettings {
+
+    private final Settings globalSettings;
+
+    private final Map<String, Object> settings;
+
+    public IndexerSettings(Settings globalSettings, Map<String, Object> settings) {
+        this.globalSettings = globalSettings;
+        this.settings = settings;
+    }
+
+    public Settings globalSettings() {
+        return globalSettings;
+    }
+
+    public Map<String, Object> settings() {
+        return settings;
+    }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.indexer.cluster;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.indexer.IndexerName;
 
 /**
  * @author kimchy (shay.banon)
@@ -40,5 +41,14 @@ public class IndexerNodeHelper {
         }
         // there is at least one indexer settings, we need it
         return true;
+    }
+
+    public static boolean isIndexerNode(DiscoveryNode node, IndexerName indexerName) {
+        if (!isIndexerNode(node)) {
+            return false;
+        }
+        String indexer = node.attributes().get("indexer");
+        // by default, if not set, its an indexer node (better OOB exp)
+        return indexer == null || indexer.contains(indexerName.type()) || indexer.contains(indexerName.name());
     }
 }

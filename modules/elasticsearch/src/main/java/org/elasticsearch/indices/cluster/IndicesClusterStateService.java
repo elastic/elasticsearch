@@ -236,6 +236,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 if (seenMappings.containsKey(new Tuple<String, String>(index, documentMapper.type())) && !mappings.containsKey(documentMapper.type())) {
                     // we have it in our mappings, but not in the metadata, and we have seen it in the cluster state, remove it
                     mapperService.remove(documentMapper.type());
+                    seenMappings.remove(new Tuple<String, String>(index, documentMapper.type()));
                 }
             }
         }

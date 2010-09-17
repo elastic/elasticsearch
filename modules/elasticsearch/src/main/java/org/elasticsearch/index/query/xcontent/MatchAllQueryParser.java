@@ -70,7 +70,7 @@ public class MatchAllQueryParser extends AbstractIndexComponent implements XCont
         }
 
         if (boost == 1.0f && normsField == null) {
-            return new DeletionAwareConstantScoreQuery(parseContext.cacheFilterIfPossible(Queries.MATCH_ALL_FILTER));
+            return new DeletionAwareConstantScoreQuery(Queries.MATCH_ALL_FILTER, true);  // no need to cache a MATCH ALL FILTER
         }
 
         MatchAllDocsQuery query = new MatchAllDocsQuery(normsField);

@@ -19,10 +19,12 @@
 
 package org.elasticsearch.index.query.xcontent;
 
+import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -65,6 +67,10 @@ public class MatchAllQueryParser extends AbstractIndexComponent implements XCont
                     normsField = parseContext.indexName(parser.text());
                 }
             }
+        }
+
+        if (boost == 1.0f && normsField == null) {
+            return new DeletionAwareConstantScoreQuery(parseContext.cacheFilterIfPossible(Queries.MATCH_ALL_FILTER));
         }
 
         MatchAllDocsQuery query = new MatchAllDocsQuery(normsField);

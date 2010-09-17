@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.*;
 /**
  * @author kimchy (shay.banon)
  */
-@Test
+@Test(enabled = false)
 public class BlockingThreadPoolTest {
 
     @Test public void testBlocking() throws Exception {

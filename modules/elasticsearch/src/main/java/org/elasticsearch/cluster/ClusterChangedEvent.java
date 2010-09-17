@@ -64,6 +64,10 @@ public class ClusterChangedEvent {
         return state.metaData() != previousState.metaData();
     }
 
+    public boolean blocksChanged() {
+        return state.blocks() != previousState.blocks();
+    }
+
     public boolean localNodeMaster() {
         return state.nodes().localNodeMaster();
     }

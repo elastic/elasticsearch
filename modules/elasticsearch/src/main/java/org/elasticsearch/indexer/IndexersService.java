@@ -84,7 +84,7 @@ public class IndexersService extends AbstractLifecycleComponent<IndexersService>
             threadPool.cached().execute(new Runnable() {
                 @Override public void run() {
                     try {
-                        deleteIndexer(indexerName, false);
+                        closeIndexer(indexerName);
                     } catch (Exception e) {
                         logger.warn("failed to delete indexer on stop [{}]/[{}]", e, indexerName.type(), indexerName.name());
                     } finally {
@@ -121,28 +121,15 @@ public class IndexersService extends AbstractLifecycleComponent<IndexersService>
         return indexer;
     }
 
-    public synchronized void cleanIndexer(IndexerName indexerName) throws ElasticSearchException {
-        deleteIndexer(indexerName, false);
-    }
-
-    public synchronized void deleteIndexer(IndexerName indexerName) throws ElasticSearchException {
-        deleteIndexer(indexerName, true);
-    }
-
-    private void deleteIndexer(IndexerName indexerName, boolean delete) {
+    public synchronized void closeIndexer(IndexerName indexerName) throws ElasticSearchException {
         Injector indexerInjector;
         Indexer indexer;
         synchronized (this) {
             indexerInjector = indexersInjectors.remove(indexerName);
             if (indexerInjector == null) {
-                if (!delete) {
-                    return;
-                }
                 throw new IndexerException(indexerName, "missing");
             }
-            if (delete) {
-                logger.debug("deleting indexer [{}][{}]", indexerName.type(), indexerName.name());
-            }
+            logger.debug("closing indexer [{}][{}]", indexerName.type(), indexerName.name());
 
             Map<IndexerName, Indexer> tmpMap = Maps.newHashMap(indexers);
             indexer = tmpMap.remove(indexerName);
@@ -153,9 +140,7 @@ public class IndexersService extends AbstractLifecycleComponent<IndexersService>
 //            indexerInjector.getInstance(closeable).close(delete);
 //        }
 
-        indexer.close(delete);
-
-        indexerInjector.getInstance(Indexer.class).close(delete);
+        indexer.close();
 
         Injectors.close(injector);
     }
@@ -170,7 +155,7 @@ public class IndexersService extends AbstractLifecycleComponent<IndexersService>
                 IndexerRouting routing = state.routing().routing(indexerName);
                 if (routing == null || !localNode.equals(routing.node())) {
                     // not routed at all, and not allocated here, clean it (we delete the relevant ones before)
-                    cleanIndexer(indexerName);
+                    closeIndexer(indexerName);
                 }
             }
 

@@ -54,7 +54,7 @@ public class IndexerModule extends AbstractModule implements SpawnModules {
     }
 
     @Override protected void configure() {
-        bind(Map.class).annotatedWith(IndexerSettings.class).toInstance(settings);
+        bind(IndexerSettings.class).toInstance(new IndexerSettings(globalSettings, settings));
     }
 
     private Class<? extends Module> loadTypeModule(String type, String prefixPackage, String suffixClassName) {

@@ -34,16 +34,13 @@ public class IndexerRouting implements Streamable {
 
     private IndexerName indexerName;
 
-    private IndexerRoutingState state;
-
     private DiscoveryNode node;
 
     private IndexerRouting() {
     }
 
-    IndexerRouting(IndexerName indexerName, IndexerRoutingState state, DiscoveryNode node) {
+    IndexerRouting(IndexerName indexerName, DiscoveryNode node) {
         this.indexerName = indexerName;
-        this.state = state;
         this.node = node;
     }
 
@@ -58,8 +55,8 @@ public class IndexerRouting implements Streamable {
         return node;
     }
 
-    public IndexerRoutingState state() {
-        return this.state;
+    void node(DiscoveryNode node) {
+        this.node = node;
     }
 
     public static IndexerRouting readIndexerRouting(StreamInput in) throws IOException {
@@ -70,7 +67,6 @@ public class IndexerRouting implements Streamable {
 
     @Override public void readFrom(StreamInput in) throws IOException {
         indexerName = new IndexerName(in.readUTF(), in.readUTF());
-        state = IndexerRoutingState.fromValue(in.readByte());
         if (in.readBoolean()) {
             node = DiscoveryNode.readNode(in);
         }
@@ -79,7 +75,6 @@ public class IndexerRouting implements Streamable {
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(indexerName.type());
         out.writeUTF(indexerName.name());
-        out.writeByte(state.value());
         if (node == null) {
             out.writeBoolean(false);
         } else {

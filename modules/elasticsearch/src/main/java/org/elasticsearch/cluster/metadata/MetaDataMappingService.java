@@ -120,6 +120,7 @@ public class MetaDataMappingService extends AbstractComponent {
                     throw new IndexMissingException(new Index("_all"));
                 }
 
+                logger.info("[{}] remove_mapping [{}]", request.indices, request.mappingType);
                 MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
                 for (String indexName : request.indices) {
                     if (currentState.metaData().hasIndex(indexName)) {

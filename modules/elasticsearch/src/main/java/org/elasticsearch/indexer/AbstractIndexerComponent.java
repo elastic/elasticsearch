@@ -21,9 +21,6 @@ package org.elasticsearch.indexer;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
-
-import java.util.Map;
 
 /**
  * @author kimchy (shay.banon)
@@ -34,16 +31,13 @@ public class AbstractIndexerComponent implements IndexerComponent {
 
     protected final IndexerName indexerName;
 
-    protected final Settings settings;
+    protected final IndexerSettings settings;
 
-    protected final Map<String, Object> indexerSettings;
-
-    protected AbstractIndexerComponent(IndexerName indexerName, Settings settings, @IndexerSettings Map<String, Object> indexerSettings) {
+    protected AbstractIndexerComponent(IndexerName indexerName, IndexerSettings settings) {
         this.indexerName = indexerName;
         this.settings = settings;
-        this.indexerSettings = indexerSettings;
 
-        this.logger = Loggers.getLogger(getClass(), settings, indexerName);
+        this.logger = Loggers.getLogger(getClass(), settings.globalSettings(), indexerName);
     }
 
     @Override public IndexerName indexerName() {
@@ -51,6 +45,6 @@ public class AbstractIndexerComponent implements IndexerComponent {
     }
 
     public String nodeName() {
-        return settings.get("name", "");
+        return settings.globalSettings().get("name", "");
     }
 }

@@ -40,8 +40,6 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.*;
  */
 public class IndexerClusterService extends AbstractLifecycleComponent<IndexerClusterService> {
 
-    private final TransportService transportService;
-
     private final ClusterService clusterService;
 
     private final PublishIndexerClusterStateAction publishAction;
@@ -54,7 +52,6 @@ public class IndexerClusterService extends AbstractLifecycleComponent<IndexerClu
 
     @Inject public IndexerClusterService(Settings settings, TransportService transportService, ClusterService clusterService) {
         super(settings);
-        this.transportService = transportService;
         this.clusterService = clusterService;
 
         this.publishAction = new PublishIndexerClusterStateAction(settings, transportService, clusterService, new UpdateClusterStateListener());

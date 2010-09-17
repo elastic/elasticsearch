@@ -25,7 +25,11 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
@@ -35,7 +39,10 @@ import org.elasticsearch.indexer.IndexerName;
 import org.elasticsearch.indexer.cluster.IndexerClusterService;
 import org.elasticsearch.indexer.cluster.IndexerClusterState;
 import org.elasticsearch.indexer.cluster.IndexerClusterStateUpdateTask;
+import org.elasticsearch.indexer.cluster.IndexerNodeHelper;
 
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -70,7 +77,7 @@ public class IndexersRouter extends AbstractLifecycleComponent<IndexersRouter> i
         if (!event.localNodeMaster()) {
             return;
         }
-        if (event.nodesChanged() || event.metaDataChanged()) {
+        if (event.nodesChanged() || event.metaDataChanged() || event.blocksChanged()) {
             indexerClusterService.submitStateUpdateTask("reroute_indexers_node_changed", new IndexerClusterStateUpdateTask() {
                 @Override public IndexerClusterState execute(IndexerClusterState currentState) {
                     if (!event.state().metaData().hasIndex(indexerIndexName)) {
@@ -91,18 +98,21 @@ public class IndexersRouter extends AbstractLifecycleComponent<IndexersRouter> i
                         if (!currentState.routing().hasIndexerByName(mappingType)) {
                             // no indexer, we need to add it to the routing with no node allocation
                             try {
+                                client.admin().indices().prepareRefresh(indexerIndexName).execute().actionGet();
                                 GetResponse getResponse = client.prepareGet(indexerIndexName, mappingType, "_meta").execute().actionGet();
                                 if (getResponse.exists()) {
                                     String indexerType = XContentMapValues.nodeStringValue(getResponse.sourceAsMap().get("type"), null);
                                     if (indexerType == null) {
                                         logger.warn("no indexer type provided for [{}], ignoring...", indexerIndexName);
                                     } else {
-                                        routingBuilder.put(new IndexerRouting(new IndexerName(mappingType, indexerType), IndexerRoutingState.UNASSIGNED, null));
+                                        routingBuilder.put(new IndexerRouting(new IndexerName(indexerType, mappingType), null));
                                         dirty = true;
                                     }
                                 }
+                            } catch (ClusterBlockException e) {
+                                // ignore, we will get it next time
                             } catch (Exception e) {
-                                logger.warn("failed to get/parse _meta for [{}]", mappingType);
+                                logger.warn("failed to get/parse _meta for [{}]", e, mappingType);
                             }
                         }
                     }
@@ -114,11 +124,50 @@ public class IndexersRouter extends AbstractLifecycleComponent<IndexersRouter> i
                         }
                     }
 
-                    // now, allocate indexers
+                    // build a list from nodes to indexers
+                    Map<DiscoveryNode, List<IndexerRouting>> nodesToIndexers = Maps.newHashMap();
 
-                    // see if we can relocate indexers (we can simply first unassign then, then publish) and then, next round, they will be assigned
-                    // but, we need to make sure that there will *be* next round of this is the logic
+                    for (DiscoveryNode node : event.state().nodes()) {
+                        if (IndexerNodeHelper.isIndexerNode(node)) {
+                            nodesToIndexers.put(node, Lists.<IndexerRouting>newArrayList());
+                        }
+                    }
 
+                    List<IndexerRouting> unassigned = Lists.newArrayList();
+                    for (IndexerRouting routing : routingBuilder.build()) {
+                        if (routing.node() == null) {
+                            unassigned.add(routing);
+                        } else {
+                            List<IndexerRouting> l = nodesToIndexers.get(routing.node());
+                            if (l == null) {
+                                l = Lists.newArrayList();
+                                nodesToIndexers.put(routing.node(), l);
+                            }
+                            l.add(routing);
+                        }
+                    }
+                    for (Iterator<IndexerRouting> it = unassigned.iterator(); it.hasNext();) {
+                        IndexerRouting routing = it.next();
+                        DiscoveryNode smallest = null;
+                        int smallestSize = Integer.MAX_VALUE;
+                        for (Map.Entry<DiscoveryNode, List<IndexerRouting>> entry : nodesToIndexers.entrySet()) {
+                            if (IndexerNodeHelper.isIndexerNode(entry.getKey(), routing.indexerName())) {
+                                if (entry.getValue().size() < smallestSize) {
+                                    smallestSize = entry.getValue().size();
+                                    smallest = entry.getKey();
+                                }
+                            }
+                        }
+                        if (smallest != null) {
+                            dirty = true;
+                            it.remove();
+                            routing.node(smallest);
+                            nodesToIndexers.get(smallest).add(routing);
+                        }
+                    }
+
+
+                    // add relocation logic...
 
                     if (dirty) {
                         return IndexerClusterState.builder().state(currentState).routing(routingBuilder).build();

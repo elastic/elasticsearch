@@ -48,7 +48,7 @@ public class RestDeleteMappingAction extends BaseRestHandler {
     @Inject public RestDeleteMappingAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(DELETE, "/{index}/{type}/_mapping", this);
-        controller.registerHandler(DELETE, "/{index}/{type}/", this);
+        controller.registerHandler(DELETE, "/{index}/{type}", this);
     }
 
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {

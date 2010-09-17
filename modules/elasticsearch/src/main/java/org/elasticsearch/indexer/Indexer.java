@@ -24,5 +24,5 @@ package org.elasticsearch.indexer;
  */
 public interface Indexer extends IndexerComponent {
 
-    void close(boolean delete);
+    void close();
 }

@@ -262,7 +262,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                             snapshotRequired = true;
                             expectedNumberOfOperations = translogSnapshot.totalOperations() - snapshot.lastTotalTranslogOperations();
                         }
-                    }
+                    } // else (no operations, nothing to snapshot)
                 } else {
                     // a full translog snapshot is required
                     if (translogSnapshot.lengthInBytes() > 0) {

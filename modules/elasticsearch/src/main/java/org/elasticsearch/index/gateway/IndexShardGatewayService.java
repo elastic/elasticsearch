@@ -60,8 +60,6 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
 
     private volatile long lastTranslogId = -1;
 
-    private volatile long lastTranslogPosition;
-
     private volatile int lastTotalTranslogOperations;
 
     private volatile long lastTranslogLength;
@@ -150,7 +148,6 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
 
                     lastIndexVersion = recoveryStatus.index().version();
                     lastTranslogId = -1;
-                    lastTranslogPosition = 0;
                     lastTranslogLength = 0;
                     lastTotalTranslogOperations = recoveryStatus.translog().currentTranslogOperations();
 
@@ -230,11 +227,10 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
 
                         logger.debug("snapshot ({}) to {} ...", reason, shardGateway);
                         SnapshotStatus snapshotStatus =
-                                shardGateway.snapshot(new IndexShardGateway.Snapshot(snapshotIndexCommit, translogSnapshot, lastIndexVersion, lastTranslogId, lastTranslogPosition, lastTranslogLength, lastTotalTranslogOperations));
+                                shardGateway.snapshot(new IndexShardGateway.Snapshot(snapshotIndexCommit, translogSnapshot, lastIndexVersion, lastTranslogId, lastTranslogLength, lastTotalTranslogOperations));
 
                         lastIndexVersion = snapshotIndexCommit.getVersion();
                         lastTranslogId = translogSnapshot.translogId();
-                        lastTranslogPosition = translogSnapshot.position();
                         lastTranslogLength = translogSnapshot.length();
                         lastTotalTranslogOperations = translogSnapshot.totalOperations();
                         return snapshotStatus;
@@ -247,7 +243,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                     StringBuilder sb = new StringBuilder();
                     sb.append("snapshot (").append(reason).append(") completed to ").append(shardGateway).append(", took [").append(TimeValue.timeValueMillis(snapshotStatus.time())).append("]\n");
                     sb.append("    index    : version [").append(lastIndexVersion).append("], number_of_files [").append(snapshotStatus.index().numberOfFiles()).append("] with total_size [").append(new ByteSizeValue(snapshotStatus.index().totalSize())).append("], took [").append(TimeValue.timeValueMillis(snapshotStatus.index().time())).append("]\n");
-                    sb.append("    translog : id      [").append(lastTranslogId).append("], number_of_operations [" + snapshotStatus.translog().expectedNumberOfOperations() + "], took [").append(TimeValue.timeValueMillis(snapshotStatus.translog().time())).append("]");
+                    sb.append("    translog : id      [").append(lastTranslogId).append("], number_of_operations [").append(snapshotStatus.translog().expectedNumberOfOperations()).append("], took [").append(TimeValue.timeValueMillis(snapshotStatus.translog().time())).append("]");
                     logger.debug(sb.toString());
                 }
             }

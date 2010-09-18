@@ -251,7 +251,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
                     .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
 
             // snapshot every 100 so we get some actions going on in the gateway 
-            if ((i % 100) == 0) {
+            if ((i % 11) == 0) {
                 client("server1").admin().indices().prepareGatewaySnapshot().execute().actionGet();
             }
         }

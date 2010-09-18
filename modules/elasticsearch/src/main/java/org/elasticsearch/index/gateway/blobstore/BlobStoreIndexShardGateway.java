@@ -257,7 +257,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
                 if (allTranslogFilesExists) {
                     translogCommitPointFiles.addAll(commitPoint.translogFiles());
                     if (snapshot.sameTranslogNewOperations()) {
-                        translogSnapshot.seekForward(snapshot.lastTranslogPosition());
+                        translogSnapshot.seekForward(snapshot.lastTranslogLength());
                         if (translogSnapshot.lengthInBytes() > 0) {
                             snapshotRequired = true;
                             expectedNumberOfOperations = translogSnapshot.totalOperations() - snapshot.lastTotalTranslogOperations();

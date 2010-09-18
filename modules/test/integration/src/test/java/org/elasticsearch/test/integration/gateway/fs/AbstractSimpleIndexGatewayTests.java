@@ -249,6 +249,11 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
             client("server1").prepareIndex("test", "type1", Long.toString(i))
                     .setCreate(true) // make sure we use create, so if we recover wrongly, we will get increments...
                     .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
+
+            // snapshot every 100 so we get some actions going on in the gateway 
+            if ((i % 100) == 0) {
+                client("server1").admin().indices().prepareGatewaySnapshot().execute().actionGet();
+            }
         }
 
         logger.info("--> refreshing and checking count");

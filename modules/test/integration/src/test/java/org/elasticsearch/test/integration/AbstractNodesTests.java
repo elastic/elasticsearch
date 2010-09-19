@@ -44,6 +44,10 @@ public abstract class AbstractNodesTests {
         return buildNode(id).start();
     }
 
+    public Node startNode(String id, Settings.Builder settings) {
+        return startNode(id, settings.build());
+    }
+
     public Node startNode(String id, Settings settings) {
         return buildNode(id, settings).start();
     }

@@ -1,0 +1,73 @@
+/*
+ * Licensed to Elastic Search and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Elastic Search licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.test.integration.masternode;
+
+import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.test.integration.AbstractNodesTests;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.Test;
+
+import static org.elasticsearch.common.settings.ImmutableSettings.*;
+import static org.hamcrest.MatcherAssert.*;
+import static org.hamcrest.Matchers.*;
+
+/**
+ * @author kimchy (shay.banon)
+ */
+public class SpecificMasterNodesTests extends AbstractNodesTests {
+
+    @AfterMethod public void closeNodes() {
+        closeAllNodes();
+    }
+
+    @Test public void simpleOnlyMasterNodesElection() {
+        logger.info("--> start data node / non master node");
+        startNode("data1", settingsBuilder().put("node.data", true).put("node.master", false).put("discovery.initial_state_timeout", "1s"));
+        try {
+            assertThat(client("data1").admin().cluster().prepareState().setMasterNodeTimeout("100ms").execute().actionGet().state().nodes().masterNodeId(), nullValue());
+            assert false : "should not be able to find master";
+        } catch (MasterNotDiscoveredException e) {
+            // all is well, no master elected
+        }
+        logger.info("--> start master node");
+        startNode("master1", settingsBuilder().put("node.data", false).put("node.master", true));
+        assertThat(client("data1").admin().cluster().prepareState().execute().actionGet().state().nodes().masterNode().name(), equalTo("master1"));
+        assertThat(client("master1").admin().cluster().prepareState().execute().actionGet().state().nodes().masterNode().name(), equalTo("master1"));
+
+        logger.info("--> stop master node");
+        closeNode("master1");
+
+        try {
+            assertThat(client("data1").admin().cluster().prepareState().setMasterNodeTimeout("100ms").execute().actionGet().state().nodes().masterNodeId(), nullValue());
+            assert false : "should not be able to find master";
+        } catch (MasterNotDiscoveredException e) {
+            // all is well, no master elected
+        }
+
+        logger.info("--> start master node");
+        startNode("master1", settingsBuilder().put("node.data", false).put("node.master", true));
+        assertThat(client("data1").admin().cluster().prepareState().execute().actionGet().state().nodes().masterNode().name(), equalTo("master1"));
+        assertThat(client("master1").admin().cluster().prepareState().execute().actionGet().state().nodes().masterNode().name(), equalTo("master1"));
+
+        logger.info("--> stop all nodes");
+        closeNode("data1");
+        closeNode("master1");
+    }
+}

@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.action.admin.cluster.support.BaseClusterRequestBuilder;
+import org.elasticsearch.common.unit.TimeValue;
 
 /**
  * @author kimchy (shay.banon)
@@ -67,6 +68,22 @@ public class ClusterStateRequestBuilder extends BaseClusterRequestBuilder<Cluste
      */
     public ClusterStateRequestBuilder setFilterIndices(String... indices) {
         request.filteredIndices(indices);
+        return this;
+    }
+
+    /**
+     * Sets the master node timeout in case the master has not yet been discovered.
+     */
+    public ClusterStateRequestBuilder setMasterNodeTimeout(TimeValue timeout) {
+        request.masterNodeTimeout(timeout);
+        return this;
+    }
+
+    /**
+     * Sets the master node timeout in case the master has not yet been discovered.
+     */
+    public ClusterStateRequestBuilder setMasterNodeTimeout(String timeout) {
+        request.masterNodeTimeout(timeout);
         return this;
     }
 

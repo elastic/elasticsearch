@@ -61,6 +61,13 @@ public class DeleteIndexRequestBuilder extends BaseIndicesRequestBuilder<DeleteI
         return this;
     }
 
+    /**
+     * Sets the master node timeout in case the master has not yet been discovered.
+     */
+    public DeleteIndexRequestBuilder setMasterNodeTimeout(String timeout) {
+        request.masterNodeTimeout(timeout);
+        return this;
+    }
 
     @Override protected void doExecute(ActionListener<DeleteIndexResponse> listener) {
         client.delete(request, listener);

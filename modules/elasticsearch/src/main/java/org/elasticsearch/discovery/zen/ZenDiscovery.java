@@ -474,6 +474,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private DiscoveryNode findMaster() {
         ZenPing.PingResponse[] pingResponses = pingService.pingAndWait(initialPingTimeout);
+        if (pingResponses == null) {
+            return null;
+        }
         if (logger.isDebugEnabled()) {
             StringBuilder sb = new StringBuilder("ping responses:");
             if (pingResponses.length == 0) {

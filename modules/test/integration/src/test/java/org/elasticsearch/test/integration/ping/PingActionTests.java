@@ -19,6 +19,8 @@
 
 package org.elasticsearch.test.integration.ping;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.ping.broadcast.BroadcastPingResponse;
 import org.elasticsearch.action.admin.cluster.ping.replication.ReplicationPingResponse;
 import org.elasticsearch.action.admin.cluster.ping.single.SinglePingResponse;
@@ -34,7 +36,7 @@ import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class PingActionTests extends AbstractNodesTests {
 
@@ -49,14 +51,17 @@ public class PingActionTests extends AbstractNodesTests {
         closeAllNodes();
     }
 
-    @Test public void testIndexActions() throws Exception {
+    @Test public void testPingActions() throws Exception {
         logger.info("Creating index [test1]");
         client("server1").admin().indices().create(createIndexRequest("test1")).actionGet();
         logger.info("Creating index [test2]");
         client("server1").admin().indices().create(createIndexRequest("test2")).actionGet();
 
-        logger.info("Sleeping to shards allocate and start");
-        Thread.sleep(500);
+        logger.info("Running Cluster Health");
+        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Pinging single person with id 1");
         SinglePingResponse singleResponse = client("server1").admin().cluster().ping(pingSingleRequest("test1").type("person").id("1")).actionGet();

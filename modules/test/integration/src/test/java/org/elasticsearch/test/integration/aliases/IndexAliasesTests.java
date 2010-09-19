@@ -65,45 +65,45 @@ public class IndexAliasesTests extends AbstractNodesTests {
 
 
     @Test public void testAliases() throws Exception {
-        logger.info("Creating index [test]");
+        logger.info("--> creating index [test]");
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
-        logger.info("Running Cluster Health");
+        logger.info("--> running cluster_health");
         ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        logger.info("--> done cluster_health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
 
         try {
-            logger.info("Indexing against [alias1], should fail");
+            logger.info("--> indexing against [alias1], should fail");
             client1.index(indexRequest("alias1").type("type1").id("1").source(source("1", "test"))).actionGet();
             assert false : "index [alias1] should not exists";
         } catch (IndexMissingException e) {
             assertThat(e.index().name(), equalTo("alias1"));
         }
 
-        logger.info("Aliasing index [test] with [alias1]");
+        logger.info("--> aliasing index [test] with [alias1]");
         client1.admin().indices().prepareAliases().addAlias("test", "alias1").execute().actionGet();
         Thread.sleep(300);
 
-        logger.info("Indexing against [alias1], should work now");
+        logger.info("--> indexing against [alias1], should work now");
         IndexResponse indexResponse = client1.index(indexRequest("alias1").type("type1").id("1").source(source("1", "test"))).actionGet();
         assertThat(indexResponse.index(), equalTo("test"));
 
-        logger.info("Creating index [test]");
+        logger.info("--> creating index [test]");
         client1.admin().indices().create(createIndexRequest("test_x")).actionGet();
 
-        logger.info("Running Cluster Health");
+        logger.info("--> running cluster_health");
         clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
+        logger.info("--> done cluster_health, status " + clusterHealth.status());
         assertThat(clusterHealth.timedOut(), equalTo(false));
         assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
 
-        logger.info("Remove [alias1], Aliasing index [test_x] with [alias1]");
+        logger.info("--> remove [alias1], Aliasing index [test_x] with [alias1]");
         client1.admin().indices().aliases(indexAliasesRequest().removeAlias("test", "alias1").addAlias("test_x", "alias1")).actionGet();
         Thread.sleep(300);
 
-        logger.info("Indexing against [alias1], should work against [test_x]");
+        logger.info("--> indexing against [alias1], should work against [test_x]");
         indexResponse = client1.index(indexRequest("alias1").type("type1").id("1").source(source("1", "test"))).actionGet();
         assertThat(indexResponse.index(), equalTo("test_x"));
     }

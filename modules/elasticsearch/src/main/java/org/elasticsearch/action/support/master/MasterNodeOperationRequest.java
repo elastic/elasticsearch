@@ -53,6 +53,13 @@ public abstract class MasterNodeOperationRequest implements ActionRequest {
         return this;
     }
 
+    /**
+     * A timeout value in case the master has not been discovered yet or disconnected.
+     */
+    public MasterNodeOperationRequest masterNodeTimeout(String timeout) {
+        return masterNodeTimeout(TimeValue.parseTimeValue(timeout, null));
+    }
+
     public TimeValue masterNodeTimeout() {
         return this.masterNodeTimeout;
     }

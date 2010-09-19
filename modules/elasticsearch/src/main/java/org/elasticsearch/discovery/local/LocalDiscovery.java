@@ -86,29 +86,36 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
             this.localNode = new DiscoveryNode(settings.get("name"), Long.toString(nodeIdGenerator.incrementAndGet()), transportService.boundAddress().publishAddress(), buildCommonNodesAttributes(settings));
 
             clusterGroup.members().add(this);
-            if (clusterGroup.members().size() == 1) {
+
+            LocalDiscovery firstMaster = null;
+            for (LocalDiscovery localDiscovery : clusterGroup.members()) {
+                if (localDiscovery.localNode().masterNode()) {
+                    firstMaster = localDiscovery;
+                    break;
+                }
+            }
+
+            if (firstMaster != null && firstMaster.equals(this)) {
                 // we are the first master (and the master)
                 master = true;
+                final LocalDiscovery master = firstMaster;
                 clusterService.submitStateUpdateTask("local-disco-initial_connect(master)", new ProcessedClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
-                        DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder()
-                                .localNodeId(localNode.id())
-                                .masterNodeId(localNode.id())
-                                        // put our local node
-                                .put(localNode);
-                        return newClusterStateBuilder().state(currentState).nodes(builder).build();
+                        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.newNodesBuilder();
+                        for (LocalDiscovery discovery : clusterGroups.get(clusterName).members()) {
+                            nodesBuilder.put(discovery.localNode);
+                        }
+                        nodesBuilder.localNodeId(master.localNode().id()).masterNodeId(master.localNode().id());
+                        return newClusterStateBuilder().state(currentState).nodes(nodesBuilder).build();
                     }
 
                     @Override public void clusterStateProcessed(ClusterState clusterState) {
                         sendInitialStateEventIfNeeded();
                     }
                 });
-            } else {
-                // we are not the master, tell the master to send it
-                LocalDiscovery master = clusterGroup.members().peek();
-
+            } else if (firstMaster != null) {
                 // update as fast as we can the local node state with the new metadata (so we create indices for example)
-                final ClusterState masterState = master.clusterService.state();
+                final ClusterState masterState = firstMaster.clusterService.state();
                 clusterService.submitStateUpdateTask("local-disco(detected_master)", new ClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
                         // make sure we have the local node id set, we might need it as a result of the new metadata
@@ -118,14 +125,15 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 });
 
                 // tell the master to send the fact that we are here
-                master.clusterService.submitStateUpdateTask("local-disco-receive(from node[" + localNode + "])", new ProcessedClusterStateUpdateTask() {
+                final LocalDiscovery master = firstMaster;
+                firstMaster.clusterService.submitStateUpdateTask("local-disco-receive(from node[" + localNode + "])", new ProcessedClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
-                        if (currentState.nodes().nodeExists(localNode.id())) {
-                            // no change, the node already exists in the cluster
-                            logger.warn("received an address [{}] for an existing node [{}]", localNode.address(), localNode);
-                            return currentState;
+                        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.newNodesBuilder();
+                        for (LocalDiscovery discovery : clusterGroups.get(clusterName).members()) {
+                            nodesBuilder.put(discovery.localNode);
                         }
-                        return newClusterStateBuilder().state(currentState).nodes(currentState.nodes().newNode(localNode)).build();
+                        nodesBuilder.localNodeId(master.localNode().id()).masterNodeId(master.localNode().id());
+                        return newClusterStateBuilder().state(currentState).nodes(nodesBuilder).build();
                     }
 
                     @Override public void clusterStateProcessed(ClusterState clusterState) {
@@ -133,7 +141,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                     }
                 });
             }
-        }
+        } // else, no master node, the next node that will start will fill things in...
     }
 
     @Override protected void doStop() throws ElasticSearchException {
@@ -150,27 +158,37 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 return;
             }
 
-            final LocalDiscovery masterDiscovery = clusterGroup.members().peek();
-            // if the removed node is the master, make the next one as the master
-            if (master) {
-                masterDiscovery.master = true;
-            }
-
-            final Set<String> newMembers = newHashSet();
-            for (LocalDiscovery discovery : clusterGroup.members()) {
-                newMembers.add(discovery.localNode.id());
-            }
-
-            masterDiscovery.clusterService.submitStateUpdateTask("local-disco-update", new ClusterStateUpdateTask() {
-                @Override public ClusterState execute(ClusterState currentState) {
-                    DiscoveryNodes newNodes = currentState.nodes().removeDeadMembers(newMembers, masterDiscovery.localNode.id());
-                    DiscoveryNodes.Delta delta = newNodes.delta(currentState.nodes());
-                    if (delta.added()) {
-                        logger.warn("No new nodes should be created when a new discovery view is accepted");
-                    }
-                    return newClusterStateBuilder().state(currentState).nodes(newNodes).build();
+            LocalDiscovery firstMaster = null;
+            for (LocalDiscovery localDiscovery : clusterGroup.members()) {
+                if (localDiscovery.localNode().masterNode()) {
+                    firstMaster = localDiscovery;
+                    break;
                 }
-            });
+            }
+
+            if (firstMaster != null) {
+                // if the removed node is the master, make the next one as the master
+                if (master) {
+                    firstMaster.master = true;
+                }
+
+                final Set<String> newMembers = newHashSet();
+                for (LocalDiscovery discovery : clusterGroup.members()) {
+                    newMembers.add(discovery.localNode.id());
+                }
+
+                final LocalDiscovery master = firstMaster;
+                master.clusterService.submitStateUpdateTask("local-disco-update", new ClusterStateUpdateTask() {
+                    @Override public ClusterState execute(ClusterState currentState) {
+                        DiscoveryNodes newNodes = currentState.nodes().removeDeadMembers(newMembers, master.localNode.id());
+                        DiscoveryNodes.Delta delta = newNodes.delta(currentState.nodes());
+                        if (delta.added()) {
+                            logger.warn("No new nodes should be created when a new discovery view is accepted");
+                        }
+                        return newClusterStateBuilder().state(currentState).nodes(newNodes).build();
+                    }
+                });
+            }
         }
     }
 

@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -113,6 +114,10 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
 
     public ImmutableMap<String, DiscoveryNode> getMasterNodes() {
         return masterNodes();
+    }
+
+    public ImmutableMap<String, DiscoveryNode> masterAndDataNodes() {
+        return MapBuilder.<String, DiscoveryNode>newMapBuilder().putAll(dataNodes).putAll(masterNodes).immutableMap();
     }
 
     public DiscoveryNode get(String nodeId) {

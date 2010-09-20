@@ -17,33 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.indexer;
+package org.elasticsearch.indexer.twitter;
 
-import org.elasticsearch.common.inject.BindingAnnotation;
-import org.elasticsearch.common.settings.Settings;
-
-import java.lang.annotation.Documented;
-import java.lang.annotation.Retention;
-import java.lang.annotation.Target;
-
-import static java.lang.annotation.ElementType.*;
-import static java.lang.annotation.RetentionPolicy.*;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.indexer.Indexer;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
+public class TwitterIndexerModule extends AbstractModule {
 
-@BindingAnnotation
-@Target({FIELD, PARAMETER})
-@Retention(RUNTIME)
-@Documented
-public @interface IndexerIndexName {
-
-    static class Conf {
-        public static String DEFAULT_INDEXER_NAME = "_indexer";
-
-        public static String indexName(Settings settings) {
-            return settings.get("indexer.index_name", DEFAULT_INDEXER_NAME);
-        }
+    @Override protected void configure() {
+        bind(Indexer.class).to(TwitterIndexer.class).asEagerSingleton();
     }
 }

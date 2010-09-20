@@ -66,7 +66,7 @@ public class IndexersService extends AbstractLifecycleComponent<IndexersService>
 
     @Inject public IndexersService(Settings settings, Client client, ThreadPool threadPool, ClusterService clusterService, IndexerClusterService indexerClusterService, Injector injector) {
         super(settings);
-        this.indexerIndexName = settings.get("indexer.index_name", "indexer");
+        this.indexerIndexName = IndexerIndexName.Conf.indexName(settings);
         this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -118,6 +118,11 @@ public class IndexersService extends AbstractLifecycleComponent<IndexersService>
         indexersInjectors.put(indexerName, indexInjector);
         Indexer indexer = indexInjector.getInstance(Indexer.class);
         indexers = MapBuilder.newMapBuilder(indexers).put(indexerName, indexer).immutableMap();
+
+
+        // we need this start so there can be operations done (like creating an index) which can't be
+        // done on create since Guice can't create two concurrent child injectors
+        indexer.start();
         return indexer;
     }
 
@@ -168,16 +173,22 @@ public class IndexersService extends AbstractLifecycleComponent<IndexersService>
                 if (!routing.node().equals(localNode)) {
                     continue;
                 }
+                // if its already created, ignore it
+                if (indexers.containsKey(routing.indexerName())) {
+                    continue;
+                }
                 client.prepareGet(indexerIndexName, routing.indexerName().name(), "_meta").execute(new ActionListener<GetResponse>() {
                     @Override public void onResponse(GetResponse getResponse) {
-                        if (getResponse.exists()) {
-                            // only create the indexer if it exists, otherwise, the indexing meta data has not been visible yet... 
-                            createIndexer(routing.indexerName(), getResponse.sourceAsMap());
+                        if (!indexers.containsKey(routing.indexerName())) {
+                            if (getResponse.exists()) {
+                                // only create the indexer if it exists, otherwise, the indexing meta data has not been visible yet...
+                                createIndexer(routing.indexerName(), getResponse.sourceAsMap());
+                            }
                         }
                     }
 
                     @Override public void onFailure(Throwable e) {
-                        logger.warn("failed to get _meta from [{}]/[{}]", routing.indexerName().type(), routing.indexerName().name());
+                        logger.warn("failed to get _meta from [{}]/[{}]", e, routing.indexerName().type(), routing.indexerName().name());
                     }
                 });
             }

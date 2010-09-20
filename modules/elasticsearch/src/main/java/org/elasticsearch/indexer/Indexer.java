@@ -24,5 +24,7 @@ package org.elasticsearch.indexer;
  */
 public interface Indexer extends IndexerComponent {
 
+    void start();
+
     void close();
 }

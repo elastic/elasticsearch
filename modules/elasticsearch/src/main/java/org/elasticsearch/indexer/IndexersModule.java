@@ -36,7 +36,7 @@ public class IndexersModule extends AbstractModule {
     }
 
     @Override protected void configure() {
-        bind(String.class).annotatedWith(IndexerIndexName.class).toInstance(settings.get("indexer.index_name", "indexer"));
+        bind(String.class).annotatedWith(IndexerIndexName.class).toInstance(IndexerIndexName.Conf.indexName(settings));
         bind(IndexersService.class).asEagerSingleton();
         bind(IndexerClusterService.class).asEagerSingleton();
         bind(IndexersRouter.class).asEagerSingleton();

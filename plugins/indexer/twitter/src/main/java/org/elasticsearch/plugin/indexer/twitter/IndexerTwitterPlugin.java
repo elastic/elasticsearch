@@ -17,33 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.indexer;
+package org.elasticsearch.plugin.indexer.twitter;
 
-import org.elasticsearch.common.inject.BindingAnnotation;
-import org.elasticsearch.common.settings.Settings;
-
-import java.lang.annotation.Documented;
-import java.lang.annotation.Retention;
-import java.lang.annotation.Target;
-
-import static java.lang.annotation.ElementType.*;
-import static java.lang.annotation.RetentionPolicy.*;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.plugins.AbstractPlugin;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
+public class IndexerTwitterPlugin extends AbstractPlugin {
 
-@BindingAnnotation
-@Target({FIELD, PARAMETER})
-@Retention(RUNTIME)
-@Documented
-public @interface IndexerIndexName {
+    @Inject public IndexerTwitterPlugin() {
+    }
 
-    static class Conf {
-        public static String DEFAULT_INDEXER_NAME = "_indexer";
+    @Override public String name() {
+        return "indexer-twitter";
+    }
 
-        public static String indexName(Settings settings) {
-            return settings.get("indexer.index_name", DEFAULT_INDEXER_NAME);
-        }
+    @Override public String description() {
+        return "Indexer Twitter Plugin";
     }
 }

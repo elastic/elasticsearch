@@ -24,19 +24,40 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
+ * The cluster service allowing to both register for cluster state events ({@link ClusterStateListener})
+ * and submit state update tasks ({@link ClusterStateUpdateTask}.
+ *
  * @author kimchy (shay.banon)
  */
 public interface ClusterService extends LifecycleComponent<ClusterService> {
 
+    /**
+     * The local node.
+     */
     DiscoveryNode localNode();
 
+    /**
+     * The current state.
+     */
     ClusterState state();
 
+    /**
+     * Adds a listener for updated cluster states.
+     */
     void add(ClusterStateListener listener);
 
+    /**
+     * Removes a listener for updated cluster states.
+     */
     void remove(ClusterStateListener listener);
 
+    /**
+     * Adds a cluster state listener that will timeout after the provided timeout.
+     */
     void add(TimeValue timeout, TimeoutClusterStateListener listener);
 
+    /**
+     * Submits a task that will update the cluster state.
+     */
     void submitStateUpdateTask(final String source, final ClusterStateUpdateTask updateTask);
 }

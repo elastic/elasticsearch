@@ -20,9 +20,14 @@
 package org.elasticsearch.cluster;
 
 /**
- * @author kimchy (Shay Banon)
+ * A listener to be notified when a cluster state changes.
+ *
+ * @author kimchy (shay.banon)
  */
 public interface ClusterStateListener {
 
+    /**
+     * Called when cluster state changes.
+     */
     void clusterChanged(ClusterChangedEvent event);
 }

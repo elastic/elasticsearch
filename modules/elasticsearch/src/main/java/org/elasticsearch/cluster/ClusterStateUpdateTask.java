@@ -20,9 +20,15 @@
 package org.elasticsearch.cluster;
 
 /**
- * @author kimchy (Shay Banon)
+ * A task that can update the cluster state.
+ *
+ * @author kimchy (shay.banon)
  */
 public interface ClusterStateUpdateTask {
 
+    /**
+     * Update the cluster state based on the current state. Return the *same instance* if no state
+     * should be changed.
+     */
     ClusterState execute(ClusterState currentState);
 }

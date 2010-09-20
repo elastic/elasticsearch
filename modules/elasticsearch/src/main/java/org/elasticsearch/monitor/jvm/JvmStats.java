@@ -413,8 +413,8 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             }
 
             @Override public void writeTo(StreamOutput out) throws IOException {
-                out.writeLong(startTime);
-                out.writeLong(endTime);
+                out.writeVLong(startTime);
+                out.writeVLong(endTime);
                 out.writeVLong(max);
                 out.writeVLong(beforeUsed);
                 out.writeVLong(afterUsed);

@@ -85,7 +85,7 @@ public class TwitterIndexer extends AbstractIndexerComponent implements Indexer 
         if (settings.settings().containsKey("index")) {
             Map<String, Object> indexSettings = (Map<String, Object>) settings.settings().get("index");
             indexName = XContentMapValues.nodeStringValue(indexSettings.get("index"), indexerName.name());
-            typeName = XContentMapValues.nodeStringValue(indexSettings.get("type"), indexerName.name());
+            typeName = XContentMapValues.nodeStringValue(indexSettings.get("type"), "status");
         } else {
             indexName = indexerName.name();
             typeName = "status";

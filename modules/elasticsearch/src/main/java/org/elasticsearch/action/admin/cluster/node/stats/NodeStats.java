@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.nodes.NodeOperationResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.indices.IndicesStats;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.network.NetworkStats;
 import org.elasticsearch.monitor.os.OsStats;
@@ -39,6 +40,8 @@ import java.io.IOException;
  */
 public class NodeStats extends NodeOperationResponse {
 
+    private IndicesStats indices;
+
     private OsStats os;
 
     private ProcessStats process;
@@ -54,16 +57,31 @@ public class NodeStats extends NodeOperationResponse {
     NodeStats() {
     }
 
-    public NodeStats(DiscoveryNode node,
+    public NodeStats(DiscoveryNode node, IndicesStats indices,
                      OsStats os, ProcessStats process, JvmStats jvm, NetworkStats network,
                      ThreadPoolStats threadPool, TransportStats transport) {
         super(node);
+        this.indices = indices;
         this.os = os;
         this.process = process;
         this.jvm = jvm;
         this.network = network;
         this.threadPool = threadPool;
         this.transport = transport;
+    }
+
+    /**
+     * Indices level stats.
+     */
+    public IndicesStats indices() {
+        return this.indices;
+    }
+
+    /**
+     * Indices level stats.
+     */
+    public IndicesStats getIndices() {
+        return indices();
     }
 
     /**
@@ -153,6 +171,9 @@ public class NodeStats extends NodeOperationResponse {
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         if (in.readBoolean()) {
+            indices = IndicesStats.readIndicesStats(in);
+        }
+        if (in.readBoolean()) {
             os = OsStats.readOsStats(in);
         }
         if (in.readBoolean()) {
@@ -174,6 +195,12 @@ public class NodeStats extends NodeOperationResponse {
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        if (indices == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            indices.writeTo(out);
+        }
         if (os == null) {
             out.writeBoolean(false);
         } else {

@@ -34,6 +34,7 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Injectors;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadSafe;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.index.*;
@@ -50,6 +51,8 @@ import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.routing.OperationRoutingModule;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
+import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
@@ -58,6 +61,7 @@ import org.elasticsearch.plugins.IndexPluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -145,6 +149,20 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     @Override public IndicesLifecycle indicesLifecycle() {
         return this.indicesLifecycle;
+    }
+
+    @Override public IndicesStats stats() {
+        long totalSize = 0;
+        for (IndexService indexService : indices.values()) {
+            for (IndexShard indexShard : indexService) {
+                try {
+                    totalSize += ((InternalIndexShard) indexShard).store().estimateSize().bytes();
+                } catch (IOException e) {
+                    // ignore
+                }
+            }
+        }
+        return new IndicesStats(new ByteSizeValue(totalSize));
     }
 
     /**

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -42,11 +43,14 @@ public class TransportNodesStatsAction extends TransportNodesOperationAction<Nod
 
     private final MonitorService monitorService;
 
+    private final IndicesService indicesService;
+
     @Inject public TransportNodesStatsAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                              ClusterService clusterService, TransportService transportService,
-                                             MonitorService monitorService) {
+                                             MonitorService monitorService, IndicesService indicesService) {
         super(settings, clusterName, threadPool, clusterService, transportService);
         this.monitorService = monitorService;
+        this.indicesService = indicesService;
     }
 
     @Override protected String transportAction() {
@@ -85,7 +89,7 @@ public class TransportNodesStatsAction extends TransportNodesOperationAction<Nod
     }
 
     @Override protected NodeStats nodeOperation(NodeStatsRequest request) throws ElasticSearchException {
-        return new NodeStats(clusterService.state().nodes().localNode(),
+        return new NodeStats(clusterService.state().nodes().localNode(), indicesService.stats(),
                 monitorService.osService().stats(), monitorService.processService().stats(),
                 monitorService.jvmService().stats(), monitorService.networkService().stats(),
                 threadPool.stats(), transportService.stats());

@@ -142,7 +142,7 @@ public class IndexerClusterService extends AbstractLifecycleComponent<IndexerClu
     private class UpdateClusterStateListener implements PublishIndexerClusterStateAction.NewClusterStateListener {
         @Override public void onNewClusterState(final IndexerClusterState clusterState) {
             ClusterState state = clusterService.state();
-            if (!state.nodes().localNodeMaster()) {
+            if (state.nodes().localNodeMaster()) {
                 logger.warn("master should not receive new cluster state from [{}]", state.nodes().masterNode());
                 return;
             }

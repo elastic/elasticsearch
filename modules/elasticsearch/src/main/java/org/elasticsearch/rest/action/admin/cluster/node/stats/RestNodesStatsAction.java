@@ -61,6 +61,10 @@ public class RestNodesStatsAction extends BaseRestHandler {
 
                         builder.field("name", nodeStats.node().name());
 
+                        if (nodeStats.indices() != null) {
+                            nodeStats.indices().toXContent(builder, request);
+                        }
+
                         if (nodeStats.os() != null) {
                             nodeStats.os().toXContent(builder, request);
                         }

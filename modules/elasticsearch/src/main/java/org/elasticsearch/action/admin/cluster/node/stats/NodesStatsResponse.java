@@ -31,7 +31,7 @@ import java.io.IOException;
  */
 public class NodesStatsResponse extends NodesOperationResponse<NodeStats> {
 
-    public NodesStatsResponse() {
+    NodesStatsResponse() {
     }
 
     public NodesStatsResponse(ClusterName clusterName, NodeStats[] nodes) {

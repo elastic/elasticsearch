@@ -73,6 +73,16 @@ public class NetworkStats implements Streamable, Serializable, ToXContent {
         }
     }
 
+    @Override public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(timestamp);
+        if (tcp == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            tcp.writeTo(out);
+        }
+    }
+
     public long timestamp() {
         return timestamp;
     }
@@ -87,16 +97,6 @@ public class NetworkStats implements Streamable, Serializable, ToXContent {
 
     public Tcp getTcp() {
         return tcp();
-    }
-
-    @Override public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(timestamp);
-        if (tcp == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            tcp.writeTo(out);
-        }
     }
 
     public static class Tcp implements Serializable, Streamable {

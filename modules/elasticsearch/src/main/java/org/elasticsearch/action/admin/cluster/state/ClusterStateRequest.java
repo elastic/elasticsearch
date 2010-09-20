@@ -42,6 +42,8 @@ public class ClusterStateRequest extends MasterNodeOperationRequest {
 
     private String[] filteredIndices = Strings.EMPTY_ARRAY;
 
+    private boolean local = false;
+
     public ClusterStateRequest() {
     }
 
@@ -94,6 +96,15 @@ public class ClusterStateRequest extends MasterNodeOperationRequest {
         return this;
     }
 
+    public ClusterStateRequest local(boolean local) {
+        this.local = local;
+        return this;
+    }
+
+    public boolean local() {
+        return this.local;
+    }
+
     @Override public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         filterRoutingTable = in.readBoolean();
@@ -107,6 +118,7 @@ public class ClusterStateRequest extends MasterNodeOperationRequest {
                 filteredIndices[i] = in.readUTF();
             }
         }
+        local = in.readBoolean();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
@@ -119,5 +131,6 @@ public class ClusterStateRequest extends MasterNodeOperationRequest {
         for (String filteredIndex : filteredIndices) {
             out.writeUTF(filteredIndex);
         }
+        out.writeBoolean(local);
     }
 }

@@ -69,6 +69,7 @@ public class RestClusterStateAction extends BaseRestHandler {
         clusterStateRequest.filterMetaData(request.paramAsBoolean("filter_metadata", clusterStateRequest.filterMetaData()));
         clusterStateRequest.filterBlocks(request.paramAsBoolean("filter_blocks", clusterStateRequest.filterBlocks()));
         clusterStateRequest.filteredIndices(RestActions.splitIndices(request.param("filter_indices", null)));
+        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override public void onResponse(ClusterStateResponse response) {
                 try {

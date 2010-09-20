@@ -65,6 +65,10 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
 
     protected abstract Response masterOperation(Request request, ClusterState state) throws ElasticSearchException;
 
+    protected boolean localExecute(Request request) {
+        return false;
+    }
+
     protected void checkBlock(Request request, ClusterState state) {
 
     }
@@ -80,7 +84,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
     private void innerExecute(final Request request, final ActionListener<Response> listener, final boolean retrying) {
         final ClusterState clusterState = clusterService.state();
         final DiscoveryNodes nodes = clusterState.nodes();
-        if (nodes.localNodeMaster()) {
+        if (nodes.localNodeMaster() || localExecute(request)) {
             threadPool.execute(new Runnable() {
                 @Override public void run() {
                     try {
@@ -183,7 +187,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
 
         @Override public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
             final ClusterState clusterState = clusterService.state();
-            if (clusterState.nodes().localNodeMaster()) {
+            if (clusterState.nodes().localNodeMaster() || localExecute(request)) {
                 checkBlock(request, clusterState);
                 Response response = masterOperation(request, clusterState);
                 channel.sendResponse(response);

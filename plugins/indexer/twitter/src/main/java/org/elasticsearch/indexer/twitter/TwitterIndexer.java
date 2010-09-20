@@ -25,6 +25,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -98,15 +99,19 @@ public class TwitterIndexer extends AbstractIndexerComponent implements Indexer 
         logger.info("starting twitter stream");
         try {
             client.admin().indices().prepareCreate(indexName).execute().actionGet();
-            currentRequest = client.prepareBulk();
-            stream.sample();
         } catch (Exception e) {
             if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {
                 // that's fine
+            } else if (ExceptionsHelper.unwrapCause(e) instanceof ClusterBlockException) {
+                // ok, not recovered yet..., lets start indexing and hope we recover by the first bulk
+                // TODO: a smarter logic can be to register for cluster event listener here, and only start sampling when the block is removed...
             } else {
                 logger.warn("failed to create index [{}], disabling indexer...", e, indexName);
+                return;
             }
         }
+        currentRequest = client.prepareBulk();
+        stream.sample();
     }
 
     @Override public void close() {

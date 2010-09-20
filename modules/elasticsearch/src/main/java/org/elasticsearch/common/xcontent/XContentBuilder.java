@@ -239,6 +239,51 @@ public final class XContentBuilder {
         return this;
     }
 
+    public XContentBuilder field(String name, Object... value) throws IOException {
+        startArray(name);
+        for (Object o : value) {
+            value(o);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder field(String name, int... value) throws IOException {
+        startArray(name);
+        for (Object o : value) {
+            value(o);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder field(String name, long... value) throws IOException {
+        startArray(name);
+        for (Object o : value) {
+            value(o);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder field(String name, float... value) throws IOException {
+        startArray(name);
+        for (Object o : value) {
+            value(o);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder field(String name, double... value) throws IOException {
+        startArray(name);
+        for (Object o : value) {
+            value(o);
+        }
+        endArray();
+        return this;
+    }
+
     public XContentBuilder field(String name, Object value) throws IOException {
         if (value == null) {
             nullField(name);
@@ -267,6 +312,16 @@ public final class XContentBuilder {
             field(name, (Map<String, Object>) value);
         } else if (value instanceof List) {
             field(name, (List) value);
+        } else if (value instanceof Object[]) {
+            field(name, (Object[]) value);
+        } else if (value instanceof int[]) {
+            field(name, (int[]) value);
+        } else if (value instanceof long[]) {
+            field(name, (long[]) value);
+        } else if (value instanceof float[]) {
+            field(name, (float[]) value);
+        } else if (value instanceof double[]) {
+            field(name, (double[]) value);
         } else {
             field(name, value.toString());
         }

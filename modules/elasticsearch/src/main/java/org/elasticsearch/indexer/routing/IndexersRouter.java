@@ -35,11 +35,13 @@ import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.indexer.IndexerIndexName;
 import org.elasticsearch.indexer.IndexerName;
 import org.elasticsearch.indexer.cluster.IndexerClusterService;
 import org.elasticsearch.indexer.cluster.IndexerClusterState;
 import org.elasticsearch.indexer.cluster.IndexerClusterStateUpdateTask;
 import org.elasticsearch.indexer.cluster.IndexerNodeHelper;
+import org.elasticsearch.indices.IndexMissingException;
 
 import java.util.Iterator;
 import java.util.List;
@@ -58,7 +60,7 @@ public class IndexersRouter extends AbstractLifecycleComponent<IndexersRouter> i
 
     @Inject public IndexersRouter(Settings settings, Client client, ClusterService clusterService, IndexerClusterService indexerClusterService) {
         super(settings);
-        this.indexerIndexName = settings.get("indexer.index_name", "indexer");
+        this.indexerIndexName = IndexerIndexName.Conf.indexName(settings);
         this.indexerClusterService = indexerClusterService;
         this.client = client;
         clusterService.add(this);
@@ -110,6 +112,8 @@ public class IndexersRouter extends AbstractLifecycleComponent<IndexersRouter> i
                                     }
                                 }
                             } catch (ClusterBlockException e) {
+                                // ignore, we will get it next time
+                            } catch (IndexMissingException e) {
                                 // ignore, we will get it next time
                             } catch (Exception e) {
                                 logger.warn("failed to get/parse _meta for [{}]", e, mappingType);

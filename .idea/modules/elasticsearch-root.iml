@@ -20,6 +20,7 @@
     <orderEntry type="module" module-name="plugin-analysis-icu" />
     <orderEntry type="module" module-name="plugins-hadoop" />
     <orderEntry type="module" module-name="plugin-cloud-aws" />
+    <orderEntry type="module" module-name="plugin-indexer-twitter" />
     <orderEntry type="module" module-name="test-integration" />
   </component>
 </module>

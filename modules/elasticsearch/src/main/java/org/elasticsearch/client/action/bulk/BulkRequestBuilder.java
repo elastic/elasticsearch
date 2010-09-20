@@ -75,6 +75,13 @@ public class BulkRequestBuilder extends BaseRequestBuilder<BulkRequest, BulkResp
         return this;
     }
 
+    /**
+     * The number of actions currently in the bulk.
+     */
+    public int numberOfActions() {
+        return request.numberOfActions();
+    }
+
     @Override protected void doExecute(ActionListener<BulkResponse> listener) {
         client.bulk(request, listener);
     }

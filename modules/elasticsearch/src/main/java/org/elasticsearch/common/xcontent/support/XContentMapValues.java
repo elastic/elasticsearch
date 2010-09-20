@@ -63,6 +63,16 @@ public class XContentMapValues {
         return Integer.parseInt(node.toString());
     }
 
+    public static int nodeIntegerValue(Object node, int defaultValue) {
+        if (node == null) {
+            return defaultValue;
+        }
+        if (node instanceof Number) {
+            return ((Number) node).intValue();
+        }
+        return Integer.parseInt(node.toString());
+    }
+
     public static short nodeShortValue(Object node) {
         if (node instanceof Number) {
             return ((Number) node).shortValue();

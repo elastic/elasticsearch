@@ -47,6 +47,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.indexer.IndexerIndexName;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -128,7 +129,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         listener.onFailure(new InvalidIndexNameException(new Index(request.index), request.index, "must not contain '#"));
                         return currentState;
                     }
-                    if (request.index.charAt(0) == '_') {
+                    if (!request.index.equals(IndexerIndexName.Conf.DEFAULT_INDEXER_NAME) && request.index.charAt(0) == '_') {
                         listener.onFailure(new InvalidIndexNameException(new Index(request.index), request.index, "must not start with '_'"));
                         return currentState;
                     }

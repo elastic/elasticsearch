@@ -66,6 +66,10 @@ public class BulkRequest implements ActionRequest {
         return this;
     }
 
+    public int numberOfActions() {
+        return requests.size();
+    }
+
     @Override public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (requests.isEmpty()) {

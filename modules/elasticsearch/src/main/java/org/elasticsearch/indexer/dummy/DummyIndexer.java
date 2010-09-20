@@ -35,6 +35,10 @@ public class DummyIndexer extends AbstractIndexerComponent implements Indexer {
         logger.info("create");
     }
 
+    @Override public void start() {
+        logger.info("start");
+    }
+
     @Override public void close() {
         logger.info("close");
     }

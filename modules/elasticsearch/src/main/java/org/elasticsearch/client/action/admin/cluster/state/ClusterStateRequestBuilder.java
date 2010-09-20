@@ -87,6 +87,14 @@ public class ClusterStateRequestBuilder extends BaseClusterRequestBuilder<Cluste
         return this;
     }
 
+    /**
+     * Sets if the cluster state request should be executed locally on the node, and not go to the master.
+     */
+    public ClusterStateRequestBuilder setLocal(boolean local) {
+        request.local(local);
+        return this;
+    }
+
     @Override protected void doExecute(ActionListener<ClusterStateResponse> listener) {
         client.state(request, listener);
     }

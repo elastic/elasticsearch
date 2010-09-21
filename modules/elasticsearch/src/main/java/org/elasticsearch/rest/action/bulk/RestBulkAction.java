@@ -23,16 +23,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.*;
 
 import java.io.IOException;
@@ -64,72 +59,8 @@ public class RestBulkAction extends BaseRestHandler {
     @Override public void handleRequest(final RestRequest request, final RestChannel channel) {
         BulkRequest bulkRequest = Requests.bulkRequest();
 
-        int fromIndex = request.contentByteArrayOffset();
-        byte[] data = request.contentByteArray();
-        int length = request.contentLength();
-
         try {
-            // first, guess the content
-            XContent xContent = XContentFactory.xContent(data, fromIndex, length);
-            byte marker = xContent.streamSeparator();
-            while (true) {
-                int nextMarker = findNextMarker(marker, fromIndex, data, length);
-                if (nextMarker == -1) {
-                    break;
-                }
-                // now parse the action
-                XContentParser parser = xContent.createParser(data, fromIndex, nextMarker - fromIndex);
-
-                // move pointers
-                fromIndex = nextMarker + 1;
-
-                // Move to START_OBJECT
-                XContentParser.Token token = parser.nextToken();
-                if (token == null) {
-                    continue;
-                }
-                assert token == XContentParser.Token.START_OBJECT;
-                // Move to FIELD_NAME, that's the action
-                token = parser.nextToken();
-                assert token == XContentParser.Token.FIELD_NAME;
-                String action = parser.currentName();
-                // Move to START_OBJECT
-                token = parser.nextToken();
-                assert token == XContentParser.Token.START_OBJECT;
-
-                String index = null;
-                String type = null;
-                String id = null;
-
-                String currentFieldName = null;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else if (token.isValue()) {
-                        if ("index".equals(currentFieldName)) {
-                            index = parser.text();
-                        } else if ("type".equals(currentFieldName)) {
-                            type = parser.text();
-                        } else if ("id".equals(currentFieldName)) {
-                            id = parser.text();
-                        }
-                    }
-                }
-
-                if ("delete".equals(action)) {
-                    bulkRequest.add(new DeleteRequest(index, type, id));
-                } else {
-                    nextMarker = findNextMarker(marker, fromIndex, data, length);
-                    if (nextMarker == -1) {
-                        break;
-                    }
-                    bulkRequest.add(new IndexRequest(index, type, id)
-                            .create("create".equals(action))
-                            .source(data, fromIndex, nextMarker - fromIndex, request.contentUnsafe()));
-                    // move pointers
-                    fromIndex = nextMarker + 1;
-                }
-            }
+            bulkRequest.add(request.contentByteArray(), request.contentByteArrayOffset(), request.contentLength(), request.contentUnsafe());
         } catch (Exception e) {
             try {
                 XContentBuilder builder = restContentBuilder(request);

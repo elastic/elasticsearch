@@ -76,6 +76,14 @@ public class BulkRequestBuilder extends BaseRequestBuilder<BulkRequest, BulkResp
     }
 
     /**
+     * Adds a framed data in binary format
+     */
+    public BulkRequestBuilder add(byte[] data, int from, int length, boolean contentUnsafe) throws Exception {
+        request.add(data, from, length, contentUnsafe);
+        return this;
+    }
+
+    /**
      * The number of actions currently in the bulk.
      */
     public int numberOfActions() {

@@ -97,6 +97,9 @@ public class RestSearchAction extends BaseRestHandler {
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (Exception e) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("failed to execute search (building response)", e);
+                    }
                     onFailure(e);
                 }
             }

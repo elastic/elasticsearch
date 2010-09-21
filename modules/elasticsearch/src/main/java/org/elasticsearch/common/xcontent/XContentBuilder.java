@@ -462,6 +462,9 @@ public final class XContentBuilder {
     }
 
     public XContentBuilder value(Object value) throws IOException {
+        if (value == null) {
+            return nullValue();
+        }
         Class type = value.getClass();
         if (type == String.class) {
             value((String) value);

@@ -387,6 +387,10 @@ public class SearchContext implements Releasable {
         this.keepAliveTimeout = keepAliveTimeout;
     }
 
+    public Timeout keepAliveTimeout() {
+        return this.keepAliveTimeout;
+    }
+
     public DfsSearchResult dfsResult() {
         return dfsResult;
     }

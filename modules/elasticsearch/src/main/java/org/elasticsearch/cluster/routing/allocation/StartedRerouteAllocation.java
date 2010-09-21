@@ -19,33 +19,25 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 
 import java.util.List;
 
 /**
- * Only allow rebalancing when all shards are active within the shard replication group.
- *
  * @author kimchy (shay.banon)
  */
-public class RebalanceOnlyWhenActiveNodeAllocation extends NodeAllocation {
+public class StartedRerouteAllocation extends RoutingAllocation {
 
-    @Inject public RebalanceOnlyWhenActiveNodeAllocation(Settings settings) {
-        super(settings);
+    private final List<? extends ShardRouting> startedShards;
+
+    public StartedRerouteAllocation(RoutingNodes routingNodes, DiscoveryNodes nodes, List<? extends ShardRouting> startedShards) {
+        super(routingNodes, nodes);
+        this.startedShards = startedShards;
     }
 
-    @Override public boolean canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-        List<MutableShardRouting> shards = allocation.routingNodes().shardsRoutingFor(shardRouting);
-        // its ok to check for active here, since in relocation, a shard is split into two in routing
-        // nodes, once relocating, and one initializing
-        for (ShardRouting allShard : shards) {
-            if (!allShard.active()) {
-                return false;
-            }
-        }
-        return true;
+    public List<? extends ShardRouting> startedShards() {
+        return startedShards;
     }
 }

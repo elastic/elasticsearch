@@ -19,14 +19,10 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
-
-import java.util.List;
 
 /**
  * A pluggable logic allowing to control if allocation of a shard is allowed on a specific node.
@@ -56,22 +52,22 @@ public abstract class NodeAllocation extends AbstractComponent {
         super(settings);
     }
 
-    public void applyStartedShards(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes, List<? extends ShardRouting> startedShards) {
+    public void applyStartedShards(NodeAllocations nodeAllocations, StartedRerouteAllocation allocation) {
     }
 
-    public void applyFailedShards(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes, List<? extends ShardRouting> failedShards) {
+    public void applyFailedShards(NodeAllocations nodeAllocations, FailedRerouteAllocation allocation) {
 
     }
 
-    public boolean allocateUnassigned(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes) {
+    public boolean allocateUnassigned(NodeAllocations nodeAllocations, RoutingAllocation allocation) {
         return false;
     }
 
-    public boolean canRebalance(ShardRouting shardRouting, RoutingNodes routingNodes, DiscoveryNodes nodes) {
+    public boolean canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
         return true;
     }
 
-    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingNodes routingNodes) {
+    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return Decision.YES;
     }
 }

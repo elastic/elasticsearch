@@ -19,10 +19,8 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -38,15 +36,11 @@ public class ReplicaAfterPrimaryActiveNodeAllocation extends NodeAllocation {
         super(settings);
     }
 
-    @Override public boolean allocateUnassigned(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes) {
-        return false;
-    }
-
-    @Override public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingNodes routingNodes) {
+    @Override public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (shardRouting.primary()) {
             return Decision.YES;
         }
-        MutableShardRouting primary = routingNodes.findPrimaryForReplica(shardRouting);
+        MutableShardRouting primary = allocation.routingNodes().findPrimaryForReplica(shardRouting);
         if (primary == null || !primary.active()) {
             return Decision.NO;
         }

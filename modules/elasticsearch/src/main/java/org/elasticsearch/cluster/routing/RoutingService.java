@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardsAllocation;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -120,12 +121,12 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
                 }
                 clusterService.submitStateUpdateTask(CLUSTER_UPDATE_TASK_SOURCE, new ClusterStateUpdateTask() {
                     @Override public ClusterState execute(ClusterState currentState) {
-                        RoutingTable newRoutingTable = shardsAllocation.reroute(currentState);
-                        if (newRoutingTable == currentState.routingTable()) {
+                        RoutingAllocation.Result routingResult = shardsAllocation.reroute(currentState);
+                        if (!routingResult.changed()) {
                             // no state changed
                             return currentState;
                         }
-                        return newClusterStateBuilder().state(currentState).routingTable(newRoutingTable).build();
+                        return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
                     }
                 });
                 routingTableDirty = false;

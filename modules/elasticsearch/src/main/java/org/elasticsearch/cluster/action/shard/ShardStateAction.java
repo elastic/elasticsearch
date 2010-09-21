@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardsAllocation;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -124,12 +125,11 @@ public class ShardStateAction extends AbstractComponent {
                 if (logger.isDebugEnabled()) {
                     logger.debug("Applying failed shard {}, reason [{}]", shardRouting, reason);
                 }
-                RoutingTable prevRoutingTable = currentState.routingTable();
-                RoutingTable newRoutingTable = shardsAllocation.applyFailedShards(currentState, newArrayList(shardRouting));
-                if (prevRoutingTable == newRoutingTable) {
+                RoutingAllocation.Result routingResult = shardsAllocation.applyFailedShards(currentState, newArrayList(shardRouting));
+                if (!routingResult.changed()) {
                     return currentState;
                 }
-                return newClusterStateBuilder().state(currentState).routingTable(newRoutingTable).build();
+                return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
             }
         });
     }
@@ -163,11 +163,11 @@ public class ShardStateAction extends AbstractComponent {
                 if (logger.isDebugEnabled()) {
                     logger.debug("applying started shard {}, reason [{}]", shardRouting, reason);
                 }
-                RoutingTable newRoutingTable = shardsAllocation.applyStartedShards(currentState, newArrayList(shardRouting));
-                if (routingTable == newRoutingTable) {
+                RoutingAllocation.Result routingResult = shardsAllocation.applyStartedShards(currentState, newArrayList(shardRouting));
+                if (!routingResult.changed()) {
                     return currentState;
                 }
-                return newClusterStateBuilder().state(currentState).routingTable(newRoutingTable).build();
+                return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
             }
         });
     }

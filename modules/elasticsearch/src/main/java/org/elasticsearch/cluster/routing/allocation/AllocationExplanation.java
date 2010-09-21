@@ -86,8 +86,13 @@ public class AllocationExplanation implements Streamable {
             int size2 = in.readVInt();
             List<NodeExplanation> ne = Lists.newArrayListWithCapacity(size2);
             for (int j = 0; j < size2; j++) {
-                ne.add(new NodeExplanation(DiscoveryNode.readNode(in), in.readUTF()));
+                DiscoveryNode node = null;
+                if (in.readBoolean()) {
+                    node = DiscoveryNode.readNode(in);
+                }
+                ne.add(new NodeExplanation(node, in.readUTF()));
             }
+            explanations.put(shardId, ne);
         }
     }
 
@@ -97,7 +102,12 @@ public class AllocationExplanation implements Streamable {
             entry.getKey().writeTo(out);
             out.writeVInt(entry.getValue().size());
             for (NodeExplanation nodeExplanation : entry.getValue()) {
-                nodeExplanation.node().writeTo(out);
+                if (nodeExplanation.node() == null) {
+                    out.writeBoolean(false);
+                } else {
+                    out.writeBoolean(true);
+                    nodeExplanation.node().writeTo(out);
+                }
                 out.writeUTF(nodeExplanation.description());
             }
         }

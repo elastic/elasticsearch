@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocationExplanation;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
@@ -40,11 +41,13 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -206,6 +209,29 @@ public class RestClusterStateAction extends BaseRestHandler {
 
                         builder.endObject();
                     }
+
+                    if (!clusterStateRequest.filterRoutingTable()) {
+                        builder.startArray("allocations");
+                        for (Map.Entry<ShardId, List<AllocationExplanation.NodeExplanation>> entry : state.allocationExplanation().explanations().entrySet()) {
+                            builder.startObject();
+                            builder.field("index", entry.getKey().index().name());
+                            builder.field("shard", entry.getKey().id());
+                            builder.startArray("explanations");
+                            for (AllocationExplanation.NodeExplanation nodeExplanation : entry.getValue()) {
+                                builder.field("desc", nodeExplanation.description());
+                                if (nodeExplanation.node() != null) {
+                                    builder.startObject("node");
+                                    builder.field("id", nodeExplanation.node().id());
+                                    builder.field("name", nodeExplanation.node().name());
+                                    builder.endObject();
+                                }
+                            }
+                            builder.endArray();
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+
 
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, RestResponse.Status.OK, builder));

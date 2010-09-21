@@ -84,8 +84,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     private final NodeIndexCreatedAction nodeIndexCreatedAction;
 
+    private final String riverIndexName;
+
     @Inject public MetaDataCreateIndexService(Settings settings, Environment environment, TimerService timerService, ClusterService clusterService, IndicesService indicesService,
-                                              ShardsAllocation shardsAllocation, NodeIndexCreatedAction nodeIndexCreatedAction) {
+                                              ShardsAllocation shardsAllocation, NodeIndexCreatedAction nodeIndexCreatedAction, @RiverIndexName String riverIndexName) {
         super(settings);
         this.environment = environment;
         this.timerService = timerService;
@@ -93,6 +95,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.indicesService = indicesService;
         this.shardsAllocation = shardsAllocation;
         this.nodeIndexCreatedAction = nodeIndexCreatedAction;
+        this.riverIndexName = riverIndexName;
     }
 
     public void createIndex(final Request request, final Listener userListener) {
@@ -130,7 +133,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         listener.onFailure(new InvalidIndexNameException(new Index(request.index), request.index, "must not contain '#"));
                         return currentState;
                     }
-                    if (!request.index.equals(RiverIndexName.Conf.DEFAULT_INDEX_NAME) && request.index.charAt(0) == '_') {
+                    if (!request.index.equals(riverIndexName) && request.index.charAt(0) == '_') {
                         listener.onFailure(new InvalidIndexNameException(new Index(request.index), request.index, "must not start with '_'"));
                         return currentState;
                     }
@@ -168,10 +171,18 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                     ImmutableSettings.Builder indexSettingsBuilder = settingsBuilder().put(request.settings);
                     if (request.settings.get(SETTING_NUMBER_OF_SHARDS) == null) {
-                        indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
+                        if (request.index.equals(riverIndexName)) {
+                            indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1));
+                        } else {
+                            indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
+                        }
                     }
                     if (request.settings.get(SETTING_NUMBER_OF_REPLICAS) == null) {
-                        indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
+                        if (request.index.equals(riverIndexName)) {
+                            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 2));
+                        } else {
+                            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
+                        }
                     }
                     Settings actualIndexSettings = indexSettingsBuilder.build();
 

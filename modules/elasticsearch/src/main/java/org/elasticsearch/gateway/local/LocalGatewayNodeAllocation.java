@@ -25,8 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocation;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocations;
+import org.elasticsearch.cluster.routing.allocation.*;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.collect.Tuple;
@@ -47,7 +46,6 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.transport.ConnectTransportException;
 
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
@@ -82,26 +80,26 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
         this.initialShards = componentSettings.get("initial_shards", "quorum");
     }
 
-    @Override public void applyStartedShards(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes, List<? extends ShardRouting> startedShards) {
-        for (ShardRouting shardRouting : startedShards) {
+    @Override public void applyStartedShards(NodeAllocations nodeAllocations, StartedRerouteAllocation allocation) {
+        for (ShardRouting shardRouting : allocation.startedShards()) {
             cachedStores.remove(shardRouting.shardId());
         }
     }
 
-    @Override public void applyFailedShards(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes, List<? extends ShardRouting> failedShards) {
-        for (ShardRouting shardRouting : failedShards) {
+    @Override public void applyFailedShards(NodeAllocations nodeAllocations, FailedRerouteAllocation allocation) {
+        for (ShardRouting shardRouting : allocation.failedShards()) {
             cachedStores.remove(shardRouting.shardId());
         }
-        for (ShardRouting failedShard : failedShards) {
-            IndexRoutingTable indexRoutingTable = routingNodes.routingTable().index(failedShard.index());
-            if (!routingNodes.blocks().hasIndexBlock(indexRoutingTable.index(), LocalGateway.INDEX_NOT_RECOVERED_BLOCK)) {
+        for (ShardRouting failedShard : allocation.failedShards()) {
+            IndexRoutingTable indexRoutingTable = allocation.routingTable().index(failedShard.index());
+            if (!allocation.routingNodes().blocks().hasIndexBlock(indexRoutingTable.index(), LocalGateway.INDEX_NOT_RECOVERED_BLOCK)) {
                 continue;
             }
 
             // we are still in the initial allocation, find another node with existing shards
             // all primary are unassigned for the index, see if we can allocate it on existing nodes, if not, don't assign
             Set<String> nodesIds = Sets.newHashSet();
-            nodesIds.addAll(nodes.dataNodes().keySet());
+            nodesIds.addAll(allocation.nodes().dataNodes().keySet());
             TransportNodesListGatewayStartedShards.NodesLocalGatewayStartedShards nodesState = listGatewayStartedShards.list(nodesIds, null).actionGet();
 
             // make a list of ShardId to Node, each one from the latest version
@@ -125,7 +123,7 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
             }
             if (t != null) {
                 // we found a node to allocate to, do it
-                RoutingNode currentRoutingNode = routingNodes.nodesToShards().get(failedShard.currentNodeId());
+                RoutingNode currentRoutingNode = allocation.routingNodes().nodesToShards().get(failedShard.currentNodeId());
                 if (currentRoutingNode == null) {
                     // already failed (might be called several times for the same shard)
                     continue;
@@ -142,7 +140,7 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
                     }
                 }
 
-                RoutingNode targetNode = routingNodes.nodesToShards().get(t.v1().id());
+                RoutingNode targetNode = allocation.routingNodes().nodesToShards().get(t.v1().id());
                 targetNode.add(new MutableShardRouting(failedShard.index(), failedShard.id(),
                         targetNode.nodeId(), failedShard.relocatingNodeId(),
                         failedShard.primary(), INITIALIZING));
@@ -150,8 +148,10 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
         }
     }
 
-    @Override public boolean allocateUnassigned(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes) {
+    @Override public boolean allocateUnassigned(NodeAllocations nodeAllocations, RoutingAllocation allocation) {
         boolean changed = false;
+        DiscoveryNodes nodes = allocation.nodes();
+        RoutingNodes routingNodes = allocation.routingNodes();
 
         for (IndexRoutingTable indexRoutingTable : routingNodes.routingTable()) {
             // only do the allocation if there is a local "INDEX NOT RECOVERED" block
@@ -266,7 +266,7 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
                     continue;
                 }
                 // if its THROTTLING, we are not going to allocate it to this node, so ignore it as well
-                if (nodeAllocations.canAllocate(shard, node, routingNodes).allocate()) {
+                if (nodeAllocations.canAllocate(shard, node, allocation).allocate()) {
                     canBeAllocatedToAtLeastOneNode = true;
                     break;
                 }
@@ -300,7 +300,7 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
                 // check if we can allocate on that node...
                 // we only check for NO, since if this node is THROTTLING and it has enough "same data"
                 // then we will try and assign it next time
-                if (nodeAllocations.canAllocate(shard, node, routingNodes) == Decision.NO) {
+                if (nodeAllocations.canAllocate(shard, node, allocation) == Decision.NO) {
                     continue;
                 }
 
@@ -335,7 +335,7 @@ public class LocalGatewayNodeAllocation extends NodeAllocation {
             }
 
             if (lastNodeMatched != null) {
-                if (nodeAllocations.canAllocate(shard, lastNodeMatched, routingNodes) == NodeAllocation.Decision.THROTTLE) {
+                if (nodeAllocations.canAllocate(shard, lastNodeMatched, allocation) == NodeAllocation.Decision.THROTTLE) {
                     if (logger.isTraceEnabled()) {
                         logger.debug("[{}][{}]: throttling allocation [{}] to [{}] in order to reuse its unallocated persistent store with total_size [{}]", shard.index(), shard.id(), shard, lastDiscoNodeMatched, new ByteSizeValue(lastSizeMatched));
                     }

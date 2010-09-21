@@ -65,19 +65,19 @@ public class ElectReplicaAsPrimaryDuringRelocationTests {
         logger.info("Adding two nodes and performing rerouting");
         clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().put(newNode("node1")).put(newNode("node2"))).build();
         RoutingTable prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState);
+        routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         logger.info("Start the primary shards");
         RoutingNodes routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         logger.info("Start the replica shards");
         routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
 
@@ -89,7 +89,7 @@ public class ElectReplicaAsPrimaryDuringRelocationTests {
         logger.info("Start another node and perform rerouting");
         clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes()).put(newNode("node3"))).build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState);
+        routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         logger.info("find the replica shard that gets relocated");
@@ -105,7 +105,7 @@ public class ElectReplicaAsPrimaryDuringRelocationTests {
         logger.info("kill the node [{}] of the primary shard for the relocating replica", indexShardRoutingTable.primaryShard().currentNodeId());
         clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes()).remove(indexShardRoutingTable.primaryShard().currentNodeId())).build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState);
+        routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         logger.info("make sure all the primary shards are active");

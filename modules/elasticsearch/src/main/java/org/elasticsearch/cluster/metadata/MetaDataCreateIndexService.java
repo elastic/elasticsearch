@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardsAllocation;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Maps;
@@ -295,8 +296,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(request.index)
                                 .initializeEmpty(currentState.metaData().index(request.index));
                         routingTableBuilder.add(indexRoutingBuilder);
-                        RoutingTable newRoutingTable = shardsAllocation.reroute(newClusterStateBuilder().state(currentState).routingTable(routingTableBuilder).build());
-                        return newClusterStateBuilder().state(currentState).routingTable(newRoutingTable).build();
+                        RoutingAllocation.Result routingResult = shardsAllocation.reroute(newClusterStateBuilder().state(currentState).routingTable(routingTableBuilder).build());
+                        return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
                     }
 
                     @Override public void clusterStateProcessed(ClusterState clusterState) {

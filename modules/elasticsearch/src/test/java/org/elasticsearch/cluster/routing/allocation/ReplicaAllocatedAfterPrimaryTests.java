@@ -73,7 +73,7 @@ public class ReplicaAllocatedAfterPrimaryTests {
         clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().put(newNode("node1")).put(newNode("node2"))).build();
 
         RoutingTable prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState);
+        routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
@@ -89,7 +89,7 @@ public class ReplicaAllocatedAfterPrimaryTests {
         logger.info("Start all the primary shards");
         RoutingNodes routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.node("node1").shardsWithState(INITIALIZING));
+        routingTable = strategy.applyStartedShards(clusterState, routingNodes.node("node1").shardsWithState(INITIALIZING)).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));

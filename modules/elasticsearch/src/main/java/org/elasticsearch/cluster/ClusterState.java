@@ -25,6 +25,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.allocation.AllocationExplanation;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.settings.Settings;
 
@@ -46,19 +48,22 @@ public class ClusterState {
 
     private final ClusterBlocks blocks;
 
+    private final AllocationExplanation allocationExplanation;
+
     // built on demand
     private volatile RoutingNodes routingNodes;
 
     public ClusterState(long version, ClusterState state) {
-        this(version, state.metaData(), state.routingTable(), state.nodes(), state.blocks());
+        this(version, state.metaData(), state.routingTable(), state.nodes(), state.blocks(), state.allocationExplanation());
     }
 
-    public ClusterState(long version, MetaData metaData, RoutingTable routingTable, DiscoveryNodes nodes, ClusterBlocks blocks) {
+    public ClusterState(long version, MetaData metaData, RoutingTable routingTable, DiscoveryNodes nodes, ClusterBlocks blocks, AllocationExplanation allocationExplanation) {
         this.version = version;
         this.metaData = metaData;
         this.routingTable = routingTable;
         this.nodes = nodes;
         this.blocks = blocks;
+        this.allocationExplanation = allocationExplanation;
     }
 
     public long version() {
@@ -109,6 +114,14 @@ public class ClusterState {
         return blocks;
     }
 
+    public AllocationExplanation allocationExplanation() {
+        return this.allocationExplanation;
+    }
+
+    public AllocationExplanation getAllocationExplanation() {
+        return allocationExplanation();
+    }
+
     /**
      * Returns a built (on demand) routing nodes view of the routing table. <b>NOTE, the routing nodes
      * are mutable, use them just for read operations</b>
@@ -141,6 +154,8 @@ public class ClusterState {
 
         private ClusterBlocks blocks = ClusterBlocks.EMPTY_CLUSTER_BLOCK;
 
+        private AllocationExplanation allocationExplanation = AllocationExplanation.EMPTY;
+
         public Builder nodes(DiscoveryNodes.Builder nodesBuilder) {
             return nodes(nodesBuilder.build());
         }
@@ -152,6 +167,12 @@ public class ClusterState {
 
         public Builder routingTable(RoutingTable.Builder routingTable) {
             return routingTable(routingTable.build());
+        }
+
+        public Builder routingResult(RoutingAllocation.Result routingResult) {
+            this.routingTable = routingResult.routingTable();
+            this.allocationExplanation = routingResult.explanation();
+            return this;
         }
 
         public Builder routingTable(RoutingTable routingTable) {
@@ -177,6 +198,11 @@ public class ClusterState {
             return this;
         }
 
+        public Builder allocationExplanation(AllocationExplanation allocationExplanation) {
+            this.allocationExplanation = allocationExplanation;
+            return this;
+        }
+
         public Builder version(long version) {
             this.version = version;
             return this;
@@ -188,11 +214,12 @@ public class ClusterState {
             this.routingTable = state.routingTable();
             this.metaData = state.metaData();
             this.blocks = state.blocks();
+            this.allocationExplanation = state.allocationExplanation();
             return this;
         }
 
         public ClusterState build() {
-            return new ClusterState(version, metaData, routingTable, nodes, blocks);
+            return new ClusterState(version, metaData, routingTable, nodes, blocks, allocationExplanation);
         }
 
         public static byte[] toBytes(ClusterState state) throws IOException {
@@ -211,6 +238,7 @@ public class ClusterState {
             RoutingTable.Builder.writeTo(state.routingTable(), out);
             DiscoveryNodes.Builder.writeTo(state.nodes(), out);
             ClusterBlocks.Builder.writeClusterBlocks(state.blocks(), out);
+            state.allocationExplanation().writeTo(out);
         }
 
         public static ClusterState readFrom(StreamInput in, @Nullable Settings globalSettings, @Nullable DiscoveryNode localNode) throws IOException {
@@ -220,6 +248,7 @@ public class ClusterState {
             builder.routingTable = RoutingTable.Builder.readFrom(in);
             builder.nodes = DiscoveryNodes.Builder.readFrom(in, localNode);
             builder.blocks = ClusterBlocks.Builder.readClusterBlocks(in);
+            builder.allocationExplanation = AllocationExplanation.readAllocationExplanation(in);
             return builder.build();
         }
     }

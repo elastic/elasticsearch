@@ -74,7 +74,7 @@ public class RebalanceAfterActiveTests {
         logger.info("start two nodes and fully start the shards");
         clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().put(newNode("node1")).put(newNode("node2"))).build();
         RoutingTable prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState);
+        routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
@@ -86,7 +86,7 @@ public class RebalanceAfterActiveTests {
         logger.info("start all the primary shards, replicas will start initializing");
         RoutingNodes routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
 
@@ -101,7 +101,7 @@ public class RebalanceAfterActiveTests {
                 .put(newNode("node3")).put(newNode("node4")).put(newNode("node5")).put(newNode("node6")).put(newNode("node7")).put(newNode("node8")).put(newNode("node9")).put(newNode("node10")))
                 .build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState);
+        routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
 
@@ -114,7 +114,7 @@ public class RebalanceAfterActiveTests {
         logger.info("start the replica shards, rebalancing should start");
         routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
 
@@ -125,7 +125,7 @@ public class RebalanceAfterActiveTests {
         logger.info("complete relocation, other half of relocation should happen");
         routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
 
@@ -136,7 +136,7 @@ public class RebalanceAfterActiveTests {
         logger.info("complete relocation, thats it!");
         routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.routingNodes();
 

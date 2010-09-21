@@ -19,15 +19,12 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -54,39 +51,39 @@ public class NodeAllocations extends NodeAllocation {
         this.allocations = allocations.toArray(new NodeAllocation[allocations.size()]);
     }
 
-    @Override public void applyStartedShards(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes, List<? extends ShardRouting> startedShards) {
-        for (NodeAllocation allocation : allocations) {
-            allocation.applyStartedShards(nodeAllocations, routingNodes, nodes, startedShards);
+    @Override public void applyStartedShards(NodeAllocations nodeAllocations, StartedRerouteAllocation allocation) {
+        for (NodeAllocation allocation1 : allocations) {
+            allocation1.applyStartedShards(nodeAllocations, allocation);
         }
     }
 
-    @Override public void applyFailedShards(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes, List<? extends ShardRouting> failedShards) {
-        for (NodeAllocation allocation : allocations) {
-            allocation.applyFailedShards(nodeAllocations, routingNodes, nodes, failedShards);
+    @Override public void applyFailedShards(NodeAllocations nodeAllocations, FailedRerouteAllocation allocation) {
+        for (NodeAllocation allocation1 : allocations) {
+            allocation1.applyFailedShards(nodeAllocations, allocation);
         }
     }
 
-    @Override public boolean canRebalance(ShardRouting shardRouting, RoutingNodes routingNodes, DiscoveryNodes nodes) {
-        for (NodeAllocation allocation : allocations) {
-            if (!allocation.canRebalance(shardRouting, routingNodes, nodes)) {
+    @Override public boolean canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
+        for (NodeAllocation allocation1 : allocations) {
+            if (!allocation1.canRebalance(shardRouting, allocation)) {
                 return false;
             }
         }
         return true;
     }
 
-    @Override public boolean allocateUnassigned(NodeAllocations nodeAllocations, RoutingNodes routingNodes, DiscoveryNodes nodes) {
+    @Override public boolean allocateUnassigned(NodeAllocations nodeAllocations, RoutingAllocation allocation) {
         boolean changed = false;
-        for (NodeAllocation allocation : allocations) {
-            changed |= allocation.allocateUnassigned(nodeAllocations, routingNodes, nodes);
+        for (NodeAllocation allocation1 : allocations) {
+            changed |= allocation1.allocateUnassigned(nodeAllocations, allocation);
         }
         return changed;
     }
 
-    @Override public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingNodes routingNodes) {
+    @Override public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         Decision ret = Decision.YES;
-        for (NodeAllocation allocation : allocations) {
-            Decision decision = allocation.canAllocate(shardRouting, node, routingNodes);
+        for (NodeAllocation allocation1 : allocations) {
+            Decision decision = allocation1.canAllocate(shardRouting, node, allocation);
             if (decision == Decision.NO) {
                 return Decision.NO;
             } else if (decision == Decision.THROTTLE) {

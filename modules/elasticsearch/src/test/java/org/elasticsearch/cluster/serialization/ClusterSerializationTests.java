@@ -57,7 +57,7 @@ public class ClusterSerializationTests {
         ClusterState clusterState = newClusterStateBuilder().nodes(nodes).metaData(metaData).routingTable(routingTable).build();
 
         ShardsAllocation strategy = new ShardsAllocation();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(strategy.reroute(clusterState)).build();
+        clusterState = newClusterStateBuilder().state(clusterState).routingTable(strategy.reroute(clusterState).routingTable()).build();
 
         ClusterState serializedClusterState = ClusterState.Builder.fromBytes(ClusterState.Builder.toBytes(clusterState), ImmutableSettings.settingsBuilder().build(), newNode("node1"));
 
@@ -79,7 +79,7 @@ public class ClusterSerializationTests {
         ClusterState clusterState = newClusterStateBuilder().nodes(nodes).metaData(metaData).routingTable(routingTable).build();
 
         ShardsAllocation strategy = new ShardsAllocation();
-        RoutingTable source = strategy.reroute(clusterState);
+        RoutingTable source = strategy.reroute(clusterState).routingTable();
 
         BytesStreamOutput outStream = new BytesStreamOutput();
         RoutingTable.Builder.writeTo(source, outStream);

@@ -78,7 +78,7 @@ public class SingleShardNoReplicasRoutingTests {
         logger.info("Adding one node and performing rerouting");
         clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().put(newNode("node1"))).build();
         RoutingTable prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState);
+        routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         assertThat(routingTable.index("test").shards().size(), equalTo(1));
@@ -90,14 +90,14 @@ public class SingleShardNoReplicasRoutingTests {
         logger.info("Rerouting again, nothing should change");
         prevRoutingTable = routingTable;
         clusterState = newClusterStateBuilder().state(clusterState).build();
-        routingTable = strategy.reroute(clusterState);
+        routingTable = strategy.reroute(clusterState).routingTable();
         assertThat(routingTable == prevRoutingTable, equalTo(true));
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         logger.info("Marking the shard as started");
         RoutingNodes routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.node("node1").shardsWithState(INITIALIZING));
+        routingTable = strategy.applyStartedShards(clusterState, routingNodes.node("node1").shardsWithState(INITIALIZING)).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         assertThat(routingTable != prevRoutingTable, equalTo(true));
@@ -110,7 +110,7 @@ public class SingleShardNoReplicasRoutingTests {
         logger.info("Starting another node and making sure nothing changed");
         clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes()).put(newNode("node2"))).build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState);
+        routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         assertThat(routingTable == prevRoutingTable, equalTo(true));
@@ -124,7 +124,7 @@ public class SingleShardNoReplicasRoutingTests {
 
         clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes()).remove("node1")).build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState);
+        routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         assertThat(routingTable != prevRoutingTable, equalTo(true));
@@ -137,14 +137,14 @@ public class SingleShardNoReplicasRoutingTests {
         logger.info("Start another node, make sure that things remain the same (shard is in node2 and initializing)");
         clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().putAll(clusterState.nodes()).put(newNode("node3"))).build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState);
+        routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
         assertThat(routingTable == prevRoutingTable, equalTo(true));
 
         logger.info("Start the shard on node 2");
         routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.node("node2").shardsWithState(INITIALIZING));
+        routingTable = strategy.applyStartedShards(clusterState, routingNodes.node("node2").shardsWithState(INITIALIZING)).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         assertThat(routingTable != prevRoutingTable, equalTo(true));
@@ -179,7 +179,7 @@ public class SingleShardNoReplicasRoutingTests {
         logger.info("Adding one node and rerouting");
         clusterState = newClusterStateBuilder().state(clusterState).nodes(newNodesBuilder().put(newNode("node1"))).build();
         RoutingTable prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState);
+        routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
@@ -193,7 +193,7 @@ public class SingleShardNoReplicasRoutingTests {
         logger.info("Marking the shard as failed");
         RoutingNodes routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyFailedShards(clusterState, routingNodes.node("node1").shardsWithState(INITIALIZING));
+        routingTable = strategy.applyFailedShards(clusterState, routingNodes.node("node1").shardsWithState(INITIALIZING)).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
@@ -240,7 +240,7 @@ public class SingleShardNoReplicasRoutingTests {
         }
         RoutingTable prevRoutingTable = routingTable;
         clusterState = newClusterStateBuilder().state(clusterState).nodes(nodesBuilder).build();
-        routingTable = strategy.reroute(clusterState);
+        routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
@@ -278,14 +278,14 @@ public class SingleShardNoReplicasRoutingTests {
         }
         prevRoutingTable = routingTable;
         clusterState = newClusterStateBuilder().state(clusterState).nodes(nodesBuilder).build();
-        routingTable = strategy.reroute(clusterState);
+        routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable != routingTable, equalTo(false));
 
         logger.info("Marking the shard as started");
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
@@ -339,7 +339,7 @@ public class SingleShardNoReplicasRoutingTests {
                 .nodes(newNodesBuilder().put(newNode("node1")).put(newNode("node2")).put(newNode("node3")))
                 .build();
         RoutingTable prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState);
+        routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
@@ -362,13 +362,13 @@ public class SingleShardNoReplicasRoutingTests {
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState);
+        routingTable = strategy.reroute(clusterState).routingTable();
 
         assertThat(prevRoutingTable == routingTable, equalTo(true));
 
         routingNodes = clusterState.routingNodes();
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
@@ -384,7 +384,7 @@ public class SingleShardNoReplicasRoutingTests {
 
         logger.info("Now, mark the relocated as started");
         prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
 //        routingTable = strategy.reroute(new RoutingStrategyInfo(metaData, routingTable), nodes);
 

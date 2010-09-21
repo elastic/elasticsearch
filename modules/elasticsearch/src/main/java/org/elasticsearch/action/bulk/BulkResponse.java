@@ -57,6 +57,20 @@ public class BulkResponse implements ActionResponse, Iterable<BulkItemResponse> 
         return false;
     }
 
+    public String buildFailureMessage() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("failure in bulk execution:");
+        for (int i = 0; i < responses.length; i++) {
+            BulkItemResponse response = responses[i];
+            if (response.failed()) {
+                sb.append("\n[").append(i)
+                        .append("]: index [").append(response.index()).append("], type [").append(response.type()).append("], id [").append(response.id())
+                        .append("], message [").append(response.failureMessage()).append("]");
+            }
+        }
+        return sb.toString();
+    }
+
     /**
      * The items representing each action performed in the bulk operation (in the same order!).
      */

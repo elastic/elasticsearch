@@ -26,6 +26,9 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -64,6 +67,82 @@ public class BulkRequest implements ActionRequest {
     public BulkRequest add(DeleteRequest request) {
         requests.add(request);
         return this;
+    }
+
+    /**
+     * Adds a framed data in binary format
+     */
+    public BulkRequest add(byte[] data, int from, int length, boolean contentUnsafe) throws Exception {
+        XContent xContent = XContentFactory.xContent(data, from, length);
+        byte marker = xContent.streamSeparator();
+        while (true) {
+            int nextMarker = findNextMarker(marker, from, data, length);
+            if (nextMarker == -1) {
+                break;
+            }
+            // now parse the action
+            XContentParser parser = xContent.createParser(data, from, nextMarker - from);
+
+            // move pointers
+            from = nextMarker + 1;
+
+            // Move to START_OBJECT
+            XContentParser.Token token = parser.nextToken();
+            if (token == null) {
+                continue;
+            }
+            assert token == XContentParser.Token.START_OBJECT;
+            // Move to FIELD_NAME, that's the action
+            token = parser.nextToken();
+            assert token == XContentParser.Token.FIELD_NAME;
+            String action = parser.currentName();
+            // Move to START_OBJECT
+            token = parser.nextToken();
+            assert token == XContentParser.Token.START_OBJECT;
+
+            String index = null;
+            String type = null;
+            String id = null;
+
+            String currentFieldName = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token.isValue()) {
+                    if ("index".equals(currentFieldName)) {
+                        index = parser.text();
+                    } else if ("type".equals(currentFieldName)) {
+                        type = parser.text();
+                    } else if ("id".equals(currentFieldName)) {
+                        id = parser.text();
+                    }
+                }
+            }
+
+            if ("delete".equals(action)) {
+                add(new DeleteRequest(index, type, id));
+            } else {
+                nextMarker = findNextMarker(marker, from, data, length);
+                if (nextMarker == -1) {
+                    break;
+                }
+                add(new IndexRequest(index, type, id)
+                        .create("create".equals(action))
+                        .source(data, from, nextMarker - from, contentUnsafe));
+                // move pointers
+                from = nextMarker + 1;
+            }
+        }
+        return this;
+    }
+
+    private int findNextMarker(byte marker, int from, byte[] data, int length) {
+        for (int i = from; i < length; i++) {
+            if (data[i] == marker) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     public int numberOfActions() {

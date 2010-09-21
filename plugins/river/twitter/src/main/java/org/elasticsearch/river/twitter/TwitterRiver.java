@@ -70,7 +70,7 @@ public class TwitterRiver extends AbstractRiverComponent implements River {
         String user = XContentMapValues.nodeStringValue(settings.settings().get("user"), null);
         String password = XContentMapValues.nodeStringValue(settings.settings().get("password"), null);
 
-        logger.info("creating twitter stream indexer for [{}]", user);
+        logger.info("creating twitter stream river for [{}]", user);
 
         this.bulkSize = XContentMapValues.nodeIntegerValue(settings.settings().get("bulk_size"), 100);
         this.dropThreshold = XContentMapValues.nodeIntegerValue(settings.settings().get("drop_threshold"), 10);
@@ -79,7 +79,7 @@ public class TwitterRiver extends AbstractRiverComponent implements River {
             stream = null;
             indexName = null;
             typeName = null;
-            logger.warn("no user / password specified, disabling indexer...");
+            logger.warn("no user / password specified, disabling river...");
             return;
         }
 
@@ -106,7 +106,7 @@ public class TwitterRiver extends AbstractRiverComponent implements River {
                 // ok, not recovered yet..., lets start indexing and hope we recover by the first bulk
                 // TODO: a smarter logic can be to register for cluster event listener here, and only start sampling when the block is removed...
             } else {
-                logger.warn("failed to create index [{}], disabling indexer...", e, indexName);
+                logger.warn("failed to create index [{}], disabling river...", e, indexName);
                 return;
             }
         }
@@ -115,7 +115,7 @@ public class TwitterRiver extends AbstractRiverComponent implements River {
     }
 
     @Override public void close() {
-        logger.info("closing twitter stream indexer");
+        logger.info("closing twitter stream river");
         if (stream != null) {
             stream.cleanup();
             stream.shutdown();

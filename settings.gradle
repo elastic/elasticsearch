@@ -13,9 +13,12 @@ include 'plugins-hadoop'
 include 'plugins-analysis-icu'
 include 'plugins-mapper-attachments'
 include 'plugins-client-groovy'
+
 include 'plugins-transport-memcached'
 include 'plugins-transport-thrift'
+
 include 'plugins-river-twitter'
+include 'plugins-river-rabbitmq'
 
 rootProject.name = 'elasticsearch-root'
 rootProject.children.each {project ->

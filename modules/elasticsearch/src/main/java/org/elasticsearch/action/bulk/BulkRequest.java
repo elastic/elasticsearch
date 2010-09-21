@@ -103,6 +103,7 @@ public class BulkRequest implements ActionRequest {
             String index = null;
             String type = null;
             String id = null;
+            String opType = null;
 
             String currentFieldName = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -115,6 +116,8 @@ public class BulkRequest implements ActionRequest {
                         type = parser.text();
                     } else if ("id".equals(currentFieldName)) {
                         id = parser.text();
+                    } else if ("op_type".equals(currentFieldName) || "opType".equals(currentFieldName)) {
+                        opType = parser.text();
                     }
                 }
             }
@@ -126,9 +129,20 @@ public class BulkRequest implements ActionRequest {
                 if (nextMarker == -1) {
                     break;
                 }
-                add(new IndexRequest(index, type, id)
-                        .create("create".equals(action))
-                        .source(data, from, nextMarker - from, contentUnsafe));
+                if ("index".equals(action)) {
+                    if (opType == null) {
+                        add(new IndexRequest(index, type, id)
+                                .source(data, from, nextMarker - from, contentUnsafe));
+                    } else {
+                        add(new IndexRequest(index, type, id)
+                                .create("create".equals(opType))
+                                .source(data, from, nextMarker - from, contentUnsafe));
+                    }
+                } else if ("create".equals(action)) {
+                    add(new IndexRequest(index, type, id)
+                            .create(true)
+                            .source(data, from, nextMarker - from, contentUnsafe));
+                }
                 // move pointers
                 from = nextMarker + 1;
             }

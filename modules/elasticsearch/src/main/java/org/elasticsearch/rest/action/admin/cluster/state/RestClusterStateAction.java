@@ -229,7 +229,7 @@ public class RestClusterStateAction extends BaseRestHandler {
                             builder.endArray();
                             builder.endObject();
                         }
-                        builder.endObject();
+                        builder.endArray();
                     }
 
 
@@ -252,6 +252,9 @@ public class RestClusterStateAction extends BaseRestHandler {
             }
 
             @Override public void onFailure(Throwable e) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("failed to handle cluster state", e);
+                }
                 try {
                     channel.sendResponse(new XContentThrowableRestResponse(request, e));
                 } catch (IOException e1) {

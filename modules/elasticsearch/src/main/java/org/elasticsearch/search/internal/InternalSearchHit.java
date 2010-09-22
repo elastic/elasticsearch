@@ -27,7 +27,6 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.compress.lzf.LZFDecoder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.trove.TIntObjectHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -92,6 +91,10 @@ public class InternalSearchHit implements SearchHit {
 
     public int docId() {
         return this.docId;
+    }
+
+    public void shardTarget(SearchShardTarget shardTarget) {
+        this.shard = shardTarget;
     }
 
     public void score(float score) {
@@ -349,23 +352,17 @@ public class InternalSearchHit implements SearchHit {
         builder.endObject();
     }
 
-    public static InternalSearchHit readSearchHit(StreamInput in) throws IOException {
+    public static InternalSearchHit readSearchHit(StreamInput in, InternalSearchHits.StreamContext context) throws IOException {
         InternalSearchHit hit = new InternalSearchHit();
-        hit.readFrom(in);
-        return hit;
-    }
-
-    public static InternalSearchHit readSearchHit(StreamInput in, @Nullable TIntObjectHashMap<SearchShardTarget> shardLookupMap) throws IOException {
-        InternalSearchHit hit = new InternalSearchHit();
-        hit.readFrom(in, shardLookupMap);
+        hit.readFrom(in, context);
         return hit;
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
-        readFrom(in, null);
+        readFrom(in, InternalSearchHits.streamContext().streamShardTarget(InternalSearchHits.StreamContext.ShardTargetType.STREAM));
     }
 
-    public void readFrom(StreamInput in, @Nullable TIntObjectHashMap<SearchShardTarget> shardLookupMap) throws IOException {
+    public void readFrom(StreamInput in, InternalSearchHits.StreamContext context) throws IOException {
         score = in.readFloat();
         id = in.readUTF();
         type = in.readUTF();
@@ -477,23 +474,23 @@ public class InternalSearchHit implements SearchHit {
             }
         }
 
-        if (shardLookupMap != null) {
-            int lookupId = in.readVInt();
-            if (lookupId > 0) {
-                shard = shardLookupMap.get(lookupId);
-            }
-        } else {
+        if (context.streamShardTarget() == InternalSearchHits.StreamContext.ShardTargetType.STREAM) {
             if (in.readBoolean()) {
                 shard = readSearchShardTarget(in);
+            }
+        } else if (context.streamShardTarget() == InternalSearchHits.StreamContext.ShardTargetType.LOOKUP) {
+            int lookupId = in.readVInt();
+            if (lookupId > 0) {
+                shard = context.handleShardLookup().get(lookupId);
             }
         }
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
-        writeTo(out, null);
+        writeTo(out, InternalSearchHits.streamContext().streamShardTarget(InternalSearchHits.StreamContext.ShardTargetType.STREAM));
     }
 
-    public void writeTo(StreamOutput out, @Nullable Map<SearchShardTarget, Integer> shardLookupMap) throws IOException {
+    public void writeTo(StreamOutput out, InternalSearchHits.StreamContext context) throws IOException {
         out.writeFloat(score);
         out.writeUTF(id);
         out.writeUTF(type);
@@ -569,18 +566,18 @@ public class InternalSearchHit implements SearchHit {
             }
         }
 
-        if (shardLookupMap == null) {
+        if (context.streamShardTarget() == InternalSearchHits.StreamContext.ShardTargetType.STREAM) {
             if (shard == null) {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
                 shard.writeTo(out);
             }
-        } else {
+        } else if (context.streamShardTarget() == InternalSearchHits.StreamContext.ShardTargetType.LOOKUP) {
             if (shard == null) {
                 out.writeVInt(0);
             } else {
-                out.writeVInt(shardLookupMap.get(shard));
+                out.writeVInt(context.shardHandleLookup().get(shard));
             }
         }
     }

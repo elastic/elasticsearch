@@ -30,7 +30,7 @@ import java.io.IOException;
 import static org.elasticsearch.search.internal.InternalSearchHits.*;
 
 /**
- * @author kimchy (Shay Banon)
+ * @author kimchy (shay.banon)
  */
 public class FetchSearchResult implements Streamable, FetchSearchResultProvider {
 
@@ -93,13 +93,11 @@ public class FetchSearchResult implements Streamable, FetchSearchResultProvider 
 
     @Override public void readFrom(StreamInput in) throws IOException {
         id = in.readLong();
-//        shardTarget = readSearchShardTarget(in);
-        hits = readSearchHits(in);
+        hits = InternalSearchHits.readSearchHits(in, InternalSearchHits.streamContext().streamShardTarget(StreamContext.ShardTargetType.NO_STREAM));
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(id);
-//        shardTarget.writeTo(out);
-        hits.writeTo(out);
+        hits.writeTo(out, InternalSearchHits.streamContext().streamShardTarget(StreamContext.ShardTargetType.NO_STREAM));
     }
 }

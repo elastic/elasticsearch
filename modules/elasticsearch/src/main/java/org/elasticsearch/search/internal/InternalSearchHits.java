@@ -22,6 +22,7 @@ package org.elasticsearch.search.internal;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.thread.ThreadLocals;
 import org.elasticsearch.common.trove.TIntObjectHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHit;
@@ -41,6 +42,54 @@ import static org.elasticsearch.search.internal.InternalSearchHit.*;
  */
 public class InternalSearchHits implements SearchHits {
 
+    public static class StreamContext {
+
+        public static enum ShardTargetType {
+            STREAM,
+            LOOKUP,
+            NO_STREAM
+        }
+
+        private IdentityHashMap<SearchShardTarget, Integer> shardHandleLookup = new IdentityHashMap<SearchShardTarget, Integer>();
+        private TIntObjectHashMap<SearchShardTarget> handleShardLookup = new TIntObjectHashMap<SearchShardTarget>();
+        private ShardTargetType streamShardTarget = ShardTargetType.STREAM;
+
+        public StreamContext reset() {
+            shardHandleLookup.clear();
+            handleShardLookup.clear();
+            streamShardTarget = ShardTargetType.STREAM;
+            return this;
+        }
+
+        public IdentityHashMap<SearchShardTarget, Integer> shardHandleLookup() {
+            return shardHandleLookup;
+        }
+
+        public TIntObjectHashMap<SearchShardTarget> handleShardLookup() {
+            return handleShardLookup;
+        }
+
+        public ShardTargetType streamShardTarget() {
+            return streamShardTarget;
+        }
+
+        public StreamContext streamShardTarget(ShardTargetType streamShardTarget) {
+            this.streamShardTarget = streamShardTarget;
+            return this;
+        }
+    }
+
+    private static final ThreadLocal<ThreadLocals.CleanableValue<StreamContext>> cache = new ThreadLocal<ThreadLocals.CleanableValue<StreamContext>>() {
+        @Override protected ThreadLocals.CleanableValue<StreamContext> initialValue() {
+            return new ThreadLocals.CleanableValue<StreamContext>(new StreamContext());
+        }
+    };
+
+    public static StreamContext streamContext() {
+        return cache.get().get().reset();
+    }
+
+
     private static final InternalSearchHit[] EMPTY = new InternalSearchHit[0];
 
     private InternalSearchHit[] hits;
@@ -57,6 +106,12 @@ public class InternalSearchHits implements SearchHits {
         this.hits = hits;
         this.totalHits = totalHits;
         this.maxScore = maxScore;
+    }
+
+    public void shardTarget(SearchShardTarget shardTarget) {
+        for (InternalSearchHit hit : hits) {
+            hit.shardTarget(shardTarget);
+        }
     }
 
     public long totalHits() {
@@ -112,6 +167,12 @@ public class InternalSearchHits implements SearchHits {
         builder.endObject();
     }
 
+    public static InternalSearchHits readSearchHits(StreamInput in, StreamContext context) throws IOException {
+        InternalSearchHits hits = new InternalSearchHits();
+        hits.readFrom(in, context);
+        return hits;
+    }
+
     public static InternalSearchHits readSearchHits(StreamInput in) throws IOException {
         InternalSearchHits hits = new InternalSearchHits();
         hits.readFrom(in);
@@ -119,57 +180,62 @@ public class InternalSearchHits implements SearchHits {
     }
 
     @Override public void readFrom(StreamInput in) throws IOException {
+        readFrom(in, streamContext().streamShardTarget(StreamContext.ShardTargetType.LOOKUP));
+    }
+
+    public void readFrom(StreamInput in, StreamContext context) throws IOException {
         totalHits = in.readVLong();
         maxScore = in.readFloat();
         int size = in.readVInt();
         if (size == 0) {
             hits = EMPTY;
         } else {
-            // read the lookup table first
-            int lookupSize = in.readVInt();
-            TIntObjectHashMap<SearchShardTarget> shardLookupMap = null;
-            if (lookupSize > 0) {
-                shardLookupMap = new TIntObjectHashMap<SearchShardTarget>(lookupSize);
+            if (context.streamShardTarget() == StreamContext.ShardTargetType.LOOKUP) {
+                // read the lookup table first
+                int lookupSize = in.readVInt();
                 for (int i = 0; i < lookupSize; i++) {
-                    shardLookupMap.put(in.readVInt(), readSearchShardTarget(in));
+                    context.handleShardLookup().put(in.readVInt(), readSearchShardTarget(in));
                 }
             }
 
             hits = new InternalSearchHit[size];
             for (int i = 0; i < hits.length; i++) {
-                hits[i] = readSearchHit(in, shardLookupMap);
+                hits[i] = readSearchHit(in, context);
             }
         }
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
+        writeTo(out, streamContext().streamShardTarget(StreamContext.ShardTargetType.LOOKUP));
+    }
+
+    public void writeTo(StreamOutput out, StreamContext context) throws IOException {
         out.writeVLong(totalHits);
         out.writeFloat(maxScore);
         out.writeVInt(hits.length);
         if (hits.length > 0) {
-            // write the header search shard targets (we assume identity equality)
-            IdentityHashMap<SearchShardTarget, Integer> shardLookupMap = new IdentityHashMap<SearchShardTarget, Integer>();
-            // start from 1, 0 is for null!
-            int counter = 1;
-            // put an entry for null
-            for (InternalSearchHit hit : hits) {
-                if (hit.shard() != null) {
-                    Integer handle = shardLookupMap.get(hit.shard());
-                    if (handle == null) {
-                        shardLookupMap.put(hit.shard(), counter++);
+            if (context.streamShardTarget() == StreamContext.ShardTargetType.LOOKUP) {
+                // start from 1, 0 is for null!
+                int counter = 1;
+                for (InternalSearchHit hit : hits) {
+                    if (hit.shard() != null) {
+                        Integer handle = context.shardHandleLookup().get(hit.shard());
+                        if (handle == null) {
+                            context.shardHandleLookup().put(hit.shard(), counter++);
+                        }
                     }
                 }
-            }
-            out.writeVInt(shardLookupMap.size());
-            if (!shardLookupMap.isEmpty()) {
-                for (Map.Entry<SearchShardTarget, Integer> entry : shardLookupMap.entrySet()) {
-                    out.writeVInt(entry.getValue());
-                    entry.getKey().writeTo(out);
+                out.writeVInt(context.shardHandleLookup().size());
+                if (!context.shardHandleLookup().isEmpty()) {
+                    for (Map.Entry<SearchShardTarget, Integer> entry : context.shardHandleLookup().entrySet()) {
+                        out.writeVInt(entry.getValue());
+                        entry.getKey().writeTo(out);
+                    }
                 }
             }
 
             for (InternalSearchHit hit : hits) {
-                hit.writeTo(out, shardLookupMap.isEmpty() ? null : shardLookupMap);
+                hit.writeTo(out, context);
             }
         }
     }

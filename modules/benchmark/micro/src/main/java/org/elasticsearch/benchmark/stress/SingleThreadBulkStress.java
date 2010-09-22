@@ -68,7 +68,7 @@ public class SingleThreadBulkStress {
 
         StopWatch stopWatch = new StopWatch().start();
         int COUNT = 200000;
-        int BATCH = 1000;
+        int BATCH = 100;
         System.out.println("Indexing [" + COUNT + "] ...");
         int ITERS = COUNT / BATCH;
         int i = 1;

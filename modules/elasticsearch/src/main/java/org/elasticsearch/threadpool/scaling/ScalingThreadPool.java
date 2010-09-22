@@ -22,13 +22,13 @@ package org.elasticsearch.threadpool.scaling;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.DynamicExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.TransferThreadPoolExecutor;
 import org.elasticsearch.threadpool.support.AbstractThreadPool;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.*;
 import static org.elasticsearch.common.unit.TimeValue.*;
@@ -56,7 +56,8 @@ public class ScalingThreadPool extends AbstractThreadPool {
         this.scheduledSize = componentSettings.getAsInt("scheduled_size", 20);
         logger.debug("Initializing {} thread pool with min[{}], max[{}], keep_alive[{}], scheduled_size[{}]", getType(), min, max, keepAlive, scheduledSize);
         scheduledExecutorService = Executors.newScheduledThreadPool(scheduledSize, EsExecutors.daemonThreadFactory(settings, "[sc]"));
-        executorService = TransferThreadPoolExecutor.newScalingExecutor(min, max, keepAlive.nanos(), TimeUnit.NANOSECONDS, EsExecutors.daemonThreadFactory(settings, "[tp]"));
+//        executorService = TransferThreadPoolExecutor.newScalingExecutor(min, max, keepAlive.nanos(), TimeUnit.NANOSECONDS, EsExecutors.daemonThreadFactory(settings, "[tp]"));
+        executorService = DynamicExecutors.newScalingThreadPool(min, max, keepAlive.millis(), EsExecutors.daemonThreadFactory(settings, "[tp]"));
         cached = EsExecutors.newCachedThreadPool(keepAlive, EsExecutors.daemonThreadFactory(settings, "[cached]"));
         started = true;
     }

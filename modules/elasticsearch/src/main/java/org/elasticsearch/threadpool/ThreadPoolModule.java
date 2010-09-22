@@ -25,7 +25,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.Modules;
 import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.cached.CachedThreadPoolModule;
+import org.elasticsearch.threadpool.scaling.ScalingThreadPoolModule;
 
 /**
  * @author kimchy (shay.banon)
@@ -39,7 +39,7 @@ public class ThreadPoolModule extends AbstractModule implements SpawnModules {
     }
 
     @Override public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(Modules.createModule(settings.getAsClass("threadpool.type", CachedThreadPoolModule.class, "org.elasticsearch.threadpool.", "ThreadPoolModule"), settings));
+        return ImmutableList.of(Modules.createModule(settings.getAsClass("threadpool.type", ScalingThreadPoolModule.class, "org.elasticsearch.threadpool.", "ThreadPoolModule"), settings));
     }
 
     @Override protected void configure() {

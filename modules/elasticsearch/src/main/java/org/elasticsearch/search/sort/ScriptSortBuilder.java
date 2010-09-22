@@ -26,6 +26,8 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
+ * Script sort builder allows to sort based on a custom script expression.
+ *
  * @author kimchy (shay.banon)
  */
 public class ScriptSortBuilder extends SortBuilder {
@@ -38,11 +40,23 @@ public class ScriptSortBuilder extends SortBuilder {
 
     private Map<String, Object> params;
 
+    /**
+     * Constructs a script sort builder with the script and the type.
+     *
+     * @param script The script to use.
+     * @param type   The type, can either be "string" or "number".
+     */
     public ScriptSortBuilder(String script, String type) {
         this.script = script;
         this.type = type;
     }
 
+    /**
+     * Adds a parameter to the script.
+     *
+     * @param name  The name of the parameter.
+     * @param value The value of the parameter.
+     */
     public ScriptSortBuilder param(String name, Object value) {
         if (params == null) {
             params = Maps.newHashMap();
@@ -51,6 +65,9 @@ public class ScriptSortBuilder extends SortBuilder {
         return this;
     }
 
+    /**
+     * Sets the sort order.
+     */
     public ScriptSortBuilder order(SortOrder order) {
         this.order = order;
         return this;

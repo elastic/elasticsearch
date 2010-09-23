@@ -9,6 +9,7 @@
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-client-groovy.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-client-groovy.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-cloud-aws.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-cloud-aws.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-mapper-attachments.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-mapper-attachments.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-river-couchdb.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-river-couchdb.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-river-rabbitmq.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-river-rabbitmq.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/plugin-river-twitter.iml" filepath="$PROJECT_DIR$/.idea/modules/plugin-river-twitter.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules//plugin-transport-memcached.iml" filepath="$PROJECT_DIR$/.idea/modules//plugin-transport-memcached.iml" />

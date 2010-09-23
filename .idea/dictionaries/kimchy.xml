@@ -32,6 +32,7 @@
       <w>conf</w>
       <w>configurator</w>
       <w>coord</w>
+      <w>couchdb</w>
       <w>cpus</w>
       <w>cstr</w>
       <w>datagram</w>
@@ -117,6 +118,7 @@
       <w>segs</w>
       <w>serializers</w>
       <w>sigar</w>
+      <w>slurper</w>
       <w>snapshotting</w>
       <w>solaris</w>
       <w>startup</w>

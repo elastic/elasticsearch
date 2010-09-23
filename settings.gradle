@@ -19,6 +19,7 @@ include 'plugins-transport-thrift'
 
 include 'plugins-river-twitter'
 include 'plugins-river-rabbitmq'
+include 'plugins-river-couchdb'
 
 rootProject.name = 'elasticsearch-root'
 rootProject.children.each {project ->

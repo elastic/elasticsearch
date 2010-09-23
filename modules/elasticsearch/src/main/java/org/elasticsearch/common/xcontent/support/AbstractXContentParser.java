@@ -102,4 +102,12 @@ public abstract class AbstractXContentParser implements XContentParser {
     @Override public Map<String, Object> map() throws IOException {
         return XContentMapConverter.readMap(this);
     }
+
+    @Override public Map<String, Object> mapAndClose() throws IOException {
+        try {
+            return map();
+        } finally {
+            close();
+        }
+    }
 }

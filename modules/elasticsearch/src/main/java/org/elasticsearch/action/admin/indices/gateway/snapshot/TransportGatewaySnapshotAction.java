@@ -107,7 +107,7 @@ public class TransportGatewaySnapshotAction extends TransportBroadcastOperationA
     }
 
     /**
-     * The refresh request works against *all* shards.
+     * The snapshot request works against all primary shards.
      */
     @Override protected GroupShardsIterator shards(GatewaySnapshotRequest request, ClusterState clusterState) {
         return clusterState.routingTable().primaryShardsGrouped(request.indices());

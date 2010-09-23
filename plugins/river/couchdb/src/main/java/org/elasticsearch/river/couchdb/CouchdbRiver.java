@@ -208,7 +208,8 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
 
                 if (lastSeq != null) {
                     try {
-                        bulk.add(indexRequest(riverIndexName).type(riverName.name()).id("_seq").source(jsonBuilder().startObject().field("last_seq", lastSeq).endObject()));
+                        bulk.add(indexRequest(riverIndexName).type(riverName.name()).id("_seq")
+                                .source(jsonBuilder().startObject().startObject("couchdb").field("last_seq", lastSeq).endObject().endObject()));
                     } catch (IOException e) {
                         logger.warn("failed to add last_seq entry to bulk indexing");
                     }
@@ -241,7 +242,10 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                     client.admin().indices().prepareRefresh(riverIndexName).execute().actionGet();
                     GetResponse lastSeqGetResponse = client.prepareGet(riverIndexName, riverName().name(), "_seq").execute().actionGet();
                     if (lastSeqGetResponse.exists()) {
-                        lastSeq = lastSeqGetResponse.sourceAsMap().get("last_seq").toString();
+                        Map<String, Object> couchdbState = (Map<String, Object>) lastSeqGetResponse.sourceAsMap().get("couchdb");
+                        if (couchdbState != null) {
+                            lastSeq = couchdbState.get("last_seq").toString();
+                        }
                     }
                 } catch (Exception e) {
                     logger.warn("failed to get last_seq, throttling....", e);

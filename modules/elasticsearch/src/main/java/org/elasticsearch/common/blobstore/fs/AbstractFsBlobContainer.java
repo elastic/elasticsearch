@@ -51,6 +51,7 @@ public abstract class AbstractFsBlobContainer extends AbstractBlobContainer {
         if (files == null || files.length == 0) {
             return ImmutableMap.of();
         }
+        // using MapBuilder and not ImmutableMap.Builder as it seems like File#listFiles might return duplicate files!
         MapBuilder<String, BlobMetaData> builder = MapBuilder.newMapBuilder();
         for (File file : files) {
             if (file.isFile()) {
